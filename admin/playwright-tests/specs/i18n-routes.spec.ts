@@ -8,7 +8,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/storage-provider',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('File Upload Provider Settings', { exact: true })
+        page.getByText('File Upload Provider Settings', { exact: true }),
       ).toBeVisible();
     },
   },
@@ -17,7 +17,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/cos-test',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Tencent COS Test', { exact: true })
+        page.getByText('Tencent COS Test', { exact: true }),
       ).toBeVisible();
     },
   },
@@ -26,7 +26,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/file-upload-audit',
     assertion: async (page: Page) => {
       await expect(
-        page.getByRole('button', { name: 'Search', exact: true })
+        page.getByRole('button', { name: 'Search', exact: true }),
       ).toBeVisible();
     },
   },
@@ -35,7 +35,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/system-log',
     assertion: async (page: Page) => {
       await expect(
-        page.getByRole('button', { name: 'Clear Logs', exact: true })
+        page.getByRole('button', { name: 'Clear Logs', exact: true }),
       ).toBeVisible();
     },
   },
@@ -44,7 +44,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/push-log',
     assertion: async (page: Page) => {
       await expect(
-        page.getByRole('button', { name: 'Clear Logs', exact: true })
+        page.getByRole('button', { name: 'Clear Logs', exact: true }),
       ).toBeVisible();
     },
   },
@@ -53,7 +53,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/api-metrics',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Auto Refresh (5s)', { exact: true })
+        page.getByText('Auto Refresh (5s)', { exact: true }),
       ).toBeVisible();
     },
   },
@@ -64,7 +64,7 @@ const ENGLISH_ROUTE_CASES = [
       await expect(
         page.getByText('Dangerous Operation - Development Environment Only', {
           exact: true,
-        })
+        }),
       ).toBeVisible();
     },
   },
@@ -73,7 +73,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/system-log',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('IM Admin Console', { exact: true }).first()
+        page.getByText('IM Admin Console', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -84,7 +84,7 @@ const ENGLISH_ROUTE_CASES = [
       await expect(
         page.locator('.logo-text').getByText('IM Admin Console', {
           exact: true,
-        })
+        }),
       ).toBeVisible();
     },
   },
@@ -100,7 +100,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/user-management/feedback',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('User Feedback', { exact: true }).first()
+        page.getByText('User Feedback', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -109,7 +109,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/user-management/reports',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Reporter ID', { exact: true }).first()
+        page.getByText('Reporter ID', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -124,16 +124,18 @@ const ENGLISH_ROUTE_CASES = [
     id: 'user-management-room-history',
     path: '/user-management/chat-history/room/room-e2e',
     assertion: async (page: Page) => {
-      await expect(page.getByText('Room Chat History:', { exact: false }))
-        .toBeVisible();
+      await expect(
+        page.getByText('Room Chat History:', { exact: false }),
+      ).toBeVisible();
     },
   },
   {
     id: 'user-management-user-history',
     path: '/user-management/chat-history/user/user-e2e',
     assertion: async (page: Page) => {
-      await expect(page.getByText('User Rooms', { exact: true }).first())
-        .toBeVisible();
+      await expect(
+        page.getByText('User Rooms', { exact: true }).first(),
+      ).toBeVisible();
     },
   },
   {
@@ -141,7 +143,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/captcha',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Captcha Settings', { exact: true }).first()
+        page.getByText('Captcha Settings', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -150,7 +152,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/privacy-policy',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Privacy Policy', { exact: true }).first()
+        page.getByText('Privacy Policy', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -159,7 +161,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/user-agreement',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('User Agreement', { exact: true }).first()
+        page.getByText('User Agreement', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -168,10 +170,10 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/general',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('General Settings', { exact: true }).first()
+        page.getByText('General Settings', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('App Name', { exact: true }).first()
+        page.getByText('App Name', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -181,10 +183,10 @@ const ENGLISH_ROUTE_CASES = [
     assertion: async (page: Page) => {
       await page.getByText('API Test', { exact: true }).click();
       await expect(
-        page.getByText('IP Address', { exact: true }).first()
+        page.getByText('IP Address', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Test API', exact: true })
+        page.getByRole('button', { name: 'Test API', exact: true }),
       ).toBeVisible();
     },
   },
@@ -193,10 +195,22 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/push',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Push Notifications', { exact: true }).first()
+        page.getByText('Push Notifications', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('Global Settings', { exact: true }).first()
+        page.getByText('Global Settings', { exact: true }).first(),
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'settings-emoji-pack',
+    path: '/settings/emoji-pack',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Emoji Pack Settings', { exact: true }).first(),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Add Pack', exact: true }),
       ).toBeVisible();
     },
   },
@@ -205,10 +219,10 @@ const ENGLISH_ROUTE_CASES = [
     path: '/settings/user-profile',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Profile Settings', { exact: true }).first()
+        page.getByText('Profile Settings', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('Basic Information', { exact: true }).first()
+        page.getByText('Basic Information', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -217,10 +231,12 @@ const ENGLISH_ROUTE_CASES = [
     path: '/versions/frontend',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('App Client Version Management', { exact: true }).first()
+        page
+          .getByText('App Client Version Management', { exact: true })
+          .first(),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Add Version', exact: true })
+        page.getByRole('button', { name: 'Add Version', exact: true }),
       ).toBeVisible();
     },
   },
@@ -231,10 +247,10 @@ const ENGLISH_ROUTE_CASES = [
       await expect(
         page
           .getByText('Desktop Client Version Management', { exact: true })
-          .first()
+          .first(),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Add Version', exact: true })
+        page.getByRole('button', { name: 'Add Version', exact: true }),
       ).toBeVisible();
     },
   },
@@ -243,10 +259,10 @@ const ENGLISH_ROUTE_CASES = [
     path: '/versions/hot-updates',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Hot Update Management', { exact: true }).first()
+        page.getByText('Hot Update Management', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Add Patch', exact: true })
+        page.getByRole('button', { name: 'Add Patch', exact: true }),
       ).toBeVisible();
     },
   },
@@ -255,10 +271,10 @@ const ENGLISH_ROUTE_CASES = [
     path: '/versions/hot-update-events',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Hot Update Events', { exact: true }).first()
+        page.getByText('Hot Update Events', { exact: true }).first(),
       ).toBeVisible();
       await expect(
-        page.getByText('Event Type', { exact: true }).first()
+        page.getByText('Event Type', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -267,7 +283,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/operations/ipinfo-token',
     assertion: async (page: Page) => {
       await expect(
-        page.getByRole('button', { name: 'Add Token', exact: true })
+        page.getByRole('button', { name: 'Add Token', exact: true }),
       ).toBeVisible();
     },
   },
@@ -276,7 +292,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/dashboard/workplace',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Total Users', { exact: true }).first()
+        page.getByText('Total Users', { exact: true }).first(),
       ).toBeVisible();
     },
   },
@@ -285,7 +301,7 @@ const ENGLISH_ROUTE_CASES = [
     path: '/dashboard/monitor',
     assertion: async (page: Page) => {
       await expect(
-        page.getByText('Cluster Node Monitor', { exact: true })
+        page.getByText('Cluster Node Monitor', { exact: true }),
       ).toBeVisible();
     },
   },
@@ -353,7 +369,7 @@ test.describe('admin route i18n surfaces', () => {
         page
           .locator('.arco-message-content')
           .filter({ hasText: errorCase.expectedMessage })
-          .first()
+          .first(),
       ).toBeVisible();
     });
   }

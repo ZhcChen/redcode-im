@@ -23,6 +23,7 @@ import localeSystemLog from '@/views/dashboard/system-log/locale/en-US';
 import localePushLog from '@/views/operations/push-log/locale/en-US';
 import localeApiMetrics from '@/views/operations/api-metrics/locale/en-US';
 import localeDataCleanup from '@/views/settings/data-cleanup/locale/en-US';
+import localeEmojiPack from '@/views/settings/emoji-pack/locale/en-US';
 import localeUserProfile from '@/views/settings/user-profile/locale/en-US';
 import localeVersionManagement from '@/views/version-management/locale/en-US';
 /** simple end */
@@ -99,6 +100,7 @@ export default {
   ...localePushLog,
   ...localeApiMetrics,
   ...localeDataCleanup,
+  ...localeEmojiPack,
   ...localeUserProfile,
   ...localeVersionManagement,
   /** simple end */

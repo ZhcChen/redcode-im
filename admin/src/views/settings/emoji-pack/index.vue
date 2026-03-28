@@ -1,12 +1,16 @@
 <template>
   <div class="emoji-pack-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.emojiPack']" />
-    <a-card class="general-card" title="贴纸设置" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('emojiPack.title')"
+      :bordered="false"
+    >
       <div class="actions">
         <a-space>
           <a-input-search
             v-model="searchKeyword"
-            placeholder="搜索贴纸名称或描述"
+            :placeholder="t('emojiPack.search.placeholder')"
             style="width: 300px"
             allow-clear
             @search="handleSearch"
@@ -20,13 +24,13 @@
             <template #icon>
               <icon-plus />
             </template>
-            新增贴纸
+            {{ t('emojiPack.action.createPack') }}
           </a-button>
           <a-button :loading="listLoading" @click="handleRefresh">
             <template #icon>
               <icon-refresh />
             </template>
-            刷新
+            {{ t('emojiPack.action.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -45,61 +49,64 @@
             :object-key="record.icon_object_key"
             :initial-url="record.icon_url"
             :provider-id="defaultStorageProvider?.id"
-            alt="贴纸图标"
+            :alt="t('emojiPack.imageAlt.packIcon')"
             class="pack-icon"
           >
             <template #fallback>
-              <span class="pack-icon-placeholder">无图标</span>
+              <span class="pack-icon-placeholder">
+                {{ t('emojiPack.empty.noIcon') }}
+              </span>
             </template>
           </CosImage>
         </template>
 
         <template #pack_type="{ record }">
-          <a-tag :color="record.pack_type === 1 ? 'blue' : 'gray'">
-            {{ record.pack_type === 1 ? '贴纸包' : '单个' }}
+          <a-tag
+            :color="record.pack_type === PACK_TYPE_SUITE ? 'blue' : 'gray'"
+          >
+            {{ getPackTypeLabel(record.pack_type) }}
           </a-tag>
         </template>
 
         <template #is_active="{ record }">
           <a-tag :color="record.is_active ? 'green' : 'gray'">
-            {{ record.is_active ? '启用' : '禁用' }}
+            {{ getStatusLabel(record.is_active) }}
           </a-tag>
         </template>
 
         <template #operations="{ record }">
           <a-space size="mini">
             <a-button
-              v-if="record.pack_type === 0"
+              v-if="record.pack_type === PACK_TYPE_SINGLE"
               type="text"
               size="small"
               @click="handleManageItems(record)"
             >
-              管理表情
+              {{ t('emojiPack.action.manageItems') }}
             </a-button>
             <a-button
-              v-if="record.pack_type === 1"
+              v-if="record.pack_type === PACK_TYPE_SUITE"
               type="text"
               size="small"
               @click="handleManageSuitePacks(record)"
             >
-              管理贴纸
+              {{ t('emojiPack.action.manageSuitePacks') }}
             </a-button>
             <a-button type="text" size="small" @click="handleEditPack(record)">
-              编辑
+              {{ t('emojiPack.action.edit') }}
             </a-button>
             <a-popconfirm
-              content="确定要删除这个贴纸吗？删除后所有表情项也会被删除。"
+              :content="t('emojiPack.confirm.deletePack')"
               @ok="handleDeletePack(record.id)"
             >
               <a-button type="text" size="small" status="danger">
-                删除
+                {{ t('emojiPack.action.delete') }}
               </a-button>
             </a-popconfirm>
           </a-space>
         </template>
       </a-table>
 
-      <!-- 贴纸创建/编辑对话框 -->
       <a-modal
         :visible="packModalVisible"
         :title="packModalTitle"
@@ -117,18 +124,27 @@
           :label-col-props="{ span: 6 }"
           :wrapper-col-props="{ span: 18 }"
         >
-          <a-form-item field="name" label="贴纸名称">
-            <a-input v-model="packFormData.name" placeholder="请输入贴纸名称" />
+          <a-form-item
+            field="name"
+            :label="t('emojiPack.form.pack.name.label')"
+          >
+            <a-input
+              v-model="packFormData.name"
+              :placeholder="t('emojiPack.form.pack.name.placeholder')"
+            />
           </a-form-item>
 
-          <a-form-item field="icon_url" label="图标">
+          <a-form-item
+            field="icon_url"
+            :label="t('emojiPack.form.pack.icon.label')"
+          >
             <div class="icon-upload-wrapper">
               <div v-if="packFormData.icon_url" class="icon-preview">
                 <CosImage
                   :object-key="packFormData.icon_object_key"
                   :initial-url="packFormData.icon_url"
                   :provider-id="defaultStorageProvider?.id"
-                  alt="图标预览"
+                  :alt="t('emojiPack.imageAlt.iconPreview')"
                   class="preview-image"
                 />
                 <a-button
@@ -140,7 +156,7 @@
                     packFormData.icon_object_key = '';
                   "
                 >
-                  删除
+                  {{ t('emojiPack.action.delete') }}
                 </a-button>
               </div>
               <div v-else class="icon-upload-area">
@@ -159,42 +175,54 @@
                   <template #icon>
                     <icon-upload />
                   </template>
-                  上传图标
+                  {{ t('emojiPack.action.uploadIcon') }}
                 </a-button>
-                <span class="upload-hint"
-                  >支持 JPG、PNG、WebP 等图片格式，建议尺寸 64x64</span
-                >
+                <span class="upload-hint">
+                  {{ t('emojiPack.form.pack.icon.uploadHint') }}
+                </span>
               </div>
             </div>
-            <template #help> 贴纸图标，用于在客户端显示贴纸标签 </template>
-          </a-form-item>
-
-          <a-form-item field="description" label="描述">
-            <a-textarea
-              v-model="packFormData.description"
-              placeholder="请输入贴纸描述（可选）"
-              :auto-size="{ minRows: 2, maxRows: 4 }"
-            />
-          </a-form-item>
-
-          <a-form-item field="pack_type" label="类型">
-            <a-radio-group v-model="packFormData.pack_type">
-              <a-radio :value="0">单个贴纸</a-radio>
-              <a-radio :value="1">贴纸包</a-radio>
-            </a-radio-group>
             <template #help>
-              贴纸包可以包含多个贴纸，用户添加贴纸包时会添加贴纸包下的所有贴纸
+              {{ t('emojiPack.form.pack.icon.help') }}
             </template>
           </a-form-item>
 
           <a-form-item
-            v-if="packFormData.pack_type === 0"
+            field="description"
+            :label="t('emojiPack.form.pack.description.label')"
+          >
+            <a-textarea
+              v-model="packFormData.description"
+              :placeholder="t('emojiPack.form.pack.description.placeholder')"
+              :auto-size="{ minRows: 2, maxRows: 4 }"
+            />
+          </a-form-item>
+
+          <a-form-item
+            field="pack_type"
+            :label="t('emojiPack.form.pack.type.label')"
+          >
+            <a-radio-group v-model="packFormData.pack_type">
+              <a-radio :value="PACK_TYPE_SINGLE">
+                {{ t('emojiPack.packType.single') }}
+              </a-radio>
+              <a-radio :value="PACK_TYPE_SUITE">
+                {{ t('emojiPack.packType.suite') }}
+              </a-radio>
+            </a-radio-group>
+            <template #help>
+              {{ t('emojiPack.form.pack.type.help') }}
+            </template>
+          </a-form-item>
+
+          <a-form-item
+            v-if="packFormData.pack_type === PACK_TYPE_SINGLE"
             field="parent_id"
-            label="所属贴纸包"
+            :label="t('emojiPack.form.pack.parent.label')"
           >
             <a-select
               v-model="packFormData.parent_id"
-              placeholder="选择所属贴纸包（可选）"
+              :placeholder="t('emojiPack.form.pack.parent.placeholder')"
               allow-clear
             >
               <a-option
@@ -205,20 +233,26 @@
                 {{ suite.name }}
               </a-option>
             </a-select>
-            <template #help> 如果选择贴纸包，此贴纸将归属于该贴纸包 </template>
+            <template #help>
+              {{ t('emojiPack.form.pack.parent.help') }}
+            </template>
           </a-form-item>
 
-          <a-form-item field="is_active" label="状态">
+          <a-form-item
+            field="is_active"
+            :label="t('emojiPack.form.pack.isActive.label')"
+          >
             <a-switch v-model="packFormData.is_active" />
-            <template #help> 启用后用户才能添加此贴纸 </template>
+            <template #help>
+              {{ t('emojiPack.form.pack.isActive.help') }}
+            </template>
           </a-form-item>
         </a-form>
       </a-modal>
 
-      <!-- 贴纸包贴纸管理对话框 -->
       <a-modal
         v-model:visible="suitePackModalVisible"
-        title="管理贴纸包贴纸"
+        :title="t('emojiPack.modal.manageSuitePacks')"
         :width="900"
         :footer="false"
         @cancel="handleSuitePackModalCancel"
@@ -230,7 +264,7 @@
               <template #icon>
                 <icon-plus />
               </template>
-              添加贴纸
+              {{ t('emojiPack.action.createSuitePack') }}
             </a-button>
           </div>
 
@@ -247,18 +281,20 @@
                 :object-key="record.icon_object_key"
                 :initial-url="record.icon_url"
                 :provider-id="defaultStorageProvider?.id"
-                alt="贴纸图标"
+                :alt="t('emojiPack.imageAlt.packIcon')"
                 class="pack-icon"
               >
                 <template #fallback>
-                  <span class="pack-icon-placeholder">无图标</span>
+                  <span class="pack-icon-placeholder">
+                    {{ t('emojiPack.empty.noIcon') }}
+                  </span>
                 </template>
               </CosImage>
             </template>
 
             <template #is_active="{ record }">
               <a-tag :color="record.is_active ? 'green' : 'gray'">
-                {{ record.is_active ? '启用' : '禁用' }}
+                {{ getStatusLabel(record.is_active) }}
               </a-tag>
             </template>
 
@@ -269,21 +305,21 @@
                   size="small"
                   @click="handleManageItems(record)"
                 >
-                  管理表情
+                  {{ t('emojiPack.action.manageItems') }}
                 </a-button>
                 <a-button
                   type="text"
                   size="small"
                   @click="handleEditPack(record)"
                 >
-                  编辑
+                  {{ t('emojiPack.action.edit') }}
                 </a-button>
                 <a-popconfirm
-                  content="确定要从贴纸包中移除这个贴纸吗？"
+                  :content="t('emojiPack.confirm.removeFromSuite')"
                   @ok="handleRemoveFromSuite(record.id)"
                 >
                   <a-button type="text" size="small" status="danger">
-                    移除
+                    {{ t('emojiPack.action.remove') }}
                   </a-button>
                 </a-popconfirm>
               </a-space>
@@ -292,10 +328,9 @@
         </div>
       </a-modal>
 
-      <!-- 表情项管理对话框 -->
       <a-modal
         v-model:visible="itemModalVisible"
-        title="管理表情项"
+        :title="t('emojiPack.modal.manageItems')"
         :width="900"
         :footer="false"
         @cancel="handleItemModalCancel"
@@ -307,7 +342,7 @@
               <template #icon>
                 <icon-plus />
               </template>
-              新增表情
+              {{ t('emojiPack.action.createItem') }}
             </a-button>
           </div>
 
@@ -324,7 +359,7 @@
                 :object-key="record.image_object_key"
                 :initial-url="record.image_url"
                 :provider-id="defaultStorageProvider?.id"
-                alt="表情"
+                :alt="t('emojiPack.imageAlt.itemImage')"
                 class="emoji-image"
               />
             </template>
@@ -336,14 +371,14 @@
                   size="small"
                   @click="handleEditItem(record)"
                 >
-                  编辑
+                  {{ t('emojiPack.action.edit') }}
                 </a-button>
                 <a-popconfirm
-                  content="确定要删除这个表情吗？"
+                  :content="t('emojiPack.confirm.deleteItem')"
                   @ok="handleDeleteItem(record.id)"
                 >
                   <a-button type="text" size="small" status="danger">
-                    删除
+                    {{ t('emojiPack.action.delete') }}
                   </a-button>
                 </a-popconfirm>
               </a-space>
@@ -351,7 +386,6 @@
           </a-table>
         </div>
 
-        <!-- 表情项创建/编辑对话框 -->
         <a-modal
           v-model:visible="itemFormModalVisible"
           :title="itemModalTitle"
@@ -368,14 +402,17 @@
             :label-col-props="{ span: 6 }"
             :wrapper-col-props="{ span: 18 }"
           >
-            <a-form-item field="image_url" label="图片">
+            <a-form-item
+              field="image_url"
+              :label="t('emojiPack.form.item.image.label')"
+            >
               <div class="item-image-upload-wrapper">
                 <div v-if="itemFormData.image_url" class="item-image-preview">
                   <CosImage
                     :object-key="itemFormData.image_object_key"
                     :initial-url="itemFormData.image_url"
                     :provider-id="defaultStorageProvider?.id"
-                    alt="表情预览"
+                    :alt="t('emojiPack.imageAlt.itemPreview')"
                     class="preview-image"
                   />
                   <a-button
@@ -387,7 +424,7 @@
                       itemFormData.image_object_key = '';
                     "
                   >
-                    删除
+                    {{ t('emojiPack.action.delete') }}
                   </a-button>
                 </div>
                 <div v-else class="item-image-upload-area">
@@ -406,30 +443,40 @@
                     <template #icon>
                       <icon-upload />
                     </template>
-                    上传图片
+                    {{ t('emojiPack.action.uploadImage') }}
                   </a-button>
-                  <span class="upload-hint"
-                    >支持 JPG、PNG、WebP、GIF 等图片格式</span
-                  >
+                  <span class="upload-hint">
+                    {{ t('emojiPack.form.item.image.uploadHint') }}
+                  </span>
                 </div>
               </div>
-              <template #help> 表情图片，支持静态图片和 GIF 动图 </template>
+              <template #help>
+                {{ t('emojiPack.form.item.image.help') }}
+              </template>
             </a-form-item>
 
-            <a-form-item field="name" label="名称">
+            <a-form-item
+              field="name"
+              :label="t('emojiPack.form.item.name.label')"
+            >
               <a-input
                 v-model="itemFormData.name"
-                placeholder="请输入表情名称（可选）"
+                :placeholder="t('emojiPack.form.item.name.placeholder')"
               />
             </a-form-item>
 
-            <a-form-item field="sort_order" label="排序">
+            <a-form-item
+              field="sort_order"
+              :label="t('emojiPack.form.item.sortOrder.label')"
+            >
               <a-input-number
                 v-model="itemFormData.sort_order"
                 :min="0"
-                placeholder="数字越小越靠前"
+                :placeholder="t('emojiPack.form.item.sortOrder.placeholder')"
               />
-              <template #help> 排序值，数字越小越靠前显示 </template>
+              <template #help>
+                {{ t('emojiPack.form.item.sortOrder.help') }}
+              </template>
             </a-form-item>
           </a-form>
         </a-modal>
@@ -439,31 +486,40 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, computed, onMounted } from 'vue';
-  import { Message } from '@arco-design/web-vue';
-  import useLoading from '@/hooks/loading';
+  import { computed, onMounted, reactive, ref } from 'vue';
+  import { Message, type FormInstance } from '@arco-design/web-vue';
+  import { useI18n } from 'vue-i18n';
   import CosImage from '@/components/cos-image/index.vue';
+  import useLoading from '@/hooks/loading';
   import {
-    listAllEmojiPacks,
+    createEmojiItem,
     createEmojiPack,
-    updateEmojiPack,
+    deleteEmojiItem,
     deleteEmojiPack,
     getEmojiPack,
     getSuitePacks,
-    createEmojiItem,
+    listAllEmojiPacks,
     updateEmojiItem,
-    deleteEmojiItem,
-    type EmojiPack,
+    updateEmojiPack,
     type EmojiItem,
+    type EmojiPack,
   } from '@/api/emoji-pack';
   import {
     getDefaultStorageProvider,
-    testCosUploadSignature,
     testCosDownloadUrl,
+    testCosUploadSignature,
     type StorageProvider,
   } from '@/api/settings';
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { computeFileHash } from '@/utils/fileHash';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
+
+  const { t } = useI18n();
+
+  const PACK_TYPE_SINGLE = 0;
+  const PACK_TYPE_SUITE = 1;
+  const MAX_ICON_SIZE = 2 * 1024 * 1024;
+  const MAX_ITEM_IMAGE_SIZE = 5 * 1024 * 1024;
 
   const { loading: listLoading, setLoading: setListLoading } =
     useLoading(false);
@@ -477,112 +533,30 @@
   const packs = ref<EmojiPack[]>([]);
   const searchKeyword = ref('');
   const packModalVisible = ref(false);
-  const packModalTitle = ref('新增贴纸');
-  const packFormRef = ref();
+  const packModalMode = ref<'create' | 'edit' | 'addToSuite'>('create');
+  const packFormRef = ref<FormInstance>();
   const packFormData = reactive({
     name: '',
     icon_url: '',
     icon_object_key: '',
     description: '',
     is_active: true,
-    pack_type: 0, // 0=单个, 1=贴纸包
+    pack_type: PACK_TYPE_SINGLE,
     parent_id: undefined as string | undefined,
   });
   const editingPackId = ref<string | null>(null);
 
-  const packFormRules = {
-    name: [{ required: true, message: '请输入贴纸名称' }],
-  };
-
-  const suites = computed(() => {
-    return packs.value.filter((p) => p.pack_type === 1 && !p.parent_id);
-  });
-
-  const packColumns = [
-    {
-      title: '图标',
-      dataIndex: 'icon_url',
-      slotName: 'icon_url',
-      width: 80,
-    },
-    {
-      title: '名称',
-      dataIndex: 'name',
-      width: 200,
-    },
-    {
-      title: '类型',
-      dataIndex: 'pack_type',
-      slotName: 'pack_type',
-      width: 100,
-    },
-    {
-      title: '描述',
-      dataIndex: 'description',
-      ellipsis: true,
-    },
-    {
-      title: '状态',
-      dataIndex: 'is_active',
-      slotName: 'is_active',
-      width: 100,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'created_at',
-      width: 180,
-    },
-    {
-      title: '操作',
-      slotName: 'operations',
-      width: 280,
-      fixed: 'right',
-    },
-  ];
-
-  // 贴纸包管理相关
   const currentSuite = ref<EmojiPack | null>(null);
   const currentSuitePacks = ref<EmojiPack[]>([]);
   const suitePackModalVisible = ref(false);
   const suitePackLoading = ref(false);
-  const suitePackColumns = [
-    {
-      title: '图标',
-      dataIndex: 'icon_url',
-      slotName: 'icon_url',
-      width: 80,
-    },
-    {
-      title: '名称',
-      dataIndex: 'name',
-      width: 200,
-    },
-    {
-      title: '描述',
-      dataIndex: 'description',
-      ellipsis: true,
-    },
-    {
-      title: '状态',
-      dataIndex: 'is_active',
-      slotName: 'is_active',
-      width: 100,
-    },
-    {
-      title: '操作',
-      slotName: 'operations',
-      width: 250,
-      fixed: 'right',
-    },
-  ];
 
-  // 表情项相关
   const currentPack = ref<EmojiPack | null>(null);
   const currentPackItems = ref<EmojiItem[]>([]);
   const itemModalVisible = ref(false);
   const itemFormModalVisible = ref(false);
-  const itemModalTitle = ref('新增表情');
-  const itemFormRef = ref();
+  const itemModalMode = ref<'create' | 'edit'>('create');
+  const itemFormRef = ref<FormInstance>();
   const itemFormData = reactive({
     image_url: '',
     image_object_key: '',
@@ -591,87 +565,219 @@
   });
   const editingItemId = ref<string | null>(null);
 
-  // 图标上传相关
   const iconFileInputRef = ref<HTMLInputElement | null>(null);
   const iconUploadLoading = ref(false);
   const defaultStorageProvider = ref<StorageProvider | null>(null);
 
-  // 表情项图片上传相关
   const itemImageFileInputRef = ref<HTMLInputElement | null>(null);
   const itemImageUploadLoading = ref(false);
 
-  const itemFormRules = {
-    image_url: [{ required: true, message: '请输入表情图片URL' }],
-  };
+  const suites = computed(() =>
+    packs.value.filter(
+      (pack) => pack.pack_type === PACK_TYPE_SUITE && !pack.parent_id,
+    ),
+  );
 
-  const itemColumns = [
+  const packModalTitle = computed(() => {
+    if (packModalMode.value === 'edit') {
+      return t('emojiPack.modal.packEdit');
+    }
+
+    if (packModalMode.value === 'addToSuite') {
+      return t('emojiPack.modal.packCreateInSuite');
+    }
+
+    return t('emojiPack.modal.packCreate');
+  });
+
+  const packFormRules = computed(() => ({
+    name: [
+      {
+        required: true,
+        message: t('emojiPack.validation.packName.required'),
+      },
+    ],
+  }));
+
+  const packColumns = computed(() => [
     {
-      title: '图片',
+      title: t('emojiPack.table.pack.icon'),
+      dataIndex: 'icon_url',
+      slotName: 'icon_url',
+      width: 80,
+    },
+    {
+      title: t('emojiPack.table.pack.name'),
+      dataIndex: 'name',
+      width: 200,
+    },
+    {
+      title: t('emojiPack.table.pack.type'),
+      dataIndex: 'pack_type',
+      slotName: 'pack_type',
+      width: 100,
+    },
+    {
+      title: t('emojiPack.table.pack.description'),
+      dataIndex: 'description',
+      ellipsis: true,
+    },
+    {
+      title: t('emojiPack.table.pack.status'),
+      dataIndex: 'is_active',
+      slotName: 'is_active',
+      width: 100,
+    },
+    {
+      title: t('emojiPack.table.pack.createdAt'),
+      dataIndex: 'created_at',
+      width: 180,
+    },
+    {
+      title: t('emojiPack.table.pack.actions'),
+      slotName: 'operations',
+      width: 280,
+      fixed: 'right' as const,
+    },
+  ]);
+
+  const suitePackColumns = computed(() => [
+    {
+      title: t('emojiPack.table.suite.icon'),
+      dataIndex: 'icon_url',
+      slotName: 'icon_url',
+      width: 80,
+    },
+    {
+      title: t('emojiPack.table.suite.name'),
+      dataIndex: 'name',
+      width: 200,
+    },
+    {
+      title: t('emojiPack.table.suite.description'),
+      dataIndex: 'description',
+      ellipsis: true,
+    },
+    {
+      title: t('emojiPack.table.suite.status'),
+      dataIndex: 'is_active',
+      slotName: 'is_active',
+      width: 100,
+    },
+    {
+      title: t('emojiPack.table.suite.actions'),
+      slotName: 'operations',
+      width: 250,
+      fixed: 'right' as const,
+    },
+  ]);
+
+  const itemModalTitle = computed(() =>
+    itemModalMode.value === 'edit'
+      ? t('emojiPack.modal.itemEdit')
+      : t('emojiPack.modal.itemCreate'),
+  );
+
+  const itemFormRules = computed(() => ({
+    image_url: [
+      {
+        required: true,
+        message: t('emojiPack.validation.itemImage.required'),
+      },
+    ],
+  }));
+
+  const itemColumns = computed(() => [
+    {
+      title: t('emojiPack.table.item.image'),
       dataIndex: 'image_url',
       slotName: 'image_url',
       width: 80,
     },
     {
-      title: '名称',
+      title: t('emojiPack.table.item.name'),
       dataIndex: 'name',
       width: 150,
     },
     {
-      title: '排序',
+      title: t('emojiPack.table.item.sortOrder'),
       dataIndex: 'sort_order',
       width: 100,
     },
     {
-      title: '操作',
+      title: t('emojiPack.table.item.actions'),
       slotName: 'operations',
       width: 150,
-      fixed: 'right',
+      fixed: 'right' as const,
     },
-  ];
+  ]);
 
-  // 获取贴纸列表（只显示顶层的单个贴纸和贴纸包，不显示贴纸包的子贴纸）
+  const getPackTypeLabel = (packType: number) =>
+    packType === PACK_TYPE_SUITE
+      ? t('emojiPack.packType.suite')
+      : t('emojiPack.packType.single');
+
+  const getStatusLabel = (isActive: boolean) =>
+    isActive ? t('emojiPack.status.active') : t('emojiPack.status.inactive');
+
+  const resolveLocalizableError = (error: any, fallbackKey: string) => {
+    if (!error?.response) {
+      const directMessage =
+        typeof error?.message === 'string' ? error.message.trim() : '';
+      if (directMessage) {
+        return directMessage;
+      }
+    }
+
+    return resolveHttpErrorMessage(error, {
+      fallbackKey,
+      fallbackMessage: t(fallbackKey),
+    });
+  };
+
   const fetchPacks = async (keyword?: string) => {
     try {
       setListLoading(true);
       const { data } = await listAllEmojiPacks(keyword);
-      // 过滤掉有 parent_id 的贴纸（贴纸包的子贴纸）
-      packs.value = data.filter((p) => !p.parent_id);
+      packs.value = data.filter((pack) => !pack.parent_id);
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取贴纸列表失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.fetchPacks'),
+      );
     } finally {
       setListLoading(false);
     }
   };
 
-  // 搜索处理
   const handleSearch = (value: string) => {
     fetchPacks(value);
   };
 
-  // 清除搜索
   const handleSearchClear = () => {
     searchKeyword.value = '';
     fetchPacks();
   };
 
-  // 创建贴纸
-  const handleCreatePack = () => {
-    editingPackId.value = null;
-    packModalTitle.value = '新增贴纸';
+  const resetPackForm = () => {
     packFormData.name = '';
     packFormData.icon_url = '';
     packFormData.icon_object_key = '';
     packFormData.description = '';
     packFormData.is_active = true;
-    packFormData.pack_type = 0;
+    packFormData.pack_type = PACK_TYPE_SINGLE;
     packFormData.parent_id = undefined;
+  };
+
+  const handleCreatePack = () => {
+    editingPackId.value = null;
+    packModalMode.value = 'create';
+    resetPackForm();
     packModalVisible.value = true;
   };
 
-  // 编辑贴纸
   const handleEditPack = (pack: EmojiPack) => {
     editingPackId.value = pack.id;
-    packModalTitle.value = '编辑贴纸';
+    packModalMode.value = 'edit';
     packFormData.name = pack.name;
     packFormData.icon_url = pack.icon_url || '';
     packFormData.icon_object_key = pack.icon_object_key || '';
@@ -682,34 +788,35 @@
     packModalVisible.value = true;
   };
 
-  // 删除贴纸
   const handleDeletePack = async (packId: string) => {
     try {
       setActionLoading(true);
       await deleteEmojiPack(packId);
-      Message.success('删除成功');
+      Message.success(t('emojiPack.success.packDelete'));
       await fetchPacks();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '删除失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.deletePack'),
+      );
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 获取贴纸包下的贴纸列表
   const fetchSuitePacks = async (suiteId: string) => {
     try {
       suitePackLoading.value = true;
       const { data } = await getSuitePacks(suiteId);
       currentSuitePacks.value = data;
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取贴纸包贴纸列表失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.fetchSuitePacks'),
+      );
     } finally {
       suitePackLoading.value = false;
     }
   };
 
-  // 贴纸表单提交
   const handlePackBeforeOk = async (done: (closed: boolean) => void) => {
     if (!packFormRef.value) {
       done(false);
@@ -722,53 +829,45 @@
         done(false);
         return;
       }
-    } catch (error) {
+    } catch {
       done(false);
       return;
     }
 
     try {
       setActionLoading(true);
+      const payload = {
+        name: packFormData.name,
+        icon_url: packFormData.icon_url || undefined,
+        icon_object_key: packFormData.icon_object_key || undefined,
+        description: packFormData.description || undefined,
+        is_active: packFormData.is_active,
+        pack_type: packFormData.pack_type,
+        parent_id: packFormData.parent_id,
+      };
+
       if (editingPackId.value) {
-        await updateEmojiPack(editingPackId.value, {
-          name: packFormData.name,
-          icon_url: packFormData.icon_url || undefined,
-          icon_object_key: packFormData.icon_object_key || undefined,
-          description: packFormData.description || undefined,
-          is_active: packFormData.is_active,
-          pack_type: packFormData.pack_type,
-          parent_id: packFormData.parent_id,
-        });
-        Message.success('更新成功');
+        await updateEmojiPack(editingPackId.value, payload);
+        Message.success(t('emojiPack.success.packUpdate'));
       } else {
-        await createEmojiPack({
-          name: packFormData.name,
-          icon_url: packFormData.icon_url || undefined,
-          icon_object_key: packFormData.icon_object_key || undefined,
-          description: packFormData.description || undefined,
-          is_active: packFormData.is_active,
-          pack_type: packFormData.pack_type,
-          parent_id: packFormData.parent_id,
-        });
-        Message.success('创建成功');
+        await createEmojiPack(payload);
+        Message.success(t('emojiPack.success.packCreate'));
       }
+
       await fetchPacks();
-      // 如果是在贴纸包管理弹窗中添加的贴纸，需要刷新贴纸包列表
       if (
         packFormData.parent_id &&
         currentSuite.value?.id === packFormData.parent_id
       ) {
         await fetchSuitePacks(packFormData.parent_id);
       }
+
       packModalVisible.value = false;
       done(true);
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '操作失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.packSubmit'),
+      );
       done(false);
     } finally {
       setActionLoading(false);
@@ -779,30 +878,29 @@
     packFormRef.value?.resetFields();
   };
 
-  // 获取表情项列表
   const fetchPackItems = async (packId: string) => {
     try {
       setItemLoading(true);
       const { data } = await getEmojiPack(packId);
       currentPackItems.value = data.items || [];
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '获取表情列表失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.fetchItems'),
+      );
     } finally {
       setItemLoading(false);
     }
   };
 
-  // 管理表情项
   const handleManageItems = async (pack: EmojiPack) => {
     currentPack.value = pack;
     itemModalVisible.value = true;
     await fetchPackItems(pack.id);
   };
 
-  // 创建表情项
   const handleCreateItem = () => {
     editingItemId.value = null;
-    itemModalTitle.value = '新增表情';
+    itemModalMode.value = 'create';
     itemFormData.image_url = '';
     itemFormData.image_object_key = '';
     itemFormData.name = '';
@@ -810,10 +908,9 @@
     itemFormModalVisible.value = true;
   };
 
-  // 编辑表情项
   const handleEditItem = (item: EmojiItem) => {
     editingItemId.value = item.id;
-    itemModalTitle.value = '编辑表情';
+    itemModalMode.value = 'edit';
     itemFormData.image_url = item.image_url;
     itemFormData.image_object_key = item.image_object_key || '';
     itemFormData.name = item.name || '';
@@ -821,23 +918,23 @@
     itemFormModalVisible.value = true;
   };
 
-  // 删除表情项
   const handleDeleteItem = async (itemId: string) => {
     try {
       setItemActionLoading(true);
       await deleteEmojiItem(itemId);
-      Message.success('删除成功');
+      Message.success(t('emojiPack.success.itemDelete'));
       if (currentPack.value) {
         await fetchPackItems(currentPack.value.id);
       }
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '删除失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.deleteItem'),
+      );
     } finally {
       setItemActionLoading(false);
     }
   };
 
-  // 表情项表单提交
   const handleItemBeforeOk = async () => {
     const valid = await itemFormRef.value?.validate();
     if (!valid) {
@@ -845,37 +942,37 @@
     }
 
     if (!currentPack.value) {
-      Message.error('请先选择贴纸');
+      Message.error(t('emojiPack.error.selectPackFirst'));
       return false;
     }
 
     try {
       setItemActionLoading(true);
+      const payload = {
+        image_url: itemFormData.image_url,
+        image_object_key: itemFormData.image_object_key || undefined,
+        name: itemFormData.name || undefined,
+        sort_order: itemFormData.sort_order,
+      };
+
       if (editingItemId.value) {
-        await updateEmojiItem(editingItemId.value, {
-          image_url: itemFormData.image_url,
-          image_object_key: itemFormData.image_object_key || undefined,
-          name: itemFormData.name || undefined,
-          sort_order: itemFormData.sort_order,
-        });
-        Message.success('更新成功');
+        await updateEmojiItem(editingItemId.value, payload);
+        Message.success(t('emojiPack.success.itemUpdate'));
       } else {
         await createEmojiItem({
           pack_id: currentPack.value.id,
-          image_url: itemFormData.image_url,
-          image_object_key: itemFormData.image_object_key || undefined,
-          name: itemFormData.name || undefined,
-          sort_order: itemFormData.sort_order,
+          ...payload,
         });
-        Message.success('创建成功');
+        Message.success(t('emojiPack.success.itemCreate'));
       }
+
       itemFormModalVisible.value = false;
-      if (currentPack.value) {
-        await fetchPackItems(currentPack.value.id);
-      }
+      await fetchPackItems(currentPack.value.id);
       return true;
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '操作失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.itemSubmit'),
+      );
       return false;
     } finally {
       setItemActionLoading(false);
@@ -891,41 +988,37 @@
     currentPackItems.value = [];
   };
 
-  // 管理贴纸包下的贴纸
   const handleManageSuitePacks = async (suite: EmojiPack) => {
     currentSuite.value = suite;
     suitePackModalVisible.value = true;
     await fetchSuitePacks(suite.id);
   };
 
-  // 创建贴纸包下的贴纸
   const handleCreateSuitePack = () => {
-    if (!currentSuite.value) return;
+    if (!currentSuite.value) {
+      return;
+    }
+
     editingPackId.value = null;
-    packModalTitle.value = '添加贴纸到贴纸包';
-    packFormData.name = '';
-    packFormData.icon_url = '';
-    packFormData.description = '';
-    packFormData.is_active = true;
-    packFormData.pack_type = 0;
+    packModalMode.value = 'addToSuite';
+    resetPackForm();
     packFormData.parent_id = currentSuite.value.id;
     packModalVisible.value = true;
   };
 
-  // 从贴纸包中移除贴纸
   const handleRemoveFromSuite = async (packId: string) => {
     try {
       setActionLoading(true);
-      await updateEmojiPack(packId, {
-        parent_id: undefined,
-      });
-      Message.success('移除成功');
+      await updateEmojiPack(packId, { parent_id: undefined });
+      Message.success(t('emojiPack.success.removeFromSuite'));
       if (currentSuite.value) {
         await fetchSuitePacks(currentSuite.value.id);
       }
       await fetchPacks();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '移除失败');
+      Message.error(
+        resolveLocalizableError(error, 'emojiPack.error.removeFromSuite'),
+      );
     } finally {
       setActionLoading(false);
     }
@@ -940,53 +1033,45 @@
     fetchPacks();
   };
 
-  // 触发图标文件选择
   const triggerIconFileSelect = () => {
     iconFileInputRef.value?.click();
   };
 
-  // 处理图标文件选择
   const handleIconFileChange = async (event: Event) => {
     const inputEl = event.target as HTMLInputElement;
-    const { files } = inputEl;
-    const file = files && files.length > 0 ? files[0] : null;
+    const file =
+      inputEl.files && inputEl.files.length > 0 ? inputEl.files[0] : null;
     if (!file) {
       return;
     }
 
-    // 验证文件类型
     if (!file.type.startsWith('image/')) {
-      Message.error('请选择图片文件');
+      Message.error(t('emojiPack.error.invalidImageFile'));
       inputEl.value = '';
       return;
     }
 
-    // 验证文件大小（最大 2MB）
-    const maxSize = 2 * 1024 * 1024;
-    if (file.size > maxSize) {
-      Message.error('图片大小不能超过 2MB');
+    if (file.size > MAX_ICON_SIZE) {
+      Message.error(t('emojiPack.error.iconTooLarge'));
       inputEl.value = '';
       return;
     }
 
     iconUploadLoading.value = true;
     try {
-      // 获取默认存储提供商
       if (!defaultStorageProvider.value) {
         const { data } = await getDefaultStorageProvider();
         defaultStorageProvider.value = data;
       }
 
       if (!defaultStorageProvider.value) {
-        throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
+        throw new Error(t('emojiPack.error.storageProviderRequired'));
       }
 
-      // 生成文件key
       const timestamp = Date.now();
       const fileExt = file.name.split('.').pop() || 'jpg';
       const key = `emoji-packs/icons/${timestamp}.${fileExt}`;
 
-      // 计算文件哈希
       let hashValue: string | undefined;
       let hashAlg: number | undefined;
       try {
@@ -996,10 +1081,9 @@
           hashAlg = hash.hashAlg ?? 2;
         }
       } catch (error) {
-        console.warn('[EmojiPack] 计算图标哈希失败，将跳过哈希上报', error);
+        console.warn('[EmojiPack] Icon hash reporting skipped', error);
       }
 
-      // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
         provider_id: defaultStorageProvider.value.id,
         key,
@@ -1010,101 +1094,86 @@
       });
 
       if (!signatureData.success) {
-        throw new Error(signatureData.message || '获取上传签名失败');
+        throw new Error(
+          signatureData.message || t('emojiPack.error.uploadSignature'),
+        );
       }
 
-      // 命中哈希去重：无需上传
       if (!signatureData.signature) {
         Message.success(
-          signatureData.message || '复用已上传的图标，无需重新上传'
+          signatureData.message || t('emojiPack.success.iconUploadReused'),
         );
       } else {
-        // 上传文件
         const response = await uploadWithSignature(
           file,
-          signatureData.signature
+          signatureData.signature,
         );
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(text || '上传失败');
+          throw new Error(text || t('emojiPack.error.upload'));
         }
       }
 
-      // 获取下载URL
       const { data: urlData } = await testCosDownloadUrl({
         provider_id: defaultStorageProvider.value.id,
         key,
-        expires_in_seconds: 31536000, // 1年
+        expires_in_seconds: 31536000,
       });
 
       if (!urlData.success || !urlData.url) {
-        throw new Error(urlData.message || '获取下载URL失败');
+        throw new Error(urlData.message || t('emojiPack.error.downloadUrl'));
       }
 
-      // 保存URL到表单
       packFormData.icon_url = urlData.url;
-      // 同步保存对象键，供前端通过 object_key 获取临时下载地址
       packFormData.icon_object_key = key;
-      Message.success('图标上传成功');
+      Message.success(t('emojiPack.success.iconUpload'));
     } catch (error: any) {
-      const errorMsg =
-        error?.message || error?.response?.data?.message || '上传失败';
-      Message.error(errorMsg);
+      Message.error(resolveLocalizableError(error, 'emojiPack.error.upload'));
     } finally {
       iconUploadLoading.value = false;
-      if (inputEl) {
-        inputEl.value = '';
-      }
+      inputEl.value = '';
     }
   };
 
-  // 触发表情项图片文件选择
   const triggerItemImageFileSelect = () => {
     itemImageFileInputRef.value?.click();
   };
 
-  // 处理表情项图片文件选择
   const handleItemImageFileChange = async (event: Event) => {
     const inputEl = event.target as HTMLInputElement;
-    const { files } = inputEl;
-    const file = files && files.length > 0 ? files[0] : null;
+    const file =
+      inputEl.files && inputEl.files.length > 0 ? inputEl.files[0] : null;
     if (!file) {
       return;
     }
 
-    // 验证文件类型
     if (!file.type.startsWith('image/')) {
-      Message.error('请选择图片文件');
+      Message.error(t('emojiPack.error.invalidImageFile'));
       inputEl.value = '';
       return;
     }
 
-    // 验证文件大小（最大 5MB，GIF 可能较大）
-    const maxSize = 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      Message.error('图片大小不能超过 5MB');
+    if (file.size > MAX_ITEM_IMAGE_SIZE) {
+      Message.error(t('emojiPack.error.itemImageTooLarge'));
       inputEl.value = '';
       return;
     }
 
     itemImageUploadLoading.value = true;
     try {
-      // 获取默认存储提供商
       if (!defaultStorageProvider.value) {
         const { data } = await getDefaultStorageProvider();
         defaultStorageProvider.value = data;
       }
 
       if (!defaultStorageProvider.value) {
-        throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
+        throw new Error(t('emojiPack.error.storageProviderRequired'));
       }
 
-      // 生成文件key
       const timestamp = Date.now();
       const fileExt = file.name.split('.').pop() || 'jpg';
       const key = `emoji-items/${timestamp}.${fileExt}`;
 
-      // 计算文件哈希
       let hashValue: string | undefined;
       let hashAlg: number | undefined;
       try {
@@ -1114,13 +1183,9 @@
           hashAlg = hash.hashAlg ?? 2;
         }
       } catch (error) {
-        console.warn(
-          '[EmojiPack] 计算表情项图片哈希失败，将跳过哈希上报',
-          error
-        );
+        console.warn('[EmojiPack] Item image hash reporting skipped', error);
       }
 
-      // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
         provider_id: defaultStorageProvider.value.id,
         key,
@@ -1131,62 +1196,55 @@
       });
 
       if (!signatureData.success) {
-        throw new Error(signatureData.message || '获取上传签名失败');
+        throw new Error(
+          signatureData.message || t('emojiPack.error.uploadSignature'),
+        );
       }
 
-      // 命中哈希去重：无需上传
       if (!signatureData.signature) {
         Message.success(
-          signatureData.message || '复用已上传的图片，无需重新上传'
+          signatureData.message || t('emojiPack.success.itemUploadReused'),
         );
       } else {
-        // 上传文件
         const response = await uploadWithSignature(
           file,
-          signatureData.signature
+          signatureData.signature,
         );
         if (!response.ok) {
           const text = await response.text();
-          throw new Error(text || '上传失败');
+          throw new Error(text || t('emojiPack.error.upload'));
         }
       }
 
-      // 获取下载URL
       const { data: urlData } = await testCosDownloadUrl({
         provider_id: defaultStorageProvider.value.id,
         key,
-        expires_in_seconds: 31536000, // 1年
+        expires_in_seconds: 31536000,
       });
 
       if (!urlData.success || !urlData.url) {
-        throw new Error(urlData.message || '获取下载URL失败');
+        throw new Error(urlData.message || t('emojiPack.error.downloadUrl'));
       }
 
-      // 保存URL到表单
       itemFormData.image_url = urlData.url;
-      // 同步保存对象键
       itemFormData.image_object_key = key;
-      Message.success('图片上传成功');
+      Message.success(t('emojiPack.success.itemUpload'));
     } catch (error: any) {
-      const errorMsg =
-        error?.message || error?.response?.data?.message || '上传失败';
-      Message.error(errorMsg);
+      Message.error(resolveLocalizableError(error, 'emojiPack.error.upload'));
     } finally {
       itemImageUploadLoading.value = false;
-      if (inputEl) {
-        inputEl.value = '';
-      }
+      inputEl.value = '';
     }
   };
 
   onMounted(async () => {
     fetchPacks();
-    // 预加载默认存储提供商
+
     try {
       const { data } = await getDefaultStorageProvider();
       defaultStorageProvider.value = data;
-    } catch (error) {
-      // 忽略错误，上传时会再次尝试获取
+    } catch {
+      // Ignore here and retry on upload.
     }
   });
 </script>
