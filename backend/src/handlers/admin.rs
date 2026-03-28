@@ -225,6 +225,30 @@ fn test_cos_exists_response(
     })
 }
 
+fn test_cos_list_buckets_response(
+    success: bool,
+    buckets: Vec<storage::BucketInfo>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosListBucketsResponse> {
+    Json(TestCosListBucketsResponse {
+        success,
+        buckets,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn test_cos_create_bucket_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosCreateBucketResponse> {
+    Json(TestCosCreateBucketResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -3989,34 +4013,49 @@ pub async fn test_cos_list_buckets(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosListBucketsResponse {
-            success: false,
-            buckets: Vec::new(),
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_list_buckets_response(
+            false,
+            Vec::new(),
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosListBucketsResponse {
-            success: false,
-            buckets: Vec::new(),
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_list_buckets_response(
+            false,
+            Vec::new(),
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service_without_bucket(&provider)?;
 
     match storage_service.list_buckets().await {
-        Ok(buckets) => Ok(Json(TestCosListBucketsResponse {
-            success: true,
-            buckets: buckets.clone(),
-            message: format!("成功获取 {} 个 bucket", buckets.len()),
-        })),
-        Err(e) => Ok(Json(TestCosListBucketsResponse {
-            success: false,
-            buckets: Vec::new(),
-            message: format!("获取 bucket 列表失败: {}", e),
-        })),
+        Ok(buckets) => {
+            let message_params =
+                MessageParams::from([("count".to_string(), buckets.len().to_string())]);
+            Ok(test_cos_list_buckets_response(
+                true,
+                buckets,
+                "admin.storage_test_list_buckets_success",
+                Some(&message_params),
+            ))
+        }
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_list_buckets_response(
+                false,
+                Vec::new(),
+                "admin.storage_test_list_buckets_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -4055,37 +4094,54 @@ pub async fn test_cos_create_bucket(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosCreateBucketResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_create_bucket_response(
+            false,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosCreateBucketResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_create_bucket_response(
+            false,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     if req.bucket_name.trim().is_empty() {
-        return Ok(Json(TestCosCreateBucketResponse {
-            success: false,
-            message: "bucket 名称不能为空".to_string(),
-        }));
+        return Ok(test_cos_create_bucket_response(
+            false,
+            "admin.storage_test_bucket_name_required",
+            None,
+        ));
     }
 
     let storage_service = storage::create_storage_service_without_bucket(&provider)?;
+    let bucket_name = req.bucket_name.trim().to_string();
 
-    match storage_service.create_bucket(&req.bucket_name.trim()).await {
-        Ok(_) => Ok(Json(TestCosCreateBucketResponse {
-            success: true,
-            message: format!("成功创建 bucket: {}", req.bucket_name),
-        })),
-        Err(e) => Ok(Json(TestCosCreateBucketResponse {
-            success: false,
-            message: format!("创建 bucket 失败: {}", e),
-        })),
+    match storage_service.create_bucket(&bucket_name).await {
+        Ok(_) => {
+            let message_params =
+                MessageParams::from([("bucket_name".to_string(), bucket_name.clone())]);
+            Ok(test_cos_create_bucket_response(
+                true,
+                "admin.storage_test_create_bucket_success",
+                Some(&message_params),
+            ))
+        }
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_create_bucket_response(
+                false,
+                "admin.storage_test_create_bucket_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 

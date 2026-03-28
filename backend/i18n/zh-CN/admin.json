@@ -87,6 +87,11 @@
   "admin.storage_test_delete_success": "删除成功",
   "admin.storage_test_exists_true": "文件存在",
   "admin.storage_test_exists_false": "文件不存在",
+  "admin.storage_test_bucket_name_required": "bucket 名称不能为空",
+  "admin.storage_test_list_buckets_success": "成功获取 {count} 个 bucket",
+  "admin.storage_test_list_buckets_failed": "获取 bucket 列表失败: {reason}",
+  "admin.storage_test_create_bucket_success": "成功创建 bucket: {bucket_name}",
+  "admin.storage_test_create_bucket_failed": "创建 bucket 失败: {reason}",
   "admin.file_upload_audit_provider_id_invalid": "无效的 provider_id",
   "admin.file_upload_audit_task_id_invalid": "无效的 task_id",
   "admin.file_upload_audit_task_not_found": "审核任务不存在"

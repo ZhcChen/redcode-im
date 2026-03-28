@@ -87,6 +87,11 @@
   "admin.storage_test_delete_success": "File deleted successfully.",
   "admin.storage_test_exists_true": "File exists.",
   "admin.storage_test_exists_false": "File does not exist.",
+  "admin.storage_test_bucket_name_required": "Bucket name is required.",
+  "admin.storage_test_list_buckets_success": "Fetched {count} buckets successfully.",
+  "admin.storage_test_list_buckets_failed": "Failed to list buckets: {reason}",
+  "admin.storage_test_create_bucket_success": "Bucket created successfully: {bucket_name}",
+  "admin.storage_test_create_bucket_failed": "Failed to create bucket: {reason}",
   "admin.file_upload_audit_provider_id_invalid": "provider_id is invalid.",
   "admin.file_upload_audit_task_id_invalid": "task_id is invalid.",
   "admin.file_upload_audit_task_not_found": "Audit task was not found."

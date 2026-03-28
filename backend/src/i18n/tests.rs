@@ -233,6 +233,53 @@ fn i18n_message_catalog_interpolates_params() {
 }
 
 #[test]
+fn i18n_admin_storage_bucket_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_test_bucket_name_required", None),
+        "bucket 名称不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_test_bucket_name_required", None),
+        "Bucket name is required."
+    );
+}
+
+#[test]
+fn i18n_admin_storage_bucket_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let count_params = BTreeMap::from([("count".to_string(), "2".to_string())]);
+    let bucket_params = BTreeMap::from([("bucket_name".to_string(), "demo-bucket".to_string())]);
+    let reason_params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
+
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.storage_test_list_buckets_success",
+            Some(&count_params)
+        ),
+        "成功获取 2 个 bucket"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_create_bucket_success",
+            Some(&bucket_params)
+        ),
+        "Bucket created successfully: demo-bucket"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_list_buckets_failed",
+            Some(&reason_params)
+        ),
+        "Failed to list buckets: boom"
+    );
+}
+
+#[test]
 fn i18n_message_catalog_loads_task_4c_error_keys_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
