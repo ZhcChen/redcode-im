@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
+import { getStoredLocale } from '@/locale';
 import { useUserStore } from '@/store';
 import {
   getToken,
@@ -9,10 +10,18 @@ import {
   setRefreshToken,
   clearToken,
 } from '@/utils/auth';
+import {
+  resolveApiMessage,
+  resolveHttpErrorMessage,
+  resolveMessageKey,
+} from '@/utils/i18n';
 
 export interface HttpResponse<T = unknown> {
   status?: number;
   msg?: string;
+  message?: string;
+  message_key?: string;
+  message_params?: Record<string, unknown> | null;
   code?: number;
   data: T;
 }
@@ -34,6 +43,10 @@ axios.interceptors.request.use(
       }
       config.headers.Authorization = `Bearer ${token}`;
     }
+    if (!config.headers) {
+      config.headers = {};
+    }
+    config.headers['Accept-Language'] = getStoredLocale();
     return config;
   },
   (error) => {
@@ -52,8 +65,11 @@ axios.interceptors.response.use(
       res && Object.prototype.hasOwnProperty.call(res, 'code');
 
     if (hasCustomCode && res.code !== 20000) {
+      const displayMessage = resolveApiMessage(res, {
+        fallbackKey: 'common.request_failed',
+      });
       Message.error({
-        content: res.msg || 'Error',
+        content: displayMessage,
         duration: (5 * 1000) as number,
       });
       if (
@@ -62,10 +78,13 @@ axios.interceptors.response.use(
         response.config.url !== '/api/user/info'
       ) {
         Modal.error({
-          title: 'Confirm logout',
+          title:
+            resolveMessageKey('common.session_expired.title') ?? 'Session expired',
           content:
-            'You have been logged out, you can cancel to stay on this page, or log in again',
-          okText: 'Re-Login',
+            resolveMessageKey('common.session_expired.content') ??
+            'Your session has expired. Please log in again.',
+          okText:
+            resolveMessageKey('common.session_expired.confirm') ?? 'Re-Login',
           async onOk() {
             const userStore = useUserStore();
 
@@ -74,7 +93,7 @@ axios.interceptors.response.use(
           },
         });
       }
-      return Promise.reject(new Error(res.msg || 'Error'));
+      return Promise.reject(new Error(displayMessage));
     }
 
     if (!hasCustomCode) {
@@ -89,12 +108,6 @@ axios.interceptors.response.use(
     return res;
   },
   async (error) => {
-    const message =
-      error?.response?.data?.message ||
-      error?.response?.data?.msg ||
-      error.message ||
-      'Request Error';
-
     const status = error?.response?.status;
 
     // 处理 401：尝试使用刷新令牌无感续签
@@ -119,7 +132,9 @@ axios.interceptors.response.use(
                   setRefreshToken(body.refresh_token ?? refreshToken);
                 } else {
                   clearToken();
-                  throw new Error('刷新令牌响应异常');
+                  throw new Error(
+                    resolveMessageKey('auth.invalid_token') ?? 'Request failed'
+                  );
                 }
               })
               .finally(() => {
@@ -147,20 +162,11 @@ axios.interceptors.response.use(
     const isCustomHandled = error?.config?.suppressGlobalErrorMessage;
 
     if (!isCustomHandled) {
-      // 根据状态码显示不同的错误消息
-      let displayMessage = message;
-      if (status === 404) {
-        displayMessage = '请求的资源不存在';
-      } else if (status === 401) {
-        displayMessage = '认证失败，请重新登录';
-      } else if (status === 403) {
-        displayMessage = '没有权限执行此操作';
-      } else if (status === 500) {
-        displayMessage = '服务器内部错误';
-      }
-
       Message.error({
-        content: displayMessage,
+        content: resolveHttpErrorMessage(error, {
+          fallbackKey:
+            status === 401 ? 'auth.unauthorized' : undefined,
+        }),
         duration: 5 * 1000,
       });
     }

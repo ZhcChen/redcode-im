@@ -16,6 +16,7 @@ import localePushLog from '@/views/operations/push-log/locale/en-US';
 import localeApiMetrics from '@/views/operations/api-metrics/locale/en-US';
 import localeDataCleanup from '@/views/settings/data-cleanup/locale/en-US';
 /** simple end */
+import { enUSCommonMessages } from './common';
 import localeSettings from './en-US/settings';
 
 export default {
@@ -63,6 +64,7 @@ export default {
   'navbar.docs': 'Docs',
   'navbar.action.locale': 'Switch to English',
   'app.brand': 'IM Admin Console',
+  ...enUSCommonMessages,
   ...localeSettings,
   ...localeMessageBox,
   ...localeLogin,

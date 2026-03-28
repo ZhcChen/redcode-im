@@ -18,6 +18,7 @@ import localePushLog from '@/views/operations/push-log/locale/zh-CN';
 import localeApiMetrics from '@/views/operations/api-metrics/locale/zh-CN';
 import localeDataCleanup from '@/views/settings/data-cleanup/locale/zh-CN';
 /** simple end */
+import { zhCNCommonMessages } from './common';
 import localeSettings from './zh-CN/settings';
 
 export default {
@@ -65,6 +66,7 @@ export default {
   'navbar.docs': '文档中心',
   'navbar.action.locale': '切换为中文',
   'app.brand': 'IM 管理后台',
+  ...zhCNCommonMessages,
   ...localeSettings,
   ...localeMessageBox,
   ...localeLogin,
