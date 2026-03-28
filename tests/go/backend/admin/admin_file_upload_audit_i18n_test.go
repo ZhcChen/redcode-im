@@ -2,9 +2,12 @@ package admin_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
 	"redcode-im-tests/internal/testutil"
 )
@@ -15,6 +18,18 @@ type adminFileUploadAuditAPIErrorResponse struct {
 	Message       string            `json:"message"`
 	MessageParams map[string]string `json:"message_params"`
 	Details       *string           `json:"details"`
+}
+
+type adminFileUploadAuditTaskListResponse struct {
+	Tasks []struct {
+		ID        string `json:"id"`
+		ObjectKey string `json:"objectKey"`
+	} `json:"tasks"`
+}
+
+type adminFileUploadAuditTaskRequeueSuccessResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
 }
 
 func TestAdminFileUploadAuditLocalizedErrors(t *testing.T) {
@@ -155,6 +170,111 @@ func TestAdminFileUploadAuditLocalizedErrors(t *testing.T) {
 			nil,
 		)
 	})
+
+	t.Run("requeue success english", func(t *testing.T) {
+		taskID := ensureAdminFileUploadAuditTask(t, c, admin.Token)
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/file-upload-audit/tasks/"+taskID+"/requeue",
+			admin.Token,
+			nil,
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("requeue file upload audit task request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			t.Fatalf("unexpected status: want %d got %d body=%s", http.StatusOK, resp.StatusCode, string(body))
+		}
+
+		var payload adminFileUploadAuditTaskRequeueSuccessResponse
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode requeue success response failed: %v", err)
+		}
+		if !payload.Success {
+			t.Fatalf("expected success=true, got false: %+v", payload)
+		}
+		if payload.Message != "Requeued successfully." {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+	})
+}
+
+func ensureAdminFileUploadAuditTask(t *testing.T, c *testutil.Client, token string) string {
+	t.Helper()
+
+	key := fmt.Sprintf("admin-i18n/audit-%d.txt", time.Now().UnixNano())
+	uploadReq := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodPost,
+		c.BaseURL+"/api/admin/storage-providers/test/upload",
+		token,
+		map[string]any{
+			"key":          key,
+			"content":      "audit-task-source",
+			"content_type": "text/plain",
+		},
+	)
+
+	uploadResp, err := c.HTTP.Do(uploadReq)
+	if err != nil {
+		t.Fatalf("upload request failed: %v", err)
+	}
+	defer uploadResp.Body.Close()
+
+	if uploadResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(uploadResp.Body)
+		t.Fatalf("unexpected upload status: want %d got %d body=%s", http.StatusOK, uploadResp.StatusCode, string(body))
+	}
+
+	var uploadPayload struct {
+		Success bool `json:"success"`
+	}
+	if err := json.NewDecoder(uploadResp.Body).Decode(&uploadPayload); err != nil {
+		t.Fatalf("decode upload response failed: %v", err)
+	}
+	if !uploadPayload.Success {
+		t.Fatalf("expected upload success=true, got false")
+	}
+
+	listReq := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodGet,
+		c.BaseURL+"/api/admin/file-upload-audit/tasks?keyword="+url.QueryEscape(key),
+		token,
+		nil,
+	)
+
+	listResp, err := c.HTTP.Do(listReq)
+	if err != nil {
+		t.Fatalf("list file upload audit tasks request failed: %v", err)
+	}
+	defer listResp.Body.Close()
+
+	if listResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(listResp.Body)
+		t.Fatalf("unexpected list status: want %d got %d body=%s", http.StatusOK, listResp.StatusCode, string(body))
+	}
+
+	var listPayload adminFileUploadAuditTaskListResponse
+	if err := json.NewDecoder(listResp.Body).Decode(&listPayload); err != nil {
+		t.Fatalf("decode file upload audit task list response failed: %v", err)
+	}
+
+	for _, task := range listPayload.Tasks {
+		if task.ObjectKey == key {
+			return task.ID
+		}
+	}
+
+	t.Fatalf("file upload audit task not found for key: %s", key)
+	return ""
 }
 
 func assertLocalizedAdminFileUploadAuditError(

@@ -3111,7 +3111,7 @@ pub async fn test_cos_upload(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_upload_response(
             false,
@@ -3253,7 +3253,7 @@ pub async fn test_cos_upload_signature(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_upload_signature_response(
             false,
@@ -3370,14 +3370,32 @@ pub async fn test_cos_upload_multipart_initiate(
     let (part_size, total_parts) = match multipart_upload::plan_multipart_upload(req.file_size) {
         Ok(plan) => plan,
         Err(e) => {
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
-                success: false,
-                message: format!("{}", e),
-                key: Some(key.to_string()),
-                session_id: None,
-                part_size: None,
-                total_parts: None,
-            }));
+            if req.file_size <= multipart_upload::MULTIPART_THRESHOLD_BYTES {
+                let message_params = MessageParams::from([(
+                    "threshold_size".to_string(),
+                    multipart_upload::MULTIPART_THRESHOLD_BYTES.to_string(),
+                )]);
+                return Ok(test_cos_upload_multipart_response(
+                    false,
+                    Some(key.to_string()),
+                    None,
+                    None,
+                    None,
+                    "message.attachment_multipart_direct_upload_required",
+                    Some(&message_params),
+                ));
+            }
+
+            tracing::warn!("生成分片上传计划失败: {}", e);
+            return Ok(test_cos_upload_multipart_response(
+                false,
+                Some(key.to_string()),
+                None,
+                None,
+                None,
+                "message.attachment_multipart_plan_failed",
+                None,
+            ));
         }
     };
 
@@ -3411,7 +3429,7 @@ pub async fn test_cos_upload_multipart_initiate(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_upload_multipart_response(
             false,
@@ -3609,7 +3627,7 @@ pub async fn test_cos_download_url(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_download_url_response(
             false,
@@ -3712,11 +3730,16 @@ pub async fn test_cos_get_cors(
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-            rules: vec![],
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            provider.provider_type.to_string(),
+        )]);
+        return Ok(test_cos_get_cors_response(
+            false,
+            vec![],
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3750,11 +3773,15 @@ pub async fn test_cos_get_cors(
                 None,
             ))
         }
-        Err(e) => Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: format!("获取跨域规则失败: {}", e),
-            rules: vec![],
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_get_cors_response(
+                false,
+                vec![],
+                "admin.storage_test_cors_get_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -3796,10 +3823,15 @@ pub async fn test_cos_set_cors(
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            provider.provider_type.to_string(),
+        )]);
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3874,10 +3906,14 @@ pub async fn test_cos_set_cors(
             "admin.storage_test_cors_set_success",
             None,
         )),
-        Err(e) => Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!("配置跨域规则失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_set_cors_response(
+                false,
+                "admin.storage_test_cors_set_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -3924,10 +3960,15 @@ pub async fn test_cos_delete(
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosDeleteResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            provider.provider_type.to_string(),
+        )]);
+        return Ok(test_cos_delete_response(
+            false,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3938,10 +3979,14 @@ pub async fn test_cos_delete(
             "admin.storage_test_delete_success",
             None,
         )),
-        Err(e) => Ok(Json(TestCosDeleteResponse {
-            success: false,
-            message: format!("删除失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_delete_response(
+                false,
+                "admin.storage_test_delete_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -3990,11 +4035,16 @@ pub async fn test_cos_exists(
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosExistsResponse {
-            success: false,
-            exists: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            provider.provider_type.to_string(),
+        )]);
+        return Ok(test_cos_exists_response(
+            false,
+            false,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -4010,11 +4060,15 @@ pub async fn test_cos_exists(
             },
             None,
         )),
-        Err(e) => Ok(Json(TestCosExistsResponse {
-            success: false,
-            exists: false,
-            message: format!("检查失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_exists_response(
+                false,
+                false,
+                "admin.storage_test_exists_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -4066,7 +4120,7 @@ pub async fn test_cos_list_buckets(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_list_buckets_response(
             false,
@@ -4146,7 +4200,7 @@ pub async fn test_cos_create_bucket(
     if provider.provider_type != StorageProviderType::TencentCos {
         let message_params = MessageParams::from([(
             "provider_type".to_string(),
-            format!("{:?}", provider.provider_type),
+            provider.provider_type.to_string(),
         )]);
         return Ok(test_cos_create_bucket_response(
             false,
@@ -5100,6 +5154,21 @@ pub struct DataCleanupResponse {
     pub error: Option<String>,
 }
 
+fn data_cleanup_response(
+    success: bool,
+    cleaned_tables: Vec<String>,
+    error: Option<String>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<DataCleanupResponse> {
+    Json(DataCleanupResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+        cleaned_tables,
+        error,
+    })
+}
+
 /// 清理所有 App 用户相关数据（仅限开发环境）
 pub async fn cleanup_all_app_data(
     State(state): State<AppState>,
@@ -5227,24 +5296,34 @@ pub async fn cleanup_all_app_data(
         info!("事务已回滚");
 
         // 返回错误响应
-        return Ok(Json(DataCleanupResponse {
-            success: false,
-            message: format!("数据清理失败，已清理 {} 个表", cleaned_tables.len()),
+        let message_params = MessageParams::from([(
+            "cleaned_count".to_string(),
+            cleaned_tables.len().to_string(),
+        )]);
+        return Ok(data_cleanup_response(
+            false,
             cleaned_tables,
-            error: last_error,
-        }));
+            last_error,
+            "admin.data_cleanup_failed",
+            Some(&message_params),
+        ));
     } else {
         info!("所有表清理成功，提交事务...");
         tx.commit().await.map_err(AppError::DatabaseError)?;
         info!("数据清理完成，成功清理 {} 个表", cleaned_tables.len());
     }
 
-    Ok(Json(DataCleanupResponse {
-        success: true,
-        message: format!("成功清理 {} 个表的数据", cleaned_tables.len()),
+    let message_params = MessageParams::from([(
+        "cleaned_count".to_string(),
+        cleaned_tables.len().to_string(),
+    )]);
+    Ok(data_cleanup_response(
+        true,
         cleaned_tables,
-        error: last_error,
-    }))
+        last_error,
+        "admin.data_cleanup_success",
+        Some(&message_params),
+    ))
 }
 
 // ========== IP地理位置解析开关管理 API ==========
@@ -5709,6 +5788,6 @@ pub async fn requeue_file_upload_audit_task(
 
     Ok(Json(FileUploadAuditTaskRequeueResponse {
         success: true,
-        message: "已重新入队".to_string(),
+        message: admin_localized_message("admin.file_upload_audit_requeue_success", None),
     }))
 }

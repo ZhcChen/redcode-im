@@ -76,6 +76,8 @@
   "admin.log_cleanup_retention_days_invalid": "保留天数必须大于 0",
   "admin.system_log_cleanup_success": "成功删除 {deleted_count} 条日志，保留最近 {retention_days} 天的日志",
   "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志",
+  "admin.data_cleanup_failed": "数据清理失败，已清理 {cleaned_count} 个表",
+  "admin.data_cleanup_success": "成功清理 {cleaned_count} 个表的数据",
   "admin.storage_provider_name_required": "提供商名称不能为空",
   "admin.storage_provider_secret_id_required": "密钥ID不能为空",
   "admin.storage_provider_secret_key_required": "密钥Key不能为空",
@@ -91,10 +93,14 @@
   "admin.storage_test_cors_method_required": "每条跨域规则必须至少配置一个允许的方法",
   "admin.storage_test_cors_method_unsupported": "不支持的跨域方法: {method}，COS 仅允许 GET/PUT/POST/DELETE/HEAD",
   "admin.storage_test_cors_set_success": "跨域规则配置成功",
+  "admin.storage_test_cors_set_failed": "配置跨域规则失败: {reason}",
   "admin.storage_test_cors_get_success": "获取跨域规则成功",
+  "admin.storage_test_cors_get_failed": "获取跨域规则失败: {reason}",
   "admin.storage_test_delete_success": "删除成功",
+  "admin.storage_test_delete_failed": "删除失败: {reason}",
   "admin.storage_test_exists_true": "文件存在",
   "admin.storage_test_exists_false": "文件不存在",
+  "admin.storage_test_exists_failed": "检查失败: {reason}",
   "admin.storage_test_bucket_name_required": "bucket 名称不能为空",
   "admin.storage_test_list_buckets_success": "成功获取 {count} 个 bucket",
   "admin.storage_test_list_buckets_failed": "获取 bucket 列表失败: {reason}",
@@ -102,5 +108,6 @@
   "admin.storage_test_create_bucket_failed": "创建 bucket 失败: {reason}",
   "admin.file_upload_audit_provider_id_invalid": "无效的 provider_id",
   "admin.file_upload_audit_task_id_invalid": "无效的 task_id",
-  "admin.file_upload_audit_task_not_found": "审核任务不存在"
+  "admin.file_upload_audit_task_not_found": "审核任务不存在",
+  "admin.file_upload_audit_requeue_success": "重新入队成功"
 }

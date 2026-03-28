@@ -76,6 +76,8 @@
   "admin.log_cleanup_retention_days_invalid": "Retention days must be greater than 0.",
   "admin.system_log_cleanup_success": "Deleted {deleted_count} logs successfully. Retained logs from the last {retention_days} days.",
   "admin.push_log_cleanup_success": "Deleted {deleted_count} push logs successfully. Retained logs from the last {retention_days} days.",
+  "admin.data_cleanup_failed": "Data cleanup failed after cleaning {cleaned_count} tables.",
+  "admin.data_cleanup_success": "Successfully cleaned data from {cleaned_count} tables.",
   "admin.storage_provider_name_required": "Storage provider name is required.",
   "admin.storage_provider_secret_id_required": "Secret ID is required.",
   "admin.storage_provider_secret_key_required": "Secret key is required.",
@@ -91,10 +93,14 @@
   "admin.storage_test_cors_method_required": "Each CORS rule must include at least one allowed method.",
   "admin.storage_test_cors_method_unsupported": "Unsupported CORS method: {method}. COS only allows GET/PUT/POST/DELETE/HEAD.",
   "admin.storage_test_cors_set_success": "CORS rules updated successfully.",
+  "admin.storage_test_cors_set_failed": "Failed to update CORS rules: {reason}",
   "admin.storage_test_cors_get_success": "CORS rules fetched successfully.",
+  "admin.storage_test_cors_get_failed": "Failed to fetch CORS rules: {reason}",
   "admin.storage_test_delete_success": "File deleted successfully.",
+  "admin.storage_test_delete_failed": "Delete failed: {reason}",
   "admin.storage_test_exists_true": "File exists.",
   "admin.storage_test_exists_false": "File does not exist.",
+  "admin.storage_test_exists_failed": "Failed to check file existence: {reason}",
   "admin.storage_test_bucket_name_required": "Bucket name is required.",
   "admin.storage_test_list_buckets_success": "Fetched {count} buckets successfully.",
   "admin.storage_test_list_buckets_failed": "Failed to list buckets: {reason}",
@@ -102,5 +108,6 @@
   "admin.storage_test_create_bucket_failed": "Failed to create bucket: {reason}",
   "admin.file_upload_audit_provider_id_invalid": "provider_id is invalid.",
   "admin.file_upload_audit_task_id_invalid": "task_id is invalid.",
-  "admin.file_upload_audit_task_not_found": "Audit task was not found."
+  "admin.file_upload_audit_task_not_found": "Audit task was not found.",
+  "admin.file_upload_audit_requeue_success": "Requeued successfully."
 }

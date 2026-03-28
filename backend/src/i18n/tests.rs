@@ -283,6 +283,7 @@ fn i18n_admin_storage_bucket_catalog_interpolates_params() {
 fn i18n_admin_storage_test_catalog_interpolates_reason_params() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     let reason_params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
+    let provider_params = BTreeMap::from([("provider_type".to_string(), "aliyun_oss".to_string())]);
 
     assert_eq!(
         localizer.localize(
@@ -315,6 +316,46 @@ fn i18n_admin_storage_test_catalog_interpolates_reason_params() {
             Some(&reason_params)
         ),
         "Failed to generate download URL: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_cors_get_failed",
+            Some(&reason_params)
+        ),
+        "Failed to fetch CORS rules: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_cors_set_failed",
+            Some(&reason_params)
+        ),
+        "Failed to update CORS rules: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_delete_failed",
+            Some(&reason_params)
+        ),
+        "Delete failed: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_exists_failed",
+            Some(&reason_params)
+        ),
+        "Failed to check file existence: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_provider_type_unsupported",
+            Some(&provider_params)
+        ),
+        "Unsupported storage provider type: aliyun_oss."
     );
 }
 
@@ -484,6 +525,15 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.push_log_cleanup_success", Some(&params)),
         "Deleted 3 push logs successfully. Retained logs from the last 2 days."
     );
+    let cleanup_params = BTreeMap::from([("cleaned_count".to_string(), "22".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.data_cleanup_failed", Some(&cleanup_params)),
+        "数据清理失败，已清理 22 个表"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.data_cleanup_success", Some(&cleanup_params)),
+        "Successfully cleaned data from 22 tables."
+    );
 
     let user_create_params = BTreeMap::from([(
         "user_id".to_string(),
@@ -604,6 +654,10 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
     assert_eq!(
         localizer.localize("en-US", "admin.file_upload_audit_task_not_found", None),
         "Audit task was not found."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.file_upload_audit_requeue_success", None),
+        "Requeued successfully."
     );
 
     let geolocation_params =

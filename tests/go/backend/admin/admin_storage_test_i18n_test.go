@@ -308,6 +308,34 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 		}
 	})
 
+	t.Run("multipart initiate threshold guard english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/upload/multipart/initiate",
+			admin.Token,
+			map[string]any{
+				"key":       uniqueAdminStorageTestKey("multipart-threshold"),
+				"file_size": 5 * 1024 * 1024,
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("multipart initiate request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestMultipartResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message != "File size must exceed 5242880 bytes to use multipart upload." {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+	})
+
 	t.Run("multipart initiate success english", func(t *testing.T) {
 		key := uniqueAdminStorageTestKey("multipart")
 		req := testutil.NewAuthedJSONRequest(
