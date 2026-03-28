@@ -92,4 +92,3 @@ impl<'a> PushProviderConfigStore<'a> {
         Ok(row)
     }
 }
-

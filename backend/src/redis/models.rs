@@ -786,7 +786,10 @@ impl TryFrom<ws::PubSubMessageUpdate> for MessageUpdatePayload {
                 MessageUpdateType::Edited
             }
         } else {
-            value.update_type.parse().unwrap_or(MessageUpdateType::Deleted)
+            value
+                .update_type
+                .parse()
+                .unwrap_or(MessageUpdateType::Deleted)
         };
 
         Ok(MessageUpdatePayload {

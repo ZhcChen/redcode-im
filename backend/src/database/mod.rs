@@ -3,16 +3,16 @@ use std::env;
 
 pub mod account_store;
 pub mod document_store;
-pub mod emoji_pack_store;
 pub mod e2ee_key_store;
+pub mod emoji_pack_store;
 pub mod file_upload_audit_store;
 pub mod file_upload_multipart_store;
 pub mod file_upload_store;
 pub mod friend_store;
 pub mod group_management_store;
 pub mod member_with_user_info;
-pub mod message_read_store;
 pub mod message_reaction_store;
+pub mod message_read_store;
 pub mod message_store;
 pub mod models;
 pub mod push_device_store;

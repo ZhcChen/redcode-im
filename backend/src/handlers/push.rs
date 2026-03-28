@@ -54,13 +54,7 @@ pub async fn register_device(
 
     let store = PushDeviceStore::new(state.database.pool());
     let _ = store
-        .upsert_device(
-            user_id,
-            &platform,
-            &channel,
-            device_id,
-            device_token,
-        )
+        .upsert_device(user_id, &platform, &channel, device_id, device_token)
         .await?;
 
     Ok(Json(RegisterPushDeviceResponse {
@@ -101,4 +95,3 @@ pub async fn unregister_device(
         },
     }))
 }
-

@@ -1,9 +1,9 @@
 // 模型转换工具模块
 // 用于在 database::models 和 crate::models 之间转换
 
-use uuid::Uuid;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use uuid::Uuid;
 
 // ==================== 用户模型转换 ====================
 

@@ -25,8 +25,8 @@ pub mod layer;
 pub mod store;
 pub mod writer;
 
-use std::sync::Arc;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 pub use layer::{DatabaseLayer, LogLevelConfig};

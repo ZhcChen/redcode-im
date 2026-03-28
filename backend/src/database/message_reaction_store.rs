@@ -188,4 +188,3 @@ impl<'a> MessageReactionStore<'a> {
         Ok(reactions)
     }
 }
-

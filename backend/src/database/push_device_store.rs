@@ -144,4 +144,3 @@ impl<'a> PushDeviceStore<'a> {
         Ok(devices)
     }
 }
-

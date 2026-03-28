@@ -72,7 +72,8 @@ pub async fn upload_key_bundle(
         ));
     }
 
-    let signed_public_key = decode_b64(&req.signed_pre_key.public_key, "signed_pre_key.public_key")?;
+    let signed_public_key =
+        decode_b64(&req.signed_pre_key.public_key, "signed_pre_key.public_key")?;
     if signed_public_key.len() != 32 {
         return Err(AppError::ValidationError(
             "signed_pre_key.public_key 长度应为 32 字节".to_string(),

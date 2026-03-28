@@ -8,8 +8,8 @@ pub mod crypto;
 pub mod database;
 pub mod error;
 pub mod handlers;
-pub mod id;
 pub mod i18n;
+pub mod id;
 pub mod logging;
 pub mod middleware;
 pub mod models;
@@ -28,8 +28,8 @@ pub use models::*;
 pub use crate::database::Database;
 pub use crate::redis::RedisManager;
 
-use std::sync::Arc;
 use logging::LogStore;
+use std::sync::Arc;
 
 /// 应用状态
 #[derive(Clone)]

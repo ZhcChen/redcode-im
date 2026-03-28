@@ -233,7 +233,10 @@ impl StorageService for TencentCosService {
     ) -> Result<String, AppError> {
         if is_storage_network_disabled() {
             let url = self.get_full_url(key);
-            debug!("跳过 COS upload_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, url={}", key, url);
+            debug!(
+                "跳过 COS upload_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, url={}",
+                key, url
+            );
             return Ok(url);
         }
 

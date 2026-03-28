@@ -302,9 +302,9 @@ impl ConnectionManager {
                         .await
                     {
                         let key = crate::redis::models::CacheKeys::user_online_status(&user_uuid);
-                        let _: redis::RedisResult<()> =
-                            conn.set_ex(key, node_id.as_str(), USER_ONLINE_TTL_SECONDS)
-                                .await;
+                        let _: redis::RedisResult<()> = conn
+                            .set_ex(key, node_id.as_str(), USER_ONLINE_TTL_SECONDS)
+                            .await;
                     }
 
                     // 获取会话管理器并更新心跳和IP
@@ -460,9 +460,15 @@ impl ConnectionManager {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 enum ClientEvent {
-    Auth { token: String },
-    Join { room_id: Uuid },
-    Leave { room_id: Uuid },
+    Auth {
+        token: String,
+    },
+    Join {
+        room_id: Uuid,
+    },
+    Leave {
+        room_id: Uuid,
+    },
     Ping,
     Typing {
         room_id: Uuid,
@@ -540,9 +546,9 @@ async fn handle_client_event(
                         .await
                     {
                         let key = crate::redis::models::CacheKeys::user_online_status(&user_uuid);
-                        let _: redis::RedisResult<()> =
-                            conn.set_ex(key, state_clone.node_id.as_str(), USER_ONLINE_TTL_SECONDS)
-                                .await;
+                        let _: redis::RedisResult<()> = conn
+                            .set_ex(key, state_clone.node_id.as_str(), USER_ONLINE_TTL_SECONDS)
+                            .await;
                     }
 
                     // 记录登录历史
@@ -729,8 +735,7 @@ async fn handle_client_event(
                 .await
                 .ok_or_else(|| "连接未认证".to_string())?;
 
-            let user_uuid =
-                Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
+            let user_uuid = Uuid::parse_str(&user_id).map_err(|_| "invalid user_id".to_string())?;
 
             // 必须已加入该房间（Join 时已做过“房间成员校验”，这里避免每次 typing 都查 DB）
             if !connection_manager

@@ -112,7 +112,11 @@ pub async fn update_push_settings_admin(
     let _ = settings
         .upsert_general_setting(
             SETTING_PUSH_SKIP_IF_ONLINE,
-            if payload.skip_if_online { "true" } else { "false" },
+            if payload.skip_if_online {
+                "true"
+            } else {
+                "false"
+            },
             "用户在线时是否跳过离线推送（系统通知）",
             Some(editor_id),
         )
@@ -262,13 +266,18 @@ pub async fn test_push_admin(
         .filter(|v| !v.is_empty());
 
     if token.is_none() {
-        if let Some(user_id) = payload.user_id.as_ref().map(|v| v.trim()).filter(|v| !v.is_empty())
+        if let Some(user_id) = payload
+            .user_id
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
         {
             let user_uuid = string_to_uuid(user_id)?;
-            let device_store = crate::database::push_device_store::PushDeviceStore::new(
-                state.database.pool(),
-            );
-            let devices = device_store.list_active_devices_for_users(&[user_uuid]).await?;
+            let device_store =
+                crate::database::push_device_store::PushDeviceStore::new(state.database.pool());
+            let devices = device_store
+                .list_active_devices_for_users(&[user_uuid])
+                .await?;
             token = devices
                 .into_iter()
                 .find(|d| d.channel == "fcm")
@@ -276,7 +285,8 @@ pub async fn test_push_admin(
         }
     }
 
-    let token = token.ok_or_else(|| AppError::ValidationError("缺少 device_token 或 user_id".to_string()))?;
+    let token = token
+        .ok_or_else(|| AppError::ValidationError("缺少 device_token 或 user_id".to_string()))?;
 
     if payload.title.trim().is_empty() {
         return Err(AppError::ValidationError("title 不能为空".to_string()));
@@ -297,4 +307,3 @@ pub async fn test_push_admin(
         message: "发送成功".to_string(),
     }))
 }
-

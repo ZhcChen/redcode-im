@@ -111,19 +111,17 @@ async fn check_redis_session(state: &AppState) -> ComponentCheck {
     let start = Instant::now();
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        let mut conn = state.redis.get_session_client().get_multiplexed_async_connection().await?;
-        redis::cmd("PING")
-            .query_async::<String>(&mut conn)
-            .await
+        let mut conn = state
+            .redis
+            .get_session_client()
+            .get_multiplexed_async_connection()
+            .await?;
+        redis::cmd("PING").query_async::<String>(&mut conn).await
     })
     .await
     {
-        Ok(Ok(pong)) if pong == "PONG" => {
-            ComponentCheck::ok(start.elapsed().as_millis() as u64)
-        }
-        Ok(Ok(unexpected)) => {
-            ComponentCheck::error(format!("unexpected response: {}", unexpected))
-        }
+        Ok(Ok(pong)) if pong == "PONG" => ComponentCheck::ok(start.elapsed().as_millis() as u64),
+        Ok(Ok(unexpected)) => ComponentCheck::error(format!("unexpected response: {}", unexpected)),
         Ok(Err(e)) => ComponentCheck::error(format!("redis error: {}", e)),
         Err(_) => ComponentCheck::error("timeout".to_string()),
     }
@@ -134,19 +132,17 @@ async fn check_redis_cache(state: &AppState) -> ComponentCheck {
     let start = Instant::now();
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        let mut conn = state.redis.get_cache_client().get_multiplexed_async_connection().await?;
-        redis::cmd("PING")
-            .query_async::<String>(&mut conn)
-            .await
+        let mut conn = state
+            .redis
+            .get_cache_client()
+            .get_multiplexed_async_connection()
+            .await?;
+        redis::cmd("PING").query_async::<String>(&mut conn).await
     })
     .await
     {
-        Ok(Ok(pong)) if pong == "PONG" => {
-            ComponentCheck::ok(start.elapsed().as_millis() as u64)
-        }
-        Ok(Ok(unexpected)) => {
-            ComponentCheck::error(format!("unexpected response: {}", unexpected))
-        }
+        Ok(Ok(pong)) if pong == "PONG" => ComponentCheck::ok(start.elapsed().as_millis() as u64),
+        Ok(Ok(unexpected)) => ComponentCheck::error(format!("unexpected response: {}", unexpected)),
         Ok(Err(e)) => ComponentCheck::error(format!("redis error: {}", e)),
         Err(_) => ComponentCheck::error("timeout".to_string()),
     }

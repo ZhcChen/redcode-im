@@ -705,24 +705,23 @@ mod message_attachment_key_tests {
 #[cfg(test)]
 mod message_i18n_tests {
     use super::{
-        ensure_multipart_upload_size, message_cache_error, message_internal_error,
-        message_validation_error, message_validation_error_with_params, normalize_message_parts,
-        parse_message_sender_id, plan_message_attachment_multipart_upload,
-        validate_list_cursor_params, validate_multipart_upload_candidate,
-        validate_reaction_key, validate_reaction_target_message, create_message_storage_service,
-        ALLOWED_REACTION_KEYS,
+        create_message_storage_service, ensure_multipart_upload_size, message_cache_error,
+        message_internal_error, message_validation_error, message_validation_error_with_params,
+        normalize_message_parts, parse_message_sender_id, plan_message_attachment_multipart_upload,
+        validate_list_cursor_params, validate_multipart_upload_candidate, validate_reaction_key,
+        validate_reaction_target_message, ALLOWED_REACTION_KEYS,
     };
     use crate::database::models::{
         MessageType, MessageWithSender, StorageProvider, StorageProviderType,
     };
-    use crate::services::multipart_upload;
+    use crate::i18n::message::MessageParams;
     use crate::models::MessagePartPayload;
+    use crate::services::multipart_upload;
     use axum::{body::Body, http::StatusCode, response::IntoResponse};
     use chrono::Utc;
     use http_body_util::BodyExt;
     use serde_json::Value;
     use uuid::Uuid;
-    use crate::i18n::message::MessageParams;
 
     #[test]
     fn normalize_message_parts_empty_content_returns_stable_message_key() {
@@ -802,7 +801,10 @@ mod message_i18n_tests {
 
         assert_eq!(error.message_key(), "auth.invalid_token");
         assert_eq!(error.response_message_key(), "auth.token_subject_invalid");
-        assert_eq!(error.localized_message(), "令牌中的用户信息无效，请重新登录");
+        assert_eq!(
+            error.localized_message(),
+            "令牌中的用户信息无效，请重新登录"
+        );
     }
 
     #[test]
@@ -811,7 +813,10 @@ mod message_i18n_tests {
             .expect_err("before_id and since_id should conflict");
 
         assert_eq!(error.response_message_key(), "message.list_cursor_conflict");
-        assert_eq!(error.localized_message(), "before_id 和 since_id 不能同时传入");
+        assert_eq!(
+            error.localized_message(),
+            "before_id 和 since_id 不能同时传入"
+        );
         assert_eq!(error.details(), None);
     }
 
@@ -819,7 +824,10 @@ mod message_i18n_tests {
     fn validate_reaction_key_invalid_returns_stable_key_and_params() {
         let error = validate_reaction_key("🔥").expect_err("unsupported reaction should fail");
 
-        assert_eq!(error.response_message_key(), "message.reaction_key_unsupported");
+        assert_eq!(
+            error.response_message_key(),
+            "message.reaction_key_unsupported"
+        );
         assert_eq!(
             error.localized_message(),
             "不支持的反应类型：🔥。支持的类型：👍, ❤️, 😂, 🎉, 😮, 😢"
@@ -841,7 +849,10 @@ mod message_i18n_tests {
             params.clone(),
         );
 
-        assert_eq!(error.response_message_key(), "message.attachment_file_size_exceeded_bytes");
+        assert_eq!(
+            error.response_message_key(),
+            "message.attachment_file_size_exceeded_bytes"
+        );
         let stored_params = error.message_params().expect("parameters present");
         assert_eq!(stored_params, params);
         assert_eq!(
@@ -884,7 +895,8 @@ mod message_i18n_tests {
     }
 
     #[tokio::test]
-    async fn attachment_multipart_session_internal_error_masks_details_and_keeps_stable_protocol_key() {
+    async fn attachment_multipart_session_internal_error_masks_details_and_keeps_stable_protocol_key(
+    ) {
         let error = message_internal_error(
             "message.attachment_multipart_session_create_failed",
             "storage failure",
@@ -896,10 +908,7 @@ mod message_i18n_tests {
             body["message_key"],
             "message.attachment_multipart_session_create_failed"
         );
-        assert_eq!(
-            body["message"],
-            "初始化附件分片上传会话失败，请稍后重试"
-        );
+        assert_eq!(body["message"], "初始化附件分片上传会话失败，请稍后重试");
         assert_eq!(body["details"], Value::Null);
     }
 
@@ -988,17 +997,24 @@ mod message_i18n_tests {
             error.response_message_key(),
             "message.default_storage_provider_invalid_config"
         );
-        assert_eq!(error.localized_message(), "默认存储提供商配置无效，请联系管理员");
+        assert_eq!(
+            error.localized_message(),
+            "默认存储提供商配置无效，请联系管理员"
+        );
         assert_eq!(error.details(), None);
     }
 
     #[test]
     fn validate_reaction_target_message_rejects_deleted_message() {
         let room_id = Uuid::new_v4();
-        let error = validate_reaction_target_message(&test_message_with_sender(room_id, true), room_id)
-            .expect_err("deleted message should reject reactions");
+        let error =
+            validate_reaction_target_message(&test_message_with_sender(room_id, true), room_id)
+                .expect_err("deleted message should reject reactions");
 
-        assert_eq!(error.response_message_key(), "message.reaction_message_deleted");
+        assert_eq!(
+            error.response_message_key(),
+            "message.reaction_message_deleted"
+        );
         assert_eq!(error.localized_message(), "消息已删除，无法操作反应");
         assert_eq!(error.details(), None);
     }
@@ -1725,7 +1741,9 @@ pub async fn pin_message(
     let store = MessageStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(message_forbidden_error("message.pin_room_membership_required"));
+        return Err(message_forbidden_error(
+            "message.pin_room_membership_required",
+        ));
     }
 
     let message = store
@@ -1734,7 +1752,9 @@ pub async fn pin_message(
         .ok_or_else(|| message_validation_error("message.pin_message_not_found"))?;
 
     if message.room_id != room_id {
-        return Err(message_validation_error("message.pin_message_room_mismatch"));
+        return Err(message_validation_error(
+            "message.pin_message_room_mismatch",
+        ));
     }
     if message.deleted_at.is_some() {
         return Err(message_validation_error("message.pin_message_deleted"));
@@ -1993,7 +2013,9 @@ pub async fn edit_message(
         .ok_or_else(|| message_validation_error("message.edit_message_not_found"))?;
 
     if existing.room_id != room_id {
-        return Err(message_validation_error("message.edit_message_room_mismatch"));
+        return Err(message_validation_error(
+            "message.edit_message_room_mismatch",
+        ));
     }
 
     if existing.sender_id != user_id {
@@ -2362,13 +2384,14 @@ pub async fn clear_room_messages(
     let room_store = RoomStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(message_forbidden_error("message.clear_room_membership_required"));
+        return Err(message_forbidden_error(
+            "message.clear_room_membership_required",
+        ));
     }
 
-    let room = room_store
-        .get_room(room_id)
-        .await
-        .map_err(|_| AppError::NotFound(String::new()).with_message_key("message.clear_room_not_found"))?;
+    let room = room_store.get_room(room_id).await.map_err(|_| {
+        AppError::NotFound(String::new()).with_message_key("message.clear_room_not_found")
+    })?;
 
     if room.room_type != RoomType::Private && room.owner_id != user_id {
         return Err(message_forbidden_error("message.clear_group_owner_only"));
@@ -2597,9 +2620,10 @@ pub async fn initiate_message_attachment_multipart_upload(
     }
 
     if req.file_size == 0 {
-        return Err(message_validation_error("message.attachment_file_size_required"));
+        return Err(message_validation_error(
+            "message.attachment_file_size_required",
+        ));
     }
-
 
     let policy = crate::services::upload_policy::get_upload_policy(&state).await;
     let part_type_key = match req.part_type {
@@ -2636,8 +2660,7 @@ pub async fn initiate_message_attachment_multipart_upload(
     let max_size = policy.max_size_bytes_for_part_type(part_type_key);
     validate_multipart_upload_candidate(req.file_size, max_size)?;
 
-    let (part_size, total_parts) =
-        plan_message_attachment_multipart_upload(req.file_size as i64)?;
+    let (part_size, total_parts) = plan_message_attachment_multipart_upload(req.file_size as i64)?;
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = create_message_storage_service(&provider)?;
@@ -2907,7 +2930,9 @@ pub async fn commit_message_attachment_upload(
             }
         }
         Err(AppError::NotFound(_)) => {
-            return Err(message_validation_error("message.attachment_object_not_found"));
+            return Err(message_validation_error(
+                "message.attachment_object_not_found",
+            ));
         }
         Err(AppError::ValidationError(_)) => {
             // 不支持 head_object 的提供商：退化为存在性检查
@@ -2916,7 +2941,9 @@ pub async fn commit_message_attachment_upload(
                 .await
                 .map_err(map_message_storage_error)?
             {
-                return Err(message_validation_error("message.attachment_object_not_found"));
+                return Err(message_validation_error(
+                    "message.attachment_object_not_found",
+                ));
             }
         }
         Err(e) => return Err(e),

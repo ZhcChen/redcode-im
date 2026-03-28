@@ -613,9 +613,14 @@ impl TencentCiClient {
         headers.insert("Content-Type".to_string(), "application/xml".to_string());
 
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
-        let authorization = self
-            .signer
-            .generate_signature_v1_with_host("POST", &signed_path, &headers, timestamp, &host, None);
+        let authorization = self.signer.generate_signature_v1_with_host(
+            "POST",
+            &signed_path,
+            &headers,
+            timestamp,
+            &host,
+            None,
+        );
 
         let response = self
             .http
@@ -682,9 +687,14 @@ impl TencentCiClient {
 
         let headers = BTreeMap::new();
         let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
-        let authorization = self
-            .signer
-            .generate_signature_v1_with_host("GET", &signed_path, &headers, timestamp, &host, None);
+        let authorization = self.signer.generate_signature_v1_with_host(
+            "GET",
+            &signed_path,
+            &headers,
+            timestamp,
+            &host,
+            None,
+        );
 
         let response = self
             .http

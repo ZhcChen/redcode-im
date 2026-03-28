@@ -1085,10 +1085,7 @@ impl<'de> Deserialize<'de> for JoinRequestStatus {
                     "pending" | "0" => Ok(JoinRequestStatus::Pending),
                     "approved" | "1" => Ok(JoinRequestStatus::Approved),
                     "rejected" | "2" => Ok(JoinRequestStatus::Rejected),
-                    _ => Err(E::custom(format!(
-                        "invalid join request status: {}",
-                        value
-                    ))),
+                    _ => Err(E::custom(format!("invalid join request status: {}", value))),
                 }
             }
         }
@@ -1158,7 +1155,8 @@ impl<'de> Deserialize<'de> for InvitationStatus {
             type Value = InvitationStatus;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("invitation status (0/1/2/3 or pending/accepted/declined/expired)")
+                formatter
+                    .write_str("invitation status (0/1/2/3 or pending/accepted/declined/expired)")
             }
 
             fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>

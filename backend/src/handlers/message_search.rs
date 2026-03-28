@@ -61,7 +61,10 @@ fn message_validation_error(message_key: &'static str) -> AppError {
     AppError::ValidationError(String::new()).with_message_key(message_key)
 }
 
-fn message_validation_error_with_params(message_key: &'static str, params: MessageParams) -> AppError {
+fn message_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
     AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
 }
 
@@ -437,7 +440,10 @@ mod tests {
     #[test]
     fn test_validate_search_query_empty_returns_required_key() {
         let error = validate_search_query("   ").expect_err("should fail");
-        assert_eq!(error.response_message_key(), "message.search_query_required");
+        assert_eq!(
+            error.response_message_key(),
+            "message.search_query_required"
+        );
         assert_eq!(error.localized_message(), "搜索内容不能为空");
     }
 
@@ -446,7 +452,10 @@ mod tests {
         let query = "x".repeat(201);
         let error = validate_search_query(&query).expect_err("should fail");
 
-        assert_eq!(error.response_message_key(), "message.search_query_too_long");
+        assert_eq!(
+            error.response_message_key(),
+            "message.search_query_too_long"
+        );
         let params = error.message_params().expect("message params should exist");
         assert_eq!(params.get("max").map(String::as_str), Some("200"));
     }

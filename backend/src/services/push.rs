@@ -498,7 +498,11 @@ fn push_send_semaphore() -> &'static Arc<Semaphore> {
     })
 }
 
-async fn enqueue_push_job_to_db(state: &AppState, job_type: &'static str, payload: serde_json::Value) {
+async fn enqueue_push_job_to_db(
+    state: &AppState,
+    job_type: &'static str,
+    payload: serde_json::Value,
+) {
     // 未启用或未配置离线推送平台时，不入队，避免堆积“历史通知”
     let runtime = push_runtime_snapshot(state).await;
     if !runtime.enabled || runtime.fcm.is_none() {
@@ -559,7 +563,8 @@ impl PushDbQueueConfig {
                 env_usize("PUSH_JOB_CONCURRENCY", PUSH_JOB_CONCURRENCY),
             )
             .clamp(1, 200),
-            batch_size: env_i64("PUSH_DB_QUEUE_BATCH_SIZE", PUSH_DB_QUEUE_BATCH_SIZE).clamp(1, 2000),
+            batch_size: env_i64("PUSH_DB_QUEUE_BATCH_SIZE", PUSH_DB_QUEUE_BATCH_SIZE)
+                .clamp(1, 2000),
             lease_seconds: env_i64("PUSH_DB_QUEUE_LEASE_SECONDS", PUSH_DB_QUEUE_LEASE_SECONDS)
                 .clamp(5, 3600),
             poll_interval_seconds: env_u64(
@@ -669,11 +674,11 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
             }
         }
         "friend_request" => {
-            let payload: DbFriendRequestJobPayload = match serde_json::from_value(job.payload.clone())
-            {
-                Ok(v) => v,
-                Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
-            };
+            let payload: DbFriendRequestJobPayload =
+                match serde_json::from_value(job.payload.clone()) {
+                    Ok(v) => v,
+                    Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
+                };
 
             match notify_friend_request(
                 state,
@@ -690,7 +695,8 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
             }
         }
         "group_event" => {
-            let payload: DbGroupEventJobPayload = match serde_json::from_value(job.payload.clone()) {
+            let payload: DbGroupEventJobPayload = match serde_json::from_value(job.payload.clone())
+            {
                 Ok(v) => v,
                 Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
             };
@@ -720,7 +726,10 @@ async fn run_push_db_queue_once(state: AppState, cfg: &PushDbQueueConfig) {
     }
 
     let store = PushJobStore::new(state.database.pool());
-    let jobs = match store.claim_due_jobs(cfg.batch_size, cfg.lease_seconds).await {
+    let jobs = match store
+        .claim_due_jobs(cfg.batch_size, cfg.lease_seconds)
+        .await
+    {
         Ok(v) => v,
         Err(e) => {
             warn!("Push: claim push_job_queue 失败: {}", e);
@@ -1600,7 +1609,12 @@ pub async fn notify_new_message(
     let room = match room_store.get_room(message.room_id).await {
         Ok(room) => room,
         Err(sqlx::Error::RowNotFound) => return Ok(()),
-        Err(e) => return Err(format!("获取房间失败 room_id={}, err={}", message.room_id, e)),
+        Err(e) => {
+            return Err(format!(
+                "获取房间失败 room_id={}, err={}",
+                message.room_id, e
+            ))
+        }
     };
 
     let sender_name = message

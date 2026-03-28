@@ -87,7 +87,11 @@ impl<S> Layer<S> for DatabaseLayer
 where
     S: Subscriber,
 {
-    fn on_event(&self, event: &tracing::Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+    fn on_event(
+        &self,
+        event: &tracing::Event<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
         let metadata = event.metadata();
         let level = metadata.level();
 
@@ -141,8 +145,10 @@ impl Visit for FieldVisitor {
         if field.name() == "message" {
             self.message = Some(value.to_string());
         } else {
-            self.fields
-                .insert(field.name().to_string(), serde_json::Value::String(value.to_string()));
+            self.fields.insert(
+                field.name().to_string(),
+                serde_json::Value::String(value.to_string()),
+            );
         }
     }
 
@@ -151,8 +157,10 @@ impl Visit for FieldVisitor {
         if field.name() == "message" {
             self.message = Some(value_str);
         } else {
-            self.fields
-                .insert(field.name().to_string(), serde_json::Value::String(value_str));
+            self.fields.insert(
+                field.name().to_string(),
+                serde_json::Value::String(value_str),
+            );
         }
     }
 

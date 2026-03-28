@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 
 use crate::i18n::catalog::Catalog;
-use crate::i18n::locale::{DEFAULT_LOCALE, negotiate_locale};
-use crate::i18n::message::{MessageParams, interpolate};
+use crate::i18n::locale::{negotiate_locale, DEFAULT_LOCALE};
+use crate::i18n::message::{interpolate, MessageParams};
 
 #[derive(Debug, Clone)]
 pub struct Localizer {
