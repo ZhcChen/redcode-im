@@ -15,4 +15,5 @@ export default {
   'report.reset': '重置',
   'report.target.room': '群聊',
   'report.target.user': '用户',
+  'report.messages.fetchError': '获取举报列表失败',
 };

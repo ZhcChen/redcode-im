@@ -11,4 +11,5 @@ export default {
   'feedback.createdAt': 'Submitted At',
   'feedback.search': 'Search',
   'feedback.reset': 'Reset',
+  'feedback.messages.fetchError': 'Failed to load feedback',
 };

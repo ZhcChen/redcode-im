@@ -218,7 +218,7 @@
       v-model:visible="videoVisible"
       :footer="false"
       unmount-on-close
-      title="视频预览"
+      :title="$t('chatHistory.videoPreview')"
       width="auto"
     >
       <video
@@ -286,12 +286,13 @@
         keyword: formModel.value.keyword || undefined,
         start_date: formModel.value.start_date || undefined,
         end_date: formModel.value.end_date || undefined,
+      }, {
+        suppressGlobalErrorMessage: true,
       });
       renderData.value = data.messages;
       pagination.current = data.page;
       pagination.total = data.total;
 
-      // 尝试从第一条消息获取房间名称
       if (data.messages.length > 0 && data.messages[0].room_name) {
         roomName.value = data.messages[0].room_name;
       }

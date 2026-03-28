@@ -302,7 +302,7 @@
       v-model:visible="videoVisible"
       :footer="false"
       unmount-on-close
-      title="视频预览"
+      :title="$t('chatHistory.videoPreview')"
       width="auto"
     >
       <video
@@ -376,7 +376,9 @@
   const fetchUserRooms = async () => {
     setRoomsLoading(true);
     try {
-      const { data } = await getUserRooms(userId.value);
+      const { data } = await getUserRooms(userId.value, {
+        suppressGlobalErrorMessage: true,
+      });
       roomsData.value = data.rooms;
     } catch (err) {
       Message.error(t('chatHistory.fetchRoomsError'));
@@ -395,6 +397,8 @@
         keyword: formModel.value.keyword || undefined,
         start_date: formModel.value.start_date || undefined,
         end_date: formModel.value.end_date || undefined,
+      }, {
+        suppressGlobalErrorMessage: true,
       });
       messagesData.value = data.messages;
       pagination.current = data.page;
@@ -444,7 +448,6 @@
     });
   };
 
-  // 监听标签页切换
   watch(activeTab, (newTab) => {
     if (newTab === 'rooms') {
       fetchUserRooms();

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 
 export interface ReportAttachmentItem {
   key: string;
@@ -34,6 +35,16 @@ export interface ReportListResponse {
   pageSize: number;
 }
 
-export function getReportList(params?: ReportListParams) {
-  return axios.get<ReportListResponse>('/api/admin/reports', { params });
+type AdminRequestConfig = AxiosRequestConfig & {
+  suppressGlobalErrorMessage?: boolean;
+};
+
+export function getReportList(
+  params?: ReportListParams,
+  config?: AdminRequestConfig
+) {
+  return axios.get<ReportListResponse>('/api/admin/reports', {
+    ...config,
+    params,
+  });
 }

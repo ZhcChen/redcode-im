@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 
 export interface MessagePart {
   id: string;
@@ -66,23 +67,37 @@ export interface UserRoomResponse {
   total: number;
 }
 
+type AdminRequestConfig = AxiosRequestConfig & {
+  suppressGlobalErrorMessage?: boolean;
+};
+
 // 获取聊天记录
-export function getChatHistory(params?: ChatHistoryParams) {
-  return axios.get<ChatHistoryResponse>('/api/admin/chat-history', { params });
+export function getChatHistory(
+  params?: ChatHistoryParams,
+  config?: AdminRequestConfig
+) {
+  return axios.get<ChatHistoryResponse>('/api/admin/chat-history', {
+    ...config,
+    params,
+  });
 }
 
 // 获取用户参与的房间列表
-export function getUserRooms(userId: string) {
-  return axios.get<UserRoomResponse>(`/api/admin/users/${userId}/rooms`);
+export function getUserRooms(userId: string, config?: AdminRequestConfig) {
+  return axios.get<UserRoomResponse>(`/api/admin/users/${userId}/rooms`, config);
 }
 
 // 获取特定房间的聊天记录
 export function getRoomChatHistory(
   roomId: string,
-  params?: Omit<ChatHistoryParams, 'room_id'>
+  params?: Omit<ChatHistoryParams, 'room_id'>,
+  config?: AdminRequestConfig
 ) {
   return axios.get<ChatHistoryResponse>(
     `/api/admin/rooms/${roomId}/chat-history`,
-    { params }
+    {
+      ...config,
+      params,
+    }
   );
 }

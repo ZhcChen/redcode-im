@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 
 export interface FeedbackItem {
   id: string;
@@ -24,6 +25,16 @@ export interface FeedbackListResponse {
   pageSize: number;
 }
 
-export function getFeedbackList(params?: FeedbackListParams) {
-  return axios.get<FeedbackListResponse>('/api/admin/feedbacks', { params });
+type AdminRequestConfig = AxiosRequestConfig & {
+  suppressGlobalErrorMessage?: boolean;
+};
+
+export function getFeedbackList(
+  params?: FeedbackListParams,
+  config?: AdminRequestConfig
+) {
+  return axios.get<FeedbackListResponse>('/api/admin/feedbacks', {
+    ...config,
+    params,
+  });
 }

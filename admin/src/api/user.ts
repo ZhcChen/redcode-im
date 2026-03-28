@@ -1,6 +1,11 @@
 import axios from 'axios';
+import type { AxiosRequestConfig } from 'axios';
 import type { RouteRecordNormalized } from 'vue-router';
 import { setToken, setRefreshToken } from '@/utils/auth';
+
+type AdminRequestConfig = AxiosRequestConfig & {
+  suppressGlobalErrorMessage?: boolean;
+};
 
 export interface LoginData {
   username: string;
@@ -74,15 +79,22 @@ export interface UserListResponse {
   pageSize: number;
 }
 
-export function getUserList(params?: UserListParams) {
-  return axios.get<UserListResponse>('/api/admin/users', { params });
+export function getUserList(
+  params?: UserListParams,
+  config?: AdminRequestConfig
+) {
+  return axios.get<UserListResponse>('/api/admin/users', {
+    ...config,
+    params,
+  });
 }
 
 export function updateUserStatus(
   userId: string,
-  status: 'active' | 'inactive' | 'banned'
+  status: 'active' | 'inactive' | 'banned',
+  config?: AdminRequestConfig
 ) {
-  return axios.patch(`/api/admin/users/${userId}/status`, { status });
+  return axios.patch(`/api/admin/users/${userId}/status`, { status }, config);
 }
 
 export interface CaptchaSetting {

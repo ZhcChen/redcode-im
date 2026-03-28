@@ -124,9 +124,11 @@
 
 <script lang="ts" setup>
   import { onMounted, reactive, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs from 'dayjs';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getFeedbackList,
     type FeedbackItem,
@@ -134,6 +136,7 @@
   } from '@/api/feedback';
 
   const { loading, setLoading } = useLoading();
+  const { t } = useI18n();
 
   const formModel = reactive({
     userId: '',
@@ -163,7 +166,9 @@
         keyword: formModel.keyword || undefined,
       };
 
-      const { data } = await getFeedbackList(params);
+      const { data } = await getFeedbackList(params, {
+        suppressGlobalErrorMessage: true,
+      });
       renderData.value = data.feedbacks;
       pagination.current = data.page;
       pagination.pageSize = data.pageSize;
@@ -171,9 +176,12 @@
     } catch (error: any) {
       renderData.value = [];
       pagination.total = 0;
-      console.error('获取反馈列表失败', error?.response ?? error);
+      console.error('[feedback] fetch failed', error?.response ?? error);
       Message.error(
-        error?.response?.data?.message || error?.message || '获取反馈列表失败'
+        resolveHttpErrorMessage(error, {
+          fallbackKey: 'feedback.messages.fetchError',
+          fallbackMessage: t('feedback.messages.fetchError'),
+        })
       );
     } finally {
       setLoading(false);

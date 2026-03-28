@@ -11,4 +11,5 @@ export default {
   'feedback.createdAt': '提交时间',
   'feedback.search': '搜索',
   'feedback.reset': '重置',
+  'feedback.messages.fetchError': '获取反馈列表失败',
 };

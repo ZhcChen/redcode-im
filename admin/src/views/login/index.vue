@@ -5,7 +5,7 @@
         alt="logo"
         src="//p3-armor.byteimg.com/tos-cn-i-49unhts6dw/dfdba5317c0c20ce20e64fac803d52bc.svg~tplv-49unhts6dw-image.image"
       />
-      <div class="logo-text">IM 管理后台</div>
+      <div class="logo-text">{{ t('app.brand') }}</div>
     </div>
     <LoginBanner />
     <div class="content">
@@ -20,9 +20,12 @@
 </template>
 
 <script lang="ts" setup>
+  import { useI18n } from 'vue-i18n';
   import Footer from '@/components/footer/index.vue';
   import LoginBanner from './components/banner.vue';
   import LoginForm from './components/login-form.vue';
+
+  const { t } = useI18n();
 </script>
 
 <style lang="less" scoped>

@@ -1,29 +1,39 @@
 <template>
   <div class="user-list-container">
     <Breadcrumb :items="['menu.userManagement', 'menu.userManagement.list']" />
-    <a-card class="general-card" title="用户管理" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('userManagement.title')"
+      :bordered="false"
+    >
       <div class="header-actions">
         <a-space>
           <a-input-search
             v-model="searchKeyword"
-            placeholder="搜索用户名"
+            :placeholder="t('userManagement.list.search.placeholder')"
             style="width: 300px"
             @search="handleSearch"
           />
           <a-select
             v-model="selectedStatus"
-            placeholder="用户状态"
+            :placeholder="t('userManagement.list.status.placeholder')"
             style="width: 150px"
             allow-clear
             @change="handleSearch"
           >
-            <a-option value="active">正常</a-option>
-            <a-option value="inactive">禁用</a-option>
-            <a-option value="banned">已封禁</a-option>
+            <a-option value="active">{{
+              t('userManagement.status.active')
+            }}</a-option>
+            <a-option value="inactive">{{
+              t('userManagement.status.inactive')
+            }}</a-option>
+            <a-option value="banned">{{
+              t('userManagement.status.banned')
+            }}</a-option>
           </a-select>
           <a-button @click="handleRefresh">
             <template #icon><icon-refresh /></template>
-            刷新
+            {{ t('userManagement.list.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -73,7 +83,7 @@
               :disabled="Boolean(record.deleted_at)"
               @click="handleBanUser(record)"
             >
-              {{ record.status === 'banned' ? '解禁' : '封禁' }}
+              {{ getActionText(record) }}
             </a-button>
           </a-space>
         </template>
@@ -83,10 +93,12 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { computed, onMounted, reactive, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs from 'dayjs';
   import useLoading from '@/hooks/loading';
   import { Message, Modal } from '@arco-design/web-vue';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getUserList,
     updateUserStatus,
@@ -95,9 +107,10 @@
   } from '@/api/user';
 
   const { loading, setLoading } = useLoading(true);
+  const { t } = useI18n();
 
   const searchKeyword = ref('');
-  const selectedStatus = ref('');
+  const selectedStatus = ref<'' | UserInfo['status']>('');
 
   const userList = ref<UserInfo[]>([]);
   const pagination = reactive({
@@ -108,59 +121,59 @@
     showJumper: true,
   });
 
-  const columns = [
+  const columns = computed(() => [
     {
-      title: '头像',
+      title: t('userManagement.list.avatar'),
       dataIndex: 'avatar_url',
       slotName: 'avatar',
       width: 80,
     },
     {
-      title: '用户名',
+      title: t('userManagement.list.username'),
       dataIndex: 'username',
       width: 150,
     },
     {
-      title: '昵称',
+      title: t('userManagement.list.nickname'),
       dataIndex: 'nickname',
       width: 150,
     },
     {
-      title: '邮箱',
+      title: t('userManagement.list.email'),
       dataIndex: 'email',
       width: 200,
     },
     {
-      title: '状态',
+      title: t('userManagement.list.status'),
       dataIndex: 'status',
       slotName: 'status',
       width: 110,
     },
     {
-      title: '注册时间',
+      title: t('userManagement.list.createdAt'),
       dataIndex: 'created_at',
       width: 180,
       slotName: 'datetime',
     },
     {
-      title: '最后更新',
+      title: t('userManagement.list.updatedAt'),
       dataIndex: 'updated_at',
       width: 180,
       slotName: 'datetime',
     },
     {
-      title: '注销时间',
+      title: t('userManagement.list.deletedAt'),
       dataIndex: 'deleted_at',
       width: 180,
       slotName: 'deletedAt',
     },
     {
-      title: '操作',
+      title: t('userManagement.list.actions'),
       slotName: 'actions',
       width: 180,
-      fixed: 'right',
+      fixed: 'right' as const,
     },
-  ];
+  ]);
 
   const getStatusColor = (record: UserInfo): string => {
     if (record.deleted_at) {
@@ -180,18 +193,24 @@
 
   const getStatusText = (record: UserInfo): string => {
     if (record.deleted_at) {
-      return '已注销';
+      return t('userManagement.status.deleted');
     }
     switch (record.status) {
       case 'active':
-        return '正常';
+        return t('userManagement.status.active');
       case 'inactive':
-        return '禁用';
+        return t('userManagement.status.inactive');
       case 'banned':
-        return '已封禁';
+        return t('userManagement.status.banned');
       default:
-        return '未知';
+        return t('userManagement.status.unknown');
     }
+  };
+
+  const getActionText = (record: UserInfo) => {
+    return record.status === 'banned'
+      ? t('userManagement.action.unban')
+      : t('userManagement.action.ban');
   };
 
   const fetchData = async () => {
@@ -204,7 +223,9 @@
         status: selectedStatus.value || undefined,
       };
 
-      const { data } = await getUserList(params);
+      const { data } = await getUserList(params, {
+        suppressGlobalErrorMessage: true,
+      });
       if (data) {
         userList.value = data.users;
         pagination.total = data.total;
@@ -212,29 +233,13 @@
     } catch (error: any) {
       userList.value = [];
       pagination.total = 0;
-
-      // 添加调试信息到控制台
-      console.error('获取用户列表失败:', {
-        status: error?.response?.status,
-        statusText: error?.response?.statusText,
-        message: error?.message,
-        data: error?.response?.data,
-      });
-
-      // 根据错误类型显示不同的错误信息
-      if (error?.response?.status === 401) {
-        Message.error('认证失败，请重新登录');
-      } else if (error?.response?.status === 403) {
-        Message.error('没有权限访问用户列表');
-      } else if (error?.response?.status === 404) {
-        Message.error('用户列表接口不存在，请检查后端服务');
-      } else {
-        Message.error(
-          `获取用户列表失败：${
-            error?.message || error?.response?.data?.message || '未知错误'
-          }`
-        );
-      }
+      console.error('[user-management] fetch failed', error?.response ?? error);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackKey: 'userManagement.fetch.error',
+          fallbackMessage: t('userManagement.fetch.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -262,46 +267,53 @@
 
   const handleBanUser = (user: UserInfo) => {
     if (user.deleted_at) {
-      Message.info('已注销账号无法操作');
+      Message.info(t('userManagement.action.deletedLocked'));
       return;
     }
 
     const isBanned = user.status === 'banned';
-    const action = isBanned ? '解禁' : '封禁';
+    const action = getActionText(user);
     const newStatus = isBanned ? 'active' : 'banned';
+    const hintKey = isBanned
+      ? 'userManagement.confirm.unbanHint'
+      : 'userManagement.confirm.banHint';
 
     Modal.confirm({
-      title: '确认操作',
-      content: `确定要${action}用户 "${user.username}" 吗？${
-        isBanned
-          ? '解禁后用户将可以正常登录系统。'
-          : '封禁后用户将无法登录系统。'
-      }`,
-      okText: `确认${action}`,
-      cancelText: '取消',
+      title: t('userManagement.confirm.title'),
+      content: t('userManagement.confirm.content', {
+        action,
+        username: user.username,
+        hint: t(hintKey),
+      }),
+      okText: t('userManagement.confirm.okText', { action }),
+      cancelText: t('userManagement.confirm.cancelText'),
       okButtonProps: { status: isBanned ? 'normal' : 'danger' },
       onOk: async () => {
         try {
-          await updateUserStatus(user.id, newStatus);
-          Message.success(`${action}成功`);
+          await updateUserStatus(user.id, newStatus, {
+            suppressGlobalErrorMessage: true,
+          });
+          Message.success(
+            t('userManagement.action.success', {
+              action,
+            })
+          );
           await fetchData();
         } catch (error: any) {
-          // 标记为自定义处理，避免全局拦截器重复显示错误消息
-          error.config = error.config || {};
-          error.config.suppressGlobalErrorMessage = true;
-
-          // 根据错误类型显示不同的错误信息
-          if (error?.response?.status === 404) {
-            Message.error(`用户 "${user.username}" 不存在或已被删除`);
-          } else if (error?.response?.status === 401) {
-            Message.error(`认证失败，请重新登录`);
-          } else {
-            Message.error(
-              `${action}失败：${
-                error?.message || error?.response?.data?.message || '未知错误'
-              }`
-            );
-          }
+          Message.error(
+            resolveHttpErrorMessage(error, {
+              fallbackKey:
+                error?.response?.status === 404
+                  ? 'userManagement.action.notFound'
+                  : undefined,
+              fallbackParams: {
+                username: user.username,
+              },
+              fallbackMessage: t('userManagement.action.error', {
+                action,
+              }),
+            })
+          );
         }
       },
     });

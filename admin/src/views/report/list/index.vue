@@ -175,9 +175,11 @@
 
 <script lang="ts" setup>
   import { onMounted, reactive, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs from 'dayjs';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getReportList,
     type ReportItem,
@@ -185,6 +187,7 @@
   } from '@/api/report';
 
   const { loading, setLoading } = useLoading();
+  const { t } = useI18n();
 
   const formModel = reactive({
     reporterId: '',
@@ -218,7 +221,9 @@
         keyword: formModel.keyword || undefined,
       };
 
-      const { data } = await getReportList(params);
+      const { data } = await getReportList(params, {
+        suppressGlobalErrorMessage: true,
+      });
       renderData.value = data.reports;
       pagination.current = data.page;
       pagination.pageSize = data.pageSize;
@@ -226,9 +231,12 @@
     } catch (error: any) {
       renderData.value = [];
       pagination.total = 0;
-      console.error('获取举报列表失败', error?.response ?? error);
+      console.error('[report] fetch failed', error?.response ?? error);
       Message.error(
-        error?.response?.data?.message || error?.message || '获取举报列表失败'
+        resolveHttpErrorMessage(error, {
+          fallbackKey: 'report.messages.fetchError',
+          fallbackMessage: t('report.messages.fetchError'),
+        })
       );
     } finally {
       setLoading(false);
