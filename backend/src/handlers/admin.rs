@@ -177,6 +177,54 @@ fn test_cos_download_url_response(
     })
 }
 
+fn test_cos_set_cors_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosSetCorsResponse> {
+    Json(TestCosSetCorsResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn test_cos_get_cors_response(
+    success: bool,
+    rules: Vec<CorsRuleInput>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosGetCorsResponse> {
+    Json(TestCosGetCorsResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+        rules,
+    })
+}
+
+fn test_cos_delete_response(
+    success: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosDeleteResponse> {
+    Json(TestCosDeleteResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn test_cos_exists_response(
+    success: bool,
+    exists: bool,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosExistsResponse> {
+    Json(TestCosExistsResponse {
+        success,
+        exists,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -3589,11 +3637,12 @@ pub async fn test_cos_get_cors(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-            rules: vec![],
-        }));
+        return Ok(test_cos_get_cors_response(
+            false,
+            vec![],
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
@@ -3628,11 +3677,12 @@ pub async fn test_cos_get_cors(
                 })
                 .collect();
 
-            Ok(Json(TestCosGetCorsResponse {
-                success: true,
-                message: "获取跨域规则成功".to_string(),
-                rules: mapped_rules,
-            }))
+            Ok(test_cos_get_cors_response(
+                true,
+                mapped_rules,
+                "admin.storage_test_cors_get_success",
+                None,
+            ))
         }
         Err(e) => Ok(Json(TestCosGetCorsResponse {
             success: false,
@@ -3650,10 +3700,11 @@ pub async fn test_cos_set_cors(
     let store = StorageProviderStore::new(state.database.clone());
 
     if req.rules.is_empty() {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "请至少提供一条跨域规则".to_string(),
-        }));
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_test_cors_rules_required",
+            None,
+        ));
     }
 
     let provider = if let Some(provider_id) = req.provider_id.clone() {
@@ -3671,10 +3722,11 @@ pub async fn test_cos_set_cors(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
@@ -3711,10 +3763,11 @@ pub async fn test_cos_set_cors(
         .iter()
         .any(|rule| rule.allowed_origins.is_empty())
     {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "每条跨域规则必须至少配置一个允许的来源".to_string(),
-        }));
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_test_cors_origin_required",
+            None,
+        ));
     }
 
     const SUPPORTED_METHODS: [&str; 5] = ["GET", "PUT", "POST", "DELETE", "HEAD"];
@@ -3723,10 +3776,11 @@ pub async fn test_cos_set_cors(
         .iter()
         .any(|rule| rule.allowed_methods.is_empty())
     {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "每条跨域规则必须至少配置一个允许的方法".to_string(),
-        }));
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_test_cors_method_required",
+            None,
+        ));
     }
 
     if let Some(invalid_method) = cors_rules
@@ -3739,20 +3793,21 @@ pub async fn test_cos_set_cors(
                 .any(|supported| supported.eq_ignore_ascii_case(&uppercase))
         })
     {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!(
-                "不支持的跨域方法: {}，COS 仅允许 GET/PUT/POST/DELETE/HEAD",
-                invalid_method
-            ),
-        }));
+        let message_params =
+            MessageParams::from([("method".to_string(), invalid_method.to_string())]);
+        return Ok(test_cos_set_cors_response(
+            false,
+            "admin.storage_test_cors_method_unsupported",
+            Some(&message_params),
+        ));
     }
 
     match storage_service.set_cors_rules(&cors_rules).await {
-        Ok(_) => Ok(Json(TestCosSetCorsResponse {
-            success: true,
-            message: "跨域规则配置成功".to_string(),
-        })),
+        Ok(_) => Ok(test_cos_set_cors_response(
+            true,
+            "admin.storage_test_cors_set_success",
+            None,
+        )),
         Err(e) => Ok(Json(TestCosSetCorsResponse {
             success: false,
             message: format!("配置跨域规则失败: {}", e),
@@ -3795,10 +3850,11 @@ pub async fn test_cos_delete(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosDeleteResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_delete_response(
+            false,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
@@ -3811,10 +3867,11 @@ pub async fn test_cos_delete(
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.delete_file(&req.key).await {
-        Ok(_) => Ok(Json(TestCosDeleteResponse {
-            success: true,
-            message: "删除成功".to_string(),
-        })),
+        Ok(_) => Ok(test_cos_delete_response(
+            true,
+            "admin.storage_test_delete_success",
+            None,
+        )),
         Err(e) => Ok(Json(TestCosDeleteResponse {
             success: false,
             message: format!("删除失败: {}", e),
@@ -3858,11 +3915,12 @@ pub async fn test_cos_exists(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosExistsResponse {
-            success: false,
-            exists: false,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_exists_response(
+            false,
+            false,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
@@ -3876,15 +3934,16 @@ pub async fn test_cos_exists(
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.file_exists(&req.key).await {
-        Ok(exists) => Ok(Json(TestCosExistsResponse {
-            success: true,
+        Ok(exists) => Ok(test_cos_exists_response(
+            true,
             exists,
-            message: if exists {
-                "文件存在".to_string()
+            if exists {
+                "admin.storage_test_exists_true"
             } else {
-                "文件不存在".to_string()
+                "admin.storage_test_exists_false"
             },
-        })),
+            None,
+        )),
         Err(e) => Ok(Json(TestCosExistsResponse {
             success: false,
             exists: false,

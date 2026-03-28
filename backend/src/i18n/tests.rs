@@ -354,6 +354,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         ),
         "Download URL generated successfully (cached)."
     );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_test_delete_success", None),
+        "File deleted successfully."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_test_exists_false", None),
+        "File does not exist."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -418,6 +426,23 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
     assert_eq!(
         localizer.localize("zh-CN", "admin.storage_test_file_size_invalid", None),
         "file_size 必填且必须大于 0"
+    );
+    let cors_method_params = BTreeMap::from([("method".to_string(), "TRACE".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.storage_test_cors_method_unsupported",
+            Some(&cors_method_params)
+        ),
+        "不支持的跨域方法: TRACE，COS 仅允许 GET/PUT/POST/DELETE/HEAD"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_cors_method_unsupported",
+            Some(&cors_method_params)
+        ),
+        "Unsupported CORS method: TRACE. COS only allows GET/PUT/POST/DELETE/HEAD."
     );
 
     let admin_bootstrap_params = BTreeMap::from([
