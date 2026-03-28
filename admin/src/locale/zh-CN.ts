@@ -7,6 +7,11 @@ import localeMonitor from '@/views/dashboard/monitor/locale/zh-CN';
 
 import localeUserManagement from '@/views/user-management/list/locale/zh-CN';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
+import localePrivacyPolicy from '@/views/settings/privacy-policy/locale/zh-CN';
+import localeUserAgreement from '@/views/settings/user-agreement/locale/zh-CN';
+import localeGeneralSettings from '@/views/settings/general/locale/zh-CN';
+import localeApiTest from '@/views/settings/api-test/locale/zh-CN';
+import localePushSettings from '@/views/settings/push/locale/zh-CN';
 import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 import localeFeedback from '@/views/feedback/list/locale/zh-CN';
 import localeIpinfoToken from '@/views/settings/ipinfo-token/locale/zh-CN';
@@ -76,6 +81,11 @@ export default {
   ...localeMonitor,
   ...localeUserManagement,
   ...localeCaptchaSettings,
+  ...localePrivacyPolicy,
+  ...localeUserAgreement,
+  ...localeGeneralSettings,
+  ...localeApiTest,
+  ...localePushSettings,
   ...localeChatHistory,
   ...localeFeedback,
   ...localeIpinfoToken,

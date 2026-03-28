@@ -1,30 +1,36 @@
 <template>
   <div class="user-agreement-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.userAgreement']" />
-    <a-card class="general-card" title="用户协议" :bordered="false">
-      <a-spin :loading="loading" tip="加载中...">
+    <a-card
+      class="general-card"
+      :title="t('settingsUserAgreement.title')"
+      :bordered="false"
+    >
+      <a-spin :loading="loading" :tip="t('settingsUserAgreement.loading')">
         <div v-if="!loading" class="policy-editor">
           <a-form layout="vertical">
-            <a-form-item label="标题">
+            <a-form-item :label="t('settingsUserAgreement.form.title')">
               <a-input
                 v-model="form.title"
-                placeholder="请输入文档标题"
+                :placeholder="t('settingsUserAgreement.form.titlePlaceholder')"
                 allow-clear
               />
             </a-form-item>
-            <a-form-item label="正文内容">
+            <a-form-item :label="t('settingsUserAgreement.form.content')">
               <RichTextEditor v-model="form.content" />
             </a-form-item>
           </a-form>
           <div class="policy-editor__footer">
             <div class="policy-editor__meta">
-              <span>最后更新：</span>
+              <span>{{ t('settingsUserAgreement.meta.lastUpdated') }}</span>
               <strong>{{ formatTime(documentMeta?.updated_at) }}</strong>
             </div>
             <a-space>
-              <a-button :disabled="saving" @click="handleReset">重置</a-button>
+              <a-button :disabled="saving" @click="handleReset">
+                {{ t('settingsUserAgreement.action.reset') }}
+              </a-button>
               <a-button type="primary" :loading="saving" @click="handleSave">
-                保存
+                {{ t('settingsUserAgreement.action.save') }}
               </a-button>
             </a-space>
           </div>
@@ -36,10 +42,12 @@
 
 <script lang="ts" setup>
   import { reactive, ref, onMounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs from 'dayjs';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
   import RichTextEditor from '@/components/rich-text-editor/index.vue';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getUserAgreement,
     updateUserAgreement,
@@ -54,6 +62,7 @@
   const documentMeta = ref<DocumentContent | null>(null);
   const { loading, setLoading } = useLoading(true);
   const saving = ref(false);
+  const { t } = useI18n();
 
   const fetchData = async () => {
     setLoading(true);
@@ -62,8 +71,12 @@
       documentMeta.value = data;
       form.title = data.title ?? '';
       form.content = data.content ?? '';
-    } catch (error) {
-      Message.error('加载用户协议失败，请稍后重试');
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsUserAgreement.fetch.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -77,7 +90,7 @@
 
   const handleSave = async () => {
     if (!form.content || form.content.trim() === '') {
-      Message.warning('请填写用户协议正文内容');
+      Message.warning(t('settingsUserAgreement.validation.contentRequired'));
       return;
     }
 
@@ -88,16 +101,20 @@
         content: form.content,
       });
       documentMeta.value = data;
-      Message.success('保存成功');
-    } catch (error) {
-      Message.error('保存失败，请稍后重试');
+      Message.success(t('settingsUserAgreement.save.success'));
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsUserAgreement.save.error'),
+        })
+      );
     } finally {
       saving.value = false;
     }
   };
 
   const formatTime = (value?: string) => {
-    if (!value) return '暂无';
+    if (!value) return t('settingsUserAgreement.empty');
     return dayjs(value).format('YYYY-MM-DD HH:mm');
   };
 

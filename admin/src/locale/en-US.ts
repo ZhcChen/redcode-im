@@ -7,6 +7,11 @@ import localeMonitor from '@/views/dashboard/monitor/locale/en-US';
 
 import localeUserManagement from '@/views/user-management/list/locale/en-US';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/en-US';
+import localePrivacyPolicy from '@/views/settings/privacy-policy/locale/en-US';
+import localeUserAgreement from '@/views/settings/user-agreement/locale/en-US';
+import localeGeneralSettings from '@/views/settings/general/locale/en-US';
+import localeApiTest from '@/views/settings/api-test/locale/en-US';
+import localePushSettings from '@/views/settings/push/locale/en-US';
 import localeChatHistory from '@/views/chat-history/locale/en-US';
 import localeFeedback from '@/views/feedback/list/locale/en-US';
 import localeIpinfoToken from '@/views/settings/ipinfo-token/locale/en-US';
@@ -46,7 +51,7 @@ export default {
   'menu.settings.dataCleanup': 'Data Cleanup',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
-  'menu.settings.privacyPolicy': 'Privacy Agreement',
+  'menu.settings.privacyPolicy': 'Privacy Policy',
   'menu.settings.userAgreement': 'User Agreement',
   'menu.settings.general': 'General Settings',
   'menu.settings.push': 'Push Notifications',
@@ -76,6 +81,11 @@ export default {
   ...localeMonitor,
   ...localeUserManagement,
   ...localeCaptchaSettings,
+  ...localePrivacyPolicy,
+  ...localeUserAgreement,
+  ...localeGeneralSettings,
+  ...localeApiTest,
+  ...localePushSettings,
   ...localeChatHistory,
   ...localeFeedback,
   ...localeIpinfoToken,

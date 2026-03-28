@@ -1,0 +1,25 @@
+export default {
+  'settingsApiTest.label.ipAddress': 'IP Address',
+  'settingsApiTest.validation.required': 'Please enter an IP address',
+  'settingsApiTest.validation.invalid': 'Please enter a valid IP address',
+  'settingsApiTest.placeholder.ipAddress':
+    'Enter the IP address to test, for example: 8.8.8.8',
+  'settingsApiTest.help.ipAddress':
+    'Enter the IP address for geolocation lookup. The system will call the ipinfo.io API for testing.',
+  'settingsApiTest.action.test': 'Test API',
+  'settingsApiTest.action.clear': 'Clear',
+  'settingsApiTest.result.title': 'Test Result',
+  'settingsApiTest.result.ipAddress': 'IP Address',
+  'settingsApiTest.result.hostname': 'Hostname',
+  'settingsApiTest.result.city': 'City',
+  'settingsApiTest.result.region': 'Region / State',
+  'settingsApiTest.result.country': 'Country',
+  'settingsApiTest.result.location': 'Coordinates',
+  'settingsApiTest.result.org': 'ISP / Organization',
+  'settingsApiTest.result.postal': 'Postal Code',
+  'settingsApiTest.result.timezone': 'Timezone',
+  'settingsApiTest.result.unknown': 'Unknown',
+  'settingsApiTest.test.success': 'API test succeeded',
+  'settingsApiTest.test.invalidResponse': 'Unexpected API response format',
+  'settingsApiTest.test.error': 'Test failed, please try again',
+};

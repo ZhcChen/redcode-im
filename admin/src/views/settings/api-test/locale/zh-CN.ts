@@ -1,0 +1,25 @@
+export default {
+  'settingsApiTest.label.ipAddress': 'IP地址',
+  'settingsApiTest.validation.required': '请输入IP地址',
+  'settingsApiTest.validation.invalid': '请输入有效的IP地址格式',
+  'settingsApiTest.placeholder.ipAddress':
+    '请输入要测试的IP地址，如：8.8.8.8',
+  'settingsApiTest.help.ipAddress':
+    '输入要测试地理位置查询的IP地址，系统将调用 ipinfo.io API 进行测试。',
+  'settingsApiTest.action.test': '测试API',
+  'settingsApiTest.action.clear': '清空',
+  'settingsApiTest.result.title': '测试结果',
+  'settingsApiTest.result.ipAddress': 'IP地址',
+  'settingsApiTest.result.hostname': '主机名',
+  'settingsApiTest.result.city': '城市',
+  'settingsApiTest.result.region': '地区/州',
+  'settingsApiTest.result.country': '国家',
+  'settingsApiTest.result.location': '经纬度',
+  'settingsApiTest.result.org': 'ISP/组织',
+  'settingsApiTest.result.postal': '邮政编码',
+  'settingsApiTest.result.timezone': '时区',
+  'settingsApiTest.result.unknown': '未知',
+  'settingsApiTest.test.success': 'API测试成功',
+  'settingsApiTest.test.invalidResponse': 'API返回数据格式错误',
+  'settingsApiTest.test.error': '测试失败，请重试',
+};

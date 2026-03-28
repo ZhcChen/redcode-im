@@ -146,6 +146,61 @@ const ENGLISH_ROUTE_CASES = [
     },
   },
   {
+    id: 'settings-privacy-policy',
+    path: '/settings/privacy-policy',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Privacy Policy', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'settings-user-agreement',
+    path: '/settings/user-agreement',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('User Agreement', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'settings-general',
+    path: '/settings/general',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('General Settings', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByText('App Name', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'settings-api-test',
+    path: '/settings/general',
+    assertion: async (page: Page) => {
+      await page.getByText('API Test', { exact: true }).click();
+      await expect(
+        page.getByText('IP Address', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Test API', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'settings-push',
+    path: '/settings/push',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Push Notifications', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByText('Global Settings', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
     id: 'operations-ipinfo-token',
     path: '/operations/ipinfo-token',
     assertion: async (page: Page) => {

@@ -1,0 +1,15 @@
+export default {
+  'settingsPrivacyPolicy.title': '隐私协议',
+  'settingsPrivacyPolicy.loading': '加载中...',
+  'settingsPrivacyPolicy.form.title': '标题',
+  'settingsPrivacyPolicy.form.titlePlaceholder': '请输入文档标题',
+  'settingsPrivacyPolicy.form.content': '正文内容',
+  'settingsPrivacyPolicy.meta.lastUpdated': '最后更新：',
+  'settingsPrivacyPolicy.action.reset': '重置',
+  'settingsPrivacyPolicy.action.save': '保存',
+  'settingsPrivacyPolicy.fetch.error': '加载隐私协议失败，请稍后重试',
+  'settingsPrivacyPolicy.validation.contentRequired': '请填写隐私协议正文内容',
+  'settingsPrivacyPolicy.save.success': '保存成功',
+  'settingsPrivacyPolicy.save.error': '保存失败，请稍后重试',
+  'settingsPrivacyPolicy.empty': '暂无',
+};

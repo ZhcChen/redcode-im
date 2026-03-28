@@ -1,9 +1,13 @@
 <template>
   <div class="general-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.general']" />
-    <a-card class="general-card" title="通用设置" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('settingsGeneral.title')"
+      :bordered="false"
+    >
       <a-tabs default-active-key="app-name">
-        <a-tab-pane key="app-name" title="应用名称">
+        <a-tab-pane key="app-name" :title="t('settingsGeneral.tab.appName')">
           <a-form
             :model="appNameForm"
             label-align="left"
@@ -14,35 +18,46 @@
           >
             <a-form-item
               field="app_name"
-              label="应用名称"
+              :label="t('settingsGeneral.appName.label')"
               :rules="[
-                { required: true, message: '请输入应用名称' },
-                { maxLength: 50, message: '应用名称不能超过50个字符' },
+                {
+                  required: true,
+                  message: t('settingsGeneral.appName.validation.required'),
+                },
+                {
+                  maxLength: 50,
+                  message: t('settingsGeneral.appName.validation.maxLength'),
+                },
               ]"
             >
               <a-input
                 v-model="appNameForm.app_name"
-                placeholder="请输入应用名称"
+                :placeholder="t('settingsGeneral.appName.placeholder')"
                 maxlength="50"
                 show-word-limit
               />
               <template #help>
-                应用名称将在桌面端和移动端应用启动时显示，修改后需要重启应用才能生效。
+                {{ t('settingsGeneral.appName.help') }}
               </template>
             </a-form-item>
 
             <a-form-item>
               <a-space>
                 <a-button type="primary" html-type="submit" :loading="loading">
-                  保存设置
+                  {{ t('settingsGeneral.action.save') }}
                 </a-button>
-                <a-button @click="handleAppNameReset"> 重置 </a-button>
+                <a-button @click="handleAppNameReset">
+                  {{ t('settingsGeneral.action.reset') }}
+                </a-button>
               </a-space>
             </a-form-item>
           </a-form>
         </a-tab-pane>
 
-        <a-tab-pane key="ip-geolocation" title="IP地理位置解析">
+        <a-tab-pane
+          key="ip-geolocation"
+          :title="t('settingsGeneral.tab.ipGeolocation')"
+        >
           <a-form
             :model="ipGeoForm"
             label-align="left"
@@ -51,25 +66,33 @@
             class="settings-form"
             @submit="handleIpGeoSubmit"
           >
-            <a-form-item field="enabled" label="功能开关">
+            <a-form-item
+              field="enabled"
+              :label="t('settingsGeneral.ipGeolocation.label')"
+            >
               <a-switch v-model="ipGeoForm.enabled" />
               <template #help>
-                控制是否启用用户IP地址地理位置解析功能，用于管理员数据统计。关闭后不会记录用户的地理位置信息。
+                {{ t('settingsGeneral.ipGeolocation.help') }}
               </template>
             </a-form-item>
 
             <a-form-item>
               <a-space>
                 <a-button type="primary" html-type="submit" :loading="loading">
-                  保存设置
+                  {{ t('settingsGeneral.action.save') }}
                 </a-button>
-                <a-button @click="handleIpGeoReset"> 重置 </a-button>
+                <a-button @click="handleIpGeoReset">
+                  {{ t('settingsGeneral.action.reset') }}
+                </a-button>
               </a-space>
             </a-form-item>
           </a-form>
         </a-tab-pane>
 
-        <a-tab-pane key="user-account-limit" title="用户账号限制">
+        <a-tab-pane
+          key="user-account-limit"
+          :title="t('settingsGeneral.tab.userAccountLimit')"
+        >
           <a-form
             :model="accountLimitForm"
             label-align="left"
@@ -78,41 +101,64 @@
             class="settings-form"
             @submit="handleAccountLimitSubmit"
           >
-            <a-form-item field="enable_phone_validation" label="启用手机号校验">
+            <a-form-item
+              field="enable_phone_validation"
+              :label="t('settingsGeneral.accountLimit.phone.label')"
+            >
               <a-switch v-model="accountLimitForm.enable_phone_validation" />
               <template #help>
-                启用后，注册用户账号（用户名）必须符合手机号格式
+                {{ t('settingsGeneral.accountLimit.phone.help') }}
               </template>
             </a-form-item>
 
-            <a-form-item field="enable_email_validation" label="启用邮箱校验">
+            <a-form-item
+              field="enable_email_validation"
+              :label="t('settingsGeneral.accountLimit.email.label')"
+            >
               <a-switch v-model="accountLimitForm.enable_email_validation" />
               <template #help>
-                启用后，注册用户账号（用户名）必须符合邮箱格式
+                {{ t('settingsGeneral.accountLimit.email.help') }}
               </template>
             </a-form-item>
 
-            <a-form-item field="enable_length_validation" label="启用长度校验">
+            <a-form-item
+              field="enable_length_validation"
+              :label="t('settingsGeneral.accountLimit.length.label')"
+            >
               <a-switch v-model="accountLimitForm.enable_length_validation" />
               <template #help>
-                启用后，注册用户账号（用户名）必须符合长度限制
+                {{ t('settingsGeneral.accountLimit.length.help') }}
               </template>
             </a-form-item>
 
             <a-form-item
               v-if="accountLimitForm.enable_length_validation"
               field="min_length"
-              label="最小长度"
+              :label="t('settingsGeneral.accountLimit.minLength.label')"
               :rules="[
-                { required: true, message: '请输入最小长度' },
-                { type: 'number', min: 3, max: 50, message: '长度范围：3-50' },
+                {
+                  required: true,
+                  message: t(
+                    'settingsGeneral.accountLimit.validation.minLengthRequired'
+                  ),
+                },
+                {
+                  type: 'number',
+                  min: 3,
+                  max: 50,
+                  message: t(
+                    'settingsGeneral.accountLimit.validation.lengthRange'
+                  ),
+                },
               ]"
             >
               <a-input-number
                 v-model="accountLimitForm.min_length"
                 :min="3"
                 :max="50"
-                placeholder="最小长度"
+                :placeholder="
+                  t('settingsGeneral.accountLimit.minLength.placeholder')
+                "
                 style="width: 200px"
               />
             </a-form-item>
@@ -120,30 +166,44 @@
             <a-form-item
               v-if="accountLimitForm.enable_length_validation"
               field="max_length"
-              label="最大长度"
+              :label="t('settingsGeneral.accountLimit.maxLength.label')"
               :rules="[
-                { required: true, message: '请输入最大长度' },
-                { type: 'number', min: 3, max: 50, message: '长度范围：3-50' },
+                {
+                  required: true,
+                  message: t(
+                    'settingsGeneral.accountLimit.validation.maxLengthRequired'
+                  ),
+                },
+                {
+                  type: 'number',
+                  min: 3,
+                  max: 50,
+                  message: t(
+                    'settingsGeneral.accountLimit.validation.lengthRange'
+                  ),
+                },
               ]"
             >
               <a-input-number
                 v-model="accountLimitForm.max_length"
                 :min="3"
                 :max="50"
-                placeholder="最大长度"
+                :placeholder="
+                  t('settingsGeneral.accountLimit.maxLength.placeholder')
+                "
                 style="width: 200px"
               />
             </a-form-item>
 
             <a-form-item
               field="enable_alphanumeric_validation"
-              label="启用字母数字混合校验"
+              :label="t('settingsGeneral.accountLimit.alphanumeric.label')"
             >
               <a-switch
                 v-model="accountLimitForm.enable_alphanumeric_validation"
               />
               <template #help>
-                启用后，注册用户账号（用户名）必须同时包含字母和数字
+                {{ t('settingsGeneral.accountLimit.alphanumeric.help') }}
               </template>
             </a-form-item>
 
@@ -153,7 +213,7 @@
               :closable="false"
               style="margin-bottom: 20px"
             >
-              至少需要启用一种校验规则
+              {{ t('settingsGeneral.accountLimit.validation.minRequired') }}
             </a-alert>
 
             <a-form-item>
@@ -164,15 +224,20 @@
                   :loading="loading"
                   :disabled="!isAnyValidationEnabled"
                 >
-                  保存设置
+                  {{ t('settingsGeneral.action.save') }}
                 </a-button>
-                <a-button @click="handleAccountLimitReset"> 重置 </a-button>
+                <a-button @click="handleAccountLimitReset">
+                  {{ t('settingsGeneral.action.reset') }}
+                </a-button>
               </a-space>
             </a-form-item>
           </a-form>
         </a-tab-pane>
 
-        <a-tab-pane key="upload-policy" title="上传策略">
+        <a-tab-pane
+          key="upload-policy"
+          :title="t('settingsGeneral.tab.uploadPolicy')"
+        >
           <a-form
             :model="uploadPolicyForm"
             label-align="left"
@@ -182,41 +247,53 @@
             @submit="handleUploadPolicySubmit"
           >
             <a-alert type="info" :closable="false" style="margin-bottom: 20px">
-              用于下发给客户端（Flutter/Desktop）统一附件大小/数量/MIME
-              白名单等限制；当客户端未能拉取策略时会回退到本地默认值。
+              {{ t('settingsGeneral.uploadPolicy.info') }}
             </a-alert>
 
-            <a-form-item field="version" label="策略版本">
+            <a-form-item
+              field="version"
+              :label="t('settingsGeneral.uploadPolicy.version.label')"
+            >
               <a-input
                 v-model="uploadPolicyForm.version"
-                placeholder="例如 2025-12-31 或 v1"
+                :placeholder="
+                  t('settingsGeneral.uploadPolicy.version.placeholder')
+                "
                 maxlength="50"
               />
               <template #help>
-                可用于排查“客户端未刷新策略”的问题，建议每次变更时递增版本。
+                {{ t('settingsGeneral.uploadPolicy.version.help') }}
               </template>
             </a-form-item>
 
-            <a-form-item label="消息级限制">
+            <a-form-item
+              :label="t('settingsGeneral.uploadPolicy.messageLimit.label')"
+            >
               <a-space>
                 <a-input-number
                   v-model="uploadPolicyForm.max_attachments_per_message"
                   :min="0"
                   :max="200"
                   style="width: 200px"
-                  placeholder="单条消息最多附件数"
+                  :placeholder="
+                    t('settingsGeneral.uploadPolicy.messageLimit.attachments')
+                  "
                 />
                 <a-input-number
                   v-model="uploadPolicyForm.max_total_size_mb"
                   :min="1"
                   :max="10000"
                   style="width: 200px"
-                  placeholder="单条消息附件总大小（MB）"
+                  :placeholder="
+                    t('settingsGeneral.uploadPolicy.messageLimit.totalSize')
+                  "
                 />
               </a-space>
             </a-form-item>
 
-            <a-form-item label="单文件大小上限（MB）">
+            <a-form-item
+              :label="t('settingsGeneral.uploadPolicy.fileMaxSize.label')"
+            >
               <a-space wrap>
                 <a-input-number
                   v-model="uploadPolicyForm.max_size_mb_by_part_type.image"
@@ -249,70 +326,91 @@
               </a-space>
             </a-form-item>
 
-            <a-form-item label="语音消息规则（audio_only）">
+            <a-form-item
+              :label="t('settingsGeneral.uploadPolicy.audioOnly.label')"
+            >
               <a-space wrap>
                 <a-switch
                   v-model="uploadPolicyForm.audio_only.enabled"
                   disabled
                 />
-                <span>启用</span>
+                <span>{{ t('settingsGeneral.uploadPolicy.audioOnly.enabled') }}</span>
                 <a-switch
                   v-model="uploadPolicyForm.audio_only.force_single_attachment"
                   disabled
                 />
-                <span>强制单附件</span>
+                <span>
+                  {{ t('settingsGeneral.uploadPolicy.audioOnly.forceSingle') }}
+                </span>
                 <a-switch
                   v-model="uploadPolicyForm.audio_only.allow_text"
                   disabled
                 />
-                <span>允许携带文本</span>
+                <span>
+                  {{ t('settingsGeneral.uploadPolicy.audioOnly.allowText') }}
+                </span>
               </a-space>
               <template #help>
-                当前版本后端固定强制“语音不可混合其他内容”，暂不支持修改此规则。
+                {{ t('settingsGeneral.uploadPolicy.audioOnly.help') }}
               </template>
             </a-form-item>
 
-            <a-form-item label="MIME 白名单（image，每行一个）">
+            <a-form-item :label="t('settingsGeneral.uploadPolicy.mime.image')">
               <a-textarea
                 v-model="uploadPolicyMimeText.image"
                 :auto-size="{ minRows: 4, maxRows: 10 }"
-                placeholder="例如 image/png"
+                :placeholder="
+                  t('settingsGeneral.uploadPolicy.mime.imagePlaceholder')
+                "
               />
             </a-form-item>
 
-            <a-form-item label="MIME 白名单（video，每行一个）">
+            <a-form-item :label="t('settingsGeneral.uploadPolicy.mime.video')">
               <a-textarea
                 v-model="uploadPolicyMimeText.video"
                 :auto-size="{ minRows: 4, maxRows: 10 }"
-                placeholder="例如 video/mp4"
+                :placeholder="
+                  t('settingsGeneral.uploadPolicy.mime.videoPlaceholder')
+                "
               />
             </a-form-item>
 
-            <a-form-item label="MIME 白名单（audio，每行一个）">
+            <a-form-item :label="t('settingsGeneral.uploadPolicy.mime.audio')">
               <a-textarea
                 v-model="uploadPolicyMimeText.audio"
                 :auto-size="{ minRows: 4, maxRows: 10 }"
-                placeholder="例如 audio/mp4"
+                :placeholder="
+                  t('settingsGeneral.uploadPolicy.mime.audioPlaceholder')
+                "
               />
             </a-form-item>
 
-            <a-form-item label="MIME 白名单（file，每行一个）">
+            <a-form-item :label="t('settingsGeneral.uploadPolicy.mime.file')">
               <a-textarea
                 v-model="uploadPolicyMimeText.file"
                 :auto-size="{ minRows: 4, maxRows: 10 }"
-                placeholder="例如 application/pdf"
+                :placeholder="
+                  t('settingsGeneral.uploadPolicy.mime.filePlaceholder')
+                "
               />
               <template #help>
-                当前汇总白名单数量：{{ uploadPolicyMimeWhitelist.length }}
-                （后台会自动去重/转小写，并过滤危险类型）。
+                {{
+                  t('settingsGeneral.uploadPolicy.mime.fileHelp', {
+                    count: uploadPolicyMimeWhitelist.length,
+                  })
+                }}
               </template>
             </a-form-item>
 
-            <a-form-item label="最后更新">
+            <a-form-item :label="t('settingsGeneral.uploadPolicy.updatedAt')">
               <a-space>
                 <span>{{ formatTime(uploadPolicyMeta.updated_at) }}</span>
                 <span v-if="uploadPolicyMeta.updated_by">
-                  updated_by: {{ uploadPolicyMeta.updated_by }}
+                  {{
+                    t('settingsGeneral.uploadPolicy.updatedBy', {
+                      user: uploadPolicyMeta.updated_by,
+                    })
+                  }}
                 </span>
               </a-space>
             </a-form-item>
@@ -320,15 +418,17 @@
             <a-form-item>
               <a-space>
                 <a-button type="primary" html-type="submit" :loading="loading">
-                  保存设置
+                  {{ t('settingsGeneral.action.save') }}
                 </a-button>
-                <a-button @click="handleUploadPolicyReset"> 重置 </a-button>
+                <a-button @click="handleUploadPolicyReset">
+                  {{ t('settingsGeneral.action.reset') }}
+                </a-button>
               </a-space>
             </a-form-item>
           </a-form>
         </a-tab-pane>
 
-        <a-tab-pane key="api-test" title="API测试">
+        <a-tab-pane key="api-test" :title="t('settingsGeneral.tab.apiTest')">
           <ApiTest />
         </a-tab-pane>
       </a-tabs>
@@ -338,8 +438,10 @@
 
 <script lang="ts" setup>
   import { reactive, onMounted, computed } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getAppName,
     updateAppName,
@@ -353,6 +455,7 @@
   import ApiTest from '../api-test/index.vue';
 
   const { loading, setLoading } = useLoading(false);
+  const { t } = useI18n();
 
   const appNameForm = reactive({
     app_name: '',
@@ -435,8 +538,12 @@
       if (data) {
         appNameForm.app_name = data.app_name || '';
       }
-    } catch (error) {
-      Message.error('获取应用名称失败');
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.appName.fetch.error'),
+        })
+      );
     }
   };
 
@@ -446,8 +553,12 @@
       if (data) {
         ipGeoForm.enabled = data.enabled;
       }
-    } catch (error) {
-      Message.error('获取IP地理位置解析开关状态失败');
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.ipGeolocation.fetch.error'),
+        })
+      );
     }
   };
 
@@ -457,13 +568,17 @@
       if (data) {
         Object.assign(accountLimitForm, data);
       }
-    } catch (error) {
-      Message.error('获取用户账号限制设置失败');
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.accountLimit.fetch.error'),
+        })
+      );
     }
   };
 
   const formatTime = (value?: string) => {
-    if (!value) return '暂无';
+    if (!value) return t('settingsGeneral.empty');
     return new Date(value).toLocaleString();
   };
 
@@ -505,14 +620,18 @@
       uploadPolicyMimeText.file = (policy.mime_by_part_type?.file ?? []).join(
         '\n'
       );
-    } catch (error) {
-      Message.error('获取上传策略失败');
+    } catch (error: any) {
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.uploadPolicy.fetch.error'),
+        })
+      );
     }
   };
 
   const handleAppNameSubmit = async () => {
     if (!appNameForm.app_name.trim()) {
-      Message.warning('请输入应用名称');
+      Message.warning(t('settingsGeneral.appName.validation.required'));
       return;
     }
 
@@ -521,10 +640,14 @@
       await updateAppName({
         app_name: appNameForm.app_name.trim(),
       });
-      Message.success('应用名称保存成功');
+      Message.success(t('settingsGeneral.appName.save.success'));
       await fetchAppName();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '保存失败，请重试');
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.appName.save.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -540,10 +663,14 @@
       await setIpGeolocationEnabled({
         enabled: ipGeoForm.enabled,
       });
-      Message.success('IP地理位置解析开关保存成功');
+      Message.success(t('settingsGeneral.ipGeolocation.save.success'));
       await fetchIpGeolocation();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '保存失败，请重试');
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.ipGeolocation.save.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -555,7 +682,7 @@
 
   const handleAccountLimitSubmit = async () => {
     if (!isAnyValidationEnabled.value) {
-      Message.warning('至少需要启用一种校验规则');
+      Message.warning(t('settingsGeneral.accountLimit.validation.minRequired'));
       return;
     }
 
@@ -563,17 +690,23 @@
       accountLimitForm.enable_length_validation &&
       accountLimitForm.min_length > accountLimitForm.max_length
     ) {
-      Message.warning('最小长度不能大于最大长度');
+      Message.warning(
+        t('settingsGeneral.accountLimit.validation.minGreaterThanMax')
+      );
       return;
     }
 
     try {
       setLoading(true);
       await updateUserAccountLimit({ ...accountLimitForm });
-      Message.success('用户账号限制设置保存成功');
+      Message.success(t('settingsGeneral.accountLimit.save.success'));
       await fetchAccountLimit();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '保存失败，请重试');
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.accountLimit.save.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -585,7 +718,9 @@
 
   const handleUploadPolicySubmit = async () => {
     if (!uploadPolicyForm.version.trim()) {
-      Message.warning('请输入策略版本');
+      Message.warning(
+        t('settingsGeneral.uploadPolicy.validation.versionRequired')
+      );
       return;
     }
 
@@ -605,10 +740,14 @@
         },
         audio_only: uploadPolicyForm.audio_only,
       });
-      Message.success('上传策略保存成功');
+      Message.success(t('settingsGeneral.uploadPolicy.save.success'));
       await fetchUploadPolicy();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '保存失败，请重试');
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('settingsGeneral.uploadPolicy.save.error'),
+        })
+      );
     } finally {
       setLoading(false);
     }

@@ -1,0 +1,15 @@
+export default {
+  'settingsUserAgreement.title': '用户协议',
+  'settingsUserAgreement.loading': '加载中...',
+  'settingsUserAgreement.form.title': '标题',
+  'settingsUserAgreement.form.titlePlaceholder': '请输入文档标题',
+  'settingsUserAgreement.form.content': '正文内容',
+  'settingsUserAgreement.meta.lastUpdated': '最后更新：',
+  'settingsUserAgreement.action.reset': '重置',
+  'settingsUserAgreement.action.save': '保存',
+  'settingsUserAgreement.fetch.error': '加载用户协议失败，请稍后重试',
+  'settingsUserAgreement.validation.contentRequired': '请填写用户协议正文内容',
+  'settingsUserAgreement.save.success': '保存成功',
+  'settingsUserAgreement.save.error': '保存失败，请稍后重试',
+  'settingsUserAgreement.empty': '暂无',
+};
