@@ -280,6 +280,59 @@ fn i18n_admin_storage_bucket_catalog_interpolates_params() {
 }
 
 #[test]
+fn i18n_admin_storage_test_catalog_interpolates_reason_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let reason_params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
+
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_upload_decode_failed",
+            Some(&reason_params)
+        ),
+        "Failed to decode file content: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.storage_test_upload_signature_failed",
+            Some(&reason_params)
+        ),
+        "生成直传签名失败: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_multipart_initiate_failed",
+            Some(&reason_params)
+        ),
+        "Failed to initialize multipart upload: boom"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_download_url_failed",
+            Some(&reason_params)
+        ),
+        "Failed to generate download URL: boom"
+    );
+}
+
+#[test]
+fn i18n_admin_storage_test_catalog_loads_reuse_keys() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_test_upload_signature_reused", None),
+        "复用已上传的测试文件，未生成新的直传签名"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_test_multipart_reused", None),
+        "An existing uploaded object was reused. No re-upload is required."
+    );
+}
+
+#[test]
 fn i18n_message_catalog_loads_task_4c_error_keys_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 

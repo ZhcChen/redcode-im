@@ -3099,20 +3099,26 @@ pub async fn test_cos_upload(
 
     // 检查提供商是否启用
     if !provider.is_active {
-        return Ok(Json(TestCosUploadResponse {
-            success: false,
-            url: None,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_upload_response(
+            false,
+            None,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     // 检查是否为腾讯云 COS
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadResponse {
-            success: false,
-            url: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_upload_response(
+            false,
+            None,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     // 创建存储服务
@@ -3128,11 +3134,13 @@ pub async fn test_cos_upload(
         match BASE64_STANDARD.decode(data_part) {
             Ok(bytes_vec) => bytes::Bytes::from(bytes_vec),
             Err(e) => {
-                return Ok(Json(TestCosUploadResponse {
-                    success: false,
-                    url: None,
-                    message: format!("文件内容解码失败: {}", e),
-                }))
+                let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+                return Ok(test_cos_upload_response(
+                    false,
+                    None,
+                    "admin.storage_test_upload_decode_failed",
+                    Some(&message_params),
+                ));
             }
         }
     } else if let Some(text_content) = content {
@@ -3190,11 +3198,15 @@ pub async fn test_cos_upload(
                 message: admin_localized_message("admin.storage_test_upload_success", None),
             }))
         }
-        Err(e) => Ok(Json(TestCosUploadResponse {
-            success: false,
-            url: None,
-            message: format!("上传失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_upload_response(
+                false,
+                None,
+                "admin.storage_test_upload_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -3230,19 +3242,25 @@ pub async fn test_cos_upload_signature(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosUploadSignatureResponse {
-            success: false,
-            signature: None,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_upload_signature_response(
+            false,
+            None,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadSignatureResponse {
-            success: false,
-            signature: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_upload_signature_response(
+            false,
+            None,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3263,11 +3281,12 @@ pub async fn test_cos_upload_signature(
                     existing.object_key, hash_alg, hash_value
                 );
 
-                return Ok(Json(TestCosUploadSignatureResponse {
-                    success: true,
-                    signature: None,
-                    message: "复用已上传的测试文件，未生成新的直传签名".to_string(),
-                }));
+                return Ok(test_cos_upload_signature_response(
+                    true,
+                    None,
+                    "admin.storage_test_upload_signature_reused",
+                    None,
+                ));
             }
         }
     }
@@ -3298,20 +3317,22 @@ pub async fn test_cos_upload_signature(
     {
         Ok(signature) => {
             info!("前端获取直传参数 key: {}", req.key);
-            Ok(Json(TestCosUploadSignatureResponse {
-                success: true,
-                signature: Some(signature),
-                message: admin_localized_message(
-                    "admin.storage_test_upload_signature_success",
-                    None,
-                ),
-            }))
+            Ok(test_cos_upload_signature_response(
+                true,
+                Some(signature),
+                "admin.storage_test_upload_signature_success",
+                None,
+            ))
         }
-        Err(e) => Ok(Json(TestCosUploadSignatureResponse {
-            success: false,
-            signature: None,
-            message: format!("生成直传签名失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_upload_signature_response(
+                false,
+                None,
+                "admin.storage_test_upload_signature_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 
@@ -3376,25 +3397,31 @@ pub async fn test_cos_upload_multipart_initiate(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-            key: Some(key.to_string()),
-            session_id: None,
-            part_size: None,
-            total_parts: None,
-        }));
+        return Ok(test_cos_upload_multipart_response(
+            false,
+            Some(key.to_string()),
+            None,
+            None,
+            None,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-            key: Some(key.to_string()),
-            session_id: None,
-            part_size: None,
-            total_parts: None,
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_upload_multipart_response(
+            false,
+            Some(key.to_string()),
+            None,
+            None,
+            None,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3432,14 +3459,15 @@ pub async fn test_cos_upload_multipart_initiate(
                         existing.object_key, hash_alg, hash_value_trimmed
                     );
 
-                    return Ok(Json(TestCosUploadMultipartInitiateResponse {
-                        success: true,
-                        message: "复用已上传的对象，无需重新上传".to_string(),
-                        key: Some(existing.object_key),
-                        session_id: None,
-                        part_size: None,
-                        total_parts: None,
-                    }));
+                    return Ok(test_cos_upload_multipart_response(
+                        true,
+                        Some(existing.object_key),
+                        None,
+                        None,
+                        None,
+                        "admin.storage_test_multipart_reused",
+                        None,
+                    ));
                 }
             }
         }
@@ -3478,14 +3506,16 @@ pub async fn test_cos_upload_multipart_initiate(
     {
         Ok(upload_id) => upload_id,
         Err(e) => {
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
-                success: false,
-                message: format!("初始化分片上传失败: {}", e),
-                key: Some(key.to_string()),
-                session_id: None,
-                part_size: None,
-                total_parts: None,
-            }));
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            return Ok(test_cos_upload_multipart_response(
+                false,
+                Some(key.to_string()),
+                None,
+                None,
+                None,
+                "admin.storage_test_multipart_initiate_failed",
+                Some(&message_params),
+            ));
         }
     };
 
@@ -3514,14 +3544,16 @@ pub async fn test_cos_upload_multipart_initiate(
             let _ = storage_service
                 .abort_multipart_upload(key, &upload_id)
                 .await;
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
-                success: false,
-                message: format!("创建分片会话失败: {}", e),
-                key: Some(key.to_string()),
-                session_id: None,
-                part_size: None,
-                total_parts: None,
-            }));
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            return Ok(test_cos_upload_multipart_response(
+                false,
+                Some(key.to_string()),
+                None,
+                None,
+                None,
+                "admin.storage_test_multipart_session_create_failed",
+                Some(&message_params),
+            ));
         }
     };
 
@@ -3566,19 +3598,25 @@ pub async fn test_cos_download_url(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosDownloadUrlResponse {
-            success: false,
-            url: None,
-            message: "提供商未启用".to_string(),
-        }));
+        return Ok(test_cos_download_url_response(
+            false,
+            None,
+            "admin.storage_provider_inactive",
+            None,
+        ));
     }
 
     if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosDownloadUrlResponse {
-            success: false,
-            url: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
+        let message_params = MessageParams::from([(
+            "provider_type".to_string(),
+            format!("{:?}", provider.provider_type),
+        )]);
+        return Ok(test_cos_download_url_response(
+            false,
+            None,
+            "admin.storage_provider_type_unsupported",
+            Some(&message_params),
+        ));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3631,11 +3669,15 @@ pub async fn test_cos_download_url(
                 None,
             ))
         }
-        Err(e) => Ok(Json(TestCosDownloadUrlResponse {
-            success: false,
-            url: None,
-            message: format!("生成下载链接失败: {}", e),
-        })),
+        Err(e) => {
+            let message_params = MessageParams::from([("reason".to_string(), e.to_string())]);
+            Ok(test_cos_download_url_response(
+                false,
+                None,
+                "admin.storage_test_download_url_failed",
+                Some(&message_params),
+            ))
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,7 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 	c := testutil.NewClient()
 	testutil.EnsureDefaultStorageProvider(t, c)
 	admin := testutil.AdminLogin(t, c)
+	inactiveProviderID := createInactiveStorageProviderForBucketTests(t, c, admin.Token)
 
 	t.Run("upload missing content english", func(t *testing.T) {
 		req := testutil.NewAuthedJSONRequest(
@@ -103,6 +105,66 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 		}
 	})
 
+	t.Run("upload inactive provider english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/upload",
+			admin.Token,
+			map[string]any{
+				"provider_id": inactiveProviderID,
+				"key":         uniqueAdminStorageTestKey("upload-inactive"),
+				"content":     "inactive-provider",
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("test upload request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestUploadResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message != "Storage provider is inactive." {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+	})
+
+	t.Run("upload invalid base64 english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/upload",
+			admin.Token,
+			map[string]any{
+				"key":         uniqueAdminStorageTestKey("upload-base64"),
+				"file_base64": "data:text/plain;base64,%%%invalid%%%",
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("test upload request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestUploadResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message == "" || payload.Message == "文件内容解码失败: Invalid symbol 37, offset 12." {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+		if !strings.HasPrefix(payload.Message, "Failed to decode file content: ") {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+	})
+
 	t.Run("upload signature key required english", func(t *testing.T) {
 		req := testutil.NewAuthedJSONRequest(
 			t,
@@ -159,6 +221,34 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 		}
 		if payload.Signature == nil {
 			t.Fatalf("expected signature payload, got nil")
+		}
+	})
+
+	t.Run("upload signature inactive provider english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/upload/signature",
+			admin.Token,
+			map[string]any{
+				"provider_id": inactiveProviderID,
+				"key":         uniqueAdminStorageTestKey("signature-inactive"),
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("test upload signature request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestSignatureResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message != "Storage provider is inactive." {
+			t.Fatalf("unexpected message: %q", payload.Message)
 		}
 	})
 
@@ -251,6 +341,35 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 		}
 	})
 
+	t.Run("multipart initiate inactive provider english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/upload/multipart/initiate",
+			admin.Token,
+			map[string]any{
+				"provider_id": inactiveProviderID,
+				"key":         uniqueAdminStorageTestKey("multipart-inactive"),
+				"file_size":   6 * 1024 * 1024,
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("multipart initiate request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestMultipartResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message != "Storage provider is inactive." {
+			t.Fatalf("unexpected message: %q", payload.Message)
+		}
+	})
+
 	t.Run("download url key required english", func(t *testing.T) {
 		req := testutil.NewAuthedJSONRequest(
 			t,
@@ -337,6 +456,34 @@ func TestAdminStorageTestLocalizedResponses(t *testing.T) {
 		}
 		if cachedPayload.Url == nil || *cachedPayload.Url == "" {
 			t.Fatalf("expected cached download url, got %+v", cachedPayload.Url)
+		}
+	})
+
+	t.Run("download url inactive provider english", func(t *testing.T) {
+		req := testutil.NewAuthedJSONRequest(
+			t,
+			http.MethodPost,
+			c.BaseURL+"/api/admin/storage-providers/test/download-url",
+			admin.Token,
+			map[string]any{
+				"provider_id": inactiveProviderID,
+				"key":         uniqueAdminStorageTestKey("download-inactive"),
+			},
+		)
+		req.Header.Set("Accept-Language", "en-US")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			t.Fatalf("download url request failed: %v", err)
+		}
+		defer resp.Body.Close()
+
+		payload := decodeAdminStorageTestDownloadResponse(t, resp, http.StatusOK)
+		if payload.Success {
+			t.Fatalf("expected success=false, got true: %+v", payload)
+		}
+		if payload.Message != "Storage provider is inactive." {
+			t.Fatalf("unexpected message: %q", payload.Message)
 		}
 	})
 }
