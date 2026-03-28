@@ -60,7 +60,7 @@
   const dataPicture = computed(() => [
     {
       label: t('monitor.studioStatus.line'),
-      value: '热备',
+      value: t('monitor.studioStatus.hotStandby'),
     },
     {
       label: 'CDN',
@@ -72,7 +72,7 @@
     },
     {
       label: t('monitor.studioStatus.pictureQuality'),
-      value: '原画',
+      value: t('monitor.studioStatus.originalQuality'),
     },
   ]);
 </script>

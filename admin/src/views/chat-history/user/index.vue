@@ -68,7 +68,7 @@
                     <div class="last-message-time">
                       {{
                         dayjs(record.last_message.created_at).format(
-                          'YYYY-MM-DD HH:mm:ss'
+                          'YYYY-MM-DD HH:mm:ss',
                         )
                       }}
                     </div>
@@ -297,7 +297,6 @@
       </a-tabs>
     </a-card>
 
-    <!-- 视频预览弹窗 -->
     <a-modal
       v-model:visible="videoVisible"
       :footer="false"
@@ -390,16 +389,19 @@
   const fetchUserMessages = async (params: any = { page: 1, pageSize: 20 }) => {
     setMessagesLoading(true);
     try {
-      const { data } = await getChatHistory({
-        ...params,
-        user_id: userId.value,
-        room_id: formModel.value.room_id || undefined,
-        keyword: formModel.value.keyword || undefined,
-        start_date: formModel.value.start_date || undefined,
-        end_date: formModel.value.end_date || undefined,
-      }, {
-        suppressGlobalErrorMessage: true,
-      });
+      const { data } = await getChatHistory(
+        {
+          ...params,
+          user_id: userId.value,
+          room_id: formModel.value.room_id || undefined,
+          keyword: formModel.value.keyword || undefined,
+          start_date: formModel.value.start_date || undefined,
+          end_date: formModel.value.end_date || undefined,
+        },
+        {
+          suppressGlobalErrorMessage: true,
+        },
+      );
       messagesData.value = data.messages;
       pagination.current = data.page;
       pagination.total = data.total;

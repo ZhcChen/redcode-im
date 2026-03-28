@@ -17,8 +17,9 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { onMounted, onUnmounted, ref } from 'vue';
   import { graphic } from 'echarts';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import useChartOption from '@/hooks/chart-option';
   import { ToolTipFormatterParams } from '@/types/echarts';
@@ -30,7 +31,13 @@
     y: number;
   }
 
-  // 从 API 获取数据
+  const { t, locale } = useI18n();
+
+  const formatFallbackMonth = (monthIndex: number) =>
+    new Intl.DateTimeFormat(locale.value, { month: 'short' }).format(
+      new Date(2026, monthIndex, 1),
+    );
+
   const queryContentData = async () => {
     try {
       const response = await getDataStatistics();
@@ -38,25 +45,27 @@
         (item) => ({
           x: item.date,
           y: item.count,
-        })
+        }),
       );
       return { data };
     } catch (error) {
-      // 如果 API 失败，返回模拟数据
-      console.warn('获取数据统计失败，使用模拟数据:', error);
+      console.warn(
+        'failed to fetch content statistics, using mock data',
+        error,
+      );
       const data: ContentDataRecord[] = [
-        { x: '1月', y: 100 },
-        { x: '2月', y: 120 },
-        { x: '3月', y: 140 },
-        { x: '4月', y: 110 },
-        { x: '5月', y: 160 },
-        { x: '6月', y: 130 },
-        { x: '7月', y: 150 },
-        { x: '8月', y: 170 },
-        { x: '9月', y: 140 },
-        { x: '10月', y: 160 },
-        { x: '11月', y: 180 },
-        { x: '12月', y: 150 },
+        { x: formatFallbackMonth(0), y: 100 },
+        { x: formatFallbackMonth(1), y: 120 },
+        { x: formatFallbackMonth(2), y: 140 },
+        { x: formatFallbackMonth(3), y: 110 },
+        { x: formatFallbackMonth(4), y: 160 },
+        { x: formatFallbackMonth(5), y: 130 },
+        { x: formatFallbackMonth(6), y: 150 },
+        { x: formatFallbackMonth(7), y: 170 },
+        { x: formatFallbackMonth(8), y: 140 },
+        { x: formatFallbackMonth(9), y: 160 },
+        { x: formatFallbackMonth(10), y: 180 },
+        { x: formatFallbackMonth(11), y: 150 },
       ];
       return { data };
     }
@@ -157,7 +166,9 @@
           const [firstElement] = params as ToolTipFormatterParams[];
           return `<div>
             <p class="tooltip-title">${firstElement.axisValueLabel}</p>
-            <div class="content-panel"><span>总内容量</span><span class="tooltip-value">${(
+            <div class="content-panel"><span>${t(
+              'workplace.contentData.tooltip.total',
+            )}</span><span class="tooltip-value">${(
               Number(firstElement.value) * 10000
             ).toLocaleString()}</span></div>
           </div>`;
@@ -219,7 +230,6 @@
     setLoading(true);
     try {
       const { data: chartData } = await queryContentData();
-      // 清空现有数据
       xAxis.value = [];
       chartsData.value = [];
       chartData.forEach((el: ContentDataRecord, idx: number) => {
@@ -241,7 +251,6 @@
 
   onMounted(() => {
     fetchData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchData, 3000);
   });
 

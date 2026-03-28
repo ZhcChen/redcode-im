@@ -126,19 +126,33 @@ cd frontend && flutter test integration_test -d 3A091FDJG001DN \
   --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true
 
 # Admin E2E
-# 先在另一个终端启动 Admin
-cd admin && pnpm dev
+# 保持单个 Admin dev server 实例，默认使用 8011
+cd admin && npm run dev -- --host 0.0.0.0 --port 8011
 # 再执行真实联调 E2E
-cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test --workers=1
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 npx playwright test --workers=1
 # Admin 鉴权韧性（登录失败/续签成功/失效回登录）
 cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
-  pnpm exec playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1
+  npx playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1
 # 仅执行 Admin 全路由冒烟（default 可达集合）
 cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
-  ADMIN_ROUTE_PROFILE=default pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
+  ADMIN_ROUTE_PROFILE=default npx playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
 # 执行 data-cleanup 可达集合（需 dev 以 VITE_ENABLE_DATA_CLEANUP=true 启动）
 cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
-  ADMIN_ROUTE_PROFILE=data-cleanup pnpm exec playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
+  ADMIN_ROUTE_PROFILE=data-cleanup npx playwright test playwright-tests/specs/route-smoke.spec.ts --workers=1
+# Admin 英文表面多语言回归
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
+  npx playwright test playwright-tests/specs/i18n-routes.spec.ts --workers=1
+# 针对多语言改造页面执行定向回归
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
+  npx playwright test playwright-tests/specs/i18n-routes.spec.ts \
+    --grep "settings-user-profile|settings-emoji-pack|versions-frontend|versions-desktop|versions-hot-updates|versions-hot-update-events" \
+    --workers=1
+cd admin && ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 \
+  npx playwright test playwright-tests/specs/route-smoke.spec.ts \
+    --grep "dashboard-workplace|dashboard-monitor|versions-frontend|versions-desktop|versions-hot-updates|versions-hot-update-events" \
+    --workers=1
+# 若页面被 Vite ESLint overlay 遮挡，优先修复对应文件
+cd admin && ./node_modules/.bin/eslint --fix src/views/version-management/hot-update.vue
 
 # Desktop
 cd desktop && bun run test
@@ -179,4 +193,4 @@ docs/reference/testing/matrix/  # 功能-测试-验收追踪矩阵
 
 ---
 
-**最后更新**: 2026-03-05
+**最后更新**: 2026-03-28

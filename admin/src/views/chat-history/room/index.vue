@@ -213,7 +213,6 @@
       </a-table>
     </a-card>
 
-    <!-- 视频预览弹窗 -->
     <a-modal
       v-model:visible="videoVisible"
       :footer="false"
@@ -281,14 +280,18 @@
   const fetchData = async (params: any = { page: 1, pageSize: 20 }) => {
     setLoading(true);
     try {
-      const { data } = await getRoomChatHistory(roomId.value, {
-        ...params,
-        keyword: formModel.value.keyword || undefined,
-        start_date: formModel.value.start_date || undefined,
-        end_date: formModel.value.end_date || undefined,
-      }, {
-        suppressGlobalErrorMessage: true,
-      });
+      const { data } = await getRoomChatHistory(
+        roomId.value,
+        {
+          ...params,
+          keyword: formModel.value.keyword || undefined,
+          start_date: formModel.value.start_date || undefined,
+          end_date: formModel.value.end_date || undefined,
+        },
+        {
+          suppressGlobalErrorMessage: true,
+        },
+      );
       renderData.value = data.messages;
       pagination.current = data.page;
       pagination.total = data.total;

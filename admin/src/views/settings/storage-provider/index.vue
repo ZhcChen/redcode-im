@@ -81,7 +81,6 @@
         </template>
       </a-table>
 
-      <!-- 创建/编辑对话框 -->
       <a-modal
         :visible="modalVisible"
         :title="modalTitle"
@@ -231,7 +230,6 @@
         </a-form>
       </a-modal>
 
-      <!-- 跨域配置对话框 -->
       <a-modal
         :visible="corsModalVisible"
         :title="t('storageProvider.corsModal.title')"
@@ -251,7 +249,9 @@
             <a-textarea
               v-model="corsForm.allowed_origins"
               :rows="3"
-              :placeholder="t('storageProvider.cors.allowedOrigins.placeholder')"
+              :placeholder="
+                t('storageProvider.cors.allowedOrigins.placeholder')
+              "
             />
             <template #help>
               {{ t('storageProvider.cors.allowedOrigins.help') }}
@@ -260,7 +260,9 @@
           <a-form-item :label="t('storageProvider.cors.allowedMethods.label')">
             <a-input
               v-model="corsForm.allowed_methods"
-              :placeholder="t('storageProvider.cors.allowedMethods.placeholder')"
+              :placeholder="
+                t('storageProvider.cors.allowedMethods.placeholder')
+              "
             />
             <template #help>
               {{ t('storageProvider.cors.allowedMethods.help') }}
@@ -269,7 +271,9 @@
           <a-form-item :label="t('storageProvider.cors.allowedHeaders.label')">
             <a-input
               v-model="corsForm.allowed_headers"
-              :placeholder="t('storageProvider.cors.allowedHeaders.placeholder')"
+              :placeholder="
+                t('storageProvider.cors.allowedHeaders.placeholder')
+              "
             />
           </a-form-item>
           <a-form-item :label="t('storageProvider.cors.exposeHeaders.label')">
@@ -350,7 +354,10 @@
       },
     ],
     name: [
-      { required: true, message: t('storageProvider.validation.name.required') },
+      {
+        required: true,
+        message: t('storageProvider.validation.name.required'),
+      },
     ],
     secret_id: [
       {
@@ -447,7 +454,6 @@
     try {
       listLoading.value = true;
       const response = await listStorageProviders();
-      // 处理不同的响应格式
       const data = response.data?.data || response.data;
       providers.value = data?.providers || [];
     } catch (error: any) {
@@ -571,7 +577,9 @@
       const response = await setCosCors(payload);
       const { data } = response;
       if (data.success) {
-        Message.success(data.message || t('storageProvider.success.corsSubmit'));
+        Message.success(
+          data.message || t('storageProvider.success.corsSubmit'),
+        );
         corsModalVisible.value = false;
       } else {
         Message.error(data.message || t('storageProvider.error.corsSubmit'));
@@ -599,7 +607,7 @@
         return false;
       }
     } catch (error) {
-      return false; // 阻止 Modal 关闭
+      return false;
     }
 
     try {
@@ -619,7 +627,7 @@
       Message.success(
         editingId.value
           ? t('storageProvider.success.update')
-          : t('storageProvider.success.create')
+          : t('storageProvider.success.create'),
       );
       await fetchProviders();
       return true;

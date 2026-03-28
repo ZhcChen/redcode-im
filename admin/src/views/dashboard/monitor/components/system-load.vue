@@ -1,9 +1,13 @@
 <template>
-  <a-card class="system-load" title="系统负载详情" :bordered="false">
+  <a-card
+    class="system-load"
+    :title="t('monitor.systemLoad.title')"
+    :bordered="false"
+  >
     <div class="load-details">
       <div class="load-item">
         <div class="load-header">
-          <span class="load-label">1分钟平均负载</span>
+          <span class="load-label">{{ t('monitor.systemLoad.load1') }}</span>
           <span class="load-value">{{ loadStats.load1 }}</span>
         </div>
         <a-progress
@@ -16,7 +20,7 @@
 
       <div class="load-item">
         <div class="load-header">
-          <span class="load-label">5分钟平均负载</span>
+          <span class="load-label">{{ t('monitor.systemLoad.load5') }}</span>
           <span class="load-value">{{ loadStats.load5 }}</span>
         </div>
         <a-progress
@@ -29,7 +33,7 @@
 
       <div class="load-item">
         <div class="load-header">
-          <span class="load-label">15分钟平均负载</span>
+          <span class="load-label">{{ t('monitor.systemLoad.load15') }}</span>
           <span class="load-value">{{ loadStats.load15 }}</span>
         </div>
         <a-progress
@@ -42,11 +46,17 @@
 
       <div class="load-summary">
         <div class="summary-item">
-          <span class="summary-label">CPU核心数</span>
-          <span class="summary-value">4核</span>
+          <span class="summary-label">{{
+            t('monitor.systemLoad.cpuCores')
+          }}</span>
+          <span class="summary-value">
+            {{ t('monitor.systemLoad.cpuCoresValue', { count: 4 }) }}
+          </span>
         </div>
         <div class="summary-item">
-          <span class="summary-label">当前状态</span>
+          <span class="summary-label">
+            {{ t('monitor.systemLoad.currentStatus') }}
+          </span>
           <span class="summary-value" :class="getOverallStatus()">
             {{ getStatusText() }}
           </span>
@@ -57,7 +67,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { onMounted, onUnmounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { getSystemMonitor } from '@/api/dashboard';
 
   interface LoadStats {
@@ -66,6 +77,7 @@
     load15: number;
   }
 
+  const { t } = useI18n();
   const loadStats = ref<LoadStats>({
     load1: 0.5,
     load5: 0.8,
@@ -75,7 +87,7 @@
   let timer: number | null = null;
 
   const loadPercent = (load: number): number => {
-    return Math.min(load * 25, 100); // 假设4核心，负载1.0=25%
+    return Math.min(load * 25, 100);
   };
 
   const loadColor = (load: number): string => {
@@ -97,24 +109,22 @@
     const avg =
       (loadStats.value.load1 + loadStats.value.load5 + loadStats.value.load15) /
       3;
-    if (avg < 1) return '正常';
-    if (avg < 2) return '较高';
-    return '过高';
+    if (avg < 1) return t('monitor.loadStatus.normal');
+    if (avg < 2) return t('monitor.loadStatus.high');
+    return t('monitor.loadStatus.critical');
   };
 
   const fetchLoadData = async () => {
     try {
       const { data } = await getSystemMonitor();
       if (data) {
-        // 模拟不同时间段的负载数据
         loadStats.value = {
           load1: Math.random() * 2,
           load5: Math.random() * 2,
           load15: Math.random() * 2,
         };
       }
-    } catch (error) {
-      // 使用模拟数据
+    } catch {
       loadStats.value = {
         load1: 0.85,
         load5: 1.23,
@@ -125,7 +135,6 @@
 
   onMounted(() => {
     fetchLoadData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchLoadData, 3000);
   });
 

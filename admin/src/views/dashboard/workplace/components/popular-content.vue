@@ -34,8 +34,14 @@
           :scroll="{ x: '100%', y: '264px' }"
         >
           <template #columns>
-            <a-table-column title="排名" data-index="key"></a-table-column>
-            <a-table-column title="内容标题" data-index="title">
+            <a-table-column
+              :title="t('workplace.popularContent.table.rank')"
+              data-index="key"
+            ></a-table-column>
+            <a-table-column
+              :title="t('workplace.popularContent.table.title')"
+              data-index="title"
+            >
               <template #cell="{ record }">
                 <a-typography-paragraph
                   :ellipsis="{
@@ -46,10 +52,13 @@
                 </a-typography-paragraph>
               </template>
             </a-table-column>
-            <a-table-column title="点击量" data-index="clickNumber">
+            <a-table-column
+              :title="t('workplace.popularContent.table.clicks')"
+              data-index="clickNumber"
+            >
             </a-table-column>
             <a-table-column
-              title="日涨幅"
+              :title="t('workplace.popularContent.table.dailyGrowth')"
               data-index="increases"
               :sortable="{
                 sortDirections: ['ascend', 'descend'],
@@ -73,7 +82,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { onMounted, onUnmounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import { getPopularContent } from '@/api/dashboard';
 
@@ -84,7 +94,8 @@
     increases: number;
   }
 
-  // 从 API 获取数据
+  const { t } = useI18n();
+
   const queryPopularList = async (contentType: string = 'text') => {
     try {
       const response = await getPopularContent();
@@ -98,25 +109,24 @@
       }));
       return { data: formattedData };
     } catch (error) {
-      // 如果 API 失败，返回模拟数据
-      console.warn('获取热门内容失败，使用模拟数据:', error);
+      console.warn('failed to fetch popular content, using mock data', error);
       const data: PopularRecord[] = [
         {
           key: 1,
           clickNumber: '1234',
-          title: '热门内容1',
+          title: t('workplace.popularContent.sample.1'),
           increases: 12,
         },
         {
           key: 2,
           clickNumber: '567',
-          title: '热门内容2',
+          title: t('workplace.popularContent.sample.2'),
           increases: -5,
         },
         {
           key: 3,
           clickNumber: '890',
-          title: '热门内容3',
+          title: t('workplace.popularContent.sample.3'),
           increases: 8,
         },
       ];
@@ -147,7 +157,6 @@
 
   onMounted(() => {
     fetchData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchData, 3000);
   });
 

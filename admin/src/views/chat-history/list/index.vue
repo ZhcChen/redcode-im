@@ -241,7 +241,6 @@
       </a-table>
     </a-card>
 
-    <!-- 视频预览弹窗 -->
     <a-modal
       v-model:visible="videoVisible"
       :footer="false"
@@ -309,20 +308,23 @@
   const renderData = ref<ChatMessage[]>([]);
 
   const fetchData = async (
-    params: ChatHistoryParams = { page: 1, pageSize: 20 }
+    params: ChatHistoryParams = { page: 1, pageSize: 20 },
   ) => {
     setLoading(true);
     try {
-      const { data } = await getChatHistory({
-        ...params,
-        room_id: formModel.value.room_id || undefined,
-        user_id: formModel.value.user_id || undefined,
-        keyword: formModel.value.keyword || undefined,
-        start_date: formModel.value.start_date || undefined,
-        end_date: formModel.value.end_date || undefined,
-      }, {
-        suppressGlobalErrorMessage: true,
-      });
+      const { data } = await getChatHistory(
+        {
+          ...params,
+          room_id: formModel.value.room_id || undefined,
+          user_id: formModel.value.user_id || undefined,
+          keyword: formModel.value.keyword || undefined,
+          start_date: formModel.value.start_date || undefined,
+          end_date: formModel.value.end_date || undefined,
+        },
+        {
+          suppressGlobalErrorMessage: true,
+        },
+      );
       renderData.value = data.messages;
       pagination.current = data.page;
       pagination.total = data.total;

@@ -35,7 +35,6 @@
         </a-space>
       </div>
 
-      <!-- Token列表 -->
       <a-table
         :columns="columns"
         :data="tokenList"
@@ -97,7 +96,6 @@
       </a-table>
     </a-card>
 
-    <!-- 创建/编辑Token模态框 -->
     <a-modal
       v-model:visible="showCreateModal"
       :title="isEditing ? t('ipinfoToken.edit') : t('ipinfoToken.create')"
@@ -123,7 +121,11 @@
           />
         </a-form-item>
 
-        <a-form-item field="token" :label="t('ipinfoToken.token.label')" required>
+        <a-form-item
+          field="token"
+          :label="t('ipinfoToken.token.label')"
+          required
+        >
           <a-input
             v-model="form.token"
             :placeholder="t('ipinfoToken.token.placeholder')"
@@ -325,7 +327,7 @@
         resolveHttpErrorMessage(error, {
           fallbackKey: 'ipinfoToken.error.fetch',
           fallbackMessage: t('ipinfoToken.error.fetch'),
-        })
+        }),
       );
     } finally {
       loading.value = false;
@@ -375,7 +377,7 @@
     await axios.patch(
       `/api/admin/ipinfo-tokens/${currentEditId.value}`,
       form,
-      requestConfig
+      requestConfig,
     );
     Message.success(t('ipinfoToken.success.update'));
     showCreateModal.value = false;
@@ -411,12 +413,11 @@
     } catch (error: any) {
       Message.error(
         resolveHttpErrorMessage(error, {
-          fallbackKey:
-            isEditing.value
-              ? 'ipinfoToken.error.update'
-              : 'ipinfoToken.error.create',
+          fallbackKey: isEditing.value
+            ? 'ipinfoToken.error.update'
+            : 'ipinfoToken.error.create',
           fallbackMessage: t('ipinfoToken.error.submit'),
-        })
+        }),
       );
       done(false);
     } finally {
@@ -443,7 +444,10 @@
       okButtonProps: { status: 'danger' },
       onOk: async () => {
         try {
-          await axios.delete(`/api/admin/ipinfo-tokens/${record.id}`, requestConfig);
+          await axios.delete(
+            `/api/admin/ipinfo-tokens/${record.id}`,
+            requestConfig,
+          );
           Message.success(t('ipinfoToken.success.delete'));
           fetchTokenList(searchKeyword.value || undefined);
         } catch (error: any) {
@@ -451,7 +455,7 @@
             resolveHttpErrorMessage(error, {
               fallbackKey: 'ipinfoToken.error.delete',
               fallbackMessage: t('ipinfoToken.error.delete'),
-            })
+            }),
           );
         }
       },
@@ -463,7 +467,7 @@
       await axios.post(
         `/api/admin/ipinfo-tokens/${record.id}/reset`,
         undefined,
-        requestConfig
+        requestConfig,
       );
       Message.success(t('ipinfoToken.success.reset'));
       fetchTokenList(searchKeyword.value || undefined);
@@ -472,7 +476,7 @@
         resolveHttpErrorMessage(error, {
           fallbackKey: 'ipinfoToken.error.reset',
           fallbackMessage: t('ipinfoToken.error.reset'),
-        })
+        }),
       );
     }
   };

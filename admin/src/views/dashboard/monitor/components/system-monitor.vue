@@ -1,5 +1,9 @@
 <template>
-  <a-card class="system-monitor" title="系统监控" :bordered="false">
+  <a-card
+    class="system-monitor"
+    :title="t('monitor.systemOverview.title')"
+    :bordered="false"
+  >
     <div class="monitor-content">
       <div v-for="item in monitorData" :key="item.label" class="monitor-item">
         <div class="monitor-label">{{ item.label }}</div>
@@ -18,39 +22,16 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { onMounted, onUnmounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { getSystemMonitor } from '@/api/dashboard';
 
+  const { t } = useI18n();
   interface MonitorItem {
     label: string;
     value: number;
     status: 'normal' | 'warning' | 'danger';
   }
-
-  const monitorData = ref<MonitorItem[]>([
-    {
-      label: 'CPU 使用率',
-      value: 0,
-      status: 'normal',
-    },
-    {
-      label: '内存使用率',
-      value: 0,
-      status: 'normal',
-    },
-    {
-      label: '磁盘使用率',
-      value: 0,
-      status: 'normal',
-    },
-    {
-      label: '网络连接',
-      value: 0,
-      status: 'normal',
-    },
-  ]);
-
-  let timer: number | null = null;
 
   const getStatus = (value: number): 'normal' | 'warning' | 'danger' => {
     if (value < 60) return 'normal';
@@ -58,63 +39,51 @@
     return 'danger';
   };
 
+  const buildMonitorItems = (values: number[]): MonitorItem[] => [
+    {
+      label: t('monitor.systemOverview.cpuUsage'),
+      value: values[0],
+      status: getStatus(values[0]),
+    },
+    {
+      label: t('monitor.systemOverview.memoryUsage'),
+      value: values[1],
+      status: getStatus(values[1]),
+    },
+    {
+      label: t('monitor.systemOverview.diskUsage'),
+      value: values[2],
+      status: getStatus(values[2]),
+    },
+    {
+      label: t('monitor.systemOverview.networkConnections'),
+      value: values[3],
+      status: 'normal' as const,
+    },
+  ];
+
+  const monitorData = ref<MonitorItem[]>(buildMonitorItems([0, 0, 0, 0]));
+
+  let timer: number | null = null;
+
   const fetchMonitorData = async () => {
     try {
       const { data } = await getSystemMonitor();
       if (data) {
-        monitorData.value = [
-          {
-            label: 'CPU 使用率',
-            value: Math.round(data.cpu * 100),
-            status: getStatus(data.cpu * 100),
-          },
-          {
-            label: '内存使用率',
-            value: Math.round(data.memory * 100),
-            status: getStatus(data.memory * 100),
-          },
-          {
-            label: '磁盘使用率',
-            value: Math.round(data.disk * 100),
-            status: getStatus(data.disk * 100),
-          },
-          {
-            label: '网络连接',
-            value: Math.min(data.connections * 10, 100), // 转换为0-100的范围
-            status: 'normal',
-          },
-        ];
+        monitorData.value = buildMonitorItems([
+          Math.round(data.cpu * 100),
+          Math.round(data.memory * 100),
+          Math.round(data.disk * 100),
+          Math.min(data.connections * 10, 100),
+        ]);
       }
-    } catch (error) {
-      // 使用模拟数据
-      monitorData.value = [
-        {
-          label: 'CPU 使用率',
-          value: 35,
-          status: 'normal',
-        },
-        {
-          label: '内存使用率',
-          value: 62,
-          status: 'warning',
-        },
-        {
-          label: '磁盘使用率',
-          value: 28,
-          status: 'normal',
-        },
-        {
-          label: '网络连接',
-          value: 45,
-          status: 'normal',
-        },
-      ];
+    } catch {
+      monitorData.value = buildMonitorItems([35, 62, 28, 45]);
     }
   };
 
   onMounted(() => {
     fetchMonitorData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchMonitorData, 3000);
   });
 

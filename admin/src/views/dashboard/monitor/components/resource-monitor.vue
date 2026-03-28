@@ -1,15 +1,21 @@
 <template>
-  <a-card class="resource-monitor" title="资源监控" :bordered="false">
+  <a-card
+    class="resource-monitor"
+    :title="t('monitor.resource.title')"
+    :bordered="false"
+  >
     <div class="resource-grid">
       <div class="resource-card memory">
         <div class="resource-icon">
           <icon-memory />
         </div>
         <div class="resource-info">
-          <h3>内存使用</h3>
+          <h3>{{ t('monitor.resource.memoryUsage') }}</h3>
           <div class="resource-stats">
             <span class="current">{{ systemStats?.memoryUsage || 0 }}%</span>
-            <span class="total">总计: 16GB</span>
+            <span class="total">
+              {{ t('monitor.resource.total', { value: '16GB' }) }}
+            </span>
           </div>
           <a-progress
             :percent="systemStats?.memoryUsage || 0"
@@ -24,10 +30,12 @@
           <icon-folder />
         </div>
         <div class="resource-info">
-          <h3>存储空间</h3>
+          <h3>{{ t('monitor.resource.storageUsage') }}</h3>
           <div class="resource-stats">
             <span class="current">{{ systemStats?.storageUsage || 0 }}%</span>
-            <span class="total">总计: 500GB</span>
+            <span class="total">
+              {{ t('monitor.resource.total', { value: '500GB' }) }}
+            </span>
           </div>
           <a-progress
             :percent="systemStats?.storageUsage || 0"
@@ -42,10 +50,12 @@
           <icon-cpu />
         </div>
         <div class="resource-info">
-          <h3>系统负载</h3>
+          <h3>{{ t('monitor.resource.systemLoad') }}</h3>
           <div class="resource-stats">
             <span class="current">{{ systemStats?.systemLoad || 0 }}</span>
-            <span class="total">平均负载: 1.2</span>
+            <span class="total">
+              {{ t('monitor.resource.averageLoad', { value: '1.2' }) }}
+            </span>
           </div>
           <div class="load-indicator">
             <span
@@ -63,9 +73,11 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { onMounted, onUnmounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { getSystemStats, type SystemStats } from '@/api/dashboard';
 
+  const { t } = useI18n();
   const systemStats = ref<SystemStats>();
   let timer: number | null = null;
 
@@ -76,17 +88,16 @@
   };
 
   const getLoadText = (load: number): string => {
-    if (load < 1) return '正常';
-    if (load < 2) return '较高';
-    return '过高';
+    if (load < 1) return t('monitor.loadStatus.normal');
+    if (load < 2) return t('monitor.loadStatus.high');
+    return t('monitor.loadStatus.critical');
   };
 
   const fetchData = async () => {
     try {
       const { data } = await getSystemStats();
       systemStats.value = data;
-    } catch (error) {
-      // 使用模拟数据
+    } catch {
       systemStats.value = {
         totalUsers: 0,
         onlineUsers: 0,
@@ -103,7 +114,6 @@
 
   onMounted(() => {
     fetchData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchData, 3000);
   });
 

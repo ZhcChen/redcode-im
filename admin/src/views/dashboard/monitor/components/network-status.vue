@@ -1,5 +1,9 @@
 <template>
-  <a-card class="network-status" title="网络状态" :bordered="false">
+  <a-card
+    class="network-status"
+    :title="t('monitor.network.title')"
+    :bordered="false"
+  >
     <div class="network-info">
       <div class="connection-info">
         <div class="info-item">
@@ -7,9 +11,11 @@
             <icon-wifi />
           </div>
           <div class="info-content">
-            <h4>活跃连接</h4>
+            <h4>{{ t('monitor.network.activeConnections') }}</h4>
             <span class="info-value">{{ networkStats.connections }}</span>
-            <span class="info-unit">个连接</span>
+            <span class="info-unit">{{
+              t('monitor.network.connectionsUnit')
+            }}</span>
           </div>
         </div>
 
@@ -18,7 +24,7 @@
             <icon-download />
           </div>
           <div class="info-content">
-            <h4>网络入口</h4>
+            <h4>{{ t('monitor.network.ingress') }}</h4>
             <span class="info-value">{{
               formatBytes(networkStats.network_in)
             }}</span>
@@ -31,7 +37,7 @@
             <icon-upload />
           </div>
           <div class="info-content">
-            <h4>网络出口</h4>
+            <h4>{{ t('monitor.network.egress') }}</h4>
             <span class="info-value">{{
               formatBytes(networkStats.network_out)
             }}</span>
@@ -42,13 +48,17 @@
 
       <div class="status-indicator">
         <div class="status-item">
-          <span class="status-label">网络状态</span>
+          <span class="status-label">{{
+            t('monitor.network.statusLabel')
+          }}</span>
           <span class="status-value" :class="networkStatus.class">
             {{ networkStatus.text }}
           </span>
         </div>
         <div class="status-item">
-          <span class="status-label">带宽使用</span>
+          <span class="status-label">{{
+            t('monitor.network.bandwidthUsage')
+          }}</span>
           <span class="status-value">{{ Math.round(bandwidthUsage) }}%</span>
         </div>
       </div>
@@ -57,7 +67,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, computed, onMounted, onUnmounted } from 'vue';
+  import { computed, onMounted, onUnmounted, ref } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { getSystemMonitor, type SystemMonitor } from '@/api/dashboard';
 
   interface NetworkStats extends SystemMonitor {
@@ -65,6 +76,7 @@
     network_out: number;
   }
 
+  const { t } = useI18n();
   const networkStats = ref<NetworkStats>({
     cpu: 0,
     memory: 0,
@@ -76,18 +88,27 @@
 
   const networkStatus = computed(() => {
     if (networkStats.value.connections < 50) {
-      return { text: '正常', class: 'status-normal' };
+      return {
+        text: t('monitor.network.status.normal'),
+        class: 'status-normal',
+      };
     }
     if (networkStats.value.connections < 100) {
-      return { text: '繁忙', class: 'status-warning' };
+      return {
+        text: t('monitor.network.status.busy'),
+        class: 'status-warning',
+      };
     }
-    return { text: '拥塞', class: 'status-danger' };
+    return {
+      text: t('monitor.network.status.congested'),
+      class: 'status-danger',
+    };
   });
 
   const bandwidthUsage = computed(() => {
     const totalBits =
       (networkStats.value.network_in + networkStats.value.network_out) * 8;
-    const maxBandwidth = 1000000; // 假设1Gbps
+    const maxBandwidth = 1000000;
     return (totalBits / maxBandwidth) * 100;
   });
 
@@ -105,21 +126,19 @@
     try {
       const { data } = await getSystemMonitor();
       if (data) {
-        // 模拟网络数据
         networkStats.value = {
           ...data,
-          network_in: Math.random() * 1024 * 1024, // 0-1MB/s
-          network_out: Math.random() * 1024 * 1024, // 0-1MB/s
+          network_in: Math.random() * 1024 * 1024,
+          network_out: Math.random() * 1024 * 1024,
         };
       }
     } catch (error) {
-      // 使用模拟数据
       networkStats.value = {
         cpu: 0,
         memory: 0,
         disk: 0,
-        network_in: 512000, // 512KB/s
-        network_out: 256000, // 256KB/s
+        network_in: 512000,
+        network_out: 256000,
         connections: 68,
       };
     }
@@ -127,7 +146,6 @@
 
   onMounted(() => {
     fetchNetworkData();
-    // 每3秒更新一次
     timer = window.setInterval(fetchNetworkData, 3000);
   });
 

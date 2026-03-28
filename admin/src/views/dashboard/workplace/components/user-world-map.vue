@@ -110,11 +110,11 @@
       const results = await Promise.allSettled(loadPromises);
       const successResult = results.find(
         (
-          result
+          result,
         ): result is {
           status: 'fulfilled';
           value: { data: any; source: string };
-        } => result.status === 'fulfilled'
+        } => result.status === 'fulfilled',
       );
 
       if (successResult) {
@@ -133,7 +133,7 @@
       mapDataLoaded = true;
       return true;
     } catch (error) {
-      console.error('加载世界地图数据失败:', error);
+      console.error('Failed to load world map data:', error);
       Message.error(t('workplace.map.error.loadMap'));
       return false;
     }
@@ -173,14 +173,14 @@
               data.city || t('workplace.map.unknownCity')
             }</div>
             <div><strong>${t('workplace.map.tooltip.country')}:</strong> ${
-                  data.country || t('workplace.map.unknownLocation')
-                }</div>
+              data.country || t('workplace.map.unknownLocation')
+            }</div>
             <div><strong>${t('workplace.map.tooltip.region')}:</strong> ${
-                  data.region || t('workplace.map.unknownLocation')
-                }</div>
+              data.region || t('workplace.map.unknownLocation')
+            }</div>
             <div><strong>${t('workplace.map.tooltip.users')}:</strong> ${
-                  data.user_count
-                }</div>
+              data.user_count
+            }</div>
             <div style="margin-top: 8px; font-size: 12px; color: #666;">
               ${t('workplace.map.tooltip.clickHint')}
             </div>
@@ -198,7 +198,6 @@
           }))
         : [];
 
-    // 配置选项
     const option: echarts.EChartsOption = {
       backgroundColor: 'transparent',
       tooltip: {
@@ -245,7 +244,10 @@
     if (locationData.value.length > 0) {
       chartInstance.on('click', (params: any) => {
         if (params.data && params.dataIndex !== undefined) {
-          console.log('clicked location:', locationData.value[params.dataIndex]);
+          console.log(
+            'clicked location:',
+            locationData.value[params.dataIndex],
+          );
         }
       });
     }
@@ -265,13 +267,13 @@
     loading.value = true;
     try {
       const response = await axios.get(
-        '/api/admin/users/geolocation/distribution'
+        '/api/admin/users/geolocation/distribution',
       );
       if (response.data && Array.isArray(response.data)) {
         locationData.value = response.data;
         totalUsers.value = locationData.value.reduce(
           (sum, item) => sum + item.user_count,
-          0
+          0,
         );
       } else {
         locationData.value = [];

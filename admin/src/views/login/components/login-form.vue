@@ -80,8 +80,8 @@
   const hasStoredConfig = Boolean(localStorage.getItem('login-config'));
   const loginConfig = useStorage('login-config', {
     rememberPassword: true,
-    username: hasStoredConfig ? '' : 'alice', // 后端初始化的默认用户名
-    password: hasStoredConfig ? '' : 'password123', // 后端初始化的默认密码
+    username: hasStoredConfig ? '' : 'alice',
+    password: hasStoredConfig ? '' : 'password123',
   });
   const userInfo = reactive({
     username: loginConfig.value.username,

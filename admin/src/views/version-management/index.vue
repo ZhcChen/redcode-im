@@ -486,25 +486,25 @@
     columns.value.reduce((sum, column) => {
       const width = typeof column.width === 'number' ? column.width : 150;
       return sum + width;
-    }, 0)
+    }, 0),
   );
 
   const breadcrumbKey = computed(() =>
     props.platform === 'desktop'
       ? 'menu.version.desktop'
-      : 'menu.version.frontend'
+      : 'menu.version.frontend',
   );
 
   const cardTitle = computed(() =>
     props.platform === 'desktop'
       ? t('versionManager.title.desktop')
-      : t('versionManager.title.frontend')
+      : t('versionManager.title.frontend'),
   );
 
   const modalTitle = computed(() =>
     editingVersion.value
       ? t('versionManager.modal.edit')
-      : t('versionManager.modal.create')
+      : t('versionManager.modal.create'),
   );
 
   const isEditing = computed(() => !!editingVersion.value);
@@ -512,13 +512,13 @@
   const showAppStoreUrlField = computed(
     () =>
       selectedPlatform.value === AppPlatform.IOS ||
-      selectedPlatform.value === AppPlatform.MacOS
+      selectedPlatform.value === AppPlatform.MacOS,
   );
 
   const appStoreUrlLabel = computed(() =>
     selectedPlatform.value === AppPlatform.MacOS
       ? t('versionManager.field.appStore.macos')
-      : t('versionManager.field.appStore.ios')
+      : t('versionManager.field.appStore.ios'),
   );
 
   const downloadUrlLabel = computed(() => {
@@ -578,7 +578,7 @@
       Message.error(
         resolveHttpErrorMessage(error, {
           fallbackMessage: t('versionManager.fetch.error'),
-        })
+        }),
       );
     } finally {
       listLoading.value = false;
@@ -622,7 +622,7 @@
       currentPage.value = 1;
       fetchVersions();
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   const handleCreate = () => {
@@ -630,7 +630,7 @@
     formState.channel = channelFilter.value || 'stable';
     if (versions.value.length > 0) {
       const maxBuild = Math.max(
-        ...versions.value.map((item) => item.build_number)
+        ...versions.value.map((item) => item.build_number),
       );
       formState.build_number = maxBuild + 1;
     }
@@ -754,7 +754,7 @@
           fallbackMessage: editingVersion.value
             ? t('versionManager.update.error')
             : t('versionManager.create.error'),
-        })
+        }),
       );
       return false;
     } finally {
@@ -799,7 +799,6 @@
     }
     uploadLoading.value = true;
     try {
-      // 先计算文件哈希，用于后端去重
       let hashValue: string | null = null;
       let hashAlg: number | null = null;
       try {
@@ -808,20 +807,22 @@
         hashAlg = hashResult.hashAlg;
         if (hashValue) {
           // eslint-disable-next-line no-console
-          console.log('[VersionUpload] 文件哈希计算完成:', {
+          console.log('[VersionUpload] File hash computed:', {
             alg: hashAlg,
             value: hashValue,
             size: file.size,
           });
         } else {
           // eslint-disable-next-line no-console
-          console.log('[VersionUpload] 文件哈希未计算或不可用，将不参与去重');
+          console.log(
+            '[VersionUpload] File hash unavailable. Deduplication skipped.',
+          );
         }
       } catch (hashError: any) {
         // eslint-disable-next-line no-console
         console.warn(
-          '[VersionUpload] 计算文件哈希失败，将跳过哈希上报:',
-          hashError
+          '[VersionUpload] Failed to compute file hash. Reporting skipped:',
+          hashError,
         );
         hashValue = null;
         hashAlg = null;
@@ -842,7 +843,6 @@
         }
 
         if (!data.session_id) {
-          // 命中哈希去重，复用已上传的安装包
           formState.file_size = file.size;
           Message.success(data.message || t('versionManager.upload.dedup'));
           formState.download_key = data.key;
@@ -852,7 +852,7 @@
           }
 
           uploadedFileInfo.value = `${file.name} · ${formatFileSize(
-            file.size
+            file.size,
           )} · 0/${data.total_parts}`;
           await uploadFileByMultipartAndComplete({
             file,
@@ -861,7 +861,7 @@
             totalParts: data.total_parts,
             onProgress: (uploadedParts, totalParts) => {
               uploadedFileInfo.value = `${file.name} · ${formatFileSize(
-                file.size
+                file.size,
               )} · ${uploadedParts}/${totalParts}`;
             },
             autoAbortOnError: true,
@@ -893,7 +893,6 @@
           formState.file_size = file.size;
           Message.success(t('versionManager.upload.success'));
         } else {
-          // 命中哈希去重，复用已上传的安装包
           formState.file_size = file.size;
           Message.success(data.message || t('versionManager.upload.dedup'));
         }
@@ -905,7 +904,7 @@
       Message.error(
         resolveHttpErrorMessage(error, {
           fallbackMessage: t('versionManager.upload.error'),
-        })
+        }),
       );
     } finally {
       uploadLoading.value = false;
@@ -925,7 +924,7 @@
       Message.error(
         resolveHttpErrorMessage(error, {
           fallbackMessage: t('versionManager.deactivate.error'),
-        })
+        }),
       );
     } finally {
       deactivateLoadingId.value = null;
@@ -945,7 +944,7 @@
       Message.error(
         resolveHttpErrorMessage(error, {
           fallbackMessage: t('versionManager.delete.error'),
-        })
+        }),
       );
     } finally {
       deleteLoadingId.value = null;
@@ -993,7 +992,7 @@
           Message.info(
             t('versionManager.download.fallback', {
               url: data.download_url,
-            })
+            }),
           );
         }
       } else {
@@ -1003,7 +1002,7 @@
       Message.error(
         resolveHttpErrorMessage(error, {
           fallbackMessage: t('versionManager.download.error'),
-        })
+        }),
       );
     } finally {
       downloadLoadingId.value = null;

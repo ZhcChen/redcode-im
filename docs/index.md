@@ -115,6 +115,7 @@
 | [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-frontend-acceptance.md) | Frontend Flutter 测试重建验收 |
 | [批次E验收报告（2026-03-01）](reports/2026-03-01-batch-e-desktop-website-acceptance.md) | Desktop + Website 测试重建验收 |
 | [全模块回归验收报告（2026-03-04）](reports/2026-03-04-full-module-regression-acceptance.md) | 全模块回归执行结果与问题处理记录 |
+| [Admin 多语言验收报告（2026-03-26）](reports/2026-03-26-admin-i18n-acceptance.md) | Admin i18n 覆盖范围、验证命令与收口结果 |
 
 ---
 
@@ -130,4 +131,4 @@
 
 ---
 
-**文档最后更新**: 2026-03-04
+**文档最后更新**: 2026-03-28

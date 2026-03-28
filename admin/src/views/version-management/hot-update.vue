@@ -486,8 +486,8 @@
         try {
           const { data } = await getAppVersion(id);
           versionCache[id] = data;
-        } catch (error) {
-          // 忽略单个版本获取失败
+        } catch {
+          /* Ignore cache warm-up failures for individual versions. */
         }
       })
     );
@@ -722,7 +722,6 @@
     }
     uploadLoading.value = true;
     try {
-      // 先计算文件哈希，用于后端去重
       let hashValue: string | null = null;
       let hashAlg: number | null = null;
       try {
@@ -731,19 +730,21 @@
         hashAlg = hashResult.hashAlg;
         if (hashValue) {
           // eslint-disable-next-line no-console
-          console.log('[HotUpdateUpload] 文件哈希计算完成:', {
+          console.log('[HotUpdateUpload] File hash computed:', {
             alg: hashAlg,
             value: hashValue,
             size: file.size,
           });
         } else {
           // eslint-disable-next-line no-console
-          console.log('[HotUpdateUpload] 文件哈希未计算或不可用，将不参与去重');
+          console.log(
+            '[HotUpdateUpload] File hash unavailable. Deduplication skipped.'
+          );
         }
       } catch (hashError: any) {
         // eslint-disable-next-line no-console
         console.warn(
-          '[HotUpdateUpload] 计算文件哈希失败，将跳过哈希上报:',
+          '[HotUpdateUpload] Failed to compute file hash. Reporting skipped:',
           hashError
         );
         hashValue = null;
@@ -765,7 +766,6 @@
         }
 
         if (!data.session_id) {
-          // 命中哈希去重，复用已上传的补丁包
           formState.file_size = file.size;
           Message.success(data.message || t('hotUpdate.upload.dedup'));
           formState.download_key = data.key;
@@ -816,7 +816,6 @@
           formState.file_size = file.size;
           Message.success(t('hotUpdate.upload.success'));
         } else {
-          // 命中哈希去重，复用已上传的补丁包
           formState.file_size = file.size;
           Message.success(data.message || t('hotUpdate.upload.dedup'));
         }
