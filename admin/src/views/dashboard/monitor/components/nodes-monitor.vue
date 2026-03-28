@@ -3,16 +3,16 @@
     <div class="monitor-header">
       <div class="header-title">
         <icon-apps :size="20" />
-        <span>集群节点实时监控</span>
+        <span>{{ t('monitor.nodes.title') }}</span>
         <a-tag size="small" color="blue" class="node-count-tag">
-          {{ nodes.length }} 活跃节点
+          {{ t('monitor.nodes.activeCount', { count: nodes.length }) }}
         </a-tag>
       </div>
     </div>
 
     <a-spin :loading="loading" style="width: 100%">
       <div v-if="nodes.length === 0" class="empty-container">
-        <a-empty description="暂无活跃节点，请检查后端服务是否启动" />
+        <a-empty :description="t('monitor.nodes.empty')" />
       </div>
       <div v-else class="nodes-grid">
         <a-card
@@ -22,7 +22,6 @@
           :bordered="false"
         >
           <div class="node-card-inner">
-            <!-- 顶部栏：图标与运行状态 -->
             <div class="node-header-row">
               <div class="node-instance-type">
                 <div class="node-icon">
@@ -33,20 +32,19 @@
                   color="arcoblue"
                   variant="outline"
                   class="instance-label"
-                  >计算节点</a-tag
+                  >{{ t('monitor.nodes.instanceLabel') }}</a-tag
                 >
               </div>
               <a-badge status="success">
                 <template #text>
-                  <span class="status-text">运行中</span>
+                  <span class="status-text">{{ t('monitor.nodes.running') }}</span>
                 </template>
               </a-badge>
             </div>
 
-            <!-- 核心标识区：Node ID 铭牌 -->
             <div class="node-identity-section">
               <div class="node-id-wrapper">
-                <a-tooltip :content="'节点完整 ID: ' + node.nodeId">
+                <a-tooltip :content="t('monitor.nodes.idTooltip', { id: node.nodeId })">
                   <div class="node-id">{{ node.nodeId }}</div>
                 </a-tooltip>
               </div>
@@ -59,21 +57,24 @@
             <div class="node-specs-section">
               <div class="spec-item">
                 <icon-thunderbolt :size="12" />
-                <span>{{ node.cpuCount }} 核心</span>
+                <span>{{ t('monitor.nodes.cpuCores', { count: node.cpuCount }) }}</span>
               </div>
               <div class="spec-item">
                 <icon-drive-file :size="12" />
-                <span>{{ formatMemory(node.totalMemory) }} 内存</span>
+                <span>{{
+                  t('monitor.nodes.totalMemory', {
+                    memory: formatMemory(node.totalMemory),
+                  })
+                }}</span>
               </div>
             </div>
 
             <a-divider />
 
-            <!-- 指标监测区 -->
             <div class="metrics-section">
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">CPU 负载</span>
+                  <span class="label">{{ t('monitor.nodes.cpuLoad') }}</span>
                   <span class="value"
                     >{{ (node.cpuUsage * 100).toFixed(1) }}%</span
                   >
@@ -89,7 +90,7 @@
 
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">内存占用</span>
+                  <span class="label">{{ t('monitor.nodes.memoryUsage') }}</span>
                   <span class="value"
                     >{{ (node.memoryUsage * 100).toFixed(1) }}%</span
                   >
@@ -105,7 +106,7 @@
 
               <div class="metric-group">
                 <div class="metric-label-row">
-                  <span class="label">磁盘空间</span>
+                  <span class="label">{{ t('monitor.nodes.diskUsage') }}</span>
                   <span class="value"
                     >{{ (node.diskUsage * 100).toFixed(1) }}%</span
                   >
@@ -120,21 +121,20 @@
               </div>
             </div>
 
-            <!-- 底部统计区 -->
             <div class="stats-footer">
               <div class="stat-item">
                 <div class="stat-value">{{ node.connectedUsers }}</div>
-                <div class="stat-label">在线用户</div>
+                <div class="stat-label">{{ t('monitor.nodes.onlineUsers') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value">{{ node.activeRooms }}</div>
-                <div class="stat-label">活跃房间</div>
+                <div class="stat-label">{{ t('monitor.nodes.activeRooms') }}</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value uptime">{{
                   formatDate(node.lastHeartbeat)
                 }}</div>
-                <div class="stat-label">最后报告</div>
+                <div class="stat-label">{{ t('monitor.nodes.lastReport') }}</div>
               </div>
             </div>
           </div>
@@ -146,11 +146,13 @@
 
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs from 'dayjs';
   import { getNodesMonitor, type NodeMonitor } from '@/api/dashboard';
   import useLoading from '@/hooks/loading';
 
   const { loading, setLoading } = useLoading(true);
+  const { t } = useI18n();
   const nodes = ref<NodeMonitor[]>([]);
   let timer: any = null;
 
@@ -159,7 +161,7 @@
       const { data } = await getNodesMonitor();
       nodes.value = data;
     } catch (err) {
-      console.error('获取节点监控列表失败', err);
+      console.error('failed to fetch node monitor list', err);
     } finally {
       if (loading.value) setLoading(false);
     }

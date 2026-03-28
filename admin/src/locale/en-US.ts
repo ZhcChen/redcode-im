@@ -9,6 +9,7 @@ import localeUserManagement from '@/views/user-management/list/locale/en-US';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/en-US';
 import localeChatHistory from '@/views/chat-history/locale/en-US';
 import localeFeedback from '@/views/feedback/list/locale/en-US';
+import localeIpinfoToken from '@/views/settings/ipinfo-token/locale/en-US';
 import localeReport from '@/views/report/list/locale/en-US';
 import localeStorageProvider from '@/views/settings/storage-provider/locale/en-US';
 import localeCosTest from '@/views/settings/cos-test/locale/en-US';
@@ -77,6 +78,7 @@ export default {
   ...localeCaptchaSettings,
   ...localeChatHistory,
   ...localeFeedback,
+  ...localeIpinfoToken,
   ...localeReport,
   ...localeStorageProvider,
   ...localeCosTest,

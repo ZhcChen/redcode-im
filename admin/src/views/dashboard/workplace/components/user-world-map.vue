@@ -1,8 +1,8 @@
 <template>
-  <StatisticCard title="全球用户分布">
+  <StatisticCard :title="t('workplace.map.title')">
     <template #extra>
       <a-badge :count="totalUsers" :max-count="999" show-zero>
-        <a-tag color="blue">总用户数</a-tag>
+        <a-tag color="blue">{{ t('workplace.map.totalUsersTag') }}</a-tag>
       </a-badge>
     </template>
 
@@ -11,19 +11,19 @@
     <div class="map-legend">
       <div class="legend-item">
         <span class="legend-dot" style="background: #91caff"></span>
-        <span>1-10 用户</span>
+        <span>{{ t('workplace.map.legend.1') }}</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background: #1677ff"></span>
-        <span>11-50 用户</span>
+        <span>{{ t('workplace.map.legend.2') }}</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background: #0958d9"></span>
-        <span>51-100 用户</span>
+        <span>{{ t('workplace.map.legend.3') }}</span>
       </div>
       <div class="legend-item">
         <span class="legend-dot" style="background: #003a8c"></span>
-        <span>100+ 用户</span>
+        <span>{{ t('workplace.map.legend.4') }}</span>
       </div>
     </div>
   </StatisticCard>
@@ -31,6 +31,7 @@
 
 <script setup lang="ts">
   import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import * as echarts from 'echarts';
   import { Message } from '@arco-design/web-vue';
   import axios from 'axios';
@@ -42,10 +43,11 @@
 
   const mapContainer = ref<HTMLElement>();
   const totalUsers = ref(0);
+  const { t } = useI18n();
   let chartInstance: echarts.ECharts | null = null;
   const loading = ref(false);
   let mapDataLoaded = false;
-  let currentMapName = 'world'; // 添加当前地图名称变量
+  let currentMapName = 'world';
 
   interface UserLocation {
     latitude: number;
@@ -63,7 +65,6 @@
 
   const locationData = ref<UserLocation[]>([]);
 
-  // 根据用户数获取点的大小
   function getPointSize(count: number): number {
     if (count >= 100) return 20;
     if (count >= 51) return 16;
@@ -71,7 +72,6 @@
     return 8;
   }
 
-  // 根据用户数获取点的颜色
   function getPointColor(count: number): string {
     if (count >= 100) return '#003a8c';
     if (count >= 51) return '#0958d9';
@@ -79,30 +79,26 @@
     return '#91caff';
   }
 
-  // 处理窗口大小变化
   function handleResize() {
     if (chartInstance) {
       chartInstance.resize();
     }
   }
 
-  // 加载世界地图GeoJSON数据
   async function loadWorldMap() {
     if (mapDataLoaded) return true;
 
     try {
-      // 尝试多个数据源
       const mapSources = [
-        'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', // 中国地图
-        'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson', // 备用世界地图
-        'https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/world-countries.json', // 另一个备用源
+        'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json',
+        'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson',
+        'https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/world-countries.json',
       ];
 
       let geoJson = null;
       let mapName = 'world';
       let loadedSource = '';
 
-      // 使用 Promise.any 尝试多个数据源
       const loadPromises = mapSources.map(async (source) => {
         const response = await fetch(source);
         if (response.ok) {
@@ -111,7 +107,6 @@
         throw new Error(`Failed to load ${source}`);
       });
 
-      // 使用 Promise.allSettled 找到第一个成功的结果
       const results = await Promise.allSettled(loadPromises);
       const successResult = results.find(
         (
@@ -126,44 +121,42 @@
         geoJson = successResult.value.data;
         loadedSource = successResult.value.source;
       } else {
-        throw new Error('所有地图数据源都无法访问');
+        throw new Error('All map data sources are unavailable');
       }
 
-      // 如果是中国地图数据，需要调整名称
       if (loadedSource.includes('100000_full.json')) {
         mapName = 'china';
       }
 
       echarts.registerMap(mapName, geoJson);
-      currentMapName = mapName; // 设置当前地图名称
+      currentMapName = mapName;
       mapDataLoaded = true;
       return true;
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('加载世界地图数据失败:', error);
-      Message.error('加载地图数据失败，请检查网络连接');
+      Message.error(t('workplace.map.error.loadMap'));
       return false;
     }
   }
 
-  // 渲染地图
   async function renderMap() {
     if (!mapContainer.value) return;
 
-    // 先加载地图数据
     const loaded = await loadWorldMap();
     if (!loaded) return;
 
-    // 初始化图表
     if (!chartInstance) {
       chartInstance = echarts.init(mapContainer.value);
     }
 
-    // 准备数据 - 如果没有数据则使用空数组
     const scatterData =
       locationData.value.length > 0
         ? locationData.value.map((item) => ({
-            name: item.city || item.region || item.country || '未知',
+            name:
+              item.city ||
+              item.region ||
+              item.country ||
+              t('workplace.map.unknownLocation'),
             value: [item.longitude, item.latitude, item.user_count],
             itemStyle: {
               color: getPointColor(item.user_count),
@@ -177,13 +170,19 @@
                 return `
           <div style="padding: 8px;">
             <div style="font-weight: bold; margin-bottom: 8px;">${
-              data.city || '未知城市'
+              data.city || t('workplace.map.unknownCity')
             }</div>
-            <div><strong>国家:</strong> ${data.country || '未知'}</div>
-            <div><strong>地区:</strong> ${data.region || '未知'}</div>
-            <div><strong>用户数:</strong> ${data.user_count}</div>
+            <div><strong>${t('workplace.map.tooltip.country')}:</strong> ${
+                  data.country || t('workplace.map.unknownLocation')
+                }</div>
+            <div><strong>${t('workplace.map.tooltip.region')}:</strong> ${
+                  data.region || t('workplace.map.unknownLocation')
+                }</div>
+            <div><strong>${t('workplace.map.tooltip.users')}:</strong> ${
+                  data.user_count
+                }</div>
             <div style="margin-top: 8px; font-size: 12px; color: #666;">
-              点击查看详情
+              ${t('workplace.map.tooltip.clickHint')}
             </div>
           </div>
         `;
@@ -208,7 +207,7 @@
       geo: {
         map: currentMapName,
         roam: true,
-        top: 20, // 距离容器顶部20像素的距离
+        top: 20,
         itemStyle: {
           areaColor: '#f3f4f6',
           borderColor: '#d1d5db',
@@ -218,11 +217,11 @@
             areaColor: '#e5e7eb',
           },
         },
-        zoom: currentMapName === 'china' ? 1.0 : 0.8, // 进一步缩小默认缩放比例
+        zoom: currentMapName === 'china' ? 1.0 : 0.8,
       },
       series: [
         {
-          name: '用户分布',
+          name: t('workplace.map.seriesName'),
           type: 'scatter',
           coordinateSystem: 'geo',
           data: scatterData,
@@ -237,31 +236,23 @@
           },
         },
       ],
-      // 添加动画效果
       animationDurationUpdate: 1000,
       animationEasing: 'cubicOut',
     };
 
-    // 设置配置
     chartInstance.setOption(option);
 
-    // 添加点击事件 - 只有有数据时才添加
     if (locationData.value.length > 0) {
       chartInstance.on('click', (params: any) => {
         if (params.data && params.dataIndex !== undefined) {
-          const locationInfo = locationData.value[params.dataIndex];
-          // eslint-disable-next-line no-console
-          console.log('点击位置:', locationInfo);
-          // 未来可以添加显示用户详情的逻辑
+          console.log('clicked location:', locationData.value[params.dataIndex]);
         }
       });
     }
 
-    // 响应式
     window.addEventListener('resize', handleResize);
   }
 
-  // 清理资源
   function cleanup() {
     if (chartInstance) {
       chartInstance.dispose();
@@ -270,7 +261,6 @@
     window.removeEventListener('resize', handleResize);
   }
 
-  // 获取用户地理位置分布数据
   async function fetchUserDistribution() {
     loading.value = true;
     try {
@@ -284,19 +274,12 @@
           0
         );
       } else {
-        // 如果没有数据，设置为空数组
         locationData.value = [];
         totalUsers.value = 0;
       }
-      // 无论是否有数据都要渲染地图
       await renderMap();
     } catch (error: any) {
-      Message.error(
-        `获取用户分布数据失败: ${
-          error.response?.data?.message || error.message
-        }`
-      );
-      // 即使请求失败也要显示空地图
+      Message.error(t('workplace.map.error.fetch'));
       locationData.value = [];
       totalUsers.value = 0;
       await renderMap();
@@ -314,9 +297,7 @@
     cleanup();
   });
 
-  // 监听数据变化
   watch(locationData, async () => {
-    // 无论数据是否为空都要重新渲染地图
     await renderMap();
   });
 </script>

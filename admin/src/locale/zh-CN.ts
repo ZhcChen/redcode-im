@@ -9,6 +9,7 @@ import localeUserManagement from '@/views/user-management/list/locale/zh-CN';
 import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
 import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 import localeFeedback from '@/views/feedback/list/locale/zh-CN';
+import localeIpinfoToken from '@/views/settings/ipinfo-token/locale/zh-CN';
 import localeReport from '@/views/report/list/locale/zh-CN';
 import localeStorageProvider from '@/views/settings/storage-provider/locale/zh-CN';
 import localeCosTest from '@/views/settings/cos-test/locale/zh-CN';
@@ -77,6 +78,7 @@ export default {
   ...localeCaptchaSettings,
   ...localeChatHistory,
   ...localeFeedback,
+  ...localeIpinfoToken,
   ...localeReport,
   ...localeStorageProvider,
   ...localeCosTest,

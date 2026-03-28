@@ -1,7 +1,7 @@
 <template>
-  <StatisticCard title="贴纸统计">
+  <StatisticCard :title="t('workplace.emoji.title')">
     <template #extra>
-      <a-tag color="orange">贴纸</a-tag>
+      <a-tag color="orange">{{ t('workplace.emoji.tag') }}</a-tag>
     </template>
 
     <a-spin :loading="loading" style="width: 100%">
@@ -12,7 +12,7 @@
             <div class="stat-value">{{
               formatNumber(emojiStats?.totalEmojis || 0)
             }}</div>
-            <div class="stat-label">贴纸总数</div>
+            <div class="stat-label">{{ t('workplace.emoji.totalCount') }}</div>
           </div>
         </div>
 
@@ -22,7 +22,7 @@
             <div class="stat-value">{{
               formatNumber(emojiStats?.todayUsage || 0)
             }}</div>
-            <div class="stat-label">今日使用</div>
+            <div class="stat-label">{{ t('workplace.emoji.todayUsage') }}</div>
           </div>
         </div>
 
@@ -32,7 +32,9 @@
             <div class="stat-value">{{
               formatNumber(emojiStats?.popularCount || 0)
             }}</div>
-            <div class="stat-label">热门贴纸</div>
+            <div class="stat-label">
+              {{ t('workplace.emoji.popularCount') }}
+            </div>
           </div>
         </div>
       </div>
@@ -42,6 +44,7 @@
 
 <script setup lang="ts">
   import { ref, onMounted, onUnmounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import StatisticCard from '@/components/statistic-card/index.vue';
   import useLoading from '@/hooks/loading';
   import {
@@ -54,6 +57,7 @@
   });
 
   const { loading, setLoading } = useLoading(true);
+  const { t } = useI18n();
   const emojiStats = ref<DashboardEmojiStats>();
   let timer: number | null = null;
 
@@ -70,7 +74,7 @@
       const { data } = await getDashboardEmojiStats();
       emojiStats.value = data;
     } catch (error) {
-      // 错误提示由全局拦截器统一处理
+      console.warn('failed to fetch emoji stats', error);
     } finally {
       setLoading(false);
     }
@@ -78,7 +82,6 @@
 
   onMounted(() => {
     fetchEmojiStats();
-    // 每30秒更新一次
     timer = window.setInterval(fetchEmojiStats, 30000);
   });
 

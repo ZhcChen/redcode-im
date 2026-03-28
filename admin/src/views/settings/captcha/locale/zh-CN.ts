@@ -1,6 +1,16 @@
 export default {
   'captcha.title': '验证码设置',
+  'captcha.warning.title': '⚠️ 测试人员请注意：',
+  'captcha.warning.description':
+    '这里设置的通用验证码仅用于测试环境，请勿在生产环境中使用，存在安全风险。',
   'captcha.enabled.label': '启用验证码',
+  'captcha.enabled.help':
+    '开启后，测试人员可以使用通用验证码绕过验证。仅用于测试环境。',
+  'captcha.requireLogin.label': '是否开启登录/注册验证码',
+  'captcha.requireLogin.help':
+    '开启后，用户登录和注册时必须输入验证码；关闭后，登录和注册将跳过验证码验证。',
+  'captcha.switch.on': '开启',
+  'captcha.switch.off': '关闭',
   'captcha.captchaCode.label': '通用验证码',
   'captcha.captchaCode.placeholder': '请输入4-8位验证码',
   'captcha.captchaCode.help':
@@ -13,8 +23,6 @@ export default {
   'captcha.demo.placeholder': '验证码',
   'captcha.demo.help': '测试人员可直接输入此验证码完成验证',
   'captcha.demo.disabled': '验证码功能已关闭',
-  'captcha.warning':
-    '⚠️ 测试人员请注意：这里设置的通用验证码仅用于测试环境，请勿在生产环境中使用，存在安全风险。',
   'captcha.save': '保存设置',
   'captcha.reset': '重置',
   'captcha.clear': '清空验证码',

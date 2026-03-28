@@ -1,6 +1,16 @@
 export default {
   'captcha.title': 'Captcha Settings',
+  'captcha.warning.title': '⚠️ Attention testers:',
+  'captcha.warning.description':
+    'The universal captcha configured here is for test environments only. Do not use it in production.',
   'captcha.enabled.label': 'Enable Captcha',
+  'captcha.enabled.help':
+    'When enabled, testers can use the universal captcha to bypass verification. Test environments only.',
+  'captcha.requireLogin.label': 'Require Captcha for Login / Registration',
+  'captcha.requireLogin.help':
+    'When enabled, users must enter a captcha during login and registration. When disabled, captcha verification is skipped.',
+  'captcha.switch.on': 'On',
+  'captcha.switch.off': 'Off',
   'captcha.captchaCode.label': 'General Captcha',
   'captcha.captchaCode.placeholder': 'Enter a 4-8 character captcha',
   'captcha.captchaCode.help':
@@ -15,8 +25,6 @@ export default {
   'captcha.demo.help':
     'Testers can enter this value directly to pass verification.',
   'captcha.demo.disabled': 'Captcha feature is disabled.',
-  'captcha.warning':
-    '⚠️ Test environment only: do not use the universal captcha in production to avoid security risks.',
   'captcha.save': 'Save',
   'captcha.reset': 'Reset',
   'captcha.clear': 'Clear Captcha',

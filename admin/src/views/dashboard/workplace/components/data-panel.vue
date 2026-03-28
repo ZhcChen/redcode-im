@@ -1,5 +1,5 @@
 <template>
-  <StatisticCard title="数据统计">
+  <StatisticCard :title="t('workplace.stats.title')">
     <a-grid :cols="24" :row-gap="16" class="panel">
       <a-grid-item
         class="panel-col"
@@ -14,13 +14,13 @@
             <icon-user />
           </a-avatar>
           <a-statistic
-            title="用户总数"
+            :title="t('workplace.stats.totalUsers')"
             :value="systemStats?.totalUsers || 0"
             :value-from="0"
             animation
             show-group-separator
           >
-            <template #suffix>人</template>
+            <template #suffix>{{ t('workplace.stats.unit.users') }}</template>
           </a-statistic>
         </a-space>
       </a-grid-item>
@@ -37,13 +37,13 @@
             <icon-user-add />
           </a-avatar>
           <a-statistic
-            title="在线用户"
+            :title="t('workplace.stats.onlineUsers')"
             :value="systemStats?.onlineUsers || 0"
             :value-from="0"
             animation
             show-group-separator
           >
-            <template #suffix>人</template>
+            <template #suffix>{{ t('workplace.stats.unit.users') }}</template>
           </a-statistic>
         </a-space>
       </a-grid-item>
@@ -60,13 +60,15 @@
             <icon-message />
           </a-avatar>
           <a-statistic
-            title="今日消息"
+            :title="t('workplace.stats.todayMessages')"
             :value="systemStats?.todayMessages || 0"
             :value-from="0"
             animation
             show-group-separator
           >
-            <template #suffix>条</template>
+            <template #suffix>{{
+              t('workplace.stats.unit.messages')
+            }}</template>
           </a-statistic>
         </a-space>
       </a-grid-item>
@@ -84,13 +86,13 @@
             <icon-home />
           </a-avatar>
           <a-statistic
-            title="活跃房间"
+            :title="t('workplace.stats.activeRooms')"
             :value="systemStats?.activeRooms || 0"
             :value-from="0"
             animation
             show-group-separator
           >
-            <template #suffix>个</template>
+            <template #suffix>{{ t('workplace.stats.unit.rooms') }}</template>
           </a-statistic>
         </a-space>
       </a-grid-item>
@@ -100,11 +102,13 @@
 
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import { getSystemStats, type SystemStats } from '@/api/dashboard';
   import StatisticCard from '@/components/statistic-card/index.vue';
 
   const { setLoading } = useLoading(true);
+  const { t } = useI18n();
   const systemStats = ref<SystemStats>();
   let timer: number | null = null;
 
@@ -122,7 +126,6 @@
 
   onMounted(() => {
     fetchData();
-    // 每3秒轮询一次
     timer = window.setInterval(fetchData, 3000);
   });
 

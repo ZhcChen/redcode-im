@@ -1,9 +1,11 @@
 export default {
   'ipinfoToken.title': 'ipinfo.io Token Management',
+  'ipinfoToken.search.placeholder': 'Search token name',
   'ipinfoToken.create': 'Add Token',
   'ipinfoToken.edit': 'Edit Token',
   'ipinfoToken.delete': 'Delete Token',
   'ipinfoToken.reset': 'Reset Usage',
+  'ipinfoToken.refresh': 'Refresh',
   'ipinfoToken.name.label': 'Token Name',
   'ipinfoToken.name.placeholder': 'Please enter token name',
   'ipinfoToken.token.label': 'Token Value',
@@ -13,6 +15,7 @@ export default {
   'ipinfoToken.monthlyLimit.help':
     'ipinfo.io monthly call limit, default 50000 times',
   'ipinfoToken.status.label': 'Status',
+  'ipinfoToken.status.placeholder': 'Select status',
   'ipinfoToken.status.active': 'Active',
   'ipinfoToken.status.exhausted': 'Exhausted',
   'ipinfoToken.table.name': 'Token Name',
@@ -23,8 +26,11 @@ export default {
   'ipinfoToken.table.lastUsed': 'Last Used',
   'ipinfoToken.table.createdAt': 'Created At',
   'ipinfoToken.table.actions': 'Actions',
+  'ipinfoToken.confirm.delete.title': 'Confirm Delete',
   'ipinfoToken.confirm.delete':
     'Are you sure to delete token "{name}"? This action cannot be undone.',
+  'ipinfoToken.confirm.delete.okText': 'Delete',
+  'ipinfoToken.confirm.cancel': 'Cancel',
   'ipinfoToken.confirm.reset':
     'Are you sure to reset usage for token "{name}"?',
   'ipinfoToken.success.create': 'Token created successfully',
@@ -36,6 +42,7 @@ export default {
   'ipinfoToken.error.delete': 'Failed to delete token',
   'ipinfoToken.error.reset': 'Failed to reset token usage',
   'ipinfoToken.error.fetch': 'Failed to fetch token list',
+  'ipinfoToken.error.submit': 'Operation failed',
   'ipinfoToken.validation.name.required': 'Please enter token name',
   'ipinfoToken.validation.name.maxLength':
     'Token name cannot exceed 50 characters',

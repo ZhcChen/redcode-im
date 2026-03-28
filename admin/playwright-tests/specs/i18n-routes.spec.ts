@@ -136,6 +136,42 @@ const ENGLISH_ROUTE_CASES = [
         .toBeVisible();
     },
   },
+  {
+    id: 'settings-captcha',
+    path: '/settings/captcha',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Captcha Settings', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'operations-ipinfo-token',
+    path: '/operations/ipinfo-token',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByRole('button', { name: 'Add Token', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'dashboard-workplace',
+    path: '/dashboard/workplace',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Total Users', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'dashboard-monitor',
+    path: '/dashboard/monitor',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Cluster Node Monitor', { exact: true })
+      ).toBeVisible();
+    },
+  },
 ];
 
 const ENGLISH_ERROR_CASES = [

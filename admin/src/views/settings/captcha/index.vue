@@ -1,11 +1,15 @@
 <template>
   <div class="captcha-settings-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.captcha']" />
-    <a-card class="general-card" title="验证码设置" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="$t('captcha.title')"
+      :bordered="false"
+    >
       <div class="warning-alert">
         <a-alert type="warning" show-icon>
-          <strong>⚠️ 测试人员请注意：</strong>
-          这里设置的通用验证码仅用于测试环境，请勿在生产环境中使用，存在安全风险。
+          <strong>{{ $t('captcha.warning.title') }}</strong>
+          {{ $t('captcha.warning.description') }}
         </a-alert>
       </div>
 
@@ -17,67 +21,75 @@
         class="settings-form"
         @submit="handleSubmit"
       >
-        <a-form-item field="enabled" label="启用通用验证码">
+        <a-form-item
+          field="enabled"
+          :label="$t('captcha.enabled.label')"
+        >
           <a-switch
             v-model="formData.enabled"
-            checked-text="开启"
-            unchecked-text="关闭"
+            :checked-text="$t('captcha.switch.on')"
+            :unchecked-text="$t('captcha.switch.off')"
             :checked-value="true"
             :unchecked-value="false"
           />
           <template #help>
-            开启后，测试人员可以使用通用验证码绕过验证。仅用于测试环境。
+            {{ $t('captcha.enabled.help') }}
           </template>
         </a-form-item>
 
         <a-form-item
           field="require_captcha_for_login"
-          label="是否开启登录/注册验证码"
+          :label="$t('captcha.requireLogin.label')"
         >
           <a-switch
             v-model="formData.require_captcha_for_login"
-            checked-text="开启"
-            unchecked-text="关闭"
+            :checked-text="$t('captcha.switch.on')"
+            :unchecked-text="$t('captcha.switch.off')"
             :checked-value="true"
             :unchecked-value="false"
           />
           <template #help>
-            开启后，用户登录和注册时必须输入验证码；关闭后，登录和注册将跳过验证码验证。
+            {{ $t('captcha.requireLogin.help') }}
           </template>
         </a-form-item>
 
         <a-form-item
           field="captcha_code"
-          label="通用验证码"
+          :label="$t('captcha.captchaCode.label')"
           :rules="[
-            { required: formData.enabled, message: '请输入验证码' },
-            { minLength: 4, message: '验证码至少4位' },
-            { maxLength: 8, message: '验证码最多8位' },
+            {
+              required: formData.enabled,
+              message: $t('captcha.error.required'),
+            },
+            { minLength: 4, message: $t('captcha.error.minLength') },
+            { maxLength: 8, message: $t('captcha.error.maxLength') },
           ]"
         >
           <a-input
             v-model="formData.captcha_code"
-            placeholder="请输入4-8位验证码"
+            :placeholder="$t('captcha.captchaCode.placeholder')"
             :disabled="!formData.enabled"
             maxlength="8"
           />
           <template #help>
-            设置后，用户登录/注册时可以使用此验证码绕过验证。仅用于测试环境。
+            {{ $t('captcha.captchaCode.help') }}
           </template>
         </a-form-item>
 
-        <a-form-item field="description" label="说明备注">
+        <a-form-item field="description" :label="$t('captcha.description.label')">
           <a-textarea
             v-model="formData.description"
-            placeholder="请输入验证码的使用说明或备注"
+            :placeholder="$t('captcha.description.placeholder')"
             :rows="3"
             :disabled="!formData.enabled"
             maxlength="100"
           />
-          <template #help> 可选，记录此验证码的用途和使用说明。 </template>
+          <template #help>
+            {{ $t('captcha.description.help') }}
+          </template>
         </a-form-item>
 
-        <a-form-item field="preview" label="预览效果">
+        <a-form-item field="preview" :label="$t('captcha.preview.label')">
           <a-card
             class="preview-card"
             :bordered="true"
@@ -86,20 +98,22 @@
           >
             <div class="preview-content">
               <div v-if="formData.enabled && formData.captcha_code">
-                <div class="demo-label">用户登录/注册页面将显示：</div>
+                <div class="demo-label">{{ $t('captcha.demo.label') }}</div>
                 <div class="demo-captcha">
                   <a-input
                     :value="formData.captcha_code"
                     readonly
-                    placeholder="验证码"
+                    :placeholder="$t('captcha.demo.placeholder')"
                     style="font-weight: bold; text-align: center"
                   />
                   <div class="demo-help">
-                    测试人员可直接输入此验证码完成验证
+                    {{ $t('captcha.demo.help') }}
                   </div>
                 </div>
               </div>
-              <div v-else class="demo-disabled"> 验证码功能已关闭 </div>
+              <div v-else class="demo-disabled">
+                {{ $t('captcha.demo.disabled') }}
+              </div>
             </div>
           </a-card>
         </a-form-item>
@@ -107,16 +121,16 @@
         <a-form-item>
           <a-space>
             <a-button type="primary" html-type="submit" :loading="loading">
-              保存设置
+              {{ $t('captcha.save') }}
             </a-button>
-            <a-button @click="handleReset"> 重置 </a-button>
+            <a-button @click="handleReset"> {{ $t('captcha.reset') }} </a-button>
             <a-button
               v-if="formData.enabled"
               type="outline"
               status="warning"
               @click="clearCaptcha"
             >
-              清空验证码
+              {{ $t('captcha.clear') }}
             </a-button>
           </a-space>
         </a-form-item>
@@ -127,11 +141,13 @@
 
 <script lang="ts" setup>
   import { reactive, onMounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
   import { getCaptchaSetting, updateCaptchaSetting } from '@/api/user';
 
   const { loading, setLoading } = useLoading(false);
+  const { t } = useI18n();
 
   const formData = reactive({
     enabled: false,
@@ -151,7 +167,7 @@
           data.require_captcha_for_login ?? false;
       }
     } catch (error) {
-      // 使用默认设置
+      Message.error(t('captcha.fetch.error'));
       formData.enabled = false;
       formData.captcha_code = '';
       formData.description = '';
@@ -172,9 +188,9 @@
       formData.captcha_code = '';
       formData.description = '';
 
-      Message.success('验证码已清空，功能已关闭');
+      Message.success(t('captcha.success.clear'));
     } catch (error) {
-      Message.error('操作失败，请重试');
+      Message.error(t('captcha.error.clear'));
     } finally {
       setLoading(false);
     }
@@ -182,7 +198,7 @@
 
   const handleSubmit = async () => {
     if (formData.enabled && !formData.captcha_code.trim()) {
-      Message.warning('请输入验证码');
+      Message.warning(t('captcha.error.required'));
       return;
     }
 
@@ -196,11 +212,11 @@
       };
 
       await updateCaptchaSetting(settings);
-      Message.success('验证码设置保存成功');
+      Message.success(t('captcha.success.save'));
 
       await fetchSettings();
     } catch (error) {
-      Message.error('保存失败，请重试');
+      Message.error(t('captcha.error.save'));
     } finally {
       setLoading(false);
     }
