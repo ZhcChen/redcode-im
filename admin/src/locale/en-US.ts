@@ -12,6 +12,9 @@ import localeStorageProvider from '@/views/settings/storage-provider/locale/en-U
 import localeCosTest from '@/views/settings/cos-test/locale/en-US';
 import localeFileUploadAudit from '@/views/operations/file-upload-audit/locale/en-US';
 import localeSystemLog from '@/views/dashboard/system-log/locale/en-US';
+import localePushLog from '@/views/operations/push-log/locale/en-US';
+import localeApiMetrics from '@/views/operations/api-metrics/locale/en-US';
+import localeDataCleanup from '@/views/settings/data-cleanup/locale/en-US';
 /** simple end */
 import localeSettings from './en-US/settings';
 
@@ -33,6 +36,10 @@ export default {
   'menu.operations.dataCleanup': 'Data Cleanup',
   'menu.operations.apiMetrics': 'API Metrics',
   'menu.operations.fileUploadAudit': 'File Upload Audit',
+  'menu.settings.storageProvider': 'Object Storage Provider',
+  'menu.settings.cosTest': 'COS Test',
+  'menu.settings.ipinfoToken': 'IP Geolocation Token',
+  'menu.settings.dataCleanup': 'Data Cleanup',
   'menu.settings': 'System Settings',
   'menu.settings.captcha': 'Captcha Settings',
   'menu.settings.privacyPolicy': 'Privacy Agreement',
@@ -55,6 +62,7 @@ export default {
   'menu.user': 'User Center',
   'navbar.docs': 'Docs',
   'navbar.action.locale': 'Switch to English',
+  'app.brand': 'IM Admin Console',
   ...localeSettings,
   ...localeMessageBox,
   ...localeLogin,
@@ -68,5 +76,8 @@ export default {
   ...localeCosTest,
   ...localeFileUploadAudit,
   ...localeSystemLog,
+  ...localePushLog,
+  ...localeApiMetrics,
+  ...localeDataCleanup,
   /** simple end */
 };

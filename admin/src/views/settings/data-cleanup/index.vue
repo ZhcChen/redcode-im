@@ -7,31 +7,29 @@
         <template #icon>
           <icon-warning />
         </template>
-        <template #title>危险操作 - 仅限开发环境使用</template>
-        此页面用于清理测试数据，请确保您正在开发环境中操作。清理操作将不可逆，请谨慎操作！
+        <template #title>{{ t('dataCleanup.warning.title') }}</template>
+        {{ t('dataCleanup.warning.message') }}
       </a-alert>
     </div>
 
-    <a-card class="cleanup-card" title="数据清理" :bordered="false">
+    <a-card class="cleanup-card" :title="t('dataCleanup.title')" :bordered="false">
       <div class="cleanup-section">
         <div class="section-header">
-          <h3>清理所有 App 用户相关数据</h3>
-          <p class="section-description">
-            此操作将删除所有用户相关的测试数据，包括用户、聊天记录、群组等
-          </p>
+          <h3>{{ t('dataCleanup.section.title') }}</h3>
+          <p class="section-description">{{ t('dataCleanup.section.description') }}</p>
         </div>
 
         <a-form :model="cleanupForm" label-align="left" class="cleanup-form">
           <a-form-item>
             <a-checkbox v-model="cleanupForm.confirmText">
-              我已理解此操作的危险性，并确认要执行清理
+              {{ t('dataCleanup.confirmCheckbox') }}
             </a-checkbox>
           </a-form-item>
 
           <a-form-item>
             <a-input
               v-model="cleanupForm.confirmationInput"
-              placeholder="请输入 '确认清理' 以继续"
+              :placeholder="t('dataCleanup.confirmInput.placeholder')"
             />
           </a-form-item>
 
@@ -44,9 +42,9 @@
                 :disabled="!canCleanup"
                 @click="handleCleanup"
               >
-                立即清理所有数据
+                {{ t('dataCleanup.run') }}
               </a-button>
-              <a-button @click="handleReset">重置</a-button>
+              <a-button @click="handleReset">{{ t('dataCleanup.reset') }}</a-button>
             </a-space>
           </a-form-item>
         </a-form>
@@ -54,7 +52,7 @@
         <a-divider />
 
         <div class="cleanup-details">
-          <h4>将要清理的数据表：</h4>
+          <h4>{{ t('dataCleanup.tableList.title') }}</h4>
           <a-list
             :data-source="cleanupTables"
             bordered
@@ -76,7 +74,7 @@
 
     <a-modal
       v-model:visible="showConfirmModal"
-      title="确认清理操作"
+      :title="t('dataCleanup.modal.title')"
       :mask-closable="false"
       :esc-to-close="false"
       @cancel="showConfirmModal = false"
@@ -87,22 +85,24 @@
           <template #icon>
             <icon-danger />
           </template>
-          <template #title>最后确认</template>
-          您即将删除所有 App 用户相关数据，此操作不可恢复！
+          <template #title>{{ t('dataCleanup.modal.finalTitle') }}</template>
+          {{ t('dataCleanup.modal.finalMessage') }}
         </a-alert>
 
         <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="将清理的数据表数量">
-            {{ cleanupTables.length }} 个
+          <a-descriptions-item :label="t('dataCleanup.modal.tableCount')">
+            {{ cleanupTables.length }} {{ t('dataCleanup.modal.countUnit') }}
           </a-descriptions-item>
-          <a-descriptions-item label="预计影响用户数">
-            全部用户
+          <a-descriptions-item :label="t('dataCleanup.modal.affectedUsers')">
+            {{ t('dataCleanup.modal.allUsers') }}
           </a-descriptions-item>
-          <a-descriptions-item label="预计影响消息数">
-            全部消息
+          <a-descriptions-item
+            :label="t('dataCleanup.modal.affectedMessages')"
+          >
+            {{ t('dataCleanup.modal.allMessages') }}
           </a-descriptions-item>
-          <a-descriptions-item label="预计影响群组数">
-            全部群组
+          <a-descriptions-item :label="t('dataCleanup.modal.affectedGroups')">
+            {{ t('dataCleanup.modal.allGroups') }}
           </a-descriptions-item>
         </a-descriptions>
       </div>
@@ -114,8 +114,10 @@
   import { reactive, computed, ref } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
+  import { useI18n } from 'vue-i18n';
   import cleanupAllAppData from '@/api/data-cleanup';
 
+  const { t } = useI18n();
   const { loading, setLoading } = useLoading(false);
   const showConfirmModal = ref(false);
 
@@ -126,104 +128,105 @@
 
   const canCleanup = computed(() => {
     return (
-      cleanupForm.confirmText && cleanupForm.confirmationInput === '确认清理'
+      cleanupForm.confirmText &&
+      cleanupForm.confirmationInput === t('dataCleanup.confirmPhrase')
     );
   });
 
-  const cleanupTables = [
+  const cleanupTables = computed(() => [
     {
       name: 'users',
-      description: '用户表 - 删除所有用户账户信息',
+      description: t('dataCleanup.tables.users'),
     },
     {
       name: 'messages',
-      description: '消息表 - 删除所有聊天消息',
+      description: t('dataCleanup.tables.messages'),
     },
     {
       name: 'rooms',
-      description: '房间表 - 删除所有群组和私聊房间',
+      description: t('dataCleanup.tables.rooms'),
     },
     {
       name: 'room_members',
-      description: '房间成员表 - 删除所有房间成员关系',
+      description: t('dataCleanup.tables.room_members'),
     },
     {
       name: 'friendships',
-      description: '好友关系表 - 删除所有好友关系',
+      description: t('dataCleanup.tables.friendships'),
     },
     {
       name: 'friend_requests',
-      description: '好友请求表 - 删除所有好友请求',
+      description: t('dataCleanup.tables.friend_requests'),
     },
     {
       name: 'user_friend_remarks',
-      description: '好友备注表 - 删除所有好友备注',
+      description: t('dataCleanup.tables.user_friend_remarks'),
     },
     {
       name: 'message_reads',
-      description: '消息已读表 - 删除所有消息已读记录',
+      description: t('dataCleanup.tables.message_reads'),
     },
     {
       name: 'message_parts',
-      description: '消息分片表 - 删除所有消息分片',
+      description: t('dataCleanup.tables.message_parts'),
     },
     {
       name: 'room_pins',
-      description: '房间置顶表 - 删除所有房间置顶',
+      description: t('dataCleanup.tables.room_pins'),
     },
     {
       name: 'user_room_pins',
-      description: '用户房间置顶表 - 删除所有用户房间置顶',
+      description: t('dataCleanup.tables.user_room_pins'),
     },
     {
       name: 'feedbacks',
-      description: '用户反馈表 - 删除所有用户反馈',
+      description: t('dataCleanup.tables.feedbacks'),
     },
     {
       name: 'user_roles',
-      description: '用户角色表 - 删除所有用户角色关联',
+      description: t('dataCleanup.tables.user_roles'),
     },
     {
       name: 'user_login_history',
-      description: '用户登录历史表 - 删除所有用户登录历史',
+      description: t('dataCleanup.tables.user_login_history'),
     },
     {
       name: 'user_geolocations',
-      description: '用户地理位置表 - 删除所有用户地理位置',
+      description: t('dataCleanup.tables.user_geolocations'),
     },
     {
       name: 'group_settings',
-      description: '群设置表 - 删除所有群设置',
+      description: t('dataCleanup.tables.group_settings'),
     },
     {
       name: 'group_announcements',
-      description: '群公告表 - 删除所有群公告',
+      description: t('dataCleanup.tables.group_announcements'),
     },
     {
       name: 'group_rules',
-      description: '群规则表 - 删除所有群规则',
+      description: t('dataCleanup.tables.group_rules'),
     },
     {
       name: 'join_requests',
-      description: '加群请求表 - 删除所有加群请求',
+      description: t('dataCleanup.tables.join_requests'),
     },
     {
       name: 'group_invitations',
-      description: '群邀请表 - 删除所有群邀请',
+      description: t('dataCleanup.tables.group_invitations'),
     },
     {
       name: 'group_admins',
-      description: '群管理员表 - 删除所有群管理员',
+      description: t('dataCleanup.tables.group_admins'),
     },
     {
       name: 'group_operation_logs',
-      description: '群操作日志表 - 删除所有群操作日志',
+      description: t('dataCleanup.tables.group_operation_logs'),
     },
     {
       name: 'group_mutes',
-      description: '群禁言表 - 删除所有群禁言记录',
+      description: t('dataCleanup.tables.group_mutes'),
     },
-  ];
+  ]);
 
   const handleReset = () => {
     cleanupForm.confirmText = false;
@@ -232,7 +235,7 @@
 
   const handleCleanup = () => {
     if (!canCleanup.value) {
-      Message.warning('请先确认操作');
+      Message.warning(t('dataCleanup.messages.confirmRequired'));
       return;
     }
     showConfirmModal.value = true;
@@ -242,11 +245,11 @@
     try {
       setLoading(true);
       await cleanupAllAppData();
-      Message.success('数据清理完成');
+      Message.success(t('dataCleanup.messages.success'));
       showConfirmModal.value = false;
       handleReset();
     } catch (error: any) {
-      Message.error(error?.response?.data?.message || '清理失败，请重试');
+      Message.error(error?.response?.data?.message || t('dataCleanup.messages.error'));
     } finally {
       setLoading(false);
     }

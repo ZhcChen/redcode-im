@@ -10,7 +10,7 @@
                 <template #icon><icon-refresh /></template>
                 {{ $t('monitor.studioInfo.btn.fresh') }}
               </a-button>
-              <a-tag color="arcoblue">自动刷新 (5s)</a-tag>
+              <a-tag color="arcoblue">{{ t('apiMetrics.autoRefresh') }}</a-tag>
             </a-space>
           </template>
           <a-table
@@ -21,21 +21,24 @@
             @change="handleTableChange"
           >
             <template #columns>
-              <a-table-column title="方法" data-index="method">
+              <a-table-column :title="t('apiMetrics.table.method')" data-index="method">
                 <template #cell="{ record }">
                   <a-tag :color="getMethodColor(record.method)">{{
                     record.method
                   }}</a-tag>
                 </template>
               </a-table-column>
-              <a-table-column title="请求路径" data-index="path" />
               <a-table-column
-                title="调用次数"
+                :title="t('apiMetrics.table.path')"
+                data-index="path"
+              />
+              <a-table-column
+                :title="t('apiMetrics.table.count')"
                 data-index="count"
                 :sortable="{ sortDirections: ['ascend', 'descend'] }"
               />
               <a-table-column
-                title="平均耗时 (ms)"
+                :title="t('apiMetrics.table.avgDuration')"
                 data-index="avg_duration"
                 :sortable="{ sortDirections: ['ascend', 'descend'] }"
               >
@@ -50,7 +53,7 @@
                 </template>
               </a-table-column>
               <a-table-column
-                title="最大耗时 (ms)"
+                :title="t('apiMetrics.table.maxDuration')"
                 data-index="max_duration"
                 :sortable="{ sortDirections: ['ascend', 'descend'] }"
               >
@@ -68,13 +71,13 @@
       </a-grid-item>
 
       <a-grid-item :span="12">
-        <a-card class="general-card" title="平均耗时排行 (Top 10)">
+        <a-card class="general-card" :title="t('apiMetrics.chart.avgTop')">
           <div ref="avgChart" style="width: 100%; height: 350px"></div>
         </a-card>
       </a-grid-item>
 
       <a-grid-item :span="12">
-        <a-card class="general-card" title="调用频次占比">
+        <a-card class="general-card" :title="t('apiMetrics.chart.countShare')">
           <div ref="countChart" style="width: 100%; height: 350px"></div>
         </a-card>
       </a-grid-item>
@@ -83,7 +86,8 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, onMounted, onUnmounted } from 'vue';
+  import { ref, onMounted, onUnmounted, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import {
     getApiPerformanceMetrics,
     ApiPerformanceMetric,
@@ -91,6 +95,7 @@
   import * as echarts from 'echarts';
   import { PaginationProps } from '@arco-design/web-vue';
 
+  const { t, locale } = useI18n();
   const loading = ref(false);
   const metrics = ref<ApiPerformanceMetric[]>([]);
   const topAvg = ref<ApiPerformanceMetric[]>([]);
@@ -134,7 +139,6 @@
   const updateCharts = () => {
     if (!avgChartInstance || !countChartInstance) return;
 
-    // 平均耗时排行 (使用全局 topAvg)
     const topAvgData = [...topAvg.value].reverse();
 
     avgChartInstance.setOption({
@@ -149,7 +153,7 @@
       },
       series: [
         {
-          name: '平均耗时 (ms)',
+          name: t('apiMetrics.chart.series.avgDuration'),
           type: 'bar',
           data: topAvgData.map((item) => item.avg_duration),
           itemStyle: {
@@ -159,7 +163,6 @@
       ],
     });
 
-    // 调用频次占比 (使用全局 topCount)
     const topCountData = topCount.value.slice(0, 5).map((item) => ({
       name: `${item.method} ${item.path}`,
       value: item.count,
@@ -169,7 +172,7 @@
       const otherCount = topCount.value
         .slice(5)
         .reduce((acc, cur) => acc + cur.count, 0);
-      topCountData.push({ name: '其他', value: otherCount });
+      topCountData.push({ name: t('apiMetrics.chart.other'), value: otherCount });
     }
 
     countChartInstance.setOption({
@@ -177,7 +180,7 @@
       legend: { bottom: '0', left: 'center' },
       series: [
         {
-          name: '调用频次',
+          name: t('apiMetrics.chart.series.countShare'),
           type: 'pie',
           radius: ['40%', '65%'],
           center: ['50%', '45%'],
@@ -197,7 +200,6 @@
       ],
     });
 
-    // 强制触发一次 resize 确保布局正确
     avgChartInstance.resize();
     countChartInstance.resize();
   };
@@ -229,7 +231,7 @@
     } else if (extra.type === 'sorter') {
       sortField.value = extra.sorter?.field || '';
       sortOrder.value = extra.sorter?.direction || '';
-      pagination.value.current = 1; // 排序后回到第一页
+      pagination.value.current = 1;
     }
     fetchData();
   };
@@ -252,6 +254,10 @@
       avgChartInstance?.resize();
       countChartInstance?.resize();
     });
+  });
+
+  watch(locale, () => {
+    updateCharts();
   });
 
   onUnmounted(() => {

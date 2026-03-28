@@ -10,52 +10,56 @@
         <a-space wrap>
           <a-input
             v-model="queryParams.pushId"
-            placeholder="Push ID"
+            :placeholder="t('pushLog.filters.pushId.placeholder')"
             style="width: 220px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.userId"
-            placeholder="用户ID"
+            :placeholder="t('pushLog.filters.userId.placeholder')"
             style="width: 220px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.deviceId"
-            placeholder="设备ID"
+            :placeholder="t('pushLog.filters.deviceId.placeholder')"
             style="width: 220px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.provider"
-            placeholder="Provider（如 fcm）"
+            :placeholder="t('pushLog.filters.provider.placeholder')"
             style="width: 160px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-input
             v-model="queryParams.eventType"
-            placeholder="事件类型（如 message）"
+            :placeholder="t('pushLog.filters.eventType.placeholder')"
             style="width: 180px"
             allow-clear
             @press-enter="handleSearch"
           />
           <a-select
             v-model="queryParams.success"
-            placeholder="结果"
+            :placeholder="t('pushLog.filters.success.placeholder')"
             style="width: 120px"
             allow-clear
             @change="handleSearch"
           >
-            <a-option :value="true">成功</a-option>
-            <a-option :value="false">失败</a-option>
+            <a-option :value="true">
+              {{ t('pushLog.filters.success.true') }}
+            </a-option>
+            <a-option :value="false">
+              {{ t('pushLog.filters.success.false') }}
+            </a-option>
           </a-select>
           <a-input
             v-model="queryParams.keyword"
-            placeholder="关键词（标题/正文/错误/用户名等）"
+            :placeholder="t('pushLog.filters.keyword.placeholder')"
             style="width: 240px"
             allow-clear
             @press-enter="handleSearch"
@@ -68,16 +72,16 @@
           />
           <a-button type="primary" @click="handleSearch">
             <template #icon><icon-search /></template>
-            查询
+            {{ t('pushLog.actions.search') }}
           </a-button>
-          <a-button @click="handleReset">重置</a-button>
+          <a-button @click="handleReset">{{ t('pushLog.actions.reset') }}</a-button>
           <a-button @click="handleRefresh">
             <template #icon><icon-refresh /></template>
-            刷新
+            {{ t('pushLog.actions.refresh') }}
           </a-button>
           <a-button type="outline" status="danger" @click="handleOpenCleanup">
             <template #icon><icon-delete /></template>
-            清理日志
+            {{ t('pushLog.actions.cleanup') }}
           </a-button>
         </a-space>
       </div>
@@ -96,7 +100,11 @@
         </template>
         <template #success="{ record }">
           <a-tag :color="record.success ? 'green' : 'red'">
-            {{ record.success ? '成功' : '失败' }}
+            {{
+              record.success
+                ? t('pushLog.status.success')
+                : t('pushLog.status.failed')
+            }}
           </a-tag>
         </template>
         <template #user="{ record }">
@@ -124,39 +132,42 @@
         </template>
         <template #actions="{ record }">
           <a-button type="text" size="small" @click="handleViewDetail(record)">
-            详情
+            {{ t('pushLog.actions.viewDetail') }}
           </a-button>
         </template>
       </a-table>
     </a-card>
 
-    <!-- 详情抽屉 -->
     <a-drawer
       v-model:visible="drawerVisible"
-      title="Push 日志详情"
+      :title="t('pushLog.drawer.title')"
       width="720px"
       unmount-on-close
     >
       <div v-if="selectedLog" class="log-detail">
         <a-descriptions :column="1" bordered>
-          <a-descriptions-item label="ID">
+          <a-descriptions-item :label="t('pushLog.detail.id')">
             <a-typography-text copyable>{{ selectedLog.id }}</a-typography-text>
           </a-descriptions-item>
-          <a-descriptions-item label="Push ID">
+          <a-descriptions-item :label="t('pushLog.detail.pushId')">
             <a-typography-text copyable>{{
               selectedLog.pushId
             }}</a-typography-text>
           </a-descriptions-item>
-          <a-descriptions-item label="时间">
+          <a-descriptions-item :label="t('pushLog.detail.time')">
             {{ formatDate(selectedLog.createdAt) }}
           </a-descriptions-item>
-          <a-descriptions-item label="结果">
+          <a-descriptions-item :label="t('pushLog.detail.result')">
             <a-tag :color="selectedLog.success ? 'green' : 'red'">
-              {{ selectedLog.success ? '成功' : '失败' }}
+              {{
+                selectedLog.success
+                  ? t('pushLog.status.success')
+                  : t('pushLog.status.failed')
+              }}
             </a-tag>
             <span class="attempt-text">attempt={{ selectedLog.attempt }}</span>
           </a-descriptions-item>
-          <a-descriptions-item label="用户">
+          <a-descriptions-item :label="t('pushLog.detail.user')">
             <a-typography-text copyable>{{
               selectedLog.userId
             }}</a-typography-text>
@@ -164,60 +175,64 @@
               >（{{ selectedLog.username }}）</span
             >
           </a-descriptions-item>
-          <a-descriptions-item label="设备ID">
+          <a-descriptions-item :label="t('pushLog.detail.deviceId')">
             <a-typography-text copyable>{{
               selectedLog.deviceId
             }}</a-typography-text>
           </a-descriptions-item>
-          <a-descriptions-item label="平台/通道/Provider">
+          <a-descriptions-item
+            :label="t('pushLog.detail.platformChannelProvider')"
+          >
             {{ selectedLog.platform }} / {{ selectedLog.channel }} /
             {{ selectedLog.provider }}
           </a-descriptions-item>
-          <a-descriptions-item label="事件类型">
+          <a-descriptions-item :label="t('pushLog.detail.eventType')">
             {{ selectedLog.eventType }}
           </a-descriptions-item>
-          <a-descriptions-item label="Room ID">
+          <a-descriptions-item :label="t('pushLog.detail.roomId')">
             <a-typography-text v-if="selectedLog.roomId" copyable>{{
               selectedLog.roomId
             }}</a-typography-text>
             <span v-else>-</span>
           </a-descriptions-item>
-          <a-descriptions-item label="Message ID">
+          <a-descriptions-item :label="t('pushLog.detail.messageId')">
             <a-typography-text v-if="selectedLog.messageId" copyable>{{
               selectedLog.messageId
             }}</a-typography-text>
             <span v-else>-</span>
           </a-descriptions-item>
-          <a-descriptions-item label="Request ID">
+          <a-descriptions-item :label="t('pushLog.detail.requestId')">
             <a-typography-text v-if="selectedLog.requestId" copyable>{{
               selectedLog.requestId
             }}</a-typography-text>
             <span v-else>-</span>
           </a-descriptions-item>
-          <a-descriptions-item label="标题">
+          <a-descriptions-item :label="t('pushLog.detail.title')">
             {{ selectedLog.title || '-' }}
           </a-descriptions-item>
-          <a-descriptions-item label="正文">
+          <a-descriptions-item :label="t('pushLog.detail.body')">
             <pre class="text-display">{{ selectedLog.body || '-' }}</pre>
           </a-descriptions-item>
-          <a-descriptions-item label="错误信息">
+          <a-descriptions-item :label="t('pushLog.detail.error')">
             <pre class="text-display">{{ selectedLog.error || '-' }}</pre>
           </a-descriptions-item>
-          <a-descriptions-item label="Payload(data)">
+          <a-descriptions-item :label="t('pushLog.detail.payload')">
             <pre class="json-display">{{ formatJson(selectedLog.data) }}</pre>
           </a-descriptions-item>
         </a-descriptions>
       </div>
     </a-drawer>
 
-    <!-- 清理弹窗 -->
     <a-modal
       v-model:visible="cleanupVisible"
-      title="清理 Push 日志"
+      :title="t('pushLog.cleanup.title')"
       @ok="handleCleanup"
     >
       <a-form :model="cleanupForm">
-        <a-form-item label="保留天数" help="将删除早于此天数的所有 push_logs">
+        <a-form-item
+          :label="t('pushLog.cleanup.retentionDays.label')"
+          :help="t('pushLog.cleanup.retentionDays.help')"
+        >
           <a-input-number v-model="cleanupForm.retentionDays" :min="1" />
         </a-form-item>
       </a-form>
@@ -226,9 +241,10 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted } from 'vue';
+  import { ref, reactive, onMounted, computed } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
+  import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import {
     queryPushLogs,
@@ -237,6 +253,7 @@
     type PushLogQueryParams,
   } from '@/api/push-log';
 
+  const { t } = useI18n();
   const { loading, setLoading } = useLoading(true);
   const logList = ref<PushLogEntry[]>([]);
   const drawerVisible = ref(false);
@@ -269,45 +286,45 @@
     retentionDays: 7,
   });
 
-  const columns = [
+  const columns = computed(() => [
     {
-      title: '时间',
+      title: t('pushLog.table.time'),
       dataIndex: 'createdAt',
       slotName: 'createdAt',
       width: 180,
     },
     {
-      title: '事件',
+      title: t('pushLog.table.eventType'),
       dataIndex: 'eventType',
       width: 140,
     },
     {
-      title: '用户',
+      title: t('pushLog.table.user'),
       slotName: 'user',
       width: 240,
     },
     {
-      title: '平台',
+      title: t('pushLog.table.platform'),
       dataIndex: 'platform',
       width: 100,
     },
     {
-      title: '通道',
+      title: t('pushLog.table.channel'),
       dataIndex: 'channel',
       width: 100,
     },
     {
-      title: 'Provider',
+      title: t('pushLog.table.provider'),
       dataIndex: 'provider',
       width: 100,
     },
     {
-      title: '结果',
+      title: t('pushLog.table.result'),
       slotName: 'success',
       width: 80,
     },
     {
-      title: '标题',
+      title: t('pushLog.table.title'),
       dataIndex: 'title',
       slotName: 'title',
       ellipsis: true,
@@ -315,7 +332,7 @@
       minWidth: 200,
     },
     {
-      title: '错误',
+      title: t('pushLog.table.error'),
       dataIndex: 'error',
       slotName: 'error',
       ellipsis: true,
@@ -323,12 +340,12 @@
       minWidth: 200,
     },
     {
-      title: '操作',
+      title: t('pushLog.table.actions'),
       slotName: 'actions',
       width: 100,
       fixed: 'right',
     },
-  ];
+  ]);
 
   const formatDate = (date: string) => {
     return dayjs(date).format('YYYY-MM-DD HH:mm:ss');
@@ -365,7 +382,7 @@
         pagination.total = data.total;
       }
     } catch (error) {
-      Message.error('获取 Push 日志失败');
+      Message.error(t('pushLog.messages.fetchError'));
     } finally {
       setLoading(false);
     }
@@ -424,7 +441,7 @@
         Message.error(data.message);
       }
     } catch (error) {
-      Message.error('清理 Push 日志失败');
+      Message.error(t('pushLog.messages.cleanupError'));
     }
   };
 

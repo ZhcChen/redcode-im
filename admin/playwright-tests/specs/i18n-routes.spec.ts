@@ -39,6 +39,44 @@ const ENGLISH_ROUTE_CASES = [
       ).toBeVisible();
     },
   },
+  {
+    id: 'operations-push-log',
+    path: '/operations/push-log',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByRole('button', { name: 'Clear Logs', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'operations-api-metrics',
+    path: '/operations/api-metrics',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Auto Refresh (5s)', { exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'operations-data-cleanup',
+    path: '/operations/data-cleanup',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Dangerous Operation - Development Environment Only', {
+          exact: true,
+        })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'shell-brand',
+    path: '/operations/system-log',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('IM Admin Console', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
 ];
 
 test.describe('admin route i18n surfaces', () => {

@@ -1,8 +1,12 @@
 <template>
-  <a-layout-footer class="footer">IM 管理后台</a-layout-footer>
+  <a-layout-footer class="footer">{{ t('app.brand') }}</a-layout-footer>
 </template>
 
-<script lang="ts" setup></script>
+<script lang="ts" setup>
+  import { useI18n } from 'vue-i18n';
+
+  const { t } = useI18n();
+</script>
 
 <style lang="less" scoped>
   .footer {

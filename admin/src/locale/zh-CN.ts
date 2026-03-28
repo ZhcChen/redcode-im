@@ -14,6 +14,9 @@ import localeStorageProvider from '@/views/settings/storage-provider/locale/zh-C
 import localeCosTest from '@/views/settings/cos-test/locale/zh-CN';
 import localeFileUploadAudit from '@/views/operations/file-upload-audit/locale/zh-CN';
 import localeSystemLog from '@/views/dashboard/system-log/locale/zh-CN';
+import localePushLog from '@/views/operations/push-log/locale/zh-CN';
+import localeApiMetrics from '@/views/operations/api-metrics/locale/zh-CN';
+import localeDataCleanup from '@/views/settings/data-cleanup/locale/zh-CN';
 /** simple end */
 import localeSettings from './zh-CN/settings';
 
@@ -35,6 +38,10 @@ export default {
   'menu.operations.dataCleanup': '数据清理',
   'menu.operations.apiMetrics': 'API 性能监控',
   'menu.operations.fileUploadAudit': '文件内容审核',
+  'menu.settings.storageProvider': '对象存储提供商',
+  'menu.settings.cosTest': 'COS 测试',
+  'menu.settings.ipinfoToken': 'IP地理位置Token',
+  'menu.settings.dataCleanup': '数据清理',
   'menu.settings': '系统设置',
   'menu.settings.captcha': '验证码设置',
   'menu.settings.privacyPolicy': '隐私协议',
@@ -57,6 +64,7 @@ export default {
   'menu.user': '个人中心',
   'navbar.docs': '文档中心',
   'navbar.action.locale': '切换为中文',
+  'app.brand': 'IM 管理后台',
   ...localeSettings,
   ...localeMessageBox,
   ...localeLogin,
@@ -72,5 +80,8 @@ export default {
   ...localeCosTest,
   ...localeFileUploadAudit,
   ...localeSystemLog,
+  ...localePushLog,
+  ...localeApiMetrics,
+  ...localeDataCleanup,
   /** simple end */
 };

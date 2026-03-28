@@ -7,7 +7,7 @@
           :style="{ margin: 0, fontSize: '18px' }"
           :heading="5"
         >
-          IM 管理后台
+          {{ t('app.brand') }}
         </a-typography-title>
         <icon-menu-fold
           v-if="!topMenu && appStore.device === 'mobile'"
@@ -164,6 +164,7 @@
 <script lang="ts" setup>
   import { computed, ref, inject, onMounted, watch } from 'vue';
   import { useDark, useToggle, useFullscreen } from '@vueuse/core';
+  import { useI18n } from 'vue-i18n';
   import { useAppStore, useUserStore } from '@/store';
   import { LOCALE_OPTIONS } from '@/locale';
   import useLocale from '@/hooks/locale';
@@ -174,28 +175,25 @@
 
   const appStore = useAppStore();
   const userStore = useUserStore();
+  const { t } = useI18n();
   const { logout } = useUser();
   const { changeLocale, currentLocale } = useLocale();
   const { isFullscreen, toggle: toggleFullScreen } = useFullscreen();
   const locales = [...LOCALE_OPTIONS];
 
-  // 转换后的头像URL
   const displayAvatarUrl = ref<string>('');
 
-  // 转换头像URL
   const convertAvatarUrl = async (avatar: string | undefined) => {
     if (!avatar) {
       displayAvatarUrl.value = '';
       return;
     }
 
-    // 如果是完整的URL（包含 http:// 或 https://），直接使用
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       displayAvatarUrl.value = avatar;
       return;
     }
 
-    // 如果是 key（以 admin/ 开头），获取临时下载URL
     if (avatar.startsWith('admin/')) {
       try {
         const providerResponse = await getDefaultStorageProvider();
@@ -208,7 +206,7 @@
           displayAvatarUrl.value = downloadUrlResponse.data.url || '';
         }
       } catch (e) {
-        console.error('获取头像下载URL失败:', e);
+        console.error('Failed to resolve avatar download URL:', e);
         displayAvatarUrl.value = '';
       }
     } else {
@@ -216,7 +214,6 @@
     }
   };
 
-  // 监听 avatar 变化
   watch(
     () => userStore.avatar,
     (newAvatar) => {
