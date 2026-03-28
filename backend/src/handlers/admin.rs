@@ -119,6 +119,64 @@ fn file_operation_response(
     })
 }
 
+fn test_cos_upload_response(
+    success: bool,
+    url: Option<String>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosUploadResponse> {
+    Json(TestCosUploadResponse {
+        success,
+        url,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn test_cos_upload_signature_response(
+    success: bool,
+    signature: Option<storage::DirectUploadSignature>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosUploadSignatureResponse> {
+    Json(TestCosUploadSignatureResponse {
+        success,
+        signature,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
+fn test_cos_upload_multipart_response(
+    success: bool,
+    key: Option<String>,
+    session_id: Option<String>,
+    part_size: Option<i32>,
+    total_parts: Option<i32>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosUploadMultipartInitiateResponse> {
+    Json(TestCosUploadMultipartInitiateResponse {
+        success,
+        message: admin_localized_message(message_key, params),
+        key,
+        session_id,
+        part_size,
+        total_parts,
+    })
+}
+
+fn test_cos_download_url_response(
+    success: bool,
+    url: Option<String>,
+    message_key: &'static str,
+    params: Option<&MessageParams>,
+) -> Json<TestCosDownloadUrlResponse> {
+    Json(TestCosDownloadUrlResponse {
+        success,
+        url,
+        message: admin_localized_message(message_key, params),
+    })
+}
+
 /// 管理员用户信息（API响应）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -3008,11 +3066,12 @@ pub async fn test_cos_upload(
     } else if let Some(text_content) = content {
         bytes::Bytes::from(text_content)
     } else {
-        return Ok(Json(TestCosUploadResponse {
-            success: false,
-            url: None,
-            message: "请提供文件内容或选择文件上传".to_string(),
-        }));
+        return Ok(test_cos_upload_response(
+            false,
+            None,
+            "admin.storage_test_upload_content_required",
+            None,
+        ));
     };
 
     match storage_service
@@ -3056,7 +3115,7 @@ pub async fn test_cos_upload(
             Ok(Json(TestCosUploadResponse {
                 success: true,
                 url: Some(url),
-                message: "上传成功".to_string(),
+                message: admin_localized_message("admin.storage_test_upload_success", None),
             }))
         }
         Err(e) => Ok(Json(TestCosUploadResponse {
@@ -3075,11 +3134,12 @@ pub async fn test_cos_upload_signature(
     let store = StorageProviderStore::new(state.database.clone());
 
     if req.key.trim().is_empty() {
-        return Ok(Json(TestCosUploadSignatureResponse {
-            success: false,
-            signature: None,
-            message: "文件路径不能为空".to_string(),
-        }));
+        return Ok(test_cos_upload_signature_response(
+            false,
+            None,
+            "admin.storage_test_key_required",
+            None,
+        ));
     }
 
     // 获取提供商配置
@@ -3169,7 +3229,10 @@ pub async fn test_cos_upload_signature(
             Ok(Json(TestCosUploadSignatureResponse {
                 success: true,
                 signature: Some(signature),
-                message: "生成直传签名成功".to_string(),
+                message: admin_localized_message(
+                    "admin.storage_test_upload_signature_success",
+                    None,
+                ),
             }))
         }
         Err(e) => Ok(Json(TestCosUploadSignatureResponse {
@@ -3188,25 +3251,27 @@ pub async fn test_cos_upload_multipart_initiate(
 ) -> Result<Json<TestCosUploadMultipartInitiateResponse>, AppError> {
     let key = req.key.trim();
     if key.is_empty() {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
-            success: false,
-            message: "文件路径不能为空".to_string(),
-            key: None,
-            session_id: None,
-            part_size: None,
-            total_parts: None,
-        }));
+        return Ok(test_cos_upload_multipart_response(
+            false,
+            None,
+            None,
+            None,
+            None,
+            "admin.storage_test_key_required",
+            None,
+        ));
     }
 
     if req.file_size <= 0 {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
-            success: false,
-            message: "file_size 必填且必须大于 0".to_string(),
-            key: Some(key.to_string()),
-            session_id: None,
-            part_size: None,
-            total_parts: None,
-        }));
+        return Ok(test_cos_upload_multipart_response(
+            false,
+            Some(key.to_string()),
+            None,
+            None,
+            None,
+            "admin.storage_test_file_size_invalid",
+            None,
+        ));
     }
 
     let (part_size, total_parts) = match multipart_upload::plan_multipart_upload(req.file_size) {
@@ -3390,7 +3455,7 @@ pub async fn test_cos_upload_multipart_initiate(
 
     Ok(Json(TestCosUploadMultipartInitiateResponse {
         success: true,
-        message: "初始化分片上传会话成功".to_string(),
+        message: admin_localized_message("admin.storage_test_multipart_initiate_success", None),
         key: Some(key.to_string()),
         session_id: Some(session.id.to_string()),
         part_size: Some(part_size),
@@ -3406,11 +3471,12 @@ pub async fn test_cos_download_url(
     let store = StorageProviderStore::new(state.database.clone());
 
     if req.key.trim().is_empty() {
-        return Ok(Json(TestCosDownloadUrlResponse {
-            success: false,
-            url: None,
-            message: "文件路径（key）不能为空".to_string(),
-        }));
+        return Ok(test_cos_download_url_response(
+            false,
+            None,
+            "admin.storage_test_download_key_required",
+            None,
+        ));
     }
 
     let provider = if let Some(provider_id) = req.provider_id.clone() {
@@ -3458,11 +3524,12 @@ pub async fn test_cos_download_url(
     // 尝试从缓存获取URL
     if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
         info!("命中下载URL缓存: {}", req.key.trim());
-        return Ok(Json(TestCosDownloadUrlResponse {
-            success: true,
-            url: Some(cached_url),
-            message: "生成下载链接成功（缓存）".to_string(),
-        }));
+        return Ok(test_cos_download_url_response(
+            true,
+            Some(cached_url),
+            "admin.storage_test_download_url_success_cached",
+            None,
+        ));
     }
 
     // 缓存未命中，生成新的URL
@@ -3485,11 +3552,12 @@ pub async fn test_cos_download_url(
                 info!("缓存下载URL成功: {} (TTL: {}s)", req.key.trim(), cache_ttl);
             }
 
-            Ok(Json(TestCosDownloadUrlResponse {
-                success: true,
-                url: Some(url),
-                message: "生成下载链接成功".to_string(),
-            }))
+            Ok(test_cos_download_url_response(
+                true,
+                Some(url),
+                "admin.storage_test_download_url_success",
+                None,
+            ))
         }
         Err(e) => Ok(Json(TestCosDownloadUrlResponse {
             success: false,

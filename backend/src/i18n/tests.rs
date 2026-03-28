@@ -342,6 +342,18 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("zh-CN", "admin.file_batch_delete_ids_required", None),
         "请提供要删除的文件ID列表"
     );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_test_upload_content_required", None),
+        "Please provide file content or choose a file to upload."
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.storage_test_download_url_success_cached",
+            None
+        ),
+        "Download URL generated successfully (cached)."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),
@@ -402,6 +414,10 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
             Some(&file_delete_params)
         ),
         "Deleted 2 files successfully."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_test_file_size_invalid", None),
+        "file_size 必填且必须大于 0"
     );
 
     let admin_bootstrap_params = BTreeMap::from([
