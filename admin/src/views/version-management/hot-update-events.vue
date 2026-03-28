@@ -1,30 +1,34 @@
 <template>
   <div class="hot-update-events-container">
     <Breadcrumb :items="['menu.version', 'menu.version.hotUpdateEvents']" />
-    <a-card class="general-card" title="热更新上报" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('hotUpdateEvents.title')"
+      :bordered="false"
+    >
       <a-form
         :model="filters"
         layout="inline"
         :gutter="16"
         @submit.prevent="fetchEvents"
       >
-        <a-form-item label="平台">
+        <a-form-item :label="t('hotUpdateEvents.filter.platform')">
           <a-select v-model="filters.platform" style="width: 140px">
-            <a-option value="" label="全部" />
+            <a-option value="" :label="t('hotUpdateEvents.filter.all')" />
             <a-option :value="AppPlatform.Android" label="Android" />
             <a-option :value="AppPlatform.IOS" label="iOS" />
           </a-select>
         </a-form-item>
-        <a-form-item label="渠道">
+        <a-form-item :label="t('hotUpdateEvents.filter.channel')">
           <a-input
             v-model="filters.channel"
-            placeholder="如 stable"
+            :placeholder="t('hotUpdateEvents.filter.channel.placeholder')"
             style="width: 150px"
           />
         </a-form-item>
-        <a-form-item label="事件类型">
+        <a-form-item :label="t('hotUpdateEvents.filter.eventType')">
           <a-select v-model="filters.eventType" style="width: 150px">
-            <a-option value="" label="全部" />
+            <a-option value="" :label="t('hotUpdateEvents.filter.all')" />
             <a-option
               v-for="type in eventTypes"
               :key="type.value"
@@ -34,31 +38,55 @@
             </a-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="客户端类型">
+        <a-form-item :label="t('hotUpdateEvents.filter.clientType')">
           <a-select v-model="filters.clientType" style="width: 140px">
-            <a-option value="" label="全部" />
-            <a-option value="desktop" label="桌面端" />
-            <a-option value="frontend" label="移动端" />
+            <a-option value="" :label="t('hotUpdateEvents.filter.all')" />
+            <a-option
+              value="desktop"
+              :label="t('hotUpdateEvents.filter.client.desktop')"
+            />
+            <a-option
+              value="frontend"
+              :label="t('hotUpdateEvents.filter.client.frontend')"
+            />
           </a-select>
         </a-form-item>
-        <a-form-item label="触发源">
+        <a-form-item :label="t('hotUpdateEvents.filter.triggerSource')">
           <a-select v-model="filters.triggerSource" style="width: 130px">
-            <a-option value="" label="全部" />
-            <a-option value="manual" label="手动" />
-            <a-option value="auto" label="自动" />
-            <a-option value="notification" label="通知" />
+            <a-option value="" :label="t('hotUpdateEvents.filter.all')" />
+            <a-option
+              value="manual"
+              :label="t('hotUpdateEvents.filter.trigger.manual')"
+            />
+            <a-option
+              value="auto"
+              :label="t('hotUpdateEvents.filter.trigger.auto')"
+            />
+            <a-option
+              value="notification"
+              :label="t('hotUpdateEvents.filter.trigger.notification')"
+            />
           </a-select>
         </a-form-item>
-        <a-form-item label="网络类型">
+        <a-form-item :label="t('hotUpdateEvents.filter.networkType')">
           <a-select v-model="filters.networkType" style="width: 130px">
-            <a-option value="" label="全部" />
+            <a-option value="" :label="t('hotUpdateEvents.filter.all')" />
             <a-option value="wifi" label="WiFi" />
-            <a-option value="cellular" label="蜂窝网络" />
-            <a-option value="ethernet" label="以太网" />
-            <a-option value="unknown" label="未知" />
+            <a-option
+              value="cellular"
+              :label="t('hotUpdateEvents.filter.network.cellular')"
+            />
+            <a-option
+              value="ethernet"
+              :label="t('hotUpdateEvents.filter.network.ethernet')"
+            />
+            <a-option
+              value="unknown"
+              :label="t('hotUpdateEvents.filter.network.unknown')"
+            />
           </a-select>
         </a-form-item>
-        <a-form-item label="时间范围">
+        <a-form-item :label="t('hotUpdateEvents.filter.timeRange')">
           <a-range-picker
             v-model="filters.range"
             style="width: 260px"
@@ -66,9 +94,9 @@
           />
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" :loading="loading" @click="fetchEvents"
-            >查询</a-button
-          >
+          <a-button type="primary" :loading="loading" @click="fetchEvents">
+            {{ t('hotUpdateEvents.action.query') }}
+          </a-button>
         </a-form-item>
       </a-form>
 
@@ -89,31 +117,32 @@
           {{ record.channel ?? '-' }}
         </template>
         <template #client_type="{ record }">
-          <a-tag v-if="record.client_type === 'desktop'" color="blue"
-            >桌面端</a-tag
-          >
-          <a-tag v-else-if="record.client_type === 'frontend'" color="green"
-            >移动端</a-tag
-          >
+          <a-tag v-if="record.client_type === 'desktop'" color="blue">
+            {{ t('hotUpdateEvents.filter.client.desktop') }}
+          </a-tag>
+          <a-tag v-else-if="record.client_type === 'frontend'" color="green">
+            {{ t('hotUpdateEvents.filter.client.frontend') }}
+          </a-tag>
           <span v-else>{{ record.client_type ?? '-' }}</span>
         </template>
         <template #event_type="{ record }">
-          <a-tag :color="eventColor(record.event_type)">{{
-            eventLabel(record.event_type)
-          }}</a-tag>
+          <a-tag :color="eventColor(record.event_type)">
+            {{ eventLabel(record.event_type) }}
+          </a-tag>
         </template>
         <template #trigger_source="{ record }">
-          <a-tag v-if="record.trigger_source === 'manual'" color="blue"
-            >手动</a-tag
-          >
-          <a-tag v-else-if="record.trigger_source === 'auto'" color="orange"
-            >自动</a-tag
-          >
+          <a-tag v-if="record.trigger_source === 'manual'" color="blue">
+            {{ t('hotUpdateEvents.filter.trigger.manual') }}
+          </a-tag>
+          <a-tag v-else-if="record.trigger_source === 'auto'" color="orange">
+            {{ t('hotUpdateEvents.filter.trigger.auto') }}
+          </a-tag>
           <a-tag
             v-else-if="record.trigger_source === 'notification'"
             color="purple"
-            >通知</a-tag
           >
+            {{ t('hotUpdateEvents.filter.trigger.notification') }}
+          </a-tag>
           <span v-else>{{ record.trigger_source ?? '-' }}</span>
         </template>
         <template #os_version="{ record }">
@@ -127,9 +156,9 @@
           </a-tooltip>
         </template>
         <template #app_arch="{ record }">
-          <a-tag v-if="record.app_arch" size="small">{{
-            record.app_arch
-          }}</a-tag>
+          <a-tag v-if="record.app_arch" size="small">
+            {{ record.app_arch }}
+          </a-tag>
           <span v-else>-</span>
         </template>
         <template #network_type="{ record }">
@@ -137,20 +166,23 @@
             v-if="record.network_type === 'wifi'"
             color="green"
             size="small"
-            >WiFi</a-tag
           >
+            WiFi
+          </a-tag>
           <a-tag
             v-else-if="record.network_type === 'cellular'"
             color="blue"
             size="small"
-            >蜂窝</a-tag
           >
+            {{ t('hotUpdateEvents.filter.network.cellular') }}
+          </a-tag>
           <a-tag
             v-else-if="record.network_type === 'ethernet'"
             color="orange"
             size="small"
-            >以太网</a-tag
           >
+            {{ t('hotUpdateEvents.filter.network.ethernet') }}
+          </a-tag>
           <span v-else>{{ record.network_type ?? '-' }}</span>
         </template>
         <template #created_at="{ record }">
@@ -158,102 +190,145 @@
         </template>
         <template #actions="{ record }">
           <a-button type="text" size="small" @click="showEventDetail(record)">
-            详情
+            {{ t('hotUpdateEvents.action.detail') }}
           </a-button>
         </template>
       </a-table>
 
-      <!-- 事件详情弹窗 -->
       <a-modal
         v-model:visible="detailModalVisible"
-        title="更新事件详情"
+        :title="t('hotUpdateEvents.modal.title')"
         width="800px"
         :footer="false"
       >
         <div v-if="selectedEvent" class="event-detail">
           <a-descriptions :column="2" bordered>
-            <a-descriptions-item label="事件ID">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.eventId')">
               <a-typography-text copyable>{{
                 selectedEvent.id
               }}</a-typography-text>
             </a-descriptions-item>
-            <a-descriptions-item label="时间">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.time')">
               {{ formatDate(selectedEvent.created_at) }}
             </a-descriptions-item>
-            <a-descriptions-item label="平台">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.platform')">
               <a-tag>{{
                 PlatformLabels[selectedEvent.platform as AppPlatform] ??
                 selectedEvent.platform
               }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="客户端类型">
-              <a-tag v-if="selectedEvent.client_type === 'desktop'" color="blue"
-                >桌面端</a-tag
+            <a-descriptions-item
+              :label="t('hotUpdateEvents.detail.clientType')"
+            >
+              <a-tag
+                v-if="selectedEvent.client_type === 'desktop'"
+                color="blue"
               >
+                {{ t('hotUpdateEvents.filter.client.desktop') }}
+              </a-tag>
               <a-tag
                 v-else-if="selectedEvent.client_type === 'frontend'"
                 color="green"
-                >移动端</a-tag
               >
-              <span v-else>{{ selectedEvent.client_type ?? '未知' }}</span>
+                {{ t('hotUpdateEvents.filter.client.frontend') }}
+              </a-tag>
+              <span v-else>
+                {{
+                  selectedEvent.client_type ??
+                  t('hotUpdateEvents.filter.network.unknown')
+                }}
+              </span>
             </a-descriptions-item>
-            <a-descriptions-item label="渠道">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.channel')">
               {{ selectedEvent.channel ?? '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="触发源">
+            <a-descriptions-item
+              :label="t('hotUpdateEvents.detail.triggerSource')"
+            >
               <a-tag
                 v-if="selectedEvent.trigger_source === 'manual'"
                 color="blue"
-                >手动</a-tag
               >
+                {{ t('hotUpdateEvents.filter.trigger.manual') }}
+              </a-tag>
               <a-tag
                 v-else-if="selectedEvent.trigger_source === 'auto'"
                 color="orange"
-                >自动</a-tag
               >
+                {{ t('hotUpdateEvents.filter.trigger.auto') }}
+              </a-tag>
               <a-tag
                 v-else-if="selectedEvent.trigger_source === 'notification'"
                 color="purple"
-                >通知</a-tag
               >
-              <span v-else>{{ selectedEvent.trigger_source ?? '未知' }}</span>
+                {{ t('hotUpdateEvents.filter.trigger.notification') }}
+              </a-tag>
+              <span v-else>
+                {{
+                  selectedEvent.trigger_source ??
+                  t('hotUpdateEvents.filter.network.unknown')
+                }}
+              </span>
             </a-descriptions-item>
-            <a-descriptions-item label="版本信息">
+            <a-descriptions-item
+              :label="t('hotUpdateEvents.detail.versionInfo')"
+            >
               {{ selectedEvent.base_version }} →
               {{ selectedEvent.patch_version }}
             </a-descriptions-item>
-            <a-descriptions-item label="事件类型">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.eventType')">
               <a-tag :color="eventColor(selectedEvent.event_type)">
                 {{ eventLabel(selectedEvent.event_type) }}
               </a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="操作系统">
-              {{ selectedEvent.os_version ?? '未知' }}
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.osVersion')">
+              {{
+                selectedEvent.os_version ??
+                t('hotUpdateEvents.filter.network.unknown')
+              }}
             </a-descriptions-item>
-            <a-descriptions-item label="架构信息">
-              应用: {{ selectedEvent.app_arch ?? '未知' }}<br />
-              系统: {{ selectedEvent.os_arch ?? '未知' }}
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.arch')">
+              {{ t('hotUpdateEvents.detail.arch.app') }}:
+              {{
+                selectedEvent.app_arch ??
+                t('hotUpdateEvents.filter.network.unknown')
+              }}
+              <br />
+              {{ t('hotUpdateEvents.detail.arch.system') }}:
+              {{
+                selectedEvent.os_arch ??
+                t('hotUpdateEvents.filter.network.unknown')
+              }}
             </a-descriptions-item>
-            <a-descriptions-item label="网络类型">
-              <a-tag v-if="selectedEvent.network_type === 'wifi'" color="green"
-                >WiFi</a-tag
-              >
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.network')">
+              <a-tag v-if="selectedEvent.network_type === 'wifi'" color="green">
+                WiFi
+              </a-tag>
               <a-tag
                 v-else-if="selectedEvent.network_type === 'cellular'"
                 color="blue"
-                >蜂窝网络</a-tag
               >
+                {{ t('hotUpdateEvents.filter.network.cellular') }}
+              </a-tag>
               <a-tag
                 v-else-if="selectedEvent.network_type === 'ethernet'"
                 color="orange"
-                >以太网</a-tag
               >
-              <span v-else>{{ selectedEvent.network_type ?? '未知' }}</span>
+                {{ t('hotUpdateEvents.filter.network.ethernet') }}
+              </a-tag>
+              <span v-else>
+                {{
+                  selectedEvent.network_type ??
+                  t('hotUpdateEvents.filter.network.unknown')
+                }}
+              </span>
             </a-descriptions-item>
-            <a-descriptions-item label="构建号">
+            <a-descriptions-item
+              :label="t('hotUpdateEvents.detail.buildNumber')"
+            >
               {{ selectedEvent.build_number ?? '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="客户端ID">
+            <a-descriptions-item :label="t('hotUpdateEvents.detail.clientId')">
               <a-typography-text v-if="selectedEvent.client_id" copyable>
                 {{ selectedEvent.client_id }}
               </a-typography-text>
@@ -262,7 +337,7 @@
           </a-descriptions>
 
           <div v-if="selectedEvent.device_info" class="device-info-section">
-            <h4>设备详细信息</h4>
+            <h4>{{ t('hotUpdateEvents.detail.deviceInfo') }}</h4>
             <a-textarea
               :value="formatDeviceInfo(selectedEvent.device_info)"
               readonly
@@ -271,7 +346,7 @@
           </div>
 
           <div v-if="selectedEvent.message" class="message-section">
-            <h4>事件消息</h4>
+            <h4>{{ t('hotUpdateEvents.detail.message') }}</h4>
             <a-alert
               :type="
                 selectedEvent.event_type.includes('failed') ? 'error' : 'info'
@@ -298,8 +373,10 @@
 
 <script setup lang="ts">
   import dayjs from 'dayjs';
-  import { reactive, ref, onMounted } from 'vue';
+  import { reactive, ref, onMounted, computed } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { Message } from '@arco-design/web-vue';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     listHotUpdateEvents,
     type HotUpdateEventInfo,
@@ -307,6 +384,7 @@
   } from '@/api/hot-update';
   import { AppPlatform, PlatformLabels } from '@/api/app-version';
 
+  const { t } = useI18n();
   const loading = ref(false);
   const events = ref<HotUpdateEventInfo[]>([]);
   const total = ref(0);
@@ -328,77 +406,121 @@
     pageSize: 20,
   });
 
-  const eventTypes = [
-    { value: 'download_success', label: '下载成功' },
-    { value: 'download_failed', label: '下载失败' },
-    { value: 'apply_success', label: '应用成功' },
-    { value: 'apply_failed', label: '应用失败' },
-    { value: 'rollback', label: '回滚' },
-  ];
-
-  const columns = [
+  const eventTypes = computed(() => [
     {
-      title: '时间',
+      value: 'download_success',
+      label: t('hotUpdateEvents.event.downloadSuccess'),
+    },
+    {
+      value: 'download_failed',
+      label: t('hotUpdateEvents.event.downloadFailed'),
+    },
+    {
+      value: 'apply_success',
+      label: t('hotUpdateEvents.event.applySuccess'),
+    },
+    {
+      value: 'apply_failed',
+      label: t('hotUpdateEvents.event.applyFailed'),
+    },
+    { value: 'rollback', label: t('hotUpdateEvents.event.rollback') },
+  ]);
+
+  const columns = computed(() => [
+    {
+      title: t('hotUpdateEvents.table.time'),
       dataIndex: 'created_at',
       slotName: 'created_at',
       width: 180,
     },
-    { title: '平台', dataIndex: 'platform', slotName: 'platform', width: 100 },
     {
-      title: '客户端类型',
+      title: t('hotUpdateEvents.table.platform'),
+      dataIndex: 'platform',
+      slotName: 'platform',
+      width: 100,
+    },
+    {
+      title: t('hotUpdateEvents.table.clientType'),
       dataIndex: 'client_type',
       slotName: 'client_type',
       width: 120,
     },
-    { title: '渠道', dataIndex: 'channel', slotName: 'channel', width: 100 },
-    { title: '基线版本', dataIndex: 'base_version', width: 120 },
-    { title: '补丁版本', dataIndex: 'patch_version', width: 120 },
     {
-      title: '事件',
+      title: t('hotUpdateEvents.table.channel'),
+      dataIndex: 'channel',
+      slotName: 'channel',
+      width: 100,
+    },
+    {
+      title: t('hotUpdateEvents.table.baseVersion'),
+      dataIndex: 'base_version',
+      width: 120,
+    },
+    {
+      title: t('hotUpdateEvents.table.patchVersion'),
+      dataIndex: 'patch_version',
+      width: 120,
+    },
+    {
+      title: t('hotUpdateEvents.table.event'),
       dataIndex: 'event_type',
       slotName: 'event_type',
       width: 120,
     },
     {
-      title: '触发源',
+      title: t('hotUpdateEvents.table.triggerSource'),
       dataIndex: 'trigger_source',
       slotName: 'trigger_source',
       width: 100,
     },
     {
-      title: '操作系统',
+      title: t('hotUpdateEvents.table.osVersion'),
       dataIndex: 'os_version',
       slotName: 'os_version',
       width: 140,
     },
-    { title: '架构', dataIndex: 'app_arch', slotName: 'app_arch', width: 100 },
     {
-      title: '网络',
+      title: t('hotUpdateEvents.table.arch'),
+      dataIndex: 'app_arch',
+      slotName: 'app_arch',
+      width: 100,
+    },
+    {
+      title: t('hotUpdateEvents.table.network'),
       dataIndex: 'network_type',
       slotName: 'network_type',
       width: 100,
     },
-    { title: '客户端ID', dataIndex: 'client_id', width: 140 },
-    { title: '备注', dataIndex: 'message', ellipsis: true, width: 200 },
     {
-      title: '操作',
+      title: t('hotUpdateEvents.table.clientId'),
+      dataIndex: 'client_id',
+      width: 140,
+    },
+    {
+      title: t('hotUpdateEvents.table.message'),
+      dataIndex: 'message',
+      ellipsis: true,
+      width: 200,
+    },
+    {
+      title: t('hotUpdateEvents.table.operations'),
       dataIndex: 'actions',
       slotName: 'actions',
       width: 80,
       fixed: 'right',
     },
-  ];
+  ]);
 
   const formatDate = (value: string) =>
     dayjs(value).format('YYYY-MM-DD HH:mm:ss');
 
   const eventLabel = (value: string) => {
     const map: Record<string, string> = {
-      download_success: '下载成功',
-      download_failed: '下载失败',
-      apply_success: '应用成功',
-      apply_failed: '应用失败',
-      rollback: '回滚',
+      download_success: t('hotUpdateEvents.event.downloadSuccess'),
+      download_failed: t('hotUpdateEvents.event.downloadFailed'),
+      apply_success: t('hotUpdateEvents.event.applySuccess'),
+      apply_failed: t('hotUpdateEvents.event.applyFailed'),
+      rollback: t('hotUpdateEvents.event.rollback'),
     };
     return map[value] ?? value;
   };
@@ -441,7 +563,9 @@
       total.value = data.total;
     } catch (error: any) {
       Message.error(
-        error?.response?.data?.message || error?.message || '加载失败'
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('hotUpdateEvents.fetch.error'),
+        })
       );
     } finally {
       loading.value = false;
@@ -461,7 +585,6 @@
   const formatDeviceInfo = (deviceInfo: string): string => {
     if (!deviceInfo) return '';
 
-    // 将逗号分隔的键值对格式化为更易读的格式
     return deviceInfo
       .split(',')
       .map((pair) => {
@@ -501,7 +624,6 @@
     text-overflow: ellipsis;
   }
 
-  /* 响应式调整 */
   @media (max-width: 1400px) {
     :deep(.arco-table-th),
     :deep(.arco-table-td) {
@@ -509,19 +631,15 @@
     }
   }
 
-  /* 表格滚动优化 */
   :deep(.arco-table-container) {
     overflow-x: auto;
   }
 
-  /* 标签样式优化 */
   :deep(.arco-tag) {
     margin: 0;
   }
 
-  /* 详情弹窗样式 */
   .event-detail {
-    /* 分开定义,避免 CSS 压缩器警告 */
     .device-info-section {
       margin-top: 20px;
 
@@ -553,7 +671,6 @@
     }
   }
 
-  /* 描述列表样式优化 */
   :deep(.arco-descriptions-item-label) {
     color: rgb(var(--gray-8));
     font-weight: 500;

@@ -19,7 +19,7 @@
             v-model="channelFilter"
             allow-clear
             allow-create
-            placeholder="选择渠道（如 stable / stable-macos-arm64）"
+            :placeholder="t('versionManager.channel.placeholder')"
             style="min-width: 180px"
           >
             <a-option
@@ -34,13 +34,13 @@
             <template #icon>
               <icon-plus />
             </template>
-            新增版本
+            {{ t('versionManager.action.create') }}
           </a-button>
           <a-button :loading="listLoading" @click="handleRefresh">
             <template #icon>
               <icon-refresh />
             </template>
-            刷新
+            {{ t('versionManager.action.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -59,12 +59,20 @@
         </template>
         <template #mandatory="{ record }">
           <a-tag :color="record.mandatory ? 'red' : 'green'">
-            {{ record.mandatory ? '是' : '否' }}
+            {{
+              record.mandatory
+                ? t('versionManager.boolean.yes')
+                : t('versionManager.boolean.no')
+            }}
           </a-tag>
         </template>
         <template #is_active="{ record }">
           <a-tag :color="record.is_active ? 'green' : 'gray'">
-            {{ record.is_active ? '启用' : '停用' }}
+            {{
+              record.is_active
+                ? t('versionManager.status.active')
+                : t('versionManager.status.inactive')
+            }}
           </a-tag>
         </template>
         <template #file_size="{ record }">
@@ -79,7 +87,7 @@
         <template #operations="{ record }">
           <a-space size="mini">
             <a-button type="text" size="small" @click="handleEdit(record)">
-              编辑
+              {{ t('versionManager.action.edit') }}
             </a-button>
             <a-button
               type="text"
@@ -87,7 +95,7 @@
               :loading="downloadLoadingId === record.id"
               @click="handleCopyDownloadLink(record)"
             >
-              下载链接
+              {{ t('versionManager.action.copyDownload') }}
             </a-button>
             <a-button
               v-if="record.is_active"
@@ -96,10 +104,10 @@
               :loading="deactivateLoadingId === record.id"
               @click="handleDeactivate(record)"
             >
-              停用
+              {{ t('versionManager.action.deactivate') }}
             </a-button>
             <a-popconfirm
-              content="确定要删除该版本记录吗？"
+              :content="t('versionManager.delete.confirm')"
               type="warning"
               @ok="handleDelete(record)"
             >
@@ -109,7 +117,7 @@
                 status="danger"
                 :loading="deleteLoadingId === record.id"
               >
-                删除
+                {{ t('versionManager.action.delete') }}
               </a-button>
             </a-popconfirm>
           </a-space>
@@ -154,14 +162,17 @@
         :label-col-props="{ span: 6 }"
         :wrapper-col-props="{ span: 18 }"
       >
-        <a-form-item field="version" label="版本号">
+        <a-form-item field="version" :label="t('versionManager.field.version')">
           <a-input
             v-model="formState.version"
-            placeholder="例如：1.2.3"
+            :placeholder="t('versionManager.field.version.placeholder')"
             :disabled="isEditing"
           />
         </a-form-item>
-        <a-form-item field="build_number" label="构建号">
+        <a-form-item
+          field="build_number"
+          :label="t('versionManager.field.buildNumber')"
+        >
           <a-input-number
             v-model="formState.build_number"
             :min="1"
@@ -169,40 +180,43 @@
             style="width: 100%"
           />
         </a-form-item>
-        <a-form-item field="channel" label="渠道">
+        <a-form-item field="channel" :label="t('versionManager.field.channel')">
           <a-input
             v-model="formState.channel"
-            placeholder="例如：stable / stable-macos-arm64"
+            :placeholder="t('versionManager.field.channel.placeholder')"
             :disabled="isEditing"
           />
         </a-form-item>
-        <a-form-item field="download_key" label="下载 Key">
+        <a-form-item
+          field="download_key"
+          :label="t('versionManager.field.downloadKey')"
+        >
           <a-input
             v-model="formState.download_key"
-            placeholder="请先上传安装包或手动填写存储路径"
+            :placeholder="t('versionManager.field.downloadKey.placeholder')"
           />
         </a-form-item>
-        <a-form-item label="安装包上传">
+        <a-form-item :label="t('versionManager.field.packageUpload')">
           <a-space>
             <a-button
               type="outline"
               :loading="uploadLoading"
               @click="triggerFileSelect"
             >
-              选择文件并上传
+              {{ t('versionManager.action.upload') }}
             </a-button>
             <span v-if="uploadedFileInfo" class="upload-info">
               {{ uploadedFileInfo }}
             </span>
           </a-space>
           <template #extra>
-            文件将直接上传到默认存储提供商，完成后自动填充下载 Key。
+            {{ t('versionManager.field.packageUpload.help') }}
           </template>
         </a-form-item>
         <a-form-item field="download_url" :label="downloadUrlLabel">
           <a-input
             v-model="formState.download_url"
-            placeholder="可选：填写备用 CDN 或下载地址"
+            :placeholder="t('versionManager.field.downloadUrl.placeholder')"
           />
         </a-form-item>
         <a-form-item
@@ -212,49 +226,67 @@
         >
           <a-input
             v-model="formState.app_store_url"
-            placeholder="例如：https://apps.apple.com/app/id1234567890"
+            :placeholder="t('versionManager.field.appStore.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="release_notes" label="更新说明">
+        <a-form-item
+          field="release_notes"
+          :label="t('versionManager.field.releaseNotes')"
+        >
           <a-textarea
             v-model="formState.release_notes"
             :rows="4"
-            placeholder="可选：填写本次版本的更新说明"
+            :placeholder="t('versionManager.field.releaseNotes.placeholder')"
             allow-clear
           />
         </a-form-item>
-        <a-form-item field="checksum" label="校验摘要">
+        <a-form-item
+          field="checksum"
+          :label="t('versionManager.field.checksum')"
+        >
           <a-input
             v-model="formState.checksum"
-            placeholder="可选：MD5/SHA 摘要值"
+            :placeholder="t('versionManager.field.checksum.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="signature" label="签名信息">
+        <a-form-item
+          field="signature"
+          :label="t('versionManager.field.signature')"
+        >
           <a-input
             v-model="formState.signature"
-            placeholder="可选：签名或公钥信息"
+            :placeholder="t('versionManager.field.signature.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="released_at" label="发布时间">
+        <a-form-item
+          field="released_at"
+          :label="t('versionManager.field.releasedAt')"
+        >
           <a-date-picker
             v-model="releasedAtValue"
             show-time
             style="width: 100%"
-            placeholder="选择发布时间（可选）"
+            :placeholder="t('versionManager.field.releasedAt.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="mandatory" label="强制更新">
+        <a-form-item
+          field="mandatory"
+          :label="t('versionManager.field.mandatory')"
+        >
           <a-switch
             v-model="formState.mandatory"
-            checked-text="是"
-            unchecked-text="否"
+            :checked-text="t('versionManager.boolean.yes')"
+            :unchecked-text="t('versionManager.boolean.no')"
           />
         </a-form-item>
-        <a-form-item field="is_active" label="启用状态">
+        <a-form-item
+          field="is_active"
+          :label="t('versionManager.field.enabled')"
+        >
           <a-switch
             v-model="formState.is_active"
-            checked-text="启用"
-            unchecked-text="停用"
+            :checked-text="t('versionManager.status.active')"
+            :unchecked-text="t('versionManager.status.inactive')"
           />
         </a-form-item>
       </a-form>
@@ -264,8 +296,10 @@
 
 <script setup lang="ts">
   import { computed, reactive, ref, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { Message, type FormInstance } from '@arco-design/web-vue';
   import dayjs, { type Dayjs } from 'dayjs';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     listAppVersions,
     createAppVersion,
@@ -289,6 +323,7 @@
   const props = defineProps<{
     platform: 'frontend' | 'desktop';
   }>();
+  const { t } = useI18n();
 
   const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
 
@@ -361,72 +396,98 @@
     file_size: null,
   });
 
-  const formRules = {
-    version: [{ required: true, message: '请输入版本号' }],
-    build_number: [{ required: true, type: 'number', message: '请输入构建号' }],
-    channel: [{ required: true, message: '请输入渠道标识' }],
-  };
+  const formRules = computed(() => ({
+    version: [
+      { required: true, message: t('versionManager.validation.version') },
+    ],
+    build_number: [
+      {
+        required: true,
+        type: 'number',
+        message: t('versionManager.validation.buildNumber'),
+      },
+    ],
+    channel: [
+      { required: true, message: t('versionManager.validation.channel') },
+    ],
+  }));
 
-  const columns = [
+  const columns = computed(() => [
     {
-      title: '版本号',
+      title: t('versionManager.table.version'),
       dataIndex: 'version',
       width: 120,
       fixed: 'left' as const,
     },
-    { title: '构建号', dataIndex: 'build_number', width: 100 },
-    { title: '渠道', dataIndex: 'channel', slotName: 'channel', width: 160 },
     {
-      title: '下载 Key',
+      title: t('versionManager.table.buildNumber'),
+      dataIndex: 'build_number',
+      width: 100,
+    },
+    {
+      title: t('versionManager.table.channel'),
+      dataIndex: 'channel',
+      slotName: 'channel',
+      width: 160,
+    },
+    {
+      title: t('versionManager.table.downloadKey'),
       dataIndex: 'download_key',
       ellipsis: true,
       tooltip: true,
       width: 220,
     },
     {
-      title: 'App Store',
+      title: t('versionManager.table.appStore'),
       dataIndex: 'app_store_url',
       ellipsis: true,
       tooltip: true,
       width: 220,
     },
     {
-      title: '文件大小',
+      title: t('versionManager.table.fileSize'),
       dataIndex: 'file_size',
       slotName: 'file_size',
       width: 120,
     },
     {
-      title: '强制更新',
+      title: t('versionManager.table.mandatory'),
       dataIndex: 'mandatory',
       slotName: 'mandatory',
       width: 100,
     },
     {
-      title: '状态',
+      title: t('versionManager.table.status'),
       dataIndex: 'is_active',
       slotName: 'is_active',
       width: 100,
     },
     {
-      title: '发布时间',
+      title: t('versionManager.table.releasedAt'),
       dataIndex: 'released_at',
       slotName: 'released_at',
       width: 180,
     },
     {
-      title: '更新时间',
+      title: t('versionManager.table.updatedAt'),
       dataIndex: 'updated_at',
       slotName: 'updated_at',
       width: 180,
     },
-    { title: '操作', slotName: 'operations', width: 300, fixed: 'right' },
-  ];
+    {
+      title: t('versionManager.table.operations'),
+      slotName: 'operations',
+      width: 300,
+      fixed: 'right',
+    },
+  ]);
 
-  const tableScrollX = columns.reduce((sum, column) => {
-    const width = typeof column.width === 'number' ? column.width : 150;
-    return sum + width;
-  }, 0);
+  const tableScrollX = computed(() =>
+    columns.value.reduce((sum, column) => {
+      const width = typeof column.width === 'number' ? column.width : 150;
+      return sum + width;
+    }, 0)
+  );
 
   const breadcrumbKey = computed(() =>
     props.platform === 'desktop'
@@ -435,11 +496,15 @@
   );
 
   const cardTitle = computed(() =>
-    props.platform === 'desktop' ? '桌面客户端版本管理' : 'App客户端版本管理'
+    props.platform === 'desktop'
+      ? t('versionManager.title.desktop')
+      : t('versionManager.title.frontend')
   );
 
   const modalTitle = computed(() =>
-    editingVersion.value ? '编辑版本信息' : '新增版本'
+    editingVersion.value
+      ? t('versionManager.modal.edit')
+      : t('versionManager.modal.create')
   );
 
   const isEditing = computed(() => !!editingVersion.value);
@@ -452,18 +517,18 @@
 
   const appStoreUrlLabel = computed(() =>
     selectedPlatform.value === AppPlatform.MacOS
-      ? 'Mac App Store 链接'
-      : 'App Store 链接'
+      ? t('versionManager.field.appStore.macos')
+      : t('versionManager.field.appStore.ios')
   );
 
   const downloadUrlLabel = computed(() => {
     if (selectedPlatform.value === AppPlatform.IOS) {
-      return '在线安装地址（超级签）';
+      return t('versionManager.field.downloadUrl.ios');
     }
     if (selectedPlatform.value === AppPlatform.MacOS) {
-      return '在线安装包地址（DMG 外链）';
+      return t('versionManager.field.downloadUrl.macos');
     }
-    return '备用下载地址';
+    return t('versionManager.field.downloadUrl.fallback');
   });
 
   const availableChannels = computed(() => {
@@ -510,12 +575,11 @@
       versions.value = data.items;
       total.value = data.total;
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '加载版本列表失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('versionManager.fetch.error'),
+        })
+      );
     } finally {
       listLoading.value = false;
     }
@@ -635,7 +699,7 @@
     const downloadUrlTrimmed = (formState.download_url || '').trim();
     const appStoreUrlTrimmed = (formState.app_store_url || '').trim();
     if (!downloadKeyTrimmed && !downloadUrlTrimmed && !appStoreUrlTrimmed) {
-      Message.error('请至少填写一个：下载 Key / 在线安装地址 / App Store 链接');
+      Message.error(t('versionManager.validation.downloadTarget'));
       return false;
     }
 
@@ -658,7 +722,7 @@
           released_at: releaseAt ?? undefined,
         };
         await updateAppVersion(editingVersion.value.id, payload);
-        Message.success('版本信息已更新');
+        Message.success(t('versionManager.update.success'));
       } else {
         const payload: CreateAppVersionPayload = {
           platform: selectedPlatform.value,
@@ -680,17 +744,18 @@
           released_at: releaseAt,
         };
         await createAppVersion(payload);
-        Message.success('新增版本成功');
+        Message.success(t('versionManager.create.success'));
       }
       await fetchVersions();
       return true;
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        (editingVersion.value ? '更新版本失败' : '新增版本失败');
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: editingVersion.value
+            ? t('versionManager.update.error')
+            : t('versionManager.create.error'),
+        })
+      );
       return false;
     } finally {
       actionLoading.value = false;
@@ -728,7 +793,7 @@
       return;
     }
     if (!formState.channel || !formState.channel.trim()) {
-      Message.error('请先填写渠道标识');
+      Message.error(t('versionManager.validation.channelBeforeUpload'));
       inputEl.value = '';
       return;
     }
@@ -773,19 +838,17 @@
           content_type: file.type || undefined,
         });
         if (!data.success || !data.key) {
-          throw new Error(data.message || '初始化分片上传失败');
+          throw new Error(data.message || t('versionManager.upload.error'));
         }
 
         if (!data.session_id) {
           // 命中哈希去重，复用已上传的安装包
           formState.file_size = file.size;
-          Message.success(data.message || '复用已上传的安装包，无需重新上传');
+          Message.success(data.message || t('versionManager.upload.dedup'));
           formState.download_key = data.key;
         } else {
           if (!data.part_size || !data.total_parts) {
-            throw new Error(
-              '分片上传初始化结果不完整（缺少 part_size/total_parts）'
-            );
+            throw new Error(t('versionManager.upload.error'));
           }
 
           uploadedFileInfo.value = `${file.name} · ${formatFileSize(
@@ -806,7 +869,7 @@
 
           formState.file_size = file.size;
           formState.download_key = data.key;
-          Message.success('安装包上传成功（分片直传）');
+          Message.success(t('versionManager.upload.multipartSuccess'));
         }
       } else {
         const { data } = await generateVersionUploadSignature({
@@ -818,30 +881,32 @@
           hash_alg: hashAlg ?? undefined,
         });
         if (!data.success || !data.key) {
-          throw new Error(data.message || '获取直传签名失败');
+          throw new Error(data.message || t('versionManager.upload.error'));
         }
 
         if (data.signature) {
           const response = await uploadWithSignature(file, data.signature);
           if (!response.ok) {
             const text = await response.text();
-            throw new Error(text || '上传失败');
+            throw new Error(text || t('versionManager.upload.error'));
           }
           formState.file_size = file.size;
-          Message.success('安装包上传成功');
+          Message.success(t('versionManager.upload.success'));
         } else {
           // 命中哈希去重，复用已上传的安装包
           formState.file_size = file.size;
-          Message.success(data.message || '复用已上传的安装包，无需重新上传');
+          Message.success(data.message || t('versionManager.upload.dedup'));
         }
 
         formState.download_key = data.key;
       }
       uploadedFileInfo.value = `${file.name} · ${formatFileSize(file.size)}`;
     } catch (error: any) {
-      const errorMsg =
-        error?.message || error?.response?.data?.message || '上传安装包失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('versionManager.upload.error'),
+        })
+      );
     } finally {
       uploadLoading.value = false;
       if (inputEl) {
@@ -854,15 +919,14 @@
     deactivateLoadingId.value = record.id;
     try {
       await deactivateAppVersion(record.id);
-      Message.success('已停用该版本');
+      Message.success(t('versionManager.deactivate.success'));
       await fetchVersions();
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '停用版本失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('versionManager.deactivate.error'),
+        })
+      );
     } finally {
       deactivateLoadingId.value = null;
     }
@@ -872,18 +936,17 @@
     deleteLoadingId.value = record.id;
     try {
       await deleteAppVersion(record.id);
-      Message.success('删除成功');
+      Message.success(t('versionManager.delete.success'));
       if (versions.value.length === 1 && currentPage.value > 1) {
         currentPage.value -= 1;
       }
       await fetchVersions();
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '删除版本失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('versionManager.delete.error'),
+        })
+      );
     } finally {
       deleteLoadingId.value = null;
     }
@@ -895,8 +958,8 @@
         await navigator.clipboard.writeText(text);
         return true;
       }
-    } catch (_) {
-      // 忽略异常，尝试降级方案
+    } catch (_clipboardError) {
+      String(_clipboardError);
     }
     const textarea = document.createElement('textarea');
     textarea.value = text;
@@ -925,20 +988,23 @@
       if (data.success && data.download_url) {
         const copied = await copyToClipboard(data.download_url);
         if (copied) {
-          Message.success('下载链接已复制（10 分钟内有效）');
+          Message.success(t('versionManager.download.success'));
         } else {
-          Message.info(`下载链接：${data.download_url}`);
+          Message.info(
+            t('versionManager.download.fallback', {
+              url: data.download_url,
+            })
+          );
         }
       } else {
-        Message.error(data.message || '生成下载链接失败');
+        Message.error(data.message || t('versionManager.download.error'));
       }
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '生成下载链接失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('versionManager.download.error'),
+        })
+      );
     } finally {
       downloadLoadingId.value = null;
     }

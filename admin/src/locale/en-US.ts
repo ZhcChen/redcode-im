@@ -23,6 +23,8 @@ import localeSystemLog from '@/views/dashboard/system-log/locale/en-US';
 import localePushLog from '@/views/operations/push-log/locale/en-US';
 import localeApiMetrics from '@/views/operations/api-metrics/locale/en-US';
 import localeDataCleanup from '@/views/settings/data-cleanup/locale/en-US';
+import localeUserProfile from '@/views/settings/user-profile/locale/en-US';
+import localeVersionManagement from '@/views/version-management/locale/en-US';
 /** simple end */
 import { enUSCommonMessages } from './common';
 import localeSettings from './en-US/settings';
@@ -97,5 +99,7 @@ export default {
   ...localePushLog,
   ...localeApiMetrics,
   ...localeDataCleanup,
+  ...localeUserProfile,
+  ...localeVersionManagement,
   /** simple end */
 };

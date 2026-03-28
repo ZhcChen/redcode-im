@@ -23,6 +23,8 @@ import localeSystemLog from '@/views/dashboard/system-log/locale/zh-CN';
 import localePushLog from '@/views/operations/push-log/locale/zh-CN';
 import localeApiMetrics from '@/views/operations/api-metrics/locale/zh-CN';
 import localeDataCleanup from '@/views/settings/data-cleanup/locale/zh-CN';
+import localeUserProfile from '@/views/settings/user-profile/locale/zh-CN';
+import localeVersionManagement from '@/views/version-management/locale/zh-CN';
 /** simple end */
 import { zhCNCommonMessages } from './common';
 import localeSettings from './zh-CN/settings';
@@ -97,5 +99,7 @@ export default {
   ...localePushLog,
   ...localeApiMetrics,
   ...localeDataCleanup,
+  ...localeUserProfile,
+  ...localeVersionManagement,
   /** simple end */
 };

@@ -1,10 +1,13 @@
 <template>
   <div class="user-profile-container">
     <Breadcrumb :items="['menu.settings', 'menu.settings.userProfile']" />
-    <a-card class="general-card" title="个人设置" :bordered="false">
+    <a-card
+      class="general-card"
+      :title="t('userProfile.title')"
+      :bordered="false"
+    >
       <a-space direction="vertical" :size="24" style="width: 100%">
-        <!-- 头像设置 -->
-        <a-card title="头像设置" size="small">
+        <a-card :title="t('userProfile.section.avatar')" size="small">
           <a-space :size="24" align="start">
             <div class="avatar-section">
               <a-avatar :size="100" shape="circle" class="user-avatar">
@@ -14,9 +17,10 @@
               <a-button
                 class="upload-btn"
                 type="primary"
+                :loading="avatarUploading"
                 @click="triggerAvatarSelect"
               >
-                更换头像
+                {{ t('userProfile.avatar.change') }}
               </a-button>
               <input
                 ref="avatarInputRef"
@@ -28,14 +32,13 @@
             </div>
             <div class="avatar-tips">
               <a-typography-text type="secondary">
-                支持 JPG、PNG 格式，文件大小不超过 5MB
+                {{ t('userProfile.avatar.tips') }}
               </a-typography-text>
             </div>
           </a-space>
         </a-card>
 
-        <!-- 基础信息 -->
-        <a-card title="基础信息" size="small">
+        <a-card :title="t('userProfile.section.basic')" size="small">
           <a-form
             ref="profileFormRef"
             :model="profileForm"
@@ -43,36 +46,42 @@
             layout="vertical"
             @submit="handleUpdateProfile"
           >
-            <a-form-item label="用户名" field="username">
+            <a-form-item
+              :label="t('userProfile.form.username')"
+              field="username"
+            >
               <a-input
                 v-model="profileForm.username"
-                placeholder="请输入用户名"
+                :placeholder="t('userProfile.form.username.placeholder')"
                 disabled
               />
               <template #extra>
                 <a-typography-text type="secondary">
-                  用户名不可修改
+                  {{ t('userProfile.form.username.help') }}
                 </a-typography-text>
               </template>
             </a-form-item>
 
-            <a-form-item label="邮箱" field="email">
+            <a-form-item :label="t('userProfile.form.email')" field="email">
               <a-input
                 v-model="profileForm.email"
-                placeholder="请输入邮箱"
+                :placeholder="t('userProfile.form.email.placeholder')"
                 disabled
               />
               <template #extra>
                 <a-typography-text type="secondary">
-                  邮箱不可修改
+                  {{ t('userProfile.form.email.help') }}
                 </a-typography-text>
               </template>
             </a-form-item>
 
-            <a-form-item label="昵称" field="nickname">
+            <a-form-item
+              :label="t('userProfile.form.nickname')"
+              field="nickname"
+            >
               <a-input
                 v-model="profileForm.nickname"
-                placeholder="请输入昵称"
+                :placeholder="t('userProfile.form.nickname.placeholder')"
                 max-length="50"
                 show-word-limit
               />
@@ -84,14 +93,13 @@
                 html-type="submit"
                 :loading="profileLoading"
               >
-                保存修改
+                {{ t('userProfile.form.save') }}
               </a-button>
             </a-form-item>
           </a-form>
         </a-card>
 
-        <!-- 重置密码 -->
-        <a-card title="重置密码" size="small">
+        <a-card :title="t('userProfile.section.password')" size="small">
           <a-form
             ref="passwordFormRef"
             :model="passwordForm"
@@ -99,23 +107,31 @@
             layout="vertical"
             @submit="handleChangePassword"
           >
-            <a-form-item label="新密码" field="new_password">
+            <a-form-item
+              :label="t('userProfile.form.password.new')"
+              field="new_password"
+            >
               <a-input-password
                 v-model="passwordForm.new_password"
-                placeholder="请输入新密码"
+                :placeholder="t('userProfile.form.password.new.placeholder')"
                 allow-clear
               />
               <template #extra>
                 <a-typography-text type="secondary">
-                  密码长度至少 8 位，包含字母和数字
+                  {{ t('userProfile.form.password.new.help') }}
                 </a-typography-text>
               </template>
             </a-form-item>
 
-            <a-form-item label="确认新密码" field="confirm_password">
+            <a-form-item
+              :label="t('userProfile.form.password.confirm')"
+              field="confirm_password"
+            >
               <a-input-password
                 v-model="passwordForm.confirm_password"
-                placeholder="请再次输入新密码"
+                :placeholder="
+                  t('userProfile.form.password.confirm.placeholder')
+                "
                 allow-clear
               />
             </a-form-item>
@@ -126,7 +142,7 @@
                 html-type="submit"
                 :loading="passwordLoading"
               >
-                重置密码
+                {{ t('userProfile.form.password.submit') }}
               </a-button>
             </a-form-item>
           </a-form>
@@ -138,8 +154,10 @@
 
 <script lang="ts" setup>
   import { ref, reactive, onMounted } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import { Message } from '@arco-design/web-vue';
   import { useUserStore } from '@/store';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     getCurrentUserInfo,
     updateCurrentUserProfile,
@@ -155,6 +173,7 @@
   } from '@/api/settings';
   import { computeFileHash } from '@/utils/fileHash';
 
+  const { t } = useI18n();
   const userStore = useUserStore();
 
   const avatarInputRef = ref<HTMLInputElement | null>(null);
@@ -165,8 +184,6 @@
   const passwordLoading = ref(false);
   const avatarUploading = ref(false);
 
-  const currentUser = ref<any>(null);
-  const selectedAvatarFile = ref<File | null>(null);
   const avatarPreview = ref<string>('');
 
   const profileForm = reactive({
@@ -184,11 +201,11 @@
     nickname: [
       {
         required: true,
-        message: '请输入昵称',
+        message: t('userProfile.validation.nickname.required'),
       },
       {
         maxLength: 50,
-        message: '昵称不能超过 50 个字符',
+        message: t('userProfile.validation.nickname.maxLength'),
       },
     ],
   };
@@ -197,26 +214,28 @@
     new_password: [
       {
         required: true,
-        message: '请输入新密码',
+        message: t('userProfile.validation.password.required'),
       },
       {
         minLength: 8,
-        message: '密码长度至少 8 位',
+        message: t('userProfile.validation.password.minLength'),
       },
       {
         pattern: /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*#?&^_-]{8,}$/,
-        message: '密码必须包含字母和数字',
+        message: t('userProfile.validation.password.pattern'),
       },
     ],
     confirm_password: [
       {
         required: true,
-        message: '请确认新密码',
+        message: t('userProfile.validation.password.confirmRequired'),
       },
       {
         validator: (value: string, callback: any) => {
           if (value !== passwordForm.new_password) {
-            callback(new Error('两次输入的密码不一致'));
+            callback(
+              new Error(t('userProfile.validation.password.confirmMismatch'))
+            );
           } else {
             callback();
           }
@@ -229,16 +248,13 @@
     try {
       const response = await getCurrentUserInfo();
       const userInfo = response.data;
-      currentUser.value = userInfo;
 
       profileForm.username = userInfo.username;
       profileForm.email = userInfo.email;
       profileForm.nickname = userInfo.nickname || '';
 
       if (userInfo.avatarUrl) {
-        // 检查是否是key（以 admin/ 开头）还是完整的URL
         if (userInfo.avatarUrl.startsWith('admin/')) {
-          // 是key，需要获取临时下载URL
           try {
             const providerResponse = await getDefaultStorageProvider();
             const provider = providerResponse.data;
@@ -257,24 +273,20 @@
                 userStore.setInfo({ avatar: undefined });
               }
             }
-          } catch (e) {
-            console.error('获取头像下载URL失败:', e);
+          } catch {
             avatarPreview.value = '';
           }
         } else {
-          // 直接是URL
           avatarPreview.value = userInfo.avatarUrl;
           userStore.setInfo({ avatar: userInfo.avatarUrl });
         }
       }
     } catch (error: any) {
-      console.error('获取用户信息失败:', error);
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '获取用户信息失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('userProfile.fetch.error'),
+        })
+      );
     }
   };
 
@@ -282,27 +294,24 @@
     try {
       avatarUploading.value = true;
 
-      // 1. 获取默认存储提供商
       const providerResponse = await getDefaultStorageProvider();
       const provider = providerResponse.data;
 
       if (!provider) {
-        Message.error('未找到默认存储提供商，请先配置');
+        Message.error(t('userProfile.avatar.provider.missing'));
         return;
       }
 
       if (!provider.is_active) {
-        Message.error('默认存储提供商未启用');
+        Message.error(t('userProfile.avatar.provider.inactive'));
         return;
       }
 
-      // 2. 生成头像文件名
       const fileExt = file.name.split('.').pop() || 'jpg';
       const fileKey = `admin/avatars/${Date.now()}_${Math.random()
         .toString(36)
         .substring(2)}.${fileExt}`;
 
-      // 3. 计算文件哈希
       let hashValue: string | undefined;
       let hashAlg: number | undefined;
       try {
@@ -311,11 +320,11 @@
           hashValue = hash.hashValue;
           hashAlg = hash.hashAlg ?? 2;
         }
-      } catch (error) {
-        console.warn('[UserProfile] 计算头像哈希失败，将跳过哈希上报', error);
+      } catch {
+        hashValue = undefined;
+        hashAlg = undefined;
       }
 
-      // 4. 请求COS上传签名
       const signatureResponse = await testCosUploadSignature({
         provider_id: provider.id,
         key: fileKey,
@@ -324,9 +333,8 @@
         hash_value: hashValue,
         hash_alg: hashAlg,
       });
-      const { signature, message } = signatureResponse.data;
+      const { signature } = signatureResponse.data;
 
-      // 5. 如有签名则直传 COS；否则认为命中哈希去重，跳过上传
       if (signature) {
         const headers = new Headers();
         Object.entries(signature.headers || {}).forEach(([key, value]) => {
@@ -345,40 +353,30 @@
         });
 
         if (!uploadResponse.ok) {
-          const errorText = await uploadResponse.text();
-          console.error('上传失败:', errorText);
-          Message.error(
-            `上传失败: ${uploadResponse.status} ${uploadResponse.statusText}`
+          throw new Error(
+            `${uploadResponse.status} ${uploadResponse.statusText}`.trim()
           );
-          return;
         }
-      } else if (message) {
-        console.info('[UserProfile] 头像命中哈希去重:', message);
       }
 
-      // 6. 获取临时下载URL（用于前端渲染）
       const downloadUrlResponse = await getCosDownloadUrl({
         provider_id: provider.id,
         key: fileKey,
       });
       const avatarUrl = downloadUrlResponse.data.url;
 
-      // 7. 保存 key 到数据库（不是 URL）
       const updateResponse = await updateUserAvatar(fileKey);
       if (updateResponse.data && updateResponse.data.success) {
-        Message.success('头像上传成功');
-        // 更新本地状态使用临时URL
+        Message.success(t('userProfile.avatar.upload.success'));
         await fetchCurrentUser();
         userStore.setInfo({ avatar: avatarUrl || undefined });
       }
     } catch (error: any) {
-      console.error('上传异常:', error);
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '头像上传失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('userProfile.avatar.upload.error'),
+        })
+      );
     } finally {
       avatarUploading.value = false;
     }
@@ -398,28 +396,22 @@
 
     const file = files[0];
 
-    // 验证文件类型
     if (!file.type.startsWith('image/')) {
-      Message.error('请选择图片文件');
+      Message.error(t('userProfile.avatar.fileType.error'));
       return;
     }
 
-    // 验证文件大小 (5MB)
     if (file.size > 5 * 1024 * 1024) {
-      Message.error('图片大小不能超过 5MB');
+      Message.error(t('userProfile.avatar.fileSize.error'));
       return;
     }
 
-    selectedAvatarFile.value = file;
-
-    // 预览头像
     const reader = new FileReader();
     reader.onload = (e) => {
       avatarPreview.value = e.target?.result as string;
     };
     reader.readAsDataURL(file);
 
-    // 自动上传头像
     await uploadAvatarFile(file);
   };
 
@@ -439,17 +431,15 @@
 
       const response = await updateCurrentUserProfile(payload);
       if (response.data) {
-        Message.success('保存成功');
-        // 更新本地用户信息
+        Message.success(t('userProfile.save.success'));
         await fetchCurrentUser();
       }
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '保存失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('userProfile.save.error'),
+        })
+      );
     } finally {
       profileLoading.value = false;
     }
@@ -471,19 +461,17 @@
 
       const response = await changeCurrentUserPassword(payload);
       if (response.data) {
-        Message.success('密码重置成功');
-        // 清空表单
+        Message.success(t('userProfile.password.success'));
         passwordForm.new_password = '';
         passwordForm.confirm_password = '';
         passwordFormRef.value?.clearValidate();
       }
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '密码重置失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('userProfile.password.error'),
+        })
+      );
     } finally {
       passwordLoading.value = false;
     }

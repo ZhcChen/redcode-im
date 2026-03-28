@@ -12,7 +12,7 @@
           <a-select
             v-model="channelFilter"
             allow-clear
-            placeholder="选择渠道"
+            :placeholder="t('hotUpdate.channel.placeholder')"
             style="width: 160px"
           >
             <a-option
@@ -27,13 +27,13 @@
             <template #icon>
               <icon-plus />
             </template>
-            新增补丁
+            {{ t('hotUpdate.action.create') }}
           </a-button>
           <a-button :loading="listLoading" @click="fetchHotUpdates">
             <template #icon>
               <icon-refresh />
             </template>
-            刷新
+            {{ t('hotUpdate.action.refresh') }}
           </a-button>
         </a-space>
       </div>
@@ -60,12 +60,20 @@
         </template>
         <template #mandatory="{ record }">
           <a-tag :color="record.mandatory ? 'red' : 'green'">
-            {{ record.mandatory ? '强制' : '可选' }}
+            {{
+              record.mandatory
+                ? t('hotUpdate.status.mandatory')
+                : t('hotUpdate.status.optional')
+            }}
           </a-tag>
         </template>
         <template #is_active="{ record }">
           <a-tag :color="record.is_active ? 'green' : 'gray'">
-            {{ record.is_active ? '启用' : '停用' }}
+            {{
+              record.is_active
+                ? t('hotUpdate.status.active')
+                : t('hotUpdate.status.inactive')
+            }}
           </a-tag>
         </template>
         <template #released_at="{ record }">
@@ -74,7 +82,7 @@
         <template #operations="{ record }">
           <a-space size="mini">
             <a-button type="text" size="small" @click="handleEdit(record)">
-              编辑
+              {{ t('hotUpdate.action.edit') }}
             </a-button>
             <a-button
               type="text"
@@ -82,15 +90,19 @@
               :loading="toggleLoadingId === record.id"
               @click="handleToggleActive(record)"
             >
-              {{ record.is_active ? '停用' : '启用' }}
+              {{
+                record.is_active
+                  ? t('hotUpdate.action.disable')
+                  : t('hotUpdate.action.enable')
+              }}
             </a-button>
             <a-popconfirm
-              content="确定要删除该补丁吗？"
+              :content="t('hotUpdate.delete.confirm')"
               type="warning"
               @ok="handleDelete(record)"
             >
               <a-button type="text" size="small" status="danger">
-                删除
+                {{ t('hotUpdate.action.delete') }}
               </a-button>
             </a-popconfirm>
           </a-space>
@@ -135,79 +147,100 @@
         :label-col-props="{ span: 6 }"
         :wrapper-col-props="{ span: 18 }"
       >
-        <a-form-item field="platform" label="平台">
+        <a-form-item field="platform" :label="t('hotUpdate.field.platform')">
           <a-select
             v-model="formState.platform"
             :options="platformOptions"
             @change="loadVersionOptions"
           />
         </a-form-item>
-        <a-form-item field="app_version_id" label="基线版本">
+        <a-form-item
+          field="app_version_id"
+          :label="t('hotUpdate.field.baseVersion')"
+        >
           <a-select
             v-model="formState.app_version_id"
-            placeholder="请选择整包版本"
+            :placeholder="t('hotUpdate.field.baseVersion.placeholder')"
             :options="versionOptions"
             allow-search
           />
         </a-form-item>
-        <a-form-item field="patch_version" label="补丁版本">
+        <a-form-item
+          field="patch_version"
+          :label="t('hotUpdate.field.patchVersion')"
+        >
           <a-input
             v-model="formState.patch_version"
-            placeholder="例如：1.0.0-p1"
+            :placeholder="t('hotUpdate.field.patchVersion.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="channel" label="渠道">
+        <a-form-item field="channel" :label="t('hotUpdate.field.channel')">
           <a-select
             v-model="formState.channel"
             :options="channelSelectOptions"
             allow-clear
           />
         </a-form-item>
-        <a-form-item field="download_key" label="补丁 Key">
+        <a-form-item
+          field="download_key"
+          :label="t('hotUpdate.field.patchKey')"
+        >
           <a-input
             v-model="formState.download_key"
-            placeholder="请上传补丁文件"
+            :placeholder="t('hotUpdate.field.patchKey.placeholder')"
             readonly
           />
         </a-form-item>
-        <a-form-item label="补丁上传">
+        <a-form-item :label="t('hotUpdate.field.patchUpload')">
           <a-space>
             <a-button
               type="outline"
               :loading="uploadLoading"
               @click="triggerFileSelect"
             >
-              选择文件并上传
+              {{ t('hotUpdate.action.upload') }}
             </a-button>
             <span v-if="uploadedFileInfo" class="upload-info">{{
               uploadedFileInfo
             }}</span>
           </a-space>
           <template #extra>
-            文件将上传至默认存储，完成后自动填充补丁 Key。
+            {{ t('hotUpdate.field.patchUpload.help') }}
           </template>
         </a-form-item>
-        <a-form-item field="download_url" label="备用下载地址">
+        <a-form-item
+          field="download_url"
+          :label="t('hotUpdate.field.downloadUrl')"
+        >
           <a-input
             v-model="formState.download_url"
-            placeholder="可选：备用 CDN 地址"
+            :placeholder="t('hotUpdate.field.downloadUrl.placeholder')"
           />
         </a-form-item>
-        <a-form-item field="file_size" label="文件大小">
+        <a-form-item field="file_size" :label="t('hotUpdate.field.fileSize')">
           <a-input-number
             v-model="formState.file_size"
             :min="0"
             style="width: 100%"
-            placeholder="可选"
+            :placeholder="t('hotUpdate.field.optional')"
           />
         </a-form-item>
-        <a-form-item field="checksum" label="校验摘要">
-          <a-input v-model="formState.checksum" placeholder="可选：MD5/SHA" />
+        <a-form-item field="checksum" :label="t('hotUpdate.field.checksum')">
+          <a-input
+            v-model="formState.checksum"
+            :placeholder="t('hotUpdate.field.checksum.placeholder')"
+          />
         </a-form-item>
-        <a-form-item field="signature" label="签名">
-          <a-input v-model="formState.signature" placeholder="可选" />
+        <a-form-item field="signature" :label="t('hotUpdate.field.signature')">
+          <a-input
+            v-model="formState.signature"
+            :placeholder="t('hotUpdate.field.optional')"
+          />
         </a-form-item>
-        <a-form-item field="rollout_percentage" label="灰度比例">
+        <a-form-item
+          field="rollout_percentage"
+          :label="t('hotUpdate.field.rollout')"
+        >
           <a-input-number
             v-model="formState.rollout_percentage"
             :min="0"
@@ -215,26 +248,32 @@
             style="width: 100%"
           />
         </a-form-item>
-        <a-form-item field="mandatory" label="强制热更">
+        <a-form-item field="mandatory" :label="t('hotUpdate.field.mandatory')">
           <a-switch
             v-model="formState.mandatory"
-            checked-text="是"
-            unchecked-text="否"
+            :checked-text="t('versionManager.boolean.yes')"
+            :unchecked-text="t('versionManager.boolean.no')"
           />
         </a-form-item>
-        <a-form-item field="released_at" label="发布时间">
+        <a-form-item
+          field="released_at"
+          :label="t('hotUpdate.field.releasedAt')"
+        >
           <a-date-picker
             v-model="releasedAtValue"
             show-time
             style="width: 100%"
-            placeholder="可选"
+            :placeholder="t('hotUpdate.field.optional')"
           />
         </a-form-item>
-        <a-form-item field="description" label="补丁说明">
+        <a-form-item
+          field="description"
+          :label="t('hotUpdate.field.description')"
+        >
           <a-textarea
             v-model="formState.description"
             :rows="3"
-            placeholder="记录变更内容"
+            :placeholder="t('hotUpdate.field.description.placeholder')"
           />
         </a-form-item>
       </a-form>
@@ -244,8 +283,10 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
   import dayjs, { type Dayjs } from 'dayjs';
   import { Message, type FormInstance } from '@arco-design/web-vue';
+  import { resolveHttpErrorMessage } from '@/utils/i18n';
   import {
     listHotUpdates,
     createHotUpdate,
@@ -269,6 +310,8 @@
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
   import { computeFileHash } from '@/utils/fileHash';
+
+  const { t } = useI18n();
 
   const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024;
 
@@ -327,14 +370,22 @@
 
   const formState = reactive<HotUpdateFormState>(getDefaultFormState());
 
-  const formRules = {
-    platform: [{ required: true, message: '请选择平台' }],
-    app_version_id: [{ required: true, message: '请选择基线版本' }],
-    patch_version: [{ required: true, message: '请输入补丁版本' }],
-    channel: [{ required: true, message: '请输入渠道' }],
-    download_key: [{ required: true, message: '请上传补丁文件' }],
-    rollout_percentage: [{ required: true, message: '请输入灰度比例' }],
-  };
+  const formRules = computed(() => ({
+    platform: [{ required: true, message: t('hotUpdate.validation.platform') }],
+    app_version_id: [
+      { required: true, message: t('hotUpdate.validation.baseVersion') },
+    ],
+    patch_version: [
+      { required: true, message: t('hotUpdate.validation.patchVersion') },
+    ],
+    channel: [{ required: true, message: t('hotUpdate.validation.channel') }],
+    download_key: [
+      { required: true, message: t('hotUpdate.validation.patchFile') },
+    ],
+    rollout_percentage: [
+      { required: true, message: t('hotUpdate.validation.rollout') },
+    ],
+  }));
 
   const platformOptions = Object.values(AppPlatform)
     .filter(
@@ -351,47 +402,63 @@
     value: channel,
   }));
 
-  const columns = [
-    { title: '平台', dataIndex: 'platform', slotName: 'platform', width: 120 },
+  const columns = computed(() => [
     {
-      title: '基线版本',
+      title: t('hotUpdate.table.platform'),
+      dataIndex: 'platform',
+      slotName: 'platform',
+      width: 120,
+    },
+    {
+      title: t('hotUpdate.table.baseVersion'),
       dataIndex: 'app_version_id',
       slotName: 'baseVersion',
       width: 160,
     },
-    { title: '补丁版本', dataIndex: 'patch_version', width: 150 },
-    { title: '渠道', dataIndex: 'channel', width: 120 },
     {
-      title: '灰度比例',
+      title: t('hotUpdate.table.patchVersion'),
+      dataIndex: 'patch_version',
+      width: 150,
+    },
+    { title: t('hotUpdate.table.channel'), dataIndex: 'channel', width: 120 },
+    {
+      title: t('hotUpdate.table.rollout'),
       dataIndex: 'rollout_percentage',
       slotName: 'rollout',
       width: 160,
     },
     {
-      title: '强制',
+      title: t('hotUpdate.table.mandatory'),
       dataIndex: 'mandatory',
       slotName: 'mandatory',
       width: 100,
     },
     {
-      title: '状态',
+      title: t('hotUpdate.table.status'),
       dataIndex: 'is_active',
       slotName: 'is_active',
       width: 100,
     },
     {
-      title: '发布时间',
+      title: t('hotUpdate.table.releasedAt'),
       dataIndex: 'released_at',
       slotName: 'released_at',
       width: 180,
     },
-    { title: '操作', slotName: 'operations', width: 240, fixed: 'right' },
-  ];
+    {
+      title: t('hotUpdate.table.operations'),
+      slotName: 'operations',
+      width: 240,
+      fixed: 'right',
+    },
+  ]);
 
-  const cardTitle = computed(() => '热更新管理');
+  const cardTitle = computed(() => t('hotUpdate.title'));
 
   const modalTitle = computed(() =>
-    editingHotUpdate.value ? '编辑热更新' : '新增热更新'
+    editingHotUpdate.value
+      ? t('hotUpdate.modal.edit')
+      : t('hotUpdate.modal.create')
   );
 
   const platformLabel = (value: AppPlatform | string) =>
@@ -440,12 +507,11 @@
       total.value = data.total;
       cacheBaseVersions(data.items);
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '加载热更新列表失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('hotUpdate.fetch.error'),
+        })
+      );
     } finally {
       listLoading.value = false;
     }
@@ -577,21 +643,22 @@
           released_at: payload.released_at,
         };
         await updateHotUpdate(editingHotUpdate.value.id, updatePayload);
-        Message.success('热更新已更新');
+        Message.success(t('hotUpdate.update.success'));
       } else {
         await createHotUpdate(payload);
-        Message.success('热更新已创建');
+        Message.success(t('hotUpdate.create.success'));
       }
       await fetchHotUpdates();
       modalVisible.value = false;
       done(true);
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        (editingHotUpdate.value ? '更新热更新失败' : '创建热更新失败');
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: editingHotUpdate.value
+            ? t('hotUpdate.update.error')
+            : t('hotUpdate.create.error'),
+        })
+      );
       done(false);
     } finally {
       actionLoading.value = false;
@@ -606,15 +673,14 @@
   const handleDelete = async (record: HotUpdateInfo) => {
     try {
       await deleteHotUpdate(record.id);
-      Message.success('删除成功');
+      Message.success(t('hotUpdate.delete.success'));
       fetchHotUpdates();
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '删除失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('hotUpdate.delete.error'),
+        })
+      );
     }
   };
 
@@ -623,19 +689,18 @@
     try {
       if (record.is_active) {
         await deactivateHotUpdate(record.id);
-        Message.success('补丁已停用');
+        Message.success(t('hotUpdate.toggle.disableSuccess'));
       } else {
         await activateHotUpdate(record.id);
-        Message.success('补丁已启用');
+        Message.success(t('hotUpdate.toggle.enableSuccess'));
       }
       fetchHotUpdates();
     } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '操作失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('hotUpdate.toggle.error'),
+        })
+      );
     } finally {
       toggleLoadingId.value = null;
     }
@@ -651,7 +716,7 @@
     const file = files && files.length > 0 ? files[0] : null;
     if (!file) return;
     if (!formState.channel || !formState.channel.trim()) {
-      Message.error('请先填写渠道');
+      Message.error(t('hotUpdate.validation.channelBeforeUpload'));
       inputEl.value = '';
       return;
     }
@@ -696,19 +761,17 @@
           content_type: file.type || undefined,
         });
         if (!data.success || !data.key) {
-          throw new Error(data.message || '初始化分片上传失败');
+          throw new Error(data.message || t('hotUpdate.upload.error'));
         }
 
         if (!data.session_id) {
           // 命中哈希去重，复用已上传的补丁包
           formState.file_size = file.size;
-          Message.success(data.message || '复用已上传的补丁包，无需重新上传');
+          Message.success(data.message || t('hotUpdate.upload.dedup'));
           formState.download_key = data.key;
         } else {
           if (!data.part_size || !data.total_parts) {
-            throw new Error(
-              '分片上传初始化结果不完整（缺少 part_size/total_parts）'
-            );
+            throw new Error(t('hotUpdate.upload.error'));
           }
 
           uploadedFileInfo.value = `${file.name} · ${formatFileSize(
@@ -729,7 +792,7 @@
 
           formState.file_size = file.size;
           formState.download_key = data.key;
-          Message.success('补丁上传成功（分片直传）');
+          Message.success(t('hotUpdate.upload.multipartSuccess'));
         }
       } else {
         const { data } = await generateVersionUploadSignature({
@@ -741,30 +804,32 @@
           hash_alg: hashAlg ?? undefined,
         });
         if (!data.success || !data.key) {
-          throw new Error(data.message || '获取直传签名失败');
+          throw new Error(data.message || t('hotUpdate.upload.error'));
         }
 
         if (data.signature) {
           const response = await uploadWithSignature(file, data.signature);
           if (!response.ok) {
             const text = await response.text();
-            throw new Error(text || '上传失败');
+            throw new Error(text || t('hotUpdate.upload.error'));
           }
           formState.file_size = file.size;
-          Message.success('补丁上传成功');
+          Message.success(t('hotUpdate.upload.success'));
         } else {
           // 命中哈希去重，复用已上传的补丁包
           formState.file_size = file.size;
-          Message.success(data.message || '复用已上传的补丁包，无需重新上传');
+          Message.success(data.message || t('hotUpdate.upload.dedup'));
         }
 
         formState.download_key = data.key;
       }
       uploadedFileInfo.value = `${file.name} · ${formatFileSize(file.size)}`;
     } catch (error: any) {
-      const errorMsg =
-        error?.message || error?.response?.data?.message || '上传补丁失败';
-      Message.error(errorMsg);
+      Message.error(
+        resolveHttpErrorMessage(error, {
+          fallbackMessage: t('hotUpdate.upload.error'),
+        })
+      );
     } finally {
       uploadLoading.value = false;
       if (inputEl) {

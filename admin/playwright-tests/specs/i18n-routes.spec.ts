@@ -201,6 +201,68 @@ const ENGLISH_ROUTE_CASES = [
     },
   },
   {
+    id: 'settings-user-profile',
+    path: '/settings/user-profile',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Profile Settings', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByText('Basic Information', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'versions-frontend',
+    path: '/versions/frontend',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('App Client Version Management', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Add Version', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'versions-desktop',
+    path: '/versions/desktop',
+    assertion: async (page: Page) => {
+      await expect(
+        page
+          .getByText('Desktop Client Version Management', { exact: true })
+          .first()
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Add Version', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'versions-hot-updates',
+    path: '/versions/hot-updates',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Hot Update Management', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Add Patch', exact: true })
+      ).toBeVisible();
+    },
+  },
+  {
+    id: 'versions-hot-update-events',
+    path: '/versions/hot-update-events',
+    assertion: async (page: Page) => {
+      await expect(
+        page.getByText('Hot Update Events', { exact: true }).first()
+      ).toBeVisible();
+      await expect(
+        page.getByText('Event Type', { exact: true }).first()
+      ).toBeVisible();
+    },
+  },
+  {
     id: 'operations-ipinfo-token',
     path: '/operations/ipinfo-token',
     assertion: async (page: Page) => {
