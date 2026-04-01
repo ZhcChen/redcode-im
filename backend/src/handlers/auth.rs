@@ -737,7 +737,7 @@ pub async fn send_login_sms(
 
     Ok(Json(SmsResponse {
         success: true,
-        message: "验证码已发送",
+        message: "ok",
     }))
 }
 
@@ -945,7 +945,7 @@ pub async fn reset_password_with_sms(
 
     Ok(Json(SmsResponse {
         success: true,
-        message: "密码已重置，请使用新密码登录",
+        message: "ok",
     }))
 }
 
@@ -1324,7 +1324,7 @@ pub async fn update_current_admin_user(
 
     Ok(Json(UpdateAdminUserResponse {
         success: true,
-        message: "更新成功".to_string(),
+        message: "ok".to_string(),
         data: Some(admin_user_info),
     }))
 }
@@ -1382,7 +1382,7 @@ pub async fn change_current_admin_password(
 
     Ok(Json(ChangeAdminPasswordResponse {
         success: true,
-        message: "密码重置成功".to_string(),
+        message: "ok".to_string(),
     }))
 }
 
@@ -1707,5 +1707,22 @@ mod tests {
         assert_eq!(error.response_message_key(), "auth.admin_user_not_found");
         assert_eq!(error.localized_message(), "管理员用户不存在");
         assert_eq!(error.status_code(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[test]
+    fn test_auth_success_responses_no_longer_embed_legacy_human_messages() {
+        let source = include_str!("auth.rs");
+
+        for legacy in [
+            "\u{9a8c}\u{8bc1}\u{7801}\u{5df2}\u{53d1}\u{9001}",
+            "\u{5bc6}\u{7801}\u{5df2}\u{91cd}\u{7f6e}\u{ff0c}\u{8bf7}\u{4f7f}\u{7528}\u{65b0}\u{5bc6}\u{7801}\u{767b}\u{5f55}",
+            "\u{66f4}\u{65b0}\u{6210}\u{529f}",
+            "\u{5bc6}\u{7801}\u{91cd}\u{7f6e}\u{6210}\u{529f}",
+        ] {
+            assert!(
+                !source.contains(&format!("message: \"{legacy}\"")),
+                "auth success response should not embed legacy response literal: {legacy}"
+            );
+        }
     }
 }

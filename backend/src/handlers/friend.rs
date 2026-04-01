@@ -482,7 +482,7 @@ pub async fn delete_friend(
 
     Ok(Json(DeleteFriendResponse {
         success: true,
-        message: "删除好友成功".to_string(),
+        message: "ok".to_string(),
     }))
 }
 
@@ -699,5 +699,15 @@ mod tests {
         let user2 = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
         assert!(validate_not_self_operation(&user1, &user2));
         assert!(!validate_not_self_operation(&user1, &user1));
+    }
+
+    #[test]
+    fn test_friend_success_responses_no_longer_embed_legacy_human_messages() {
+        let source = include_str!("friend.rs");
+        let legacy = "\u{5220}\u{9664}\u{597d}\u{53cb}\u{6210}\u{529f}";
+        assert!(
+            !source.contains(&format!("message: \"{legacy}\"")),
+            "friend success response should not embed legacy response literal: {legacy}"
+        );
     }
 }

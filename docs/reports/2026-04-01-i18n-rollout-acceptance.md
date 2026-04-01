@@ -18,12 +18,14 @@
 - `d8d9d9ff`
 - `f9a655f9`
 - `feat(backend): localize user avatar and settings tails`
+- `feat(backend): normalize auth friend and message success tails`
 
 已覆盖域：
 - auth / friend / user / message / group / room / version / admin
 - upload / emoji / report / push / e2ee
 - feedback / upload_policy
 - settings / user avatar response tails
+- auth / friend / message success tails
 - storage audit / COS
 
 验证：

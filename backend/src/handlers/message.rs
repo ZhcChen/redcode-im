@@ -1019,6 +1019,28 @@ mod message_i18n_tests {
         assert_eq!(error.details(), None);
     }
 
+    #[test]
+    fn success_responses_no_longer_embed_legacy_human_messages() {
+        let source = include_str!("message.rs");
+
+        for legacy in [
+            "\u{53cd}\u{5e94}\u{5df2}\u{6dfb}\u{52a0}",
+            "\u{53cd}\u{5e94}\u{5df2}\u{5220}\u{9664}",
+            "\u{83b7}\u{53d6}\u{6210}\u{529f}",
+            "\u{590d}\u{7528}\u{5df2}\u{4e0a}\u{4f20}\u{7684}\u{9644}\u{4ef6}\u{ff0c}\u{672a}\u{751f}\u{6210}\u{65b0}\u{7684}\u{76f4}\u{4f20}\u{7b7e}\u{540d}",
+            "\u{751f}\u{6210}\u{6d88}\u{606f}\u{9644}\u{4ef6}\u{76f4}\u{4f20}\u{7b7e}\u{540d}\u{6210}\u{529f}",
+            "\u{590d}\u{7528}\u{5df2}\u{4e0a}\u{4f20}\u{7684}\u{9644}\u{4ef6}\u{ff0c}\u{65e0}\u{9700}\u{91cd}\u{65b0}\u{4e0a}\u{4f20}",
+            "\u{521d}\u{59cb}\u{5316}\u{5206}\u{7247}\u{4e0a}\u{4f20}\u{4f1a}\u{8bdd}\u{6210}\u{529f}",
+            "\u{751f}\u{6210}\u{9644}\u{4ef6}\u{4e0b}\u{8f7d}\u{94fe}\u{63a5}\u{6210}\u{529f}",
+            "\u{9644}\u{4ef6}\u{4e0a}\u{4f20}\u{5b8c}\u{6210}",
+        ] {
+            assert!(
+                !source.contains(&format!("message: \"{legacy}\"")),
+                "message success response should not embed legacy response literal: {legacy}"
+            );
+        }
+    }
+
     async fn read_body_json(body: Body) -> Value {
         let bytes = body
             .collect()
@@ -2198,7 +2220,7 @@ pub async fn add_message_reaction(
 
     Ok(Json(ReactionResponse {
         success: true,
-        message: "反应已添加".to_string(),
+        message: "ok".to_string(),
         summaries: Some(summaries),
     }))
 }
@@ -2271,7 +2293,7 @@ pub async fn remove_message_reaction(
 
     Ok(Json(ReactionResponse {
         success: true,
-        message: "反应已删除".to_string(),
+        message: "ok".to_string(),
         summaries: Some(summaries),
     }))
 }
@@ -2307,7 +2329,7 @@ pub async fn get_message_reactions(
 
     Ok(Json(ReactionResponse {
         success: true,
-        message: "获取成功".to_string(),
+        message: "ok".to_string(),
         summaries: Some(summaries),
     }))
 }
@@ -2546,7 +2568,7 @@ pub async fn generate_message_attachment_signature(
 
                     return Ok(Json(MessageAttachmentSignatureResponse {
                         success: true,
-                        message: "复用已上传的附件，未生成新的直传签名".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         signature: None,
                     }));
@@ -2591,7 +2613,7 @@ pub async fn generate_message_attachment_signature(
 
     Ok(Json(MessageAttachmentSignatureResponse {
         success: true,
-        message: "生成消息附件直传签名成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         signature: Some(signature),
     }))
@@ -2702,7 +2724,7 @@ pub async fn initiate_message_attachment_multipart_upload(
 
                     return Ok(Json(MessageAttachmentMultipartInitiateResponse {
                         success: true,
-                        message: "复用已上传的附件，无需重新上传".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         session_id: None,
                         part_size: None,
@@ -2781,7 +2803,7 @@ pub async fn initiate_message_attachment_multipart_upload(
 
     Ok(Json(MessageAttachmentMultipartInitiateResponse {
         success: true,
-        message: "初始化分片上传会话成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         session_id: Some(session.id.to_string()),
         part_size: Some(part_size),
@@ -2863,7 +2885,7 @@ pub async fn generate_message_attachment_download_url(
 
     Ok(Json(MessageAttachmentDownloadResponse {
         success: true,
-        message: "生成附件下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }
@@ -3003,7 +3025,7 @@ pub async fn commit_message_attachment_upload(
 
     Ok(Json(MessageAttachmentUploadCommitResponse {
         success: true,
-        message: "附件上传完成".to_string(),
+        message: "ok".to_string(),
     }))
 }
 
