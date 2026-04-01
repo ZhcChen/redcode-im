@@ -115,6 +115,10 @@ fn version_not_found_error(message_key: &'static str) -> AppError {
     AppError::NotFound(String::new()).with_message_key(message_key)
 }
 
+fn version_invalid_token_error(message_key: &'static str) -> AppError {
+    AppError::InvalidToken(String::new()).with_message_key(message_key)
+}
+
 fn version_platform_params(platform: impl Into<String>) -> crate::i18n::message::MessageParams {
     BTreeMap::from([
         ("platform".to_string(), platform.into()),
@@ -137,6 +141,18 @@ fn parse_required_version_platform(platform: &str) -> Result<Platform, AppError>
             version_platform_params(trimmed.to_string()),
         )
     })
+}
+
+fn parse_version_claim_user_id(subject: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(subject).map_err(|_| version_invalid_token_error("auth.token_subject_invalid"))
+}
+
+fn parse_version_id(id: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(id).map_err(|_| version_validation_error("version.version_id_invalid"))
+}
+
+fn parse_hot_update_id(id: &str) -> Result<Uuid, AppError> {
+    Uuid::parse_str(id).map_err(|_| version_validation_error("version.patch_id_invalid"))
 }
 
 #[derive(Debug, Serialize)]
@@ -197,7 +213,7 @@ pub async fn generate_version_upload_signature(
 
                     return Ok(Json(VersionUploadSignatureResponse {
                         success: true,
-                        message: "复用已上传的安装包，未生成新的直传签名".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         signature: None,
                     }));
@@ -236,7 +252,7 @@ pub async fn generate_version_upload_signature(
 
     Ok(Json(VersionUploadSignatureResponse {
         success: true,
-        message: "生成安装包直传签名成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         signature: Some(signature),
     }))
@@ -281,7 +297,7 @@ pub async fn initiate_version_multipart_upload(
 
                     return Ok(Json(VersionMultipartInitiateResponse {
                         success: true,
-                        message: "复用已上传的安装包，无需重新上传".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         session_id: None,
                         part_size: None,
@@ -326,8 +342,7 @@ pub async fn initiate_version_multipart_upload(
         .await?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
-    let creator_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let creator_id = parse_version_claim_user_id(&claims.sub)?;
 
     let session = match store
         .create_session(
@@ -349,13 +364,18 @@ pub async fn initiate_version_multipart_upload(
             let _ = storage_service
                 .abort_multipart_upload(&key, &upload_id)
                 .await;
-            return Err(AppError::InternalError(format!("创建分片会话失败: {}", e)));
+            return Err(
+                AppError::InternalError(String::new()).with_message_key_and_params(
+                    "version.multipart_session_create_failed",
+                    Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+                ),
+            );
         }
     };
 
     Ok(Json(VersionMultipartInitiateResponse {
         success: true,
-        message: "初始化分片上传会话成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         session_id: Some(session.id.to_string()),
         part_size: Some(part_size),
@@ -370,22 +390,15 @@ pub async fn create_app_version(
 ) -> Result<Json<crate::models::AppVersionInfo>, AppError> {
     validate_version_payload(&req)?;
 
-    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            req.platform
-        ))
-    })?;
+    let platform = parse_required_version_platform(&req.platform)?;
     let channel_trimmed = req.channel.trim();
     let version_trimmed = req.version.trim();
 
     if version_exists(&state.database, platform, channel_trimmed, version_trimmed).await? {
-        return Err(AppError::ValidationError(
-            "该平台该渠道的版本已存在".to_string(),
-        ));
+        return Err(version_validation_error("version.package_exists"));
     }
 
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let store = VersionStore::new(state.database.clone());
 
     let insert = api_create_version_to_db(&req, operator)?;
@@ -400,24 +413,24 @@ pub async fn create_app_version(
                 if let Some(expected_size) = req.file_size {
                     if let Some(actual_size) = head.content_length {
                         if actual_size != expected_size as u64 {
-                            return Err(AppError::ValidationError(format!(
-                                "安装包大小校验失败：期望 {} 字节，实际 {} 字节",
-                                expected_size, actual_size
-                            )));
+                            return Err(AppError::ValidationError(String::new())
+                                .with_message_key_and_params(
+                                    "version.package_size_mismatch",
+                                    Some(BTreeMap::from([
+                                        ("expected".to_string(), expected_size.to_string()),
+                                        ("actual".to_string(), actual_size.to_string()),
+                                    ])),
+                                ));
                         }
                     }
                 }
             }
             Err(AppError::NotFound(_)) => {
-                return Err(AppError::ValidationError(
-                    "对象存储中未找到安装包，请先完成上传".to_string(),
-                ));
+                return Err(version_validation_error("version.package_not_uploaded"));
             }
             Err(AppError::ValidationError(_)) => {
                 if !storage_service.file_exists(req.download_key.trim()).await? {
-                    return Err(AppError::ValidationError(
-                        "对象存储中未找到安装包，请先完成上传".to_string(),
-                    ));
+                    return Err(version_validation_error("version.package_not_uploaded"));
                 }
             }
             Err(e) => return Err(e),
@@ -458,17 +471,16 @@ pub async fn update_app_version(
     Path(id): Path<String>,
     Json(req): Json<UpdateAppVersionRequest>,
 ) -> Result<Json<crate::models::AppVersionInfo>, AppError> {
-    let version_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的版本 ID".to_string()))?;
+    let version_id = parse_version_id(&id)?;
 
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let store = VersionStore::new(state.database.clone());
 
     let update = api_update_version_to_db(&req, operator);
     let updated = store
         .update_version(version_id, &update)
         .await?
-        .ok_or_else(|| AppError::NotFound("版本记录不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.record_not_found"))?;
 
     // 若更新了 download_key，则同步标记 file_upload_records 完成并写入审核任务
     if let Some(download_key) = req.download_key.as_deref() {
@@ -481,24 +493,24 @@ pub async fn update_app_version(
                     if let Some(expected_size) = req.file_size {
                         if let Some(actual_size) = head.content_length {
                             if actual_size != expected_size as u64 {
-                                return Err(AppError::ValidationError(format!(
-                                    "安装包大小校验失败：期望 {} 字节，实际 {} 字节",
-                                    expected_size, actual_size
-                                )));
+                                return Err(AppError::ValidationError(String::new())
+                                    .with_message_key_and_params(
+                                        "version.package_size_mismatch",
+                                        Some(BTreeMap::from([
+                                            ("expected".to_string(), expected_size.to_string()),
+                                            ("actual".to_string(), actual_size.to_string()),
+                                        ])),
+                                    ));
                             }
                         }
                     }
                 }
                 Err(AppError::NotFound(_)) => {
-                    return Err(AppError::ValidationError(
-                        "对象存储中未找到安装包，请先完成上传".to_string(),
-                    ));
+                    return Err(version_validation_error("version.package_not_uploaded"));
                 }
                 Err(AppError::ValidationError(_)) => {
                     if !storage_service.file_exists(download_key).await? {
-                        return Err(AppError::ValidationError(
-                            "对象存储中未找到安装包，请先完成上传".to_string(),
-                        ));
+                        return Err(version_validation_error("version.package_not_uploaded"));
                     }
                 }
                 Err(e) => return Err(e),
@@ -566,8 +578,7 @@ pub async fn get_app_version(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<crate::models::AppVersionInfo>, AppError> {
-    let version_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的版本 ID".to_string()))?;
+    let version_id = parse_version_id(&id)?;
 
     let store = VersionStore::new(state.database.clone());
     let version = store
@@ -583,15 +594,14 @@ pub async fn deactivate_app_version(
     Extension(claims): Extension<Claims>,
     Path(id): Path<String>,
 ) -> Result<Json<crate::models::AppVersionInfo>, AppError> {
-    let version_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的版本 ID".to_string()))?;
+    let version_id = parse_version_id(&id)?;
 
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let store = VersionStore::new(state.database.clone());
     let version = store
         .deactivate_version(version_id, operator)
         .await?
-        .ok_or_else(|| AppError::NotFound("版本不存在或已停用".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.inactive_not_found"))?;
 
     Ok(Json(db_app_version_to_api(&version)))
 }
@@ -600,8 +610,7 @@ pub async fn delete_app_version(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let version_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的版本 ID".to_string()))?;
+    let version_id = parse_version_id(&id)?;
 
     let store = VersionStore::new(state.database.clone());
     let deleted = store.delete_version(version_id).await?;
@@ -689,7 +698,7 @@ pub async fn download_version(
 
     Ok(Json(VersionDownloadResponse {
         success: true,
-        message: "生成下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }
@@ -714,7 +723,7 @@ pub async fn download_hot_update(
 
     Ok(Json(HotUpdateDownloadResponse {
         success: true,
-        message: "生成补丁下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(signed_url),
     }))
 }
@@ -726,30 +735,25 @@ pub async fn create_hot_update(
 ) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
     ensure_rollout_percentage(req.rollout_percentage)?;
     if req.channel.trim().is_empty() {
-        return Err(AppError::ValidationError("channel 不能为空".to_string()));
+        return Err(version_validation_error("version.channel_required"));
     }
 
-    let platform = Platform::from_str(req.platform.trim()).ok_or_else(|| {
-        AppError::ValidationError(format!(
-            "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-            req.platform
-        ))
-    })?;
+    let platform = parse_required_version_platform(&req.platform)?;
     let app_version_id = Uuid::parse_str(req.app_version_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 app_version_id".to_string()))?;
+        .map_err(|_| version_validation_error("version.app_version_id_invalid"))?;
 
     let store = VersionStore::new(state.database.clone());
     let base_version = store
         .get_version(app_version_id)
         .await?
-        .ok_or_else(|| AppError::ValidationError("绑定的整包版本不存在".to_string()))?;
+        .ok_or_else(|| version_validation_error("version.package_version_not_found"))?;
     if base_version.platform != platform {
-        return Err(AppError::ValidationError(
-            "热更新平台必须与整包版本一致".to_string(),
+        return Err(version_validation_error(
+            "version.hot_update_platform_mismatch",
         ));
     }
 
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let mut insert = api_create_hot_update_to_db(&req, operator)?;
     insert.platform = platform;
     insert.app_version_id = base_version.id;
@@ -764,24 +768,24 @@ pub async fn create_hot_update(
                 if let Some(expected_size) = req.file_size {
                     if let Some(actual_size) = head.content_length {
                         if actual_size != expected_size as u64 {
-                            return Err(AppError::ValidationError(format!(
-                                "补丁大小校验失败：期望 {} 字节，实际 {} 字节",
-                                expected_size, actual_size
-                            )));
+                            return Err(AppError::ValidationError(String::new())
+                                .with_message_key_and_params(
+                                    "version.patch_size_mismatch",
+                                    Some(BTreeMap::from([
+                                        ("expected".to_string(), expected_size.to_string()),
+                                        ("actual".to_string(), actual_size.to_string()),
+                                    ])),
+                                ));
                         }
                     }
                 }
             }
             Err(AppError::NotFound(_)) => {
-                return Err(AppError::ValidationError(
-                    "对象存储中未找到补丁，请先完成上传".to_string(),
-                ));
+                return Err(version_validation_error("version.patch_not_uploaded"));
             }
             Err(AppError::ValidationError(_)) => {
                 if !storage_service.file_exists(req.download_key.trim()).await? {
-                    return Err(AppError::ValidationError(
-                        "对象存储中未找到补丁，请先完成上传".to_string(),
-                    ));
+                    return Err(version_validation_error("version.patch_not_uploaded"));
                 }
             }
             Err(e) => return Err(e),
@@ -822,31 +826,28 @@ pub async fn update_hot_update(
     Path(id): Path<String>,
     Json(req): Json<UpdateHotUpdateRequest>,
 ) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
-    let hot_update_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let hot_update_id = parse_hot_update_id(&id)?;
     if let Some(pct) = req.rollout_percentage {
         ensure_rollout_percentage(pct)?;
     }
     if let Some(channel) = &req.channel {
         if channel.trim().is_empty() {
-            return Err(AppError::ValidationError("channel 不能为空".to_string()));
+            return Err(version_validation_error("version.channel_required"));
         }
     }
     if let Some(download_key) = &req.download_key {
         if download_key.trim().is_empty() {
-            return Err(AppError::ValidationError(
-                "download_key 不能为空".to_string(),
-            ));
+            return Err(version_validation_error("version.download_key_required"));
         }
     }
 
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let update = api_update_hot_update_to_db(&req, operator);
     let store = VersionStore::new(state.database.clone());
     let updated = store
         .update_hot_update(hot_update_id, &update)
         .await?
-        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.patch_not_found"))?;
 
     // 若更新了 download_key，则同步标记 file_upload_records 完成并写入审核任务
     if let Some(download_key) = req.download_key.as_deref() {
@@ -859,24 +860,24 @@ pub async fn update_hot_update(
                     if let Some(expected_size) = req.file_size {
                         if let Some(actual_size) = head.content_length {
                             if actual_size != expected_size as u64 {
-                                return Err(AppError::ValidationError(format!(
-                                    "补丁大小校验失败：期望 {} 字节，实际 {} 字节",
-                                    expected_size, actual_size
-                                )));
+                                return Err(AppError::ValidationError(String::new())
+                                    .with_message_key_and_params(
+                                        "version.patch_size_mismatch",
+                                        Some(BTreeMap::from([
+                                            ("expected".to_string(), expected_size.to_string()),
+                                            ("actual".to_string(), actual_size.to_string()),
+                                        ])),
+                                    ));
                             }
                         }
                     }
                 }
                 Err(AppError::NotFound(_)) => {
-                    return Err(AppError::ValidationError(
-                        "对象存储中未找到补丁，请先完成上传".to_string(),
-                    ));
+                    return Err(version_validation_error("version.patch_not_uploaded"));
                 }
                 Err(AppError::ValidationError(_)) => {
                     if !storage_service.file_exists(download_key).await? {
-                        return Err(AppError::ValidationError(
-                            "对象存储中未找到补丁，请先完成上传".to_string(),
-                        ));
+                        return Err(version_validation_error("version.patch_not_uploaded"));
                     }
                 }
                 Err(e) => return Err(e),
@@ -919,14 +920,7 @@ pub async fn list_hot_updates(
     let platform = query
         .platform
         .as_deref()
-        .map(|value| {
-            Platform::from_str(value.trim()).ok_or_else(|| {
-                AppError::ValidationError(format!(
-                    "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-                    value
-                ))
-            })
-        })
+        .map(parse_required_version_platform)
         .transpose()?;
     let channel_trimmed = query
         .channel
@@ -953,13 +947,12 @@ pub async fn get_hot_update(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
-    let hot_update_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let hot_update_id = parse_hot_update_id(&id)?;
     let store = VersionStore::new(state.database.clone());
     let patch = store
         .get_hot_update(hot_update_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.patch_not_found"))?;
     Ok(Json(db_hot_update_to_api(&patch)))
 }
 
@@ -967,12 +960,11 @@ pub async fn delete_hot_update(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let hot_update_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
+    let hot_update_id = parse_hot_update_id(&id)?;
     let store = VersionStore::new(state.database.clone());
     let deleted = store.delete_hot_update(hot_update_id).await?;
     if !deleted {
-        return Err(AppError::NotFound("补丁不存在".to_string()));
+        return Err(version_not_found_error("version.patch_not_found"));
     }
     Ok(Json(serde_json::json!({ "success": true })))
 }
@@ -999,9 +991,8 @@ async fn toggle_hot_update(
     id: String,
     active: bool,
 ) -> Result<Json<crate::models::HotUpdateInfo>, AppError> {
-    let hot_update_id =
-        Uuid::parse_str(&id).map_err(|_| AppError::ValidationError("无效的补丁 ID".to_string()))?;
-    let operator = Some(Uuid::parse_str(&claims.sub).unwrap_or(Uuid::nil()));
+    let hot_update_id = parse_hot_update_id(&id)?;
+    let operator = Some(parse_version_claim_user_id(&claims.sub)?);
     let update = HotUpdateUpdate {
         is_active: Some(active),
         operator,
@@ -1011,7 +1002,7 @@ async fn toggle_hot_update(
     let updated = store
         .update_hot_update(hot_update_id, &update)
         .await?
-        .ok_or_else(|| AppError::NotFound("补丁不存在".to_string()))?;
+        .ok_or_else(|| version_not_found_error("version.patch_not_found"))?;
     Ok(Json(db_hot_update_to_api(&updated)))
 }
 
@@ -1253,7 +1244,7 @@ pub async fn download_latest_version(
 
     Ok(Json(LatestVersionDownloadResponse {
         success: true,
-        message: "生成下载链接成功".to_string(),
+        message: "ok".to_string(),
         version: Some(db_app_version_to_api(&latest)),
         download_url: Some(download_url),
     }))
@@ -1329,8 +1320,8 @@ fn build_release_object_key(platform: &str, channel: &str, filename: Option<&str
 
 fn ensure_rollout_percentage(value: i32) -> Result<(), AppError> {
     if !(0..=100).contains(&value) {
-        return Err(AppError::ValidationError(
-            "rollout_percentage 必须在 0-100 之间".to_string(),
+        return Err(version_validation_error(
+            "version.rollout_percentage_invalid",
         ));
     }
     Ok(())

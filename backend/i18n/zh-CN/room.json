@@ -18,5 +18,14 @@
   "room.transfer_target_not_member": "目标用户不在当前群聊中",
   "room.transfer_owner_only": "仅房主可以转让群主",
   "room.notification_setting_invalid": "无效的通知设置值，必须是 0（全部）、1（仅提醒）、2（静音）",
-  "room.update_owner_or_admin_only": "仅房主或管理员可以更新房间"
+  "room.update_owner_or_admin_only": "仅房主或管理员可以更新房间",
+  "room.avatar_image_only": "仅允许上传图片文件",
+  "room.avatar_size_exceeded": "文件大小超出限制，最大允许{max_mb}MB",
+  "room.avatar_manage_forbidden": "仅房主或管理员可以上传头像",
+  "room.avatar_key_required": "文件路径（key）不能为空",
+  "room.avatar_object_key_invalid": "无效的群头像对象 key",
+  "room.avatar_size_mismatch": "群头像大小校验失败：期望 {expected} 字节，实际 {actual} 字节",
+  "room.avatar_hash_mismatch": "群头像哈希校验失败，请重新上传",
+  "room.avatar_not_uploaded": "COS 中尚未找到该群头像，请稍后重试",
+  "room.avatar_not_set": "该群聊尚未设置头像"
 }

@@ -17,8 +17,9 @@ use crate::database::{
     room_store::RoomStore,
 };
 use crate::error::AppError;
-use crate::i18n::message::MessageParams;
-use crate::models::convert::{db_chat_summary_to_api, string_to_uuid};
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
+use crate::models::convert::db_chat_summary_to_api;
 use crate::models::{ChatSummary, Claims};
 use crate::redis::models::{CacheKeys, PubSubPayload, RoomUpdatePayload};
 use crate::websocket::{RoomCreatedPayload, ServerPush};
@@ -56,6 +57,13 @@ fn room_forbidden_error(message_key: &'static str) -> AppError {
 
 fn room_not_found_error(message_key: &'static str) -> AppError {
     AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn room_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
 }
 
 fn parse_room_claim_user_id(subject: &str) -> Result<Uuid, AppError> {
@@ -315,8 +323,7 @@ pub async fn list_chat_summaries(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ChatSummary>>, AppError> {
-    let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let store = RoomStore::new(state.database.pool());
     store.ensure_favorite_room(user_id).await?;
@@ -693,7 +700,7 @@ pub async fn update_room(
 
     Ok(Json(UpdateRoomResponse {
         success: true,
-        message: "Room updated successfully".to_string(),
+        message: "ok".to_string(),
         room: Some(room),
     }))
 }
@@ -726,14 +733,13 @@ pub async fn generate_room_avatar_direct_upload(
     Extension(claims): Extension<Claims>,
     Json(req): Json<RoomAvatarDirectUploadRequest>,
 ) -> Result<Json<RoomAvatarDirectUploadResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     // 验证文件类型
     if !req.content_type.starts_with("image/") {
         return Ok(Json(RoomAvatarDirectUploadResponse {
             success: false,
-            message: "Only image files are allowed".to_string(),
+            message: room_localized_message("room.avatar_image_only", None),
             key: None,
             signature: None,
         }));
@@ -744,9 +750,12 @@ pub async fn generate_room_avatar_direct_upload(
         if file_size > crate::constants::AVATAR_MAX_SIZE_BYTES as i64 {
             return Ok(Json(RoomAvatarDirectUploadResponse {
                 success: false,
-                message: format!(
-                    "文件大小超出限制，最大允许{}MB",
-                    crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024
+                message: room_localized_message(
+                    "room.avatar_size_exceeded",
+                    Some(&BTreeMap::from([(
+                        "max_mb".to_string(),
+                        (crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024).to_string(),
+                    )])),
                 ),
                 key: None,
                 signature: None,
@@ -760,13 +769,11 @@ pub async fn generate_room_avatar_direct_upload(
     let member = store
         .get_member(room_id, user_id)
         .await?
-        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+        .ok_or_else(|| room_forbidden_error("room.membership_required"))?;
 
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden(
-            "Only room owner or admin can upload avatar".to_string(),
-        ));
+        return Err(room_forbidden_error("room.avatar_manage_forbidden"));
     }
 
     // 加载默认存储提供商
@@ -807,7 +814,7 @@ pub async fn generate_room_avatar_direct_upload(
 
                     return Ok(Json(RoomAvatarDirectUploadResponse {
                         success: true,
-                        message: "复用已上传的群头像，未生成新的直传签名".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         signature: None,
                     }));
@@ -856,7 +863,7 @@ pub async fn generate_room_avatar_direct_upload(
 
     Ok(Json(RoomAvatarDirectUploadResponse {
         success: true,
-        message: "生成群头像直传签名成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         signature: Some(signature),
     }))
@@ -880,14 +887,13 @@ pub async fn commit_room_avatar_upload(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CommitRoomAvatarUploadRequest>,
 ) -> Result<Json<CommitRoomAvatarUploadResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = parse_room_claim_user_id(&claims.sub)?;
 
     let key = req.key.trim();
     if key.is_empty() {
         return Ok(Json(CommitRoomAvatarUploadResponse {
             success: false,
-            message: "文件路径（key）不能为空".to_string(),
+            message: room_localized_message("room.avatar_key_required", None),
             avatar_url: None,
         }));
     }
@@ -898,18 +904,17 @@ pub async fn commit_room_avatar_upload(
     let member = store
         .get_member(room_id, user_id)
         .await?
-        .ok_or_else(|| AppError::Forbidden("You are not a member of this room".to_string()))?;
+        .ok_or_else(|| room_forbidden_error("room.membership_required"))?;
 
     let is_owner = member.user_id == store.get_room_owner(room_id).await?;
     if !is_owner && member.role != MemberRole::Admin {
-        return Err(AppError::Forbidden(
-            "Only room owner or admin can upload avatar".to_string(),
-        ));
+        return Err(room_forbidden_error("room.avatar_manage_forbidden"));
     }
 
     // 验证对象键格式
     if !key.starts_with(&format!("room_avatars/{}/", room_id)) {
-        return Err(AppError::InvalidInput("Invalid object key".to_string()));
+        return Err(AppError::InvalidInput(String::new())
+            .with_message_key("room.avatar_object_key_invalid"));
     }
 
     // 加载存储服务并获取文件URL
@@ -928,10 +933,14 @@ pub async fn commit_room_avatar_upload(
             if let Some(expected_size) = record.as_ref().and_then(|r| r.file_size) {
                 if let Some(actual_size) = head.content_length {
                     if actual_size != expected_size as u64 {
-                        return Err(crate::error::AppError::ValidationError(format!(
-                            "群头像大小校验失败：期望 {} 字节，实际 {} 字节",
-                            expected_size, actual_size
-                        )));
+                        return Err(crate::error::AppError::ValidationError(String::new())
+                            .with_message_key_and_params(
+                                "room.avatar_size_mismatch",
+                                Some(BTreeMap::from([
+                                    ("expected".to_string(), expected_size.to_string()),
+                                    ("actual".to_string(), actual_size.to_string()),
+                                ])),
+                            ));
                     }
                 }
             }
@@ -946,24 +955,21 @@ pub async fn commit_room_avatar_upload(
                             && r.hash_value.chars().all(|c| c.is_ascii_hexdigit())
                             && etag.to_ascii_lowercase() != r.hash_value.trim().to_ascii_lowercase()
                         {
-                            return Err(crate::error::AppError::ValidationError(
-                                "群头像哈希校验失败，请重新上传".to_string(),
-                            ));
+                            return Err(crate::error::AppError::ValidationError(String::new())
+                                .with_message_key("room.avatar_hash_mismatch"));
                         }
                     }
                 }
             }
         }
         Err(crate::error::AppError::NotFound(_)) => {
-            return Err(crate::error::AppError::ValidationError(
-                "COS 中尚未找到该群头像，请稍后重试".to_string(),
-            ));
+            return Err(crate::error::AppError::ValidationError(String::new())
+                .with_message_key("room.avatar_not_uploaded"));
         }
         Err(crate::error::AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
-                return Err(crate::error::AppError::ValidationError(
-                    "COS 中尚未找到该群头像，请稍后重试".to_string(),
-                ));
+                return Err(crate::error::AppError::ValidationError(String::new())
+                    .with_message_key("room.avatar_not_uploaded"));
             }
         }
         Err(e) => return Err(e),
@@ -1036,7 +1042,7 @@ pub async fn commit_room_avatar_upload(
 
     Ok(Json(CommitRoomAvatarUploadResponse {
         success: true,
-        message: "群头像上传成功".to_string(),
+        message: "ok".to_string(),
         avatar_url: Some(avatar_url),
     }))
 }
@@ -1071,14 +1077,14 @@ pub async fn get_room_avatar_download_url(
     .bind(room_id)
     .fetch_optional(state.database.pool())
     .await?
-    .ok_or_else(|| AppError::NotFound(format!("房间 {} 不存在", room_id)))?;
+    .ok_or_else(|| room_not_found_error("room.not_found"))?;
 
     let key = match room.avatar_object_key {
         Some(ref key) => key.clone(),
         None => {
             return Ok(Json(RoomAvatarDownloadUrlResponse {
                 success: false,
-                message: "该群聊尚未设置头像".to_string(),
+                message: room_localized_message("room.avatar_not_set", None),
                 download_url: None,
             }));
         }
@@ -1092,7 +1098,7 @@ pub async fn get_room_avatar_download_url(
 
     Ok(Json(RoomAvatarDownloadUrlResponse {
         success: true,
-        message: "生成下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }

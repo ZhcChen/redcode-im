@@ -1018,6 +1018,46 @@ fn i18n_version_catalog_interpolates_params() {
 }
 
 #[test]
+fn i18n_version_catalog_loads_tail_keys_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "version.version_id_invalid", None),
+        "无效的版本 ID"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.version_id_invalid", None),
+        "Version ID is invalid."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "version.package_version_not_found", None),
+        "绑定的整包版本不存在"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.rollout_percentage_invalid", None),
+        "rollout_percentage must be between 0 and 100."
+    );
+}
+
+#[test]
+fn i18n_version_catalog_interpolates_tail_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("expected".to_string(), "1024".to_string()),
+        ("actual".to_string(), "2048".to_string()),
+    ]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "version.package_size_mismatch", Some(&params)),
+        "安装包大小校验失败：期望 1024 字节，实际 2048 字节"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.patch_size_mismatch", Some(&params)),
+        "Patch size mismatch: expected 1024 bytes, got 2048 bytes."
+    );
+}
+
+#[test]
 fn i18n_room_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
@@ -1047,6 +1087,43 @@ fn i18n_room_catalog_interpolates_member_id_params() {
     assert_eq!(
         localizer.localize("en-US", "room.member_id_invalid", Some(&params)),
         "Member ID is invalid: not-a-uuid."
+    );
+}
+
+#[test]
+fn i18n_room_catalog_loads_avatar_tail_keys_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "room.avatar_image_only", None),
+        "仅允许上传图片文件"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.avatar_manage_forbidden", None),
+        "Only the room owner or an admin can upload the avatar."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.avatar_object_key_invalid", None),
+        "Invalid room avatar object key."
+    );
+}
+
+#[test]
+fn i18n_room_catalog_interpolates_avatar_tail_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let size_params = BTreeMap::from([("max_mb".to_string(), "5".to_string())]);
+    let mismatch_params = BTreeMap::from([
+        ("expected".to_string(), "1024".to_string()),
+        ("actual".to_string(), "2048".to_string()),
+    ]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "room.avatar_size_exceeded", Some(&size_params)),
+        "文件大小超出限制，最大允许5MB"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.avatar_size_mismatch", Some(&mismatch_params)),
+        "Room avatar size mismatch: expected 1024 bytes, got 2048 bytes."
     );
 }
 

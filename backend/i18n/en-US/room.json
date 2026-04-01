@@ -18,5 +18,14 @@
   "room.transfer_target_not_member": "Target user is not in this group.",
   "room.transfer_owner_only": "Only the room owner can transfer ownership.",
   "room.notification_setting_invalid": "Invalid notification setting. Must be 0 (all), 1 (mentions only), or 2 (muted).",
-  "room.update_owner_or_admin_only": "Only the room owner or an admin can update the room."
+  "room.update_owner_or_admin_only": "Only the room owner or an admin can update the room.",
+  "room.avatar_image_only": "Only image files are allowed.",
+  "room.avatar_size_exceeded": "File size exceeds the limit. Maximum allowed is {max_mb} MB.",
+  "room.avatar_manage_forbidden": "Only the room owner or an admin can upload the avatar.",
+  "room.avatar_key_required": "Avatar object key is required.",
+  "room.avatar_object_key_invalid": "Invalid room avatar object key.",
+  "room.avatar_size_mismatch": "Room avatar size mismatch: expected {expected} bytes, got {actual} bytes.",
+  "room.avatar_hash_mismatch": "Room avatar hash verification failed. Please upload again.",
+  "room.avatar_not_uploaded": "Room avatar is not available in storage yet. Please try again later.",
+  "room.avatar_not_set": "This room has no avatar yet."
 }

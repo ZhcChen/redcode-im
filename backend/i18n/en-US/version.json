@@ -16,5 +16,20 @@
   "version.download_info_missing": "This version does not have a package download configured (download_key/download_url).",
   "version.default_storage_provider_not_found": "Default file upload provider configuration was not found.",
   "version.default_storage_provider_inactive": "Default file upload provider is not enabled.",
-  "version.default_storage_provider_unsupported": "Unsupported default storage provider type: {provider_type}."
+  "version.default_storage_provider_unsupported": "Unsupported default storage provider type: {provider_type}.",
+  "version.version_id_invalid": "Version ID is invalid.",
+  "version.patch_id_invalid": "Patch ID is invalid.",
+  "version.record_not_found": "Version record was not found.",
+  "version.inactive_not_found": "Version was not found or has already been deactivated.",
+  "version.package_exists": "A version already exists for this platform and channel.",
+  "version.package_size_mismatch": "Package size mismatch: expected {expected} bytes, got {actual} bytes.",
+  "version.package_not_uploaded": "Package was not found in object storage. Please finish uploading first.",
+  "version.package_version_not_found": "Bound full package version was not found.",
+  "version.app_version_id_invalid": "app_version_id is invalid.",
+  "version.hot_update_platform_mismatch": "Hot update platform must match the bound full package version.",
+  "version.patch_size_mismatch": "Patch size mismatch: expected {expected} bytes, got {actual} bytes.",
+  "version.patch_not_uploaded": "Patch was not found in object storage. Please finish uploading first.",
+  "version.download_key_required": "download_key is required.",
+  "version.rollout_percentage_invalid": "rollout_percentage must be between 0 and 100.",
+  "version.multipart_session_create_failed": "Failed to create multipart session: {reason}"
 }

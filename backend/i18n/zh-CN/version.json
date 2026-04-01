@@ -16,5 +16,20 @@
   "version.download_info_missing": "该版本未配置安装包下载信息（download_key/download_url）",
   "version.default_storage_provider_not_found": "未找到默认文件上传提供商配置",
   "version.default_storage_provider_inactive": "默认文件上传提供商未启用",
-  "version.default_storage_provider_unsupported": "不支持的默认存储提供商类型: {provider_type}"
+  "version.default_storage_provider_unsupported": "不支持的默认存储提供商类型: {provider_type}",
+  "version.version_id_invalid": "无效的版本 ID",
+  "version.patch_id_invalid": "无效的补丁 ID",
+  "version.record_not_found": "版本记录不存在",
+  "version.inactive_not_found": "版本不存在或已停用",
+  "version.package_exists": "该平台该渠道的版本已存在",
+  "version.package_size_mismatch": "安装包大小校验失败：期望 {expected} 字节，实际 {actual} 字节",
+  "version.package_not_uploaded": "对象存储中未找到安装包，请先完成上传",
+  "version.package_version_not_found": "绑定的整包版本不存在",
+  "version.app_version_id_invalid": "无效的 app_version_id",
+  "version.hot_update_platform_mismatch": "热更新平台必须与整包版本一致",
+  "version.patch_size_mismatch": "补丁大小校验失败：期望 {expected} 字节，实际 {actual} 字节",
+  "version.patch_not_uploaded": "对象存储中未找到补丁，请先完成上传",
+  "version.download_key_required": "download_key 不能为空",
+  "version.rollout_percentage_invalid": "rollout_percentage 必须在 0-100 之间",
+  "version.multipart_session_create_failed": "创建分片会话失败: {reason}"
 }

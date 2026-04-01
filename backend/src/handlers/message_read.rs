@@ -28,7 +28,7 @@ pub async fn mark_message_read(
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden("您不是该房间成员".to_string()));
+        return Err(AppError::Forbidden(String::new()).with_message_key("room.membership_required"));
     }
 
     let read_store = MessageReadStore::new(&state.database.pool);
@@ -45,7 +45,7 @@ pub async fn mark_message_read(
 
     Ok(Json(json!({
         "success": true,
-        "message": "消息已标记为已读"
+        "message": "ok"
     })))
 }
 
@@ -61,7 +61,7 @@ pub async fn mark_messages_read_until(
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden("您不是该房间成员".to_string()));
+        return Err(AppError::Forbidden(String::new()).with_message_key("room.membership_required"));
     }
 
     let read_store = MessageReadStore::new(&state.database.pool);
@@ -78,7 +78,7 @@ pub async fn mark_messages_read_until(
 
     Ok(Json(json!({
         "success": true,
-        "message": format!("已标记 {} 条消息为已读", count),
+        "message": "ok",
         "count": count
     })))
 }
@@ -94,7 +94,7 @@ pub async fn get_message_read_list(
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden("您不是该房间成员".to_string()));
+        return Err(AppError::Forbidden(String::new()).with_message_key("room.membership_required"));
     }
 
     let read_store = MessageReadStore::new(&state.database.pool);
@@ -124,7 +124,7 @@ pub async fn get_unread_count(
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id_uuid, user_id).await? {
-        return Err(AppError::Forbidden("您不是该房间成员".to_string()));
+        return Err(AppError::Forbidden(String::new()).with_message_key("room.membership_required"));
     }
 
     let read_store = MessageReadStore::new(&state.database.pool);
