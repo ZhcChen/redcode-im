@@ -1,0 +1,19 @@
+{
+  "emoji.pack_id_invalid": "无效的贴纸ID",
+  "emoji.pack_name_required": "贴纸名称不能为空",
+  "emoji.pack_not_found": "贴纸不存在",
+  "emoji.item_image_url_required": "表情图片URL不能为空",
+  "emoji.item_id_invalid": "无效的表情项ID",
+  "emoji.item_not_found": "表情项不存在",
+  "emoji.user_id_invalid": "无效的用户ID",
+  "emoji.pack_inactive": "贴纸未激活",
+  "emoji.user_pack_not_found": "用户未添加此贴纸",
+  "emoji.search_keyword_required": "缺少搜索关键词",
+  "emoji.suite_id_invalid": "无效的贴纸包ID",
+  "emoji.suite_not_found": "贴纸包不存在",
+  "emoji.suite_expected": "指定的不是贴纸包",
+  "emoji.suite_inactive": "贴纸包未激活",
+  "emoji.user_suite_not_found": "用户未添加此贴纸包",
+  "emoji.object_key_required": "object_key 不能为空",
+  "emoji.object_key_invalid": "不合法的表情对象 key"
+}

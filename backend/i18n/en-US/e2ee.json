@@ -1,0 +1,15 @@
+{
+  "e2ee.device_id_invalid": "device_id is invalid.",
+  "e2ee.field_required": "{field} is required.",
+  "e2ee.field_base64_decode_failed": "{field} base64 decode failed.",
+  "e2ee.identity_key_length_invalid": "identity_key must be 32 bytes.",
+  "e2ee.signed_pre_key_id_invalid": "signed_pre_key.key_id is invalid.",
+  "e2ee.signed_pre_key_public_key_length_invalid": "signed_pre_key.public_key must be 32 bytes.",
+  "e2ee.signed_pre_key_signature_length_invalid": "signed_pre_key.signature must be 64 bytes.",
+  "e2ee.one_time_pre_keys_too_many": "Too many one_time_pre_keys. Maximum is {max}.",
+  "e2ee.one_time_pre_key_id_invalid": "one_time_pre_keys.key_id is invalid.",
+  "e2ee.one_time_pre_key_public_key_length_invalid": "one_time_pre_keys.public_key must be 32 bytes.",
+  "e2ee.target_user_not_initialized": "Target user has not initialized E2EE.",
+  "e2ee.identity_key_not_found": "identity_key was not found.",
+  "e2ee.signed_pre_key_not_found": "signed_pre_key was not found or has expired."
+}

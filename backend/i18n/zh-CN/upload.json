@@ -1,0 +1,21 @@
+{
+  "upload.invalid_session_id": "无效的 session_id",
+  "upload.part_number_positive_required": "part_number 必须大于 0",
+  "upload.session_read_failed": "读取分片会话失败: {reason}",
+  "upload.session_not_found": "分片会话不存在",
+  "upload.session_access_forbidden": "无权限访问该分片会话",
+  "upload.session_closed_for_sign": "分片会话已结束，无法继续签名",
+  "upload.part_number_out_of_range": "part_number 超出范围（1..={total_parts}）",
+  "upload.storage_provider_not_found": "存储提供商不存在",
+  "upload.storage_provider_inactive_for_sign": "存储提供商未启用，无法继续分片上传",
+  "upload.etag_required": "etag 不能为空",
+  "upload.session_closed_for_part_commit": "分片会话已结束，无法提交分片",
+  "upload.part_progress_write_failed": "写入分片进度失败: {reason}",
+  "upload.parts_required": "parts 不能为空",
+  "upload.session_closed_for_complete": "分片会话已结束，无法完成合并",
+  "upload.part_count_incomplete": "分片数量不完整：期望 {expected} 个，实际 {actual} 个",
+  "upload.part_number_not_sequential": "分片编号不连续：期望 part_number={expected}，实际 {actual}",
+  "upload.storage_provider_inactive_for_complete": "存储提供商未启用，无法完成分片上传",
+  "upload.session_status_update_failed": "更新分片会话状态失败: {reason}",
+  "upload.storage_provider_inactive_for_abort": "存储提供商未启用，无法中止分片上传"
+}

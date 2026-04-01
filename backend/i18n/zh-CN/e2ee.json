@@ -1,0 +1,15 @@
+{
+  "e2ee.device_id_invalid": "device_id 无效",
+  "e2ee.field_required": "{field} 不能为空",
+  "e2ee.field_base64_decode_failed": "{field} base64 解码失败",
+  "e2ee.identity_key_length_invalid": "identity_key 长度应为 32 字节",
+  "e2ee.signed_pre_key_id_invalid": "signed_pre_key.key_id 无效",
+  "e2ee.signed_pre_key_public_key_length_invalid": "signed_pre_key.public_key 长度应为 32 字节",
+  "e2ee.signed_pre_key_signature_length_invalid": "signed_pre_key.signature 长度应为 64 字节",
+  "e2ee.one_time_pre_keys_too_many": "one_time_pre_keys 数量过多（最大 {max}）",
+  "e2ee.one_time_pre_key_id_invalid": "one_time_pre_keys.key_id 无效",
+  "e2ee.one_time_pre_key_public_key_length_invalid": "one_time_pre_keys.public_key 长度应为 32 字节",
+  "e2ee.target_user_not_initialized": "目标用户未初始化 E2EE",
+  "e2ee.identity_key_not_found": "identity_key 不存在",
+  "e2ee.signed_pre_key_not_found": "signed_pre_key 不存在或已过期"
+}

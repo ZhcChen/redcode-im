@@ -1,0 +1,17 @@
+{
+  "push.provider_unsupported": "暂不支持的 provider: {provider}",
+  "push.service_account_json_required": "service_account_json 不能为空",
+  "push.service_account_json_invalid": "service_account_json 不是合法 JSON: {reason}",
+  "push.service_account_json_missing_fields": "service_account_json 缺少必要字段",
+  "push.secret_crypto_init_failed": "加密器初始化失败: {reason}",
+  "push.secret_encrypt_failed": "加密失败: {reason}",
+  "push.device_token_or_user_id_required": "缺少 device_token 或 user_id",
+  "push.title_required": "title 不能为空",
+  "push.body_required": "body 不能为空",
+  "push.test_send_failed": "发送测试推送失败: {reason}",
+  "push.device_id_invalid": "device_id 无效",
+  "push.device_token_invalid": "device_token 无效",
+  "push.platform_invalid": "platform 无效",
+  "push.channel_invalid": "channel 无效",
+  "push.user_id_invalid": "user_id 无效"
+}

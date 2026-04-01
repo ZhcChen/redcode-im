@@ -110,8 +110,9 @@ pub async fn list_all_packs(
     // 如果有 parent_id，返回指定贴纸包下的贴纸
     if let Some(parent_id_str) = params.get("parent_id") {
         if !parent_id_str.trim().is_empty() {
-            let parent_id = Uuid::parse_str(parent_id_str)
-                .map_err(|_| AppError::ValidationError("无效的贴纸包ID".to_string()))?;
+            let parent_id = Uuid::parse_str(parent_id_str).map_err(|_| {
+                AppError::ValidationError(String::new()).with_message_key("emoji.suite_id_invalid")
+            })?;
             let packs = store.list_packs_by_parent(parent_id).await?;
             let response: Vec<EmojiPackResponse> = packs.iter().map(db_pack_to_api).collect();
             return Ok(Json(response));
@@ -130,7 +131,9 @@ pub async fn create_pack(
     Json(payload): Json<CreateEmojiPackRequest>,
 ) -> Result<Json<EmojiPackResponse>, AppError> {
     if payload.name.trim().is_empty() {
-        return Err(AppError::ValidationError("贴纸名称不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("emoji.pack_name_required")
+        );
     }
 
     let store = EmojiPackStore::new(state.database.clone());
@@ -159,14 +162,14 @@ pub async fn get_pack(
     State(state): State<AppState>,
     Path(pack_id): Path<String>,
 ) -> Result<Json<EmojiPackWithItemsResponse>, AppError> {
-    let pack_id = Uuid::parse_str(&pack_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸ID".to_string()))?;
+    let pack_id = Uuid::parse_str(&pack_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.pack_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
-    let pack = store
-        .get_pack_by_id(pack_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("贴纸不存在".to_string()))?;
+    let pack = store.get_pack_by_id(pack_id).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.pack_not_found")
+    })?;
 
     let items = store.list_items_by_pack(pack_id).await?;
 
@@ -182,14 +185,14 @@ pub async fn update_pack(
     Path(pack_id): Path<String>,
     Json(payload): Json<UpdateEmojiPackRequest>,
 ) -> Result<Json<EmojiPackResponse>, AppError> {
-    let pack_id = Uuid::parse_str(&pack_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸ID".to_string()))?;
+    let pack_id = Uuid::parse_str(&pack_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.pack_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
-    let pack = store
-        .update_pack(pack_id, payload)
-        .await?
-        .ok_or_else(|| AppError::NotFound("贴纸不存在".to_string()))?;
+    let pack = store.update_pack(pack_id, payload).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.pack_not_found")
+    })?;
 
     if let Some(key) = pack
         .icon_object_key
@@ -213,19 +216,20 @@ pub async fn delete_pack(
     State(state): State<AppState>,
     Path(pack_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let pack_id = Uuid::parse_str(&pack_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸ID".to_string()))?;
+    let pack_id = Uuid::parse_str(&pack_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.pack_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
     let deleted = store.delete_pack(pack_id).await?;
 
     if !deleted {
-        return Err(AppError::NotFound("贴纸不存在".to_string()));
+        return Err(AppError::NotFound(String::new()).with_message_key("emoji.pack_not_found"));
     }
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "删除成功"
+        "message": "ok"
     })))
 }
 
@@ -237,7 +241,8 @@ pub async fn create_item(
     Json(payload): Json<CreateEmojiItemRequest>,
 ) -> Result<Json<EmojiItemResponse>, AppError> {
     if payload.image_url.trim().is_empty() {
-        return Err(AppError::ValidationError("表情图片URL不能为空".to_string()));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("emoji.item_image_url_required"));
     }
 
     let store = EmojiPackStore::new(state.database.clone());
@@ -265,14 +270,14 @@ pub async fn get_item(
     State(state): State<AppState>,
     Path(item_id): Path<String>,
 ) -> Result<Json<EmojiItemResponse>, AppError> {
-    let item_id = Uuid::parse_str(&item_id)
-        .map_err(|_| AppError::ValidationError("无效的表情项ID".to_string()))?;
+    let item_id = Uuid::parse_str(&item_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.item_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
-    let item = store
-        .get_item_by_id(item_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("表情项不存在".to_string()))?;
+    let item = store.get_item_by_id(item_id).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.item_not_found")
+    })?;
 
     Ok(Json(db_item_to_api(&item)))
 }
@@ -283,14 +288,14 @@ pub async fn update_item(
     Path(item_id): Path<String>,
     Json(payload): Json<UpdateEmojiItemRequest>,
 ) -> Result<Json<EmojiItemResponse>, AppError> {
-    let item_id = Uuid::parse_str(&item_id)
-        .map_err(|_| AppError::ValidationError("无效的表情项ID".to_string()))?;
+    let item_id = Uuid::parse_str(&item_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.item_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
-    let item = store
-        .update_item(item_id, payload)
-        .await?
-        .ok_or_else(|| AppError::NotFound("表情项不存在".to_string()))?;
+    let item = store.update_item(item_id, payload).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.item_not_found")
+    })?;
 
     if let Some(key) = item
         .image_object_key
@@ -314,19 +319,20 @@ pub async fn delete_item(
     State(state): State<AppState>,
     Path(item_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let item_id = Uuid::parse_str(&item_id)
-        .map_err(|_| AppError::ValidationError("无效的表情项ID".to_string()))?;
+    let item_id = Uuid::parse_str(&item_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.item_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
     let deleted = store.delete_item(item_id).await?;
 
     if !deleted {
-        return Err(AppError::NotFound("表情项不存在".to_string()));
+        return Err(AppError::NotFound(String::new()).with_message_key("emoji.item_not_found"));
     }
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "删除成功"
+        "message": "ok"
     })))
 }
 
@@ -337,8 +343,9 @@ pub async fn list_user_packs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<EmojiPackWithItemsResponse>>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.user_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
     let packs = store.list_user_packs(user_id).await?;
@@ -372,31 +379,34 @@ pub async fn add_user_pack(
     Extension(claims): Extension<Claims>,
     Path(pack_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-    let pack_id = Uuid::parse_str(&pack_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸ID".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.user_id_invalid")
+    })?;
+    let pack_id = Uuid::parse_str(&pack_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.pack_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
 
     // 检查贴纸是否存在且激活
-    let pack = store
-        .get_pack_by_id(pack_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("贴纸不存在".to_string()))?;
+    let pack = store.get_pack_by_id(pack_id).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.pack_not_found")
+    })?;
 
     if !matches!(
         pack.is_active,
         crate::database::models::EmojiPackStatus::Active
     ) {
-        return Err(AppError::ValidationError("贴纸未激活".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("emoji.pack_inactive")
+        );
     }
 
     store.add_user_pack(user_id, pack_id).await?;
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "添加成功"
+        "message": "ok"
     })))
 }
 
@@ -406,21 +416,23 @@ pub async fn remove_user_pack(
     Extension(claims): Extension<Claims>,
     Path(pack_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-    let pack_id = Uuid::parse_str(&pack_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸ID".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.user_id_invalid")
+    })?;
+    let pack_id = Uuid::parse_str(&pack_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.pack_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
     let removed = store.remove_user_pack(user_id, pack_id).await?;
 
     if !removed {
-        return Err(AppError::NotFound("用户未添加此贴纸".to_string()));
+        return Err(AppError::NotFound(String::new()).with_message_key("emoji.user_pack_not_found"));
     }
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "删除成功"
+        "message": "ok"
     })))
 }
 
@@ -429,9 +441,9 @@ pub async fn search_packs(
     State(state): State<AppState>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<EmojiPackResponse>>, AppError> {
-    let keyword = params
-        .get("keyword")
-        .ok_or_else(|| AppError::ValidationError("缺少搜索关键词".to_string()))?;
+    let keyword = params.get("keyword").ok_or_else(|| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.search_keyword_required")
+    })?;
 
     if keyword.trim().is_empty() {
         return Ok(Json(vec![]));
@@ -450,38 +462,43 @@ pub async fn add_user_suite(
     Extension(claims): Extension<Claims>,
     Path(suite_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-    let suite_id = Uuid::parse_str(&suite_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸包ID".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.user_id_invalid")
+    })?;
+    let suite_id = Uuid::parse_str(&suite_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.suite_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
 
     // 检查贴纸包是否存在且是贴纸包类型
-    let suite = store
-        .get_pack_by_id(suite_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("贴纸包不存在".to_string()))?;
+    let suite = store.get_pack_by_id(suite_id).await?.ok_or_else(|| {
+        AppError::NotFound(String::new()).with_message_key("emoji.suite_not_found")
+    })?;
 
     if !matches!(
         suite.pack_type,
         crate::database::models::EmojiPackType::Suite
     ) {
-        return Err(AppError::ValidationError("指定的不是贴纸包".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("emoji.suite_expected")
+        );
     }
 
     if !matches!(
         suite.is_active,
         crate::database::models::EmojiPackStatus::Active
     ) {
-        return Err(AppError::ValidationError("贴纸包未激活".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("emoji.suite_inactive")
+        );
     }
 
     let count = store.add_suite_packs_to_user(user_id, suite_id).await?;
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": format!("成功添加 {} 个贴纸", count),
+        "message": "ok",
         "count": count
     })))
 }
@@ -492,17 +509,21 @@ pub async fn list_user_suite_packs(
     Extension(claims): Extension<Claims>,
     Path(suite_id): Path<String>,
 ) -> Result<Json<Vec<EmojiPackWithItemsResponse>>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-    let suite_id = Uuid::parse_str(&suite_id)
-        .map_err(|_| AppError::ValidationError("无效的贴纸包ID".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.user_id_invalid")
+    })?;
+    let suite_id = Uuid::parse_str(&suite_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("emoji.suite_id_invalid")
+    })?;
 
     let store = EmojiPackStore::new(state.database.clone());
 
     // 检查用户是否已添加此贴纸包
     let has_suite = store.has_user_pack(user_id, suite_id).await?;
     if !has_suite {
-        return Err(AppError::NotFound("用户未添加此贴纸包".to_string()));
+        return Err(
+            AppError::NotFound(String::new()).with_message_key("emoji.user_suite_not_found")
+        );
     }
 
     // 获取贴纸包下的所有贴纸（从数据库）
@@ -618,9 +639,9 @@ pub async fn get_emoji_download_url(
 
     // 仅允许访问表情相关前缀，避免被滥用为通用下载接口
     if !key_raw.starts_with("emoji-items/") && !key_raw.starts_with("emoji-packs/") {
-        return Err(AppError::ValidationError(
-            "不合法的表情对象 key".to_string(),
-        ));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("emoji.object_key_invalid")
+        );
     }
 
     let expires = query.expires_in_seconds.unwrap_or(3600).clamp(60, 86_400);
@@ -656,7 +677,7 @@ pub async fn get_emoji_download_url(
 
     Ok(Json(EmojiDownloadUrlResponse {
         success: true,
-        message: "生成表情下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }

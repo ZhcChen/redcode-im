@@ -1,0 +1,17 @@
+{
+  "push.provider_unsupported": "Unsupported provider for now: {provider}.",
+  "push.service_account_json_required": "service_account_json is required.",
+  "push.service_account_json_invalid": "service_account_json is not valid JSON: {reason}",
+  "push.service_account_json_missing_fields": "service_account_json is missing required fields.",
+  "push.secret_crypto_init_failed": "Failed to initialize secret crypto: {reason}",
+  "push.secret_encrypt_failed": "Failed to encrypt secret: {reason}",
+  "push.device_token_or_user_id_required": "Either device_token or user_id is required.",
+  "push.title_required": "title is required.",
+  "push.body_required": "body is required.",
+  "push.test_send_failed": "Failed to send test push: {reason}",
+  "push.device_id_invalid": "device_id is invalid.",
+  "push.device_token_invalid": "device_token is invalid.",
+  "push.platform_invalid": "platform is invalid.",
+  "push.channel_invalid": "channel is invalid.",
+  "push.user_id_invalid": "user_id is invalid."
+}

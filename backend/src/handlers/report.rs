@@ -4,6 +4,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::{
@@ -152,28 +153,32 @@ pub async fn generate_report_attachment_signature(
     Extension(claims): Extension<Claims>,
     Json(req): Json<ReportAttachmentSignatureRequest>,
 ) -> Result<Json<ReportAttachmentSignatureResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let content_type = req.content_type.trim();
     if content_type.is_empty() {
-        return Err(AppError::ValidationError(
-            "content_type 不能为空".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("report.content_type_required"));
     }
     if !crate::constants::is_image_content_type(content_type) {
-        return Err(AppError::ValidationError(
-            "举报截图仅支持图片类型文件".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("report.attachment_image_only"));
     }
 
     // 举报截图属于普通图片附件，不应受头像 5MB 限制
     let max_size = crate::constants::IMAGE_MAX_SIZE_BYTES;
     if req.file_size == 0 || req.file_size > max_size {
-        return Err(AppError::ValidationError(format!(
-            "截图大小超出限制，最大允许{}MB",
-            max_size / 1024 / 1024
-        )));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "report.attachment_size_exceeded",
+                Some(BTreeMap::from([(
+                    "max_mb".to_string(),
+                    (max_size / 1024 / 1024).to_string(),
+                )])),
+            ),
+        );
     }
 
     let provider = load_default_storage_provider(&state).await?;
@@ -207,7 +212,7 @@ pub async fn generate_report_attachment_signature(
 
     Ok(Json(ReportAttachmentSignatureResponse {
         success: true,
-        message: "生成举报截图直传签名成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         signature: Some(signature),
     }))
@@ -218,16 +223,20 @@ pub async fn commit_report_attachment_upload(
     Extension(claims): Extension<Claims>,
     Json(req): Json<ReportAttachmentUploadCommitRequest>,
 ) -> Result<Json<ReportAttachmentUploadCommitResponse>, AppError> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let key = req.key.trim();
     if key.is_empty() {
-        return Err(AppError::ValidationError("key 不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("report.key_required")
+        );
     }
 
     if !is_valid_report_attachment_object_key(key, &user_id) {
-        return Err(AppError::ValidationError("举报截图 key 不合法".to_string()));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("report.attachment_key_invalid"));
     }
 
     let provider = load_default_storage_provider(&state).await?;
@@ -237,15 +246,13 @@ pub async fn commit_report_attachment_upload(
         Ok(_) => {}
         Err(AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
-                return Err(AppError::ValidationError(
-                    "COS 中尚未找到该截图，请稍后重试".to_string(),
-                ));
+                return Err(AppError::ValidationError(String::new())
+                    .with_message_key("report.attachment_not_uploaded"));
             }
         }
         Err(AppError::NotFound(_)) => {
-            return Err(AppError::ValidationError(
-                "COS 中尚未找到该截图，请稍后重试".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("report.attachment_not_uploaded"));
         }
         Err(e) => return Err(e),
     }
@@ -301,7 +308,7 @@ pub async fn commit_report_attachment_upload(
 
     Ok(Json(ReportAttachmentUploadCommitResponse {
         success: true,
-        message: "举报截图上传完成".to_string(),
+        message: "ok".to_string(),
     }))
 }
 
@@ -310,12 +317,15 @@ pub async fn create_report(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CreateReportRequest>,
 ) -> Result<Json<CreateReportResponse>, AppError> {
-    let reporter_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let reporter_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let content = req.content.trim();
     if content.is_empty() {
-        return Err(AppError::ValidationError("举报内容不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("report.content_required")
+        );
     }
 
     let mut keys: Vec<String> = req
@@ -329,14 +339,15 @@ pub async fn create_report(
     keys.dedup();
 
     if keys.is_empty() {
-        return Err(AppError::ValidationError(
-            "举报必须上传至少 1 张截图".to_string(),
-        ));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("report.attachment_required")
+        );
     }
 
     // 校验 target
-    let target_uuid = Uuid::parse_str(req.target_id.trim())
-        .map_err(|_| AppError::ValidationError("target_id 不合法".to_string()))?;
+    let target_uuid = Uuid::parse_str(req.target_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("report.target_id_invalid")
+    })?;
 
     // 访问控制校验
     match req.target_type {
@@ -344,18 +355,19 @@ pub async fn create_report(
             let room_id = target_uuid;
             let store = MessageStore::new(state.database.pool());
             if !store.user_in_room(room_id, reporter_id).await? {
-                return Err(AppError::Forbidden(
-                    "用户不在该群聊，无法举报该群聊".to_string(),
-                ));
+                return Err(AppError::Forbidden(String::new())
+                    .with_message_key("report.target_room_membership_required"));
             }
         }
         ReportTargetType::User => {
             if target_uuid == reporter_id {
-                return Err(AppError::ValidationError("不能举报自己".to_string()));
+                return Err(AppError::ValidationError(String::new())
+                    .with_message_key("report.cannot_report_self"));
             }
             let user_store = UserStore::new(state.database.clone());
             if user_store.find_by_id(&target_uuid).await?.is_none() {
-                return Err(AppError::NotFound("举报目标用户不存在".to_string()));
+                return Err(AppError::NotFound(String::new())
+                    .with_message_key("report.target_user_not_found"));
             }
         }
     }
@@ -365,12 +377,12 @@ pub async fn create_report(
 
     for key in &keys {
         if !is_valid_report_attachment_object_key(key, &reporter_id) {
-            return Err(AppError::ValidationError("举报截图 key 不合法".to_string()));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("report.attachment_key_invalid"));
         }
         if !storage_service.file_exists(key).await? {
-            return Err(AppError::ValidationError(
-                "举报截图尚未上传完成，请稍后重试".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("report.attachment_not_uploaded"));
         }
     }
 
@@ -404,7 +416,7 @@ pub async fn create_report(
 
     Ok(Json(CreateReportResponse {
         success: true,
-        message: "举报已提交，感谢你的反馈".to_string(),
+        message: "ok".to_string(),
         report_id: report_id.to_string(),
     }))
 }
@@ -464,9 +476,8 @@ fn parse_target_type(value: Option<&str>) -> Result<Option<i32>, AppError> {
     match trimmed {
         "room" => Ok(Some(1)),
         "user" => Ok(Some(2)),
-        _ => Err(AppError::ValidationError(
-            "target_type 仅支持 room/user".to_string(),
-        )),
+        _ => Err(AppError::ValidationError(String::new())
+            .with_message_key("report.target_type_unsupported")),
     }
 }
 
@@ -483,10 +494,10 @@ pub async fn list_reports_admin(
         if trimmed.is_empty() {
             None
         } else {
-            Some(
-                Uuid::parse_str(trimmed)
-                    .map_err(|_| AppError::ValidationError("reporter_id 不合法".to_string()))?,
-            )
+            Some(Uuid::parse_str(trimmed).map_err(|_| {
+                AppError::ValidationError(String::new())
+                    .with_message_key("report.reporter_id_invalid")
+            })?)
         }
     } else {
         None
@@ -499,8 +510,10 @@ pub async fn list_reports_admin(
     if let Some(value) = query.target_id.as_deref() {
         let trimmed = value.trim();
         if !trimmed.is_empty() {
-            let uuid = Uuid::parse_str(trimmed)
-                .map_err(|_| AppError::ValidationError("target_id 不合法".to_string()))?;
+            let uuid = Uuid::parse_str(trimmed).map_err(|_| {
+                AppError::ValidationError(String::new())
+                    .with_message_key("report.target_id_invalid")
+            })?;
             match target_type {
                 Some(1) => target_room_id = Some(uuid),
                 Some(2) => target_user_id = Some(uuid),

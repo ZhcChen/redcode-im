@@ -1,0 +1,21 @@
+{
+  "upload.invalid_session_id": "session_id is invalid.",
+  "upload.part_number_positive_required": "part_number must be greater than 0.",
+  "upload.session_read_failed": "Failed to read multipart session: {reason}",
+  "upload.session_not_found": "Multipart session was not found.",
+  "upload.session_access_forbidden": "You do not have permission to access this multipart session.",
+  "upload.session_closed_for_sign": "Multipart session has ended and cannot continue signing.",
+  "upload.part_number_out_of_range": "part_number is out of range (1..={total_parts}).",
+  "upload.storage_provider_not_found": "Storage provider was not found.",
+  "upload.storage_provider_inactive_for_sign": "Storage provider is inactive and multipart upload signing cannot continue.",
+  "upload.etag_required": "etag is required.",
+  "upload.session_closed_for_part_commit": "Multipart session has ended and cannot accept part commits.",
+  "upload.part_progress_write_failed": "Failed to persist multipart progress: {reason}",
+  "upload.parts_required": "parts is required.",
+  "upload.session_closed_for_complete": "Multipart session has ended and cannot be completed.",
+  "upload.part_count_incomplete": "Incomplete parts list: expected {expected} parts, got {actual}.",
+  "upload.part_number_not_sequential": "Part numbers are not sequential: expected part_number={expected}, got {actual}.",
+  "upload.storage_provider_inactive_for_complete": "Storage provider is inactive and multipart upload cannot be completed.",
+  "upload.session_status_update_failed": "Failed to update multipart session status: {reason}",
+  "upload.storage_provider_inactive_for_abort": "Storage provider is inactive and multipart upload cannot be aborted."
+}

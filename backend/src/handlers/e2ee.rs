@@ -6,6 +6,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::database::e2ee_key_store::{E2eeKeyStore, OneTimePreKeyInsert, SignedPreKeyInsert};
@@ -51,60 +52,60 @@ pub async fn upload_key_bundle(
     Extension(claims): Extension<Claims>,
     Json(req): Json<UploadKeyBundleRequest>,
 ) -> Result<Json<UploadKeyBundleResponse>, AppError> {
-    let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let user_id = string_to_uuid(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let device_id = req.device_id.trim();
     if device_id.is_empty() || device_id.len() > 128 {
-        return Err(AppError::ValidationError("device_id 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("e2ee.device_id_invalid")
+        );
     }
 
     let identity_key = decode_b64(&req.identity_key, "identity_key")?;
     if identity_key.len() != 32 {
-        return Err(AppError::ValidationError(
-            "identity_key 长度应为 32 字节".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("e2ee.identity_key_length_invalid"));
     }
 
     if req.signed_pre_key.key_id <= 0 {
-        return Err(AppError::ValidationError(
-            "signed_pre_key.key_id 无效".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("e2ee.signed_pre_key_id_invalid"));
     }
 
     let signed_public_key =
         decode_b64(&req.signed_pre_key.public_key, "signed_pre_key.public_key")?;
     if signed_public_key.len() != 32 {
-        return Err(AppError::ValidationError(
-            "signed_pre_key.public_key 长度应为 32 字节".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("e2ee.signed_pre_key_public_key_length_invalid"));
     }
 
     let signed_signature = decode_b64(&req.signed_pre_key.signature, "signed_pre_key.signature")?;
     if signed_signature.len() != 64 {
-        return Err(AppError::ValidationError(
-            "signed_pre_key.signature 长度应为 64 字节".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("e2ee.signed_pre_key_signature_length_invalid"));
     }
 
     if req.one_time_pre_keys.len() > 200 {
-        return Err(AppError::ValidationError(
-            "one_time_pre_keys 数量过多（最大 200）".to_string(),
-        ));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "e2ee.one_time_pre_keys_too_many",
+                Some(BTreeMap::from([("max".to_string(), "200".to_string())])),
+            ),
+        );
     }
 
     let mut one_time_keys = Vec::with_capacity(req.one_time_pre_keys.len());
     for item in req.one_time_pre_keys {
         if item.key_id <= 0 {
-            return Err(AppError::ValidationError(
-                "one_time_pre_keys.key_id 无效".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("e2ee.one_time_pre_key_id_invalid"));
         }
         let public_key = decode_b64(&item.public_key, "one_time_pre_keys.public_key")?;
         if public_key.len() != 32 {
-            return Err(AppError::ValidationError(
-                "one_time_pre_keys.public_key 长度应为 32 字节".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("e2ee.one_time_pre_key_public_key_length_invalid"));
         }
         one_time_keys.push(OneTimePreKeyInsert {
             key_id: item.key_id,
@@ -133,7 +134,7 @@ pub async fn upload_key_bundle(
 
     Ok(Json(UploadKeyBundleResponse {
         success: true,
-        message: "密钥上传成功".to_string(),
+        message: "ok".to_string(),
         device_id: device_id.to_string(),
         one_time_pre_keys_saved: one_time_keys.len(),
     }))
@@ -181,7 +182,9 @@ pub async fn get_key_bundles(
     let device_ids = store.list_device_ids(target_user_id).await?;
 
     if device_ids.is_empty() {
-        return Err(AppError::NotFound("目标用户未初始化 E2EE".to_string()));
+        return Err(
+            AppError::NotFound(String::new()).with_message_key("e2ee.target_user_not_initialized")
+        );
     }
 
     let mut bundles = Vec::with_capacity(device_ids.len());
@@ -189,12 +192,16 @@ pub async fn get_key_bundles(
         let identity_key = store
             .get_identity_key(target_user_id, &device_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("identity_key 不存在".to_string()))?;
+            .ok_or_else(|| {
+                AppError::NotFound(String::new()).with_message_key("e2ee.identity_key_not_found")
+            })?;
 
         let signed = store
             .get_latest_active_signed_pre_key(target_user_id, &device_id)
             .await?
-            .ok_or_else(|| AppError::NotFound("signed_pre_key 不存在或已过期".to_string()))?;
+            .ok_or_else(|| {
+                AppError::NotFound(String::new()).with_message_key("e2ee.signed_pre_key_not_found")
+            })?;
 
         let one_time = store
             .take_one_time_pre_key(target_user_id, &device_id)
@@ -230,9 +237,17 @@ pub async fn get_key_bundles(
 fn decode_b64(value: &str, field: &str) -> Result<Vec<u8>, AppError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return Err(AppError::ValidationError(format!("{} 不能为空", field)));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "e2ee.field_required",
+                Some(BTreeMap::from([("field".to_string(), field.to_string())])),
+            ),
+        );
     }
-    BASE64_STANDARD
-        .decode(trimmed)
-        .map_err(|_| AppError::ValidationError(format!("{} base64 解码失败", field)))
+    BASE64_STANDARD.decode(trimmed).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key_and_params(
+            "e2ee.field_base64_decode_failed",
+            Some(BTreeMap::from([("field".to_string(), field.to_string())])),
+        )
+    })
 }

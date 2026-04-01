@@ -1,0 +1,16 @@
+{
+  "report.content_type_required": "content_type is required.",
+  "report.attachment_image_only": "Report attachments must be image files.",
+  "report.attachment_size_exceeded": "Attachment size exceeds the limit. Maximum allowed is {max_mb} MB.",
+  "report.key_required": "key is required.",
+  "report.attachment_key_invalid": "Report attachment key is invalid.",
+  "report.attachment_not_uploaded": "Report attachment is not uploaded yet. Please try again later.",
+  "report.content_required": "Report content is required.",
+  "report.attachment_required": "At least one report attachment is required.",
+  "report.target_id_invalid": "target_id is invalid.",
+  "report.target_room_membership_required": "You must be in the room before reporting it.",
+  "report.cannot_report_self": "You cannot report yourself.",
+  "report.target_user_not_found": "Report target user was not found.",
+  "report.target_type_unsupported": "target_type only supports room/user.",
+  "report.reporter_id_invalid": "reporter_id is invalid."
+}

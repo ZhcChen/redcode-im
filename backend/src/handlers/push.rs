@@ -29,27 +29,36 @@ pub async fn register_device(
     Extension(claims): Extension<Claims>,
     Json(req): Json<RegisterPushDeviceRequest>,
 ) -> Result<Json<RegisterPushDeviceResponse>, AppError> {
-    let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let user_id = string_to_uuid(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let device_id = req.device_id.trim();
     if device_id.is_empty() || device_id.len() > 128 {
-        return Err(AppError::ValidationError("device_id 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.device_id_invalid")
+        );
     }
 
     let device_token = req.device_token.trim();
     if device_token.is_empty() || device_token.len() > 4096 {
-        return Err(AppError::ValidationError("device_token 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.device_token_invalid")
+        );
     }
 
     let platform = req.platform.trim().to_lowercase();
     if platform.is_empty() || platform.len() > 32 {
-        return Err(AppError::ValidationError("platform 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.platform_invalid")
+        );
     }
 
     let channel = req.channel.trim().to_lowercase();
     if channel.is_empty() || channel.len() > 32 {
-        return Err(AppError::ValidationError("channel 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.channel_invalid")
+        );
     }
 
     let store = PushDeviceStore::new(state.database.pool());
@@ -59,7 +68,7 @@ pub async fn register_device(
 
     Ok(Json(RegisterPushDeviceResponse {
         success: true,
-        message: "设备已注册".to_string(),
+        message: "ok".to_string(),
         device_id: device_id.to_string(),
     }))
 }
@@ -75,23 +84,22 @@ pub async fn unregister_device(
     Extension(claims): Extension<Claims>,
     Path(device_id): Path<String>,
 ) -> Result<Json<UnregisterPushDeviceResponse>, AppError> {
-    let user_id = string_to_uuid(&claims.sub)
-        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {}", e)))?;
+    let user_id = string_to_uuid(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let trimmed = device_id.trim();
     if trimmed.is_empty() || trimmed.len() > 128 {
-        return Err(AppError::ValidationError("device_id 无效".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.device_id_invalid")
+        );
     }
 
     let store = PushDeviceStore::new(state.database.pool());
-    let deleted = store.deactivate_device(user_id, trimmed).await?;
+    let _deleted = store.deactivate_device(user_id, trimmed).await?;
 
     Ok(Json(UnregisterPushDeviceResponse {
         success: true,
-        message: if deleted {
-            "设备已注销".to_string()
-        } else {
-            "设备不存在或已注销".to_string()
-        },
+        message: "ok".to_string(),
     }))
 }

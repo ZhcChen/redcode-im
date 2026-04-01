@@ -4,13 +4,13 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use uuid::Uuid;
 
 use crate::crypto::SecretCrypto;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
-use crate::models::convert::string_to_uuid;
 use crate::models::Claims;
 use crate::AppState;
 
@@ -99,7 +99,9 @@ pub async fn update_push_settings_admin(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<UpdatePushSettingsRequest>,
 ) -> Result<Json<GetPushSettingsResponse>, AppError> {
-    let editor_id = string_to_uuid(&claims.sub)?;
+    let editor_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
     let settings = SettingsStore::new(state.database.clone());
     let _ = settings
         .upsert_general_setting(
@@ -149,13 +151,17 @@ pub async fn upsert_push_provider_admin(
 ) -> Result<Json<PushProviderConfigView>, AppError> {
     let provider = provider.trim().to_lowercase();
     if provider != "fcm" {
-        return Err(AppError::ValidationError(format!(
-            "暂不支持的 provider: {}",
-            provider
-        )));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "push.provider_unsupported",
+                Some(BTreeMap::from([("provider".to_string(), provider.clone())])),
+            ),
+        );
     }
 
-    let editor_id = string_to_uuid(&claims.sub)?;
+    let editor_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
     let store = PushProviderConfigStore::new(state.database.pool());
 
     let existing = store.get_config(&provider, "all").await?;
@@ -170,21 +176,22 @@ pub async fn upsert_push_provider_admin(
     if let Some(raw) = payload.service_account_json.as_ref() {
         let trimmed = raw.trim();
         if trimmed.is_empty() {
-            return Err(AppError::ValidationError(
-                "service_account_json 不能为空".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("push.service_account_json_required"));
         }
 
         let parsed: GoogleServiceAccountPayload = serde_json::from_str(trimmed).map_err(|e| {
-            AppError::ValidationError(format!("service_account_json 不是合法 JSON: {}", e))
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "push.service_account_json_invalid",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
         })?;
         if parsed.project_id.trim().is_empty()
             || parsed.client_email.trim().is_empty()
             || parsed.private_key.trim().is_empty()
         {
-            return Err(AppError::ValidationError(
-                "service_account_json 缺少必要字段".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("push.service_account_json_missing_fields"));
         }
 
         config_public = json!({
@@ -193,13 +200,18 @@ pub async fn upsert_push_provider_admin(
             "token_uri": parsed.token_uri,
         });
 
-        let crypto = SecretCrypto::new()
-            .map_err(|e| AppError::InternalError(format!("加密器初始化失败: {}", e)))?;
-        secret_ciphertext = Some(
-            crypto
-                .encrypt_to_base64(trimmed)
-                .map_err(|e| AppError::InternalError(format!("加密失败: {}", e)))?,
-        );
+        let crypto = SecretCrypto::new().map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "push.secret_crypto_init_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?;
+        secret_ciphertext = Some(crypto.encrypt_to_base64(trimmed).map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "push.secret_encrypt_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?);
         secret_fingerprint = Some(SecretCrypto::sha256_hex(trimmed));
     }
 
@@ -253,10 +265,12 @@ pub async fn test_push_admin(
 ) -> Result<Json<TestPushResponse>, AppError> {
     let provider = payload.provider.trim().to_lowercase();
     if provider != "fcm" {
-        return Err(AppError::ValidationError(format!(
-            "暂不支持的 provider: {}",
-            provider
-        )));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "push.provider_unsupported",
+                Some(BTreeMap::from([("provider".to_string(), provider.clone())])),
+            ),
+        );
     }
 
     let mut token: Option<String> = payload
@@ -272,7 +286,9 @@ pub async fn test_push_admin(
             .map(|v| v.trim())
             .filter(|v| !v.is_empty())
         {
-            let user_uuid = string_to_uuid(user_id)?;
+            let user_uuid = Uuid::parse_str(user_id).map_err(|_| {
+                AppError::ValidationError(String::new()).with_message_key("push.user_id_invalid")
+            })?;
             let device_store =
                 crate::database::push_device_store::PushDeviceStore::new(state.database.pool());
             let devices = device_store
@@ -285,14 +301,18 @@ pub async fn test_push_admin(
         }
     }
 
-    let token = token
-        .ok_or_else(|| AppError::ValidationError("缺少 device_token 或 user_id".to_string()))?;
+    let token = token.ok_or_else(|| {
+        AppError::ValidationError(String::new())
+            .with_message_key("push.device_token_or_user_id_required")
+    })?;
 
     if payload.title.trim().is_empty() {
-        return Err(AppError::ValidationError("title 不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("push.title_required")
+        );
     }
     if payload.body.trim().is_empty() {
-        return Err(AppError::ValidationError("body 不能为空".to_string()));
+        return Err(AppError::ValidationError(String::new()).with_message_key("push.body_required"));
     }
 
     let mut data = HashMap::new();
@@ -300,10 +320,15 @@ pub async fn test_push_admin(
 
     crate::services::push::send_fcm_test(&state, &token, &payload.title, &payload.body, &data)
         .await
-        .map_err(|e| AppError::InternalError(e))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "push.test_send_failed",
+                Some(BTreeMap::from([("reason".to_string(), e)])),
+            )
+        })?;
 
     Ok(Json(TestPushResponse {
         success: true,
-        message: "发送成功".to_string(),
+        message: "ok".to_string(),
     }))
 }

@@ -3,6 +3,7 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::database::file_upload_audit_store::FileUploadAuditStore;
@@ -109,21 +110,32 @@ pub async fn get_multipart_session(
     Path(session_id): Path<String>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MultipartSessionResponse>, AppError> {
-    let session_uuid = Uuid::parse_str(session_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 session_id".to_string()))?;
+    let session_uuid = Uuid::parse_str(session_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("upload.invalid_session_id")
+    })?;
 
-    let requester_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let requester_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
     let session = store
         .get_session(&session_uuid)
         .await
-        .map_err(|e| AppError::InternalError(format!("读取分片会话失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("分片会话不存在".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_read_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.session_not_found")
+        })?;
 
     if session.creator_id != requester_id || session.creator_is_admin != claims.is_admin {
-        return Err(AppError::Forbidden("无权限访问该分片会话".to_string()));
+        return Err(
+            AppError::Forbidden(String::new()).with_message_key("upload.session_access_forbidden")
+        );
     }
 
     Ok(Json(MultipartSessionResponse {
@@ -159,51 +171,66 @@ pub async fn generate_multipart_part_signature(
     Extension(claims): Extension<Claims>,
     Json(req): Json<PartSignatureRequest>,
 ) -> Result<Json<PartSignatureResponse>, AppError> {
-    let session_uuid = Uuid::parse_str(session_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 session_id".to_string()))?;
+    let session_uuid = Uuid::parse_str(session_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("upload.invalid_session_id")
+    })?;
 
     if req.part_number <= 0 {
-        return Err(AppError::ValidationError(
-            "part_number 必须大于 0".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.part_number_positive_required"));
     }
 
-    let requester_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let requester_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
     let session = store
         .get_session(&session_uuid)
         .await
-        .map_err(|e| AppError::InternalError(format!("读取分片会话失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("分片会话不存在".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_read_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.session_not_found")
+        })?;
 
     if session.creator_id != requester_id || session.creator_is_admin != claims.is_admin {
-        return Err(AppError::Forbidden("无权限访问该分片会话".to_string()));
+        return Err(
+            AppError::Forbidden(String::new()).with_message_key("upload.session_access_forbidden")
+        );
     }
 
     if session.status != 0 {
-        return Err(AppError::ValidationError(
-            "分片会话已结束，无法继续签名".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.session_closed_for_sign"));
     }
 
     if session.total_parts > 0 && req.part_number > session.total_parts {
-        return Err(AppError::ValidationError(format!(
-            "part_number 超出范围（1..={}）",
-            session.total_parts
-        )));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "upload.part_number_out_of_range",
+                Some(BTreeMap::from([(
+                    "total_parts".to_string(),
+                    session.total_parts.to_string(),
+                )])),
+            ),
+        );
     }
 
     let provider_store = StorageProviderStore::new(state.database.clone());
     let provider = provider_store
         .get_provider_by_id(&session.storage_provider_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.storage_provider_not_found")
+        })?;
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "存储提供商未启用，无法继续分片上传".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.storage_provider_inactive_for_sign"));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -242,50 +269,71 @@ pub async fn commit_multipart_part(
     Extension(claims): Extension<Claims>,
     Json(req): Json<PartCommitRequest>,
 ) -> Result<Json<PartCommitResponse>, AppError> {
-    let session_uuid = Uuid::parse_str(session_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 session_id".to_string()))?;
+    let session_uuid = Uuid::parse_str(session_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("upload.invalid_session_id")
+    })?;
 
     if req.part_number <= 0 {
-        return Err(AppError::ValidationError(
-            "part_number 必须大于 0".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.part_number_positive_required"));
     }
 
     if req.etag.trim().is_empty() {
-        return Err(AppError::ValidationError("etag 不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("upload.etag_required")
+        );
     }
 
-    let requester_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let requester_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
     let session = store
         .get_session(&session_uuid)
         .await
-        .map_err(|e| AppError::InternalError(format!("读取分片会话失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("分片会话不存在".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_read_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.session_not_found")
+        })?;
 
     if session.creator_id != requester_id || session.creator_is_admin != claims.is_admin {
-        return Err(AppError::Forbidden("无权限访问该分片会话".to_string()));
+        return Err(
+            AppError::Forbidden(String::new()).with_message_key("upload.session_access_forbidden")
+        );
     }
 
     if session.status != 0 {
-        return Err(AppError::ValidationError(
-            "分片会话已结束，无法提交分片".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.session_closed_for_part_commit"));
     }
 
     if session.total_parts > 0 && req.part_number > session.total_parts {
-        return Err(AppError::ValidationError(format!(
-            "part_number 超出范围（1..={}）",
-            session.total_parts
-        )));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "upload.part_number_out_of_range",
+                Some(BTreeMap::from([(
+                    "total_parts".to_string(),
+                    session.total_parts.to_string(),
+                )])),
+            ),
+        );
     }
 
     store
         .upsert_part_etag(&session_uuid, req.part_number, req.etag.trim())
         .await
-        .map_err(|e| AppError::InternalError(format!("写入分片进度失败: {}", e)))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.part_progress_write_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?;
 
     Ok(Json(PartCommitResponse {
         success: true,
@@ -316,42 +364,55 @@ pub async fn complete_multipart_upload(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CompleteMultipartRequest>,
 ) -> Result<Json<CompleteMultipartResponse>, AppError> {
-    let session_uuid = Uuid::parse_str(session_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 session_id".to_string()))?;
+    let session_uuid = Uuid::parse_str(session_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("upload.invalid_session_id")
+    })?;
 
     if req.parts.is_empty() {
-        return Err(AppError::ValidationError("parts 不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("upload.parts_required")
+        );
     }
 
-    let requester_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let requester_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
     let session = store
         .get_session(&session_uuid)
         .await
-        .map_err(|e| AppError::InternalError(format!("读取分片会话失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("分片会话不存在".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_read_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.session_not_found")
+        })?;
 
     if session.creator_id != requester_id || session.creator_is_admin != claims.is_admin {
-        return Err(AppError::Forbidden("无权限访问该分片会话".to_string()));
+        return Err(
+            AppError::Forbidden(String::new()).with_message_key("upload.session_access_forbidden")
+        );
     }
 
     if session.status != 0 {
-        return Err(AppError::ValidationError(
-            "分片会话已结束，无法完成合并".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.session_closed_for_complete"));
     }
 
     let mut parts: Vec<(i32, String)> = Vec::with_capacity(req.parts.len());
     for part in &req.parts {
         if part.part_number <= 0 {
-            return Err(AppError::ValidationError(
-                "part_number 必须大于 0".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("upload.part_number_positive_required"));
         }
         if part.etag.trim().is_empty() {
-            return Err(AppError::ValidationError("etag 不能为空".to_string()));
+            return Err(
+                AppError::ValidationError(String::new()).with_message_key("upload.etag_required")
+            );
         }
         parts.push((part.part_number, part.etag.trim().to_string()));
     }
@@ -361,19 +422,28 @@ pub async fn complete_multipart_upload(
 
     if session.total_parts > 0 {
         if parts.len() != session.total_parts as usize {
-            return Err(AppError::ValidationError(format!(
-                "分片数量不完整：期望 {} 个，实际 {} 个",
-                session.total_parts,
-                parts.len()
-            )));
+            return Err(
+                AppError::ValidationError(String::new()).with_message_key_and_params(
+                    "upload.part_count_incomplete",
+                    Some(BTreeMap::from([
+                        ("expected".to_string(), session.total_parts.to_string()),
+                        ("actual".to_string(), parts.len().to_string()),
+                    ])),
+                ),
+            );
         }
         for (idx, (part_number, _)) in parts.iter().enumerate() {
             let expected = (idx as i32) + 1;
             if *part_number != expected {
-                return Err(AppError::ValidationError(format!(
-                    "分片编号不连续：期望 part_number={}，实际 {}",
-                    expected, part_number
-                )));
+                return Err(
+                    AppError::ValidationError(String::new()).with_message_key_and_params(
+                        "upload.part_number_not_sequential",
+                        Some(BTreeMap::from([
+                            ("expected".to_string(), expected.to_string()),
+                            ("actual".to_string(), part_number.to_string()),
+                        ])),
+                    ),
+                );
             }
         }
     }
@@ -382,11 +452,12 @@ pub async fn complete_multipart_upload(
     let provider = provider_store
         .get_provider_by_id(&session.storage_provider_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.storage_provider_not_found")
+        })?;
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "存储提供商未启用，无法完成分片上传".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.storage_provider_inactive_for_complete"));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -403,7 +474,12 @@ pub async fn complete_multipart_upload(
     let _ = store
         .mark_completed(&session_uuid, Some(&uploaded_parts_json))
         .await
-        .map_err(|e| AppError::InternalError(format!("更新分片会话状态失败: {}", e)))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_status_update_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?;
 
     // 若存在 file_upload_records 记录，尝试标记为完成（不存在则忽略）
     let upload_store = FileUploadStore::new(state.database.clone());
@@ -430,7 +506,7 @@ pub async fn complete_multipart_upload(
 
     Ok(Json(CompleteMultipartResponse {
         success: true,
-        message: "完成分片上传成功".to_string(),
+        message: "ok".to_string(),
     }))
 }
 
@@ -445,27 +521,38 @@ pub async fn abort_multipart_upload(
     Path(session_id): Path<String>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<AbortMultipartResponse>, AppError> {
-    let session_uuid = Uuid::parse_str(session_id.trim())
-        .map_err(|_| AppError::ValidationError("无效的 session_id".to_string()))?;
+    let session_uuid = Uuid::parse_str(session_id.trim()).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("upload.invalid_session_id")
+    })?;
 
-    let requester_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let requester_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let store = FileUploadMultipartStore::new(state.database.clone());
     let session = store
         .get_session(&session_uuid)
         .await
-        .map_err(|e| AppError::InternalError(format!("读取分片会话失败: {}", e)))?
-        .ok_or_else(|| AppError::NotFound("分片会话不存在".to_string()))?;
+        .map_err(|e| {
+            AppError::InternalError(String::new()).with_message_key_and_params(
+                "upload.session_read_failed",
+                Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+            )
+        })?
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.session_not_found")
+        })?;
 
     if session.creator_id != requester_id || session.creator_is_admin != claims.is_admin {
-        return Err(AppError::Forbidden("无权限访问该分片会话".to_string()));
+        return Err(
+            AppError::Forbidden(String::new()).with_message_key("upload.session_access_forbidden")
+        );
     }
 
     if session.status != 0 {
         return Ok(Json(AbortMultipartResponse {
             success: true,
-            message: "分片会话已结束".to_string(),
+            message: "ok".to_string(),
         }));
     }
 
@@ -473,11 +560,12 @@ pub async fn abort_multipart_upload(
     let provider = provider_store
         .get_provider_by_id(&session.storage_provider_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("upload.storage_provider_not_found")
+        })?;
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "存储提供商未启用，无法中止分片上传".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload.storage_provider_inactive_for_abort"));
     }
 
     let storage_service = storage::create_storage_service(&provider)?;
@@ -486,13 +574,15 @@ pub async fn abort_multipart_upload(
         .abort_multipart_upload(&session.object_key, &session.upload_id)
         .await;
 
-    let _ = store
-        .mark_aborted(&session_uuid)
-        .await
-        .map_err(|e| AppError::InternalError(format!("更新分片会话状态失败: {}", e)))?;
+    let _ = store.mark_aborted(&session_uuid).await.map_err(|e| {
+        AppError::InternalError(String::new()).with_message_key_and_params(
+            "upload.session_status_update_failed",
+            Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+        )
+    })?;
 
     Ok(Json(AbortMultipartResponse {
         success: true,
-        message: "已中止分片上传".to_string(),
+        message: "ok".to_string(),
     }))
 }

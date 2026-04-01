@@ -1,0 +1,16 @@
+{
+  "report.content_type_required": "content_type 不能为空",
+  "report.attachment_image_only": "举报截图仅支持图片类型文件",
+  "report.attachment_size_exceeded": "截图大小超出限制，最大允许{max_mb}MB",
+  "report.key_required": "key 不能为空",
+  "report.attachment_key_invalid": "举报截图 key 不合法",
+  "report.attachment_not_uploaded": "举报截图尚未上传完成，请稍后重试",
+  "report.content_required": "举报内容不能为空",
+  "report.attachment_required": "举报必须上传至少 1 张截图",
+  "report.target_id_invalid": "target_id 不合法",
+  "report.target_room_membership_required": "用户不在该群聊，无法举报该群聊",
+  "report.cannot_report_self": "不能举报自己",
+  "report.target_user_not_found": "举报目标用户不存在",
+  "report.target_type_unsupported": "target_type 仅支持 room/user",
+  "report.reporter_id_invalid": "reporter_id 不合法"
+}

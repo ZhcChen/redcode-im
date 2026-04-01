@@ -1,0 +1,19 @@
+{
+  "emoji.pack_id_invalid": "Pack ID is invalid.",
+  "emoji.pack_name_required": "Pack name is required.",
+  "emoji.pack_not_found": "Pack was not found.",
+  "emoji.item_image_url_required": "Emoji image URL is required.",
+  "emoji.item_id_invalid": "Emoji item ID is invalid.",
+  "emoji.item_not_found": "Emoji item was not found.",
+  "emoji.user_id_invalid": "User ID is invalid.",
+  "emoji.pack_inactive": "Pack is inactive.",
+  "emoji.user_pack_not_found": "User has not added this pack.",
+  "emoji.search_keyword_required": "Search keyword is required.",
+  "emoji.suite_id_invalid": "Suite ID is invalid.",
+  "emoji.suite_not_found": "Emoji suite was not found.",
+  "emoji.suite_expected": "The selected pack is not a suite.",
+  "emoji.suite_inactive": "Emoji suite is inactive.",
+  "emoji.user_suite_not_found": "User has not added this suite.",
+  "emoji.object_key_required": "object_key is required.",
+  "emoji.object_key_invalid": "Invalid emoji object key."
+}

@@ -1212,6 +1212,130 @@ async fn i18n_error_response_room_member_id_invalid_uses_params_and_localized_me
     assert_eq!(body["details"], Value::Null);
 }
 
+#[test]
+fn i18n_upload_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.invalid_session_id", None),
+        "无效的 session_id"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.invalid_session_id", None),
+        "session_id is invalid."
+    );
+}
+
+#[test]
+fn i18n_upload_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("expected".to_string(), "4".to_string()),
+        ("actual".to_string(), "2".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.part_count_incomplete", Some(&params)),
+        "分片数量不完整：期望 4 个，实际 2 个"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.part_count_incomplete", Some(&params)),
+        "Incomplete parts list: expected 4 parts, got 2."
+    );
+}
+
+#[test]
+fn i18n_emoji_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "emoji.pack_name_required", None),
+        "贴纸名称不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "emoji.pack_name_required", None),
+        "Pack name is required."
+    );
+}
+
+#[test]
+fn i18n_report_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "report.content_type_required", None),
+        "content_type 不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "report.content_type_required", None),
+        "content_type is required."
+    );
+}
+
+#[test]
+fn i18n_report_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("max_mb".to_string(), "5".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "report.attachment_size_exceeded", Some(&params)),
+        "截图大小超出限制，最大允许5MB"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "report.attachment_size_exceeded", Some(&params)),
+        "Attachment size exceeds the limit. Maximum allowed is 5 MB."
+    );
+}
+
+#[test]
+fn i18n_push_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "push.device_token_invalid", None),
+        "device_token 无效"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.device_token_invalid", None),
+        "device_token is invalid."
+    );
+}
+
+#[test]
+fn i18n_push_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("provider".to_string(), "apns".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "push.provider_unsupported", Some(&params)),
+        "暂不支持的 provider: apns"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.provider_unsupported", Some(&params)),
+        "Unsupported provider for now: apns."
+    );
+}
+
+#[test]
+fn i18n_e2ee_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "e2ee.target_user_not_initialized", None),
+        "目标用户未初始化 E2EE"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "e2ee.target_user_not_initialized", None),
+        "Target user has not initialized E2EE."
+    );
+}
+
+#[test]
+fn i18n_e2ee_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("field".to_string(), "identity_key".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "e2ee.field_base64_decode_failed", Some(&params)),
+        "identity_key base64 解码失败"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "e2ee.field_base64_decode_failed", Some(&params)),
+        "identity_key base64 decode failed."
+    );
+}
+
 async fn read_body_json(body: Body) -> Value {
     let bytes = body
         .collect()

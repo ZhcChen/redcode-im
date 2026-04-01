@@ -17,6 +17,11 @@ impl Catalog {
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/version.json"));
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/room.json"));
         catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/admin.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/upload.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/emoji.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/report.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/push.json"));
+        catalog.load_locale_messages("zh-CN", include_str!("../../i18n/zh-CN/e2ee.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/common.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/auth.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/friend.json"));
@@ -26,6 +31,11 @@ impl Catalog {
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/version.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/room.json"));
         catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/admin.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/upload.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/emoji.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/report.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/push.json"));
+        catalog.load_locale_messages("en-US", include_str!("../../i18n/en-US/e2ee.json"));
         catalog
     }
 
