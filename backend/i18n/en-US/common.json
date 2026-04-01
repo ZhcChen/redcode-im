@@ -14,5 +14,6 @@
   "common.database_error": "Database error.",
   "common.cache_error": "Cache error.",
   "common.internal_error": "Internal server error.",
-  "common.service_unavailable": "Service unavailable."
+  "common.service_unavailable": "Service unavailable.",
+  "common.http_client_create_failed": "Failed to create HTTP client."
 }

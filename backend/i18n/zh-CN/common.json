@@ -14,5 +14,6 @@
   "common.database_error": "数据库错误",
   "common.cache_error": "缓存错误",
   "common.internal_error": "服务器内部错误",
-  "common.service_unavailable": "服务不可用"
+  "common.service_unavailable": "服务不可用",
+  "common.http_client_create_failed": "创建 HTTP 客户端失败"
 }

@@ -15,6 +15,13 @@ use uuid::Uuid;
 
 const STATUS_RETRY: i16 = 3;
 
+fn audit_internal_error_with_reason(message_key: &'static str, reason: impl ToString) -> AppError {
+    AppError::InternalError(String::new()).with_message_key_and_params(
+        message_key,
+        Some(BTreeMap::from([("reason".to_string(), reason.to_string())])),
+    )
+}
+
 /// 审核任务配置（全部 env 可选）
 #[derive(Debug, Clone)]
 pub struct FileUploadAuditConfig {
@@ -118,7 +125,7 @@ pub async fn run_file_upload_audit_once(
     let tasks = store
         .claim_due_tasks(cfg.batch_size, cfg.lease_seconds)
         .await
-        .map_err(|e| AppError::InternalError(format!("认领审核任务失败: {}", e)))?;
+        .map_err(|e| audit_internal_error_with_reason("upload.audit_claim_failed", e))?;
 
     if tasks.is_empty() {
         return Ok(());
@@ -152,7 +159,7 @@ pub async fn trigger_task_now(
     let claimed = store
         .claim_task_by_id(&task_id, cfg.lease_seconds)
         .await
-        .map_err(|e| AppError::InternalError(format!("认领审核任务失败: {}", e)))?;
+        .map_err(|e| audit_internal_error_with_reason("upload.audit_claim_failed", e))?;
 
     let Some(task) = claimed else {
         return Ok(());
@@ -186,7 +193,9 @@ async fn process_task(
     let provider = provider_store
         .get_provider_by_id(&task.storage_provider_id)
         .await?
-        .ok_or_else(|| AppError::NotFound("存储提供商不存在".to_string()))?;
+        .ok_or_else(|| {
+            AppError::NotFound(String::new()).with_message_key("admin.storage_provider_not_found")
+        })?;
 
     if !provider.is_active {
         let store = FileUploadAuditStore::new(database.clone());
@@ -213,7 +222,10 @@ async fn process_task(
         .as_deref()
         .map(|v| v.trim())
         .filter(|v| !v.is_empty())
-        .ok_or_else(|| AppError::ValidationError("存储提供商未配置 bucket_name".to_string()))?;
+        .ok_or_else(|| {
+            AppError::ValidationError(String::new())
+                .with_message_key("admin.storage_provider_bucket_required")
+        })?;
 
     let media_kind = normalize_media_kind(&task.media_kind);
     let ci_kind = map_media_kind_to_ci_kind(media_kind);
@@ -561,7 +573,7 @@ impl TencentCiClient {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|e| AppError::InternalError(format!("创建HTTP客户端失败: {}", e)))?;
+            .map_err(|e| audit_internal_error_with_reason("common.http_client_create_failed", e))?;
 
         Ok(Self {
             signer,
@@ -631,38 +643,50 @@ impl TencentCiClient {
             .body(xml_body)
             .send()
             .await
-            .map_err(|e| AppError::InternalError(format!("提交 CI 审核任务失败: {}", e)))?;
+            .map_err(|e| audit_internal_error_with_reason("upload.audit_submit_failed", e))?;
 
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         if !status.is_success() {
-            return Err(AppError::InternalError(format!(
-                "提交 CI 审核任务失败: status={}, body={}",
-                status, text
-            )));
+            return Err(audit_internal_error_with_reason(
+                "upload.audit_submit_failed",
+                format!("status={}, body={}", status, text),
+            ));
         }
 
         let parsed: CiResponse = from_xml_str(&text).map_err(|e| {
-            AppError::InternalError(format!("解析 CI 提交响应失败: {}, body={}", e, text))
+            audit_internal_error_with_reason(
+                "upload.audit_submit_failed",
+                format!("parse response failed: {}, body={}", e, text),
+            )
         })?;
 
         let detail = parsed.jobs_detail.into_iter().next().ok_or_else(|| {
-            AppError::InternalError(format!("CI 提交响应缺少 JobsDetail: {}", text))
+            audit_internal_error_with_reason(
+                "upload.audit_submit_failed",
+                format!("response missing JobsDetail: {}", text),
+            )
         })?;
 
         if let Some(code) = detail.code.as_deref() {
             if !code.eq_ignore_ascii_case("Success") {
-                return Err(AppError::InternalError(format!(
-                    "CI 提交返回错误: code={}, message={}",
-                    code,
-                    detail.message.as_deref().unwrap_or("")
-                )));
+                return Err(audit_internal_error_with_reason(
+                    "upload.audit_submit_failed",
+                    format!(
+                        "code={}, message={}",
+                        code,
+                        detail.message.as_deref().unwrap_or("")
+                    ),
+                ));
             }
         }
 
-        let job_id = detail
-            .job_id
-            .ok_or_else(|| AppError::InternalError(format!("CI 提交未返回 JobId: {}", text)))?;
+        let job_id = detail.job_id.ok_or_else(|| {
+            audit_internal_error_with_reason(
+                "upload.audit_submit_failed",
+                format!("response missing JobId: {}", text),
+            )
+        })?;
 
         Ok(CiSubmitted {
             job_id,
@@ -703,32 +727,41 @@ impl TencentCiClient {
             .header("Host", &host)
             .send()
             .await
-            .map_err(|e| AppError::InternalError(format!("查询 CI 审核结果失败: {}", e)))?;
+            .map_err(|e| audit_internal_error_with_reason("upload.audit_query_failed", e))?;
 
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
         if !status.is_success() {
-            return Err(AppError::InternalError(format!(
-                "查询 CI 审核结果失败: status={}, body={}",
-                status, text
-            )));
+            return Err(audit_internal_error_with_reason(
+                "upload.audit_query_failed",
+                format!("status={}, body={}", status, text),
+            ));
         }
 
         let parsed: CiResponse = from_xml_str(&text).map_err(|e| {
-            AppError::InternalError(format!("解析 CI 查询响应失败: {}, body={}", e, text))
+            audit_internal_error_with_reason(
+                "upload.audit_query_failed",
+                format!("parse response failed: {}, body={}", e, text),
+            )
         })?;
 
         let detail = parsed.jobs_detail.into_iter().next().ok_or_else(|| {
-            AppError::InternalError(format!("CI 查询响应缺少 JobsDetail: {}", text))
+            audit_internal_error_with_reason(
+                "upload.audit_query_failed",
+                format!("response missing JobsDetail: {}", text),
+            )
         })?;
 
         if let Some(code) = detail.code.as_deref() {
             if !code.eq_ignore_ascii_case("Success") {
-                return Err(AppError::InternalError(format!(
-                    "CI 查询返回错误: code={}, message={}",
-                    code,
-                    detail.message.as_deref().unwrap_or("")
-                )));
+                return Err(audit_internal_error_with_reason(
+                    "upload.audit_query_failed",
+                    format!(
+                        "code={}, message={}",
+                        code,
+                        detail.message.as_deref().unwrap_or("")
+                    ),
+                ));
             }
         }
 

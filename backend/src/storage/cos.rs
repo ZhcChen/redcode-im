@@ -17,6 +17,21 @@ type HmacSha1 = Hmac<Sha1>;
 const DEFAULT_SIGNATURE_TTL: i64 = 3600;
 const MAX_SIGNATURE_TTL: i64 = 24 * 3600;
 
+fn storage_internal_error_with_reason(
+    message_key: &'static str,
+    reason: impl ToString,
+) -> AppError {
+    AppError::InternalError(String::new()).with_message_key_and_params(
+        message_key,
+        Some(BTreeMap::from([("reason".to_string(), reason.to_string())])),
+    )
+}
+
+fn storage_bucket_required_error() -> AppError {
+    AppError::ValidationError(String::new())
+        .with_message_key("admin.storage_provider_bucket_required")
+}
+
 fn is_storage_network_disabled() -> bool {
     std::env::var("REDCODE_IM_STORAGE_DISABLE_NETWORK")
         .ok()
@@ -55,7 +70,9 @@ impl TencentCosService {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|e| AppError::InternalError(format!("创建HTTP客户端失败: {}", e)))?;
+            .map_err(|e| {
+                storage_internal_error_with_reason("common.http_client_create_failed", e)
+            })?;
 
         Ok(Self {
             secret_id,
@@ -77,7 +94,9 @@ impl TencentCosService {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|e| AppError::InternalError(format!("创建HTTP客户端失败: {}", e)))?;
+            .map_err(|e| {
+                storage_internal_error_with_reason("common.http_client_create_failed", e)
+            })?;
 
         Ok(Self {
             secret_id,
@@ -273,7 +292,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("上传文件到 COS 失败: key={}, error={}", key, e);
-                AppError::InternalError(format!("上传文件失败: {}", e))
+                storage_internal_error_with_reason("upload.object_upload_failed", e)
             })?;
 
         if response.status().is_success() {
@@ -286,10 +305,10 @@ impl StorageService for TencentCosService {
                 "上传文件失败: key={}, status={}, body={}",
                 key, status, body
             );
-            Err(AppError::InternalError(format!(
-                "上传文件失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "upload.object_upload_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -321,7 +340,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("删除 COS 文件失败: key={}, error={}", key, e);
-                AppError::InternalError(format!("删除文件失败: {}", e))
+                storage_internal_error_with_reason("upload.object_delete_failed", e)
             })?;
 
         if response.status().is_success() || response.status() == 204 {
@@ -334,10 +353,10 @@ impl StorageService for TencentCosService {
                 "删除文件失败: key={}, status={}, body={}",
                 key, status, body
             );
-            Err(AppError::InternalError(format!(
-                "删除文件失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "upload.object_delete_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -369,7 +388,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("检查 COS 文件是否存在失败: key={}, error={}", key, e);
-                AppError::InternalError(format!("检查文件是否存在失败: {}", e))
+                storage_internal_error_with_reason("upload.object_exists_check_failed", e)
             })?;
 
         let exists = response.status().is_success();
@@ -408,7 +427,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("获取 COS 对象元数据失败: key={}, error={}", key, e);
-                AppError::InternalError(format!("获取对象元数据失败: {}", e))
+                storage_internal_error_with_reason("upload.object_head_failed", e)
             })?;
 
         if !response.status().is_success() {
@@ -418,7 +437,9 @@ impl StorageService for TencentCosService {
                 "获取对象元数据失败: key={}, status={}, body={}",
                 key, status, body
             );
-            return Err(AppError::NotFound("对象不存在".to_string()));
+            return Err(
+                AppError::NotFound(String::new()).with_message_key("upload.object_not_found")
+            );
         }
 
         let headers = response.headers();
@@ -479,7 +500,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("获取 COS bucket 列表失败: error={}", e);
-                AppError::InternalError(format!("获取bucket列表失败: {}", e))
+                storage_internal_error_with_reason("admin.storage_test_list_buckets_failed", e)
             })?;
 
         if response.status().is_success() {
@@ -492,10 +513,10 @@ impl StorageService for TencentCosService {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             error!("获取 bucket 列表失败: status={}, body={}", status, body);
-            Err(AppError::InternalError(format!(
-                "获取bucket列表失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "admin.storage_test_list_buckets_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -544,7 +565,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("创建 COS bucket 失败: name={}, error={}", bucket_name, e);
-                AppError::InternalError(format!("创建bucket失败: {}", e))
+                storage_internal_error_with_reason("admin.storage_test_create_bucket_failed", e)
             })?;
 
         if response.status().is_success() || response.status() == 200 {
@@ -557,10 +578,10 @@ impl StorageService for TencentCosService {
                 "创建 bucket 失败: name={}, status={}, body={}",
                 bucket_name, status, body
             );
-            Err(AppError::InternalError(format!(
-                "创建bucket失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "admin.storage_test_create_bucket_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -571,9 +592,7 @@ impl StorageService for TencentCosService {
         }
 
         if self.bucket_name.is_empty() {
-            return Err(AppError::ValidationError(
-                "未配置 bucket 名称，无法获取跨域规则".to_string(),
-            ));
+            return Err(storage_bucket_required_error());
         }
 
         let headers_map = BTreeMap::new();
@@ -602,7 +621,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("获取 COS 跨域规则失败: error={}", e);
-                AppError::InternalError(format!("获取跨域规则失败: {}", e))
+                storage_internal_error_with_reason("admin.storage_test_cors_get_failed", e)
             })?;
 
         let status = response.status();
@@ -615,10 +634,10 @@ impl StorageService for TencentCosService {
 
         if !status.is_success() {
             error!("获取跨域规则失败: status={}, body={}", status, body);
-            return Err(AppError::InternalError(format!(
-                "获取跨域规则失败: {} - {}",
-                status, body
-            )));
+            return Err(storage_internal_error_with_reason(
+                "admin.storage_test_cors_get_failed",
+                format!("{} - {}", status, body),
+            ));
         }
 
         if body.trim().is_empty() {
@@ -636,13 +655,12 @@ impl StorageService for TencentCosService {
         }
 
         if self.bucket_name.is_empty() {
-            return Err(AppError::ValidationError(
-                "未配置 bucket 名称，无法设置跨域规则".to_string(),
-            ));
+            return Err(storage_bucket_required_error());
         }
 
         if rules.is_empty() {
-            return Err(AppError::ValidationError("跨域规则不能为空".to_string()));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("admin.storage_test_cors_rules_required"));
         }
 
         let xml_body = build_cors_configuration_xml(rules);
@@ -681,7 +699,7 @@ impl StorageService for TencentCosService {
             .await
             .map_err(|e| {
                 error!("设置 COS 跨域规则失败: error={}", e);
-                AppError::InternalError(format!("配置跨域规则失败: {}", e))
+                storage_internal_error_with_reason("admin.storage_test_cors_set_failed", e)
             })?;
 
         if response.status().is_success() {
@@ -691,10 +709,10 @@ impl StorageService for TencentCosService {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             error!("设置跨域规则失败: status={}, body={}", status, body);
-            Err(AppError::InternalError(format!(
-                "配置跨域规则失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "admin.storage_test_cors_set_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -751,9 +769,7 @@ impl StorageService for TencentCosService {
         }
 
         if self.bucket_name.is_empty() {
-            return Err(AppError::ValidationError(
-                "未配置 bucket 名称，无法初始化分片上传".to_string(),
-            ));
+            return Err(storage_bucket_required_error());
         }
 
         let now = OffsetDateTime::now_utc();
@@ -797,11 +813,10 @@ impl StorageService for TencentCosService {
             request = request.header("Content-Type", ct);
         }
 
-        let response = request
-            .body(Vec::new())
-            .send()
-            .await
-            .map_err(|e| AppError::InternalError(format!("初始化分片上传失败: {}", e)))?;
+        let response =
+            request.body(Vec::new()).send().await.map_err(|e| {
+                storage_internal_error_with_reason("upload.multipart_init_failed", e)
+            })?;
 
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
@@ -810,14 +825,15 @@ impl StorageService for TencentCosService {
                 "初始化分片上传失败: status={}, key={}, body={}",
                 status, key, body
             );
-            return Err(AppError::InternalError(format!(
-                "初始化分片上传失败: {} - {}",
-                status, body
-            )));
+            return Err(storage_internal_error_with_reason(
+                "upload.multipart_init_failed",
+                format!("{} - {}", status, body),
+            ));
         }
 
         let upload_id = extract_xml_value(&body, "UploadId").ok_or_else(|| {
-            AppError::InternalError("初始化分片上传成功但未获取到 UploadId".to_string())
+            AppError::InternalError(String::new())
+                .with_message_key("upload.multipart_upload_id_missing")
         })?;
 
         Ok(upload_id)
@@ -831,9 +847,8 @@ impl StorageService for TencentCosService {
         content_type: Option<&str>,
     ) -> Result<DirectUploadSignature, AppError> {
         if part_number <= 0 {
-            return Err(AppError::ValidationError(
-                "part_number 必须大于 0".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("upload.part_number_positive_required"));
         }
         let now = OffsetDateTime::now_utc();
         let timestamp = now.unix_timestamp();
@@ -903,15 +918,13 @@ impl StorageService for TencentCosService {
         }
 
         if self.bucket_name.is_empty() {
-            return Err(AppError::ValidationError(
-                "未配置 bucket 名称，无法完成分片上传".to_string(),
-            ));
+            return Err(storage_bucket_required_error());
         }
 
         if parts.is_empty() {
-            return Err(AppError::ValidationError(
-                "完成分片上传时 parts 不能为空".to_string(),
-            ));
+            return Err(
+                AppError::ValidationError(String::new()).with_message_key("upload.parts_required")
+            );
         }
 
         let now = OffsetDateTime::now_utc();
@@ -954,7 +967,9 @@ impl StorageService for TencentCosService {
             .body(body)
             .send()
             .await
-            .map_err(|e| AppError::InternalError(format!("完成分片上传失败: {}", e)))?;
+            .map_err(|e| {
+                storage_internal_error_with_reason("upload.multipart_complete_failed", e)
+            })?;
 
         if response.status().is_success() {
             Ok(())
@@ -965,10 +980,10 @@ impl StorageService for TencentCosService {
                 "完成分片上传失败: status={}, key={}, upload_id={}, body={}",
                 status, key, upload_id, body
             );
-            Err(AppError::InternalError(format!(
-                "完成分片上传失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "upload.multipart_complete_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -982,9 +997,7 @@ impl StorageService for TencentCosService {
         }
 
         if self.bucket_name.is_empty() {
-            return Err(AppError::ValidationError(
-                "未配置 bucket 名称，无法中止分片上传".to_string(),
-            ));
+            return Err(storage_bucket_required_error());
         }
 
         let now = OffsetDateTime::now_utc();
@@ -1021,7 +1034,7 @@ impl StorageService for TencentCosService {
             .header("Host", &host)
             .send()
             .await
-            .map_err(|e| AppError::InternalError(format!("中止分片上传失败: {}", e)))?;
+            .map_err(|e| storage_internal_error_with_reason("upload.multipart_abort_failed", e))?;
 
         if response.status().is_success() {
             Ok(())
@@ -1032,10 +1045,10 @@ impl StorageService for TencentCosService {
                 "中止分片上传失败: status={}, key={}, upload_id={}, body={}",
                 status, key, upload_id, body
             );
-            Err(AppError::InternalError(format!(
-                "中止分片上传失败: {} - {}",
-                status, body
-            )))
+            Err(storage_internal_error_with_reason(
+                "upload.multipart_abort_failed",
+                format!("{} - {}", status, body),
+            ))
         }
     }
 
@@ -1045,9 +1058,8 @@ impl StorageService for TencentCosService {
         expires_in: Option<u32>,
     ) -> Result<String, AppError> {
         if key.trim().is_empty() {
-            return Err(AppError::ValidationError(
-                "文件路径（key）不能为空".to_string(),
-            ));
+            return Err(AppError::ValidationError(String::new())
+                .with_message_key("upload.object_key_required"));
         }
 
         let now = OffsetDateTime::now_utc();
@@ -1463,6 +1475,42 @@ mod tests {
         assert_eq!(
             signature,
             "2fab8f7909236046e789b4ea483330ec6df91331".to_string()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_generate_download_url_rejects_empty_key_with_message_key() {
+        let service = TencentCosService::new(
+            "AKID".to_string(),
+            "SECRET".to_string(),
+            "ap-shanghai".to_string(),
+            "cos.ap-shanghai.myqcloud.com".to_string(),
+            "examplebucket-1250000000".to_string(),
+        )
+        .unwrap();
+
+        let error = service
+            .generate_download_url("   ", None)
+            .await
+            .unwrap_err();
+        assert_eq!(error.response_message_key(), "upload.object_key_required");
+    }
+
+    #[tokio::test]
+    async fn test_set_cors_rules_rejects_empty_rules_with_message_key() {
+        let service = TencentCosService::new(
+            "AKID".to_string(),
+            "SECRET".to_string(),
+            "ap-shanghai".to_string(),
+            "cos.ap-shanghai.myqcloud.com".to_string(),
+            "examplebucket-1250000000".to_string(),
+        )
+        .unwrap();
+
+        let error = service.set_cors_rules(&[]).await.unwrap_err();
+        assert_eq!(
+            error.response_message_key(),
+            "admin.storage_test_cors_rules_required"
         );
     }
 }

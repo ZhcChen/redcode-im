@@ -109,5 +109,6 @@
   "admin.file_upload_audit_provider_id_invalid": "无效的 provider_id",
   "admin.file_upload_audit_task_id_invalid": "无效的 task_id",
   "admin.file_upload_audit_task_not_found": "审核任务不存在",
-  "admin.file_upload_audit_requeue_success": "重新入队成功"
+  "admin.file_upload_audit_requeue_success": "重新入队成功",
+  "admin.storage_provider_bucket_required": "存储提供商未配置 bucket_name"
 }

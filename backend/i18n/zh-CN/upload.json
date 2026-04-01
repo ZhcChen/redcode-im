@@ -17,5 +17,18 @@
   "upload.part_number_not_sequential": "分片编号不连续：期望 part_number={expected}，实际 {actual}",
   "upload.storage_provider_inactive_for_complete": "存储提供商未启用，无法完成分片上传",
   "upload.session_status_update_failed": "更新分片会话状态失败: {reason}",
-  "upload.storage_provider_inactive_for_abort": "存储提供商未启用，无法中止分片上传"
+  "upload.storage_provider_inactive_for_abort": "存储提供商未启用，无法中止分片上传",
+  "upload.audit_claim_failed": "认领审核任务失败: {reason}",
+  "upload.audit_submit_failed": "提交审核任务失败: {reason}",
+  "upload.audit_query_failed": "查询审核结果失败: {reason}",
+  "upload.object_not_found": "对象不存在",
+  "upload.multipart_init_failed": "初始化分片上传失败: {reason}",
+  "upload.multipart_upload_id_missing": "初始化分片上传成功但未获取到 UploadId",
+  "upload.multipart_complete_failed": "完成分片上传失败: {reason}",
+  "upload.multipart_abort_failed": "中止分片上传失败: {reason}",
+  "upload.object_key_required": "文件路径（key）不能为空",
+  "upload.object_upload_failed": "上传对象失败: {reason}",
+  "upload.object_delete_failed": "删除对象失败: {reason}",
+  "upload.object_exists_check_failed": "检查对象是否存在失败: {reason}",
+  "upload.object_head_failed": "获取对象元数据失败: {reason}"
 }

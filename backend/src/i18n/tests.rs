@@ -1320,6 +1320,77 @@ fn i18n_upload_catalog_interpolates_params() {
 }
 
 #[test]
+fn i18n_common_admin_and_upload_storage_tail_catalogs_are_loaded() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "common.http_client_create_failed", None),
+        "创建 HTTP 客户端失败"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "common.http_client_create_failed", None),
+        "Failed to create HTTP client."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_provider_bucket_required", None),
+        "存储提供商未配置 bucket_name"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.object_not_found", None),
+        "Object was not found in storage."
+    );
+}
+
+#[test]
+fn i18n_upload_storage_tail_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.audit_claim_failed", Some(&params)),
+        "认领审核任务失败: boom"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.audit_submit_failed", Some(&params)),
+        "Failed to submit audit job: boom"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.multipart_init_failed", Some(&params)),
+        "初始化分片上传失败: boom"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.object_upload_failed", Some(&params)),
+        "Failed to upload object: boom"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.object_delete_failed", Some(&params)),
+        "删除对象失败: boom"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.object_exists_check_failed", Some(&params)),
+        "Failed to check object existence: boom"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.object_head_failed", Some(&params)),
+        "获取对象元数据失败: boom"
+    );
+}
+
+#[test]
+fn i18n_upload_storage_object_key_catalog_is_loaded() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.object_key_required", None),
+        "文件路径（key）不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.object_key_required", None),
+        "File path (key) is required."
+    );
+}
+
+#[test]
 fn i18n_emoji_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     assert_eq!(

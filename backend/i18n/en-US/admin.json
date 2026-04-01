@@ -109,5 +109,6 @@
   "admin.file_upload_audit_provider_id_invalid": "provider_id is invalid.",
   "admin.file_upload_audit_task_id_invalid": "task_id is invalid.",
   "admin.file_upload_audit_task_not_found": "Audit task was not found.",
-  "admin.file_upload_audit_requeue_success": "Requeued successfully."
+  "admin.file_upload_audit_requeue_success": "Requeued successfully.",
+  "admin.storage_provider_bucket_required": "Storage provider bucket_name is required."
 }

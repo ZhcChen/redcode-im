@@ -17,5 +17,18 @@
   "upload.part_number_not_sequential": "Part numbers are not sequential: expected part_number={expected}, got {actual}.",
   "upload.storage_provider_inactive_for_complete": "Storage provider is inactive and multipart upload cannot be completed.",
   "upload.session_status_update_failed": "Failed to update multipart session status: {reason}",
-  "upload.storage_provider_inactive_for_abort": "Storage provider is inactive and multipart upload cannot be aborted."
+  "upload.storage_provider_inactive_for_abort": "Storage provider is inactive and multipart upload cannot be aborted.",
+  "upload.audit_claim_failed": "Failed to claim audit tasks: {reason}",
+  "upload.audit_submit_failed": "Failed to submit audit job: {reason}",
+  "upload.audit_query_failed": "Failed to query audit result: {reason}",
+  "upload.object_not_found": "Object was not found in storage.",
+  "upload.multipart_init_failed": "Failed to initialize multipart upload: {reason}",
+  "upload.multipart_upload_id_missing": "Multipart upload succeeded but UploadId was missing.",
+  "upload.multipart_complete_failed": "Failed to complete multipart upload: {reason}",
+  "upload.multipart_abort_failed": "Failed to abort multipart upload: {reason}",
+  "upload.object_key_required": "File path (key) is required.",
+  "upload.object_upload_failed": "Failed to upload object: {reason}",
+  "upload.object_delete_failed": "Failed to delete object: {reason}",
+  "upload.object_exists_check_failed": "Failed to check object existence: {reason}",
+  "upload.object_head_failed": "Failed to fetch object metadata: {reason}"
 }
