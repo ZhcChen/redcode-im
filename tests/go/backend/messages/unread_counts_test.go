@@ -73,6 +73,58 @@ func TestUnreadCounts_MultiMessageReadUntil_OK(t *testing.T) {
 	}
 }
 
+func TestUnreadCounts_ReadUntilNonMemberStableError(t *testing.T) {
+	c := testutil.NewClient()
+	password := "pass123456"
+
+	owner := registerAndLogin(t, c, testutil.UniqueUsername("ucnt-owner"), password)
+	member := registerAndLogin(t, c, testutil.UniqueUsername("ucnt-member"), password)
+	outsider := registerAndLogin(t, c, testutil.UniqueUsername("ucnt-outsider"), password)
+	room := testutil.CreateGroupRoom(t, c, owner.Token, member.User.ID, "unread-i18n-room")
+
+	req := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodPost,
+		c.BaseURL+"/rooms/"+room.ID+"/messages/read_until",
+		outsider.Token,
+		map[string]any{
+			"message_id": "00000000-0000-0000-0000-000000000001",
+		},
+	)
+	req.Header.Set("Accept-Language", "en-US")
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		t.Fatalf("outsider read_until request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusForbidden {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("outsider read_until expect 403, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var payload messageAPIErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode outsider read_until error response failed: %v", err)
+	}
+	if payload.Code != 40301 {
+		t.Fatalf("unexpected error code: %d", payload.Code)
+	}
+	if payload.MessageKey != "room.membership_required" {
+		t.Fatalf("unexpected message_key: %s", payload.MessageKey)
+	}
+	if payload.Message != "You are not a member of this room." {
+		t.Fatalf("unexpected message: %s", payload.Message)
+	}
+	if payload.MessageParams != nil {
+		t.Fatalf("expected nil message_params, got %+v", payload.MessageParams)
+	}
+	if payload.Details != nil {
+		t.Fatalf("expected nil details, got %q", *payload.Details)
+	}
+}
+
 func sendTextMessage(t *testing.T, c *testutil.Client, token, roomID, content string) string {
 	t.Helper()
 	req := testutil.NewAuthedJSONRequest(t, http.MethodPost, c.BaseURL+"/rooms/"+roomID+"/messages", token, map[string]any{

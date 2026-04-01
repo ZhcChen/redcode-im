@@ -103,3 +103,36 @@ func TestLatestVersionAndDownloadURL_OK(t *testing.T) {
 		t.Fatalf("expect download_url %s, got %s", downloadURL, downloadResult.DownloadURL)
 	}
 }
+
+func TestLatestDownloadURL_InvalidPlatform_Localized(t *testing.T) {
+	c := testutil.NewClient()
+
+	req, err := http.NewRequest(
+		http.MethodGet,
+		c.BaseURL+"/versions/latest/download-url?platform=bad&channel=stable",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("build latest download url request failed: %v", err)
+	}
+	req.Header.Set("Accept-Language", "en-US")
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		t.Fatalf("execute latest download url request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	assertLocalizedVersionError(
+		t,
+		resp,
+		http.StatusBadRequest,
+		42201,
+		"version.platform_unsupported",
+		"Unsupported platform: bad. Supported platforms: windows, macos, ios, android, linux.",
+		map[string]string{
+			"platform":            "bad",
+			"supported_platforms": "windows, macos, ios, android, linux",
+		},
+	)
+}

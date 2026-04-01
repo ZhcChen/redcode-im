@@ -52,6 +52,43 @@ func TestRoomCreateJoinLeaveAndMembers_OK(t *testing.T) {
 	assertHasMember(t, membersAfter, loginB.User.ID)
 }
 
+func TestRoomLifecycle_OutsiderReadUntilLocalizedError(t *testing.T) {
+	c := testutil.NewClient()
+	password := "pass123456"
+
+	owner := registerAndLogin(t, c, testutil.UniqueUsername("roomlc-owner"), password)
+	member := registerAndLogin(t, c, testutil.UniqueUsername("roomlc-member"), password)
+	outsider := registerAndLogin(t, c, testutil.UniqueUsername("roomlc-outsider"), password)
+	room := testutil.CreateGroupRoom(t, c, owner.Token, member.User.ID, "room-lifecycle-i18n")
+
+	req := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodPost,
+		c.BaseURL+"/rooms/"+room.ID+"/messages/read_until",
+		outsider.Token,
+		map[string]any{
+			"message_id": "00000000-0000-0000-0000-000000000001",
+		},
+	)
+	req.Header.Set("Accept-Language", "en-US")
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		t.Fatalf("outsider read_until request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	assertLocalizedRoomError(
+		t,
+		resp,
+		http.StatusForbidden,
+		40301,
+		"room.membership_required",
+		"You are not a member of this room.",
+		nil,
+	)
+}
+
 func registerAndLogin(t *testing.T, c *testutil.Client, username, password string) testutil.LoginResponse {
 	t.Helper()
 	testutil.RegisterUser(t, c, username, password)
