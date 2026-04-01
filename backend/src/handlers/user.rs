@@ -8,7 +8,8 @@ use crate::database::room_store::RoomStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
-use crate::i18n::message::MessageParams;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 use crate::models::convert::{api_update_user_to_db, db_user_to_api_user_info, string_to_uuid};
 use crate::models::{ChangePasswordRequest, Claims, UpdateUserRequest, UserInfo};
 use crate::redis::cache::CacheManager;
@@ -52,6 +53,13 @@ fn user_internal_error(message_key: &'static str) -> AppError {
     AppError::InternalError(String::new()).with_message_key(message_key)
 }
 
+fn user_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
+}
+
 fn user_avatar_size_mismatch_error(expected_size: i64, actual_size: u64) -> AppError {
     user_validation_error_with_params(
         "user.avatar_size_mismatch",
@@ -80,14 +88,18 @@ enum DefaultStorageProviderLoadError {
 fn map_shared_storage_provider_load_error(error: DefaultStorageProviderLoadError) -> AppError {
     match error {
         DefaultStorageProviderLoadError::App(error) => error,
-        DefaultStorageProviderLoadError::NotFound => {
-            AppError::NotFound("未找到默认文件上传提供商配置".to_string())
-        }
-        DefaultStorageProviderLoadError::Disabled => {
-            AppError::ValidationError("默认文件上传提供商未启用".to_string())
-        }
+        DefaultStorageProviderLoadError::NotFound => AppError::NotFound(String::new())
+            .with_message_key("upload.default_storage_provider_not_found"),
+        DefaultStorageProviderLoadError::Disabled => AppError::ValidationError(String::new())
+            .with_message_key("upload.default_storage_provider_disabled"),
         DefaultStorageProviderLoadError::Unsupported(provider_type) => {
-            AppError::ValidationError(format!("不支持的提供商类型: {}", provider_type))
+            AppError::ValidationError(String::new()).with_message_key_and_params(
+                "upload.default_storage_provider_unsupported",
+                Some(MessageParams::from([(
+                    "provider_type".to_string(),
+                    provider_type.to_string(),
+                )])),
+            )
         }
     }
 }
@@ -280,7 +292,13 @@ pub async fn generate_avatar_direct_upload(
         if !crate::constants::AVATAR_ALLOWED_TYPES.contains(&content_type.as_str()) {
             return Ok(Json(AvatarDirectUploadResponse {
                 success: false,
-                message: format!("不支持的文件类型: {}", content_type),
+                message: user_localized_message(
+                    "user.avatar_content_type_unsupported",
+                    Some(&MessageParams::from([(
+                        "content_type".to_string(),
+                        content_type.to_string(),
+                    )])),
+                ),
                 key: None,
                 signature: None,
             }));
@@ -292,9 +310,12 @@ pub async fn generate_avatar_direct_upload(
         if file_size > crate::constants::AVATAR_MAX_SIZE_BYTES {
             return Ok(Json(AvatarDirectUploadResponse {
                 success: false,
-                message: format!(
-                    "文件大小超出限制，最大允许{}MB",
-                    crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024
+                message: user_localized_message(
+                    "user.avatar_size_exceeded",
+                    Some(&MessageParams::from([(
+                        "max_mb".to_string(),
+                        (crate::constants::AVATAR_MAX_SIZE_BYTES / 1024 / 1024).to_string(),
+                    )])),
                 ),
                 key: None,
                 signature: None,
@@ -340,7 +361,7 @@ pub async fn generate_avatar_direct_upload(
 
                     return Ok(Json(AvatarDirectUploadResponse {
                         success: true,
-                        message: "复用已上传的头像，未生成新的直传签名".to_string(),
+                        message: "ok".to_string(),
                         key: Some(existing.object_key),
                         signature: None,
                     }));
@@ -379,7 +400,7 @@ pub async fn generate_avatar_direct_upload(
 
     Ok(Json(AvatarDirectUploadResponse {
         success: true,
-        message: "生成头像直传签名成功".to_string(),
+        message: "ok".to_string(),
         key: Some(key),
         signature: Some(signature),
     }))
@@ -394,7 +415,7 @@ pub async fn commit_avatar_upload(
     if key.is_empty() {
         return Ok(Json(AvatarDownloadUrlResponse {
             success: false,
-            message: "文件路径（key）不能为空".to_string(),
+            message: user_localized_message("upload.object_key_required", None),
             download_url: None,
         }));
     }
@@ -405,7 +426,7 @@ pub async fn commit_avatar_upload(
     if !is_valid_avatar_key(&user_id, key) {
         return Ok(Json(AvatarDownloadUrlResponse {
             success: false,
-            message: "文件路径不合法".to_string(),
+            message: user_localized_message("user.avatar_object_key_invalid", None),
             download_url: None,
         }));
     }
@@ -578,7 +599,7 @@ pub async fn commit_avatar_upload(
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,
-        message: "头像更新成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }
@@ -602,7 +623,7 @@ pub async fn get_avatar_download_url(
         None => {
             return Ok(Json(AvatarDownloadUrlResponse {
                 success: false,
-                message: "尚未设置头像".to_string(),
+                message: user_localized_message("user.avatar_not_set", None),
                 download_url: None,
             }));
         }
@@ -647,7 +668,7 @@ pub async fn get_avatar_download_url(
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,
-        message: "生成下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }
@@ -673,7 +694,7 @@ pub async fn get_user_avatar_download_url(
         None => {
             return Ok(Json(AvatarDownloadUrlResponse {
                 success: false,
-                message: "该用户尚未设置头像".to_string(),
+                message: user_localized_message("user.target_avatar_not_set", None),
                 download_url: None,
             }));
         }
@@ -687,7 +708,7 @@ pub async fn get_user_avatar_download_url(
 
     Ok(Json(AvatarDownloadUrlResponse {
         success: true,
-        message: "生成下载链接成功".to_string(),
+        message: "ok".to_string(),
         download_url: Some(download_url),
     }))
 }
@@ -734,7 +755,7 @@ pub async fn change_password(
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "Password changed successfully"
+        "message": "ok"
     })))
 }
 
@@ -763,7 +784,7 @@ pub async fn deactivate_me(
 
     Ok(Json(json!({
         "success": true,
-        "message": "Account deactivated"
+        "message": "ok"
     })))
 }
 
@@ -1091,14 +1112,20 @@ mod tests {
     }
 
     #[test]
-    fn test_shared_storage_provider_unsupported_error_does_not_leak_user_domain_key() {
+    fn test_shared_storage_provider_unsupported_error_uses_shared_upload_domain_key() {
         let error = map_shared_storage_provider_load_error(
             DefaultStorageProviderLoadError::Unsupported(StorageProviderType::Minio),
         );
 
         assert_eq!(error.message_key(), "common.validation_error");
-        assert_eq!(error.response_message_key(), "common.validation_error");
-        assert_eq!(error.localized_message(), "不支持的提供商类型: minio");
+        assert_eq!(
+            error.response_message_key(),
+            "upload.default_storage_provider_unsupported"
+        );
+        assert_eq!(
+            error.localized_message(),
+            "不支持的默认存储提供商类型：minio"
+        );
     }
 
     #[tokio::test]

@@ -146,6 +146,115 @@ fn i18n_user_catalog_interpolates_avatar_size_params() {
 }
 
 #[test]
+fn i18n_user_catalog_loads_avatar_tail_keys() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    let content_type_params =
+        BTreeMap::from([("content_type".to_string(), "application/pdf".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "user.avatar_content_type_unsupported",
+            Some(&content_type_params),
+        ),
+        "不支持的文件类型：application/pdf"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "user.avatar_content_type_unsupported",
+            Some(&content_type_params),
+        ),
+        "Unsupported avatar content type: application/pdf."
+    );
+
+    let size_params = BTreeMap::from([("max_mb".to_string(), "10".to_string())]);
+    assert_eq!(
+        localizer.localize("zh-CN", "user.avatar_size_exceeded", Some(&size_params)),
+        "文件大小超出限制，最大允许10MB"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "user.avatar_size_exceeded", Some(&size_params)),
+        "Avatar file size exceeds the limit. Maximum allowed is 10 MB."
+    );
+
+    assert_eq!(
+        localizer.localize("zh-CN", "user.avatar_not_set", None),
+        "尚未设置头像"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "user.target_avatar_not_set", None),
+        "This user has not set an avatar yet."
+    );
+}
+
+#[test]
+fn i18n_settings_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "settings.privacy_policy_content_required", None),
+        "隐私协议内容不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "settings.user_agreement_content_required", None),
+        "User agreement content cannot be empty."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "settings.account_validation_rule_required", None),
+        "至少需要启用一种校验规则"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "settings.account_min_length_gt_max_length", None),
+        "Minimum account length cannot be greater than maximum length."
+    );
+}
+
+#[test]
+fn i18n_settings_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    let app_name_params = BTreeMap::from([("max_length".to_string(), "50".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "settings.app_name_too_long",
+            Some(&app_name_params)
+        ),
+        "应用名称不能超过50个字符"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "settings.app_name_too_long",
+            Some(&app_name_params)
+        ),
+        "App name cannot exceed 50 characters."
+    );
+
+    let length_params = BTreeMap::from([
+        ("min_allowed".to_string(), "3".to_string()),
+        ("max_allowed".to_string(), "50".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "settings.account_length_range_invalid",
+            Some(&length_params),
+        ),
+        "长度限制范围必须在 3-50 之间"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "settings.account_length_range_invalid",
+            Some(&length_params),
+        ),
+        "Account length must be between 3 and 50 characters."
+    );
+}
+
+#[test]
 fn i18n_message_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     assert_eq!(

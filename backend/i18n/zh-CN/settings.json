@@ -1,0 +1,9 @@
+{
+  "settings.privacy_policy_content_required": "隐私协议内容不能为空",
+  "settings.user_agreement_content_required": "用户协议内容不能为空",
+  "settings.app_name_required": "应用名称不能为空",
+  "settings.app_name_too_long": "应用名称不能超过{max_length}个字符",
+  "settings.account_validation_rule_required": "至少需要启用一种校验规则",
+  "settings.account_length_range_invalid": "长度限制范围必须在 {min_allowed}-{max_allowed} 之间",
+  "settings.account_min_length_gt_max_length": "最小长度不能大于最大长度"
+}

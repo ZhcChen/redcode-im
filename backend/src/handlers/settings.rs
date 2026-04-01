@@ -1,6 +1,7 @@
 use crate::database::document_store::DocumentStore;
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
+use crate::i18n::message::MessageParams;
 use crate::models::convert::{api_update_document_to_db, db_document_to_api, string_to_uuid};
 use crate::models::{Claims, DocumentContent, UpdateDocumentRequest};
 use crate::AppState;
@@ -14,6 +15,17 @@ const PRIVACY_POLICY_FALLBACK_CONTENT: &str = "<p>隐私协议内容尚未配置
 const USER_AGREEMENT_KEY: &str = "user_agreement";
 const USER_AGREEMENT_FALLBACK_TITLE: &str = "用户协议";
 const USER_AGREEMENT_FALLBACK_CONTENT: &str = "<p>用户协议内容尚未配置。</p>";
+
+fn settings_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn settings_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
 
 pub async fn get_privacy_policy(
     State(state): State<AppState>,
@@ -46,8 +58,8 @@ pub async fn update_privacy_policy(
     Json(payload): Json<UpdateDocumentRequest>,
 ) -> Result<Json<DocumentContent>, AppError> {
     if payload.content.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "隐私协议内容不能为空".to_string(),
+        return Err(settings_validation_error(
+            "settings.privacy_policy_content_required",
         ));
     }
 
@@ -96,8 +108,8 @@ pub async fn update_user_agreement(
     Json(payload): Json<UpdateDocumentRequest>,
 ) -> Result<Json<DocumentContent>, AppError> {
     if payload.content.trim().is_empty() {
-        return Err(AppError::ValidationError(
-            "用户协议内容不能为空".to_string(),
+        return Err(settings_validation_error(
+            "settings.user_agreement_content_required",
         ));
     }
 
@@ -153,11 +165,12 @@ pub async fn update_app_name(
 ) -> Result<Json<AppNameResponse>, AppError> {
     let app_name = payload.app_name.trim();
     if app_name.is_empty() {
-        return Err(AppError::ValidationError("应用名称不能为空".to_string()));
+        return Err(settings_validation_error("settings.app_name_required"));
     }
     if app_name.len() > 50 {
-        return Err(AppError::ValidationError(
-            "应用名称不能超过50个字符".to_string(),
+        return Err(settings_validation_error_with_params(
+            "settings.app_name_too_long",
+            MessageParams::from([("max_length".to_string(), "50".to_string())]),
         ));
     }
 
@@ -240,21 +253,25 @@ pub async fn update_user_account_limit(
         && !payload.enable_length_validation
         && !payload.enable_alphanumeric_validation
     {
-        return Err(AppError::ValidationError(
-            "至少需要启用一种校验规则".to_string(),
+        return Err(settings_validation_error(
+            "settings.account_validation_rule_required",
         ));
     }
 
     // 验证长度范围
     if payload.enable_length_validation {
         if payload.min_length < 3 || payload.max_length > 50 {
-            return Err(AppError::ValidationError(
-                "长度限制范围必须在 3-50 之间".to_string(),
+            return Err(settings_validation_error_with_params(
+                "settings.account_length_range_invalid",
+                MessageParams::from([
+                    ("min_allowed".to_string(), "3".to_string()),
+                    ("max_allowed".to_string(), "50".to_string()),
+                ]),
             ));
         }
         if payload.min_length > payload.max_length {
-            return Err(AppError::ValidationError(
-                "最小长度不能大于最大长度".to_string(),
+            return Err(settings_validation_error(
+                "settings.account_min_length_gt_max_length",
             ));
         }
     }
@@ -281,4 +298,28 @@ pub async fn update_user_account_limit(
         max_length: updated_setting.max_length,
         enable_alphanumeric_validation: updated_setting.enable_alphanumeric_validation,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_validation_error_uses_settings_domain_message_key() {
+        let error = settings_validation_error("settings.app_name_required");
+
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "settings.app_name_required");
+    }
+
+    #[test]
+    fn test_settings_validation_error_with_params_preserves_message_params() {
+        let params = MessageParams::from([("max_length".to_string(), "50".to_string())]);
+        let error =
+            settings_validation_error_with_params("settings.app_name_too_long", params.clone());
+
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "settings.app_name_too_long");
+        assert_eq!(error.message_params().as_ref(), Some(&params));
+    }
 }

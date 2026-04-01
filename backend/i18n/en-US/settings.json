@@ -1,0 +1,9 @@
+{
+  "settings.privacy_policy_content_required": "Privacy policy content cannot be empty.",
+  "settings.user_agreement_content_required": "User agreement content cannot be empty.",
+  "settings.app_name_required": "App name is required.",
+  "settings.app_name_too_long": "App name cannot exceed {max_length} characters.",
+  "settings.account_validation_rule_required": "At least one account validation rule must be enabled.",
+  "settings.account_length_range_invalid": "Account length must be between {min_allowed} and {max_allowed} characters.",
+  "settings.account_min_length_gt_max_length": "Minimum account length cannot be greater than maximum length."
+}
