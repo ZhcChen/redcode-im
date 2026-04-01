@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::database::push_device_store::PushDeviceStore;
 use crate::error::AppError;
+use crate::i18n::locale::normalize_locale_tag;
 use crate::models::{convert::string_to_uuid, Claims};
 use crate::AppState;
 
@@ -15,6 +16,7 @@ pub struct RegisterPushDeviceRequest {
     pub platform: String,
     pub channel: String,
     pub device_token: String,
+    pub locale: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,9 +63,18 @@ pub async fn register_device(
         );
     }
 
+    let locale = normalize_locale_tag(req.locale.as_deref());
+
     let store = PushDeviceStore::new(state.database.pool());
     let _ = store
-        .upsert_device(user_id, &platform, &channel, device_id, device_token)
+        .upsert_device(
+            user_id,
+            &locale,
+            &platform,
+            &channel,
+            device_id,
+            device_token,
+        )
         .await?;
 
     Ok(Json(RegisterPushDeviceResponse {

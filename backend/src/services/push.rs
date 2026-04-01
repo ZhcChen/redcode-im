@@ -26,6 +26,9 @@ use crate::database::push_log_store::PushLogStore;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::room_store::RoomStore;
 use crate::database::settings_store::SettingsStore;
+use crate::i18n::{
+    locale::normalize_locale_tag, localizer::default_localizer, message::MessageParams,
+};
 use crate::redis::models::CacheKeys;
 use crate::AppState;
 
@@ -1081,7 +1084,24 @@ pub async fn send_fcm_test(
         .map_err(|e| e.to_log_string())
 }
 
-fn preview_text(message: &MessageWithSender, parts: &[MessagePart]) -> String {
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct LocalizedPushContent {
+    title: String,
+    body: String,
+}
+
+type DeviceLocalizedPushBuilder = dyn Fn(&PushDevice) -> LocalizedPushContent + Send + Sync;
+
+fn push_localized_message(
+    locale: &str,
+    message_key: &str,
+    params: Option<&MessageParams>,
+) -> String {
+    let locale = normalize_locale_tag(Some(locale));
+    default_localizer().localize(&locale, message_key, params)
+}
+
+fn push_preview_text(locale: &str, message: &MessageWithSender, parts: &[MessagePart]) -> String {
     let trimmed = message.content.trim();
     if !trimmed.is_empty() {
         return truncate_with_ellipsis(trimmed, 80);
@@ -1097,14 +1117,75 @@ fn preview_text(message: &MessageWithSender, parts: &[MessagePart]) -> String {
                     }
                 }
             }
-            MessagePartType::Image => return "[图片]".to_string(),
-            MessagePartType::Video => return "[视频]".to_string(),
-            MessagePartType::Audio => return "[语音]".to_string(),
-            MessagePartType::File => return "[文件]".to_string(),
+            MessagePartType::Image => {
+                return push_localized_message(locale, "push.preview_image", None)
+            }
+            MessagePartType::Video => {
+                return push_localized_message(locale, "push.preview_video", None)
+            }
+            MessagePartType::Audio => {
+                return push_localized_message(locale, "push.preview_audio", None)
+            }
+            MessagePartType::File => {
+                return push_localized_message(locale, "push.preview_file", None)
+            }
         }
     }
 
-    "[新消息]".to_string()
+    push_localized_message(locale, "push.preview_fallback", None)
+}
+
+fn friend_request_notification_content(
+    locale: &str,
+    requester_name: &str,
+    message: Option<&str>,
+) -> LocalizedPushContent {
+    let title = push_localized_message(locale, "push.friend_request_title", None);
+    let body = match message.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(message) => {
+            let params = MessageParams::from([
+                ("requester_name".to_string(), requester_name.to_string()),
+                ("message".to_string(), truncate_with_ellipsis(message, 80)),
+            ]);
+            push_localized_message(
+                locale,
+                "push.friend_request_body_with_message",
+                Some(&params),
+            )
+        }
+        None => {
+            let params =
+                MessageParams::from([("requester_name".to_string(), requester_name.to_string())]);
+            push_localized_message(locale, "push.friend_request_body_default", Some(&params))
+        }
+    };
+
+    LocalizedPushContent { title, body }
+}
+
+fn new_message_notification_content(
+    locale: &str,
+    room_type: RoomType,
+    room_name: &str,
+    sender_name: &str,
+    message: &MessageWithSender,
+    parts: &[MessagePart],
+) -> LocalizedPushContent {
+    let preview = push_preview_text(locale, message, parts);
+    match room_type {
+        RoomType::Group => LocalizedPushContent {
+            title: room_name.to_string(),
+            body: format!("{}: {}", sender_name, preview),
+        },
+        _ => LocalizedPushContent {
+            title: sender_name.to_string(),
+            body: preview,
+        },
+    }
+}
+
+fn device_locale(device: &PushDevice) -> String {
+    normalize_locale_tag(Some(&device.locale))
 }
 
 fn truncate_with_ellipsis(text: &str, max_len: usize) -> String {
@@ -1359,8 +1440,7 @@ async fn send_fcm_to_devices_and_log(
     state: &AppState,
     fcm: Arc<FcmClient>,
     devices: Vec<PushDevice>,
-    title: String,
-    body: String,
+    content_for_device: Arc<DeviceLocalizedPushBuilder>,
     data: HashMap<String, String>,
     data_json: serde_json::Value,
     push_id: Uuid,
@@ -1378,8 +1458,7 @@ async fn send_fcm_to_devices_and_log(
         return;
     }
 
-    let title = Arc::new(title);
-    let body = Arc::new(body);
+    let content_for_device = content_for_device.clone();
     let data = Arc::new(data);
 
     let concurrency = push_device_send_concurrency();
@@ -1392,24 +1471,24 @@ async fn send_fcm_to_devices_and_log(
     let mut stream = futures_util::stream::iter(devices)
         .map(|device| {
             let fcm = fcm.clone();
-            let title = title.clone();
-            let body = body.clone();
+            let content_for_device = content_for_device.clone();
             let data = data.clone();
             async move {
+                let content = content_for_device(&device);
                 let outcome = send_to_token_with_retry(
                     &fcm,
                     &device.device_token,
-                    title.as_str(),
-                    body.as_str(),
+                    &content.title,
+                    &content.body,
                     data.as_ref(),
                 )
                 .await;
-                (device, outcome)
+                (device, content, outcome)
             }
         })
         .buffer_unordered(concurrency);
 
-    while let Some((device, outcome)) = stream.next().await {
+    while let Some((device, content, outcome)) = stream.next().await {
         if outcome.ok {
             success += 1;
         } else {
@@ -1448,8 +1527,8 @@ async fn send_fcm_to_devices_and_log(
                 room_id,
                 message_id,
                 request_id,
-                Some(title.as_str()),
-                Some(body.as_str()),
+                Some(content.title.as_str()),
+                Some(content.body.as_str()),
                 &data_json,
                 outcome.attempt,
                 outcome.ok,
@@ -1480,8 +1559,7 @@ async fn send_fcm_to_devices_and_log(
 async fn send_basic_notification(
     state: &AppState,
     targets: Vec<Uuid>,
-    title: String,
-    body: String,
+    content_for_device: Arc<DeviceLocalizedPushBuilder>,
     mut data: HashMap<String, String>,
     event_type: &str,
     room_id: Option<Uuid>,
@@ -1525,8 +1603,17 @@ async fn send_basic_notification(
     }
 
     send_fcm_to_devices_and_log(
-        state, fcm, devices, title, body, data, data_json, push_id, event_type, room_id,
-        message_id, request_id,
+        state,
+        fcm,
+        devices,
+        content_for_device,
+        data,
+        data_json,
+        push_id,
+        event_type,
+        room_id,
+        message_id,
+        request_id,
     )
     .await;
 
@@ -1541,27 +1628,28 @@ pub async fn notify_friend_request(
     target_user_id: Uuid,
     message: Option<String>,
 ) -> Result<(), String> {
-    let title = "新的好友请求".to_string();
-    let body = match message
-        .as_deref()
-        .map(|v| v.trim())
-        .filter(|v| !v.is_empty())
-    {
-        Some(m) => format!("{}: {}", requester_name, truncate_with_ellipsis(m, 80)),
-        None => format!("{} 想添加你为好友", requester_name),
-    };
-
     let mut data: HashMap<String, String> = HashMap::new();
     data.insert("type".to_string(), "friend_request".to_string());
     data.insert("request_id".to_string(), request_id.to_string());
     data.insert("requester_id".to_string(), requester_id.to_string());
-    data.insert("requester_name".to_string(), requester_name);
+    data.insert("requester_name".to_string(), requester_name.clone());
+
+    let requester_name_for_content = requester_name.clone();
+    let message_for_content = message.clone();
+    let content_for_device: Arc<DeviceLocalizedPushBuilder> =
+        Arc::new(move |device: &PushDevice| {
+            let locale = device_locale(device);
+            friend_request_notification_content(
+                &locale,
+                &requester_name_for_content,
+                message_for_content.as_deref(),
+            )
+        });
 
     send_basic_notification(
         &state,
         vec![target_user_id],
-        title,
-        body,
+        content_for_device,
         data,
         "friend_request",
         None,
@@ -1586,11 +1674,18 @@ pub async fn notify_group_event(
     data.insert("room_id".to_string(), room_id.to_string());
     data.insert("room_name".to_string(), room_name);
 
+    let title_for_content = title.clone();
+    let body_for_content = body.clone();
+    let content_for_device: Arc<DeviceLocalizedPushBuilder> =
+        Arc::new(move |_device: &PushDevice| LocalizedPushContent {
+            title: title_for_content.clone(),
+            body: body_for_content.clone(),
+        });
+
     send_basic_notification(
         &state,
         targets,
-        title,
-        body,
+        content_for_device,
         data,
         "group_event",
         Some(room_id),
@@ -1639,12 +1734,9 @@ pub async fn notify_new_message(
         .filter(|v| !v.is_empty())
         .map(|v| v.to_string())
         .unwrap_or_else(|| message.sender_username.clone());
-
-    let preview = preview_text(&message, &parts);
-
-    let (title, body) = match room.room_type {
-        RoomType::Group => (room.name.clone(), format!("{}: {}", sender_name, preview)),
-        _ => (sender_name.clone(), preview.clone()),
+    let chat_name = match room.room_type {
+        RoomType::Group => room.name.clone(),
+        _ => sender_name.clone(),
     };
 
     let members = match room_store
@@ -1722,17 +1814,34 @@ pub async fn notify_new_message(
     data.insert("room_type".to_string(), room.room_type.to_string());
     data.insert("sender_id".to_string(), message.sender_id.to_string());
     data.insert("sender_name".to_string(), sender_name.clone());
-    data.insert("chat_name".to_string(), title.clone());
+    data.insert("chat_name".to_string(), chat_name);
     let push_id = Uuid::new_v4();
     data.insert("push_id".to_string(), push_id.to_string());
     let data_json = serde_json::to_value(&data).unwrap_or_else(|_| serde_json::json!({}));
+
+    let room_type = room.room_type;
+    let room_name = room.name.clone();
+    let sender_name_for_content = sender_name.clone();
+    let message_for_content = message.clone();
+    let parts_for_content = parts.clone();
+    let content_for_device: Arc<DeviceLocalizedPushBuilder> =
+        Arc::new(move |device: &PushDevice| {
+            let locale = device_locale(device);
+            new_message_notification_content(
+                &locale,
+                room_type,
+                &room_name,
+                &sender_name_for_content,
+                &message_for_content,
+                &parts_for_content,
+            )
+        });
 
     send_fcm_to_devices_and_log(
         &state,
         fcm,
         devices,
-        title,
-        body,
+        content_for_device,
         data,
         data_json,
         push_id,
@@ -1749,7 +1858,7 @@ pub async fn notify_new_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::database::models::MemberRole;
+    use crate::database::models::{MemberRole, MessageType};
     use chrono::Utc;
     use once_cell::sync::Lazy;
     use std::sync::Mutex;
@@ -1797,6 +1906,60 @@ mod tests {
         }
     }
 
+    fn test_message(content: &str) -> MessageWithSender {
+        MessageWithSender {
+            id: Uuid::new_v4(),
+            room_id: Uuid::new_v4(),
+            sender_id: Uuid::new_v4(),
+            content: content.to_string(),
+            encrypted_content: None,
+            encryption_metadata: None,
+            message_type: MessageType::Text,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+            edited_at: None,
+            sender_username: "alice".to_string(),
+            sender_nickname: Some("Alice".to_string()),
+            sender_avatar_url: None,
+            quoted_message_id: None,
+            quoted_message_room_id: None,
+            quoted_message_sender_id: None,
+            quoted_message_sender_username: None,
+            quoted_message_sender_nickname: None,
+            quoted_message_sender_avatar_url: None,
+            quoted_message_content: None,
+            quoted_message_type: None,
+            quoted_message_created_at: None,
+            quoted_message_deleted_at: None,
+            forward_from_message_id: None,
+            forward_from_room_id: None,
+            forward_from_sender_id: None,
+            forward_from_sender_username: None,
+            forward_from_sender_nickname: None,
+        }
+    }
+
+    fn test_part(part_type: MessagePartType, text: Option<&str>) -> MessagePart {
+        MessagePart {
+            id: Uuid::new_v4(),
+            message_id: Uuid::new_v4(),
+            position: 0,
+            part_type,
+            text_content: text.map(|value| value.to_string()),
+            attachment_key: None,
+            attachment_name: None,
+            attachment_mime: None,
+            attachment_size: None,
+            width: None,
+            height: None,
+            duration_ms: None,
+            thumbnail_key: None,
+            extra: None,
+            created_at: Utc::now(),
+        }
+    }
+
     #[test]
     fn parse_mentions_should_ignore_email_like_patterns() {
         let alice = Uuid::new_v4();
@@ -1827,6 +1990,61 @@ mod tests {
         let members = vec![member(alice, "alice", None)];
         let decision = parse_mentions_from_content("@all 请看一下", &members);
         assert!(decision.mention_all);
+    }
+
+    #[test]
+    fn push_preview_text_returns_localized_media_labels() {
+        let message = test_message("");
+        let image_part = test_part(MessagePartType::Image, None);
+
+        assert_eq!(
+            push_preview_text("zh-CN", &message, &[image_part.clone()]),
+            "[图片]"
+        );
+        assert_eq!(
+            push_preview_text("en-US", &message, &[image_part]),
+            "[Image]"
+        );
+        assert_eq!(push_preview_text("en-US", &message, &[]), "[New message]");
+    }
+
+    #[test]
+    fn friend_request_notification_content_is_localized() {
+        let zh = friend_request_notification_content("zh-CN", "Alice", None);
+        assert_eq!(zh.title, "新的好友请求");
+        assert_eq!(zh.body, "Alice 想添加你为好友");
+
+        let en = friend_request_notification_content("en-US", "Alice", Some("Hello there"));
+        assert_eq!(en.title, "New friend request");
+        assert_eq!(en.body, "Alice: Hello there");
+    }
+
+    #[test]
+    fn new_message_notification_content_localizes_preview_for_group_rooms() {
+        let message = test_message("");
+        let file_part = test_part(MessagePartType::File, None);
+
+        let zh = new_message_notification_content(
+            "zh-CN",
+            RoomType::Group,
+            "项目组",
+            "Alice",
+            &message,
+            &[file_part.clone()],
+        );
+        assert_eq!(zh.title, "项目组");
+        assert_eq!(zh.body, "Alice: [文件]");
+
+        let en = new_message_notification_content(
+            "en-US",
+            RoomType::Group,
+            "Project",
+            "Alice",
+            &message,
+            &[file_part],
+        );
+        assert_eq!(en.title, "Project");
+        assert_eq!(en.body, "Alice: [File]");
     }
 
     #[test]

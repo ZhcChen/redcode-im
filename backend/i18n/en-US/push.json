@@ -13,5 +13,13 @@
   "push.device_token_invalid": "device_token is invalid.",
   "push.platform_invalid": "platform is invalid.",
   "push.channel_invalid": "channel is invalid.",
-  "push.user_id_invalid": "user_id is invalid."
+  "push.user_id_invalid": "user_id is invalid.",
+  "push.preview_image": "[Image]",
+  "push.preview_video": "[Video]",
+  "push.preview_audio": "[Audio]",
+  "push.preview_file": "[File]",
+  "push.preview_fallback": "[New message]",
+  "push.friend_request_title": "New friend request",
+  "push.friend_request_body_with_message": "{requester_name}: {message}",
+  "push.friend_request_body_default": "{requester_name} wants to add you as a friend"
 }

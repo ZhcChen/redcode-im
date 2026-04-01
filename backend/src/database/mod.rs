@@ -195,6 +195,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260117000000_create_group_detail_view.sql"
         )),
     ),
+    // 2026-04-01：Push 设备语言偏好（按设备 locale 生成推送文案）
+    (
+        "20260401120000_add_locale_to_push_devices.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260401120000_add_locale_to_push_devices.sql"
+        )),
+    ),
 ];
 
 impl Database {

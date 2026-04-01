@@ -12,6 +12,7 @@
 6. `feat(backend): normalize auth friend and message success tails`
 7. `feat(backend): localize cleanup storage provider tails`
 8. `feat(backend): normalize push failure reason tails`
+9. `feat(backend): localize push notification copy by device locale`
 
 ## 新增 / 补齐内容
 
@@ -28,6 +29,7 @@
 - `backend/i18n/{zh-CN,en-US}/common.json`
 - `backend/i18n/{zh-CN,en-US}/admin.json`
 - `backend/i18n/{zh-CN,en-US}/user.json`
+- `backend/i18n/{zh-CN,en-US}/push.json`
 
 ### 2. handler / service / storage
 
@@ -43,13 +45,17 @@
 - `backend/src/handlers/auth.rs`
 - `backend/src/handlers/friend.rs`
 - `backend/src/handlers/message.rs`
+- `backend/src/handlers/push.rs`
 - `backend/src/services/file_upload_cleanup.rs`
 - `backend/src/services/push.rs`
+- `backend/src/database/push_device_store.rs`
+- `backend/src/i18n/locale.rs`
 
 落地策略：
 - 错误路径统一改为 `message_key + message_params`
 - `claims.sub` 解析失败统一复用 `auth.token_subject_invalid`
 - 非关键 success message 尽量收敛为 `"ok"`
+- 设备上报 `locale` 后，按 **device 粒度** 生成用户可见 push 文案
 
 ### 3. Go locale contract
 
@@ -58,11 +64,13 @@
 - `tests/go/backend/versions/version_latest_download_test.go`
 - `tests/go/backend/rooms/room_lifecycle_test.go`
 - `tests/go/backend/messages/unread_counts_test.go`
+- `tests/go/backend/push/push_device_flow_test.go`
 
 覆盖点：
 - 英文错误响应
 - 非支持语言回退中文
 - `message_key/message/message_params/details` 协议稳定性
+- push device `locale` 注册与按设备语言分发用户推送文案
 
 ## 验证结果
 
@@ -92,6 +100,8 @@ cd backend && cargo test services::push --lib -- --test-threads=1
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml run --rm go-tests \
   go test ./backend/system ./backend/versions ./backend/rooms ./backend/messages -v
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml run --rm go-tests \
+  go test ./backend/push -run 'TestPushDeviceRegisterSendAndUnregister_OK|TestPushFriendRequestUsesRegisteredDeviceLocale_OK' -v
 cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml down -v --remove-orphans
 ```
 
@@ -103,5 +113,5 @@ cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-c
 2. Go 黑盒当前没有稳定的“缺失翻译 key”外部入口，因此该规则仍由 Rust 单测 `i18n_missing_key_fallback_to_message_key` 兜底。
 3. `settings.rs` 中隐私协议 / 用户协议的 fallback 文案仍为固定内容，本轮只收口校验错误与用户可感知的短尾响应。
 4. `auth.rs` / `friend.rs` / `message.rs` 本轮将多处 success message 统一收敛为 `"ok"`，优先保证协议稳定而非继续扩展 success 文案 catalog。
-5. `push.rs` 中测试推送错误 reason 与内部运维失败字符串已统一为英文可读文本，但真正的用户推送标题/预览文案仍未按 locale 分发。
+5. push 用户文案当前仅对 `zh-CN` / `en-US` 做了显式适配，其它 locale 统一回退 `zh-CN`。
 6. 仓库内仍存在部分非本轮范围的中文 success message / 历史错误字符串，不能据此宣称“全仓库 100% i18n 完成”。

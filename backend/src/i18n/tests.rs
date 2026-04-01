@@ -7,7 +7,7 @@ use crate::error::AppError;
 use crate::handlers::message::message_cache_error;
 use crate::i18n::{
     catalog::Catalog,
-    locale::{negotiate_locale, DEFAULT_LOCALE},
+    locale::{negotiate_locale, normalize_locale_tag, DEFAULT_LOCALE},
     localizer::Localizer,
 };
 
@@ -39,6 +39,15 @@ fn i18n_accept_language_ignores_q_zero_candidate() {
 fn i18n_accept_language_ignores_invalid_q_value() {
     let locale = negotiate_locale(Some("en-US;q=abc"));
     assert_eq!(locale, DEFAULT_LOCALE);
+}
+
+#[test]
+fn i18n_normalize_locale_tag_canonicalizes_supported_variants() {
+    assert_eq!(normalize_locale_tag(Some("en")), "en-US");
+    assert_eq!(normalize_locale_tag(Some("en_GB")), "en-US");
+    assert_eq!(normalize_locale_tag(Some("zh")), "zh-CN");
+    assert_eq!(normalize_locale_tag(Some("fr-FR")), DEFAULT_LOCALE);
+    assert_eq!(normalize_locale_tag(None), DEFAULT_LOCALE);
 }
 
 #[test]
@@ -1617,6 +1626,48 @@ fn i18n_push_catalog_interpolates_params() {
     assert_eq!(
         localizer.localize("en-US", "push.provider_unsupported", Some(&params)),
         "Unsupported provider for now: apns."
+    );
+}
+
+#[test]
+fn i18n_push_catalog_loads_notification_copy_keys() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "push.preview_image", None),
+        "[图片]"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.preview_file", None),
+        "[File]"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "push.friend_request_title", None),
+        "新的好友请求"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.preview_fallback", None),
+        "[New message]"
+    );
+}
+
+#[test]
+fn i18n_push_catalog_interpolates_friend_request_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([
+        ("requester_name".to_string(), "Alice".to_string()),
+        ("message".to_string(), "Hello".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize("zh-CN", "push.friend_request_body_default", Some(&params)),
+        "Alice 想添加你为好友"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "push.friend_request_body_with_message",
+            Some(&params),
+        ),
+        "Alice: Hello"
     );
 }
 

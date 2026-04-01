@@ -21,6 +21,7 @@
 - `feat(backend): normalize auth friend and message success tails`
 - `feat(backend): localize cleanup storage provider tails`
 - `feat(backend): normalize push failure reason tails`
+- `feat(backend): localize push notification copy by device locale`
 
 已覆盖域：
 - auth / friend / user / message / group / room / version / admin
@@ -30,11 +31,13 @@
 - auth / friend / message success tails
 - file upload cleanup storage provider tails
 - push test / operational failure reason tails
+- push 用户通知文案按设备 locale 分发（`zh-CN` / `en-US`）
 - storage audit / COS
 
 验证：
 - Rust i18n 单测通过
 - Go locale contract 隔离栈回归通过
+- Go push 黑盒验证通过（设备注册 locale + 好友请求英文推送文案）
 
 ### Admin
 
@@ -60,6 +63,6 @@
 
 ## 后续建议
 
-1. 若要继续追求更高覆盖率，优先清理剩余零散中文 success message / 历史错误字符串。
+1. 若要继续追求更高覆盖率，优先清理剩余零散中文 success message / 历史错误字符串，以及更多 locale 的扩展支持。
 2. 将本轮 locale contract 命令固化到 CI 或 nightly 回归。
 3. 如要进入全仓库 i18n 阶段，需单独为 Frontend / Desktop / Website 建立新计划与验收文档。

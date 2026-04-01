@@ -12,14 +12,15 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 
 详见需求文档：`docs/design/push-provider-config-requirements.md`。
 
-## 当前实现（2025-12-29）
+## 当前实现（2026-04-01）
 
 ### Backend
 
 - 数据表：`push_devices`（`backend/sql/migrations/20251228090000_create_push_devices.sql`）
+- 数据表变更：`backend/sql/migrations/20260401120000_add_locale_to_push_devices.sql`
 - 数据表：`push_logs`（`backend/sql/migrations/20251228130000_create_push_logs.sql`）
 - 接口：
-  - `POST /push/devices`：注册/更新设备 token（需要登录）
+  - `POST /push/devices`：注册/更新设备 token（需要登录，可携带 `locale`）
   - `DELETE /push/devices/{device_id}`：注销当前账号在该设备上的 push（软禁用）
   - `GET /api/admin/push/logs`：查询 push 发送日志（管理员）
   - `POST /api/admin/push/logs/cleanup`：按保留天数清理 push 日志（管理员）
@@ -32,6 +33,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
   - 基础失败重试：指数退避，最多 3 次；每次发送结果写入 `push_logs`
   - 无效 token 自动停用：当 FCM 返回 `UNREGISTERED`（或明显的 token 非法）时，会将对应 `push_devices` 记录置为 `is_active=false`（等待客户端重新注册）
   - 覆盖触发点：新消息、好友请求、群解散/踢人/转让群主等群管理事件
+  - 用户可见文案按 **设备粒度 locale** 生成：当前支持 `zh-CN` / `en-US`，未上报或不支持的 locale 回退 `zh-CN`
 
 ### Flutter
 
@@ -48,6 +50,7 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 - `user_id`：所属用户
 - `device_id`：客户端生成的稳定设备 ID（用于 token 刷新/账号切换）
 - `device_token`：FCM/APNs token
+- `locale`：设备语言偏好（当前支持 `zh-CN/en-US`，其它值回退 `zh-CN`）
 - `platform`：`android/ios/...`（TEXT）
 - `channel`：`fcm/apns/...`（TEXT）
 - `is_active`：是否启用（注销后为 `false`）

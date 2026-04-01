@@ -47,6 +47,27 @@ pub fn negotiate_locale(accept_language: Option<&str>) -> String {
     DEFAULT_LOCALE.to_string()
 }
 
+pub fn normalize_locale_tag(locale: Option<&str>) -> String {
+    let Some(raw) = locale.map(str::trim).filter(|value| !value.is_empty()) else {
+        return DEFAULT_LOCALE.to_string();
+    };
+
+    if raw.contains(',') || raw.contains(';') {
+        return negotiate_locale(Some(raw));
+    }
+
+    let candidate = normalize_tag(raw);
+    if let Some(exact) = exact_supported_locale(&candidate) {
+        return exact.to_string();
+    }
+
+    if let Some(fallback) = family_fallback_locale(&candidate) {
+        return fallback.to_string();
+    }
+
+    DEFAULT_LOCALE.to_string()
+}
+
 fn parse_quality<'a>(params: impl Iterator<Item = &'a str>) -> Option<f32> {
     let mut has_q = false;
     let mut quality = 1.0f32;

@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -22,6 +21,8 @@ type pushLogsResponse struct {
 		ID       string         `json:"id"`
 		DeviceID string         `json:"deviceId"`
 		Event    string         `json:"eventType"`
+		Title    *string        `json:"title"`
+		Body     *string        `json:"body"`
 		Success  bool           `json:"success"`
 		Data     map[string]any `json:"data"`
 		Error    *string        `json:"error"`
@@ -52,6 +53,7 @@ func TestPushDeviceRegisterSendAndUnregister_OK(t *testing.T) {
 		"platform":     "android",
 		"channel":      "fcm",
 		"device_token": deviceToken,
+		"locale":       "en-US",
 	})
 	registerResp, err := c.HTTP.Do(registerReq)
 	if err != nil {
@@ -86,7 +88,7 @@ func TestPushDeviceRegisterSendAndUnregister_OK(t *testing.T) {
 		t.Fatalf("send room message expect 200, got %d: %s", sendResp.StatusCode, string(body))
 	}
 
-	log, ok := waitPushLogForDevice(t, c, admin.Token, deviceID, 45*time.Second)
+	log, ok := waitPushLogForDevice(t, c, admin.Token, deviceID, "message", 45*time.Second)
 	if !ok {
 		t.Fatalf("push log not found for device=%s within timeout", deviceID)
 	}
@@ -121,8 +123,78 @@ func TestPushDeviceRegisterSendAndUnregister_OK(t *testing.T) {
 	if err := json.NewDecoder(unregisterResp.Body).Decode(&unregisterPayload); err != nil {
 		t.Fatalf("decode unregister push device response failed: %v", err)
 	}
-	if !unregisterPayload.Success || !strings.Contains(unregisterPayload.Message, "设备已注销") {
+	if !unregisterPayload.Success || unregisterPayload.Message != "ok" {
 		t.Fatalf("unexpected unregister push device response: %+v", unregisterPayload)
+	}
+}
+
+func TestPushFriendRequestUsesRegisteredDeviceLocale_OK(t *testing.T) {
+	c := testutil.NewClient()
+	admin := testutil.AdminLogin(t, c)
+
+	serviceAccount := buildMockServiceAccountJSON(t, "push-friend-request-project", "http://external-mock:19080/google/oauth2/token")
+	configurePushSettings(t, c, admin.Token, serviceAccount)
+
+	password := "pass123456"
+	requesterName := testutil.UniqueUsername("pushfrienda")
+	targetName := testutil.UniqueUsername("pushfriendb")
+	requester := registerAndLogin(t, c, requesterName, password)
+	target := registerAndLogin(t, c, targetName, password)
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
+	deviceID := "iphone-15-pro-" + suffix
+	deviceToken := "fcm-friend-token-" + suffix
+
+	registerReq := testutil.NewAuthedJSONRequest(t, http.MethodPost, c.BaseURL+"/push/devices", target.Token, map[string]any{
+		"device_id":    deviceID,
+		"platform":     "ios",
+		"channel":      "fcm",
+		"device_token": deviceToken,
+		"locale":       "en-US",
+	})
+	registerResp, err := c.HTTP.Do(registerReq)
+	if err != nil {
+		t.Fatalf("register push device failed: %v", err)
+	}
+	defer registerResp.Body.Close()
+	if registerResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(registerResp.Body)
+		t.Fatalf("register push device expect 200, got %d: %s", registerResp.StatusCode, string(body))
+	}
+
+	createReq := testutil.NewAuthedJSONRequest(t, http.MethodPost, c.BaseURL+"/friends/requests", requester.Token, map[string]any{
+		"target_user_id": target.User.ID,
+	})
+	createResp, err := c.HTTP.Do(createReq)
+	if err != nil {
+		t.Fatalf("create friend request failed: %v", err)
+	}
+	defer createResp.Body.Close()
+	if createResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(createResp.Body)
+		t.Fatalf("create friend request expect 200, got %d: %s", createResp.StatusCode, string(body))
+	}
+
+	log, ok := waitPushLogForDevice(t, c, admin.Token, deviceID, "friend_request", 45*time.Second)
+	if !ok {
+		t.Fatalf("friend_request push log not found for device=%s within timeout", deviceID)
+	}
+	if !log.Success {
+		msg := ""
+		if log.Error != nil {
+			msg = *log.Error
+		}
+		t.Fatalf("push log indicates send failure for device=%s, error=%s", deviceID, msg)
+	}
+	if log.Event != "friend_request" {
+		t.Fatalf("push log event should be friend_request, got %s", log.Event)
+	}
+	if log.Title == nil || *log.Title != "New friend request" {
+		t.Fatalf("push log title should be localized to en-US, got %+v", log.Title)
+	}
+	expectedBody := requesterName + " wants to add you as a friend"
+	if log.Body == nil || *log.Body != expectedBody {
+		t.Fatalf("push log body should be localized to en-US, got %+v want=%q", log.Body, expectedBody)
 	}
 }
 
@@ -168,10 +240,12 @@ func configurePushSettings(t *testing.T, c *testutil.Client, adminToken, service
 	}
 }
 
-func waitPushLogForDevice(t *testing.T, c *testutil.Client, adminToken, deviceID string, timeout time.Duration) (log struct {
+func waitPushLogForDevice(t *testing.T, c *testutil.Client, adminToken, deviceID, eventType string, timeout time.Duration) (log struct {
 	ID       string
 	DeviceID string
 	Event    string
+	Title    *string
+	Body     *string
 	Success  bool
 	Data     map[string]any
 	Error    *string
@@ -180,7 +254,7 @@ func waitPushLogForDevice(t *testing.T, c *testutil.Client, adminToken, deviceID
 
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		listReq := testutil.NewAuthedJSONRequestWithToken(http.MethodGet, c.BaseURL+"/api/admin/push/logs?deviceId="+url.QueryEscape(deviceID)+"&eventType=message&limit=20", adminToken, nil)
+		listReq := testutil.NewAuthedJSONRequestWithToken(http.MethodGet, c.BaseURL+"/api/admin/push/logs?deviceId="+url.QueryEscape(deviceID)+"&eventType="+url.QueryEscape(eventType)+"&limit=20", adminToken, nil)
 		listResp, err := c.HTTP.Do(listReq)
 		if err != nil {
 			t.Fatalf("list push logs failed: %v", err)
@@ -207,6 +281,8 @@ func waitPushLogForDevice(t *testing.T, c *testutil.Client, adminToken, deviceID
 				ID       string
 				DeviceID string
 				Event    string
+				Title    *string
+				Body     *string
 				Success  bool
 				Data     map[string]any
 				Error    *string
@@ -214,6 +290,8 @@ func waitPushLogForDevice(t *testing.T, c *testutil.Client, adminToken, deviceID
 				ID:       item.ID,
 				DeviceID: item.DeviceID,
 				Event:    item.Event,
+				Title:    item.Title,
+				Body:     item.Body,
 				Success:  item.Success,
 				Data:     item.Data,
 				Error:    item.Error,

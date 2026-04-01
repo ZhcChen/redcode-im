@@ -679,6 +679,7 @@ pub struct MessageReactionSummary {
 pub struct PushDevice {
     pub id: Uuid,
     pub user_id: Uuid,
+    pub locale: String,
     pub platform: String,
     pub channel: String,
     pub device_id: String,

@@ -13,5 +13,13 @@
   "push.device_token_invalid": "device_token 无效",
   "push.platform_invalid": "platform 无效",
   "push.channel_invalid": "channel 无效",
-  "push.user_id_invalid": "user_id 无效"
+  "push.user_id_invalid": "user_id 无效",
+  "push.preview_image": "[图片]",
+  "push.preview_video": "[视频]",
+  "push.preview_audio": "[语音]",
+  "push.preview_file": "[文件]",
+  "push.preview_fallback": "[新消息]",
+  "push.friend_request_title": "新的好友请求",
+  "push.friend_request_body_with_message": "{requester_name}: {message}",
+  "push.friend_request_body_default": "{requester_name} 想添加你为好友"
 }

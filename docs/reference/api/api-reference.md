@@ -1616,7 +1616,8 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
   "device_id": "device-unique-id",
   "platform": "android",
   "channel": "fcm",
-  "device_token": "fcm-device-token..."
+  "device_token": "fcm-device-token...",
+  "locale": "en-US"
 }
 ```
 
@@ -1625,12 +1626,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - `platform`: 平台类型（`android` / `ios`）
 - `channel`: 推送通道（`fcm` / `apns`）
 - `device_token`: 推送服务下发的设备 token（最大 4096 字符）
+- `locale`: 设备语言偏好（可选，当前支持 `zh-CN` / `en-US`，未传或不支持时回退 `zh-CN`）
 
 **响应示例**：
 ```json
 {
   "success": true,
-  "message": "设备已注册",
+  "message": "ok",
   "device_id": "device-unique-id"
 }
 ```
@@ -1645,7 +1647,7 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 ```json
 {
   "success": true,
-  "message": "设备已注销"
+  "message": "ok"
 }
 ```
 

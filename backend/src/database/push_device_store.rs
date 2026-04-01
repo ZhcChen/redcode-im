@@ -14,6 +14,7 @@ impl<'a> PushDeviceStore<'a> {
     pub async fn upsert_device(
         &self,
         user_id: Uuid,
+        locale: &str,
         platform: &str,
         channel: &str,
         device_id: &str,
@@ -24,6 +25,7 @@ impl<'a> PushDeviceStore<'a> {
             INSERT INTO push_devices (
                 id,
                 user_id,
+                locale,
                 platform,
                 channel,
                 device_id,
@@ -40,6 +42,7 @@ impl<'a> PushDeviceStore<'a> {
                 $4,
                 $5,
                 $6,
+                $7,
                 TRUE,
                 NOW(),
                 NOW(),
@@ -47,17 +50,19 @@ impl<'a> PushDeviceStore<'a> {
             )
             ON CONFLICT (device_id) DO UPDATE
             SET user_id = EXCLUDED.user_id,
+                locale = EXCLUDED.locale,
                 platform = EXCLUDED.platform,
                 channel = EXCLUDED.channel,
                 device_token = EXCLUDED.device_token,
                 is_active = TRUE,
                 last_seen_at = NOW(),
                 updated_at = NOW()
-            RETURNING id, user_id, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
+            RETURNING id, user_id, locale, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
             "#,
         )
         .bind(crate::id::generate())
         .bind(user_id)
+        .bind(locale)
         .bind(platform)
         .bind(channel)
         .bind(device_id)
@@ -73,17 +78,19 @@ impl<'a> PushDeviceStore<'a> {
                     r#"
                     UPDATE push_devices
                     SET user_id = $1,
-                        platform = $2,
-                        channel = $3,
-                        device_id = $4,
+                        locale = $2,
+                        platform = $3,
+                        channel = $4,
+                        device_id = $5,
                         is_active = TRUE,
                         last_seen_at = NOW(),
                         updated_at = NOW()
-                    WHERE device_token = $5
-                    RETURNING id, user_id, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
+                    WHERE device_token = $6
+                    RETURNING id, user_id, locale, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
                     "#,
                 )
                 .bind(user_id)
+                .bind(locale)
                 .bind(platform)
                 .bind(channel)
                 .bind(device_id)
@@ -131,7 +138,7 @@ impl<'a> PushDeviceStore<'a> {
 
         let devices = sqlx::query_as::<_, PushDevice>(
             r#"
-            SELECT id, user_id, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
+            SELECT id, user_id, locale, platform, channel, device_id, device_token, is_active, last_seen_at, created_at, updated_at
             FROM push_devices
             WHERE user_id = ANY($1) AND is_active IS TRUE
             ORDER BY last_seen_at DESC
