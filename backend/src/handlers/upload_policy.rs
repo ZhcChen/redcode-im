@@ -3,6 +3,7 @@ use axum::{
     response::Json,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
@@ -98,7 +99,9 @@ pub async fn update_upload_policy_admin(
 
     let version = payload.version.trim();
     if version.is_empty() {
-        return Err(AppError::ValidationError("version 不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("version.version_required")
+        );
     }
 
     // 当前后端固定强制“语音不可混合其他内容”，暂不允许通过策略放开
@@ -107,9 +110,8 @@ pub async fn update_upload_policy_admin(
         || payload.audio_only.force_single_attachment != default_audio_only.force_single_attachment
         || payload.audio_only.allow_text != default_audio_only.allow_text
     {
-        return Err(AppError::ValidationError(
-            "当前版本暂不支持修改 audio_only 规则".to_string(),
-        ));
+        return Err(AppError::ValidationError(String::new())
+            .with_message_key("upload_policy.audio_only_rule_locked"));
     }
 
     let max_total_size_mb = payload.max_total_size_mb.clamp(1, 10_000);
@@ -163,8 +165,12 @@ pub async fn update_upload_policy_admin(
     normalize(&mut policy.mime_by_part_type.audio);
     normalize(&mut policy.mime_by_part_type.file);
 
-    let raw = serde_json::to_string(&policy)
-        .map_err(|e| AppError::InternalError(format!("序列化 upload policy 失败: {}", e)))?;
+    let raw = serde_json::to_string(&policy).map_err(|e| {
+        AppError::InternalError(String::new()).with_message_key_and_params(
+            "upload_policy.serialize_failed",
+            Some(BTreeMap::from([("reason".to_string(), e.to_string())])),
+        )
+    })?;
 
     let store = SettingsStore::new(state.database.clone());
     let saved = store

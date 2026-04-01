@@ -1,0 +1,4 @@
+{
+  "upload_policy.audio_only_rule_locked": "当前版本暂不支持修改 audio_only 规则",
+  "upload_policy.serialize_failed": "序列化 upload policy 失败: {reason}"
+}

@@ -27,11 +27,14 @@ pub async fn submit_feedback(
 ) -> Result<Json<SubmitFeedbackResponse>, AppError> {
     let content = payload.content.trim();
     if content.is_empty() {
-        return Err(AppError::ValidationError("反馈内容不能为空".to_string()));
+        return Err(
+            AppError::ValidationError(String::new()).with_message_key("feedback.content_required")
+        );
     }
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::InvalidToken("Invalid user id".to_string()))?;
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| {
+        AppError::InvalidToken(String::new()).with_message_key("auth.token_subject_invalid")
+    })?;
 
     let feedback_id = crate::id::generate();
 
@@ -45,6 +48,6 @@ pub async fn submit_feedback(
 
     Ok(Json(SubmitFeedbackResponse {
         success: true,
-        message: "反馈提交成功，感谢您的支持！".to_string(),
+        message: "ok".to_string(),
     }))
 }

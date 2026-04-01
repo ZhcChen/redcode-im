@@ -3,6 +3,7 @@
   "room.type_creation_unsupported": "该类型房间不能通过当前接口创建",
   "room.member_id_invalid": "无效的成员 ID: {user_id}",
   "room.group_additional_member_required": "群聊至少需要一个额外成员",
+  "room.room_id_invalid": "无效的房间ID",
   "room.not_found": "房间不存在",
   "room.join_request_not_approved": "入群申请尚未审批通过",
   "room.not_joinable": "该房间不支持主动加入",

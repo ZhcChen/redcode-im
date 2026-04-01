@@ -313,8 +313,9 @@ pub async fn get_user_rooms(
     State(state): State<AppState>,
     Path(user_id): Path<String>,
 ) -> Result<Json<UserRoomResponse>, AppError> {
-    let user_id = Uuid::parse_str(&user_id)
-        .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let user_id = Uuid::parse_str(&user_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("user.user_id_invalid")
+    })?;
 
     let pool = &state.database.pool;
 
@@ -431,8 +432,9 @@ pub async fn get_room_chat_history(
     Path(room_id): Path<String>,
     Query(params): Query<ChatHistoryParams>,
 ) -> Result<Json<ChatHistoryResponse>, AppError> {
-    let room_id = Uuid::parse_str(&room_id)
-        .map_err(|_| AppError::ValidationError("无效的房间ID".to_string()))?;
+    let room_id = Uuid::parse_str(&room_id).map_err(|_| {
+        AppError::ValidationError(String::new()).with_message_key("room.room_id_invalid")
+    })?;
 
     // 设置房间ID并复用获取聊天记录的逻辑
     let mut room_params = params;

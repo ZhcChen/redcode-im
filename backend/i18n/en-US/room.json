@@ -3,6 +3,7 @@
   "room.type_creation_unsupported": "This room type cannot be created through this endpoint.",
   "room.member_id_invalid": "Member ID is invalid: {user_id}.",
   "room.group_additional_member_required": "Group rooms must contain at least one additional member.",
+  "room.room_id_invalid": "Room ID is invalid.",
   "room.not_found": "Room not found.",
   "room.join_request_not_approved": "Join request has not been approved.",
   "room.not_joinable": "This room is not joinable.",

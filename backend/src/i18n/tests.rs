@@ -1391,6 +1391,39 @@ fn i18n_upload_storage_object_key_catalog_is_loaded() {
 }
 
 #[test]
+fn i18n_feedback_upload_policy_and_room_tail_catalogs_are_loaded() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "feedback.content_required", None),
+        "反馈内容不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload_policy.audio_only_rule_locked", None),
+        "Modifying the audio_only rule is not supported in the current version."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.room_id_invalid", None),
+        "Room ID is invalid."
+    );
+}
+
+#[test]
+fn i18n_upload_policy_tail_catalog_interpolates_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "upload_policy.serialize_failed", Some(&params)),
+        "序列化 upload policy 失败: boom"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload_policy.serialize_failed", Some(&params)),
+        "Failed to serialize upload policy: boom"
+    );
+}
+
+#[test]
 fn i18n_emoji_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     assert_eq!(

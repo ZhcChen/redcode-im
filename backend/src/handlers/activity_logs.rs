@@ -342,6 +342,7 @@ pub async fn get_global_user_distribution(
         let distribution = geolocation_service.get_global_user_distribution().await?;
         Ok(Json(distribution))
     } else {
-        Err(AppError::InternalError("地理位置服务未初始化".to_string()))
+        Err(AppError::InternalError(String::new())
+            .with_message_key("admin.geolocation_service_not_initialized"))
     }
 }

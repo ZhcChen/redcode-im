@@ -1,0 +1,4 @@
+{
+  "upload_policy.audio_only_rule_locked": "Modifying the audio_only rule is not supported in the current version.",
+  "upload_policy.serialize_failed": "Failed to serialize upload policy: {reason}"
+}
