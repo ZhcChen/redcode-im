@@ -1648,6 +1648,14 @@ fn i18n_push_catalog_loads_notification_copy_keys() {
         localizer.localize("en-US", "push.preview_fallback", None),
         "[New message]"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "push.group_event_dissolved_title", None),
+        "群聊已解散"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.group_event_kicked_title", None),
+        "Removed from group"
+    );
 }
 
 #[test]

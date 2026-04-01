@@ -544,8 +544,6 @@ struct DbGroupEventJobPayload {
     room_id: Uuid,
     room_name: String,
     event: String,
-    title: String,
-    body: String,
 }
 
 #[derive(Debug, Clone)]
@@ -719,8 +717,6 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
                 payload.room_id,
                 payload.room_name,
                 &payload.event,
-                payload.title,
-                payload.body,
             )
             .await
             {
@@ -937,8 +933,6 @@ pub async fn enqueue_group_event(
     room_id: Uuid,
     room_name: String,
     event: &str,
-    title: String,
-    body: String,
 ) {
     enqueue_push_job_to_db(
         state,
@@ -948,8 +942,6 @@ pub async fn enqueue_group_event(
             "room_id": room_id,
             "room_name": room_name,
             "event": event,
-            "title": title,
-            "body": body,
         }),
     )
     .await;
@@ -1161,6 +1153,26 @@ fn friend_request_notification_content(
     };
 
     LocalizedPushContent { title, body }
+}
+
+fn group_event_notification_content(
+    locale: &str,
+    event: &str,
+    room_name: &str,
+) -> LocalizedPushContent {
+    let title = match event {
+        "dissolved" => push_localized_message(locale, "push.group_event_dissolved_title", None),
+        "owner_transferred" => {
+            push_localized_message(locale, "push.group_event_owner_transferred_title", None)
+        }
+        "kicked" => push_localized_message(locale, "push.group_event_kicked_title", None),
+        _ => room_name.to_string(),
+    };
+
+    LocalizedPushContent {
+        title,
+        body: room_name.to_string(),
+    }
 }
 
 fn new_message_notification_content(
@@ -1665,21 +1677,19 @@ pub async fn notify_group_event(
     room_id: Uuid,
     room_name: String,
     event: &str,
-    title: String,
-    body: String,
 ) -> Result<(), String> {
     let mut data: HashMap<String, String> = HashMap::new();
     data.insert("type".to_string(), "group_event".to_string());
     data.insert("event".to_string(), event.to_string());
     data.insert("room_id".to_string(), room_id.to_string());
-    data.insert("room_name".to_string(), room_name);
+    data.insert("room_name".to_string(), room_name.clone());
 
-    let title_for_content = title.clone();
-    let body_for_content = body.clone();
+    let event_for_content = event.to_string();
+    let room_name_for_content = room_name.clone();
     let content_for_device: Arc<DeviceLocalizedPushBuilder> =
-        Arc::new(move |_device: &PushDevice| LocalizedPushContent {
-            title: title_for_content.clone(),
-            body: body_for_content.clone(),
+        Arc::new(move |device: &PushDevice| {
+            let locale = device_locale(device);
+            group_event_notification_content(&locale, &event_for_content, &room_name_for_content)
         });
 
     send_basic_notification(
@@ -2045,6 +2055,21 @@ mod tests {
         );
         assert_eq!(en.title, "Project");
         assert_eq!(en.body, "Alice: [File]");
+    }
+
+    #[test]
+    fn group_event_notification_content_localizes_known_titles() {
+        let zh = group_event_notification_content("zh-CN", "dissolved", "Project Alpha");
+        assert_eq!(zh.title, "群聊已解散");
+        assert_eq!(zh.body, "Project Alpha");
+
+        let en = group_event_notification_content("en-US", "owner_transferred", "Project Alpha");
+        assert_eq!(en.title, "Group owner changed");
+        assert_eq!(en.body, "Project Alpha");
+
+        let kicked = group_event_notification_content("en-US", "kicked", "Project Alpha");
+        assert_eq!(kicked.title, "Removed from group");
+        assert_eq!(kicked.body, "Project Alpha");
     }
 
     #[test]

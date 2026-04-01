@@ -470,8 +470,6 @@ pub async fn dissolve_room(
         room_id,
         push_room_name.clone(),
         "dissolved",
-        "群聊已解散".to_string(),
-        push_room_name,
     )
     .await;
 
@@ -553,8 +551,6 @@ pub async fn transfer_room_owner(
         room_id,
         push_room_name.clone(),
         "owner_transferred",
-        "群主已变更".to_string(),
-        push_room_name,
     )
     .await;
 
@@ -1226,6 +1222,20 @@ mod tests {
         assert!(!validate_notification_setting(-1));
         assert!(!validate_notification_setting(3));
         assert!(!validate_notification_setting(100));
+    }
+
+    #[test]
+    fn test_room_push_titles_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("room.rs");
+        for legacy in [
+            "\u{7fa4}\u{804a}\u{5df2}\u{89e3}\u{6563}",
+            "\u{7fa4}\u{4e3b}\u{5df2}\u{53d8}\u{66f4}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "room push title should not embed legacy literal: {legacy}"
+            );
+        }
     }
 
     // ========================================================================

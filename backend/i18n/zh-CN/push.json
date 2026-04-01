@@ -21,5 +21,8 @@
   "push.preview_fallback": "[新消息]",
   "push.friend_request_title": "新的好友请求",
   "push.friend_request_body_with_message": "{requester_name}: {message}",
-  "push.friend_request_body_default": "{requester_name} 想添加你为好友"
+  "push.friend_request_body_default": "{requester_name} 想添加你为好友",
+  "push.group_event_dissolved_title": "群聊已解散",
+  "push.group_event_owner_transferred_title": "群主已变更",
+  "push.group_event_kicked_title": "你已被移出群聊"
 }

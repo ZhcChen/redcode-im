@@ -764,15 +764,12 @@ pub async fn remove_group_member(
         error!("广播群成员移除事件失败: {}", e);
     }
 
-    let body_room_name = room_name.clone();
     crate::services::push::enqueue_group_event(
         &state,
         vec![member_id],
         room_id,
         room_name,
         "kicked",
-        "你已被移出群聊".to_string(),
-        body_room_name,
     )
     .await;
 
@@ -1177,4 +1174,16 @@ pub async fn broadcast_group_member_changed(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_group_management_push_titles_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("group_management.rs");
+        assert!(
+            !source.contains("\u{4f60}\u{5df2}\u{88ab}\u{79fb}\u{51fa}\u{7fa4}\u{804a}"),
+            "group_management push title should not embed legacy literal"
+        );
+    }
 }
