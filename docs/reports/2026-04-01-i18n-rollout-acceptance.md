@@ -19,6 +19,7 @@
 - `f9a655f9`
 - `feat(backend): localize user avatar and settings tails`
 - `feat(backend): normalize auth friend and message success tails`
+- `feat(backend): localize cleanup storage provider tails`
 
 已覆盖域：
 - auth / friend / user / message / group / room / version / admin
@@ -26,6 +27,7 @@
 - feedback / upload_policy
 - settings / user avatar response tails
 - auth / friend / message success tails
+- file upload cleanup storage provider tails
 - storage audit / COS
 
 验证：

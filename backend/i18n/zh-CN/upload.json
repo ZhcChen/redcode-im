@@ -7,6 +7,7 @@
   "upload.session_closed_for_sign": "分片会话已结束，无法继续签名",
   "upload.part_number_out_of_range": "part_number 超出范围（1..={total_parts}）",
   "upload.storage_provider_not_found": "存储提供商不存在",
+  "upload.storage_provider_inactive_for_cleanup": "存储提供商未启用，无法执行清理任务",
   "upload.storage_provider_inactive_for_sign": "存储提供商未启用，无法继续分片上传",
   "upload.etag_required": "etag 不能为空",
   "upload.session_closed_for_part_commit": "分片会话已结束，无法提交分片",

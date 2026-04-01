@@ -7,6 +7,7 @@
   "upload.session_closed_for_sign": "Multipart session has ended and cannot continue signing.",
   "upload.part_number_out_of_range": "part_number is out of range (1..={total_parts}).",
   "upload.storage_provider_not_found": "Storage provider was not found.",
+  "upload.storage_provider_inactive_for_cleanup": "Storage provider is inactive and file upload cleanup cannot continue.",
   "upload.storage_provider_inactive_for_sign": "Storage provider is inactive and multipart upload signing cannot continue.",
   "upload.etag_required": "etag is required.",
   "upload.session_closed_for_part_commit": "Multipart session has ended and cannot accept part commits.",

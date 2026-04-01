@@ -1429,6 +1429,27 @@ fn i18n_upload_catalog_interpolates_params() {
 }
 
 #[test]
+fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "upload.storage_provider_inactive_for_cleanup",
+            None
+        ),
+        "存储提供商未启用，无法执行清理任务"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "upload.storage_provider_inactive_for_cleanup",
+            None
+        ),
+        "Storage provider is inactive and file upload cleanup cannot continue."
+    );
+}
+
+#[test]
 fn i18n_common_admin_and_upload_storage_tail_catalogs_are_loaded() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 

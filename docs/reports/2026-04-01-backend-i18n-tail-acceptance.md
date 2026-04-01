@@ -10,6 +10,7 @@
 4. `f9a655f9` `feat(backend): localize feedback policy and chat history tails`
 5. `feat(backend): localize user avatar and settings tails`
 6. `feat(backend): normalize auth friend and message success tails`
+7. `feat(backend): localize cleanup storage provider tails`
 
 ## 新增 / 补齐内容
 
@@ -41,6 +42,7 @@
 - `backend/src/handlers/auth.rs`
 - `backend/src/handlers/friend.rs`
 - `backend/src/handlers/message.rs`
+- `backend/src/services/file_upload_cleanup.rs`
 
 落地策略：
 - 错误路径统一改为 `message_key + message_params`
@@ -76,6 +78,7 @@ cd backend && cargo test handlers::settings --lib -- --test-threads=1
 cd backend && cargo test handlers::auth --lib -- --test-threads=1
 cd backend && cargo test handlers::friend --lib -- --test-threads=1
 cd backend && cargo test handlers::message --lib -- --test-threads=1
+cd backend && cargo test services::file_upload_cleanup --lib -- --test-threads=1
 ```
 
 结果：通过。

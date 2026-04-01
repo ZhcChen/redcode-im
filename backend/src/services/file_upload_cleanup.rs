@@ -11,6 +11,14 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+fn cleanup_not_found_error(message_key: &'static str) -> AppError {
+    AppError::NotFound(String::new()).with_message_key(message_key)
+}
+
+fn cleanup_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
 fn infer_audit_scene_from_object_key(object_key: &str) -> &'static str {
     let key = object_key.trim();
     if key.starts_with("avatars/") {
@@ -135,11 +143,11 @@ async fn get_service_for_provider(
         .get_provider_by_id(provider_id)
         .await
         .map_err(AppError::DatabaseError)?
-        .ok_or_else(|| AppError::NotFound("未找到存储提供商配置".to_string()))?;
+        .ok_or_else(|| cleanup_not_found_error("upload.storage_provider_not_found"))?;
 
     if !provider.is_active {
-        return Err(AppError::ValidationError(
-            "存储提供商未启用，无法执行清理任务".to_string(),
+        return Err(cleanup_validation_error(
+            "upload.storage_provider_inactive_for_cleanup",
         ));
     }
 
@@ -594,5 +602,20 @@ mod tests {
         assert_eq!(config.orphan_delete_after_seconds, 7 * 24 * 3600);
         assert_eq!(config.unreferenced_retention_seconds, 30 * 24 * 3600);
         assert_eq!(config.batch_size, 200);
+    }
+
+    #[test]
+    fn test_cleanup_service_no_legacy_storage_provider_literals() {
+        let source = include_str!("file_upload_cleanup.rs");
+
+        for legacy in [
+            "\u{672a}\u{627e}\u{5230}\u{5b58}\u{50a8}\u{63d0}\u{4f9b}\u{5546}\u{914d}\u{7f6e}",
+            "\u{5b58}\u{50a8}\u{63d0}\u{4f9b}\u{5546}\u{672a}\u{542f}\u{7528}\u{ff0c}\u{65e0}\u{6cd5}\u{6267}\u{884c}\u{6e05}\u{7406}\u{4efb}\u{52a1}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "cleanup service should not embed legacy storage provider literal: {legacy}"
+            );
+        }
     }
 }
