@@ -11,6 +11,7 @@
 5. `feat(backend): localize user avatar and settings tails`
 6. `feat(backend): normalize auth friend and message success tails`
 7. `feat(backend): localize cleanup storage provider tails`
+8. `feat(backend): normalize push failure reason tails`
 
 ## 新增 / 补齐内容
 
@@ -43,6 +44,7 @@
 - `backend/src/handlers/friend.rs`
 - `backend/src/handlers/message.rs`
 - `backend/src/services/file_upload_cleanup.rs`
+- `backend/src/services/push.rs`
 
 落地策略：
 - 错误路径统一改为 `message_key + message_params`
@@ -79,6 +81,7 @@ cd backend && cargo test handlers::auth --lib -- --test-threads=1
 cd backend && cargo test handlers::friend --lib -- --test-threads=1
 cd backend && cargo test handlers::message --lib -- --test-threads=1
 cd backend && cargo test services::file_upload_cleanup --lib -- --test-threads=1
+cd backend && cargo test services::push --lib -- --test-threads=1
 ```
 
 结果：通过。
@@ -100,4 +103,5 @@ cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-c
 2. Go 黑盒当前没有稳定的“缺失翻译 key”外部入口，因此该规则仍由 Rust 单测 `i18n_missing_key_fallback_to_message_key` 兜底。
 3. `settings.rs` 中隐私协议 / 用户协议的 fallback 文案仍为固定内容，本轮只收口校验错误与用户可感知的短尾响应。
 4. `auth.rs` / `friend.rs` / `message.rs` 本轮将多处 success message 统一收敛为 `"ok"`，优先保证协议稳定而非继续扩展 success 文案 catalog。
-5. 仓库内仍存在部分非本轮范围的中文 success message / 历史错误字符串，不能据此宣称“全仓库 100% i18n 完成”。
+5. `push.rs` 中测试推送错误 reason 与内部运维失败字符串已统一为英文可读文本，但真正的用户推送标题/预览文案仍未按 locale 分发。
+6. 仓库内仍存在部分非本轮范围的中文 success message / 历史错误字符串，不能据此宣称“全仓库 100% i18n 完成”。

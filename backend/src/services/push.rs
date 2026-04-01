@@ -227,7 +227,7 @@ struct ServiceAccountClaims {
 impl FcmClient {
     fn from_service_account_json(raw: &str) -> Result<Self, String> {
         let sa: GoogleServiceAccount = serde_json::from_str(raw)
-            .map_err(|e| format!("解析 FCM service account JSON 失败: {}", e))?;
+            .map_err(|e| format!("Failed to parse FCM service account JSON: {}", e))?;
 
         let timeout_seconds =
             env_u64("PUSH_HTTP_TIMEOUT_SECONDS", PUSH_SEND_HTTP_TIMEOUT_SECONDS).clamp(1, 120);
@@ -236,7 +236,7 @@ impl FcmClient {
             .timeout(StdDuration::from_secs(timeout_seconds))
             .connect_timeout(StdDuration::from_secs(5))
             .build()
-            .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
+            .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
         Ok(Self {
             http,
@@ -278,12 +278,12 @@ impl FcmClient {
         let key = EncodingKey::from_rsa_pem(self.sa.private_key.as_bytes()).map_err(|e| {
             FcmSendError {
                 kind: FcmSendErrorKind::Config,
-                message: format!("解析 private_key 失败: {}", e),
+                message: format!("Failed to parse private_key: {}", e),
             }
         })?;
         let jwt = encode(&header, &claims, &key).map_err(|e| FcmSendError {
             kind: FcmSendErrorKind::Config,
-            message: format!("签名 JWT 失败: {}", e),
+            message: format!("Failed to sign JWT: {}", e),
         })?;
 
         let mut form = HashMap::new();
@@ -299,13 +299,13 @@ impl FcmClient {
             .await
             .map_err(|e| FcmSendError {
                 kind: FcmSendErrorKind::Transport,
-                message: format!("请求 Google OAuth2 token 失败: {}", e),
+                message: format!("Failed to request Google OAuth2 token: {}", e),
             })?;
 
         let status = resp.status();
         let text = resp.text().await.map_err(|e| FcmSendError {
             kind: FcmSendErrorKind::Transport,
-            message: format!("读取 token 响应失败: {}", e),
+            message: format!("Failed to read token response: {}", e),
         })?;
 
         if !status.is_success() {
@@ -315,13 +315,16 @@ impl FcmClient {
                 } else {
                     FcmSendErrorKind::Transport
                 },
-                message: format!("获取 access_token 失败: status={}, body={}", status, text),
+                message: format!(
+                    "Failed to get access_token: status={}, body={}",
+                    status, text
+                ),
             });
         }
 
         let parsed: OAuthTokenResponse = serde_json::from_str(&text).map_err(|e| FcmSendError {
             kind: FcmSendErrorKind::Transport,
-            message: format!("解析 token 响应失败: {}", e),
+            message: format!("Failed to parse token response: {}", e),
         })?;
 
         let expires_at = Utc::now() + Duration::seconds(parsed.expires_in);
@@ -357,7 +360,7 @@ impl FcmClient {
             HeaderValue::from_str(&format!("Bearer {}", access_token)).map_err(|e| {
                 FcmSendError {
                     kind: FcmSendErrorKind::Config,
-                    message: format!("构造 Authorization header 失败: {}", e),
+                    message: format!("Failed to build Authorization header: {}", e),
                 }
             })?,
         );
@@ -383,7 +386,7 @@ impl FcmClient {
             .await
             .map_err(|_| FcmSendError {
                 kind: FcmSendErrorKind::Transport,
-                message: "获取 push send semaphore 失败".to_string(),
+                message: "Failed to acquire push send semaphore.".to_string(),
             })?;
 
         let resp = self
@@ -395,13 +398,13 @@ impl FcmClient {
             .await
             .map_err(|e| FcmSendError {
                 kind: FcmSendErrorKind::Transport,
-                message: format!("请求 FCM 失败: {}", e),
+                message: format!("Failed to request FCM: {}", e),
             })?;
 
         let status = resp.status();
         let text = resp.text().await.map_err(|e| FcmSendError {
             kind: FcmSendErrorKind::Transport,
-            message: format!("读取 FCM 响应失败: {}", e),
+            message: format!("Failed to read FCM response: {}", e),
         })?;
 
         if status.is_success() {
@@ -512,7 +515,7 @@ async fn enqueue_push_job_to_db(
     let store = PushJobStore::new(state.database.pool());
     if let Err(e) = store.enqueue(job_type, &payload, Utc::now()).await {
         warn!(
-            "Push: 写入 push_job_queue 失败 job_type={}, err={}",
+            "Push: failed to enqueue push_job_queue job_type={}, err={}",
             job_type, e
         );
     }
@@ -642,7 +645,9 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
         "message" => {
             let payload: DbMessageJobPayload = match serde_json::from_value(job.payload.clone()) {
                 Ok(v) => v,
-                Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
+                Err(e) => {
+                    return PushDbJobOutcome::Failed(format!("Failed to parse payload: {}", e))
+                }
             };
 
             let store = MessageStore::new(state.database.pool());
@@ -651,7 +656,7 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
                 Ok(None) => return PushDbJobOutcome::Done,
                 Err(e) => {
                     return PushDbJobOutcome::Retry(format!(
-                        "读取 message 失败 message_id={}, err={}",
+                        "Failed to load message message_id={}, err={}",
                         payload.message_id, e
                     ))
                 }
@@ -661,7 +666,7 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
                 Ok(m) => m,
                 Err(e) => {
                     return PushDbJobOutcome::Retry(format!(
-                        "读取 message_parts 失败 message_id={}, err={}",
+                        "Failed to load message_parts message_id={}, err={}",
                         payload.message_id, e
                     ))
                 }
@@ -677,7 +682,9 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
             let payload: DbFriendRequestJobPayload =
                 match serde_json::from_value(job.payload.clone()) {
                     Ok(v) => v,
-                    Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
+                    Err(e) => {
+                        return PushDbJobOutcome::Failed(format!("Failed to parse payload: {}", e))
+                    }
                 };
 
             match notify_friend_request(
@@ -698,7 +705,9 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
             let payload: DbGroupEventJobPayload = match serde_json::from_value(job.payload.clone())
             {
                 Ok(v) => v,
-                Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
+                Err(e) => {
+                    return PushDbJobOutcome::Failed(format!("Failed to parse payload: {}", e))
+                }
             };
 
             match notify_group_event(
@@ -716,7 +725,7 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
                 Err(e) => PushDbJobOutcome::Retry(e),
             }
         }
-        other => PushDbJobOutcome::Failed(format!("不支持的 job_type: {}", other)),
+        other => PushDbJobOutcome::Failed(format!("Unsupported job_type: {}", other)),
     }
 }
 
@@ -732,7 +741,7 @@ async fn run_push_db_queue_once(state: AppState, cfg: &PushDbQueueConfig) {
     {
         Ok(v) => v,
         Err(e) => {
-            warn!("Push: claim push_job_queue 失败: {}", e);
+            warn!("Push: failed to claim push_job_queue jobs: {}", e);
             return;
         }
     };
@@ -751,7 +760,10 @@ async fn run_push_db_queue_once(state: AppState, cfg: &PushDbQueueConfig) {
                 let store = PushJobStore::new(state.database.pool());
                 if job.attempts >= cfg.max_attempts {
                     let _ = store
-                        .mark_failed(&job.id, "超过最大重试次数，已停止处理")
+                        .mark_failed(
+                            &job.id,
+                            "Exceeded maximum retry attempts; processing stopped.",
+                        )
                         .await;
                     return;
                 }
@@ -807,7 +819,7 @@ async fn cleanup_push_job_queue_once(state: &AppState, cfg: &PushDbQueueCleanupC
     {
         Ok(v) => v,
         Err(e) => {
-            warn!("Push: 获取 push_job_queue cleanup lock 失败: {}", e);
+            warn!("Push: failed to acquire push_job_queue cleanup lock: {}", e);
             return;
         }
     };
@@ -843,17 +855,17 @@ async fn cleanup_push_job_queue_once(state: &AppState, cfg: &PushDbQueueCleanupC
         .execute(&mut *conn)
         .await
     {
-        warn!("Push: 释放 push_job_queue cleanup lock 失败: {}", e);
+        warn!("Push: failed to release push_job_queue cleanup lock: {}", e);
     }
 
     if let Some(e) = failed {
-        warn!("Push: push_job_queue 清理失败: {}", e);
+        warn!("Push: push_job_queue cleanup failed: {}", e);
         return;
     }
 
     if total_deleted > 0 {
         info!(
-            "Push: push_job_queue 清理完成 deleted={} retention_days={}",
+            "Push: push_job_queue cleanup completed deleted={} retention_days={}",
             total_deleted, cfg.retention_days
         );
     }
@@ -998,7 +1010,10 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
                 let crypto = match SecretCrypto::new() {
                     Ok(c) => c,
                     Err(e) => {
-                        warn!("Push: SecretCrypto 初始化失败，跳过 FCM（{}）", e);
+                        warn!(
+                            "Push: SecretCrypto initialization failed; skipping FCM ({})",
+                            e
+                        );
                         guard.loaded_at = Utc::now();
                         guard.enabled = enabled;
                         guard.skip_if_online = skip_if_online;
@@ -1024,11 +1039,11 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
                         } else {
                             match FcmClient::from_service_account_json(&raw) {
                                 Ok(client) => next_fcm = Some(Arc::new(client)),
-                                Err(e) => warn!("Push: FCM 配置解析失败（{}）", e),
+                                Err(e) => warn!("Push: failed to parse FCM config ({})", e),
                             }
                         }
                     }
-                    Err(e) => warn!("Push: FCM 配置解密失败（{}）", e),
+                    Err(e) => warn!("Push: failed to decrypt FCM config ({})", e),
                 }
             }
         }
@@ -1056,11 +1071,11 @@ pub async fn send_fcm_test(
 ) -> Result<(), String> {
     let runtime = push_runtime_snapshot(state).await;
     if !runtime.enabled {
-        return Err("Push 已关闭（push_enabled=false）".to_string());
+        return Err("Push is disabled (push_enabled=false).".to_string());
     }
     let fcm = runtime
         .fcm
-        .ok_or_else(|| "FCM 未配置或未启用".to_string())?;
+        .ok_or_else(|| "FCM is not configured or enabled.".to_string())?;
     fcm.send_to_token(device_token, title, body, data)
         .await
         .map_err(|e| e.to_log_string())
@@ -1409,13 +1424,13 @@ async fn send_fcm_to_devices_and_log(
                 Ok(updated) => {
                     if updated {
                         info!(
-                            "Push: 已停用无效 token user_id={}, device_id={}",
+                            "Push: deactivated invalid token user_id={}, device_id={}",
                             device.user_id, device.device_id
                         );
                     }
                 }
                 Err(e) => warn!(
-                    "Push: 停用无效 token 失败 user_id={}, device_id={}, err={}",
+                    "Push: failed to deactivate invalid token user_id={}, device_id={}, err={}",
                     device.user_id, device.device_id, e
                 ),
             }
@@ -1443,14 +1458,14 @@ async fn send_fcm_to_devices_and_log(
             .await
         {
             warn!(
-                "Push: 写入 push_logs 失败 user_id={}, device_id={}, err={}",
+                "Push: failed to write push_logs user_id={}, device_id={}, err={}",
                 device.user_id, device.device_id, e
             );
         }
 
         if let Some(err) = outcome.error.as_deref() {
             warn!(
-                "Push: 发送失败 user_id={}, device_id={}, attempt={}, err={}",
+                "Push: send failed user_id={}, device_id={}, attempt={}, err={}",
                 device.user_id, device.device_id, outcome.attempt, err
             );
         }
@@ -1502,7 +1517,7 @@ async fn send_basic_notification(
     let device_store = PushDeviceStore::new(state.database.pool());
     let devices = match device_store.list_active_devices_for_users(&filtered).await {
         Ok(devices) => devices,
-        Err(e) => return Err(format!("获取 push_devices 失败: {}", e)),
+        Err(e) => return Err(format!("Failed to load push_devices: {}", e)),
     };
 
     if devices.is_empty() {
@@ -1611,7 +1626,7 @@ pub async fn notify_new_message(
         Err(sqlx::Error::RowNotFound) => return Ok(()),
         Err(e) => {
             return Err(format!(
-                "获取房间失败 room_id={}, err={}",
+                "Failed to load room room_id={}, err={}",
                 message.room_id, e
             ))
         }
@@ -1639,7 +1654,7 @@ pub async fn notify_new_message(
         Ok(members) => members,
         Err(e) => {
             return Err(format!(
-                "获取房间成员通知设置失败 room_id={}, err={}",
+                "Failed to load room member notification settings room_id={}, err={}",
                 message.room_id, e
             ))
         }
@@ -1660,7 +1675,7 @@ pub async fn notify_new_message(
             Ok(members) => parse_mentions_from_content(&message.content, &members),
             Err(e) => {
                 return Err(format!(
-                    "获取房间成员信息失败 room_id={}, err={}",
+                    "Failed to load room member info room_id={}, err={}",
                     message.room_id, e
                 ))
             }
@@ -1693,7 +1708,7 @@ pub async fn notify_new_message(
     let device_store = PushDeviceStore::new(state.database.pool());
     let devices = match device_store.list_active_devices_for_users(&targets).await {
         Ok(devices) => devices,
-        Err(e) => return Err(format!("获取 push_devices 失败: {}", e)),
+        Err(e) => return Err(format!("Failed to load push_devices: {}", e)),
     };
 
     if devices.is_empty() {
@@ -1872,5 +1887,67 @@ mod tests {
         assert_eq!(cfg.interval_seconds, 60);
         assert_eq!(cfg.batch_size, 200_000);
         assert_eq!(cfg.max_batches, 1);
+    }
+
+    #[test]
+    fn push_test_failure_reasons_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("push.rs");
+
+        for legacy in [
+            "\u{89e3}\u{6790} FCM service account JSON \u{5931}\u{8d25}",
+            "\u{6784}\u{5efa} HTTP client \u{5931}\u{8d25}",
+            "\u{89e3}\u{6790} private_key \u{5931}\u{8d25}",
+            "\u{7b7e}\u{540d} JWT \u{5931}\u{8d25}",
+            "\u{8bf7}\u{6c42} Google OAuth2 token \u{5931}\u{8d25}",
+            "\u{8bfb}\u{53d6} token \u{54cd}\u{5e94} \u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6} access_token \u{5931}\u{8d25}",
+            "\u{89e3}\u{6790} token \u{54cd}\u{5e94} \u{5931}\u{8d25}",
+            "\u{6784}\u{9020} Authorization header \u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6} push send semaphore \u{5931}\u{8d25}",
+            "\u{8bf7}\u{6c42} FCM \u{5931}\u{8d25}",
+            "\u{8bfb}\u{53d6} FCM \u{54cd}\u{5e94} \u{5931}\u{8d25}",
+            "Push \u{5df2}\u{5173}\u{95ed}\u{ff08}push_enabled=false\u{ff09}",
+            "FCM \u{672a}\u{914d}\u{7f6e}\u{6216}\u{672a}\u{542f}\u{7528}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "push test failure reason should not embed legacy literal: {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn push_operational_errors_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("push.rs");
+
+        for legacy in [
+            "Push: \u{5199}\u{5165} push_job_queue \u{5931}\u{8d25}",
+            "\u{89e3}\u{6790} payload \u{5931}\u{8d25}",
+            "\u{8bfb}\u{53d6} message \u{5931}\u{8d25}",
+            "\u{8bfb}\u{53d6} message_parts \u{5931}\u{8d25}",
+            "\u{4e0d}\u{652f}\u{6301}\u{7684} job_type",
+            "Push: claim push_job_queue \u{5931}\u{8d25}",
+            "\u{8d85}\u{8fc7}\u{6700}\u{5927}\u{91cd}\u{8bd5}\u{6b21}\u{6570}\u{ff0c}\u{5df2}\u{505c}\u{6b62}\u{5904}\u{7406}",
+            "Push: \u{83b7}\u{53d6} push_job_queue cleanup lock \u{5931}\u{8d25}",
+            "Push: \u{91ca}\u{653e} push_job_queue cleanup lock \u{5931}\u{8d25}",
+            "Push: push_job_queue \u{6e05}\u{7406}\u{5931}\u{8d25}",
+            "Push: push_job_queue \u{6e05}\u{7406}\u{5b8c}\u{6210}",
+            "Push: SecretCrypto \u{521d}\u{59cb}\u{5316}\u{5931}\u{8d25}",
+            "Push: FCM \u{914d}\u{7f6e}\u{89e3}\u{6790}\u{5931}\u{8d25}",
+            "Push: FCM \u{914d}\u{7f6e}\u{89e3}\u{5bc6}\u{5931}\u{8d25}",
+            "Push: \u{5df2}\u{505c}\u{7528}\u{65e0}\u{6548} token",
+            "Push: \u{505c}\u{7528}\u{65e0}\u{6548} token \u{5931}\u{8d25}",
+            "Push: \u{5199}\u{5165} push_logs \u{5931}\u{8d25}",
+            "Push: \u{53d1}\u{9001}\u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6} push_devices \u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6}\u{623f}\u{95f4}\u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6}\u{623f}\u{95f4}\u{6210}\u{5458}\u{901a}\u{77e5}\u{8bbe}\u{7f6e}\u{5931}\u{8d25}",
+            "\u{83b7}\u{53d6}\u{623f}\u{95f4}\u{6210}\u{5458}\u{4fe1}\u{606f}\u{5931}\u{8d25}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "push operational error should not embed legacy literal: {legacy}"
+            );
+        }
     }
 }

@@ -20,6 +20,7 @@
 - `feat(backend): localize user avatar and settings tails`
 - `feat(backend): normalize auth friend and message success tails`
 - `feat(backend): localize cleanup storage provider tails`
+- `feat(backend): normalize push failure reason tails`
 
 已覆盖域：
 - auth / friend / user / message / group / room / version / admin
@@ -28,6 +29,7 @@
 - settings / user avatar response tails
 - auth / friend / message success tails
 - file upload cleanup storage provider tails
+- push test / operational failure reason tails
 - storage audit / COS
 
 验证：
