@@ -22,6 +22,7 @@
 - `feat(backend): localize cleanup storage provider tails`
 - `feat(backend): normalize push failure reason tails`
 - `feat(backend): localize push notification copy by device locale`
+- `feat(backend): drop localized friend welcome fallback text`
 
 已覆盖域：
 - auth / friend / user / message / group / room / version / admin
@@ -32,12 +33,14 @@
 - file upload cleanup storage provider tails
 - push test / operational failure reason tails
 - push 用户通知文案按设备 locale 分发（`zh-CN` / `en-US`）
+- 好友请求无留言时不再写入语言绑定的欢迎系统消息
 - storage audit / COS
 
 验证：
 - Rust i18n 单测通过
 - Go locale contract 隔离栈回归通过
 - Go push 黑盒验证通过（设备注册 locale + 好友请求英文推送文案）
+- Go friends 黑盒回归通过（好友接受与建房链路未受影响）
 
 ### Admin
 

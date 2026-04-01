@@ -58,6 +58,15 @@ fn friend_internal_error(message_key: &'static str) -> AppError {
     AppError::InternalError(String::new()).with_message_key(message_key)
 }
 
+fn accepted_friend_initial_message(raw_message: Option<&str>) -> Option<(String, MessageType)> {
+    let trimmed = raw_message.map(str::trim).unwrap_or_default();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    Some((trimmed.to_string(), MessageType::Text))
+}
+
 /// 创建好友请求
 pub async fn create_friend_request(
     State(state): State<AppState>,
@@ -222,49 +231,44 @@ pub async fn respond_friend_request(
             .ensure_private_room(request.requester_id, request.addressee_id, room_name)
             .await?;
 
-        let trimmed = request
-            .message
-            .as_ref()
-            .map(|msg| msg.trim())
-            .unwrap_or_default();
-
-        let (sender_id, content, message_type) = if trimmed.is_empty() {
-            (
-                request.requester_id,
-                format!("你与 {} 已成为好友，开始聊天吧！", addressee_display),
-                MessageType::System,
-            )
-        } else {
-            (request.requester_id, trimmed.to_string(), MessageType::Text)
-        };
-
-        let message_store = MessageStore::new(state.database.pool());
-        let created_message = message_store
-            .create_message(room.id, sender_id, content, message_type.clone(), None)
-            .await?;
-
-        match message_store
-            .get_message_with_sender(created_message.id)
-            .await?
+        if let Some((content, message_type)) =
+            accepted_friend_initial_message(request.message.as_deref())
         {
-            Some(enriched) => {
-                let mut part_ids = vec![enriched.id];
-                if let Some(qid) = enriched.quoted_message_id {
-                    part_ids.push(qid);
-                }
-                let parts_map = message_store.get_message_parts_map(&part_ids).await?;
+            let message_store = MessageStore::new(state.database.pool());
+            let created_message = message_store
+                .create_message(
+                    room.id,
+                    request.requester_id,
+                    content,
+                    message_type.clone(),
+                    None,
+                )
+                .await?;
 
-                if let Err(err) = broadcast_message_to_room(&state, &enriched, &parts_map).await {
-                    warn!(
-                        "Failed to broadcast welcome message for room {}: {}",
-                        room.id, err
-                    );
+            match message_store
+                .get_message_with_sender(created_message.id)
+                .await?
+            {
+                Some(enriched) => {
+                    let mut part_ids = vec![enriched.id];
+                    if let Some(qid) = enriched.quoted_message_id {
+                        part_ids.push(qid);
+                    }
+                    let parts_map = message_store.get_message_parts_map(&part_ids).await?;
+
+                    if let Err(err) = broadcast_message_to_room(&state, &enriched, &parts_map).await
+                    {
+                        warn!(
+                            "Failed to broadcast initial private-room message for room {}: {}",
+                            room.id, err
+                        );
+                    }
                 }
+                None => warn!(
+                    "Created initial private-room message {} for room {} but failed to load enriched data",
+                    created_message.id, room.id
+                ),
             }
-            None => warn!(
-                "Created welcome message {} for room {} but failed to load enriched data",
-                created_message.id, room.id
-            ),
         }
     }
 
@@ -708,6 +712,30 @@ mod tests {
         assert!(
             !source.contains(&format!("message: \"{legacy}\"")),
             "friend success response should not embed legacy response literal: {legacy}"
+        );
+    }
+
+    #[test]
+    fn test_accepted_friend_initial_message_skips_blank_welcome_message() {
+        assert_eq!(accepted_friend_initial_message(None), None);
+        assert_eq!(accepted_friend_initial_message(Some("   ")), None);
+    }
+
+    #[test]
+    fn test_accepted_friend_initial_message_keeps_request_text_as_plain_message() {
+        let message = accepted_friend_initial_message(Some("  hi from request  "))
+            .expect("non-empty request message should create initial room message");
+        assert_eq!(message.0, "hi from request");
+        assert_eq!(message.1, MessageType::Text);
+    }
+
+    #[test]
+    fn test_friend_source_no_longer_embeds_legacy_welcome_literal() {
+        let source = include_str!("friend.rs");
+        let legacy = "\u{4f60}\u{4e0e} {}\u{5df2}\u{6210}\u{4e3a}\u{597d}\u{53cb}\u{ff0c}\u{5f00}\u{59cb}\u{804a}\u{5929}\u{5427}\u{ff01}";
+        assert!(
+            !source.contains(legacy),
+            "friend handler should not embed legacy welcome literal"
         );
     }
 }

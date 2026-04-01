@@ -13,6 +13,7 @@
 7. `feat(backend): localize cleanup storage provider tails`
 8. `feat(backend): normalize push failure reason tails`
 9. `feat(backend): localize push notification copy by device locale`
+10. `feat(backend): drop localized friend welcome fallback text`
 
 ## 新增 / 补齐内容
 
@@ -46,6 +47,7 @@
 - `backend/src/handlers/friend.rs`
 - `backend/src/handlers/message.rs`
 - `backend/src/handlers/push.rs`
+- `backend/src/handlers/friend.rs`
 - `backend/src/services/file_upload_cleanup.rs`
 - `backend/src/services/push.rs`
 - `backend/src/database/push_device_store.rs`
@@ -56,6 +58,7 @@
 - `claims.sub` 解析失败统一复用 `auth.token_subject_invalid`
 - 非关键 success message 尽量收敛为 `"ok"`
 - 设备上报 `locale` 后，按 **device 粒度** 生成用户可见 push 文案
+- 持久化聊天内容避免继续写入语言绑定的欢迎系统文案；好友请求无留言时不再额外落库欢迎消息
 
 ### 3. Go locale contract
 
@@ -90,6 +93,10 @@ cd backend && cargo test handlers::friend --lib -- --test-threads=1
 cd backend && cargo test handlers::message --lib -- --test-threads=1
 cd backend && cargo test services::file_upload_cleanup --lib -- --test-threads=1
 cd backend && cargo test services::push --lib -- --test-threads=1
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml up -d external-mock postgres redis-session redis-cache backend
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml run --rm go-tests \
+  go test ./backend/friends -run TestFriendRequestAcceptAndEnsureChat_OK -v
+cd tests && COMPOSE_PROJECT_NAME=redcode_im_i18n_tail docker compose -f docker-compose.yml down -v --remove-orphans
 ```
 
 结果：通过。
