@@ -908,6 +908,29 @@ fn i18n_message_catalog_loads_task_4d_complete_keyset_for_both_locales() {
             "message.attachment_multipart_plan_failed",
             "无法生成分片上传计划，请稍后重试",
         ),
+        ("message.group_user_muted", "您已被禁言"),
+        (
+            "message.group_user_muted_until",
+            "您已被禁言，预计 {until} 解除",
+        ),
+        ("message.group_user_muted_reason", "您已被禁言：{reason}"),
+        (
+            "message.group_user_muted_until_reason",
+            "您已被禁言，预计 {until} 解除：{reason}",
+        ),
+        ("message.group_global_mute", "当前群聊已开启全体禁言"),
+        (
+            "message.group_global_mute_until",
+            "当前群聊已开启全体禁言，预计 {until} 解除",
+        ),
+        (
+            "message.group_global_mute_reason",
+            "当前群聊已开启全体禁言：{reason}",
+        ),
+        (
+            "message.group_global_mute_until_reason",
+            "当前群聊已开启全体禁言，预计 {until} 解除：{reason}",
+        ),
     ];
 
     for (key, value) in zh_expectations {
@@ -932,6 +955,32 @@ fn i18n_message_catalog_loads_task_4d_complete_keyset_for_both_locales() {
         ("message.attachment_object_not_found", "Attachment object was not found in storage. Please try again later."),
         ("message.attachment_multipart_direct_upload_required", "File size must exceed {threshold_size} bytes to use multipart upload."),
         ("message.attachment_multipart_plan_failed", "Failed to plan multipart upload. Please try again later."),
+        ("message.group_user_muted", "You have been muted."),
+        (
+            "message.group_user_muted_until",
+            "You have been muted until {until}.",
+        ),
+        (
+            "message.group_user_muted_reason",
+            "You have been muted: {reason}.",
+        ),
+        (
+            "message.group_user_muted_until_reason",
+            "You have been muted until {until}: {reason}.",
+        ),
+        ("message.group_global_mute", "This group is currently under global mute."),
+        (
+            "message.group_global_mute_until",
+            "This group is currently under global mute until {until}.",
+        ),
+        (
+            "message.group_global_mute_reason",
+            "This group is currently under global mute: {reason}.",
+        ),
+        (
+            "message.group_global_mute_until_reason",
+            "This group is currently under global mute until {until}: {reason}.",
+        ),
     ];
 
     for (key, value) in en_expectations {
@@ -1000,6 +1049,48 @@ fn i18n_message_catalog_interpolates_task_4d_params_extended() {
             Some(&threshold_params),
         ),
         "File size must exceed 5242880 bytes to use multipart upload."
+    );
+
+    let muted_params = BTreeMap::from([
+        ("until".to_string(), "2026-04-02T08:00:00+00:00".to_string()),
+        ("reason".to_string(), "刷屏".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.group_user_muted_until_reason",
+            Some(&muted_params),
+        ),
+        "您已被禁言，预计 2026-04-02T08:00:00+00:00 解除：刷屏"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.group_user_muted_until_reason",
+            Some(&muted_params),
+        ),
+        "You have been muted until 2026-04-02T08:00:00+00:00: 刷屏."
+    );
+
+    let global_mute_params = BTreeMap::from([
+        ("until".to_string(), "2026-04-02T09:30:00+00:00".to_string()),
+        ("reason".to_string(), "maintenance".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "message.group_global_mute_until_reason",
+            Some(&global_mute_params),
+        ),
+        "当前群聊已开启全体禁言，预计 2026-04-02T09:30:00+00:00 解除：maintenance"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "message.group_global_mute_until_reason",
+            Some(&global_mute_params),
+        ),
+        "This group is currently under global mute until 2026-04-02T09:30:00+00:00: maintenance."
     );
 }
 

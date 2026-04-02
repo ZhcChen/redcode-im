@@ -110,6 +110,13 @@ fn message_forbidden_error(message_key: &'static str) -> AppError {
     AppError::Forbidden(String::new()).with_message_key(message_key)
 }
 
+fn message_forbidden_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::Forbidden(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
 fn message_rate_limit_error(message_key: &'static str) -> AppError {
     AppError::RateLimitExceeded(String::new()).with_message_key(message_key)
 }
@@ -118,6 +125,54 @@ pub(crate) fn message_cache_error(message_key: &'static str, cause: impl ToStrin
     let cause = cause.to_string();
     error!(message_key, cause = %cause, "消息处理缓存错误");
     AppError::CacheError(String::new()).with_message_key(message_key)
+}
+
+fn muted_user_message_error(until: Option<String>, reason: Option<&str>) -> AppError {
+    match (
+        until.as_deref().filter(|value| !value.is_empty()),
+        reason.map(str::trim).filter(|value| !value.is_empty()),
+    ) {
+        (Some(until), Some(reason)) => message_forbidden_error_with_params(
+            "message.group_user_muted_until_reason",
+            MessageParams::from([
+                ("until".to_string(), until.to_string()),
+                ("reason".to_string(), reason.to_string()),
+            ]),
+        ),
+        (Some(until), None) => message_forbidden_error_with_params(
+            "message.group_user_muted_until",
+            MessageParams::from([("until".to_string(), until.to_string())]),
+        ),
+        (None, Some(reason)) => message_forbidden_error_with_params(
+            "message.group_user_muted_reason",
+            MessageParams::from([("reason".to_string(), reason.to_string())]),
+        ),
+        (None, None) => message_forbidden_error("message.group_user_muted"),
+    }
+}
+
+fn global_mute_message_error(until: Option<String>, reason: Option<&str>) -> AppError {
+    match (
+        until.as_deref().filter(|value| !value.is_empty()),
+        reason.map(str::trim).filter(|value| !value.is_empty()),
+    ) {
+        (Some(until), Some(reason)) => message_forbidden_error_with_params(
+            "message.group_global_mute_until_reason",
+            MessageParams::from([
+                ("until".to_string(), until.to_string()),
+                ("reason".to_string(), reason.to_string()),
+            ]),
+        ),
+        (Some(until), None) => message_forbidden_error_with_params(
+            "message.group_global_mute_until",
+            MessageParams::from([("until".to_string(), until.to_string())]),
+        ),
+        (None, Some(reason)) => message_forbidden_error_with_params(
+            "message.group_global_mute_reason",
+            MessageParams::from([("reason".to_string(), reason.to_string())]),
+        ),
+        (None, None) => message_forbidden_error("message.group_global_mute"),
+    }
 }
 
 fn message_internal_error(message_key: &'static str, cause: impl ToString) -> AppError {
@@ -228,33 +283,27 @@ async fn ensure_group_message_permissions(
     let group_store = GroupManagementStore::new(state.database.pool());
 
     if let Some(mute) = group_store.find_active_mute(room_id, sender_id).await? {
-        let mut message = String::from("您已被禁言");
-        if mute.mute_duration_hours > 0 {
+        let until = if mute.mute_duration_hours > 0 {
             let expire_at = mute.muted_at + Duration::hours(mute.mute_duration_hours as i64);
-            if expire_at > Utc::now() {
-                message.push_str(&format!("，预计 {} 解除", expire_at.to_rfc3339()));
-            }
-        }
-        if let Some(reason) = mute.reason {
-            message.push_str(&format!("：{}", reason));
-        }
-        return Err(AppError::Forbidden(message));
+            (expire_at > Utc::now()).then(|| expire_at.to_rfc3339())
+        } else {
+            None
+        };
+        return Err(muted_user_message_error(until, mute.reason.as_deref()));
     }
 
     if let Some(settings) = group_store.get_group_settings(room_id).await? {
         if settings.global_mute_enabled {
             let can_manage = group_store.can_manage_group(room_id, sender_id).await?;
             if !can_manage {
-                let mut message = String::from("当前群聊已开启全体禁言");
-                if let Some(reason) = settings.global_mute_reason.as_ref() {
-                    message.push_str(&format!("：{}", reason));
-                }
-                if let Some(until) = settings.global_mute_until {
-                    if until > Utc::now() {
-                        message.push_str(&format!("，预计 {} 解除", until.to_rfc3339()));
-                    }
-                }
-                return Err(AppError::Forbidden(message));
+                let until = settings
+                    .global_mute_until
+                    .filter(|until| *until > Utc::now())
+                    .map(|until| until.to_rfc3339());
+                return Err(global_mute_message_error(
+                    until,
+                    settings.global_mute_reason.as_deref(),
+                ));
             }
         }
     }
@@ -705,9 +754,10 @@ mod message_attachment_key_tests {
 #[cfg(test)]
 mod message_i18n_tests {
     use super::{
-        create_message_storage_service, ensure_multipart_upload_size, message_cache_error,
-        message_internal_error, message_validation_error, message_validation_error_with_params,
-        normalize_message_parts, parse_message_sender_id, plan_message_attachment_multipart_upload,
+        create_message_storage_service, ensure_multipart_upload_size, global_mute_message_error,
+        message_cache_error, message_internal_error, message_validation_error,
+        message_validation_error_with_params, muted_user_message_error, normalize_message_parts,
+        parse_message_sender_id, plan_message_attachment_multipart_upload,
         validate_list_cursor_params, validate_multipart_upload_candidate, validate_reaction_key,
         validate_reaction_target_message, ALLOWED_REACTION_KEYS,
     };
@@ -858,6 +908,42 @@ mod message_i18n_tests {
         assert_eq!(
             error.localized_message(),
             "文件大小超出限制：实际 5000 字节，最大允许 4096 字节"
+        );
+    }
+
+    #[test]
+    fn muted_user_message_error_uses_stable_key_and_params() {
+        let until = "2026-04-02T08:00:00+00:00".to_string();
+        let error = muted_user_message_error(Some(until.clone()), Some("刷屏"));
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.group_user_muted_until_reason"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["until"], until);
+        assert_eq!(params["reason"], "刷屏");
+        assert_eq!(
+            error.localized_message(),
+            "\u{60a8}\u{5df2}\u{88ab}\u{7981}\u{8a00}\u{ff0c}\u{9884}\u{8ba1} 2026-04-02T08:00:00+00:00 \u{89e3}\u{9664}\u{ff1a}\u{5237}\u{5c4f}"
+        );
+    }
+
+    #[test]
+    fn global_mute_message_error_uses_stable_key_and_params() {
+        let until = "2026-04-02T09:30:00+00:00".to_string();
+        let error = global_mute_message_error(Some(until.clone()), Some("系统维护"));
+
+        assert_eq!(
+            error.response_message_key(),
+            "message.group_global_mute_until_reason"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["until"], until);
+        assert_eq!(params["reason"], "系统维护");
+        assert_eq!(
+            error.localized_message(),
+            "\u{5f53}\u{524d}\u{7fa4}\u{804a}\u{5df2}\u{5f00}\u{542f}\u{5168}\u{4f53}\u{7981}\u{8a00}\u{ff0c}\u{9884}\u{8ba1} 2026-04-02T09:30:00+00:00 \u{89e3}\u{9664}\u{ff1a}\u{7cfb}\u{7edf}\u{7ef4}\u{62a4}"
         );
     }
 
@@ -1037,6 +1123,21 @@ mod message_i18n_tests {
             assert!(
                 !source.contains(&format!("message: \"{legacy}\"")),
                 "message success response should not embed legacy response literal: {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn message_permission_errors_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("message.rs");
+
+        for legacy in [
+            "\u{60a8}\u{5df2}\u{88ab}\u{7981}\u{8a00}",
+            "\u{5f53}\u{524d}\u{7fa4}\u{804a}\u{5df2}\u{5f00}\u{542f}\u{5168}\u{4f53}\u{7981}\u{8a00}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "message permission error should not embed legacy response literal: {legacy}"
             );
         }
     }
