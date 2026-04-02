@@ -1733,6 +1733,34 @@ fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
         localizer.localize("en-US", "upload.audit_vendor_job_failed", None),
         "CI audit job failed."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.cleanup_pending_timeout_unconfirmed", None),
+        "直传超时未确认"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.cleanup_pending_orphan_deleted", None),
+        "Upload timed out without references. Deleted object."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.cleanup_pending_object_missing", None),
+        "Upload timed out and object was missing."
+    );
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "upload.cleanup_completed_unreferenced_deleted",
+            None
+        ),
+        "无引用且已过保留期，已删除对象"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "upload.cleanup_completed_object_missing_mark_deleted",
+            None
+        ),
+        "Object was missing and has been marked deleted."
+    );
 }
 
 #[test]

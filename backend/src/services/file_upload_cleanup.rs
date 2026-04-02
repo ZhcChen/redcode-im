@@ -3,6 +3,8 @@ use crate::database::file_upload_store::FileUploadStore;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::Database;
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
+use crate::i18n::message::MessageParams;
 use crate::storage;
 use crate::storage::StorageService;
 use chrono::{Duration, Utc};
@@ -17,6 +19,11 @@ fn cleanup_not_found_error(message_key: &'static str) -> AppError {
 
 fn cleanup_validation_error(message_key: &'static str) -> AppError {
     AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn cleanup_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    localizer.localize(localizer.fallback_locale(), message_key, params)
 }
 
 fn infer_audit_scene_from_object_key(object_key: &str) -> &'static str {
@@ -223,7 +230,14 @@ pub async fn run_file_upload_cleanup(
             Ok(_) => {
                 // 已存在对象但未确认：先标记失败（不允许复用），超过更长阈值再删除对象
                 let _ = upload_store
-                    .mark_failed_by_key(&record.storage_provider_id, key, Some("直传超时未确认"))
+                    .mark_failed_by_key(
+                        &record.storage_provider_id,
+                        key,
+                        Some(&cleanup_localized_message(
+                            "upload.cleanup_pending_timeout_unconfirmed",
+                            None,
+                        )),
+                    )
                     .await;
 
                 let delete_cutoff = Utc::now() - Duration::seconds(cfg.orphan_delete_after_seconds);
@@ -234,7 +248,10 @@ pub async fn run_file_upload_cleanup(
                                 .mark_deleted_by_key(
                                     &record.storage_provider_id,
                                     key,
-                                    Some("超时且无引用，已删除对象"),
+                                    Some(&cleanup_localized_message(
+                                        "upload.cleanup_pending_orphan_deleted",
+                                        None,
+                                    )),
                                 )
                                 .await;
                         }
@@ -249,7 +266,10 @@ pub async fn run_file_upload_cleanup(
                     .mark_failed_by_key(
                         &record.storage_provider_id,
                         key,
-                        Some("直传超时且对象不存在"),
+                        Some(&cleanup_localized_message(
+                            "upload.cleanup_pending_object_missing",
+                            None,
+                        )),
                     )
                     .await;
             }
@@ -261,7 +281,10 @@ pub async fn run_file_upload_cleanup(
                             .mark_failed_by_key(
                                 &record.storage_provider_id,
                                 key,
-                                Some("直传超时未确认"),
+                                Some(&cleanup_localized_message(
+                                    "upload.cleanup_pending_timeout_unconfirmed",
+                                    None,
+                                )),
                             )
                             .await;
                     }
@@ -270,7 +293,10 @@ pub async fn run_file_upload_cleanup(
                             .mark_failed_by_key(
                                 &record.storage_provider_id,
                                 key,
-                                Some("直传超时且对象不存在"),
+                                Some(&cleanup_localized_message(
+                                    "upload.cleanup_pending_object_missing",
+                                    None,
+                                )),
                             )
                             .await;
                     }
@@ -318,7 +344,10 @@ pub async fn run_file_upload_cleanup(
                         .mark_deleted_by_key(
                             &record.storage_provider_id,
                             key,
-                            Some("无引用且已过保留期，已删除对象"),
+                            Some(&cleanup_localized_message(
+                                "upload.cleanup_completed_unreferenced_deleted",
+                                None,
+                            )),
                         )
                         .await;
                 }
@@ -329,7 +358,10 @@ pub async fn run_file_upload_cleanup(
                     .mark_deleted_by_key(
                         &record.storage_provider_id,
                         key,
-                        Some("对象不存在，已标记为删除"),
+                        Some(&cleanup_localized_message(
+                            "upload.cleanup_completed_object_missing_mark_deleted",
+                            None,
+                        )),
                     )
                     .await;
             }
@@ -342,7 +374,10 @@ pub async fn run_file_upload_cleanup(
                                 .mark_deleted_by_key(
                                     &record.storage_provider_id,
                                     key,
-                                    Some("无引用且已过保留期，已删除对象"),
+                                    Some(&cleanup_localized_message(
+                                        "upload.cleanup_completed_unreferenced_deleted",
+                                        None,
+                                    )),
                                 )
                                 .await;
                         }
@@ -353,7 +388,10 @@ pub async fn run_file_upload_cleanup(
                             .mark_deleted_by_key(
                                 &record.storage_provider_id,
                                 key,
-                                Some("对象不存在，已标记为删除"),
+                                Some(&cleanup_localized_message(
+                                    "upload.cleanup_completed_object_missing_mark_deleted",
+                                    None,
+                                )),
                             )
                             .await;
                     }
@@ -617,5 +655,60 @@ mod tests {
                 "cleanup service should not embed legacy storage provider literal: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn test_cleanup_service_no_legacy_record_reason_literals() {
+        let source = include_str!("file_upload_cleanup.rs");
+
+        for legacy in [
+            [
+                "\u{76f4}", "\u{4f20}", "\u{8d85}", "\u{65f6}", "\u{672a}", "\u{786e}", "\u{8ba4}",
+            ]
+            .concat(),
+            [
+                "\u{8d85}", "\u{65f6}", "\u{4e14}", "\u{65e0}", "\u{5f15}", "\u{7528}", "\u{ff0c}",
+                "\u{5df2}", "\u{5220}", "\u{9664}", "\u{5bf9}", "\u{8c61}",
+            ]
+            .concat(),
+            [
+                "\u{76f4}", "\u{4f20}", "\u{8d85}", "\u{65f6}", "\u{4e14}", "\u{5bf9}", "\u{8c61}",
+                "\u{4e0d}", "\u{5b58}", "\u{5728}",
+            ]
+            .concat(),
+            [
+                "\u{65e0}", "\u{5f15}", "\u{7528}", "\u{4e14}", "\u{5df2}", "\u{8fc7}", "\u{4fdd}",
+                "\u{7559}", "\u{671f}", "\u{ff0c}", "\u{5df2}", "\u{5220}", "\u{9664}", "\u{5bf9}",
+                "\u{8c61}",
+            ]
+            .concat(),
+            [
+                "\u{5bf9}", "\u{8c61}", "\u{4e0d}", "\u{5b58}", "\u{5728}", "\u{ff0c}", "\u{5df2}",
+                "\u{6807}", "\u{8bb0}", "\u{4e3a}", "\u{5220}", "\u{9664}",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "cleanup service should not embed legacy record reason literal: {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_cleanup_reason_helpers_should_render_fallback_locale_copy() {
+        assert_eq!(
+            cleanup_localized_message("upload.cleanup_pending_timeout_unconfirmed", None),
+            ["\u{76f4}", "\u{4f20}", "\u{8d85}", "\u{65f6}", "\u{672a}", "\u{786e}", "\u{8ba4}",]
+                .concat()
+        );
+        assert_eq!(
+            cleanup_localized_message("upload.cleanup_completed_object_missing_mark_deleted", None),
+            [
+                "\u{5bf9}", "\u{8c61}", "\u{4e0d}", "\u{5b58}", "\u{5728}", "\u{ff0c}", "\u{5df2}",
+                "\u{6807}", "\u{8bb0}", "\u{4e3a}", "\u{5220}", "\u{9664}",
+            ]
+            .concat()
+        );
     }
 }
