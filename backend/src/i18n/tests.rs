@@ -1372,6 +1372,22 @@ fn i18n_room_catalog_is_loaded_for_both_locales() {
         localizer.localize("zh-CN", "room.new_owner_same_as_current", None),
         "新群主必须与当前群主不同"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "room.favorite_default_name", None),
+        "收藏夹"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.favorite_default_name", None),
+        "Favorites"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "room.favorite_default_description", None),
+        "保存重要消息、文件与提醒的私人收藏夹"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "room.favorite_default_description", None),
+        "A private favorites room for saving important messages, files, and reminders."
+    );
 }
 
 #[test]

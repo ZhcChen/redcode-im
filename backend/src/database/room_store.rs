@@ -6,9 +6,18 @@ use crate::database::member_with_user_info::{RoomMemberRow, RoomMemberWithUserIn
 use crate::database::models::{
     ChatSummaryRow, MemberRole, NotificationSetting, Room, RoomMember, RoomType, UserRoomPin,
 };
+use crate::i18n::localizer::default_localizer;
+use crate::middleware::current_request_locale;
 
 pub struct RoomStore<'a> {
     pub pool: &'a PgPool,
+}
+
+fn favorite_room_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
 }
 
 impl<'a> RoomStore<'a> {
@@ -288,8 +297,10 @@ impl<'a> RoomStore<'a> {
                 "#,
             )
             .bind(crate::id::generate())
-            .bind("收藏夹")
-            .bind(Some("保存重要消息、文件与提醒的私人收藏夹".to_string()))
+            .bind(favorite_room_localized_message("room.favorite_default_name"))
+            .bind(Some(favorite_room_localized_message(
+                "room.favorite_default_description",
+            )))
             .bind(RoomType::Favorite)
             .bind(user_id)
             .fetch_one(&mut *tx)
@@ -772,6 +783,38 @@ impl<'a> RoomStore<'a> {
         .fetch_one(self.pool)
         .await?;
         Ok(room)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn favorite_room_defaults_should_use_room_catalog_keys() {
+        let source = include_str!("room_store.rs");
+
+        assert!(
+            source.contains("room.favorite_default_name"),
+            "favorite room default name should use room.favorite_default_name"
+        );
+        assert!(
+            source.contains("room.favorite_default_description"),
+            "favorite room default description should use room.favorite_default_description"
+        );
+    }
+
+    #[test]
+    fn favorite_room_defaults_should_not_embed_legacy_literals() {
+        let source = include_str!("room_store.rs");
+
+        for legacy in [
+            "\u{6536}\u{85cf}\u{5939}",
+            "\u{4fdd}\u{5b58}\u{91cd}\u{8981}\u{6d88}\u{606f}\u{3001}\u{6587}\u{4ef6}\u{4e0e}\u{63d0}\u{9192}\u{7684}\u{79c1}\u{4eba}\u{6536}\u{85cf}\u{5939}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "room store should not embed legacy favorite room literal: {legacy}"
+            );
+        }
     }
 }
 

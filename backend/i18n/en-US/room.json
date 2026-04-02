@@ -28,5 +28,7 @@
   "room.avatar_size_mismatch": "Room avatar size mismatch: expected {expected} bytes, got {actual} bytes.",
   "room.avatar_hash_mismatch": "Room avatar hash verification failed. Please upload again.",
   "room.avatar_not_uploaded": "Room avatar is not available in storage yet. Please try again later.",
-  "room.avatar_not_set": "This room has no avatar yet."
+  "room.avatar_not_set": "This room has no avatar yet.",
+  "room.favorite_default_name": "Favorites",
+  "room.favorite_default_description": "A private favorites room for saving important messages, files, and reminders."
 }

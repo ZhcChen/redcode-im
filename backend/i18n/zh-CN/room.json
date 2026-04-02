@@ -28,5 +28,7 @@
   "room.avatar_size_mismatch": "群头像大小校验失败：期望 {expected} 字节，实际 {actual} 字节",
   "room.avatar_hash_mismatch": "群头像哈希校验失败，请重新上传",
   "room.avatar_not_uploaded": "COS 中尚未找到该群头像，请稍后重试",
-  "room.avatar_not_set": "该群聊尚未设置头像"
+  "room.avatar_not_set": "该群聊尚未设置头像",
+  "room.favorite_default_name": "收藏夹",
+  "room.favorite_default_description": "保存重要消息、文件与提醒的私人收藏夹"
 }
