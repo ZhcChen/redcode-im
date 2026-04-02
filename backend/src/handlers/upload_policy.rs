@@ -7,12 +7,21 @@ use std::collections::BTreeMap;
 
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
+use crate::middleware::current_request_locale;
 use crate::models::convert::string_to_uuid;
 use crate::models::Claims;
 use crate::services::upload_policy::{
     get_upload_policy, invalidate_upload_policy_cache, UploadPolicy,
 };
 use crate::AppState;
+
+fn upload_policy_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
+}
 
 #[derive(Debug, Serialize)]
 pub struct UploadPolicyResponse {
@@ -177,7 +186,7 @@ pub async fn update_upload_policy_admin(
         .upsert_general_setting(
             "upload_policy",
             &raw,
-            "上传策略：用于客户端统一附件大小/数量/MIME 白名单等限制",
+            &upload_policy_localized_message("upload_policy.description"),
             Some(editor_id),
         )
         .await
@@ -190,4 +199,33 @@ pub async fn update_upload_policy_admin(
         updated_at: Some(saved.updated_at.to_rfc3339()),
         updated_by: saved.updated_by.map(|v| v.to_string()),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn upload_policy_general_setting_description_should_use_i18n_key() {
+        let source = include_str!("upload_policy.rs");
+
+        assert!(
+            source.contains("upload_policy.description"),
+            "upload policy handler should reuse description i18n key"
+        );
+    }
+
+    #[test]
+    fn upload_policy_general_setting_description_should_not_embed_legacy_literal() {
+        let source = include_str!("upload_policy.rs");
+        let legacy = [
+            "\"",
+            "\u{4e0a}\u{4f20}\u{7b56}\u{7565}\u{ff1a}\u{7528}\u{4e8e}\u{5ba2}\u{6237}\u{7aef}\u{7edf}\u{4e00}\u{9644}\u{4ef6}\u{5927}\u{5c0f}/\u{6570}\u{91cf}/MIME \u{767d}\u{540d}\u{5355}\u{7b49}\u{9650}\u{5236}",
+            "\"",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "upload policy handler should not embed legacy description literal: {legacy}"
+        );
+    }
 }

@@ -1,4 +1,5 @@
 {
+  "upload_policy.description": "Upload policy: used by clients to unify attachment size/count/MIME whitelist limits.",
   "upload_policy.audio_only_rule_locked": "Modifying the audio_only rule is not supported in the current version.",
   "upload_policy.serialize_failed": "Failed to serialize upload policy: {reason}"
 }

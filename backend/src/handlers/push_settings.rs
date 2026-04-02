@@ -11,11 +11,20 @@ use crate::crypto::SecretCrypto;
 use crate::database::push_provider_config_store::PushProviderConfigStore;
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
+use crate::middleware::current_request_locale;
 use crate::models::Claims;
 use crate::AppState;
 
 const SETTING_PUSH_ENABLED: &str = "push_enabled";
 const SETTING_PUSH_SKIP_IF_ONLINE: &str = "push_skip_if_online";
+
+fn push_settings_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
+}
 
 fn parse_bool(value: Option<&str>, default: bool) -> bool {
     match value {
@@ -107,7 +116,7 @@ pub async fn update_push_settings_admin(
         .upsert_general_setting(
             SETTING_PUSH_ENABLED,
             if payload.enabled { "true" } else { "false" },
-            "是否启用离线推送（系统通知）",
+            &push_settings_localized_message("push.push_enabled_description"),
             Some(editor_id),
         )
         .await?;
@@ -119,7 +128,7 @@ pub async fn update_push_settings_admin(
             } else {
                 "false"
             },
-            "用户在线时是否跳过离线推送（系统通知）",
+            &push_settings_localized_message("push.push_skip_if_online_description"),
             Some(editor_id),
         )
         .await?;
@@ -257,6 +266,49 @@ pub struct TestPushRequest {
 pub struct TestPushResponse {
     pub success: bool,
     pub message: String,
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn push_settings_general_setting_descriptions_should_use_i18n_keys() {
+        let source = include_str!("push_settings.rs");
+
+        for key in [
+            "push.push_enabled_description",
+            "push.push_skip_if_online_description",
+        ] {
+            assert!(
+                source.contains(key),
+                "push settings handler should reuse description i18n key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn push_settings_general_setting_descriptions_should_not_embed_legacy_literals() {
+        let source = include_str!("push_settings.rs");
+
+        for legacy in [
+            [
+                "\"",
+                "\u{662f}\u{5426}\u{542f}\u{7528}\u{79bb}\u{7ebf}\u{63a8}\u{9001}\u{ff08}\u{7cfb}\u{7edf}\u{901a}\u{77e5}\u{ff09}",
+                "\"",
+            ]
+            .concat(),
+            [
+                "\"",
+                "\u{7528}\u{6237}\u{5728}\u{7ebf}\u{65f6}\u{662f}\u{5426}\u{8df3}\u{8fc7}\u{79bb}\u{7ebf}\u{63a8}\u{9001}\u{ff08}\u{7cfb}\u{7edf}\u{901a}\u{77e5}\u{ff09}",
+                "\"",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "push settings handler should not embed legacy description literal: {legacy}"
+            );
+        }
+    }
 }
 
 pub async fn test_push_admin(

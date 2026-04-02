@@ -3,6 +3,7 @@
   "settings.privacy_policy_fallback_content": "<p>隐私协议内容尚未配置。</p>",
   "settings.user_agreement_fallback_title": "用户协议",
   "settings.user_agreement_fallback_content": "<p>用户协议内容尚未配置。</p>",
+  "settings.app_name_description": "应用名称",
   "settings.privacy_policy_content_required": "隐私协议内容不能为空",
   "settings.user_agreement_content_required": "用户协议内容不能为空",
   "settings.app_name_required": "应用名称不能为空",

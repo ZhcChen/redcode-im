@@ -3,6 +3,7 @@
   "settings.privacy_policy_fallback_content": "<p>Privacy policy content has not been configured yet.</p>",
   "settings.user_agreement_fallback_title": "User Agreement",
   "settings.user_agreement_fallback_content": "<p>User agreement content has not been configured yet.</p>",
+  "settings.app_name_description": "Application name",
   "settings.privacy_policy_content_required": "Privacy policy content cannot be empty.",
   "settings.user_agreement_content_required": "User agreement content cannot be empty.",
   "settings.app_name_required": "App name is required.",

@@ -189,7 +189,12 @@ pub async fn update_app_name(
     let editor_id = string_to_uuid(&claims.sub)?;
     let store = SettingsStore::new(state.database.clone());
     store
-        .upsert_general_setting("app_name", app_name, "应用名称", Some(editor_id))
+        .upsert_general_setting(
+            "app_name",
+            app_name,
+            &settings_localized_message("settings.app_name_description"),
+            Some(editor_id),
+        )
         .await?;
 
     Ok(Json(AppNameResponse {
@@ -392,5 +397,26 @@ mod tests {
                 "settings handler should not embed legacy fallback literal pattern: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn settings_general_setting_descriptions_should_use_i18n_keys() {
+        let source = include_str!("settings.rs");
+
+        assert!(
+            source.contains("settings.app_name_description"),
+            "settings handler should reuse app_name description i18n key"
+        );
+    }
+
+    #[test]
+    fn settings_general_setting_descriptions_should_not_embed_legacy_literals() {
+        let source = include_str!("settings.rs");
+        let legacy = ["\"", "\u{5e94}\u{7528}\u{540d}\u{79f0}", "\""].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "settings handler should not embed legacy general-setting description literal: {legacy}"
+        );
     }
 }

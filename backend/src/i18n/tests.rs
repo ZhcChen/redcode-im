@@ -202,6 +202,14 @@ fn i18n_settings_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
     assert_eq!(
+        localizer.localize("zh-CN", "settings.app_name_description", None),
+        "应用名称"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "settings.app_name_description", None),
+        "Application name"
+    );
+    assert_eq!(
         localizer.localize("zh-CN", "settings.privacy_policy_content_required", None),
         "隐私协议内容不能为空"
     );
@@ -1975,6 +1983,14 @@ fn i18n_feedback_upload_policy_and_room_tail_catalogs_are_loaded() {
 #[test]
 fn i18n_upload_policy_tail_catalog_interpolates_params() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "upload_policy.description", None),
+        "上传策略：用于客户端统一附件大小/数量/MIME 白名单等限制"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload_policy.description", None),
+        "Upload policy: used by clients to unify attachment size/count/MIME whitelist limits."
+    );
     let params = BTreeMap::from([("reason".to_string(), "boom".to_string())]);
 
     assert_eq!(
@@ -2038,6 +2054,14 @@ fn i18n_report_catalog_interpolates_params() {
 #[test]
 fn i18n_push_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    assert_eq!(
+        localizer.localize("zh-CN", "push.push_enabled_description", None),
+        "是否启用离线推送（系统通知）"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.push_skip_if_online_description", None),
+        "Whether to skip offline push (system notifications) when the user is online."
+    );
     assert_eq!(
         localizer.localize("zh-CN", "push.device_token_invalid", None),
         "device_token 无效"
