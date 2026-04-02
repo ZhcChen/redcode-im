@@ -1018,6 +1018,26 @@ mod message_i18n_tests {
         assert_eq!(body["details"], Value::Null);
     }
 
+    #[test]
+    fn message_reload_and_multipart_diagnostics_should_not_embed_legacy_literals() {
+        let source = include_str!("message.rs");
+
+        for legacy in [
+            ["\"", "\u{53d1}\u{9001}\u{6d88}\u{606f}\u{540e}\u{91cd}\u{65b0}\u{52a0}\u{8f7d}\u{6d88}\u{606f}\u{5931}\u{8d25}", "\""].concat(),
+            ["\"", "\u{53d1}\u{9001}\u{52a0}\u{5bc6}\u{6d88}\u{606f}\u{540e}\u{91cd}\u{65b0}\u{52a0}\u{8f7d}\u{6d88}\u{606f}\u{5931}\u{8d25}", "\""].concat(),
+            ["\"", "\u{8f6c}\u{53d1}\u{6d88}\u{606f}\u{540e}\u{91cd}\u{65b0}\u{52a0}\u{8f7d}\u{6d88}\u{606f}\u{5931}\u{8d25}", "\""].concat(),
+            ["\"", "\u{5220}\u{9664}\u{6d88}\u{606f}\u{540e}\u{91cd}\u{65b0}\u{52a0}\u{8f7d}\u{5931}\u{8d25}", "\""].concat(),
+            ["\"", "\u{7f16}\u{8f91}\u{6d88}\u{606f}\u{5931}\u{8d25}", "\""].concat(),
+            ["\"", "\u{6d88}\u{606f}\u{7f16}\u{8f91}\u{540e}\u{91cd}\u{65b0}\u{52a0}\u{8f7d}\u{5931}\u{8d25}", "\""].concat(),
+            ["format!(\"", "\u{521b}\u{5efa}\u{5206}\u{7247}\u{4f1a}\u{8bdd}\u{5931}\u{8d25}", ": {}\", e)"].concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "message handler should not embed legacy diagnostic literal: {legacy}"
+            );
+        }
+    }
+
     #[tokio::test]
     async fn attachment_object_not_found_error_response_uses_validation_protocol() {
         let error = message_validation_error("message.attachment_object_not_found");
@@ -1586,7 +1606,7 @@ pub async fn send_message(
                 room_id = %room_id,
                 sender_id = %sender_id,
                 message_id = %created.id,
-                "发送消息后重新加载消息失败"
+                "created message reload returned none"
             );
             message_internal_error(
                 "message.new_message_load_failed",
@@ -1710,7 +1730,7 @@ pub async fn send_encrypted_message(
                 room_id = %room_id,
                 sender_id = %sender_id,
                 message_id = %created.id,
-                "发送加密消息后重新加载消息失败"
+                "created encrypted message reload returned none"
             );
             message_internal_error(
                 "message.new_message_load_failed",
@@ -1857,7 +1877,7 @@ pub async fn forward_message(
                 sender_id = %sender_id,
                 message_id = %created.id,
                 original_message_id = %original.id,
-                "转发消息后重新加载消息失败"
+                "forwarded message reload returned none"
             );
             message_internal_error(
                 "message.forward_message_load_failed",
@@ -2168,7 +2188,7 @@ pub async fn delete_message(
                 message_key = "message.delete_message_reload_failed",
                 room_id = %room_id,
                 message_id = %message_id,
-                "删除消息后重新加载失败"
+                "deleted message reload returned none"
             );
             message_internal_error(
                 "message.delete_message_reload_failed",
@@ -2273,7 +2293,7 @@ pub async fn edit_message(
                 message_key = "message.edit_message_failed",
                 room_id = %room_id,
                 message_id = %message_id,
-                "编辑消息失败"
+                "message content update returned none"
             );
             message_internal_error(
                 "message.edit_message_failed",
@@ -2289,7 +2309,7 @@ pub async fn edit_message(
                 message_key = "message.edit_message_reload_failed",
                 room_id = %room_id,
                 message_id = %message_id,
-                "消息编辑后重新加载失败"
+                "edited message reload returned none"
             );
             message_internal_error(
                 "message.edit_message_reload_failed",
@@ -3011,10 +3031,10 @@ pub async fn initiate_message_attachment_multipart_upload(
             let _ = storage_service
                 .abort_multipart_upload(&key, &upload_id)
                 .await;
-            error!(error = %e, "创建附件分片上传会话失败");
+            error!(error = %e, "attachment multipart session create failed");
             return Err(message_internal_error(
                 "message.attachment_multipart_session_create_failed",
-                format!("创建分片会话失败: {}", e),
+                format!("attachment multipart session create failed: {}", e),
             ));
         }
     };
