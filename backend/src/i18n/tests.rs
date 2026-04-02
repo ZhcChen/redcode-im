@@ -645,6 +645,30 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.storage_test_exists_false", None),
         "File does not exist."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.storage_type_image", None),
+        "图片"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.storage_type_document", None),
+        "Documents"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.permission_user_view_name", None),
+        "查看用户"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.permission_user_create_description", None),
+        "Create new users."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.role_super_admin_name", None),
+        "超级管理员"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.role_admin_description", None),
+        "Has most administrative permissions."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),

@@ -158,6 +158,48 @@ fn admin_ip_geolocation_description() -> String {
     admin_localized_message("admin.ip_geolocation_description", None)
 }
 
+fn admin_storage_type_label(message_key: &'static str) -> String {
+    admin_localized_message(message_key, None)
+}
+
+fn admin_permission_response(
+    id: &str,
+    code: &str,
+    name_key: &'static str,
+    description_key: &'static str,
+) -> PermissionResponse {
+    let now = chrono::Utc::now().to_rfc3339();
+    PermissionResponse {
+        id: id.to_string(),
+        name: admin_localized_message(name_key, None),
+        code: code.to_string(),
+        description: Some(admin_localized_message(description_key, None)),
+        created_at: now.clone(),
+        updated_at: now,
+    }
+}
+
+fn admin_role_response(
+    id: &str,
+    code: &str,
+    name_key: &'static str,
+    description_key: &'static str,
+    is_system: bool,
+    permissions: Vec<PermissionResponse>,
+) -> RoleResponse {
+    let now = chrono::Utc::now().to_rfc3339();
+    RoleResponse {
+        id: id.to_string(),
+        name: admin_localized_message(name_key, None),
+        code: code.to_string(),
+        description: Some(admin_localized_message(description_key, None)),
+        is_system,
+        created_at: now.clone(),
+        updated_at: now,
+        permissions,
+    }
+}
+
 fn user_operation_response(
     success: bool,
     message_key: &'static str,
@@ -1571,13 +1613,13 @@ pub async fn get_data_statistics(
     // 获取按文件类型分类的存储使用情况（简化版本）
     let storage_usage_by_type = vec![
         StorageTypeStat {
-            file_type: "图片".to_string(),
+            file_type: admin_storage_type_label("admin.storage_type_image"),
             count: 50,
             size_bytes: 512 * 1024,
             percentage: 50.0,
         },
         StorageTypeStat {
-            file_type: "其他".to_string(),
+            file_type: admin_storage_type_label("admin.storage_type_other"),
             count: 50,
             size_bytes: 512 * 1024,
             percentage: 50.0,
@@ -1705,19 +1747,19 @@ async fn get_storage_usage_by_type(_pool: &sqlx::PgPool) -> Result<Vec<StorageTy
 
     let stats = vec![
         StorageTypeStat {
-            file_type: "图片".to_string(),
+            file_type: admin_storage_type_label("admin.storage_type_image"),
             count: 100,
             size_bytes: 500 * 1024,
             percentage: 50.0,
         },
         StorageTypeStat {
-            file_type: "文档".to_string(),
+            file_type: admin_storage_type_label("admin.storage_type_document"),
             count: 50,
             size_bytes: 300 * 1024,
             percentage: 30.0,
         },
         StorageTypeStat {
-            file_type: "其他".to_string(),
+            file_type: admin_storage_type_label("admin.storage_type_other"),
             count: 30,
             size_bytes: 224 * 1024,
             percentage: 20.0,
@@ -2202,22 +2244,18 @@ pub async fn get_permissions(
 ) -> Result<Json<PermissionListResponse>, AppError> {
     // 简化版本，返回预定义的权限列表
     let permissions = vec![
-        PermissionResponse {
-            id: "1".to_string(),
-            name: "查看用户".to_string(),
-            code: "user:view".to_string(),
-            description: Some("查看用户列表和详情".to_string()),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
-        PermissionResponse {
-            id: "2".to_string(),
-            name: "创建用户".to_string(),
-            code: "user:create".to_string(),
-            description: Some("创建新用户".to_string()),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
+        admin_permission_response(
+            "1",
+            "user:view",
+            "admin.permission_user_view_name",
+            "admin.permission_user_view_description",
+        ),
+        admin_permission_response(
+            "2",
+            "user:create",
+            "admin.permission_user_create_name",
+            "admin.permission_user_create_description",
+        ),
         // 添加更多权限...
     ];
 
@@ -2228,46 +2266,32 @@ pub async fn get_permissions(
 pub async fn get_roles(State(_state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
     // 简化版本，返回预定义的角色列表
     let roles = vec![
-        RoleResponse {
-            id: "1".to_string(),
-            name: "超级管理员".to_string(),
-            code: "super_admin".to_string(),
-            description: Some("拥有所有权限".to_string()),
-            is_system: true,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-            permissions: vec![
-                PermissionResponse {
-                    id: "1".to_string(),
-                    name: "查看用户".to_string(),
-                    code: "user:view".to_string(),
-                    description: Some("查看用户列表和详情".to_string()),
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                },
-                // 添加更多权限...
-            ],
-        },
-        RoleResponse {
-            id: "2".to_string(),
-            name: "管理员".to_string(),
-            code: "admin".to_string(),
-            description: Some("拥有大部分管理权限".to_string()),
-            is_system: false,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-            permissions: vec![
-                PermissionResponse {
-                    id: "1".to_string(),
-                    name: "查看用户".to_string(),
-                    code: "user:view".to_string(),
-                    description: Some("查看用户列表和详情".to_string()),
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                },
-                // 添加更多权限...
-            ],
-        },
+        admin_role_response(
+            "1",
+            "super_admin",
+            "admin.role_super_admin_name",
+            "admin.role_super_admin_description",
+            true,
+            vec![admin_permission_response(
+                "1",
+                "user:view",
+                "admin.permission_user_view_name",
+                "admin.permission_user_view_description",
+            )],
+        ),
+        admin_role_response(
+            "2",
+            "admin",
+            "admin.role_admin_name",
+            "admin.role_admin_description",
+            false,
+            vec![admin_permission_response(
+                "1",
+                "user:view",
+                "admin.permission_user_view_name",
+                "admin.permission_user_view_description",
+            )],
+        ),
     ];
 
     Ok(Json(RoleListResponse { roles }))
@@ -2494,13 +2518,13 @@ pub async fn get_file_management_stats(
         total_size_gb: (total_size_bytes as f64) / (1024.0 * 1024.0 * 1024.0),
         files_by_type: vec![
             FileTypeStats {
-                file_type: "图片".to_string(),
+                file_type: admin_storage_type_label("admin.storage_type_image"),
                 count: total_files / 2,
                 size_bytes: total_size_bytes / 2,
                 percentage: 50.0,
             },
             FileTypeStats {
-                file_type: "其他".to_string(),
+                file_type: admin_storage_type_label("admin.storage_type_other"),
                 count: total_files / 2,
                 size_bytes: total_size_bytes / 2,
                 percentage: 50.0,
@@ -5974,6 +5998,118 @@ mod tests {
             !source.contains(&legacy),
             "admin handler should not embed legacy deleted-object fallback literal: {legacy}"
         );
+    }
+
+    #[test]
+    fn admin_mock_storage_labels_should_use_i18n_keys() {
+        let source = include_str!("admin.rs");
+
+        for key in [
+            "admin.storage_type_image",
+            "admin.storage_type_document",
+            "admin.storage_type_other",
+        ] {
+            assert!(
+                source.contains(key),
+                "admin mock storage labels should reuse i18n key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn admin_mock_storage_labels_should_not_embed_legacy_literals() {
+        let source = include_str!("admin.rs");
+
+        for legacy in [
+            ["file_type: ", "\"", "\u{56fe}\u{7247}", "\".to_string()"].concat(),
+            ["file_type: ", "\"", "\u{6587}\u{6863}", "\".to_string()"].concat(),
+            ["file_type: ", "\"", "\u{5176}\u{4ed6}", "\".to_string()"].concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "admin mock storage label should not embed legacy literal pattern: {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn admin_mock_permission_and_role_labels_should_use_i18n_keys() {
+        let source = include_str!("admin.rs");
+
+        for key in [
+            "admin.permission_user_view_name",
+            "admin.permission_user_view_description",
+            "admin.permission_user_create_name",
+            "admin.permission_user_create_description",
+            "admin.role_super_admin_name",
+            "admin.role_super_admin_description",
+            "admin.role_admin_name",
+            "admin.role_admin_description",
+        ] {
+            assert!(
+                source.contains(key),
+                "admin mock permission/role metadata should reuse i18n key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn admin_mock_permission_and_role_labels_should_not_embed_legacy_literals() {
+        let source = include_str!("admin.rs");
+
+        for legacy in [
+            [
+                "name: ",
+                "\"",
+                "\u{67e5}\u{770b}\u{7528}\u{6237}",
+                "\".to_string()",
+            ]
+            .concat(),
+            [
+                "description: Some(\"",
+                "\u{67e5}\u{770b}\u{7528}\u{6237}\u{5217}\u{8868}\u{548c}\u{8be6}\u{60c5}",
+                "\".to_string())",
+            ]
+            .concat(),
+            [
+                "name: ",
+                "\"",
+                "\u{521b}\u{5efa}\u{7528}\u{6237}",
+                "\".to_string()",
+            ]
+            .concat(),
+            [
+                "description: Some(\"",
+                "\u{521b}\u{5efa}\u{65b0}\u{7528}\u{6237}",
+                "\".to_string())",
+            ]
+            .concat(),
+            [
+                "name: ",
+                "\"",
+                "\u{8d85}\u{7ea7}\u{7ba1}\u{7406}\u{5458}",
+                "\".to_string()",
+            ]
+            .concat(),
+            [
+                "description: Some(\"",
+                "\u{62e5}\u{6709}\u{6240}\u{6709}\u{6743}\u{9650}",
+                "\".to_string())",
+            ]
+            .concat(),
+            ["name: ", "\"", "\u{7ba1}\u{7406}\u{5458}", "\".to_string()"].concat(),
+            [
+                "description: Some(\"",
+                "\u{62e5}\u{6709}\u{5927}\u{90e8}\u{5206}\u{7ba1}\u{7406}\u{6743}\u{9650}",
+                "\".to_string())",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "admin mock permission/role metadata should not embed legacy literal pattern: {legacy}"
+            );
+        }
     }
 
     #[test]
