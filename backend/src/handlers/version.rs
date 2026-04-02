@@ -155,6 +155,25 @@ fn parse_hot_update_id(id: &str) -> Result<Uuid, AppError> {
     Uuid::parse_str(id).map_err(|_| version_validation_error("version.patch_id_invalid"))
 }
 
+fn plan_version_multipart_upload(file_size: i64) -> Result<(i32, i32), AppError> {
+    if file_size <= 0 {
+        return Err(version_validation_error("version.file_size_invalid"));
+    }
+
+    let threshold = multipart_upload::MULTIPART_THRESHOLD_BYTES;
+    if file_size <= threshold {
+        return Err(version_validation_error_with_params(
+            "version.multipart_direct_upload_required",
+            BTreeMap::from([("threshold_size".to_string(), threshold.to_string())]),
+        ));
+    }
+
+    multipart_upload::plan_multipart_upload(file_size).map_err(|error| {
+        tracing::warn!(error = ?error, file_size, "安装包分片上传计划生成失败");
+        version_validation_error("version.multipart_plan_failed")
+    })
+}
+
 #[derive(Debug, Serialize)]
 pub struct HotUpdateListResponse {
     pub total: i64,
@@ -265,7 +284,7 @@ pub async fn initiate_version_multipart_upload(
     Json(req): Json<VersionMultipartInitiateRequest>,
 ) -> Result<Json<VersionMultipartInitiateResponse>, AppError> {
     let file_size = req.file_size;
-    let (part_size, total_parts) = multipart_upload::plan_multipart_upload(file_size)?;
+    let (part_size, total_parts) = plan_version_multipart_upload(file_size)?;
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
@@ -1343,5 +1362,76 @@ fn is_rollout_hit(patch: &crate::database::models::HotUpdate, client_id: Option<
         bucket < pct
     } else {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, http::StatusCode, response::IntoResponse};
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+
+    async fn read_body_json(body: Body) -> Value {
+        let bytes = body
+            .collect()
+            .await
+            .expect("collect response body")
+            .to_bytes();
+        serde_json::from_slice(&bytes).expect("parse json body")
+    }
+
+    #[test]
+    fn version_multipart_file_size_invalid_returns_stable_key() {
+        let error =
+            plan_version_multipart_upload(0).expect_err("zero file_size should reject multipart");
+
+        assert_eq!(error.response_message_key(), "version.file_size_invalid");
+        assert_eq!(error.localized_message(), "file_size 必须大于 0");
+    }
+
+    #[test]
+    fn version_multipart_direct_upload_threshold_returns_stable_key_and_params() {
+        let threshold = multipart_upload::MULTIPART_THRESHOLD_BYTES;
+        let error = plan_version_multipart_upload(threshold)
+            .expect_err("threshold file_size should reject multipart");
+
+        assert_eq!(
+            error.response_message_key(),
+            "version.multipart_direct_upload_required"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["threshold_size"], threshold.to_string());
+    }
+
+    #[tokio::test]
+    async fn version_multipart_plan_failure_response_uses_stable_protocol_key() {
+        let error = plan_version_multipart_upload(i64::MAX / 2)
+            .expect_err("oversized multipart plan should fail");
+        let response = error.into_response();
+        let status = response.status();
+        let body = read_body_json(response.into_body()).await;
+
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], 42201);
+        assert_eq!(body["message_key"], "version.multipart_plan_failed");
+        assert_eq!(body["message"], "无法生成版本分片上传计划，请稍后重试");
+        assert_eq!(body["details"], Value::Null);
+    }
+
+    #[test]
+    fn version_multipart_handler_should_not_passthrough_raw_plan_errors() {
+        let source = include_str!("version.rs");
+        let raw_passthrough = [
+            "multipart_upload",
+            "::",
+            "plan_multipart_upload(file_size)?",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&raw_passthrough),
+            "version multipart handler should not passthrough raw planning errors"
+        );
     }
 }

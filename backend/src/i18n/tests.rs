@@ -1292,6 +1292,43 @@ fn i18n_version_catalog_interpolates_tail_params() {
 }
 
 #[test]
+fn i18n_version_catalog_loads_multipart_plan_tail_keys() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "version.file_size_invalid", None),
+        "file_size 必须大于 0"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.multipart_plan_failed", None),
+        "Failed to generate the version multipart upload plan. Please try again later."
+    );
+}
+
+#[test]
+fn i18n_version_catalog_interpolates_multipart_threshold_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("threshold_size".to_string(), "5242880".to_string())]);
+
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "version.multipart_direct_upload_required",
+            Some(&params)
+        ),
+        "文件大小不超过 5242880 字节，请使用单文件直传"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "version.multipart_direct_upload_required",
+            Some(&params)
+        ),
+        "Files no larger than 5242880 bytes must use direct upload instead of multipart upload."
+    );
+}
+
+#[test]
 fn i18n_room_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 
