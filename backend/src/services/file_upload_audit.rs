@@ -28,9 +28,35 @@ fn audit_internal_error_with_reason(message_key: &'static str, reason: impl ToSt
     )
 }
 
-fn audit_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+fn audit_localized_message(message_key: &str, params: Option<&MessageParams>) -> String {
     let localizer = default_localizer();
     localizer.localize(localizer.fallback_locale(), message_key, params)
+}
+
+fn insert_audit_last_error_from_app_error(
+    result_json: &mut serde_json::Value,
+    error: &AppError,
+) -> String {
+    let Some(obj) = result_json.as_object_mut() else {
+        return error.localized_message();
+    };
+
+    let message_key = error.response_message_key().to_string();
+    let params = error.message_params();
+
+    obj.insert(
+        AUDIT_LAST_ERROR_MESSAGE_KEY_FIELD.to_string(),
+        serde_json::Value::String(message_key.clone()),
+    );
+    obj.insert(
+        AUDIT_LAST_ERROR_PARAMS_FIELD.to_string(),
+        params
+            .as_ref()
+            .map(|value| serde_json::to_value(value).unwrap_or_else(|_| json!({})))
+            .unwrap_or_else(|| json!({})),
+    );
+
+    audit_localized_message(&message_key, params.as_ref())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -439,12 +465,14 @@ async fn process_task(
                 return Ok(());
             }
             Err(e) => {
+                let mut result_json = json!({});
+                let last_error = insert_audit_last_error_from_app_error(&mut result_json, &e);
                 let _ = audit_store
                     .mark_retry(
                         &task.id,
-                        &format!("{}", e),
+                        &last_error,
                         next_retry_at(cfg, task.attempts),
-                        json!({}),
+                        result_json,
                     )
                     .await;
                 return Ok(());
@@ -594,12 +622,14 @@ async fn process_task(
             }
         }
         Err(e) => {
+            let mut result_json = json!({});
+            let last_error = insert_audit_last_error_from_app_error(&mut result_json, &e);
             let _ = audit_store
                 .mark_retry(
                     &task.id,
-                    &format!("{}", e),
+                    &last_error,
                     next_retry_at(cfg, task.attempts),
-                    json!({}),
+                    result_json,
                 )
                 .await;
         }
@@ -1213,5 +1243,61 @@ mod tests {
                 "audit last_error should not embed legacy literal: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn insert_audit_last_error_from_app_error_should_preserve_message_key_and_params() {
+        let error = AppError::InternalError(String::new()).with_message_key_and_params(
+            "upload.audit_submit_failed",
+            Some(MessageParams::from([(
+                "reason".to_string(),
+                "upstream timeout".to_string(),
+            )])),
+        );
+        let mut result_json = json!({});
+
+        let localized = insert_audit_last_error_from_app_error(&mut result_json, &error);
+
+        assert_eq!(localized, "提交审核任务失败: upstream timeout");
+        assert_eq!(
+            result_json["last_error_message_key"],
+            "upload.audit_submit_failed"
+        );
+        assert_eq!(
+            result_json["last_error_params"]["reason"],
+            "upstream timeout"
+        );
+    }
+
+    #[test]
+    fn audit_submit_retry_should_store_i18n_metadata_instead_of_raw_error_format() {
+        let source = include_str!("file_upload_audit.rs");
+        let legacy = [
+            ".mark_retry(\n",
+            "                    &task.id,\n",
+            "                    &format!(\"{}\", e),\n",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "audit submit retry path should not persist raw formatted error literal"
+        );
+    }
+
+    #[test]
+    fn audit_query_retry_should_store_i18n_metadata_instead_of_raw_error_format() {
+        let source = include_str!("file_upload_audit.rs");
+        let legacy = [
+            ".mark_retry(\n",
+            "                        &task.id,\n",
+            "                        &format!(\"{}\", e),\n",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "audit query retry path should not persist raw formatted error literal"
+        );
     }
 }
