@@ -1,7 +1,8 @@
 use crate::database::document_store::DocumentStore;
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
-use crate::i18n::message::MessageParams;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 use crate::models::convert::{api_update_document_to_db, db_document_to_api, string_to_uuid};
 use crate::models::{Claims, DocumentContent, UpdateDocumentRequest};
 use crate::AppState;
@@ -9,12 +10,12 @@ use axum::{extract::State, Extension, Json};
 use serde::{Deserialize, Serialize};
 
 const PRIVACY_POLICY_KEY: &str = "privacy_policy";
-const PRIVACY_POLICY_FALLBACK_TITLE: &str = "隐私协议";
-const PRIVACY_POLICY_FALLBACK_CONTENT: &str = "<p>隐私协议内容尚未配置。</p>";
+const PRIVACY_POLICY_FALLBACK_TITLE_KEY: &str = "settings.privacy_policy_fallback_title";
+const PRIVACY_POLICY_FALLBACK_CONTENT_KEY: &str = "settings.privacy_policy_fallback_content";
 
 const USER_AGREEMENT_KEY: &str = "user_agreement";
-const USER_AGREEMENT_FALLBACK_TITLE: &str = "用户协议";
-const USER_AGREEMENT_FALLBACK_CONTENT: &str = "<p>用户协议内容尚未配置。</p>";
+const USER_AGREEMENT_FALLBACK_TITLE_KEY: &str = "settings.user_agreement_fallback_title";
+const USER_AGREEMENT_FALLBACK_CONTENT_KEY: &str = "settings.user_agreement_fallback_content";
 
 fn settings_validation_error(message_key: &'static str) -> AppError {
     AppError::ValidationError(String::new()).with_message_key(message_key)
@@ -27,6 +28,13 @@ fn settings_validation_error_with_params(
     AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
 }
 
+fn settings_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
+}
+
 pub async fn get_privacy_policy(
     State(state): State<AppState>,
 ) -> Result<Json<DocumentContent>, AppError> {
@@ -35,8 +43,10 @@ pub async fn get_privacy_policy(
         Some(doc) => doc,
         None => {
             let update = crate::database::models::DocumentUpdate {
-                title: Some(PRIVACY_POLICY_FALLBACK_TITLE.to_string()),
-                content: PRIVACY_POLICY_FALLBACK_CONTENT.to_string(),
+                title: Some(settings_localized_message(
+                    PRIVACY_POLICY_FALLBACK_TITLE_KEY,
+                )),
+                content: settings_localized_message(PRIVACY_POLICY_FALLBACK_CONTENT_KEY),
                 updated_by: None,
             };
             store.upsert_document(PRIVACY_POLICY_KEY, &update).await?
@@ -83,8 +93,10 @@ pub async fn get_user_agreement(
         Some(doc) => doc,
         None => {
             let update = crate::database::models::DocumentUpdate {
-                title: Some(USER_AGREEMENT_FALLBACK_TITLE.to_string()),
-                content: USER_AGREEMENT_FALLBACK_CONTENT.to_string(),
+                title: Some(settings_localized_message(
+                    USER_AGREEMENT_FALLBACK_TITLE_KEY,
+                )),
+                content: settings_localized_message(USER_AGREEMENT_FALLBACK_CONTENT_KEY),
                 updated_by: None,
             };
             store.upsert_document(USER_AGREEMENT_KEY, &update).await?
@@ -321,5 +333,64 @@ mod tests {
         assert_eq!(error.message_key(), "common.validation_error");
         assert_eq!(error.response_message_key(), "settings.app_name_too_long");
         assert_eq!(error.message_params().as_ref(), Some(&params));
+    }
+
+    #[test]
+    fn settings_policy_fallbacks_should_use_catalog_messages() {
+        let source = include_str!("settings.rs");
+
+        assert!(
+            source.contains("settings.privacy_policy_fallback_title"),
+            "settings handler should use settings.privacy_policy_fallback_title"
+        );
+        assert!(
+            source.contains("settings.privacy_policy_fallback_content"),
+            "settings handler should use settings.privacy_policy_fallback_content"
+        );
+        assert!(
+            source.contains("settings.user_agreement_fallback_title"),
+            "settings handler should use settings.user_agreement_fallback_title"
+        );
+        assert!(
+            source.contains("settings.user_agreement_fallback_content"),
+            "settings handler should use settings.user_agreement_fallback_content"
+        );
+    }
+
+    #[test]
+    fn settings_policy_fallbacks_should_not_embed_legacy_literals() {
+        let source = include_str!("settings.rs");
+
+        for legacy in [
+            [
+                "const PRIVACY_POLICY_FALLBACK_TITLE: &str = \"",
+                "\u{9690}\u{79c1}\u{534f}\u{8bae}",
+                "\";",
+            ]
+            .concat(),
+            [
+                "const PRIVACY_POLICY_FALLBACK_CONTENT: &str = \"<p>",
+                "\u{9690}\u{79c1}\u{534f}\u{8bae}\u{5185}\u{5bb9}\u{5c1a}\u{672a}\u{914d}\u{7f6e}\u{3002}",
+                "</p>\";",
+            ]
+            .concat(),
+            [
+                "const USER_AGREEMENT_FALLBACK_TITLE: &str = \"",
+                "\u{7528}\u{6237}\u{534f}\u{8bae}",
+                "\";",
+            ]
+            .concat(),
+            [
+                "const USER_AGREEMENT_FALLBACK_CONTENT: &str = \"<p>",
+                "\u{7528}\u{6237}\u{534f}\u{8bae}\u{5185}\u{5bb9}\u{5c1a}\u{672a}\u{914d}\u{7f6e}\u{3002}",
+                "</p>\";",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "settings handler should not embed legacy fallback literal pattern: {legacy}"
+            );
+        }
     }
 }

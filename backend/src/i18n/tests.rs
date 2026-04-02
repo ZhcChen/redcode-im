@@ -217,6 +217,22 @@ fn i18n_settings_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "settings.account_min_length_gt_max_length", None),
         "Minimum account length cannot be greater than maximum length."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "settings.privacy_policy_fallback_title", None),
+        "隐私协议"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "settings.user_agreement_fallback_title", None),
+        "User Agreement"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "settings.privacy_policy_fallback_content", None),
+        "<p>隐私协议内容尚未配置。</p>"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "settings.user_agreement_fallback_content", None),
+        "<p>User agreement content has not been configured yet.</p>"
+    );
 }
 
 #[test]
