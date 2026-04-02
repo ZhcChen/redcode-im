@@ -1938,6 +1938,14 @@ fn i18n_push_catalog_loads_notification_copy_keys() {
         localizer.localize("en-US", "push.group_event_kicked_title", None),
         "Removed from group"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "push.group_room_fallback", None),
+        "群聊"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "push.group_room_fallback", None),
+        "Group chat"
+    );
 }
 
 #[test]

@@ -22,6 +22,7 @@
   "push.friend_request_title": "New friend request",
   "push.friend_request_body_with_message": "{requester_name}: {message}",
   "push.friend_request_body_default": "{requester_name} wants to add you as a friend",
+  "push.group_room_fallback": "Group chat",
   "push.group_event_dissolved_title": "Group dissolved",
   "push.group_event_owner_transferred_title": "Group owner changed",
   "push.group_event_kicked_title": "Removed from group"

@@ -1160,18 +1160,24 @@ fn group_event_notification_content(
     event: &str,
     room_name: &str,
 ) -> LocalizedPushContent {
+    let resolved_room_name = if room_name.trim().is_empty() {
+        push_localized_message(locale, "push.group_room_fallback", None)
+    } else {
+        room_name.to_string()
+    };
+
     let title = match event {
         "dissolved" => push_localized_message(locale, "push.group_event_dissolved_title", None),
         "owner_transferred" => {
             push_localized_message(locale, "push.group_event_owner_transferred_title", None)
         }
         "kicked" => push_localized_message(locale, "push.group_event_kicked_title", None),
-        _ => room_name.to_string(),
+        _ => resolved_room_name.clone(),
     };
 
     LocalizedPushContent {
         title,
-        body: room_name.to_string(),
+        body: resolved_room_name,
     }
 }
 
@@ -2070,6 +2076,17 @@ mod tests {
         let kicked = group_event_notification_content("en-US", "kicked", "Project Alpha");
         assert_eq!(kicked.title, "Removed from group");
         assert_eq!(kicked.body, "Project Alpha");
+    }
+
+    #[test]
+    fn group_event_notification_content_localizes_room_name_fallback() {
+        let zh = group_event_notification_content("zh-CN", "kicked", "");
+        assert_eq!(zh.title, "你已被移出群聊");
+        assert_eq!(zh.body, "群聊");
+
+        let en = group_event_notification_content("en-US", "kicked", "   ");
+        assert_eq!(en.title, "Removed from group");
+        assert_eq!(en.body, "Group chat");
     }
 
     #[test]

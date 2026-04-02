@@ -743,7 +743,7 @@ pub async fn remove_group_member(
         .get_room(room_id)
         .await
         .map(|room| room.name)
-        .unwrap_or_else(|_| "群聊".to_string());
+        .unwrap_or_default();
 
     let _ = store
         .log_operation(room_id, operator_id, Some(member_id), "remove_member", None)
@@ -1184,6 +1184,22 @@ mod tests {
         assert!(
             !source.contains("\u{4f60}\u{5df2}\u{88ab}\u{79fb}\u{51fa}\u{7fa4}\u{804a}"),
             "group_management push title should not embed legacy literal"
+        );
+    }
+
+    #[test]
+    fn test_group_management_remove_member_should_not_embed_legacy_room_name_fallback() {
+        let source = include_str!("group_management.rs");
+        let legacy = [
+            ".unwrap_or_else(|_| \"",
+            "\u{7fa4}\u{804a}",
+            "\".to_string())",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "remove_group_member should not embed legacy room name fallback literal"
         );
     }
 }
