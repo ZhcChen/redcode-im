@@ -511,8 +511,10 @@ pub async fn commit_avatar_upload(
                         user_id, e
                     );
                 } else {
+                    let deleted_reason =
+                        user_localized_message("upload.avatar_replaced_mark_deleted", None);
                     let _ = upload_store
-                        .mark_deleted_by_key(&provider.id, &prev_key, Some("头像已被替换并删除"))
+                        .mark_deleted_by_key(&provider.id, &prev_key, Some(deleted_reason.as_str()))
                         .await;
                 }
             }
@@ -1195,6 +1197,33 @@ mod tests {
         assert!(
             !source.contains(&legacy),
             "user handler should not embed legacy deleted-object fallback literal: {legacy}"
+        );
+    }
+
+    #[test]
+    fn test_avatar_replaced_deleted_reason_should_use_i18n_key() {
+        let source = include_str!("user.rs");
+        let key = ["upload.", "avatar_replaced_", "mark_deleted"].concat();
+
+        assert!(
+            source.contains(&key),
+            "user avatar replacement cleanup should reuse i18n key"
+        );
+    }
+
+    #[test]
+    fn test_avatar_replaced_deleted_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("user.rs");
+        let legacy = [
+            "\u{5934}\u{50cf}\u{5df2}\u{88ab}\u{66ff}\u{6362}",
+            "\u{5e76}",
+            "\u{5220}\u{9664}",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "user avatar replacement cleanup should not embed legacy literal: {legacy}"
         );
     }
 

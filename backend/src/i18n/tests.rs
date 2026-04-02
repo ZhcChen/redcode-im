@@ -1761,6 +1761,14 @@ fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
         ),
         "Object was missing and has been marked deleted."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.avatar_replaced_mark_deleted", None),
+        "头像已被替换并删除"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.avatar_replaced_mark_deleted", None),
+        "Avatar was replaced and deleted."
+    );
 }
 
 #[test]

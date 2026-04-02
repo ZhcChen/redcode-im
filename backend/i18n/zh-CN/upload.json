@@ -41,6 +41,7 @@
   "upload.cleanup_pending_object_missing": "直传超时且对象不存在",
   "upload.cleanup_completed_unreferenced_deleted": "无引用且已过保留期，已删除对象",
   "upload.cleanup_completed_object_missing_mark_deleted": "对象不存在，已标记为删除",
+  "upload.avatar_replaced_mark_deleted": "头像已被替换并删除",
   "upload.object_not_found": "对象不存在",
   "upload.default_storage_provider_not_found": "未找到默认文件上传提供商配置",
   "upload.default_storage_provider_disabled": "默认文件上传提供商未启用",
