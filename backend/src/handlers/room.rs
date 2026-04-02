@@ -795,11 +795,15 @@ pub async fn generate_room_avatar_direct_upload(
                 .map_err(crate::error::AppError::from)?
             {
                 if !storage_service.file_exists(&existing.object_key).await? {
+                    let deleted_reason = room_localized_message(
+                        "upload.cleanup_completed_object_missing_mark_deleted",
+                        None,
+                    );
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
                             &existing.object_key,
-                            Some("对象不存在，已标记为删除"),
+                            Some(deleted_reason.as_str()),
                         )
                         .await;
                 } else {
@@ -1236,6 +1240,39 @@ mod tests {
                 "room push title should not embed legacy literal: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn test_room_deleted_object_fallback_reason_should_use_i18n_key() {
+        let source = include_str!("room.rs");
+        let key = [
+            "upload.",
+            "cleanup_completed_",
+            "object_missing_",
+            "mark_deleted",
+        ]
+        .concat();
+
+        assert!(
+            source.contains(&key),
+            "room handler should reuse deleted-object fallback key"
+        );
+    }
+
+    #[test]
+    fn test_room_deleted_object_fallback_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("room.rs");
+        let legacy = [
+            "\u{5bf9}\u{8c61}\u{4e0d}\u{5b58}\u{5728}",
+            "\u{ff0c}",
+            "\u{5df2}\u{6807}\u{8bb0}\u{4e3a}\u{5220}\u{9664}",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "room handler should not embed legacy deleted-object fallback literal: {legacy}"
+        );
     }
 
     // ========================================================================

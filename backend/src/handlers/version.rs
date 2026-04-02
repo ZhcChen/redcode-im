@@ -7,6 +7,8 @@ use crate::database::version_store::{
     version_exists, HotUpdateEventInsert, HotUpdateUpdate, VersionStore,
 };
 use crate::error::AppError;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 use crate::models::convert::{
     api_create_hot_update_to_db, api_create_version_to_db, api_update_hot_update_to_db,
     api_update_version_to_db, db_app_version_to_api, db_hot_update_events_to_api_list,
@@ -119,6 +121,13 @@ fn version_invalid_token_error(message_key: &'static str) -> AppError {
     AppError::InvalidToken(String::new()).with_message_key(message_key)
 }
 
+fn version_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
+}
+
 fn version_platform_params(platform: impl Into<String>) -> crate::i18n::message::MessageParams {
     BTreeMap::from([
         ("platform".to_string(), platform.into()),
@@ -217,11 +226,15 @@ pub async fn generate_version_upload_signature(
                 .map_err(AppError::from)?
             {
                 if !storage_service.file_exists(&existing.object_key).await? {
+                    let deleted_reason = version_localized_message(
+                        "upload.cleanup_completed_object_missing_mark_deleted",
+                        None,
+                    );
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
                             &existing.object_key,
-                            Some("对象不存在，已标记为删除"),
+                            Some(deleted_reason.as_str()),
                         )
                         .await;
                 } else {
@@ -301,11 +314,15 @@ pub async fn initiate_version_multipart_upload(
                 .map_err(AppError::from)?
             {
                 if !storage_service.file_exists(&existing.object_key).await? {
+                    let deleted_reason = version_localized_message(
+                        "upload.cleanup_completed_object_missing_mark_deleted",
+                        None,
+                    );
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
                             &existing.object_key,
-                            Some("对象不存在，已标记为删除"),
+                            Some(deleted_reason.as_str()),
                         )
                         .await;
                 } else {
@@ -1432,6 +1449,39 @@ mod tests {
         assert!(
             !source.contains(&raw_passthrough),
             "version multipart handler should not passthrough raw planning errors"
+        );
+    }
+
+    #[test]
+    fn version_deleted_object_fallback_reason_should_use_i18n_key() {
+        let source = include_str!("version.rs");
+        let key = [
+            "upload.",
+            "cleanup_completed_",
+            "object_missing_",
+            "mark_deleted",
+        ]
+        .concat();
+
+        assert!(
+            source.contains(&key),
+            "version handler should reuse deleted-object fallback key"
+        );
+    }
+
+    #[test]
+    fn version_deleted_object_fallback_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("version.rs");
+        let legacy = [
+            "\u{5bf9}\u{8c61}\u{4e0d}\u{5b58}\u{5728}",
+            "\u{ff0c}",
+            "\u{5df2}\u{6807}\u{8bb0}\u{4e3a}\u{5220}\u{9664}",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "version handler should not embed legacy deleted-object fallback literal: {legacy}"
         );
     }
 }

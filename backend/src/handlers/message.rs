@@ -1220,6 +1220,39 @@ mod message_i18n_tests {
         );
     }
 
+    #[test]
+    fn completed_upload_missing_object_reason_should_use_i18n_key() {
+        let source = include_str!("message.rs");
+        let key = [
+            "upload.",
+            "cleanup_completed_",
+            "object_missing_",
+            "mark_deleted",
+        ]
+        .concat();
+
+        assert!(
+            source.contains(&key),
+            "message handler should reuse deleted-object fallback key"
+        );
+    }
+
+    #[test]
+    fn completed_upload_missing_object_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("message.rs");
+        let legacy = [
+            "\u{5bf9}\u{8c61}\u{4e0d}\u{5b58}\u{5728}",
+            "\u{ff0c}",
+            "\u{5df2}\u{6807}\u{8bb0}\u{4e3a}\u{5220}\u{9664}",
+        ]
+        .concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "message handler should not embed legacy deleted-object fallback literal: {legacy}"
+        );
+    }
+
     async fn read_body_json(body: Body) -> Value {
         let bytes = body
             .collect()
@@ -2732,11 +2765,14 @@ pub async fn generate_message_attachment_signature(
                     .await
                     .map_err(map_message_storage_error)?
                 {
+                    let deleted_reason = message_localized_message(
+                        "upload.cleanup_completed_object_missing_mark_deleted",
+                    );
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
                             &existing.object_key,
-                            Some("对象不存在，已标记为删除"),
+                            Some(deleted_reason.as_str()),
                         )
                         .await;
                 } else {
@@ -2888,11 +2924,14 @@ pub async fn initiate_message_attachment_multipart_upload(
                     .await
                     .map_err(map_message_storage_error)?
                 {
+                    let deleted_reason = message_localized_message(
+                        "upload.cleanup_completed_object_missing_mark_deleted",
+                    );
                     let _ = upload_store
                         .mark_deleted_by_key(
                             &provider.id,
                             &existing.object_key,
-                            Some("对象不存在，已标记为删除"),
+                            Some(deleted_reason.as_str()),
                         )
                         .await;
                 } else {
