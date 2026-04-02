@@ -677,6 +677,27 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.login_failure_invalid_password", None),
         "Incorrect password."
     );
+    let cleanup_reason_params = BTreeMap::from([("reason".to_string(), "db timeout".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.data_cleanup_messages_reference_clear_failed",
+            Some(&cleanup_reason_params)
+        ),
+        "清除 messages 表自引用字段失败: db timeout"
+    );
+    let cleanup_table_params = BTreeMap::from([
+        ("table_name".to_string(), "users".to_string()),
+        ("reason".to_string(), "permission denied".to_string()),
+    ]);
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.data_cleanup_table_delete_failed",
+            Some(&cleanup_table_params)
+        ),
+        "Failed to clean table users: permission denied"
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),

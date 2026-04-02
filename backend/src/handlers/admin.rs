@@ -158,6 +158,10 @@ fn admin_ip_geolocation_description() -> String {
     admin_localized_message("admin.ip_geolocation_description", None)
 }
 
+fn admin_data_cleanup_error_message(message_key: &'static str, params: MessageParams) -> String {
+    admin_localized_message(message_key, Some(&params))
+}
+
 fn admin_storage_type_label(message_key: &'static str) -> String {
     admin_localized_message(message_key, None)
 }
@@ -5377,7 +5381,11 @@ pub async fn cleanup_all_app_data(
             .map_err(AppError::DatabaseError)
             {
                 error!("清除 messages 表自引用字段失败: {}", e);
-                last_error = Some(format!("清除 messages 表自引用字段失败: {:?}", e));
+                let params = MessageParams::from([("reason".to_string(), format!("{:?}", e))]);
+                last_error = Some(admin_data_cleanup_error_message(
+                    "admin.data_cleanup_messages_reference_clear_failed",
+                    params,
+                ));
                 has_error = true;
                 break;
             }
@@ -5397,7 +5405,14 @@ pub async fn cleanup_all_app_data(
             }
             Err(e) => {
                 error!("清理表 {} 失败: {:?}", table_name, e);
-                last_error = Some(format!("清理表 {} 失败: {:?}", table_name, e));
+                let params = MessageParams::from([
+                    ("table_name".to_string(), table_name.to_string()),
+                    ("reason".to_string(), format!("{:?}", e)),
+                ]);
+                last_error = Some(admin_data_cleanup_error_message(
+                    "admin.data_cleanup_table_delete_failed",
+                    params,
+                ));
                 // 如果出现错误，中断清理并回滚
                 has_error = true;
                 break;
@@ -6134,6 +6149,46 @@ mod tests {
             !source.contains(&legacy),
             "admin login failure reason should not embed legacy literal: {legacy}"
         );
+    }
+
+    #[test]
+    fn admin_data_cleanup_error_reasons_should_use_i18n_keys() {
+        let source = include_str!("admin.rs");
+
+        for key in [
+            "admin.data_cleanup_messages_reference_clear_failed",
+            "admin.data_cleanup_table_delete_failed",
+        ] {
+            assert!(
+                source.contains(key),
+                "admin data cleanup error reason should reuse i18n key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn admin_data_cleanup_error_reasons_should_not_embed_legacy_literal_patterns() {
+        let source = include_str!("admin.rs");
+
+        for legacy in [
+            [
+                "last_error = Some(format!(\"",
+                "\u{6e05}\u{9664} messages \u{8868}\u{81ea}\u{5f15}\u{7528}\u{5b57}\u{6bb5}\u{5931}\u{8d25}",
+                ": {:?}\", e));",
+            ]
+            .concat(),
+            [
+                "last_error = Some(format!(\"",
+                "\u{6e05}\u{7406}\u{8868} {} \u{5931}\u{8d25}",
+                ": {:?}\", table_name, e));",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "admin data cleanup error reason should not embed legacy literal pattern: {legacy}"
+            );
+        }
     }
 
     #[test]
