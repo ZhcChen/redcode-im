@@ -817,6 +817,18 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("zh-CN", "admin.admin_user_not_found", None),
         "管理员用户不存在"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.active_nodes_fetch_failed", None),
+        "获取节点信息失败，请稍后重试"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.api_performance_stats_fetch_failed", None),
+        "Failed to load API performance statistics. Please try again later."
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.admin_password_verify_failed", None),
+        "密码验证失败，请稍后重试"
+    );
 }
 
 #[test]

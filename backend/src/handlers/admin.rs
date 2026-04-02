@@ -866,7 +866,7 @@ pub async fn list_active_nodes_monitor(
 
     let nodes = session_manager.get_active_nodes().await.map_err(|e| {
         error!("获取活跃节点失败: {}", e);
-        AppError::InternalError("获取节点信息失败".to_string())
+        admin_internal_error("admin.active_nodes_fetch_failed")
     })?;
 
     let node_monitors = nodes
@@ -904,7 +904,7 @@ pub async fn get_api_performance_stats(
         .await
         .map_err(|e| {
             error!("获取 API 性能统计失败: {}", e);
-            AppError::InternalError("获取性能统计失败".to_string())
+            admin_internal_error("admin.api_performance_stats_fetch_failed")
         })?;
 
     // 计算 Top 耗时
@@ -4309,7 +4309,7 @@ impl AdminUserStore {
 
         // 验证密码
         let is_valid = bcrypt::verify(&request.password, &user.password_hash)
-            .map_err(|_| AppError::InternalError("密码验证失败".to_string()))?;
+            .map_err(|_| admin_internal_error("admin.admin_password_verify_failed"))?;
 
         if !is_valid {
             // 记录登录失败
@@ -4395,7 +4395,7 @@ impl AdminUserStore {
         request: CreateAdminUserRequest,
     ) -> Result<AdminUser, AppError> {
         let password_hash = hash_password(&request.password)
-            .map_err(|_| AppError::InternalError("密码哈希失败".to_string()))?;
+            .map_err(|_| admin_internal_error("admin.admin_password_hash_failed"))?;
 
         let user = sqlx::query_as!(
             AdminUser,
@@ -5790,4 +5790,64 @@ pub async fn requeue_file_upload_audit_task(
         success: true,
         message: admin_localized_message("admin.file_upload_audit_requeue_success", None),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admin_internal_errors_should_use_stable_domain_keys() {
+        let node_error = admin_internal_error("admin.active_nodes_fetch_failed");
+        assert_eq!(
+            node_error.localized_message(),
+            "获取节点信息失败，请稍后重试"
+        );
+
+        let performance_error = admin_internal_error("admin.api_performance_stats_fetch_failed");
+        assert_eq!(
+            performance_error.localized_message(),
+            "获取性能统计失败，请稍后重试"
+        );
+
+        let verify_error = admin_internal_error("admin.admin_password_verify_failed");
+        assert_eq!(verify_error.localized_message(), "密码验证失败，请稍后重试");
+    }
+
+    #[test]
+    fn admin_internal_errors_should_not_embed_legacy_chinese_literals() {
+        let source = include_str!("admin.rs");
+
+        for legacy in [
+            [
+                "AppError::InternalError(\"",
+                "\u{83b7}\u{53d6}\u{8282}\u{70b9}\u{4fe1}\u{606f}\u{5931}\u{8d25}",
+                "\".to_string())",
+            ]
+            .concat(),
+            [
+                "AppError::InternalError(\"",
+                "\u{83b7}\u{53d6}\u{6027}\u{80fd}\u{7edf}\u{8ba1}\u{5931}\u{8d25}",
+                "\".to_string())",
+            ]
+            .concat(),
+            [
+                "AppError::InternalError(\"",
+                "\u{5bc6}\u{7801}\u{9a8c}\u{8bc1}\u{5931}\u{8d25}",
+                "\".to_string())",
+            ]
+            .concat(),
+            [
+                "AppError::InternalError(\"",
+                "\u{5bc6}\u{7801}\u{54c8}\u{5e0c}\u{5931}\u{8d25}",
+                "\".to_string())",
+            ]
+            .concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "admin handler should not embed legacy internal error literal pattern: {legacy}"
+            );
+        }
+    }
 }
