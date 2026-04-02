@@ -558,6 +558,22 @@ fn i18n_message_catalog_loads_task_4c_error_keys_for_both_locales() {
 fn i18n_admin_catalog_is_loaded_for_both_locales() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     assert_eq!(
+        localizer.localize("zh-CN", "admin.default_admin_nickname", None),
+        "系统管理员"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.default_admin_nickname", None),
+        "System Administrator"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.mock_room_name_test", None),
+        "测试房间"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.mock_room_name_test", None),
+        "Test Room"
+    );
+    assert_eq!(
         localizer.localize("zh-CN", "admin.ipinfo_token_name_required", None),
         "Token名称不能为空"
     );

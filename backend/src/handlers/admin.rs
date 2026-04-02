@@ -1508,7 +1508,10 @@ pub async fn create_default_admin_user(
         username: "admin".to_string(),
         email: "admin@redcode-im.com".to_string(),
         password: "admin123".to_string(),
-        nickname: Some("系统管理员".to_string()),
+        nickname: Some(admin_localized_message(
+            "admin.default_admin_nickname",
+            None,
+        )),
     };
 
     match store.create_admin_user(request).await {
@@ -2565,7 +2568,7 @@ pub async fn get_file_list(
         user_id: "1".to_string(),
         username: "admin".to_string(),
         room_id: Some("1".to_string()),
-        room_name: Some("测试房间".to_string()),
+        room_name: Some(admin_localized_message("admin.mock_room_name_test", None)),
     }];
 
     Ok(Json(FileListResponse {
@@ -6128,6 +6131,48 @@ mod tests {
                 "admin mock permission/role metadata should not embed legacy literal pattern: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn admin_default_admin_nickname_should_use_i18n_key() {
+        let source = include_str!("admin.rs");
+
+        assert!(
+            source.contains("admin.default_admin_nickname"),
+            "default admin bootstrap nickname should reuse i18n key"
+        );
+    }
+
+    #[test]
+    fn admin_default_admin_nickname_should_not_embed_legacy_literal() {
+        let source = include_str!("admin.rs");
+        let legacy = ["\"", "\u{7cfb}\u{7edf}\u{7ba1}\u{7406}\u{5458}", "\""].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "default admin bootstrap nickname should not embed legacy literal: {legacy}"
+        );
+    }
+
+    #[test]
+    fn admin_mock_file_list_room_name_should_use_i18n_key() {
+        let source = include_str!("admin.rs");
+
+        assert!(
+            source.contains("admin.mock_room_name_test"),
+            "admin mock file list room name should reuse i18n key"
+        );
+    }
+
+    #[test]
+    fn admin_mock_file_list_room_name_should_not_embed_legacy_literal() {
+        let source = include_str!("admin.rs");
+        let legacy = ["\"", "\u{6d4b}\u{8bd5}\u{623f}\u{95f4}", "\""].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "admin mock file list room name should not embed legacy literal: {legacy}"
+        );
     }
 
     #[test]
