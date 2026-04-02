@@ -630,6 +630,23 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.log_cleanup_retention_days_invalid", None),
         "Retention days must be greater than 0."
     );
+    let invalid_uuid_params = BTreeMap::from([("value".to_string(), "not-a-uuid".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "admin.push_log_query_uuid_invalid",
+            Some(&invalid_uuid_params)
+        ),
+        "无效的 UUID: not-a-uuid"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "admin.push_log_query_uuid_invalid",
+            Some(&invalid_uuid_params)
+        ),
+        "Invalid UUID: not-a-uuid."
+    );
 
     let params = BTreeMap::from([
         ("deleted_count".to_string(), "3".to_string()),

@@ -74,6 +74,7 @@
   "admin.storage_test_download_url_success_cached": "Download URL generated successfully (cached).",
   "admin.storage_test_download_url_failed": "Failed to generate download URL: {reason}",
   "admin.log_cleanup_retention_days_invalid": "Retention days must be greater than 0.",
+  "admin.push_log_query_uuid_invalid": "Invalid UUID: {value}.",
   "admin.system_log_cleanup_success": "Deleted {deleted_count} logs successfully. Retained logs from the last {retention_days} days.",
   "admin.push_log_cleanup_success": "Deleted {deleted_count} push logs successfully. Retained logs from the last {retention_days} days.",
   "admin.data_cleanup_failed": "Data cleanup failed after cleaning {cleaned_count} tables.",

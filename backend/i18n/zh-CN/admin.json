@@ -74,6 +74,7 @@
   "admin.storage_test_download_url_success_cached": "生成下载链接成功（缓存）",
   "admin.storage_test_download_url_failed": "生成下载链接失败: {reason}",
   "admin.log_cleanup_retention_days_invalid": "保留天数必须大于 0",
+  "admin.push_log_query_uuid_invalid": "无效的 UUID: {value}",
   "admin.system_log_cleanup_success": "成功删除 {deleted_count} 条日志，保留最近 {retention_days} 天的日志",
   "admin.push_log_cleanup_success": "成功删除 {deleted_count} 条 push 日志，保留最近 {retention_days} 天的日志",
   "admin.data_cleanup_failed": "数据清理失败，已清理 {cleaned_count} 个表",

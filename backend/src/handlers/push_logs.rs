@@ -89,6 +89,13 @@ fn push_logs_validation_error(message_key: &'static str) -> AppError {
     AppError::ValidationError(String::new()).with_message_key(message_key)
 }
 
+fn push_logs_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
+
 fn push_logs_localized_message(
     message_key: &'static str,
     params: Option<&MessageParams>,
@@ -215,6 +222,41 @@ fn parse_uuid_optional(value: Option<&str>) -> Result<Option<Uuid>, AppError> {
     }
 
     Ok(Some(Uuid::parse_str(trimmed).map_err(|_| {
-        AppError::ValidationError(format!("无效的 UUID: {}", trimmed))
+        push_logs_validation_error_with_params(
+            "admin.push_log_query_uuid_invalid",
+            MessageParams::from([("value".to_string(), trimmed.to_string())]),
+        )
     })?))
+}
+
+#[cfg(test)]
+mod push_logs_i18n_tests {
+    use super::parse_uuid_optional;
+
+    #[test]
+    fn parse_uuid_optional_invalid_returns_stable_key_and_params() {
+        let error = parse_uuid_optional(Some("not-a-uuid")).expect_err("invalid uuid should fail");
+
+        assert_eq!(
+            error.response_message_key(),
+            "admin.push_log_query_uuid_invalid"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["value"], "not-a-uuid");
+        assert_eq!(
+            error.localized_message(),
+            "\u{65e0}\u{6548}\u{7684} UUID: not-a-uuid"
+        );
+    }
+
+    #[test]
+    fn push_logs_errors_should_not_embed_legacy_uuid_literal() {
+        let source = include_str!("push_logs.rs");
+        let legacy = "\u{65e0}\u{6548}\u{7684} UUID";
+
+        assert!(
+            !source.contains(legacy),
+            "push_logs uuid validation should not embed legacy literal: {legacy}"
+        );
+    }
 }
