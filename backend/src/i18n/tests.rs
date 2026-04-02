@@ -1956,6 +1956,28 @@ fn i18n_e2ee_catalog_interpolates_params() {
     );
 }
 
+#[test]
+fn i18n_chat_history_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "chat_history.unknown_user", None),
+        "未知用户"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "chat_history.unknown_user", None),
+        "Unknown user"
+    );
+    assert_eq!(
+        localizer.localize("zh-CN", "chat_history.unnamed_room", None),
+        "未命名房间"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "chat_history.unnamed_room", None),
+        "Unnamed room"
+    );
+}
+
 async fn read_body_json(body: Body) -> Value {
     let bytes = body
         .collect()

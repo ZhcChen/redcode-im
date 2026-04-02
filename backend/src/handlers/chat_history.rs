@@ -8,6 +8,8 @@ use uuid::Uuid;
 
 use crate::database::message_store::MessageStore;
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
+use crate::middleware::current_request_locale;
 use crate::AppState;
 use chrono::{DateTime, Utc};
 
@@ -30,6 +32,13 @@ fn default_page() -> usize {
 
 fn default_page_size() -> usize {
     50
+}
+
+fn chat_history_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
 }
 
 #[derive(Debug, Serialize)]
@@ -275,7 +284,7 @@ pub async fn get_chat_history(
             sender_id: sender_id.to_string(),
             sender_name: row
                 .get::<Option<String>, _>("sender_name")
-                .unwrap_or_else(|| "未知用户".to_string()),
+                .unwrap_or_else(|| chat_history_localized_message("chat_history.unknown_user")),
             sender_avatar: row.get("sender_avatar"),
             message_type: match row.get::<i16, _>("message_type") {
                 0 => "text".to_string(),
@@ -377,7 +386,7 @@ pub async fn get_user_rooms(
                 sender_id: row.get::<Uuid, _>("sender_id").to_string(),
                 sender_name: row
                     .get::<Option<String>, _>("sender_name")
-                    .unwrap_or_else(|| "未知用户".to_string()),
+                    .unwrap_or_else(|| chat_history_localized_message("chat_history.unknown_user")),
                 sender_avatar: row.get("sender_avatar"),
                 message_type: match row.get::<i16, _>("message_type") {
                     0 => "text".to_string(),
@@ -404,7 +413,7 @@ pub async fn get_user_rooms(
             id: room_id.to_string(),
             name: row
                 .get::<Option<String>, _>("name")
-                .unwrap_or_else(|| "未命名房间".to_string()),
+                .unwrap_or_else(|| chat_history_localized_message("chat_history.unnamed_room")),
             description: row.get("description"),
             avatar_url: row.get("avatar_url"),
             is_private: row.get::<i16, _>("room_type") == 0, // 0=private
@@ -441,4 +450,36 @@ pub async fn get_room_chat_history(
     room_params.room_id = Some(room_id.to_string());
 
     get_chat_history(State(state), Query(room_params)).await
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn chat_history_fallbacks_should_use_catalog_keys() {
+        let source = include_str!("chat_history.rs");
+
+        assert!(
+            source.contains("chat_history.unknown_user"),
+            "chat history handler should use chat_history.unknown_user catalog key"
+        );
+        assert!(
+            source.contains("chat_history.unnamed_room"),
+            "chat history handler should use chat_history.unnamed_room catalog key"
+        );
+    }
+
+    #[test]
+    fn chat_history_should_not_embed_legacy_fallback_literals() {
+        let source = include_str!("chat_history.rs");
+
+        for legacy in [
+            "\u{672a}\u{77e5}\u{7528}\u{6237}",
+            "\u{672a}\u{547d}\u{540d}\u{623f}\u{95f4}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "chat history handler should not embed legacy fallback literal: {legacy}"
+            );
+        }
+    }
 }
