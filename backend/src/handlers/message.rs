@@ -222,6 +222,9 @@ fn map_message_storage_error(error: AppError) -> AppError {
         AppError::ValidationError(_) => {
             message_validation_error("message.default_storage_provider_invalid_config")
         }
+        AppError::Localized { source, .. } if matches!(&*source, AppError::ValidationError(_)) => {
+            message_validation_error("message.default_storage_provider_invalid_config")
+        }
         other => other,
     }
 }

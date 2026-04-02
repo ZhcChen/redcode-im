@@ -1,0 +1,10 @@
+{
+  "storage.object_head_unsupported": "当前存储提供商不支持对象元数据查询",
+  "storage.cors_get_unsupported": "当前存储提供商不支持跨域规则查询",
+  "storage.cors_set_unsupported": "当前存储提供商不支持跨域规则配置",
+  "storage.direct_upload_unsupported": "当前存储提供商不支持前端直传上传",
+  "storage.multipart_unsupported": "当前存储提供商不支持大文件分片直传",
+  "storage.download_url_unsupported": "当前存储提供商不支持生成下载链接",
+  "storage.bucket_name_required_for_tencent_cos": "腾讯云COS需要配置bucket_name",
+  "storage.provider_type_unsupported": "不支持的存储提供商类型: {provider_type}"
+}

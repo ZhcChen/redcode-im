@@ -1575,6 +1575,43 @@ fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
 }
 
 #[test]
+fn i18n_storage_catalog_is_loaded_for_both_locales() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "storage.object_head_unsupported", None),
+        "当前存储提供商不支持对象元数据查询"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "storage.download_url_unsupported", None),
+        "The current storage provider does not support generating download URLs."
+    );
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "storage.bucket_name_required_for_tencent_cos",
+            None
+        ),
+        "腾讯云COS需要配置bucket_name"
+    );
+}
+
+#[test]
+fn i18n_storage_catalog_interpolates_provider_type_params() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+    let params = BTreeMap::from([("provider_type".to_string(), "minio".to_string())]);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "storage.provider_type_unsupported", Some(&params)),
+        "不支持的存储提供商类型: minio"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "storage.provider_type_unsupported", Some(&params)),
+        "Unsupported storage provider type: minio."
+    );
+}
+
+#[test]
 fn i18n_common_admin_and_upload_storage_tail_catalogs_are_loaded() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
 

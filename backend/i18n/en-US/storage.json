@@ -1,0 +1,10 @@
+{
+  "storage.object_head_unsupported": "The current storage provider does not support object metadata lookup.",
+  "storage.cors_get_unsupported": "The current storage provider does not support fetching CORS rules.",
+  "storage.cors_set_unsupported": "The current storage provider does not support updating CORS rules.",
+  "storage.direct_upload_unsupported": "The current storage provider does not support direct browser uploads.",
+  "storage.multipart_unsupported": "The current storage provider does not support multipart direct uploads.",
+  "storage.download_url_unsupported": "The current storage provider does not support generating download URLs.",
+  "storage.bucket_name_required_for_tencent_cos": "Tencent COS requires bucket_name to be configured.",
+  "storage.provider_type_unsupported": "Unsupported storage provider type: {provider_type}."
+}
