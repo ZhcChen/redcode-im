@@ -1777,6 +1777,14 @@ fn i18n_emoji_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "emoji.pack_name_required", None),
         "Pack name is required."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "emoji.object_key_required", None),
+        "object_key 不能为空"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "emoji.object_key_required", None),
+        "object_key is required."
+    );
 }
 
 #[test]

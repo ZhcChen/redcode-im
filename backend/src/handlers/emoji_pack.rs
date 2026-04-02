@@ -6,6 +6,8 @@ use crate::database::models::{
 };
 use crate::error::AppError;
 use crate::handlers::user::load_default_storage_provider;
+use crate::i18n::{localizer::default_localizer, message::MessageParams};
+use crate::middleware::current_request_locale;
 use crate::models::Claims;
 use crate::redis::cache::CacheManager;
 use crate::redis::models::CacheKeys;
@@ -18,6 +20,13 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
+
+fn emoji_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, params)
+}
 
 // ===== API 响应模型 =====
 
@@ -625,7 +634,7 @@ pub async fn get_emoji_download_url(
     if key_raw.is_empty() {
         return Ok(Json(EmojiDownloadUrlResponse {
             success: false,
-            message: "object_key 不能为空".to_string(),
+            message: emoji_localized_message("emoji.object_key_required", None),
             download_url: None,
         }));
     }
@@ -680,4 +689,28 @@ pub async fn get_emoji_download_url(
         message: "ok".to_string(),
         download_url: Some(download_url),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn emoji_download_url_empty_object_key_should_use_catalog_message() {
+        let source = include_str!("emoji_pack.rs");
+
+        assert!(
+            source.contains("emoji_localized_message(\"emoji.object_key_required\", None)"),
+            "emoji download url handler should use emoji.object_key_required catalog message"
+        );
+    }
+
+    #[test]
+    fn emoji_download_url_should_not_embed_legacy_object_key_literal() {
+        let source = include_str!("emoji_pack.rs");
+        let legacy = ["object_key ", "\u{4e0d}\u{80fd}\u{4e3a}\u{7a7a}"].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "emoji download url handler should not embed legacy object_key literal"
+        );
+    }
 }
