@@ -62,6 +62,7 @@
   "admin.login_failure_invalid_password": "密码错误",
   "admin.data_cleanup_messages_reference_clear_failed": "清除 messages 表自引用字段失败: {reason}",
   "admin.data_cleanup_table_delete_failed": "清理表 {table_name} 失败: {reason}",
+  "admin.user_ban_reason_admin_action": "管理员封禁",
   "admin.role_name_required": "角色名称不能为空",
   "admin.role_code_required": "角色代码不能为空",
   "admin.role_create_success": "角色创建成功",

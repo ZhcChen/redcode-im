@@ -2698,7 +2698,7 @@ pub async fn update_user_status(
     if status == DbUserStatus::Banned && old_user.status != DbUserStatus::Banned {
         let ban_push = crate::websocket::ServerPush::UserBanned {
             user_id: user_id.to_string(),
-            reason: "管理员封禁".to_string(),
+            reason: admin_localized_message("admin.user_ban_reason_admin_action", None),
         };
 
         state
@@ -6189,6 +6189,27 @@ mod tests {
                 "admin data cleanup error reason should not embed legacy literal pattern: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn admin_ban_push_reason_should_use_i18n_key() {
+        let source = include_str!("admin.rs");
+
+        assert!(
+            source.contains("admin.user_ban_reason_admin_action"),
+            "admin ban push reason should reuse i18n key"
+        );
+    }
+
+    #[test]
+    fn admin_ban_push_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("admin.rs");
+        let legacy = ["\"", "\u{7ba1}\u{7406}\u{5458}\u{5c01}\u{7981}", "\""].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "admin ban push reason should not embed legacy literal: {legacy}"
+        );
     }
 
     #[test]

@@ -698,6 +698,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         ),
         "Failed to clean table users: permission denied"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.user_ban_reason_admin_action", None),
+        "管理员封禁"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.user_ban_reason_admin_action", None),
+        "Banned by administrator."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),

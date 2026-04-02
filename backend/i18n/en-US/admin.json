@@ -62,6 +62,7 @@
   "admin.login_failure_invalid_password": "Incorrect password.",
   "admin.data_cleanup_messages_reference_clear_failed": "Failed to clear self-referential fields on messages table: {reason}",
   "admin.data_cleanup_table_delete_failed": "Failed to clean table {table_name}: {reason}",
+  "admin.user_ban_reason_admin_action": "Banned by administrator.",
   "admin.role_name_required": "Role name is required.",
   "admin.role_code_required": "Role code is required.",
   "admin.role_create_success": "Role created successfully.",
