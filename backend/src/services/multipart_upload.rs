@@ -1,4 +1,5 @@
 use crate::error::AppError;
+use std::collections::BTreeMap;
 
 /// 大文件分片直传阈值：<= 5MB 继续走单文件直传；> 5MB 才使用分片上传
 pub const MULTIPART_THRESHOLD_BYTES: i64 = 5 * 1024 * 1024;
@@ -11,6 +12,17 @@ pub const MIN_PART_SIZE_BYTES: i64 = 1 * 1024 * 1024;
 
 /// COS/S3 分片上传最大分片数：10,000
 pub const MAX_PARTS: i64 = 10_000;
+
+fn multipart_validation_error(message_key: &'static str) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn multipart_validation_error_with_params(
+    message_key: &'static str,
+    params: BTreeMap<String, String>,
+) -> AppError {
+    AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
+}
 
 fn div_ceil_i64(n: i64, d: i64) -> i64 {
     if d <= 0 {
@@ -29,16 +41,19 @@ fn round_up_to_multiple(value: i64, multiple: i64) -> i64 {
 /// 计算分片上传计划（part_size / total_parts）
 pub fn plan_multipart_upload(file_size: i64) -> Result<(i32, i32), AppError> {
     if file_size <= 0 {
-        return Err(AppError::ValidationError(
-            "file_size 必须大于 0".to_string(),
+        return Err(multipart_validation_error(
+            "upload.multipart_file_size_invalid",
         ));
     }
 
     if file_size <= MULTIPART_THRESHOLD_BYTES {
-        return Err(AppError::ValidationError(format!(
-            "文件大小 <= {} 字节，请使用单文件直传（非分片）",
-            MULTIPART_THRESHOLD_BYTES
-        )));
+        return Err(multipart_validation_error_with_params(
+            "upload.multipart_direct_upload_required",
+            BTreeMap::from([(
+                "threshold_size".to_string(),
+                MULTIPART_THRESHOLD_BYTES.to_string(),
+            )]),
+        ));
     }
 
     let mut part_size = DEFAULT_PART_SIZE_BYTES.max(MIN_PART_SIZE_BYTES);
@@ -60,9 +75,7 @@ pub fn plan_multipart_upload(file_size: i64) -> Result<(i32, i32), AppError> {
     }
 
     if part_size > i32::MAX as i64 || total_parts > i32::MAX as i64 {
-        return Err(AppError::ValidationError(
-            "文件过大，无法生成分片上传计划".to_string(),
-        ));
+        return Err(multipart_validation_error("upload.multipart_plan_failed"));
     }
 
     Ok((part_size as i32, total_parts as i32))
@@ -119,6 +132,45 @@ mod tests {
     }
 
     #[test]
+    fn test_plan_multipart_upload_zero_or_negative_uses_stable_key() {
+        let error = plan_multipart_upload(0).expect_err("zero file size should fail");
+
+        assert_eq!(
+            error.response_message_key(),
+            "upload.multipart_file_size_invalid"
+        );
+        assert_eq!(error.localized_message(), "file_size 必须大于 0");
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_threshold_uses_stable_key_and_params() {
+        let error = plan_multipart_upload(MULTIPART_THRESHOLD_BYTES)
+            .expect_err("threshold file size should require direct upload");
+
+        assert_eq!(
+            error.response_message_key(),
+            "upload.multipart_direct_upload_required"
+        );
+        let params = error.message_params().expect("params present");
+        assert_eq!(
+            params["threshold_size"],
+            MULTIPART_THRESHOLD_BYTES.to_string()
+        );
+    }
+
+    #[test]
+    fn test_plan_multipart_upload_oversized_uses_stable_key() {
+        let error = plan_multipart_upload(i64::MAX / 2)
+            .expect_err("oversized file should fail multipart planning");
+
+        assert_eq!(error.response_message_key(), "upload.multipart_plan_failed");
+        assert_eq!(
+            error.localized_message(),
+            "无法生成分片上传计划，请稍后重试"
+        );
+    }
+
+    #[test]
     fn test_plan_multipart_upload_normal_file() {
         // 10MB 文件
         let file_size = 10 * 1024 * 1024;
@@ -160,5 +212,21 @@ mod tests {
         assert!(DEFAULT_PART_SIZE_BYTES >= MIN_PART_SIZE_BYTES);
         assert!(MAX_PARTS > 0);
         assert_eq!(MIN_PART_SIZE_BYTES, 1024 * 1024); // 1MB
+    }
+
+    #[test]
+    fn multipart_upload_service_should_not_embed_legacy_free_strings() {
+        let source = include_str!("multipart_upload.rs");
+
+        for legacy in [
+            "\u{66f4}\u{591a}\u{6587}\u{4ef6}\u{5927}\u{5c0f}",
+            "\u{6587}\u{4ef6}\u{5927}\u{5c0f} <= ",
+            "\u{6587}\u{4ef6}\u{8fc7}\u{5927}\u{ff0c}\u{65e0}\u{6cd5}\u{751f}\u{6210}\u{5206}\u{7247}\u{4e0a}\u{4f20}\u{8ba1}\u{5212}",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "multipart upload service should not embed legacy free string: {legacy}"
+            );
+        }
     }
 }

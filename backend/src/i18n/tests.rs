@@ -1583,6 +1583,14 @@ fn i18n_upload_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "upload.invalid_session_id", None),
         "session_id is invalid."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.multipart_file_size_invalid", None),
+        "file_size 必须大于 0"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.multipart_plan_failed", None),
+        "Failed to plan multipart upload. Please try again later."
+    );
 }
 
 #[test]
@@ -1599,6 +1607,24 @@ fn i18n_upload_catalog_interpolates_params() {
     assert_eq!(
         localizer.localize("en-US", "upload.part_count_incomplete", Some(&params)),
         "Incomplete parts list: expected 4 parts, got 2."
+    );
+
+    let threshold_params = BTreeMap::from([("threshold_size".to_string(), "5242880".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "upload.multipart_direct_upload_required",
+            Some(&threshold_params)
+        ),
+        "文件大小不超过 5242880 字节，请使用单文件直传"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "upload.multipart_direct_upload_required",
+            Some(&threshold_params)
+        ),
+        "File size must exceed 5242880 bytes to use multipart upload."
     );
 }
 
