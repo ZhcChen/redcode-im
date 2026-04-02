@@ -26,7 +26,9 @@ use crate::database::{
     storage_provider_store::StorageProviderStore,
 };
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
 use crate::i18n::message::MessageParams;
+use crate::middleware::current_request_locale;
 use crate::models::{
     convert::db_message_to_api_message_info, MessageDeliveryStatus, MessageInfo,
     MessagePartPayload, MessagePartType as ApiMessagePartType,
@@ -119,6 +121,13 @@ fn message_forbidden_error_with_params(
 
 fn message_rate_limit_error(message_key: &'static str) -> AppError {
     AppError::RateLimitExceeded(String::new()).with_message_key(message_key)
+}
+
+fn message_localized_message(message_key: &'static str) -> String {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    localizer.localize(&locale, message_key, None)
 }
 
 pub(crate) fn message_cache_error(message_key: &'static str, cause: impl ToString) -> AppError {
@@ -511,15 +520,23 @@ fn summarize_message_parts(parts: &[PreparedMessagePart]) -> String {
                     summary_segments.push(text.clone());
                 }
             }
-            MessagePartType::Image => summary_segments.push("[图片]".to_string()),
-            MessagePartType::Video => summary_segments.push("[视频]".to_string()),
-            MessagePartType::Audio => summary_segments.push("[语音]".to_string()),
-            MessagePartType::File => summary_segments.push("[文件]".to_string()),
+            MessagePartType::Image => {
+                summary_segments.push(message_localized_message("push.preview_image"))
+            }
+            MessagePartType::Video => {
+                summary_segments.push(message_localized_message("push.preview_video"))
+            }
+            MessagePartType::Audio => {
+                summary_segments.push(message_localized_message("push.preview_audio"))
+            }
+            MessagePartType::File => {
+                summary_segments.push(message_localized_message("push.preview_file"))
+            }
         }
     }
     let summary = summary_segments.join(" ");
     if summary.trim().is_empty() {
-        "[消息]".to_string()
+        message_localized_message("push.preview_fallback")
     } else {
         summary
     }
@@ -1141,6 +1158,42 @@ mod message_i18n_tests {
             assert!(
                 !source.contains(legacy),
                 "message permission error should not embed legacy response literal: {legacy}"
+            );
+        }
+    }
+
+    #[test]
+    fn message_summary_placeholders_should_use_push_preview_catalog_keys() {
+        let source = include_str!("message.rs");
+
+        for key in [
+            "push.preview_image",
+            "push.preview_video",
+            "push.preview_audio",
+            "push.preview_file",
+            "push.preview_fallback",
+        ] {
+            assert!(
+                source.contains(key),
+                "message summary placeholder should reuse catalog key: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn message_summary_placeholders_should_not_embed_legacy_preview_literals() {
+        let source = include_str!("message.rs");
+
+        for legacy in [
+            ["[", "\u{56fe}\u{7247}", "]"].concat(),
+            ["[", "\u{89c6}\u{9891}", "]"].concat(),
+            ["[", "\u{8bed}\u{97f3}", "]"].concat(),
+            ["[", "\u{6587}\u{4ef6}", "]"].concat(),
+            ["[", "\u{6d88}\u{606f}", "]"].concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "message summary placeholder should not embed legacy preview literal: {legacy}"
             );
         }
     }
