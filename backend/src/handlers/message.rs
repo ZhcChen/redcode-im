@@ -1198,6 +1198,28 @@ mod message_i18n_tests {
         }
     }
 
+    #[test]
+    fn encrypted_message_summary_fallback_should_use_message_catalog_key() {
+        let source = include_str!("message.rs");
+        let key = ["message.", "encrypted_summary_", "fallback"].concat();
+
+        assert!(
+            source.contains(&key),
+            "encrypted message summary fallback should reuse message catalog key"
+        );
+    }
+
+    #[test]
+    fn encrypted_message_summary_fallback_should_not_embed_legacy_literal() {
+        let source = include_str!("message.rs");
+        let legacy = ["[", "\u{52a0}\u{5bc6}\u{6d88}\u{606f}", "]"].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "encrypted message summary fallback should not embed legacy literal: {legacy}"
+        );
+    }
+
     async fn read_body_json(body: Body) -> Value {
         let bytes = body
             .collect()
@@ -1597,11 +1619,11 @@ pub async fn send_encrypted_message(
     } = payload;
 
     let content_summary = content_summary
-        .unwrap_or_else(|| "[加密消息]".to_string())
+        .unwrap_or_else(|| message_localized_message("message.encrypted_summary_fallback"))
         .trim()
         .to_string();
     let content_summary = if content_summary.is_empty() {
-        "[加密消息]".to_string()
+        message_localized_message("message.encrypted_summary_fallback")
     } else {
         content_summary
     };

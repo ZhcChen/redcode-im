@@ -76,6 +76,7 @@
   "message.reaction_not_found_or_deleted": "Reaction was not found or has already been removed.",
   "message.encrypted_content_base64_invalid": "encrypted_content is not valid Base64.",
   "message.encrypted_content_required": "encrypted_content cannot be empty.",
+  "message.encrypted_summary_fallback": "[Encrypted message]",
   "message.forward_target_room_forbidden": "You are not in the target room and cannot forward messages.",
   "message.original_message_not_found_or_deleted": "Original message was not found or has been deleted.",
   "message.original_message_deleted": "Original message has been deleted and cannot be forwarded.",

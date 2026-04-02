@@ -76,6 +76,7 @@
   "message.reaction_not_found_or_deleted": "反应不存在或已删除",
   "message.encrypted_content_base64_invalid": "encrypted_content 不是有效的 Base64",
   "message.encrypted_content_required": "encrypted_content 不能为空",
+  "message.encrypted_summary_fallback": "[加密消息]",
   "message.forward_target_room_forbidden": "您不在目标房间，无法转发消息",
   "message.original_message_not_found_or_deleted": "原消息不存在或已被删除",
   "message.original_message_deleted": "原消息已删除，无法转发",

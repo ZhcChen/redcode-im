@@ -324,6 +324,14 @@ fn i18n_message_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "message.send_rate_limit_cache_failed", None),
         "Message send rate limiting is temporarily unavailable. Please try again later."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "message.encrypted_summary_fallback", None),
+        "[加密消息]"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "message.encrypted_summary_fallback", None),
+        "[Encrypted message]"
+    );
 }
 
 #[test]
