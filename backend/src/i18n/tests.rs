@@ -2100,6 +2100,25 @@ fn i18n_push_catalog_interpolates_params() {
         localizer.localize("en-US", "push.provider_unsupported", Some(&params)),
         "Unsupported provider for now: apns."
     );
+
+    let delivery_failed_params =
+        BTreeMap::from([("reason".to_string(), "upstream timeout".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "push.delivery_failed",
+            Some(&delivery_failed_params),
+        ),
+        "推送发送失败: upstream timeout"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "push.delivery_failed",
+            Some(&delivery_failed_params),
+        ),
+        "Push delivery failed: upstream timeout"
+    );
 }
 
 #[test]

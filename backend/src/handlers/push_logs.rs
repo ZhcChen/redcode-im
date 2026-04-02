@@ -96,14 +96,54 @@ fn push_logs_validation_error_with_params(
     AppError::ValidationError(String::new()).with_message_key_and_params(message_key, Some(params))
 }
 
-fn push_logs_localized_message(
-    message_key: &'static str,
-    params: Option<&MessageParams>,
-) -> String {
+fn push_logs_localized_message(message_key: &str, params: Option<&MessageParams>) -> String {
     let localizer = default_localizer();
     let locale =
         current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
     localizer.localize(&locale, message_key, params)
+}
+
+fn push_logs_message_params_from_json(value: &serde_json::Value) -> Option<MessageParams> {
+    let obj = value.as_object()?;
+    let mut params = MessageParams::new();
+    for (key, value) in obj {
+        let value = match value {
+            serde_json::Value::String(v) => v.clone(),
+            serde_json::Value::Number(v) => v.to_string(),
+            serde_json::Value::Bool(v) => v.to_string(),
+            _ => continue,
+        };
+        params.insert(key.clone(), value);
+    }
+    Some(params)
+}
+
+fn push_log_error_for_locale(
+    locale: &str,
+    fallback_error: Option<String>,
+    data: &serde_json::Value,
+) -> Option<String> {
+    let message_key = match data
+        .get("error_message_key")
+        .and_then(|value| value.as_str())
+    {
+        Some(value) => value,
+        None => return fallback_error,
+    };
+
+    let params = data
+        .get("error_params")
+        .and_then(push_logs_message_params_from_json);
+
+    let localizer = default_localizer();
+    Some(localizer.localize(locale, message_key, params.as_ref()))
+}
+
+fn push_log_error(fallback_error: Option<String>, data: &serde_json::Value) -> Option<String> {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    push_log_error_for_locale(&locale, fallback_error, data)
 }
 
 /// 查询 push 发送日志（需要管理员权限）
@@ -141,27 +181,31 @@ pub async fn list_push_logs(
     let logs = result
         .logs
         .into_iter()
-        .map(|entry| PushLogEntry {
-            id: entry.id.to_string(),
-            push_id: entry.push_id.to_string(),
-            user_id: entry.user_id.to_string(),
-            username: entry.username,
-            nickname: entry.nickname,
-            device_id: entry.device_id,
-            platform: entry.platform,
-            channel: entry.channel,
-            provider: entry.provider,
-            event_type: entry.event_type,
-            room_id: entry.room_id.map(|id| id.to_string()),
-            message_id: entry.message_id.map(|id| id.to_string()),
-            request_id: entry.request_id.map(|id| id.to_string()),
-            title: entry.title,
-            body: entry.body,
-            data: entry.data,
-            attempt: entry.attempt,
-            success: entry.success,
-            error: entry.error,
-            created_at: entry.created_at.to_rfc3339(),
+        .map(|entry| {
+            let error = push_log_error(entry.error, &entry.data);
+
+            PushLogEntry {
+                id: entry.id.to_string(),
+                push_id: entry.push_id.to_string(),
+                user_id: entry.user_id.to_string(),
+                username: entry.username,
+                nickname: entry.nickname,
+                device_id: entry.device_id,
+                platform: entry.platform,
+                channel: entry.channel,
+                provider: entry.provider,
+                event_type: entry.event_type,
+                room_id: entry.room_id.map(|id| id.to_string()),
+                message_id: entry.message_id.map(|id| id.to_string()),
+                request_id: entry.request_id.map(|id| id.to_string()),
+                title: entry.title,
+                body: entry.body,
+                data: entry.data,
+                attempt: entry.attempt,
+                success: entry.success,
+                error,
+                created_at: entry.created_at.to_rfc3339(),
+            }
         })
         .collect();
 
@@ -232,6 +276,8 @@ fn parse_uuid_optional(value: Option<&str>) -> Result<Option<Uuid>, AppError> {
 #[cfg(test)]
 mod push_logs_i18n_tests {
     use super::parse_uuid_optional;
+    use super::push_log_error_for_locale;
+    use serde_json::json;
 
     #[test]
     fn parse_uuid_optional_invalid_returns_stable_key_and_params() {
@@ -258,5 +304,32 @@ mod push_logs_i18n_tests {
             !source.contains(legacy),
             "push_logs uuid validation should not embed legacy literal: {legacy}"
         );
+    }
+
+    #[test]
+    fn push_log_error_should_localize_from_data_metadata() {
+        let localized = push_log_error_for_locale(
+            "en-US",
+            Some("fallback error".to_string()),
+            &json!({
+                "error_message_key": "push.delivery_failed",
+                "error_params": {
+                    "reason": "upstream timeout"
+                }
+            }),
+        );
+
+        assert_eq!(
+            localized,
+            Some("Push delivery failed: upstream timeout".to_string())
+        );
+    }
+
+    #[test]
+    fn push_log_error_should_fallback_to_raw_error_without_metadata() {
+        let localized =
+            push_log_error_for_locale("en-US", Some("fallback error".to_string()), &json!({}));
+
+        assert_eq!(localized, Some("fallback error".to_string()));
     }
 }

@@ -55,6 +55,8 @@ const PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES: i64 = 20;
 const DEFAULT_FCM_BASE_URL: &str = "https://fcm.googleapis.com";
 
 const PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY: i64 = 0x7075_7368_6a6f_625f; // "pushjob_"
+const PUSH_LOG_ERROR_MESSAGE_KEY_FIELD: &str = "error_message_key";
+const PUSH_LOG_ERROR_PARAMS_FIELD: &str = "error_params";
 
 static PUSH_RUNTIME: OnceCell<RwLock<PushRuntime>> = OnceCell::new();
 static PUSH_DB_WORKER_STARTED: OnceCell<()> = OnceCell::new();
@@ -162,6 +164,12 @@ struct FcmSendError {
     message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PushLocalizedCopy {
+    message_key: &'static str,
+    params: Option<MessageParams>,
+}
+
 impl FcmSendError {
     fn is_unregistered(&self) -> bool {
         matches!(
@@ -216,6 +224,42 @@ impl FcmSendError {
             }
         }
     }
+}
+
+fn push_fallback_localized_message(message_key: &str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    localizer.localize(localizer.fallback_locale(), message_key, params)
+}
+
+fn push_log_error_copy_from_send_error(error: &FcmSendError) -> Option<PushLocalizedCopy> {
+    Some(PushLocalizedCopy {
+        message_key: "push.delivery_failed",
+        params: Some(MessageParams::from([(
+            "reason".to_string(),
+            error.to_log_string(),
+        )])),
+    })
+}
+
+fn insert_push_log_error_i18n(data_json: &mut serde_json::Value, copy: Option<&PushLocalizedCopy>) {
+    let Some(copy) = copy else {
+        return;
+    };
+    let Some(obj) = data_json.as_object_mut() else {
+        return;
+    };
+
+    obj.insert(
+        PUSH_LOG_ERROR_MESSAGE_KEY_FIELD.to_string(),
+        serde_json::Value::String(copy.message_key.to_string()),
+    );
+    obj.insert(
+        PUSH_LOG_ERROR_PARAMS_FIELD.to_string(),
+        copy.params
+            .as_ref()
+            .map(|params| serde_json::to_value(params).unwrap_or_else(|_| serde_json::json!({})))
+            .unwrap_or_else(|| serde_json::json!({})),
+    );
 }
 
 #[derive(Debug, Serialize)]
@@ -1420,17 +1464,25 @@ async fn send_to_token_with_retry(
                     ok: true,
                     attempt,
                     error: None,
+                    error_copy: None,
                     deactivate_device: false,
                 }
             }
             Err(e) => {
                 let deactivate_device = e.is_unregistered() || e.is_invalid_token();
-                let error = Some(e.to_log_string());
+                let error_copy = push_log_error_copy_from_send_error(&e);
+                let error = error_copy
+                    .as_ref()
+                    .map(|copy| {
+                        push_fallback_localized_message(copy.message_key, copy.params.as_ref())
+                    })
+                    .or_else(|| Some(e.to_log_string()));
                 if e.is_permanent() || attempt >= PUSH_SEND_MAX_ATTEMPTS {
                     return DeviceSendOutcome {
                         ok: false,
                         attempt,
                         error,
+                        error_copy,
                         deactivate_device,
                     };
                 }
@@ -1447,6 +1499,7 @@ struct DeviceSendOutcome {
     ok: bool,
     attempt: i32,
     error: Option<String>,
+    error_copy: Option<PushLocalizedCopy>,
     deactivate_device: bool,
 }
 
@@ -1533,6 +1586,9 @@ async fn send_fcm_to_devices_and_log(
             }
         }
 
+        let mut log_data = data_json.clone();
+        insert_push_log_error_i18n(&mut log_data, outcome.error_copy.as_ref());
+
         if let Err(e) = log_store
             .insert_log(
                 push_id,
@@ -1547,7 +1603,7 @@ async fn send_fcm_to_devices_and_log(
                 request_id,
                 Some(content.title.as_str()),
                 Some(content.body.as_str()),
-                &data_json,
+                &log_data,
                 outcome.attempt,
                 outcome.ok,
                 outcome.error.as_deref(),
@@ -2209,5 +2265,26 @@ mod tests {
                 "push operational error should not embed legacy literal: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn push_log_error_copy_should_use_catalog_key_for_transport_errors() {
+        let error = FcmSendError {
+            kind: FcmSendErrorKind::Transport,
+            message: "upstream timeout".to_string(),
+        };
+
+        let copy = push_log_error_copy_from_send_error(&error);
+
+        assert_eq!(
+            copy.as_ref().map(|value| value.message_key),
+            Some("push.delivery_failed")
+        );
+        assert_eq!(
+            copy.as_ref()
+                .and_then(|value| value.params.as_ref())
+                .and_then(|params| params.get("reason")),
+            Some(&"upstream timeout".to_string())
+        );
     }
 }
