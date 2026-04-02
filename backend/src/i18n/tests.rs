@@ -1687,6 +1687,40 @@ fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
         ),
         "Storage provider is inactive and file upload cleanup cannot continue."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.audit_rejected_violation", None),
+        "内容违规"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.audit_rejected_suspicious", None),
+        "Potential violation"
+    );
+    let params = BTreeMap::from([("label".to_string(), "adult".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "zh-CN",
+            "upload.audit_rejected_violation_with_label",
+            Some(&params)
+        ),
+        "内容违规: adult"
+    );
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "upload.audit_rejected_violation_with_label",
+            Some(&params)
+        ),
+        "Policy violation: adult"
+    );
+    let result_params = BTreeMap::from([("result".to_string(), "9".to_string())]);
+    assert_eq!(
+        localizer.localize(
+            "en-US",
+            "upload.audit_rejected_result_unknown",
+            Some(&result_params)
+        ),
+        "Audit rejected: result=9"
+    );
 }
 
 #[test]

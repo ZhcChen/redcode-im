@@ -69,6 +69,51 @@ fn admin_localized_message(message_key: &'static str, params: Option<&MessagePar
     localizer.localize(&locale, message_key, params)
 }
 
+fn admin_message_params_from_json(value: &serde_json::Value) -> Option<MessageParams> {
+    let obj = value.as_object()?;
+    let mut params = MessageParams::new();
+    for (key, value) in obj {
+        let value = match value {
+            serde_json::Value::String(v) => v.clone(),
+            serde_json::Value::Number(v) => v.to_string(),
+            serde_json::Value::Bool(v) => v.to_string(),
+            _ => continue,
+        };
+        params.insert(key.clone(), value);
+    }
+    Some(params)
+}
+
+fn admin_file_upload_audit_rejected_reason_for_locale(
+    locale: &str,
+    rejected_reason: Option<String>,
+    result: &serde_json::Value,
+) -> Option<String> {
+    let message_key = result
+        .get("rejected_reason_message_key")
+        .and_then(|value| value.as_str());
+    let params = result
+        .get("rejected_reason_params")
+        .and_then(admin_message_params_from_json);
+
+    match message_key {
+        Some(message_key) => {
+            Some(default_localizer().localize(locale, message_key, params.as_ref()))
+        }
+        None => rejected_reason,
+    }
+}
+
+fn admin_file_upload_audit_rejected_reason(
+    rejected_reason: Option<String>,
+    result: &serde_json::Value,
+) -> Option<String> {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    admin_file_upload_audit_rejected_reason_for_locale(&locale, rejected_reason, result)
+}
+
 fn admin_ip_geolocation_description() -> String {
     admin_localized_message("admin.ip_geolocation_description", None)
 }
@@ -5706,7 +5751,7 @@ pub async fn list_file_upload_audit_tasks(
             file_size: t.file_size,
             status: t.status,
             vendor_job_id: t.vendor_job_id,
-            rejected_reason: t.rejected_reason,
+            rejected_reason: admin_file_upload_audit_rejected_reason(t.rejected_reason, &t.result),
             attempts: t.attempts,
             next_run_at: t.next_run_at.to_rfc3339(),
             last_error: t.last_error,
@@ -5740,6 +5785,8 @@ pub async fn get_file_upload_audit_task(
         .await
         .map_err(AppError::from)?
         .ok_or_else(|| admin_not_found_error("admin.file_upload_audit_task_not_found"))?;
+    let rejected_reason =
+        admin_file_upload_audit_rejected_reason(task.rejected_reason.clone(), &task.result);
 
     Ok(Json(FileUploadAuditTaskDetailResponse {
         task: FileUploadAuditTaskDetailEntry {
@@ -5753,7 +5800,7 @@ pub async fn get_file_upload_audit_task(
             status: task.status,
             vendor_job_id: task.vendor_job_id,
             result: task.result,
-            rejected_reason: task.rejected_reason,
+            rejected_reason,
             attempts: task.attempts,
             next_run_at: task.next_run_at.to_rfc3339(),
             last_error: task.last_error,
@@ -5849,5 +5896,32 @@ mod tests {
                 "admin handler should not embed legacy internal error literal pattern: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn admin_file_upload_audit_rejected_reason_should_localize_from_result_metadata() {
+        let localized = admin_file_upload_audit_rejected_reason_for_locale(
+            "en-US",
+            Some("内容违规: adult".to_string()),
+            &serde_json::json!({
+                "rejected_reason_message_key": "upload.audit_rejected_violation_with_label",
+                "rejected_reason_params": {
+                    "label": "adult"
+                }
+            }),
+        );
+
+        assert_eq!(localized, Some("Policy violation: adult".to_string()));
+    }
+
+    #[test]
+    fn admin_file_upload_audit_rejected_reason_should_fallback_to_raw_reason() {
+        let localized = admin_file_upload_audit_rejected_reason_for_locale(
+            "en-US",
+            Some("raw rejected reason".to_string()),
+            &serde_json::json!({}),
+        );
+
+        assert_eq!(localized, Some("raw rejected reason".to_string()));
     }
 }

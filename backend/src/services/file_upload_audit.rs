@@ -4,6 +4,8 @@ use crate::database::models::{FileUploadAuditTask, StorageProviderType};
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::Database;
 use crate::error::AppError;
+use crate::i18n::localizer::default_localizer;
+use crate::i18n::message::MessageParams;
 use crate::storage;
 use chrono::{DateTime, Duration, Utc};
 use quick_xml::de::from_str as from_xml_str;
@@ -14,12 +16,94 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 const STATUS_RETRY: i16 = 3;
+const AUDIT_REJECTED_REASON_MESSAGE_KEY_FIELD: &str = "rejected_reason_message_key";
+const AUDIT_REJECTED_REASON_PARAMS_FIELD: &str = "rejected_reason_params";
 
 fn audit_internal_error_with_reason(message_key: &'static str, reason: impl ToString) -> AppError {
     AppError::InternalError(String::new()).with_message_key_and_params(
         message_key,
         Some(BTreeMap::from([("reason".to_string(), reason.to_string())])),
     )
+}
+
+fn audit_localized_message(message_key: &'static str, params: Option<&MessageParams>) -> String {
+    let localizer = default_localizer();
+    localizer.localize(localizer.fallback_locale(), message_key, params)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AuditLocalizedCopy {
+    message_key: &'static str,
+    params: Option<MessageParams>,
+}
+
+fn audit_rejected_reason_copy(result: Option<i32>, label: &str) -> Option<AuditLocalizedCopy> {
+    match result {
+        Some(0) | None => None,
+        Some(1) => {
+            if label.is_empty() {
+                Some(AuditLocalizedCopy {
+                    message_key: "upload.audit_rejected_violation",
+                    params: None,
+                })
+            } else {
+                Some(AuditLocalizedCopy {
+                    message_key: "upload.audit_rejected_violation_with_label",
+                    params: Some(MessageParams::from([(
+                        "label".to_string(),
+                        label.to_string(),
+                    )])),
+                })
+            }
+        }
+        Some(2) => {
+            if label.is_empty() {
+                Some(AuditLocalizedCopy {
+                    message_key: "upload.audit_rejected_suspicious",
+                    params: None,
+                })
+            } else {
+                Some(AuditLocalizedCopy {
+                    message_key: "upload.audit_rejected_suspicious_with_label",
+                    params: Some(MessageParams::from([(
+                        "label".to_string(),
+                        label.to_string(),
+                    )])),
+                })
+            }
+        }
+        Some(other) => Some(AuditLocalizedCopy {
+            message_key: "upload.audit_rejected_result_unknown",
+            params: Some(MessageParams::from([(
+                "result".to_string(),
+                other.to_string(),
+            )])),
+        }),
+    }
+}
+
+fn insert_audit_rejected_reason_i18n(
+    result_json: &mut serde_json::Value,
+    copy: Option<&AuditLocalizedCopy>,
+) {
+    let Some(copy) = copy else {
+        return;
+    };
+    let Some(obj) = result_json.as_object_mut() else {
+        return;
+    };
+
+    obj.insert(
+        AUDIT_REJECTED_REASON_MESSAGE_KEY_FIELD.to_string(),
+        serde_json::Value::String(copy.message_key.to_string()),
+    );
+    obj.insert(
+        AUDIT_REJECTED_REASON_PARAMS_FIELD.to_string(),
+        copy.params
+            .as_ref()
+            .map(|params| serde_json::to_value(params).unwrap_or_else(|_| json!({})))
+            .unwrap_or_else(|| json!({})),
+    );
 }
 
 /// 审核任务配置（全部 env 可选）
@@ -332,10 +416,9 @@ async fn process_task(
             });
 
             if query.is_violation() {
-                let rejected_reason = query
-                    .rejected_reason
-                    .clone()
-                    .unwrap_or_else(|| "内容审核未通过".to_string());
+                let rejected_reason = query.rejected_reason.clone().unwrap_or_else(|| {
+                    audit_localized_message("upload.audit_rejected_default", None)
+                });
 
                 // 违规：先尝试删除对象，删除成功则置为 rejected；失败则置为 retry 并保留违规原因
                 let storage_service = storage::create_storage_service(&provider)?;
@@ -353,7 +436,13 @@ async fn process_task(
                             .mark_deleted_by_key(
                                 &provider.id,
                                 &task.object_key,
-                                Some(&format!("内容审核拒绝: {}", rejected_reason)),
+                                Some(&audit_localized_message(
+                                    "upload.audit_rejected_record_deleted_reason",
+                                    Some(&MessageParams::from([(
+                                        "reason".to_string(),
+                                        rejected_reason.clone(),
+                                    )])),
+                                )),
                             )
                             .await;
                     }
@@ -773,38 +862,26 @@ impl TencentCiClient {
         let state = state_opt.clone().unwrap_or_else(|| "Unknown".to_string());
         let result = detail.result;
         let label = label_opt.clone().unwrap_or_default();
-        let rejected_reason = match result {
-            Some(0) | None => None,
-            Some(1) => {
-                if label.is_empty() {
-                    Some("内容违规".to_string())
-                } else {
-                    Some(format!("内容违规: {}", label))
-                }
-            }
-            Some(2) => {
-                if label.is_empty() {
-                    Some("疑似违规".to_string())
-                } else {
-                    Some(format!("疑似违规: {}", label))
-                }
-            }
-            Some(other) => Some(format!("审核未通过: result={}", other)),
-        };
+        let rejected_reason_copy = audit_rejected_reason_copy(result, &label);
+        let rejected_reason = rejected_reason_copy
+            .as_ref()
+            .map(|copy| audit_localized_message(copy.message_key, copy.params.as_ref()));
+        let mut result_json = json!({
+            "state": state_opt,
+            "result": result,
+            "label": label_opt,
+            "code": code_opt,
+            "message": message_opt,
+            "raw": text,
+        });
+        insert_audit_rejected_reason_i18n(&mut result_json, rejected_reason_copy.as_ref());
 
         Ok(CiQueryResult {
             state,
             result,
             rejected_reason,
             error_message: message_opt.clone(),
-            result_json: json!({
-                "state": state_opt,
-                "result": result,
-                "label": label_opt,
-                "code": code_opt,
-                "message": message_opt,
-                "raw": text,
-            }),
+            result_json,
         })
     }
 }
@@ -940,4 +1017,53 @@ fn xml_escape(value: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn audit_rejected_reason_copy_should_use_upload_catalog_keys() {
+        let violation = audit_rejected_reason_copy(Some(1), "");
+        assert_eq!(
+            violation.as_ref().map(|copy| copy.message_key),
+            Some("upload.audit_rejected_violation")
+        );
+
+        let suspicious = audit_rejected_reason_copy(Some(2), "spam");
+        assert_eq!(
+            suspicious.as_ref().map(|copy| copy.message_key),
+            Some("upload.audit_rejected_suspicious_with_label")
+        );
+        assert_eq!(
+            suspicious
+                .as_ref()
+                .and_then(|copy| copy.params.as_ref())
+                .and_then(|params| params.get("label")),
+            Some(&"spam".to_string())
+        );
+
+        let fallback = audit_rejected_reason_copy(Some(9), "");
+        assert_eq!(
+            fallback.as_ref().map(|copy| copy.message_key),
+            Some("upload.audit_rejected_result_unknown")
+        );
+        assert_eq!(
+            fallback
+                .as_ref()
+                .and_then(|copy| copy.params.as_ref())
+                .and_then(|params| params.get("result")),
+            Some(&"9".to_string())
+        );
+    }
+
+    #[test]
+    fn audit_rejected_reason_copy_should_render_fallback_locale_copy() {
+        let copy = audit_rejected_reason_copy(Some(1), "adult").expect("copy");
+        assert_eq!(
+            audit_localized_message(copy.message_key, copy.params.as_ref()),
+            "内容违规: adult"
+        );
+    }
 }
