@@ -1,6 +1,7 @@
 // 模型转换工具模块
 // 用于在 database::models 和 crate::models 之间转换
 
+use crate::i18n::message::MessageParams;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use uuid::Uuid;
@@ -487,6 +488,7 @@ pub fn strings_to_uuids(id_strs: &[String]) -> Result<Vec<Uuid>, crate::error::A
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::{CreateAppVersionRequest, CreateHotUpdateRequest};
     use uuid::Uuid;
 
     #[test]
@@ -517,6 +519,106 @@ mod tests {
     fn test_invalid_uuid() {
         let result = string_to_uuid("invalid-uuid");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn api_create_version_to_db_invalid_platform_returns_stable_key_and_params() {
+        let req = test_create_app_version_request("symbian");
+
+        let error = api_create_version_to_db(&req, None).expect_err("invalid platform should fail");
+
+        assert_eq!(error.response_message_key(), "version.platform_unsupported");
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["platform"], "symbian");
+        assert_eq!(
+            params["supported_platforms"],
+            "windows, macos, ios, android, linux"
+        );
+    }
+
+    #[test]
+    fn api_create_hot_update_to_db_invalid_platform_returns_stable_key_and_params() {
+        let req = test_create_hot_update_request("symbian", &Uuid::new_v4().to_string());
+
+        let error =
+            api_create_hot_update_to_db(&req, None).expect_err("invalid platform should fail");
+
+        assert_eq!(error.response_message_key(), "version.platform_unsupported");
+        let params = error.message_params().expect("params present");
+        assert_eq!(params["platform"], "symbian");
+        assert_eq!(
+            params["supported_platforms"],
+            "windows, macos, ios, android, linux"
+        );
+    }
+
+    #[test]
+    fn api_create_hot_update_to_db_invalid_app_version_id_returns_stable_key() {
+        let req = test_create_hot_update_request("ios", "not-a-uuid");
+
+        let error = api_create_hot_update_to_db(&req, None)
+            .expect_err("invalid app_version_id should fail");
+
+        assert_eq!(
+            error.response_message_key(),
+            "version.app_version_id_invalid"
+        );
+        assert!(error.message_params().is_none());
+    }
+
+    #[test]
+    fn convert_version_validation_should_not_embed_legacy_free_strings() {
+        let source = include_str!("convert.rs");
+
+        for legacy in [
+            "\u{4e0d}\u{652f}\u{6301}\u{7684}\u{5e73}\u{53f0}",
+            "\u{65e0}\u{6548}\u{7684} app_version_id",
+        ] {
+            assert!(
+                !source.contains(legacy),
+                "convert version validation should not embed legacy literal: {legacy}"
+            );
+        }
+    }
+
+    fn test_create_app_version_request(platform: &str) -> CreateAppVersionRequest {
+        CreateAppVersionRequest {
+            platform: platform.to_string(),
+            version: "1.0.0".to_string(),
+            build_number: 1,
+            channel: "stable".to_string(),
+            download_key: "versions/ios/stable/app.pkg".to_string(),
+            download_url: None,
+            app_store_url: None,
+            file_size: None,
+            checksum: None,
+            signature: None,
+            release_notes: None,
+            mandatory: false,
+            is_active: true,
+            released_at: None,
+        }
+    }
+
+    fn test_create_hot_update_request(
+        platform: &str,
+        app_version_id: &str,
+    ) -> CreateHotUpdateRequest {
+        CreateHotUpdateRequest {
+            platform: platform.to_string(),
+            app_version_id: app_version_id.to_string(),
+            patch_version: "1.0.1".to_string(),
+            channel: "stable".to_string(),
+            download_key: "patches/ios/stable/patch.zip".to_string(),
+            download_url: None,
+            file_size: None,
+            checksum: None,
+            signature: None,
+            rollout_percentage: 100,
+            mandatory: false,
+            description: None,
+            released_at: None,
+        }
     }
 }
 
@@ -611,6 +713,20 @@ pub fn db_hot_update_events_to_api_list(
     models.iter().map(db_hot_update_event_to_api).collect()
 }
 
+const SUPPORTED_VERSION_PLATFORMS: &str = "windows, macos, ios, android, linux";
+
+fn version_validation_error(message_key: &'static str) -> crate::error::AppError {
+    crate::error::AppError::ValidationError(String::new()).with_message_key(message_key)
+}
+
+fn version_validation_error_with_params(
+    message_key: &'static str,
+    params: MessageParams,
+) -> crate::error::AppError {
+    crate::error::AppError::ValidationError(String::new())
+        .with_message_key_and_params(message_key, Some(params))
+}
+
 pub fn api_create_version_to_db(
     req: &crate::models::CreateAppVersionRequest,
     operator: Option<uuid::Uuid>,
@@ -619,10 +735,16 @@ pub fn api_create_version_to_db(
 
     let platform =
         crate::database::models::Platform::from_str(req.platform.trim()).ok_or_else(|| {
-            crate::error::AppError::ValidationError(format!(
-                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-                req.platform
-            ))
+            version_validation_error_with_params(
+                "version.platform_unsupported",
+                MessageParams::from([
+                    ("platform".to_string(), req.platform.trim().to_string()),
+                    (
+                        "supported_platforms".to_string(),
+                        SUPPORTED_VERSION_PLATFORMS.to_string(),
+                    ),
+                ]),
+            )
         })?;
 
     let released_at = req
@@ -685,10 +807,16 @@ pub fn api_create_hot_update_to_db(
 
     let platform =
         crate::database::models::Platform::from_str(req.platform.trim()).ok_or_else(|| {
-            crate::error::AppError::ValidationError(format!(
-                "不支持的平台: {}。支持的平台: windows, macos, ios, android, linux",
-                req.platform
-            ))
+            version_validation_error_with_params(
+                "version.platform_unsupported",
+                MessageParams::from([
+                    ("platform".to_string(), req.platform.trim().to_string()),
+                    (
+                        "supported_platforms".to_string(),
+                        SUPPORTED_VERSION_PLATFORMS.to_string(),
+                    ),
+                ]),
+            )
         })?;
 
     let released_at = req
@@ -697,9 +825,8 @@ pub fn api_create_hot_update_to_db(
         .and_then(|v| DateTime::parse_from_rfc3339(v).ok())
         .map(|dt| dt.with_timezone(&Utc));
 
-    let app_version_id = uuid::Uuid::parse_str(req.app_version_id.trim()).map_err(|_| {
-        crate::error::AppError::ValidationError("无效的 app_version_id".to_string())
-    })?;
+    let app_version_id = uuid::Uuid::parse_str(req.app_version_id.trim())
+        .map_err(|_| version_validation_error("version.app_version_id_invalid"))?;
 
     Ok(crate::database::version_store::HotUpdateInsert {
         platform,

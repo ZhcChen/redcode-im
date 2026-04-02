@@ -1256,6 +1256,14 @@ fn i18n_version_catalog_loads_tail_keys_for_both_locales() {
         "Version ID is invalid."
     );
     assert_eq!(
+        localizer.localize("zh-CN", "version.app_version_id_invalid", None),
+        "无效的 app_version_id"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "version.app_version_id_invalid", None),
+        "app_version_id is invalid."
+    );
+    assert_eq!(
         localizer.localize("zh-CN", "version.package_version_not_found", None),
         "绑定的整包版本不存在"
     );
