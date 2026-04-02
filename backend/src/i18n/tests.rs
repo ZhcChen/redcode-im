@@ -669,6 +669,14 @@ fn i18n_admin_catalog_is_loaded_for_both_locales() {
         localizer.localize("en-US", "admin.role_admin_description", None),
         "Has most administrative permissions."
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "admin.login_failure_invalid_password", None),
+        "密码错误"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "admin.login_failure_invalid_password", None),
+        "Incorrect password."
+    );
 
     assert_eq!(
         localizer.localize("zh-CN", "admin.log_cleanup_retention_days_invalid", None),

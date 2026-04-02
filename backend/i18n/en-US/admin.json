@@ -59,6 +59,7 @@
   "admin.role_super_admin_description": "Has all permissions.",
   "admin.role_admin_name": "Administrator",
   "admin.role_admin_description": "Has most administrative permissions.",
+  "admin.login_failure_invalid_password": "Incorrect password.",
   "admin.role_name_required": "Role name is required.",
   "admin.role_code_required": "Role code is required.",
   "admin.role_create_success": "Role created successfully.",

@@ -4426,7 +4426,10 @@ impl AdminUserStore {
 
         if !is_valid {
             // 记录登录失败
-            self.record_login_failure(&user.id, "密码错误").await?;
+            let failure_reason =
+                admin_localized_message("admin.login_failure_invalid_password", None);
+            self.record_login_failure(&user.id, failure_reason.as_str())
+                .await?;
             return Ok(None);
         }
 
@@ -6110,6 +6113,27 @@ mod tests {
                 "admin mock permission/role metadata should not embed legacy literal pattern: {legacy}"
             );
         }
+    }
+
+    #[test]
+    fn admin_login_failure_reason_should_use_i18n_key() {
+        let source = include_str!("admin.rs");
+
+        assert!(
+            source.contains("admin.login_failure_invalid_password"),
+            "admin login failure reason should reuse i18n key"
+        );
+    }
+
+    #[test]
+    fn admin_login_failure_reason_should_not_embed_legacy_literal() {
+        let source = include_str!("admin.rs");
+        let legacy = ["\"", "\u{5bc6}\u{7801}\u{9519}\u{8bef}", "\""].concat();
+
+        assert!(
+            !source.contains(&legacy),
+            "admin login failure reason should not embed legacy literal: {legacy}"
+        );
     }
 
     #[test]
