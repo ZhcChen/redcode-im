@@ -89,18 +89,48 @@ fn admin_file_upload_audit_rejected_reason_for_locale(
     rejected_reason: Option<String>,
     result: &serde_json::Value,
 ) -> Option<String> {
+    admin_file_upload_audit_reason_for_locale(
+        locale,
+        rejected_reason,
+        result,
+        "rejected_reason_message_key",
+        "rejected_reason_params",
+    )
+}
+
+fn admin_file_upload_audit_last_error_for_locale(
+    locale: &str,
+    last_error: Option<String>,
+    result: &serde_json::Value,
+) -> Option<String> {
+    admin_file_upload_audit_reason_for_locale(
+        locale,
+        last_error,
+        result,
+        "last_error_message_key",
+        "last_error_params",
+    )
+}
+
+fn admin_file_upload_audit_reason_for_locale(
+    locale: &str,
+    fallback_reason: Option<String>,
+    result: &serde_json::Value,
+    message_key_field: &str,
+    params_field: &str,
+) -> Option<String> {
     let message_key = result
-        .get("rejected_reason_message_key")
+        .get(message_key_field)
         .and_then(|value| value.as_str());
     let params = result
-        .get("rejected_reason_params")
+        .get(params_field)
         .and_then(admin_message_params_from_json);
 
     match message_key {
         Some(message_key) => {
             Some(default_localizer().localize(locale, message_key, params.as_ref()))
         }
-        None => rejected_reason,
+        None => fallback_reason,
     }
 }
 
@@ -112,6 +142,16 @@ fn admin_file_upload_audit_rejected_reason(
     let locale =
         current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
     admin_file_upload_audit_rejected_reason_for_locale(&locale, rejected_reason, result)
+}
+
+fn admin_file_upload_audit_last_error(
+    last_error: Option<String>,
+    result: &serde_json::Value,
+) -> Option<String> {
+    let localizer = default_localizer();
+    let locale =
+        current_request_locale().unwrap_or_else(|| localizer.fallback_locale().to_string());
+    admin_file_upload_audit_last_error_for_locale(&locale, last_error, result)
 }
 
 fn admin_ip_geolocation_description() -> String {
@@ -5754,7 +5794,7 @@ pub async fn list_file_upload_audit_tasks(
             rejected_reason: admin_file_upload_audit_rejected_reason(t.rejected_reason, &t.result),
             attempts: t.attempts,
             next_run_at: t.next_run_at.to_rfc3339(),
-            last_error: t.last_error,
+            last_error: admin_file_upload_audit_last_error(t.last_error, &t.result),
             audited_at: t.audited_at.map(|v| v.to_rfc3339()),
             created_at: t.created_at.to_rfc3339(),
             updated_at: t.updated_at.to_rfc3339(),
@@ -5787,6 +5827,7 @@ pub async fn get_file_upload_audit_task(
         .ok_or_else(|| admin_not_found_error("admin.file_upload_audit_task_not_found"))?;
     let rejected_reason =
         admin_file_upload_audit_rejected_reason(task.rejected_reason.clone(), &task.result);
+    let last_error = admin_file_upload_audit_last_error(task.last_error.clone(), &task.result);
 
     Ok(Json(FileUploadAuditTaskDetailResponse {
         task: FileUploadAuditTaskDetailEntry {
@@ -5803,7 +5844,7 @@ pub async fn get_file_upload_audit_task(
             rejected_reason,
             attempts: task.attempts,
             next_run_at: task.next_run_at.to_rfc3339(),
-            last_error: task.last_error,
+            last_error,
             audited_at: task.audited_at.map(|v| v.to_rfc3339()),
             created_at: task.created_at.to_rfc3339(),
             updated_at: task.updated_at.to_rfc3339(),
@@ -5923,5 +5964,33 @@ mod tests {
         );
 
         assert_eq!(localized, Some("raw rejected reason".to_string()));
+    }
+
+    #[test]
+    fn admin_file_upload_audit_last_error_should_localize_from_result_metadata() {
+        let localized = admin_file_upload_audit_last_error_for_locale(
+            "en-US",
+            Some("存储提供商未启用，稍后重试".to_string()),
+            &serde_json::json!({
+                "last_error_message_key": "upload.audit_provider_inactive_retry",
+                "last_error_params": {}
+            }),
+        );
+
+        assert_eq!(
+            localized,
+            Some("Storage provider is inactive. Audit will retry later.".to_string())
+        );
+    }
+
+    #[test]
+    fn admin_file_upload_audit_last_error_should_fallback_to_raw_reason() {
+        let localized = admin_file_upload_audit_last_error_for_locale(
+            "en-US",
+            Some("raw last error".to_string()),
+            &serde_json::json!({}),
+        );
+
+        assert_eq!(localized, Some("raw last error".to_string()));
     }
 }

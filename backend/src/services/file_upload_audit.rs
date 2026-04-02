@@ -18,6 +18,8 @@ use uuid::Uuid;
 const STATUS_RETRY: i16 = 3;
 const AUDIT_REJECTED_REASON_MESSAGE_KEY_FIELD: &str = "rejected_reason_message_key";
 const AUDIT_REJECTED_REASON_PARAMS_FIELD: &str = "rejected_reason_params";
+const AUDIT_LAST_ERROR_MESSAGE_KEY_FIELD: &str = "last_error_message_key";
+const AUDIT_LAST_ERROR_PARAMS_FIELD: &str = "last_error_params";
 
 fn audit_internal_error_with_reason(message_key: &'static str, reason: impl ToString) -> AppError {
     AppError::InternalError(String::new()).with_message_key_and_params(
@@ -82,8 +84,10 @@ fn audit_rejected_reason_copy(result: Option<i32>, label: &str) -> Option<AuditL
     }
 }
 
-fn insert_audit_rejected_reason_i18n(
+fn insert_audit_localized_copy(
     result_json: &mut serde_json::Value,
+    message_key_field: &str,
+    params_field: &str,
     copy: Option<&AuditLocalizedCopy>,
 ) {
     let Some(copy) = copy else {
@@ -94,15 +98,39 @@ fn insert_audit_rejected_reason_i18n(
     };
 
     obj.insert(
-        AUDIT_REJECTED_REASON_MESSAGE_KEY_FIELD.to_string(),
+        message_key_field.to_string(),
         serde_json::Value::String(copy.message_key.to_string()),
     );
     obj.insert(
-        AUDIT_REJECTED_REASON_PARAMS_FIELD.to_string(),
+        params_field.to_string(),
         copy.params
             .as_ref()
             .map(|params| serde_json::to_value(params).unwrap_or_else(|_| json!({})))
             .unwrap_or_else(|| json!({})),
+    );
+}
+
+fn insert_audit_rejected_reason_i18n(
+    result_json: &mut serde_json::Value,
+    copy: Option<&AuditLocalizedCopy>,
+) {
+    insert_audit_localized_copy(
+        result_json,
+        AUDIT_REJECTED_REASON_MESSAGE_KEY_FIELD,
+        AUDIT_REJECTED_REASON_PARAMS_FIELD,
+        copy,
+    );
+}
+
+fn insert_audit_last_error_i18n(
+    result_json: &mut serde_json::Value,
+    copy: Option<&AuditLocalizedCopy>,
+) {
+    insert_audit_localized_copy(
+        result_json,
+        AUDIT_LAST_ERROR_MESSAGE_KEY_FIELD,
+        AUDIT_LAST_ERROR_PARAMS_FIELD,
+        copy,
     );
 }
 
@@ -267,8 +295,21 @@ async fn process_task(
     // 超过重试次数：直接置为 failed，避免队列抖动
     if task.attempts >= cfg.max_attempts && task.status == STATUS_RETRY {
         let store = FileUploadAuditStore::new(database.clone());
+        let last_error_copy = AuditLocalizedCopy {
+            message_key: "upload.audit_retry_exhausted",
+            params: None,
+        };
+        let mut result_json = json!({});
+        insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
         let _ = store
-            .mark_failed(&task.id, "超过最大重试次数，已停止处理")
+            .mark_failed(
+                &task.id,
+                &audit_localized_message(
+                    last_error_copy.message_key,
+                    last_error_copy.params.as_ref(),
+                ),
+                result_json,
+            )
             .await;
         return Ok(());
     }
@@ -283,11 +324,21 @@ async fn process_task(
 
     if !provider.is_active {
         let store = FileUploadAuditStore::new(database.clone());
+        let last_error_copy = AuditLocalizedCopy {
+            message_key: "upload.audit_provider_inactive_retry",
+            params: None,
+        };
+        let mut result_json = json!({});
+        insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
         let _ = store
             .mark_retry(
                 &task.id,
-                "存储提供商未启用，稍后重试",
+                &audit_localized_message(
+                    last_error_copy.message_key,
+                    last_error_copy.params.as_ref(),
+                ),
                 next_retry_at(cfg, task.attempts),
+                result_json,
             )
             .await;
         return Ok(());
@@ -295,8 +346,21 @@ async fn process_task(
 
     if provider.provider_type != StorageProviderType::TencentCos {
         let store = FileUploadAuditStore::new(database.clone());
+        let last_error_copy = AuditLocalizedCopy {
+            message_key: "upload.audit_provider_type_unsupported",
+            params: None,
+        };
+        let mut result_json = json!({});
+        insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
         let _ = store
-            .mark_failed(&task.id, "仅支持腾讯云 COS（TencentCos）审核")
+            .mark_failed(
+                &task.id,
+                &audit_localized_message(
+                    last_error_copy.message_key,
+                    last_error_copy.params.as_ref(),
+                ),
+                result_json,
+            )
             .await;
         return Ok(());
     }
@@ -315,10 +379,23 @@ async fn process_task(
     let ci_kind = map_media_kind_to_ci_kind(media_kind);
     let Some(ci_kind) = ci_kind else {
         let store = FileUploadAuditStore::new(database.clone());
+        let last_error_copy = AuditLocalizedCopy {
+            message_key: "upload.audit_media_kind_unsupported",
+            params: Some(MessageParams::from([(
+                "media_kind".to_string(),
+                media_kind.to_string(),
+            )])),
+        };
+        let mut result_json = json!({});
+        insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
         let _ = store
             .mark_failed(
                 &task.id,
-                format!("不支持的 media_kind: {}", media_kind).as_str(),
+                &audit_localized_message(
+                    last_error_copy.message_key,
+                    last_error_copy.params.as_ref(),
+                ),
+                result_json,
             )
             .await;
         return Ok(());
@@ -367,6 +444,7 @@ async fn process_task(
                         &task.id,
                         &format!("{}", e),
                         next_retry_at(cfg, task.attempts),
+                        json!({}),
                     )
                     .await;
                 return Ok(());
@@ -377,11 +455,21 @@ async fn process_task(
     // 2) 已提交：查询结果
     let job_id = task.vendor_job_id.as_deref().unwrap_or("").trim();
     if job_id.is_empty() {
+        let last_error_copy = AuditLocalizedCopy {
+            message_key: "upload.audit_vendor_job_id_missing",
+            params: None,
+        };
+        let mut result_json = json!({});
+        insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
         let _ = audit_store
             .mark_retry(
                 &task.id,
-                "vendor_job_id 为空，稍后重试",
+                &audit_localized_message(
+                    last_error_copy.message_key,
+                    last_error_copy.params.as_ref(),
+                ),
                 next_retry_at(cfg, task.attempts),
+                result_json,
             )
             .await;
         return Ok(());
@@ -398,11 +486,26 @@ async fn process_task(
 
             // 任务失败：按异常处理（入队重试）
             if query.state.eq_ignore_ascii_case("Failed") {
+                let last_error_copy = AuditLocalizedCopy {
+                    message_key: "upload.audit_vendor_job_failed",
+                    params: None,
+                };
+                let mut result_json = json!({});
+                let last_error = if let Some(error_message) = query.error_message.as_deref() {
+                    error_message.to_string()
+                } else {
+                    insert_audit_last_error_i18n(&mut result_json, Some(&last_error_copy));
+                    audit_localized_message(
+                        last_error_copy.message_key,
+                        last_error_copy.params.as_ref(),
+                    )
+                };
                 let _ = audit_store
                     .mark_retry(
                         &task.id,
-                        query.error_message.as_deref().unwrap_or("CI 审核任务失败"),
+                        &last_error,
                         next_retry_at(cfg, task.attempts),
+                        result_json,
                     )
                     .await;
                 return Ok(());
@@ -447,6 +550,15 @@ async fn process_task(
                             .await;
                     }
                     Err(err) => {
+                        let last_error_copy = AuditLocalizedCopy {
+                            message_key: "upload.audit_rejected_object_delete_failed",
+                            params: Some(MessageParams::from([(
+                                "reason".to_string(),
+                                err.to_string(),
+                            )])),
+                        };
+                        let mut merged_result = merged_result.clone();
+                        insert_audit_last_error_i18n(&mut merged_result, Some(&last_error_copy));
                         let _ = sqlx::query(
                             r#"
                             UPDATE file_upload_audit_tasks
@@ -465,7 +577,10 @@ async fn process_task(
                         .bind(STATUS_RETRY)
                         .bind(merged_result)
                         .bind(&rejected_reason)
-                        .bind(format!("删除违规对象失败: {}", err))
+                        .bind(audit_localized_message(
+                            last_error_copy.message_key,
+                            last_error_copy.params.as_ref(),
+                        ))
                         .bind(next_retry_at(cfg, task.attempts))
                         .bind(audited_at)
                         .execute(audit_store.pool())
@@ -484,6 +599,7 @@ async fn process_task(
                     &task.id,
                     &format!("{}", e),
                     next_retry_at(cfg, task.attempts),
+                    json!({}),
                 )
                 .await;
         }
@@ -1065,5 +1181,37 @@ mod tests {
             audit_localized_message(copy.message_key, copy.params.as_ref()),
             "内容违规: adult"
         );
+    }
+
+    #[test]
+    fn audit_last_error_literals_should_not_embed_legacy_chinese_copy() {
+        let source = include_str!("file_upload_audit.rs");
+
+        for legacy in [
+            [
+                "超", "过", "最", "大", "重", "试", "次", "数", "，", "已", "停", "止", "处", "理",
+            ]
+            .concat(),
+            [
+                "存", "储", "提", "供", "商", "未", "启", "用", "，", "稍", "后", "重", "试",
+            ]
+            .concat(),
+            [
+                "仅", "支", "持", "腾", "讯", "云", " ", "C", "O", "S", "（", "T", "e", "n", "c",
+                "e", "n", "t", "C", "o", "s", "）", "审", "核",
+            ]
+            .concat(),
+            [
+                "v", "e", "n", "d", "o", "r", "_", "j", "o", "b", "_", "i", "d", " ", "为", "空",
+                "，", "稍", "后", "重", "试",
+            ]
+            .concat(),
+            ["C", "I", " ", "审", "核", "任", "务", "失", "败"].concat(),
+        ] {
+            assert!(
+                !source.contains(&legacy),
+                "audit last_error should not embed legacy literal: {legacy}"
+            );
+        }
     }
 }

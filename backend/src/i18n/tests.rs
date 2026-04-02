@@ -1721,6 +1721,18 @@ fn i18n_upload_catalog_loads_cleanup_storage_provider_key() {
         ),
         "Audit rejected: result=9"
     );
+    assert_eq!(
+        localizer.localize("zh-CN", "upload.audit_retry_exhausted", None),
+        "超过最大重试次数，已停止处理"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.audit_provider_inactive_retry", None),
+        "Storage provider is inactive. Audit will retry later."
+    );
+    assert_eq!(
+        localizer.localize("en-US", "upload.audit_vendor_job_failed", None),
+        "CI audit job failed."
+    );
 }
 
 #[test]

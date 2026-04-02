@@ -409,12 +409,14 @@ impl FileUploadAuditStore {
         task_id: &Uuid,
         last_error: &str,
         next_run_at: chrono::DateTime<chrono::Utc>,
+        result: serde_json::Value,
     ) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"
             UPDATE file_upload_audit_tasks
             SET status = 3,
                 attempts = attempts + 1,
+                result = COALESCE(result, '{}'::jsonb) || $4::jsonb,
                 last_error = $2,
                 next_run_at = $3,
                 updated_at = NOW()
@@ -425,17 +427,24 @@ impl FileUploadAuditStore {
         .bind(task_id)
         .bind(last_error)
         .bind(next_run_at)
+        .bind(result)
         .execute(self.pool())
         .await?;
 
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn mark_failed(&self, task_id: &Uuid, last_error: &str) -> Result<bool, Error> {
+    pub async fn mark_failed(
+        &self,
+        task_id: &Uuid,
+        last_error: &str,
+        result: serde_json::Value,
+    ) -> Result<bool, Error> {
         let result = sqlx::query(
             r#"
             UPDATE file_upload_audit_tasks
             SET status = 4,
+                result = COALESCE(result, '{}'::jsonb) || $3::jsonb,
                 last_error = $2,
                 updated_at = NOW()
             WHERE id = $1
@@ -443,6 +452,7 @@ impl FileUploadAuditStore {
         )
         .bind(task_id)
         .bind(last_error)
+        .bind(result)
         .execute(self.pool())
         .await?;
 
