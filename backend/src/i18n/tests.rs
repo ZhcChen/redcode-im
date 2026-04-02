@@ -1597,6 +1597,20 @@ fn i18n_storage_catalog_is_loaded_for_both_locales() {
 }
 
 #[test]
+fn i18n_common_catalog_loads_uuid_invalid_key() {
+    let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
+
+    assert_eq!(
+        localizer.localize("zh-CN", "common.uuid_invalid", None),
+        "无效的 UUID"
+    );
+    assert_eq!(
+        localizer.localize("en-US", "common.uuid_invalid", None),
+        "Invalid UUID."
+    );
+}
+
+#[test]
 fn i18n_storage_catalog_interpolates_provider_type_params() {
     let localizer = Localizer::new(Catalog::load_builtin(), DEFAULT_LOCALE);
     let params = BTreeMap::from([("provider_type".to_string(), "minio".to_string())]);

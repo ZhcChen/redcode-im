@@ -475,8 +475,10 @@ pub fn db_friendship_to_api(
 
 /// 将 String ID 转换为 Uuid（带错误处理）
 pub fn string_to_uuid(id_str: &str) -> Result<Uuid, crate::error::AppError> {
-    Uuid::parse_str(id_str)
-        .map_err(|e| crate::error::AppError::ValidationError(format!("Invalid UUID format: {}", e)))
+    Uuid::parse_str(id_str).map_err(|_| {
+        crate::error::AppError::ValidationError(String::new())
+            .with_message_key("common.uuid_invalid")
+    })
 }
 
 /// 将多个 String ID 转换为 Uuid 列表
@@ -517,8 +519,22 @@ mod tests {
 
     #[test]
     fn test_invalid_uuid() {
-        let result = string_to_uuid("invalid-uuid");
-        assert!(result.is_err());
+        let error = string_to_uuid("invalid-uuid").expect_err("invalid uuid should fail");
+
+        assert_eq!(error.message_key(), "common.validation_error");
+        assert_eq!(error.response_message_key(), "common.uuid_invalid");
+        assert_eq!(error.localized_message(), "无效的 UUID");
+        assert!(error.message_params().is_none());
+    }
+
+    #[test]
+    fn convert_uuid_validation_should_not_embed_legacy_invalid_uuid_literal() {
+        let source = include_str!("convert.rs");
+        let legacy = concat!("Invalid UUID", " format:");
+        assert!(
+            !source.contains(legacy),
+            "convert string_to_uuid should not embed legacy invalid uuid literal"
+        );
     }
 
     #[test]
