@@ -2,25 +2,24 @@
 
 > 本文档用于索引 `docs/` 目录下的核心文档。快速开始请查看仓库根目录 `README.md`。
 
-## AI 工作流（Superpowers）
+## AI 工作流（Compound Engineering, CE）
 
 | 文档 | 说明 |
 |------|------|
-| [规划文档目录](plans/) | brainstorming 与 writing-plans 产出目录 |
+| [需求/方向讨论](brainstorms/) | `ce:brainstorm` 产出目录 |
+| [规划文档目录](plans/) | `ce:plan` 产出目录 |
+| [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 
-> Superpowers 采用全局安装：`~/.codex/superpowers`，技能发现路径：`~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`。
+> CE 采用全局安装：`~/.codex/prompts/ce-*.md`、`~/.codex/skills/ce-*`、`~/.codex/scripts/ce-init`。
 
 ### 工作流骨架
 
-1. `using-superpowers`
-2. `brainstorming`
-3. `using-git-worktrees`
-4. `writing-plans`
-5. `subagent-driven-development` 或 `executing-plans`
-6. `test-driven-development`
-7. `requesting-code-review` / `receiving-code-review`
-8. `verification-before-completion` + `finishing-a-development-branch`
+1. `ce:brainstorm`
+2. `ce:plan`
+3. `ce:work`
+4. `ce:review`
+5. `ce:compound`
 
 ---
 

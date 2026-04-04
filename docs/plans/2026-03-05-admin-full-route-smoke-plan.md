@@ -1,6 +1,6 @@
 # Admin 全可达冒烟（含 4xx/5xx）Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将 Admin Playwright 从 5 条主链路扩展为“全路由可达 + 关键交互 + 4xx/5xx 异常”可复用测试架构，覆盖 default 与 data-cleanup 两套可达范围。
 

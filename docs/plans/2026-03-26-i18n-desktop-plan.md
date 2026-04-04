@@ -1,6 +1,6 @@
 # Desktop 多语言迁移 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为现有 `desktop` Tauri 模块接入 `vue-i18n`，补齐高频 UI 与非组件层文本，并实现 backend `message/message_key` 的统一消费策略。
 
