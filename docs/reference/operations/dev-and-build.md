@@ -9,11 +9,15 @@
    cp .env.example .env
    # 按需修改数据库、Redis 等连接字符串
    ```
-2. **启动依赖服务（可选）**：如果未使用外部 PostgreSQL/Redis，可直接复用仓库内的 Compose 服务。
+2. **默认开发方式（推荐）**：直接启动 dev Compose 中的 backend 服务，Compose 会同时拉起 PostgreSQL/Redis。
    ```bash
-   docker-compose up -d postgres redis-session redis-cache
+   docker compose -f docker/dev/docker-compose.yml up -d backend
    ```
-3. **（首次部署）初始化数据库结构**
+3. **查看启动日志**
+   ```bash
+   docker compose -f docker/dev/docker-compose.yml logs -f backend
+   ```
+4. **（首次部署）初始化数据库结构**
    > 仅在**首次在新环境使用 RedCode IM** 且目标数据库为空库时需要执行，后续重复启动无需再次执行。
    - 确保目标数据库为空或确认可以覆盖现有结构；
    - 推荐做法：直接启动 backend，由 `Database::migrate` 自动执行 `backend/sql/base.sql` 并记录迁移；
@@ -26,18 +30,22 @@
      psql -h localhost -U postgres -d redcode_im < backend/sql/base.sql
      ```
    - 该步骤会一次性创建所有业务表、管理后台相关表及初始数据，后续结构演进通过 `backend/sql/migrations/` 下的增量脚本 + `db_migrations` 表管理。
-4. **运行后端**：带上调试日志可以更快定位问题。
+5. **宿主机本地调试（可选）**：仅在需要直接运行宿主机进程时使用。
    ```bash
+   docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache
    RUST_LOG=debug cargo run
    ```
    - `cargo run` 会自动执行数据库迁移并启动 HTTP 服务。
    - 默认监听 `0.0.0.0:8010`，可通过 `PORT` 环境变量覆盖。
 
-> 提示：若需要与 Docker 中的依赖保持一致，也可以直接运行 `docker-compose up backend`，仓库根目录的 Compose 会启动 PostgreSQL/Redis 及后端容器，内部同样执行 `cargo run` 并挂载本地源码。
-
 ## 2. 本地测试
 
-修改代码后需及时回归测试：
+推荐从仓库根目录执行统一回归入口：
+```bash
+cd .. && ./tests/run.sh
+```
+
+修改代码后如需快速执行本模块测试：
 ```bash
 cargo test
 ```
@@ -57,7 +65,7 @@ cargo build --release
 
 #### 方案 B：使用 Docker 镜像交叉编译（推荐生成 Linux/musl 二进制）
 
-在执行交叉编译前，请确保 PostgreSQL/Redis 服务已在宿主机监听（可通过 `docker-compose up -d postgres redis-session redis-cache` 启动默认依赖）。
+在执行交叉编译前，请确保 PostgreSQL/Redis 服务已在宿主机监听（可通过 `docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache` 启动默认依赖）。
 ```bash
 docker run --rm \
   --add-host=host.docker.internal:host-gateway \
@@ -110,7 +118,25 @@ scripts/build-linux-zig.sh
 
 相较方案 B，该方案无需重复编译 OpenSSL，也可以通过 `TARGET`/`PROFILE` 环境变量一次产出多种架构。若希望与服务器一致，保持默认的 `x86_64-unknown-linux-musl` 即可。
 
-### 3.2 以 Docker 方式构建
+### 3.2 本地 release Compose 验证
+1. **准备环境变量**：
+   ```bash
+   cp .env.example .env
+   ```
+2. **构建并启动 release 栈**：
+   ```bash
+   docker compose -f docker/release/docker-compose.yml up -d --build backend
+   ```
+3. **查看运行日志**：
+   ```bash
+   docker compose -f docker/release/docker-compose.yml logs -f backend
+   ```
+4. **停止并清理 release 栈**：
+   ```bash
+   docker compose -f docker/release/docker-compose.yml down -v
+   ```
+
+### 3.3 以 Docker 方式构建
 1. **准备发布产物**（推荐使用方案 B 的 Docker 命令）：
    ```bash
    docker run --rm \
@@ -143,16 +169,7 @@ scripts/build-linux-zig.sh
    ```bash
    docker build -f docker/Dockerfile -t redcode-im/backend:latest docker
    ```
-   > 运行 `docker-compose -f docker/docker-compose.yaml build` 也会调用同一 Dockerfile。
-3. **运行后端容器**：`docker/docker-compose.yaml` 只管理单个 backend 服务，适合在已有数据库/Redis 的环境中直接部署二进制。
-   ```bash
-   docker-compose -f docker/docker-compose.yaml up -d
-   # 停止服务
-   docker-compose -f docker/docker-compose.yaml down
-   ```
-   > 运行前请在 `docker/` 目录下准备 `log/` 文件夹，Compose 会将容器内 `/app/log` 映射到本地便于排查。
-4. **多服务生产编排**：若需要一并管理 PostgreSQL/Redis，可继续复用根目录下的 `docker-compose.prod.yml`。
-5. **更新镜像**：覆盖 `docker/` 目录中的二进制与 `.env`，重新执行第 2~3 步即可。
+3. **更新镜像**：覆盖 `docker/` 目录中的二进制与 `.env`，重新执行第 2 步即可。
 
 ## 4. 运维排查常用命令
 

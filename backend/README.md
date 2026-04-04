@@ -21,9 +21,9 @@
 
 ### 1) 准备依赖
 
-- Rust（建议使用仓库约定版本）
-- PostgreSQL
-- Redis（本项目默认拆分为 session/cache 两套 Redis）
+- Docker
+- Docker Compose 插件（使用 `docker compose` 命令）
+- 如需宿主机本地调试：Rust（建议使用仓库约定版本）
 
 ### 2) 配置环境
 
@@ -38,25 +38,38 @@ cp .env.example .env
 ### 3) 启动服务
 
 ```bash
-cargo run
+docker compose -f docker/dev/docker-compose.yml up -d backend
 ```
 
 默认端口为 `8010`，健康检查：`GET /healthz`
+
+查看日志：
+
+```bash
+docker compose -f docker/dev/docker-compose.yml logs -f backend
+```
+
+如需宿主机本地进程调试（非默认方式）：
+
+```bash
+docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache
+RUST_LOG=debug cargo run
+```
 
 ---
 
 ## 使用 Docker Compose
 
-在 `backend/` 目录下启动依赖服务（PostgreSQL + Redis）：
+在 `backend/` 目录下，开发调试默认使用 dev Compose：
 
 ```bash
-docker-compose up -d postgres redis-session redis-cache
+docker compose -f docker/dev/docker-compose.yml up -d backend
 ```
 
-如需同时启动后端容器（读取 `backend/.env`）：
+本地 release 构建验证使用 release Compose：
 
 ```bash
-docker-compose up -d backend
+docker compose -f docker/release/docker-compose.yml up -d --build backend
 ```
 
 ---
@@ -90,7 +103,13 @@ docker-compose up -d backend
 
 ## 运行测试
 
-运行全部测试：
+运行统一回归（推荐，从仓库根目录执行）：
+
+```bash
+cd .. && ./tests/run.sh
+```
+
+仅运行当前模块测试：
 
 ```bash
 cargo test
@@ -99,7 +118,7 @@ cargo test
 运行数据库集成测试（需要 PostgreSQL 可用，并配置 `DATABASE_URL_TEST` 或 `DATABASE_URL`）：
 
 ```bash
-docker-compose -f ../tests/docker-compose.yml run --rm rust-tests \
+docker compose -f ../tests/docker-compose.yml run --rm rust-tests \
   cargo test --test database_store_tests -- --test-threads=1
 ```
 
