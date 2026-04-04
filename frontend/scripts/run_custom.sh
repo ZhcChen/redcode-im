@@ -16,7 +16,6 @@ DEFAULT_API_URL="http://10.137.203.83:8010"
 
 # 参数处理
 API_BASE_URL="${1:-$DEFAULT_API_URL}"
-DEVICE_ID="${2:-}"
 
 # 从 API URL 生成 WS URL
 if [[ "$API_BASE_URL" == https://* ]]; then
@@ -32,12 +31,17 @@ echo -e "  ./run_custom.sh [API_URL] [DEVICE_ID]"
 echo ""
 echo -e "示例:"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010"
-echo -e "  ./run_custom.sh http://192.168.1.100:8010 iPhone"
+echo -e "  ./run_custom.sh http://192.168.1.100:8010 2b252911"
+echo -e "  ./run_custom.sh http://192.168.1.100:8010 emulator-5554"
 echo ""
 
 # 切换到 frontend 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
+source "$SCRIPT_DIR/common.sh"
+
+DEVICE_ID="${2:-$DEFAULT_FLUTTER_DEVICE_ID}"
+DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 
 # 获取依赖
 echo -e "${GREEN}1. 获取依赖...${NC}"
@@ -46,25 +50,17 @@ flutter pub get
 # 检查设备
 echo ""
 echo -e "${GREEN}2. 检查可用设备...${NC}"
-flutter devices
+show_and_verify_flutter_devices "$DEVICE_ID"
 
 # 运行应用
 echo ""
 echo -e "${GREEN}3. 运行应用...${NC}"
 echo -e "   API:  $API_BASE_URL"
 echo -e "   WS:   $WS_URL"
+echo -e "   设备: $DEVICE_LABEL"
 echo ""
-
-if [ -n "$DEVICE_ID" ]; then
-    flutter run -d "$DEVICE_ID" \
-        --dart-define=ENV=development \
-        --dart-define=API_BASE_URL="$API_BASE_URL" \
-        --dart-define=WS_URL="$WS_URL" \
-        --dart-define=ENABLE_DEBUG_LOG=true
-else
-    flutter run \
-        --dart-define=ENV=development \
-        --dart-define=API_BASE_URL="$API_BASE_URL" \
-        --dart-define=WS_URL="$WS_URL" \
-        --dart-define=ENABLE_DEBUG_LOG=true
-fi
+flutter run -d "$DEVICE_ID" \
+    --dart-define=ENV=development \
+    --dart-define=API_BASE_URL="$API_BASE_URL" \
+    --dart-define=WS_URL="$WS_URL" \
+    --dart-define=ENABLE_DEBUG_LOG=true

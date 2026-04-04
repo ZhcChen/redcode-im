@@ -15,7 +15,7 @@ fi
 
 # 检查Docker是否可用（备选方案）
 USE_DOCKER=false
-if command -v docker-compose &> /dev/null && docker-compose --version &> /dev/null; then
+if command -v docker &> /dev/null && docker compose version &> /dev/null; then
     USE_DOCKER=true
 fi
 
@@ -29,7 +29,7 @@ start_redis_instance() {
 
     if [ "$USE_DOCKER" = true ]; then
         # 使用Docker启动
-        docker-compose -f docker-compose-redis.yml up -d redis-$name 2>/dev/null || {
+        docker compose -f docker-compose-redis.yml up -d redis-$name 2>/dev/null || {
             echo "⚠️  Docker启动失败，尝试本地启动..."
             start_redis_local "$port" "$config" "$name"
         }
@@ -69,7 +69,7 @@ stop_redis_instances() {
     echo "🛑 停止所有Redis实例..."
 
     if [ "$USE_DOCKER" = true ]; then
-        docker-compose -f docker-compose-redis.yml down
+        docker compose -f docker-compose-redis.yml down
     fi
 
     # 停止本地Redis实例
@@ -138,7 +138,7 @@ case "${1:-start}" in
 
     logs)
         if [ "$USE_DOCKER" = true ]; then
-            docker-compose -f docker-compose-redis.yml logs -f
+            docker compose -f docker-compose-redis.yml logs -f
         else
             echo "请查看Redis日志文件位置: ./redis-data/*/redis.log"
         fi

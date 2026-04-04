@@ -5,7 +5,7 @@
 ## 快速开始
 
 ```bash
-# 开发环境运行
+# 开发环境运行（默认测试真机：Mi MIX 2S / 2b252911）
 ./scripts/run.sh
 
 # 生产环境构建 APK
@@ -59,26 +59,28 @@ vim .env.development.local
 统一运行脚本，自动读取 `.env` 配置文件。
 
 ```bash
-# 基本用法（默认使用 .env.development）
+# 基本用法（默认使用 .env.development + 默认测试真机 Mi MIX 2S）
 ./scripts/run.sh
 
 # 指定环境配置
 ./scripts/run.sh --env .env.production
 
-# 指定运行设备
-./scripts/run.sh "iPhone 16 Pro"
+# 指定运行设备（覆盖默认真机）
+./scripts/run.sh 2b252911
 ./scripts/run.sh emulator-5554
 
 # 组合使用
-./scripts/run.sh --env .env.production "iPhone 16 Pro"
+./scripts/run.sh --env .env.production emulator-5554
 ```
+
+不传设备参数时，脚本默认使用测试真机 `Mi MIX 2S (2b252911)`；如需切换设备，可通过参数覆盖。
 
 **参数说明：**
 
 | 参数 | 说明 |
 |------|------|
 | `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
-| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看 |
+| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认测试真机为 `Mi MIX 2S (2b252911)` |
 | `--help, -h` | 显示帮助信息 |
 
 ---
@@ -136,7 +138,7 @@ scripts/
 ├── run_dev.sh               # 开发环境运行（传统）
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
-├── run_flutter.sh           # 基础运行脚本
+├── run_flutter.sh           # 基础运行脚本（默认 Mi MIX 2S 真机）
 │
 ├── build_android.sh         # Android 打包（传统）
 ├── build_ipa.sh             # iOS 打包（传统）
@@ -155,7 +157,7 @@ scripts/
 
 ```bash
 # 运行
-flutter run \
+flutter run -d 2b252911 \
     --dart-define=ENV=development \
     --dart-define=API_BASE_URL=http://10.137.203.83:8010 \
     --dart-define=WS_URL=ws://10.137.203.83:8010/ws \

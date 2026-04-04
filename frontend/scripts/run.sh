@@ -3,9 +3,9 @@
 # Flutter 运行脚本（读取 .env 配置）
 #
 # 使用方式:
-#   ./scripts/run.sh                    # 使用 .env 配置运行
+#   ./scripts/run.sh                    # 使用 .env 配置 + 默认真机运行
 #   ./scripts/run.sh --env .env.local   # 使用指定的配置文件
-#   ./scripts/run.sh iPhone             # 指定设备运行
+#   ./scripts/run.sh 2b252911           # 指定设备运行
 #
 # 配置优先级: 命令行参数 > .env 文件 > 默认值
 
@@ -26,7 +26,7 @@ NC='\033[0m'
 
 # 默认值
 ENV_FILE=".env.development"
-DEVICE_ID=""
+DEVICE_ID="$DEFAULT_FLUTTER_DEVICE_ID"
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -43,9 +43,10 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h        显示帮助信息"
             echo ""
             echo "示例:"
-            echo "  ./scripts/run.sh                            # 使用 .env.development 运行"
-            echo "  ./scripts/run.sh --env .env.production     # 使用 .env.production 运行"
-            echo "  ./scripts/run.sh iPhone               # 在 iPhone 上运行"
+            echo "  ./scripts/run.sh                            # 使用 .env.development + 默认真机运行"
+            echo "  ./scripts/run.sh --env .env.production     # 使用 .env.production + 默认真机运行"
+            echo "  ./scripts/run.sh 2b252911                  # 在 Mi MIX 2S 上运行"
+            echo "  ./scripts/run.sh emulator-5554             # 覆盖为 Android 模拟器"
             exit 0
             ;;
         *)
@@ -72,15 +73,10 @@ flutter pub get
 # 检查设备
 echo ""
 echo -e "${GREEN}2. 检查可用设备...${NC}"
-flutter devices
+show_and_verify_flutter_devices "$DEVICE_ID"
 
 # 运行应用
 echo ""
 echo -e "${GREEN}3. 运行应用...${NC}"
-
-if [ -n "$DEVICE_ID" ]; then
-    echo -e "${YELLOW}   设备: $DEVICE_ID${NC}"
-    flutter run -d "$DEVICE_ID" $DART_DEFINES
-else
-    flutter run $DART_DEFINES
-fi
+echo -e "${YELLOW}   设备: $(describe_flutter_device "$DEVICE_ID")${NC}"
+flutter run -d "$DEVICE_ID" $DART_DEFINES

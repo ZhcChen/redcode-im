@@ -19,7 +19,7 @@ require_cmd jq
 
 if ! curl -fsS "${API_BASE_URL}/healthz" >/dev/null 2>&1; then
   log "后端不可用，请先启动后端: ${API_BASE_URL}"
-  log "示例：cd backend && cargo run"
+  log "示例：cd backend && docker compose -f docker/dev/docker-compose.yml up -d backend"
   exit 1
 fi
 
@@ -279,4 +279,3 @@ cat <<EOF
 - 私聊(U1-U3): ${ROOM_PRIVATE_U1_U3}
 - 群聊(${GROUP_NAME}): ${ROOM_GROUP}
 EOF
-

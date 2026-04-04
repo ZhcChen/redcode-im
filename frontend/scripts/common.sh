@@ -3,6 +3,37 @@
 # 通用函数库
 # 被其他脚本 source 引用
 
+DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-2b252911}"
+DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Mi MIX 2S}"
+
+describe_flutter_device() {
+    local device_id="$1"
+
+    if [ "$device_id" = "$DEFAULT_FLUTTER_DEVICE_ID" ]; then
+        echo "${DEFAULT_FLUTTER_DEVICE_NAME} (${device_id})"
+        return
+    fi
+
+    echo "$device_id"
+}
+
+show_and_verify_flutter_devices() {
+    local device_id="$1"
+    local device_label
+    local devices_output
+
+    device_label="$(describe_flutter_device "$device_id")"
+    devices_output="$(flutter devices)"
+    echo "$devices_output"
+
+    if ! printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
+        echo "" >&2
+        echo "未找到目标设备: $device_label" >&2
+        echo "请连接默认真机，或通过参数传入其他设备 ID。" >&2
+        return 1
+    fi
+}
+
 # 读取 .env 文件并生成 dart-define 参数
 # 用法: DART_DEFINES=$(load_env_as_dart_defines)
 load_env_as_dart_defines() {

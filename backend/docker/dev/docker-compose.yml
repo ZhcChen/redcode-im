@@ -1,5 +1,5 @@
 # 本地开发环境 - 源码运行（容器内 cargo run）
-# 用法: docker-compose -f backend/docker/dev/docker-compose.yml up -d
+# 用法: docker compose -f backend/docker/dev/docker-compose.yml up -d
 
 services:
   # PostgreSQL 数据库

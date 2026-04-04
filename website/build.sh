@@ -61,5 +61,5 @@ else
 fi
 echo "3. 在 docker 目录下构建和运行:"
 echo "   cd website/docker"
-echo "   docker-compose up -d --build"
+echo "   docker compose up -d --build"
 

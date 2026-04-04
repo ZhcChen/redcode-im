@@ -1,9 +1,16 @@
 #!/bin/bash
 
+set -e
+
 echo "运行 Flutter 应用..."
 
 # 确保在正确的目录
-cd /Users/chen/code/redcode-im/frontend
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+source "$SCRIPT_DIR/common.sh"
+
+DEVICE_ID="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
+DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 
 # 获取依赖
 echo "1. 获取依赖..."
@@ -12,9 +19,9 @@ flutter pub get
 # 检查设备连接
 echo ""
 echo "2. 检查设备..."
-flutter devices | grep "A00E0853-BAD5-4D96-8506-32587C3C388B"
+show_and_verify_flutter_devices "$DEVICE_ID"
 
 # 运行应用
 echo ""
-echo "3. 在 iPhone 16 Pro 模拟器上运行应用..."
-flutter run -d A00E0853-BAD5-4D96-8506-32587C3C388B
+echo "3. 在 ${DEVICE_LABEL} 上运行应用..."
+flutter run -d "$DEVICE_ID"
