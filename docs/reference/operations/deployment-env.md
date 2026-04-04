@@ -10,21 +10,21 @@
 
 ## 📁 不同部署场景的配置位置
 
-### 1. 本地开发
+### 1. 本地开发（Compose-first）
 ```
 backend/
-├── .env          ✅ 开发环境配置
-└── src/
+├── .env                         ✅ 开发环境配置
+└── docker/dev/docker-compose.yml
 ```
-**运行方式**: `cargo run`
+**运行方式**: `docker compose -f docker/dev/docker-compose.yml up -d backend`
 
-### 2. Docker 部署
+### 2. 本地 release 构建验证
 ```
-项目根目录/
-├── .env          ✅ Docker Compose 环境变量
-└── docker-compose.yml
+backend/
+├── .env                             ✅ release 验证环境变量
+└── docker/release/docker-compose.yml
 ```
-**运行方式**: `docker-compose up`
+**运行方式**: `docker compose -f docker/release/docker-compose.yml up -d backend`
 
 ### 3. 二进制部署
 ```
@@ -128,5 +128,5 @@ chown app:app .env
 # 重启服务
 systemctl restart redcode-im
 # 或
-docker-compose restart backend
+cd backend && docker compose -f docker/dev/docker-compose.yml restart backend
 ```

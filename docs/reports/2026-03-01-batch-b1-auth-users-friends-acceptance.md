@@ -36,14 +36,14 @@
 
 ### 2.2 集成级（docker 测试栈）
 
-- 启动：`docker-compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend`
+- 启动：`docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend`
 - backend 健康：约 294 秒进入 healthy
 - 执行：
-  - `docker-compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/auth -v`
-  - `docker-compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/users -v`
-  - `docker-compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/friends -v`
+  - `docker compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/auth -v`
+  - `docker compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/users -v`
+  - `docker compose -f tests/docker-compose.yml run --rm go-tests go test ./backend/friends -v`
 - 结果：三组全部通过（PASS）
-- 清理：`docker-compose -f tests/docker-compose.yml down -v --remove-orphans`
+- 清理：`docker compose -f tests/docker-compose.yml down -v --remove-orphans`
 
 ## 3. 可追溯更新
 

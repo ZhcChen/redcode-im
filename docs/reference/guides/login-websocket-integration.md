@@ -69,8 +69,8 @@
 1. **启动后端服务**
 ```bash
 cd backend
-docker-compose up -d  # 启动数据库和Redis
-cargo run             # 启动后端服务
+cp .env.example .env
+docker compose -f docker/dev/docker-compose.yml up -d backend
 ```
 
 2. **创建测试用户**（如果还没创建）

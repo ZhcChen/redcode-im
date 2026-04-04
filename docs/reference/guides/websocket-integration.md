@@ -122,7 +122,8 @@ Consumer<ChatProvider>(
 ### 1. 启动后端服务
 ```bash
 cd backend
-cargo run
+cp .env.example .env
+docker compose -f docker/dev/docker-compose.yml up -d backend
 ```
 
 ### 2. 创建测试用户和房间

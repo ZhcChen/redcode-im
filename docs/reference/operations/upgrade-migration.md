@@ -165,21 +165,21 @@ docker image prune -f
 ### Docker Compose 升级
 
 ```yaml
-# docker-compose.yml
-version: '3.8'
+# backend/docker/release/docker-compose.yml
 services:
   backend:
-    image: redcode/backend:v1.2.0  # 更新版本
+    build:
+      context: ../..
+      dockerfile: docker/release/Dockerfile
     # ... 其他配置
 ```
 
 ```bash
-# 升级
-docker-compose pull
-docker-compose up -d
+# 重新构建并启动 release 验证栈
+docker compose -f backend/docker/release/docker-compose.yml up -d --build backend
 
 # 查看日志
-docker-compose logs -f backend
+docker compose -f backend/docker/release/docker-compose.yml logs -f backend
 ```
 
 ---
@@ -387,10 +387,10 @@ docker run -d \
   --name redcode-backend \
   redcode/backend:v1.1.0  # 旧版本
 
-# 或使用 docker-compose
-docker-compose down
-git checkout v1.1.0 -- docker-compose.yml
-docker-compose up -d
+# 或使用 docker compose（release 验证栈）
+docker compose -f backend/docker/release/docker-compose.yml down
+git checkout v1.1.0 -- backend/docker/release/docker-compose.yml
+docker compose -f backend/docker/release/docker-compose.yml up -d backend
 ```
 
 ---

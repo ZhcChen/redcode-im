@@ -28,10 +28,10 @@
 1. **检查日志输出**
 ```bash
 # 查看启动日志
-RUST_LOG=debug cargo run
+docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
 
 # 或查看 Docker 日志
-docker logs redcode-backend
+docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
 ```
 
 2. **检查环境变量**
@@ -78,7 +78,7 @@ redis-cli -u $REDIS_URL ping
 
 1. **查看详细错误日志**
 ```bash
-RUST_LOG=debug,tower_http=trace cargo run
+docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
 ```
 
 2. **检查请求参数**

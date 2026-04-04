@@ -58,7 +58,7 @@ docker run -d -p 8080:80 --name redcode-admin redcode-admin
 
 ```bash
 cd /path/to/admin/nginx
-docker-compose up -d
+docker compose up -d
 ```
 
 访问 http://localhost:8080 即可查看应用
@@ -116,16 +116,16 @@ server {
 
 ```bash
 # 查看日志
-docker-compose logs -f
+docker compose logs -f
 
 # 停止服务
-docker-compose down
+docker compose down
 
 # 重启服务
-docker-compose restart
+docker compose restart
 
 # 重新构建并启动
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 ### Nginx 相关

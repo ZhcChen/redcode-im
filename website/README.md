@@ -65,7 +65,7 @@ cp .deploy.env.example .deploy.env
     User root
     IdentityFile ~/.ssh/id_rsa
   ```
-- 服务器上需要已安装 Docker 和 docker-compose
+- 服务器上需要已安装 Docker 和 Docker Compose 插件（使用 `docker compose` 命令）
 
 ### 方式二：本地构建打包
 
@@ -87,12 +87,12 @@ cp .deploy.env.example .deploy.env
 
 # 2. 在服务器上构建和运行
 cd website/docker
-docker-compose up -d --build
+docker compose up -d --build
 
 # 3. 管理服务
-docker-compose down          # 停止服务
-docker-compose logs -f website  # 查看日志
-docker-compose restart website  # 重启服务
+docker compose down          # 停止服务
+docker compose logs -f website  # 查看日志
+docker compose restart website  # 重启服务
 ```
 
 详细说明请参考 [docker/README.md](./docker/README.md)

@@ -52,7 +52,7 @@ tar -xzf website-build-*.tar.gz -C .  # 如果是 tar.gz
 
 ```bash
 cd /path/to/website/docker
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 访问: http://localhost:8015
@@ -61,13 +61,13 @@ docker-compose up -d --build
 
 ```bash
 # 停止服务
-docker-compose down
+docker compose down
 
 # 查看日志
-docker-compose logs -f website
+docker compose logs -f website
 
 # 重启服务
-docker-compose restart website
+docker compose restart website
 ```
 
 ## 注意事项

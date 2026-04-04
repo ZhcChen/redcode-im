@@ -31,7 +31,7 @@
 |------|------|------|
 | Backend（Rust 单元） | `cargo test --lib` | 通过（`132 passed`） |
 | Backend（Rust 集成） | `cargo test --tests -- --test-threads=1` | 通过 |
-| Backend（Go 黑盒） | `docker-compose -f tests/docker-compose.yml run --rm go-tests` | 通过（全部业务域） |
+| Backend（Go 黑盒） | `docker compose -f tests/docker-compose.yml run --rm go-tests` | 通过（全部业务域） |
 | Frontend（单测） | `flutter test` | 通过（`27 passed`） |
 | Frontend（真机 smoke） | `flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN ...` | 通过（`2 passed`） |
 | Frontend（真机网络） | `flutter test integration_test/network_connectivity_test.dart -d 3A091FDJG001DN ... --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true` | 通过（`2 passed`） |
@@ -170,7 +170,7 @@
   - `/users/me/avatar/*`：非法 key 拦截、`direct-upload -> commit -> avatar/url -> 内容下载` 全链路
 - 波次执行结果：
   - `go test ./backend/auth -run TestSMSLogin_WithCaptchaSetting_OK -v` 通过
-  - 隔离栈 `docker-compose -f tests/docker-compose.yml run --rm go-tests` 通过（包含头像上传链路）
+  - 隔离栈 `docker compose -f tests/docker-compose.yml run --rm go-tests` 通过（包含头像上传链路）
 
 ### 4.11 Backend Wave D（分片上传 / 审核链路 / Push）补测
 
@@ -185,12 +185,12 @@
 - 波次执行结果：
   - `go test ./backend/uploads -run 'Test(MessageAttachmentMultipartUploadAndDownload_OK|FileUploadAuditTaskLifecycle_WithViolationMock)$' -v` 通过
   - `go test ./backend/push -run TestPushDeviceRegisterSendAndUnregister_OK -v` 通过
-  - 隔离栈 `docker-compose -f tests/docker-compose.yml run --rm go-tests` 通过（含新增 Wave D 全部用例）
+  - 隔离栈 `docker compose -f tests/docker-compose.yml run --rm go-tests` 通过（含新增 Wave D 全部用例）
 
 ## 5. 执行过程中的关键问题与处理
 
 - 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  
-  处理：使用隔离测试栈执行全量 Go 套件（`docker-compose -f tests/docker-compose.yml run --rm go-tests`），并增强 `EnsureDefaultStorageProvider` 自动修正 endpoint 到当前 `EXTERNAL_MOCK_BASE_URL` 对应 host。
+  处理：使用隔离测试栈执行全量 Go 套件（`docker compose -f tests/docker-compose.yml run --rm go-tests`），并增强 `EnsureDefaultStorageProvider` 自动修正 endpoint 到当前 `EXTERNAL_MOCK_BASE_URL` 对应 host。
 
 - 问题 2：Admin Playwright 首次使用 `127.0.0.1:8011` 出现连接拒绝。  
   处理：固定使用 `http://localhost:8011` 并确认 dev server 监听后重跑，全部通过。

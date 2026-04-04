@@ -24,19 +24,19 @@
 - `go -C tests/mocks/external test ./...`
 - `go -C tests/go test ./... -run '^$'`
 - `cargo test --manifest-path backend/Cargo.toml --lib --no-run`
-- `docker-compose -f tests/docker-compose.yml config >/dev/null`
+- `docker compose -f tests/docker-compose.yml config >/dev/null`
 - `bash -n tests/run.sh`
 
 结果：全部通过。
 
 ### 3.2 集成验证（真实链路）
 
-- 启动：`docker-compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend`
+- 启动：`docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend`
 - 健康检查：`backend /healthz`（冷启动约 247 秒后通过）
 - Go 黑盒：
   - `go test ./backend/system -v` 通过
   - `go test ./backend/auth -v` 通过
-- 清理：`docker-compose -f tests/docker-compose.yml down -v --remove-orphans`
+- 清理：`docker compose -f tests/docker-compose.yml down -v --remove-orphans`
 
 ### 3.3 external-mock 自测
 
