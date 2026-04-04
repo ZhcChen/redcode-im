@@ -1,6 +1,6 @@
 # Admin 多语言迁移 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在现有 `vue-i18n` 基础上补齐 `admin` 多语言覆盖，统一 UI 文案与 API 错误展示策略，并完成中英文对齐。
 

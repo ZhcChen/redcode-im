@@ -1,6 +1,6 @@
 # RedCode IM 多语言总实施计划 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 按统一协议完成 `backend`、`admin`、`frontend`、`desktop` 的多语言迁移，并以 `backend` 服务端本地化为中枢完成跨端联调与验收。
 

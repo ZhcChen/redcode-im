@@ -191,7 +191,8 @@ Expected: commit 成功并推送到远端分支。
 Run:
 ```bash
 cd /Users/chen/code/redcode-im/.worktrees/ce-workflow-migration
-rg -n "superpowers:|executing-plans|subagent-driven-development" docs/plans/*-plan.md
+rg -n "superpowers:|executing-plans|subagent-driven-development" docs/plans/*-plan.md \
+  | grep -v 'docs/plans/2026-04-04-ce-workflow-migration-plan.md'
 ```
 Expected: 命中上面列出的 14 个 plan 文件头部。
 
@@ -220,7 +221,8 @@ Expected: diff 主要集中在每个 plan 开头几行的工作流说明。
 Run:
 ```bash
 cd /Users/chen/code/redcode-im/.worktrees/ce-workflow-migration
-rg -n "superpowers:|executing-plans|subagent-driven-development" docs/plans/*-plan.md || true
+rg -n "superpowers:|executing-plans|subagent-driven-development" docs/plans/*-plan.md \
+  | grep -v 'docs/plans/2026-04-04-ce-workflow-migration-plan.md' || true
 ```
 Expected: 无输出。
 

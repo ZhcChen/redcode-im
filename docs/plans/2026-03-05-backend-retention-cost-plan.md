@@ -1,6 +1,6 @@
 # Backend 成本与生命周期清理链路 Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 backend 的日志/对象清理策略补齐契约与配置测试，确保“按保留期回收成本”路径可持续回归。
 
