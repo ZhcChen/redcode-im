@@ -115,12 +115,12 @@ cd frontend && flutter test integration_test/smoke_test.dart -d macos
 # 先设置本机局域网 IP（确保与真机在同一网段，自动识别默认网卡）
 LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
 LAN_IP=$(ipconfig getifaddr ${LAN_IFACE})
-# 默认 smoke（推荐，真机：Pixel 8 Pro）
-cd frontend && flutter test integration_test/smoke_test.dart -d 3A091FDJG001DN \
+# 默认 smoke（推荐，真机：Mi MIX 2S / 2b252911）
+cd frontend && flutter test integration_test/smoke_test.dart -d 2b252911 \
   --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
   --dart-define=WS_URL=ws://${LAN_IP}:8010/ws
-# 发布前真机联调（包含 network_connectivity_test）
-cd frontend && flutter test integration_test -d 3A091FDJG001DN \
+# 发布前真机联调（包含 network_connectivity_test，默认真机同上）
+cd frontend && flutter test integration_test -d 2b252911 \
   --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
   --dart-define=WS_URL=ws://${LAN_IP}:8010/ws \
   --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true
