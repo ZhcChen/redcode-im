@@ -4,6 +4,8 @@
 工作树：`/Users/chen/code/redcode-im/.worktrees/full-test-rebuild`  
 分支：`feat/full-test-rebuild`
 
+> 历史说明：本文形成于仓库仍以 Superpowers 为默认工作流的阶段。当前仓库默认流程已切换为 **Compound Engineering (CE)**；阅读本文时请以最新 `AGENTS.md` 为准理解现行流程规范。
+
 ## 1. 这份文档的用途
 
 本交接文档用于把当前测试重建与验收工作的上下文，完整移交给下一位 AI。  
@@ -34,10 +36,10 @@
 
 ### 3.1 架构与流程
 
-- 当前仓库工作流架构采用 **Superpowers**，不再使用旧的 devflow。
+- 本文成文时，当前仓库工作流架构采用 **Superpowers**，不再使用旧的 devflow。
 - `bear-chat-tauri`、`bear-chat-uniapp` 两个参考模块允许删除。
 - `devflow-notifier` 已要求移除。
-- 需遵循仓库 `AGENTS.md` 与 Superpowers 工作流骨架执行。
+- 需结合本文历史上下文，并以仓库最新 `AGENTS.md` 作为当前流程规范来源。
 
 ### 3.2 测试策略
 
@@ -65,7 +67,7 @@
 这些规则来自仓库根 `AGENTS.md`，后续 AI 必须遵守：
 
 - 默认使用简体中文沟通、文档、说明。
-- 当前仓库统一采用 Superpowers。
+- 本文对应阶段的仓库默认流程为 Superpowers；当前默认流程已切换为 CE。
 - 本仓库只保留流程产出目录：`docs/plans/`。
 - 测试入口与矩阵以 `docs/reference/testing/README.md` 为准。
 - Backend 本地开发、Admin 启停方式、Docker Compose 约定都在根 `AGENTS.md` 中有明确规定。
@@ -88,7 +90,7 @@
 
 按现有文档与验收记录，可认为以下阶段已完成：
 
-- Superpowers 工作流架构重构已完成。
+- 当时的 Superpowers 工作流架构重构已完成。
 - 旧测试 dashboard 已移除，统一测试架构文档已建立。
 - Backend / Admin / Desktop / Website 已完成一轮较完整的测试重建与回归。
 - 全模块回归验收文档已存在，见：`docs/reports/2026-03-04-full-module-regression-acceptance.md`

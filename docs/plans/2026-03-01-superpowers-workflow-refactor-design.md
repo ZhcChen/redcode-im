@@ -1,4 +1,6 @@
-# Superpowers Workflow Refactor Design
+# Superpowers Workflow Refactor Design (Historical)
+
+> 历史说明：本文记录仓库在 2026-03-01 从 `devflow` 切换到 Superpowers 的迁移设计。当前仓库默认 AI 工作流已切换为 **Compound Engineering (CE)**，本文不再代表现行规范。
 
 **日期**: 2026-03-01
 
