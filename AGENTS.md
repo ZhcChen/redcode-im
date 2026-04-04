@@ -34,9 +34,9 @@
   - 测试栈默认不映射 PG/Redis 端口（详见 `docs/reference/testing/README.md`）
 
 ## 2. AI 工作流（Compound Engineering, CE）
-- 当前仓库统一采用 **Compound Engineering (CE)** 作为默认 AI 工作流，不再以 Superpowers 作为默认主流程。
-- 在没有用户明确要求切换流程的情况下，优先使用 CE 的工作流，而不是 Superpowers 或其他并行流程。
-- **同一项任务默认只采用一套主工作流。** 若当前任务已明确选择 CE，就不要再混入 Superpowers 的设计、计划、执行流程，除非用户明确要求。
+- 当前仓库统一采用 **Compound Engineering (CE)** 作为默认 AI 工作流，不再以旧流程作为默认主流程。
+- 在没有用户明确要求切换流程的情况下，优先使用 CE 的工作流，而不是其他并行流程。
+- **同一项任务默认只采用一套主工作流。** 若当前任务已明确选择 CE，就不要再混入旧流程的设计、计划、执行流程，除非用户明确要求。
 - 默认工作流顺序：
   1. `ce:brainstorm`
   2. `ce:plan`
@@ -54,7 +54,7 @@
   - `~/.codex/CE_AGENTS.md`
   - `~/.codex/scripts/ce-init`
 - 若任务已经有现成的 brainstorm、plan 或 solution 文档，优先续写与复用，不要重复生成平行文档。
-- 仓库中若仍存在 Superpowers 文档，视为**历史产物**，不代表当前默认流程；只有在用户明确要求时才切换到对应 Superpowers 技能。
+- 仓库中若仍存在旧流程文档，视为**历史产物**，不代表当前默认流程；只有在用户明确要求时才切换到对应历史流程技能。
 
 ## 3. Compound Codex Tool Mapping (Claude Compatibility)
 
