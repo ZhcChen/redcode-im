@@ -4,16 +4,29 @@
 
 ## AI 工作流
 
-仓库已切换到 **Superpowers** 工作流，旧 `devflow` 架构已移除。
+仓库当前默认采用 **Compound Engineering (CE)** 工作流。
 
-- Superpowers 使用全局安装：`~/.codex/superpowers`
-- 技能发现路径：`~/.agents/skills/superpowers -> ~/.codex/superpowers/skills`
-- 规划文档：`docs/plans/`
-- 安装说明：`https://raw.githubusercontent.com/obra/superpowers/refs/heads/main/.codex/INSTALL.md`
+- 工作流顺序：
+  - `ce:brainstorm`
+  - `ce:plan`
+  - `ce:work`
+  - `ce:review`
+  - `ce:compound`
+- 全局资源位置：
+  - `~/.codex/prompts/ce-*.md`
+  - `~/.codex/skills/ce-*`
+  - `~/.codex/scripts/ce-init`
+- 文档产物目录：
+  - `docs/brainstorms/`
+  - `docs/plans/`
+  - `docs/solutions/`
+  - `.context/compound-engineering/`
 
 ## 快速开始
 
 ### 环境要求
+- Docker
+- Docker Compose 插件（使用 `docker compose` 命令）
 - Rust 1.75+
 - Node.js 18+（管理后台使用 pnpm；桌面端/官网使用 bun）
 - Flutter 3.9+
@@ -23,8 +36,14 @@
 ### 启动后端（开发）
 ```bash
 cd backend
-docker-compose up -d postgres redis-session redis-cache
-RUST_LOG=debug cargo run
+cp .env.example .env
+docker compose -f docker/dev/docker-compose.yml up -d backend
+```
+
+查看日志：
+```bash
+cd backend
+docker compose -f docker/dev/docker-compose.yml logs -f backend
 ```
 
 ### 启动管理后台（admin）
