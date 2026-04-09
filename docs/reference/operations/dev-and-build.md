@@ -1,6 +1,6 @@
 # 后端开发与构建命令说明
 
-本文档整理了 Rust 后端在本地开发、测试及生产构建阶段常用的命令，便于快速查阅。若无特殊说明，均在仓库根目录（`backend/`）执行。
+本文档整理了 Rust 后端在本地开发、测试及生产构建阶段常用的命令，便于快速查阅。若无特殊说明，均在 `backend/` 目录执行。
 
 ## 1. 本地开发流程
 
@@ -19,17 +19,17 @@
    ```
 4. **（首次部署）初始化数据库结构**
    > 仅在**首次在新环境使用 RedCode IM** 且目标数据库为空库时需要执行，后续重复启动无需再次执行。
-   - 确保目标数据库为空或确认可以覆盖现有结构；
-   - 推荐做法：直接启动 backend，由 `Database::migrate` 自动执行 `backend/sql/base.sql` 并记录迁移；
-   - 如需手工执行，也可以在项目根目录（包含 `backend/`、`backend/sql/base.sql`）下执行：
+   - 推荐做法：直接启动 backend，由 `Database::migrate` 自动执行当前 `backend/sql/base.sql`，并记录到 `db_migrations`。
+   - 当前 `base.sql` 已是完整基线；只有 2026-04-09 之后新增的迁移才会继续放入 `backend/sql/migrations/`。
+   - 如需手工执行，可在项目根目录运行：
      ```bash
      # PostgreSQL 运行在 Docker 容器中
-     docker exec -i postgres psql -U postgres -d redcode_im < backend/sql/base.sql
-     
+     docker exec -i postgres psql -v ON_ERROR_STOP=1 -U postgres -d redcode_im < backend/sql/base.sql
+
      # PostgreSQL 直接运行在本地
-     psql -h localhost -U postgres -d redcode_im < backend/sql/base.sql
+     psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d redcode_im < backend/sql/base.sql
      ```
-   - 该步骤会一次性创建所有业务表、管理后台相关表及初始数据，后续结构演进通过 `backend/sql/migrations/` 下的增量脚本 + `db_migrations` 表管理。
+   - 如果数据库**非空但缺少 `db_migrations`**，backend 默认会拒绝自动 adopt；本地旧环境更推荐直接重建数据库 / volume。
 5. **宿主机本地调试（可选）**：仅在需要直接运行宿主机进程时使用。
    ```bash
    docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache

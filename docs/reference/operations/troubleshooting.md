@@ -183,27 +183,38 @@ max_connections = 200
 
 ### 迁移失败
 
-**症状**：数据库迁移报错
+**症状**：backend 启动时数据库迁移报错
 
 **排查步骤**：
 
-1. **检查迁移状态**
+1. **查看迁移记录**
 ```bash
-sqlx migrate info
+psql "$DATABASE_URL" -c "SELECT name, checksum, applied_at FROM db_migrations ORDER BY applied_at DESC;"
 ```
 
-2. **查看迁移历史**
+2. **检查数据库是否为非空但缺少迁移记录表**
 ```sql
-SELECT * FROM _sqlx_migrations ORDER BY installed_on DESC;
+SELECT EXISTS (
+  SELECT 1
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name = 'db_migrations'
+);
+```
+
+3. **检查关键对象是否齐全**
+```bash
+psql "$DATABASE_URL" -c "\d+ group_detail_view"
+psql "$DATABASE_URL" -c "\d+ messages"
 ```
 
 **解决方案**：
 ```bash
-# 回滚上一次迁移
-sqlx migrate revert
+# 方案 A：本地开发环境直接重建数据库 / volume（推荐）
+# 例如：docker compose -f backend/docker/dev/docker-compose.yml down -v
 
-# 强制标记迁移完成（谨慎使用）
-sqlx migrate run --ignore-missing
+# 方案 B：确认当前库已是完整 schema 后，临时允许 adopt
+ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT=true ./redcode-backend
 ```
 
 ---

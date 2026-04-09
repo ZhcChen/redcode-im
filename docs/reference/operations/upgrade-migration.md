@@ -99,12 +99,20 @@ chmod +x /opt/redcode/backend/redcode-backend
 #### 4. 数据库迁移
 
 ```bash
-# 运行迁移
+# backend 启动时会自动执行内置迁移 runner
 cd /opt/redcode/backend
-sqlx migrate run
+./redcode-backend
+```
 
-# 验证迁移
-sqlx migrate info
+说明：
+- 空库会自动执行当前 `base.sql`；
+- 已存在 `db_migrations` 的数据库会自动补执行未完成迁移；
+- 非空库但缺少 `db_migrations` 的数据库默认会报错，避免把半初始化库误判为当前基线。
+
+如需先做排障级手工初始化，可执行：
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/base.sql
 ```
 
 #### 5. 启动服务
@@ -144,11 +152,8 @@ docker pull redcode/backend:v1.2.0
 # 停止旧容器
 docker stop redcode-backend
 
-# 运行数据库迁移
-docker run --rm \
-  -e DATABASE_URL=$DATABASE_URL \
-  redcode/backend:v1.2.0 \
-  sqlx migrate run
+# 启动新容器（镜像内 backend 启动后会自动执行迁移）
+# 如需先做手工基线初始化，请改为执行 base.sql
 
 # 启动新容器
 docker run -d \
@@ -188,88 +193,49 @@ docker compose -f backend/docker/release/docker-compose.yml logs -f backend
 
 ### 迁移流程
 
-#### 1. 查看待执行的迁移
+1. 确认目标库是否为空库，或已存在 `db_migrations`。
+2. 部署新 backend 并启动，让 `Database::migrate` 自动执行迁移。
+3. 验证 `db_migrations`、表结构与关键字段是否符合预期。
+
+### 常用检查命令
 
 ```bash
-sqlx migrate info
+# 查看 migration 记录
+psql "$DATABASE_URL" -c "SELECT name, checksum, applied_at FROM db_migrations ORDER BY applied_at DESC;"
+
+# 检查关键对象
+psql "$DATABASE_URL" -c "\dt"
+psql "$DATABASE_URL" -c "\d+ messages"
+psql "$DATABASE_URL" -c "\d+ group_detail_view"
 ```
 
-输出示例：
-```
-20240101000000/applied initial schema
-20240201000000/applied add message reactions
-20240301000000/pending add hot updates table  # 待执行
-```
-
-#### 2. 执行迁移
+### 手工迁移（排障场景）
 
 ```bash
-# 运行所有待执行的迁移
-sqlx migrate run
+# 手工初始化当前基线
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/base.sql
 
-# 或指定数据库 URL
-DATABASE_URL="postgresql://..." sqlx migrate run
+# 如存在新的增量迁移，再按 backend/src/database/mod.rs 的 MIGRATIONS 顺序手工执行
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/migrations/<timestamp>_desc.sql
 ```
 
-#### 3. 验证迁移
+### 兼容开关
+
+若数据库已经是当前完整 schema，但历史上没有 `db_migrations`，可以临时设置：
 
 ```bash
-# 检查迁移状态
-sqlx migrate info
-
-# 验证表结构
-psql $DATABASE_URL -c "\dt"
-psql $DATABASE_URL -c "\d+ messages"
+ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT=true
 ```
 
-### 手动迁移
-
-如果自动迁移失败，可以手动执行：
-
-```bash
-# 查看迁移 SQL
-cat backend/migrations/20240301000000_add_hot_updates.sql
-
-# 手动执行
-psql $DATABASE_URL -f backend/migrations/20240301000000_add_hot_updates.sql
-
-# 标记迁移完成
-psql $DATABASE_URL -c "INSERT INTO _sqlx_migrations (version, description, installed_on, success, checksum) VALUES (20240301000000, 'add_hot_updates', NOW(), true, E'\\x...');"
-```
-
-### 迁移回滚
-
-```bash
-# 查看回滚 SQL（如果有）
-cat backend/migrations/20240301000000_add_hot_updates.down.sql
-
-# 执行回滚
-sqlx migrate revert
-
-# 或手动回滚
-psql $DATABASE_URL -f backend/migrations/20240301000000_add_hot_updates.down.sql
-```
+该模式仍会检查关键表 / 视图 / 字段是否存在；缺项时仍会拒绝 adopt。对本地旧环境，更推荐直接重建数据库。
 
 ### 大表迁移注意事项
 
-对于大表（如 messages），需要特别处理：
+对于大表（如 messages），仍应保持渐进式 SQL 设计，例如：
 
 ```sql
--- 使用 CONCURRENTLY 添加索引（不锁表）
 CREATE INDEX CONCURRENTLY idx_messages_new ON messages(new_column);
-
--- 批量更新数据
-UPDATE messages SET new_column = default_value
-WHERE id IN (
-  SELECT id FROM messages
-  WHERE new_column IS NULL
-  LIMIT 10000
-);
-
--- 重复执行直到所有数据更新完成
 ```
-
----
 
 ## 客户端升级
 
@@ -348,8 +314,8 @@ cp /opt/redcode/backup/redcode-backend.$BACKUP_VERSION \
 # 3. 恢复配置文件
 cp -r /etc/redcode.backup.$BACKUP_VERSION/* /etc/redcode/
 
-# 4. 回滚数据库迁移（如需要）
-sqlx migrate revert
+# 4. 数据库回滚策略
+# 当前项目不提供 sqlx revert；若需要回滚数据库，请恢复备份或重建数据库。
 
 # 5. 启动服务
 systemctl start redcode-backend
@@ -364,10 +330,8 @@ echo "回滚完成"
 ### 数据库回滚
 
 ```bash
-# 如果迁移失败需要回滚
-sqlx migrate revert
-
-# 如果需要完全恢复
+# 当前项目没有单条 migration revert 机制
+# 推荐做法：停止 backend，恢复数据库备份，或直接重建数据库
 systemctl stop redcode-backend
 dropdb redcode_im
 createdb redcode_im
