@@ -217,9 +217,10 @@ func TestAdminRolePermissionAndUserRoleAssignments(t *testing.T) {
 		t.Fatalf("need at least 2 permissions for assignment test: %+v", permissions)
 	}
 
-	roleCode := fmt.Sprintf("auditor_%s", testutil.UniqueUsername("rbac"))
+	roleSuffix := testutil.UniqueUsername("rbac")
+	roleCode := fmt.Sprintf("auditor_%s", roleSuffix)
 	createRolePayload := map[string]any{
-		"name":           "审计员",
+		"name":           fmt.Sprintf("审计员%s", roleSuffix),
 		"code":           roleCode,
 		"description":    "RBAC E2E role",
 		"permission_ids": []string{permissions.Permissions[0].ID},
