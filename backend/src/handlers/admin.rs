@@ -1549,7 +1549,7 @@ pub async fn get_user_detail(
     .bind(user_id)
     .fetch_one(pool)
     .await
-        .map_err(|e| AppError::DatabaseError(e))?;
+    .map_err(|e| AppError::DatabaseError(e))?;
 
     let room_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM room_members WHERE user_id = $1 AND deleted_at IS NULL",
@@ -2528,6 +2528,8 @@ pub struct StorageProviderResponse {
     pub name: String,
     pub secret_id: String,
     pub secret_key: String,
+    pub secret_id_configured: bool,
+    pub secret_key_configured: bool,
     pub region: String,
     pub endpoint: String,
     pub bucket_name: Option<String>,
@@ -2541,12 +2543,16 @@ pub struct StorageProviderResponse {
 
 impl From<StorageProvider> for StorageProviderResponse {
     fn from(provider: StorageProvider) -> Self {
+        let secret_id_configured = !provider.secret_id.trim().is_empty();
+        let secret_key_configured = !provider.secret_key.trim().is_empty();
         Self {
             id: provider.id.to_string(),
             provider_type: provider.provider_type.to_string(),
             name: provider.name,
-            secret_id: provider.secret_id,
-            secret_key: provider.secret_key,
+            secret_id: String::new(),
+            secret_key: String::new(),
+            secret_id_configured,
+            secret_key_configured,
             region: provider.region,
             endpoint: provider.endpoint,
             bucket_name: provider.bucket_name,
@@ -2622,6 +2628,7 @@ pub async fn create_storage_provider(
         "aliyun_oss" => StorageProviderType::AliyunOss,
         "aws_s3" => StorageProviderType::AwsS3,
         "minio" => StorageProviderType::Minio,
+        "backblaze_b2" => StorageProviderType::BackblazeB2,
         "unknown" => StorageProviderType::Unknown,
         _ => {
             return Err(AppError::ValidationError(format!(
@@ -2635,8 +2642,21 @@ pub async fn create_storage_provider(
 
     let store = StorageProviderStore::new(state.database.clone());
 
+    // 统一清理 bucket_name，空字符串视为未提供
+    let mut bucket_name = req
+        .bucket_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    if provider_type == StorageProviderType::BackblazeB2 && bucket_name.is_none() {
+        return Err(AppError::ValidationError(
+            "Backblaze B2 需要配置 bucket_name".to_string(),
+        ));
+    }
+
     // 如果是腾讯云 COS 且没有指定 bucket_name，尝试创建一个默认的 bucket
-    let mut bucket_name = req.bucket_name.clone();
     if provider_type == StorageProviderType::TencentCos && bucket_name.is_none() {
         // 生成一个默认的 bucket 名称
         let uuid_str = Uuid::new_v4().to_string().replace("-", "");
@@ -2731,6 +2751,7 @@ pub async fn update_storage_provider(
             "aliyun_oss" => Some(StorageProviderType::AliyunOss),
             "aws_s3" => Some(StorageProviderType::AwsS3),
             "minio" => Some(StorageProviderType::Minio),
+            "backblaze_b2" => Some(StorageProviderType::BackblazeB2),
             "unknown" => Some(StorageProviderType::Unknown),
             _ => {
                 return Err(AppError::ValidationError(format!(
@@ -2743,20 +2764,79 @@ pub async fn update_storage_provider(
         None
     };
 
+    let name = req
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let secret_id = req
+        .secret_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let secret_key = req
+        .secret_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let region = req
+        .region
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let endpoint = req
+        .endpoint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let bucket_name = req.bucket_name.as_ref().map(|value| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|bucket_name| !bucket_name.is_empty())
+    });
+    let description = req.description.as_ref().map(|value| {
+        value
+            .as_deref()
+            .map(str::trim)
+            .filter(|description| !description.is_empty())
+    });
+
     let store = StorageProviderStore::new(state.database.clone());
+    let existing_provider = store
+        .get_provider_by_id(&provider_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?;
+    let effective_provider_type = provider_type.unwrap_or(existing_provider.provider_type);
+    let effective_bucket_name = bucket_name
+        .as_ref()
+        .and_then(|value| value.as_deref())
+        .or(existing_provider.bucket_name.as_deref());
+
+    if effective_provider_type == StorageProviderType::BackblazeB2
+        && effective_bucket_name
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err(AppError::ValidationError(
+            "Backblaze B2 需要配置 bucket_name".to_string(),
+        ));
+    }
+
     let provider = store
         .update_provider(
             &provider_id,
             provider_type,
-            req.name.as_deref(),
-            req.secret_id.as_deref(),
-            req.secret_key.as_deref(),
-            req.region.as_deref(),
-            req.endpoint.as_deref(),
-            req.bucket_name.as_ref().map(|x| x.as_deref()),
+            name,
+            secret_id,
+            secret_key,
+            region,
+            endpoint,
+            bucket_name,
             req.is_active,
             req.is_default,
-            req.description.as_ref().map(|x| x.as_deref()),
+            description,
             updated_by,
         )
         .await?;
@@ -2953,13 +3033,6 @@ pub async fn test_cos_upload(
     }
 
     // 检查是否为腾讯云 COS
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadResponse {
-            success: false,
-            url: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
-    }
 
     // 创建存储服务
     let storage_service = storage::create_storage_service(&provider)?;
@@ -3078,14 +3151,6 @@ pub async fn test_cos_upload_signature(
             success: false,
             signature: None,
             message: "提供商未启用".to_string(),
-        }));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadSignatureResponse {
-            success: false,
-            signature: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
         }));
     }
 
@@ -3218,17 +3283,6 @@ pub async fn test_cos_upload_multipart_initiate(
         return Ok(Json(TestCosUploadMultipartInitiateResponse {
             success: false,
             message: "提供商未启用".to_string(),
-            key: Some(key.to_string()),
-            session_id: None,
-            part_size: None,
-            total_parts: None,
-        }));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
             key: Some(key.to_string()),
             session_id: None,
             part_size: None,
@@ -3411,14 +3465,6 @@ pub async fn test_cos_download_url(
         }));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosDownloadUrlResponse {
-            success: false,
-            url: None,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
-    }
-
     let storage_service = storage::create_storage_service(&provider)?;
 
     // 生成缓存键
@@ -3504,14 +3550,6 @@ pub async fn test_cos_get_cors(
         }));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-            rules: vec![],
-        }));
-    }
-
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.get_cors_rules().await {
@@ -3582,13 +3620,6 @@ pub async fn test_cos_set_cors(
         return Ok(Json(TestCosSetCorsResponse {
             success: false,
             message: "提供商未启用".to_string(),
-        }));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
         }));
     }
 
@@ -3709,13 +3740,6 @@ pub async fn test_cos_delete(
         }));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosDeleteResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
-    }
-
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.delete_file(&req.key).await {
@@ -3770,14 +3794,6 @@ pub async fn test_cos_exists(
             success: false,
             exists: false,
             message: "提供商未启用".to_string(),
-        }));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosExistsResponse {
-            success: false,
-            exists: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
         }));
     }
 
@@ -3845,14 +3861,6 @@ pub async fn test_cos_list_buckets(
         }));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosListBucketsResponse {
-            success: false,
-            buckets: Vec::new(),
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
-        }));
-    }
-
     let storage_service = storage::create_storage_service_without_bucket(&provider)?;
 
     match storage_service.list_buckets().await {
@@ -3907,13 +3915,6 @@ pub async fn test_cos_create_bucket(
         return Ok(Json(TestCosCreateBucketResponse {
             success: false,
             message: "提供商未启用".to_string(),
-        }));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Ok(Json(TestCosCreateBucketResponse {
-            success: false,
-            message: format!("不支持的提供商类型: {:?}", provider.provider_type),
         }));
     }
 
@@ -4605,7 +4606,9 @@ pub async fn update_token(
         if has_updates {
             query_builder.push(", ");
         }
-        query_builder.push("monthly_limit = ").push_bind(monthly_limit);
+        query_builder
+            .push("monthly_limit = ")
+            .push_bind(monthly_limit);
         has_updates = true;
     }
 

@@ -124,6 +124,8 @@ export interface StorageProvider {
   name: string;
   secret_id: string;
   secret_key: string;
+  secret_id_configured?: boolean;
+  secret_key_configured?: boolean;
   region: string;
   endpoint: string;
   bucket_name?: string | null;

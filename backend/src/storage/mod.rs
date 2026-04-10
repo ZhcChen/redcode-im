@@ -1,3 +1,4 @@
+pub mod b2;
 pub mod cos;
 
 use crate::database::models::{StorageProvider, StorageProviderType};
@@ -177,6 +178,20 @@ pub fn create_storage_service(
                 provider.bucket_name.clone().unwrap(),
             )?))
         }
+        StorageProviderType::BackblazeB2 => {
+            if provider.bucket_name.is_none() {
+                return Err(AppError::ValidationError(
+                    "Backblaze B2 需要配置 bucket_name".to_string(),
+                ));
+            }
+            Ok(Box::new(b2::BackblazeB2Service::new(
+                provider.secret_id.clone(),
+                provider.secret_key.clone(),
+                provider.region.clone(),
+                provider.endpoint.clone(),
+                provider.bucket_name.clone().unwrap(),
+            )?))
+        }
         _ => Err(AppError::ValidationError(format!(
             "不支持的存储提供商类型: {:?}",
             provider.provider_type
@@ -197,9 +212,90 @@ pub fn create_storage_service_without_bucket(
                 provider.endpoint.clone(),
             )?))
         }
+        StorageProviderType::BackblazeB2 => {
+            Ok(Box::new(b2::BackblazeB2Service::new_without_bucket(
+                provider.secret_id.clone(),
+                provider.secret_key.clone(),
+                provider.region.clone(),
+                provider.endpoint.clone(),
+            )?))
+        }
         _ => Err(AppError::ValidationError(format!(
             "不支持的存储提供商类型: {:?}",
             provider.provider_type
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::database::models::StorageProviderType;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_b2_sanitize_endpoint_trims_scheme_and_trailing_slash() {
+        assert_eq!(
+            crate::storage::b2::sanitize_endpoint("https://s3.us-east-005.backblazeb2.com/"),
+            "s3.us-east-005.backblazeb2.com"
+        );
+        assert_eq!(
+            crate::storage::b2::sanitize_endpoint("s3.us-east-005.backblazeb2.com"),
+            "s3.us-east-005.backblazeb2.com"
+        );
+    }
+
+    #[test]
+    fn test_b2_clamp_signature_ttl_uses_default_and_max() {
+        assert_eq!(crate::storage::b2::clamp_signature_ttl(0), 900);
+        assert_eq!(crate::storage::b2::clamp_signature_ttl(100), 100);
+        assert_eq!(crate::storage::b2::clamp_signature_ttl(999_999), 86_400);
+    }
+
+    #[test]
+    fn test_b2_get_file_url_uses_path_style_endpoint() {
+        let service = crate::storage::b2::BackblazeB2Service::new(
+            "key-id".to_string(),
+            "application-key".to_string(),
+            "us-east-005".to_string(),
+            "https://s3.us-east-005.backblazeb2.com/".to_string(),
+            "demo-private-bucket".to_string(),
+        )
+        .expect("service should build");
+
+        let url = service.get_file_url("avatars/demo user.png");
+        assert!(
+            url.starts_with("https://s3.us-east-005.backblazeb2.com/demo-private-bucket/")
+                || url.starts_with("http://s3.us-east-005.backblazeb2.com/demo-private-bucket/"),
+            "unexpected host/path style url: {url}"
+        );
+        assert!(
+            url.ends_with("/demo-private-bucket/avatars/demo%20user.png"),
+            "unexpected encoded object key: {url}"
+        );
+    }
+
+    #[test]
+    fn test_create_storage_service_supports_b2_provider() {
+        let provider = StorageProvider {
+            id: Uuid::new_v4(),
+            provider_type: StorageProviderType::BackblazeB2,
+            name: "b2".to_string(),
+            secret_id: "key-id".to_string(),
+            secret_key: "application-key".to_string(),
+            region: "us-east-005".to_string(),
+            endpoint: "https://s3.us-east-005.backblazeb2.com".to_string(),
+            bucket_name: Some("demo-private-bucket".to_string()),
+            is_active: true,
+            is_default: true,
+            description: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            updated_by: None,
+        };
+
+        let result = create_storage_service(&provider);
+        assert!(result.is_ok(), "B2 provider should be accepted");
     }
 }

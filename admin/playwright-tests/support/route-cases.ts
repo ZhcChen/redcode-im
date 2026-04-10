@@ -56,7 +56,7 @@ const ROUTE_CASES: AdminRouteCase[] = [
   {
     id: 'operations-storage-provider',
     path: '/operations/storage-provider',
-    anchorText: '文件上传提供商设置',
+    anchorText: '对象存储配置',
     primaryEndpoint: /\/api\/admin\/storage-providers$/,
     interaction: 'refresh',
     profiles: bothProfiles,
