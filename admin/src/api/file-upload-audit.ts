@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface FileUploadAuditTaskQueryParams {
   providerId?: string;
@@ -70,20 +70,20 @@ export interface FileUploadAuditTaskRequeueResponse {
 export function queryFileUploadAuditTasks(
   params: FileUploadAuditTaskQueryParams
 ) {
-  return axios.get<FileUploadAuditTaskListResponse>(
+  return http.get<FileUploadAuditTaskListResponse>(
     '/api/admin/file-upload-audit/tasks',
     { params }
   );
 }
 
 export function getFileUploadAuditTask(taskId: string) {
-  return axios.get<FileUploadAuditTaskDetailResponse>(
+  return http.get<FileUploadAuditTaskDetailResponse>(
     `/api/admin/file-upload-audit/tasks/${taskId}`
   );
 }
 
 export function requeueFileUploadAuditTask(taskId: string) {
-  return axios.post<FileUploadAuditTaskRequeueResponse>(
+  return http.post<FileUploadAuditTaskRequeueResponse>(
     `/api/admin/file-upload-audit/tasks/${taskId}/requeue`
   );
 }

@@ -70,7 +70,7 @@
   import { reactive, ref, computed } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
-  import axios from 'axios';
+  import http from '@/services/http';
 
   const { loading, setLoading } = useLoading(false);
 
@@ -116,7 +116,7 @@
       testResult.value = null;
 
       // 使用axios发送请求到正确的API地址
-      const response = await axios.post('/api/admin/test-geolocation-api', {
+      const response = await http.post('/api/admin/test-geolocation-api', {
         ip_address: testForm.ip_address.trim(),
       });
 

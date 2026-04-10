@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface SystemLogEntry {
   id: string;
@@ -49,13 +49,13 @@ export interface LogCleanupResponse {
 }
 
 export function querySystemLogs(params: SystemLogQueryParams) {
-  return axios.get<SystemLogsResponse>('/api/admin/logs', { params });
+  return http.get<SystemLogsResponse>('/api/admin/logs', { params });
 }
 
 export function getSystemLogStats() {
-  return axios.get<SystemLogStatsResponse>('/api/admin/logs/stats');
+  return http.get<SystemLogStatsResponse>('/api/admin/logs/stats');
 }
 
 export function cleanupSystemLogs(data: LogCleanupRequest) {
-  return axios.post<LogCleanupResponse>('/api/admin/logs/cleanup', data);
+  return http.post<LogCleanupResponse>('/api/admin/logs/cleanup', data);
 }

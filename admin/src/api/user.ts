@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 import type { RouteRecordNormalized } from 'vue-router';
 
 export function logout(): Promise<void> {
@@ -6,7 +6,7 @@ export function logout(): Promise<void> {
 }
 
 export function getMenuList() {
-  return axios.post<RouteRecordNormalized[]>('/api/user/menu');
+  return http.post<RouteRecordNormalized[]>('/api/user/menu');
 }
 
 export interface UserInfo {
@@ -36,14 +36,14 @@ export interface UserListResponse {
 }
 
 export function getUserList(params?: UserListParams) {
-  return axios.get<UserListResponse>('/api/admin/users', { params });
+  return http.get<UserListResponse>('/api/admin/users', { params });
 }
 
 export function updateUserStatus(
   userId: string,
   status: 'active' | 'inactive' | 'banned'
 ) {
-  return axios.patch(`/api/admin/users/${userId}/status`, { status });
+  return http.patch(`/api/admin/users/${userId}/status`, { status });
 }
 
 export interface CaptchaSetting {
@@ -56,11 +56,11 @@ export interface CaptchaSetting {
 }
 
 export function getCaptchaSetting() {
-  return axios.get<CaptchaSetting>('/api/admin/settings/captcha');
+  return http.get<CaptchaSetting>('/api/admin/settings/captcha');
 }
 
 export function updateCaptchaSetting(setting: Partial<CaptchaSetting>) {
-  return axios.post('/api/admin/settings/captcha', setting);
+  return http.post('/api/admin/settings/captcha', setting);
 }
 
 // 管理员用户管理相关接口
@@ -98,18 +98,18 @@ export interface CreateAdminUserRequest {
 }
 
 export function getAdminUserList(params?: AdminUserListParams) {
-  return axios.get<AdminUserListResponse>('/api/admin/admin-users', { params });
+  return http.get<AdminUserListResponse>('/api/admin/admin-users', { params });
 }
 
 export function createAdminUser(data: CreateAdminUserRequest) {
-  return axios.post<AdminUserInfo>('/api/admin/admin-users', data);
+  return http.post<AdminUserInfo>('/api/admin/admin-users', data);
 }
 
 export function updateAdminUserStatus(
   adminUserId: string,
   status: 'active' | 'inactive' | 'banned' | 'locked'
 ) {
-  return axios.patch(`/api/admin/admin-users/${adminUserId}/status`, {
+  return http.patch(`/api/admin/admin-users/${adminUserId}/status`, {
     status,
   });
 }

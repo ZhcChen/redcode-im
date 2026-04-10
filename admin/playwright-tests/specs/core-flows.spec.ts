@@ -285,6 +285,22 @@ test.describe('admin core flows', () => {
       }
     );
 
+    await page.route(
+      /\/api\/admin\/settings\/message-runtime(?:\?.*)?$/,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            server_storage_mode: 'persist',
+            content_audit_mode: 'plaintext',
+            updated_at: '2026-03-01T00:00:00Z',
+            updated_by: 'admin',
+          }),
+        });
+      }
+    );
+
     await page.goto('/settings/general');
 
     await expect(page).toHaveURL(/\/settings\/general/);

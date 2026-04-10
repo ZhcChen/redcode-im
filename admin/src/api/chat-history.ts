@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface MessagePart {
   id: string;
@@ -68,12 +68,12 @@ export interface UserRoomResponse {
 
 // 获取聊天记录
 export function getChatHistory(params?: ChatHistoryParams) {
-  return axios.get<ChatHistoryResponse>('/api/admin/chat-history', { params });
+  return http.get<ChatHistoryResponse>('/api/admin/chat-history', { params });
 }
 
 // 获取用户参与的房间列表
 export function getUserRooms(userId: string) {
-  return axios.get<UserRoomResponse>(`/api/admin/users/${userId}/rooms`);
+  return http.get<UserRoomResponse>(`/api/admin/users/${userId}/rooms`);
 }
 
 // 获取特定房间的聊天记录
@@ -81,7 +81,7 @@ export function getRoomChatHistory(
   roomId: string,
   params?: Omit<ChatHistoryParams, 'room_id'>
 ) {
-  return axios.get<ChatHistoryResponse>(
+  return http.get<ChatHistoryResponse>(
     `/api/admin/rooms/${roomId}/chat-history`,
     { params }
   );

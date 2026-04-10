@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface FeedbackItem {
   id: string;
@@ -25,5 +25,5 @@ export interface FeedbackListResponse {
 }
 
 export function getFeedbackList(params?: FeedbackListParams) {
-  return axios.get<FeedbackListResponse>('/api/admin/feedbacks', { params });
+  return http.get<FeedbackListResponse>('/api/admin/feedbacks', { params });
 }

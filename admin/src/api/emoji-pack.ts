@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 // ========== 贴纸相关类型 ==========
 
@@ -70,51 +70,51 @@ export interface UpdateEmojiItemPayload {
 
 export function listAllEmojiPacks(keyword?: string) {
   const params = keyword ? { keyword } : {};
-  return axios.get<EmojiPack[]>('/api/admin/emoji-packs', { params });
+  return http.get<EmojiPack[]>('/api/admin/emoji-packs', { params });
 }
 
 export function createEmojiPack(payload: CreateEmojiPackPayload) {
-  return axios.post<EmojiPack>('/api/admin/emoji-packs', payload);
+  return http.post<EmojiPack>('/api/admin/emoji-packs', payload);
 }
 
 export function getEmojiPack(packId: string) {
-  return axios.get<EmojiPackWithItems>(`/api/admin/emoji-packs/${packId}`);
+  return http.get<EmojiPackWithItems>(`/api/admin/emoji-packs/${packId}`);
 }
 
 export function updateEmojiPack(
   packId: string,
   payload: UpdateEmojiPackPayload
 ) {
-  return axios.patch<EmojiPack>(`/api/admin/emoji-packs/${packId}`, payload);
+  return http.patch<EmojiPack>(`/api/admin/emoji-packs/${packId}`, payload);
 }
 
 export function deleteEmojiPack(packId: string) {
-  return axios.delete(`/api/admin/emoji-packs/${packId}`);
+  return http.delete(`/api/admin/emoji-packs/${packId}`);
 }
 
 // ========== 表情项管理 API ==========
 
 export function createEmojiItem(payload: CreateEmojiItemPayload) {
-  return axios.post<EmojiItem>('/api/admin/emoji-items', payload);
+  return http.post<EmojiItem>('/api/admin/emoji-items', payload);
 }
 
 export function getEmojiItem(itemId: string) {
-  return axios.get<EmojiItem>(`/api/admin/emoji-items/${itemId}`);
+  return http.get<EmojiItem>(`/api/admin/emoji-items/${itemId}`);
 }
 
 export function updateEmojiItem(
   itemId: string,
   payload: UpdateEmojiItemPayload
 ) {
-  return axios.patch<EmojiItem>(`/api/admin/emoji-items/${itemId}`, payload);
+  return http.patch<EmojiItem>(`/api/admin/emoji-items/${itemId}`, payload);
 }
 
 export function deleteEmojiItem(itemId: string) {
-  return axios.delete(`/api/admin/emoji-items/${itemId}`);
+  return http.delete(`/api/admin/emoji-items/${itemId}`);
 }
 
 // ========== 贴纸包相关 API ==========
 
 export function getSuitePacks(suiteId: string) {
-  return axios.get<EmojiPack[]>(`/api/admin/emoji-packs?parent_id=${suiteId}`);
+  return http.get<EmojiPack[]>(`/api/admin/emoji-packs?parent_id=${suiteId}`);
 }

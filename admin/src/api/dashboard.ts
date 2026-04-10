@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface SystemStats {
   totalUsers: number;
@@ -13,7 +13,7 @@ export interface SystemStats {
 }
 
 export function getSystemStats() {
-  return axios.get<SystemStats>('/api/dashboard/stats');
+  return http.get<SystemStats>('/api/dashboard/stats');
 }
 
 export interface SystemMonitor {
@@ -26,7 +26,7 @@ export interface SystemMonitor {
 }
 
 export function getSystemMonitor() {
-  return axios.get<SystemMonitor>('/api/dashboard/monitor');
+  return http.get<SystemMonitor>('/api/dashboard/monitor');
 }
 
 export interface NodeMonitor {
@@ -44,7 +44,7 @@ export interface NodeMonitor {
 }
 
 export function getNodesMonitor() {
-  return axios.get<NodeMonitor[]>('/api/admin/nodes/monitor');
+  return http.get<NodeMonitor[]>('/api/admin/nodes/monitor');
 }
 
 export interface ApiPerformanceMetric {
@@ -70,7 +70,7 @@ export function getApiPerformanceMetrics(params: {
   sort_field?: string;
   sort_order?: string;
 }) {
-  return axios.get<ApiPerformanceResponse>('/api/admin/metrics/performance', {
+  return http.get<ApiPerformanceResponse>('/api/admin/metrics/performance', {
     params,
   });
 }
@@ -97,7 +97,7 @@ export interface DataStatistics {
 }
 
 export function getDataStatistics() {
-  return axios.get<DataStatistics>('/api/dashboard/statistics');
+  return http.get<DataStatistics>('/api/dashboard/statistics');
 }
 
 export interface DashboardStorageStats {
@@ -107,7 +107,7 @@ export interface DashboardStorageStats {
 }
 
 export function getDashboardStorageStats() {
-  return axios.get<DashboardStorageStats>('/api/dashboard/storage-stats');
+  return http.get<DashboardStorageStats>('/api/dashboard/storage-stats');
 }
 
 export interface DashboardEmojiStats {
@@ -117,7 +117,7 @@ export interface DashboardEmojiStats {
 }
 
 export function getDashboardEmojiStats() {
-  return axios.get<DashboardEmojiStats>('/api/dashboard/emoji-stats');
+  return http.get<DashboardEmojiStats>('/api/dashboard/emoji-stats');
 }
 
 export interface PopularContentItem {

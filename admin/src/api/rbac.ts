@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface PermissionInfo {
   id: string;
@@ -136,7 +136,7 @@ function normalizeAdminUserRoleAssignment(
 }
 
 export function getPermissionList() {
-  return axios
+  return http
     .get<{ permissions: BackendPermissionInfo[] }>('/api/admin/permissions')
     .then((res) => ({
       ...res,
@@ -147,7 +147,7 @@ export function getPermissionList() {
 }
 
 export function getRoleList() {
-  return axios
+  return http
     .get<{ roles: BackendRoleInfo[] }>('/api/admin/roles')
     .then((res) => ({
       ...res,
@@ -158,7 +158,7 @@ export function getRoleList() {
 }
 
 export function createRole(payload: CreateRolePayload) {
-  return axios.post<BackendRoleInfo>('/api/admin/roles', {
+  return http.post<BackendRoleInfo>('/api/admin/roles', {
     name: payload.name,
     code: payload.code,
     description: payload.description ?? null,
@@ -167,7 +167,7 @@ export function createRole(payload: CreateRolePayload) {
 }
 
 export function updateRole(roleId: string, payload: UpdateRolePayload) {
-  return axios.patch<BackendRoleInfo>(`/api/admin/roles/${roleId}`, {
+  return http.patch<BackendRoleInfo>(`/api/admin/roles/${roleId}`, {
     name: payload.name,
     description: payload.description ?? null,
     permission_ids: payload.permissionIds,
@@ -175,13 +175,13 @@ export function updateRole(roleId: string, payload: UpdateRolePayload) {
 }
 
 export function deleteRole(roleId: string) {
-  return axios.delete<{ success: boolean; message: string }>(
+  return http.delete<{ success: boolean; message: string }>(
     `/api/admin/roles/${roleId}`
   );
 }
 
 export function getRolePermissionAssignment(roleId: string) {
-  return axios
+  return http
     .get<BackendRolePermissionAssignment>(
       `/api/admin/roles/${roleId}/permissions`
     )
@@ -195,7 +195,7 @@ export function updateRolePermissionAssignment(
   roleId: string,
   permissionIds: string[]
 ) {
-  return axios.put<BackendRolePermissionAssignment>(
+  return http.put<BackendRolePermissionAssignment>(
     `/api/admin/roles/${roleId}/permissions`,
     {
       permission_ids: permissionIds,
@@ -204,7 +204,7 @@ export function updateRolePermissionAssignment(
 }
 
 export function getAdminUserRoleAssignment(adminUserId: string) {
-  return axios
+  return http
     .get<BackendAdminUserRoleAssignment>(
       `/api/admin/admin-users/${adminUserId}/roles`
     )
@@ -218,7 +218,7 @@ export function updateAdminUserRoleAssignment(
   adminUserId: string,
   roleIds: string[]
 ) {
-  return axios.put<BackendAdminUserRoleAssignment>(
+  return http.put<BackendAdminUserRoleAssignment>(
     `/api/admin/admin-users/${adminUserId}/roles`,
     {
       role_ids: roleIds,

@@ -1,7 +1,7 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 const cleanupAllAppData = () => {
-  return axios.post('/admin/data/cleanup/all', {});
+  return http.post('/admin/data/cleanup/all', {});
 };
 
 export default cleanupAllAppData;

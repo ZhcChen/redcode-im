@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface ReportAttachmentItem {
   key: string;
@@ -35,5 +35,5 @@ export interface ReportListResponse {
 }
 
 export function getReportList(params?: ReportListParams) {
-  return axios.get<ReportListResponse>('/api/admin/reports', { params });
+  return http.get<ReportListResponse>('/api/admin/reports', { params });
 }

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface PushLogEntry {
   id: string;
@@ -60,11 +60,11 @@ export interface PushLogCleanupResponse {
 }
 
 export function queryPushLogs(params: PushLogQueryParams) {
-  return axios.get<PushLogsResponse>('/api/admin/push/logs', { params });
+  return http.get<PushLogsResponse>('/api/admin/push/logs', { params });
 }
 
 export function cleanupPushLogs(data: PushLogCleanupRequest) {
-  return axios.post<PushLogCleanupResponse>(
+  return http.post<PushLogCleanupResponse>(
     '/api/admin/push/logs/cleanup',
     data
   );

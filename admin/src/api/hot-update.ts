@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 import type { AppPlatform } from './app-version';
 
 export interface HotUpdateInfo {
@@ -106,17 +106,17 @@ export interface UpdateHotUpdatePayload {
 }
 
 export function listHotUpdates(params: ListHotUpdatesParams) {
-  return axios.get<ListHotUpdatesResponse>('/api/admin/hot-updates', {
+  return http.get<ListHotUpdatesResponse>('/api/admin/hot-updates', {
     params,
   });
 }
 
 export function createHotUpdate(payload: CreateHotUpdatePayload) {
-  return axios.post<HotUpdateInfo>('/api/admin/hot-updates', payload);
+  return http.post<HotUpdateInfo>('/api/admin/hot-updates', payload);
 }
 
 export function listHotUpdateEvents(params: ListHotUpdateEventsParams) {
-  return axios.get<ListHotUpdateEventsResponse>(
+  return http.get<ListHotUpdateEventsResponse>(
     '/api/admin/hot-updates/events',
     {
       params,
@@ -125,21 +125,21 @@ export function listHotUpdateEvents(params: ListHotUpdateEventsParams) {
 }
 
 export function updateHotUpdate(id: string, payload: UpdateHotUpdatePayload) {
-  return axios.patch<HotUpdateInfo>(`/api/admin/hot-updates/${id}`, payload);
+  return http.patch<HotUpdateInfo>(`/api/admin/hot-updates/${id}`, payload);
 }
 
 export function getHotUpdate(id: string) {
-  return axios.get<HotUpdateInfo>(`/api/admin/hot-updates/${id}`);
+  return http.get<HotUpdateInfo>(`/api/admin/hot-updates/${id}`);
 }
 
 export function deleteHotUpdate(id: string) {
-  return axios.delete(`/api/admin/hot-updates/${id}`);
+  return http.delete(`/api/admin/hot-updates/${id}`);
 }
 
 export function activateHotUpdate(id: string) {
-  return axios.post<HotUpdateInfo>(`/api/admin/hot-updates/${id}/activate`);
+  return http.post<HotUpdateInfo>(`/api/admin/hot-updates/${id}/activate`);
 }
 
 export function deactivateHotUpdate(id: string) {
-  return axios.post<HotUpdateInfo>(`/api/admin/hot-updates/${id}/deactivate`);
+  return http.post<HotUpdateInfo>(`/api/admin/hot-updates/${id}/deactivate`);
 }

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface MultipartSessionInfo {
   session_id: string;
@@ -49,7 +49,7 @@ export interface MultipartCompletedPart {
 }
 
 export function getAdminMultipartSession(sessionId: string) {
-  return axios.get<MultipartSessionResponse>(
+  return http.get<MultipartSessionResponse>(
     `/api/admin/uploads/multipart/sessions/${sessionId}`
   );
 }
@@ -58,7 +58,7 @@ export function generateAdminMultipartPartSignature(
   sessionId: string,
   partNumber: number
 ) {
-  return axios.post<MultipartPartSignatureResponse>(
+  return http.post<MultipartPartSignatureResponse>(
     `/api/admin/uploads/multipart/sessions/${sessionId}/parts/signature`,
     { part_number: partNumber }
   );
@@ -69,7 +69,7 @@ export function commitAdminMultipartPart(
   partNumber: number,
   etag: string
 ) {
-  return axios.post<MultipartPartCommitResponse>(
+  return http.post<MultipartPartCommitResponse>(
     `/api/admin/uploads/multipart/sessions/${sessionId}/parts/commit`,
     { part_number: partNumber, etag }
   );
@@ -79,14 +79,14 @@ export function completeAdminMultipartUpload(
   sessionId: string,
   parts: MultipartCompletedPart[]
 ) {
-  return axios.post<MultipartCompleteResponse>(
+  return http.post<MultipartCompleteResponse>(
     `/api/admin/uploads/multipart/sessions/${sessionId}/complete`,
     { parts }
   );
 }
 
 export function abortAdminMultipartUpload(sessionId: string) {
-  return axios.post<MultipartAbortResponse>(
+  return http.post<MultipartAbortResponse>(
     `/api/admin/uploads/multipart/sessions/${sessionId}/abort`
   );
 }

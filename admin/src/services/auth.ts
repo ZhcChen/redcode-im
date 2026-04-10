@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface LoginData {
   username: string;
@@ -41,21 +41,21 @@ export interface AdminRefreshSessionData {
 }
 
 export function loginAdmin(data: LoginData) {
-  return axios.post<LoginRes>('/auth/admin/login', data);
+  return http.post<LoginRes>('/auth/admin/login', data);
 }
 
 export function getCurrentAdmin() {
-  return axios.get<BackendUserInfo>('/auth/admin/me');
+  return http.get<BackendUserInfo>('/auth/admin/me');
 }
 
 export function refreshAdminSession(data: AdminRefreshSessionData) {
-  return axios.post<LoginRes>('/auth/admin/refresh', data);
+  return http.post<LoginRes>('/auth/admin/refresh', data);
 }
 
 export function getAdminBootstrapStatus() {
-  return axios.get<AdminBootstrapStatusResponse>('/api/admin/bootstrap/status');
+  return http.get<AdminBootstrapStatusResponse>('/api/admin/bootstrap/status');
 }
 
 export function bootstrapAdmin(data: AdminBootstrapInitData) {
-  return axios.post<LoginRes>('/api/admin/bootstrap/init', data);
+  return http.post<LoginRes>('/api/admin/bootstrap/init', data);
 }

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 // 平台枚举类型
 // eslint-disable-next-line no-shadow
@@ -52,7 +52,7 @@ export interface ListAppVersionsParams {
 }
 
 export function listAppVersions(params: ListAppVersionsParams) {
-  return axios.get<ListAppVersionsResponse>('/api/admin/app-versions', {
+  return http.get<ListAppVersionsResponse>('/api/admin/app-versions', {
     params,
   });
 }
@@ -75,7 +75,7 @@ export interface CreateAppVersionPayload {
 }
 
 export function createAppVersion(payload: CreateAppVersionPayload) {
-  return axios.post<AppVersionInfo>('/api/admin/app-versions', payload);
+  return http.post<AppVersionInfo>('/api/admin/app-versions', payload);
 }
 
 export interface UpdateAppVersionPayload {
@@ -92,19 +92,19 @@ export interface UpdateAppVersionPayload {
 }
 
 export function updateAppVersion(id: string, payload: UpdateAppVersionPayload) {
-  return axios.patch<AppVersionInfo>(`/api/admin/app-versions/${id}`, payload);
+  return http.patch<AppVersionInfo>(`/api/admin/app-versions/${id}`, payload);
 }
 
 export function getAppVersion(id: string) {
-  return axios.get<AppVersionInfo>(`/api/admin/app-versions/${id}`);
+  return http.get<AppVersionInfo>(`/api/admin/app-versions/${id}`);
 }
 
 export function deleteAppVersion(id: string) {
-  return axios.delete(`/api/admin/app-versions/${id}`);
+  return http.delete(`/api/admin/app-versions/${id}`);
 }
 
 export function deactivateAppVersion(id: string) {
-  return axios.post<AppVersionInfo>(`/api/admin/app-versions/${id}/deactivate`);
+  return http.post<AppVersionInfo>(`/api/admin/app-versions/${id}/deactivate`);
 }
 
 export interface VersionUploadSignatureRequest {
@@ -133,7 +133,7 @@ export interface VersionUploadSignatureResponse {
 export function generateVersionUploadSignature(
   payload: VersionUploadSignatureRequest
 ) {
-  return axios.post<VersionUploadSignatureResponse>(
+  return http.post<VersionUploadSignatureResponse>(
     '/api/admin/app-versions/upload/signature',
     payload
   );
@@ -161,7 +161,7 @@ export interface VersionMultipartInitiateResponse {
 export function initiateVersionMultipartUpload(
   payload: VersionMultipartInitiateRequest
 ) {
-  return axios.post<VersionMultipartInitiateResponse>(
+  return http.post<VersionMultipartInitiateResponse>(
     '/api/admin/app-versions/upload/multipart/initiate',
     payload
   );
@@ -179,7 +179,7 @@ export interface VersionDownloadResponse {
 }
 
 export function generateVersionDownloadUrl(params: DownloadVersionParams) {
-  return axios.get<VersionDownloadResponse>('/versions/download', {
+  return http.get<VersionDownloadResponse>('/versions/download', {
     params,
   });
 }

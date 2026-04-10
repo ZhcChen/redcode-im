@@ -33,7 +33,7 @@
   import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
   import * as echarts from 'echarts';
   import { Message } from '@arco-design/web-vue';
-  import axios from 'axios';
+  import http from '@/services/http';
   import StatisticCard from '@/components/statistic-card/index.vue';
   import worldGeoJson from '@/assets/world.json';
 
@@ -232,7 +232,7 @@
   async function fetchUserDistribution() {
     loading.value = true;
     try {
-      const response = await axios.get(
+      const response = await http.get(
         '/api/admin/users/geolocation/distribution'
       );
       if (response.data && Array.isArray(response.data)) {

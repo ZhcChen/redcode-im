@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
@@ -16,11 +16,7 @@ export interface HttpResponse<T = unknown> {
   data: T;
 }
 
-if (import.meta.env.VITE_API_BASE_URL) {
-  axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL;
-}
-
-axios.interceptors.request.use(
+http.interceptors.request.use(
   (config: AxiosRequestConfig) => {
     // let each request carry token
     // this example using the JWT token
@@ -40,7 +36,7 @@ axios.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-axios.interceptors.response.use(
+http.interceptors.response.use(
   (response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
     const hasCustomCode =
@@ -106,7 +102,7 @@ axios.interceptors.response.use(
           originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           originalRequest.suppressGlobalErrorMessage = true;
-          return axios(originalRequest);
+          return http(originalRequest);
         }
       } else {
         clearToken();

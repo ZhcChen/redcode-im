@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface DocumentContent {
   key: string;
@@ -14,22 +14,22 @@ export interface UpdateDocumentPayload {
 }
 
 export function getPrivacyPolicy() {
-  return axios.get<DocumentContent>('/api/admin/settings/privacy-policy');
+  return http.get<DocumentContent>('/api/admin/settings/privacy-policy');
 }
 
 export function updatePrivacyPolicy(payload: UpdateDocumentPayload) {
-  return axios.post<DocumentContent>(
+  return http.post<DocumentContent>(
     '/api/admin/settings/privacy-policy',
     payload
   );
 }
 
 export function getUserAgreement() {
-  return axios.get<DocumentContent>('/api/admin/settings/user-agreement');
+  return http.get<DocumentContent>('/api/admin/settings/user-agreement');
 }
 
 export function updateUserAgreement(payload: UpdateDocumentPayload) {
-  return axios.post<DocumentContent>(
+  return http.post<DocumentContent>(
     '/api/admin/settings/user-agreement',
     payload
   );
@@ -61,14 +61,11 @@ export interface UpdatePushSettingsPayload {
 }
 
 export function getPushSettings() {
-  return axios.get<GetPushSettingsResponse>('/api/admin/settings/push');
+  return http.get<GetPushSettingsResponse>('/api/admin/settings/push');
 }
 
 export function updatePushSettings(payload: UpdatePushSettingsPayload) {
-  return axios.put<GetPushSettingsResponse>(
-    '/api/admin/settings/push',
-    payload
-  );
+  return http.put<GetPushSettingsResponse>('/api/admin/settings/push', payload);
 }
 
 export interface UpsertFcmProviderPayload {
@@ -77,7 +74,7 @@ export interface UpsertFcmProviderPayload {
 }
 
 export function upsertPushProviderConfig(provider: string, payload: any) {
-  return axios.put<PushProviderConfigView>(
+  return http.put<PushProviderConfigView>(
     `/api/admin/settings/push/providers/${provider}`,
     payload
   );
@@ -97,7 +94,7 @@ export interface TestPushResponse {
 }
 
 export function testPush(payload: TestPushPayload) {
-  return axios.post<TestPushResponse>('/api/admin/settings/push/test', payload);
+  return http.post<TestPushResponse>('/api/admin/settings/push/test', payload);
 }
 
 export interface PushJobQueueStatsResponse {
@@ -111,9 +108,7 @@ export interface PushJobQueueStatsResponse {
 }
 
 export function getPushJobQueueStats() {
-  return axios.get<PushJobQueueStatsResponse>(
-    '/api/admin/push/job-queue/stats'
-  );
+  return http.get<PushJobQueueStatsResponse>('/api/admin/push/job-queue/stats');
 }
 
 // ========== 文件上传提供商管理 API ==========
@@ -203,29 +198,29 @@ export interface UpdateStorageProviderPayload {
 }
 
 export function listStorageProviders() {
-  return axios.get<StorageProviderListResponse>('/api/admin/storage-providers');
+  return http.get<StorageProviderListResponse>('/api/admin/storage-providers');
 }
 
 export function createStorageProvider(payload: CreateStorageProviderPayload) {
-  return axios.post<StorageProvider>('/api/admin/storage-providers', payload);
+  return http.post<StorageProvider>('/api/admin/storage-providers', payload);
 }
 
 export function updateStorageProvider(
   providerId: string,
   payload: UpdateStorageProviderPayload
 ) {
-  return axios.patch<StorageProvider>(
+  return http.patch<StorageProvider>(
     `/api/admin/storage-providers/${providerId}`,
     payload
   );
 }
 
 export function deleteStorageProvider(providerId: string) {
-  return axios.delete(`/api/admin/storage-providers/${providerId}`);
+  return http.delete(`/api/admin/storage-providers/${providerId}`);
 }
 
 export function getDefaultStorageProvider() {
-  return axios.get<StorageProvider>('/api/admin/storage-providers/default');
+  return http.get<StorageProvider>('/api/admin/storage-providers/default');
 }
 
 // ========== COS 测试 API ==========
@@ -344,14 +339,14 @@ export interface TestCosCreateBucketRequest {
 }
 
 export function testCosUpload(payload: TestCosUploadRequest) {
-  return axios.post<TestCosUploadResponse>(
+  return http.post<TestCosUploadResponse>(
     '/api/admin/storage-providers/test/upload',
     payload
   );
 }
 
 export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
-  return axios.post<TestCosUploadSignatureResponse>(
+  return http.post<TestCosUploadSignatureResponse>(
     '/api/admin/storage-providers/test/upload/signature',
     payload
   );
@@ -360,56 +355,56 @@ export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
 export function testCosMultipartUploadInitiate(
   payload: TestCosMultipartUploadInitiateRequest
 ) {
-  return axios.post<TestCosMultipartUploadInitiateResponse>(
+  return http.post<TestCosMultipartUploadInitiateResponse>(
     '/api/admin/storage-providers/test/upload/multipart/initiate',
     payload
   );
 }
 
 export function setCosCors(payload: SetCosCorsRequest) {
-  return axios.post<SetCosCorsResponse>(
+  return http.post<SetCosCorsResponse>(
     '/api/admin/storage-providers/test/cors',
     payload
   );
 }
 
 export function getCosCors(payload: GetCosCorsRequest) {
-  return axios.post<GetCosCorsResponse>(
+  return http.post<GetCosCorsResponse>(
     '/api/admin/storage-providers/test/cors/list',
     payload
   );
 }
 
 export function testCosDelete(payload: TestCosDeleteRequest) {
-  return axios.post<TestCosDeleteResponse>(
+  return http.post<TestCosDeleteResponse>(
     '/api/admin/storage-providers/test/delete',
     payload
   );
 }
 
 export function testCosExists(payload: TestCosExistsRequest) {
-  return axios.post<TestCosExistsResponse>(
+  return http.post<TestCosExistsResponse>(
     '/api/admin/storage-providers/test/exists',
     payload
   );
 }
 
 export function testCosDownloadUrl(payload: TestCosDownloadUrlRequest) {
-  return axios.post<TestCosDownloadUrlResponse>(
+  return http.post<TestCosDownloadUrlResponse>(
     '/api/admin/storage-providers/test/download-url',
     payload
   );
 }
 
 export function testCosListBuckets(payload: TestCosListBucketsRequest) {
-  return axios.post<TestCosListBucketsResponse>(
+  return http.post<TestCosListBucketsResponse>(
     '/api/admin/storage-providers/test/buckets',
     payload
   );
 }
 
 export function testCosCreateBucket(payload: TestCosCreateBucketRequest) {
-  return axios.post<TestCosCreateBucketResponse>(
+  return http.post<TestCosCreateBucketResponse>(
     '/api/admin/storage-providers/test/buckets/create',
     payload
   );
@@ -443,19 +438,19 @@ export interface UpdateAppNamePayload {
 }
 
 export function getGeneralSettings() {
-  return axios.get<GeneralSettingsResponse>('/settings/general');
+  return http.get<GeneralSettingsResponse>('/settings/general');
 }
 
 export function getAppName() {
-  return axios.get<AppNameResponse>('/settings/app-name');
+  return http.get<AppNameResponse>('/settings/app-name');
 }
 
 export function updateAppName(payload: UpdateAppNamePayload) {
-  return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
+  return http.put<AppNameResponse>('/api/admin/settings/app-name', payload);
 }
 
 export function getMessageRuntimeSettings() {
-  return axios.get<MessageRuntimeSettingsResponse>(
+  return http.get<MessageRuntimeSettingsResponse>(
     '/api/admin/settings/message-runtime'
   );
 }
@@ -463,7 +458,7 @@ export function getMessageRuntimeSettings() {
 export function updateMessageRuntimeSettings(
   payload: UpdateMessageRuntimeSettingsPayload
 ) {
-  return axios.put<MessageRuntimeSettingsResponse>(
+  return http.put<MessageRuntimeSettingsResponse>(
     '/api/admin/settings/message-runtime',
     payload
   );
@@ -490,13 +485,13 @@ export interface UpdateUserAccountLimitPayload {
 }
 
 export function getUserAccountLimit() {
-  return axios.get<UserAccountLimitResponse>(
+  return http.get<UserAccountLimitResponse>(
     '/api/admin/settings/user-account-limit'
   );
 }
 
 export function updateUserAccountLimit(payload: UpdateUserAccountLimitPayload) {
-  return axios.put<UserAccountLimitResponse>(
+  return http.put<UserAccountLimitResponse>(
     '/api/admin/settings/user-account-limit',
     payload
   );
@@ -546,13 +541,13 @@ export type UpdateUploadPolicyPayload = Omit<
 >;
 
 export function getUploadPolicy() {
-  return axios.get<UploadPolicyAdminResponse>(
+  return http.get<UploadPolicyAdminResponse>(
     '/api/admin/settings/upload-policy'
   );
 }
 
 export function updateUploadPolicy(payload: UpdateUploadPolicyPayload) {
-  return axios.put<UploadPolicyAdminResponse>(
+  return http.put<UploadPolicyAdminResponse>(
     '/api/admin/settings/upload-policy',
     payload
   );
@@ -570,7 +565,7 @@ export interface SetIpGeolocationEnabledPayload {
 }
 
 export function getIpGeolocationEnabled() {
-  return axios.get<IpGeolocationStatusResponse>(
+  return http.get<IpGeolocationStatusResponse>(
     '/api/admin/ip-geolocation/enabled'
   );
 }
@@ -578,7 +573,7 @@ export function getIpGeolocationEnabled() {
 export function setIpGeolocationEnabled(
   payload: SetIpGeolocationEnabledPayload
 ) {
-  return axios.patch<IpGeolocationStatusResponse>(
+  return http.patch<IpGeolocationStatusResponse>(
     '/api/admin/ip-geolocation/enabled',
     payload
   );
@@ -599,7 +594,7 @@ export interface GetCosDownloadUrlResponse {
 }
 
 export function getCosDownloadUrl(payload: GetCosDownloadUrlRequest) {
-  return axios.post<GetCosDownloadUrlResponse>(
+  return http.post<GetCosDownloadUrlResponse>(
     '/api/admin/storage-providers/test/download-url',
     payload
   );

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import http from '@/services/http';
 
 export interface UserInfo {
   id: string;
@@ -28,19 +28,19 @@ export interface UploadAvatarResponse {
 }
 
 export function getCurrentUserInfo() {
-  return axios.get<UserInfo>('/auth/admin/me');
+  return http.get<UserInfo>('/auth/admin/me');
 }
 
 export function updateCurrentUserProfile(data: UpdateUserProfileRequest) {
-  return axios.patch<UserInfo>('/auth/admin/me', data);
+  return http.patch<UserInfo>('/auth/admin/me', data);
 }
 
 export function changeCurrentUserPassword(data: ChangePasswordRequest) {
-  return axios.post('/auth/admin/me/password', data);
+  return http.post('/auth/admin/me/password', data);
 }
 
 export function updateUserAvatar(avatarUrl: string) {
-  return axios.patch<{ success: boolean; message: string; data: UserInfo }>(
+  return http.patch<{ success: boolean; message: string; data: UserInfo }>(
     '/auth/admin/me',
     { avatar_url: avatarUrl }
   );
