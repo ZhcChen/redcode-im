@@ -1,10 +1,5 @@
 import { defineStore } from 'pinia';
-import {
-  logout as userLogout,
-  LoginData,
-  LoginRes,
-  BackendUserInfo,
-} from '@/api/user';
+import { logout as userLogout } from '@/api/user';
 import {
   setToken,
   setRefreshToken,
@@ -17,6 +12,11 @@ import {
   loginAdmin,
   refreshAdminSession,
 } from '@/features/auth/api';
+import type {
+  BackendUserInfo,
+  LoginData,
+  LoginRes,
+} from '@/features/auth/types';
 import { registerAdminSessionRefresh } from '@/features/auth/runtime';
 import { removeRouteListener } from '@/utils/route-listener';
 import { UserState } from './types';
@@ -92,7 +92,9 @@ const useUserStore = defineStore('user', {
     applyAuthResult(payload: LoginRes) {
       setToken(payload.token);
       setRefreshToken(payload.refresh_token ?? null);
-      this.setInfo(mapBackendUser(payload.user));
+      if (payload.user) {
+        this.setInfo(mapBackendUser(payload.user));
+      }
     },
 
     // Reset user's information

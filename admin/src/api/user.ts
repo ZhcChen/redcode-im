@@ -1,42 +1,8 @@
 import axios from 'axios';
 import type { RouteRecordNormalized } from 'vue-router';
 
-export interface LoginData {
-  username: string;
-  password: string;
-}
-
-export interface BackendUserInfo {
-  id: string;
-  username: string;
-  email: string;
-  nickname?: string | null;
-  avatarUrl?: string | null; // 注意：后端返回的是 avatarUrl（驼峰）
-  status: string;
-  roleCodes?: string[];
-  permissionKeys?: string[];
-  isSuperAdmin?: boolean;
-  lastLoginAt?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface LoginRes {
-  token: string;
-  user: BackendUserInfo;
-  refresh_token?: string | null;
-}
-
-export function login(data: LoginData) {
-  return axios.post<LoginRes>('/auth/admin/login', data);
-}
-
 export function logout(): Promise<void> {
   return Promise.resolve();
-}
-
-export function getUserInfo() {
-  return axios.get<BackendUserInfo>('/auth/admin/me');
 }
 
 export function getMenuList() {

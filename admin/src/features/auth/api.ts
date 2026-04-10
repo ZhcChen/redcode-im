@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-import type { BackendUserInfo, LoginData, LoginRes } from '@/api/user';
+import type { BackendUserInfo, LoginData, LoginRes } from './types';
 
 export interface AdminBootstrapStatusResponse {
   bootstrap_required: boolean;
