@@ -328,6 +328,66 @@
           </a-form>
         </a-tab-pane>
 
+        <a-tab-pane key="message-runtime" title="消息运行模式">
+          <a-form
+            :model="messageRuntimeForm"
+            label-align="left"
+            :label-col-props="{ span: 6 }"
+            :wrapper-col-props="{ span: 18 }"
+            class="settings-form"
+            @submit="handleMessageRuntimeSubmit"
+          >
+            <a-alert
+              type="warning"
+              :closable="false"
+              style="margin-bottom: 20px"
+            >
+              relay-only
+              尚未切换完整消息主链路；当前先固化配置面与公开设置返回，后续再逐步切行为。
+            </a-alert>
+
+            <a-form-item field="server_storage_mode" label="服务器存储模式">
+              <a-radio-group v-model="messageRuntimeForm.server_storage_mode">
+                <a-radio value="persist">persist（服务端落库）</a-radio>
+                <a-radio value="relay_only">relay_only（仅实时转发）</a-radio>
+              </a-radio-group>
+              <template #help>
+                切到 relay_only
+                后，历史消息、搜索、审计、引用转发等链路都需要按模式降级。
+              </template>
+            </a-form-item>
+
+            <a-form-item field="content_audit_mode" label="内容审计模式">
+              <a-radio-group v-model="messageRuntimeForm.content_audit_mode">
+                <a-radio value="plaintext">plaintext（明文可审计）</a-radio>
+                <a-radio value="e2ee">e2ee（端侧加密）</a-radio>
+              </a-radio-group>
+              <template #help>
+                当前版本先记录运行模式；切换到 e2ee
+                不会立即改动现有消息收发主链路。
+              </template>
+            </a-form-item>
+
+            <a-form-item label="最后更新">
+              <a-space>
+                <span>{{ formatTime(messageRuntimeMeta.updated_at) }}</span>
+                <span v-if="messageRuntimeMeta.updated_by">
+                  updated_by: {{ messageRuntimeMeta.updated_by }}
+                </span>
+              </a-space>
+            </a-form-item>
+
+            <a-form-item>
+              <a-space>
+                <a-button type="primary" html-type="submit" :loading="loading">
+                  保存设置
+                </a-button>
+                <a-button @click="handleMessageRuntimeReset"> 重置 </a-button>
+              </a-space>
+            </a-form-item>
+          </a-form>
+        </a-tab-pane>
+
         <a-tab-pane key="api-test" title="API测试">
           <ApiTest />
         </a-tab-pane>
@@ -343,9 +403,11 @@
   import {
     getAppName,
     updateAppName,
+    getMessageRuntimeSettings,
     getIpGeolocationEnabled,
     setIpGeolocationEnabled,
     getUserAccountLimit,
+    updateMessageRuntimeSettings,
     updateUserAccountLimit,
     getUploadPolicy,
     updateUploadPolicy,
@@ -356,6 +418,11 @@
 
   const appNameForm = reactive({
     app_name: '',
+  });
+
+  const messageRuntimeForm = reactive({
+    server_storage_mode: 'persist' as 'persist' | 'relay_only',
+    content_audit_mode: 'plaintext' as 'plaintext' | 'e2ee',
   });
 
   const ipGeoForm = reactive({
@@ -372,6 +439,11 @@
   });
 
   const uploadPolicyMeta = reactive({
+    updated_at: '',
+    updated_by: '',
+  });
+
+  const messageRuntimeMeta = reactive({
     updated_at: '',
     updated_by: '',
   });
@@ -448,6 +520,22 @@
       }
     } catch (error) {
       Message.error('获取IP地理位置解析开关状态失败');
+    }
+  };
+
+  const fetchMessageRuntime = async () => {
+    try {
+      const { data } = await getMessageRuntimeSettings();
+      if (!data) return;
+
+      messageRuntimeForm.server_storage_mode =
+        data.server_storage_mode || 'persist';
+      messageRuntimeForm.content_audit_mode =
+        data.content_audit_mode || 'plaintext';
+      messageRuntimeMeta.updated_at = data.updated_at || '';
+      messageRuntimeMeta.updated_by = data.updated_by || '';
+    } catch (error) {
+      Message.error('获取消息运行模式失败');
     }
   };
 
@@ -618,8 +706,29 @@
     fetchUploadPolicy();
   };
 
+  const handleMessageRuntimeSubmit = async () => {
+    try {
+      setLoading(true);
+      await updateMessageRuntimeSettings({
+        server_storage_mode: messageRuntimeForm.server_storage_mode,
+        content_audit_mode: messageRuntimeForm.content_audit_mode,
+      });
+      Message.success('消息运行模式保存成功');
+      await fetchMessageRuntime();
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || '保存失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMessageRuntimeReset = () => {
+    fetchMessageRuntime();
+  };
+
   onMounted(() => {
     fetchAppName();
+    fetchMessageRuntime();
     fetchIpGeolocation();
     fetchAccountLimit();
     fetchUploadPolicy();

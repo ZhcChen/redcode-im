@@ -35,10 +35,76 @@ class DocumentContent {
   }
 }
 
+class MessageRuntimeSettings {
+  const MessageRuntimeSettings({
+    required this.serverStorageMode,
+    required this.contentAuditMode,
+  });
+
+  final String serverStorageMode;
+  final String contentAuditMode;
+
+  factory MessageRuntimeSettings.fromJson(Map<String, dynamic>? json) {
+    return MessageRuntimeSettings(
+      serverStorageMode:
+          (json?['server_storage_mode'] as String?)?.trim().isNotEmpty == true
+              ? json!['server_storage_mode'] as String
+              : 'persist',
+      contentAuditMode:
+          (json?['content_audit_mode'] as String?)?.trim().isNotEmpty == true
+              ? json!['content_audit_mode'] as String
+              : 'plaintext',
+    );
+  }
+}
+
+class GeneralSettings {
+  const GeneralSettings({
+    required this.appName,
+    required this.messageRuntime,
+  });
+
+  final String appName;
+  final MessageRuntimeSettings messageRuntime;
+
+  factory GeneralSettings.fromJson(Map<String, dynamic> json) {
+    return GeneralSettings(
+      appName: (json['app_name'] as String?) ?? '',
+      messageRuntime: MessageRuntimeSettings.fromJson(
+        json['message_runtime'] as Map<String, dynamic>?,
+      ),
+    );
+  }
+}
+
 class SettingsService {
   SettingsService({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  Future<GeneralSettings> fetchGeneralSettings() async {
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/general');
+    try {
+      final response = await _client.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is Map<String, dynamic>) {
+          return GeneralSettings.fromJson(data);
+        }
+      }
+    } catch (_) {
+      // 静默失败，回退默认值
+    }
+
+    return const GeneralSettings(
+      appName: '',
+      messageRuntime: MessageRuntimeSettings(
+        serverStorageMode: 'persist',
+        contentAuditMode: 'plaintext',
+      ),
+    );
+  }
+
   Future<DocumentContent> fetchPrivacyPolicy() async {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/privacy-policy');
     final response = await _client.get(uri);
@@ -58,17 +124,23 @@ class SettingsService {
 
   /// 获取应用名称（公开 API，无需 token）
   Future<String> fetchAppName() async {
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/app-name');
     try {
-      final response = await _client.get(uri);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        return (data['app_name'] as String?) ?? '';
+      final general = await fetchGeneralSettings();
+      if (general.appName.isNotEmpty) {
+        return general.appName;
       }
     } catch (_) {
       // 静默失败，返回默认值
     }
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/settings/app-name');
+    try {
+      final response = await _client.get(uri);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return (data['app_name'] as String?) ?? '';
+      }
+    } catch (_) {}
     return '';
   }
 

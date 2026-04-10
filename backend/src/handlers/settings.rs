@@ -5,6 +5,7 @@ use crate::models::convert::{api_update_document_to_db, db_document_to_api, stri
 use crate::models::{Claims, DocumentContent, UpdateDocumentRequest};
 use crate::AppState;
 use axum::{extract::State, Extension, Json};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 const PRIVACY_POLICY_KEY: &str = "privacy_policy";
@@ -14,6 +15,10 @@ const PRIVACY_POLICY_FALLBACK_CONTENT: &str = "<p>隐私协议内容尚未配置
 const USER_AGREEMENT_KEY: &str = "user_agreement";
 const USER_AGREEMENT_FALLBACK_TITLE: &str = "用户协议";
 const USER_AGREEMENT_FALLBACK_CONTENT: &str = "<p>用户协议内容尚未配置。</p>";
+const MESSAGE_SERVER_STORAGE_MODE_KEY: &str = "message_server_storage_mode";
+const MESSAGE_CONTENT_AUDIT_MODE_KEY: &str = "message_content_audit_mode";
+const DEFAULT_MESSAGE_SERVER_STORAGE_MODE: &str = "persist";
+const DEFAULT_MESSAGE_CONTENT_AUDIT_MODE: &str = "plaintext";
 
 pub async fn get_privacy_policy(
     State(state): State<AppState>,
@@ -115,11 +120,125 @@ pub async fn update_user_agreement(
 #[derive(Serialize)]
 pub struct GeneralSettingsResponse {
     pub app_name: String,
+    pub message_runtime: MessageRuntimeSettingsResponse,
 }
 
 #[derive(Serialize)]
 pub struct AppNameResponse {
     pub app_name: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MessageServerStorageMode {
+    Persist,
+    RelayOnly,
+}
+
+impl MessageServerStorageMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Persist => "persist",
+            Self::RelayOnly => "relay_only",
+        }
+    }
+
+    fn parse(raw: &str) -> Result<Self, AppError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "persist" => Ok(Self::Persist),
+            "relay_only" => Ok(Self::RelayOnly),
+            _ => Err(AppError::ValidationError(
+                "server_storage_mode 仅支持 persist / relay_only".to_string(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MessageContentAuditMode {
+    Plaintext,
+    E2ee,
+}
+
+impl MessageContentAuditMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Plaintext => "plaintext",
+            Self::E2ee => "e2ee",
+        }
+    }
+
+    fn parse(raw: &str) -> Result<Self, AppError> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "plaintext" => Ok(Self::Plaintext),
+            "e2ee" => Ok(Self::E2ee),
+            _ => Err(AppError::ValidationError(
+                "content_audit_mode 仅支持 plaintext / e2ee".to_string(),
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MessageRuntimeSettingsResponse {
+    pub server_storage_mode: String,
+    pub content_audit_mode: String,
+    pub updated_at: Option<String>,
+    pub updated_by: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMessageRuntimeSettingsRequest {
+    pub server_storage_mode: String,
+    pub content_audit_mode: String,
+}
+
+fn merge_message_runtime_metadata(
+    left: Option<&crate::database::models::GeneralSettingRecord>,
+    right: Option<&crate::database::models::GeneralSettingRecord>,
+) -> (Option<DateTime<Utc>>, Option<String>) {
+    let chosen = match (left, right) {
+        (Some(l), Some(r)) => {
+            if l.updated_at >= r.updated_at {
+                Some(l)
+            } else {
+                Some(r)
+            }
+        }
+        (Some(l), None) => Some(l),
+        (None, Some(r)) => Some(r),
+        (None, None) => None,
+    };
+
+    (
+        chosen.map(|record| record.updated_at),
+        chosen.and_then(|record| record.updated_by.map(|value| value.to_string())),
+    )
+}
+
+async fn load_message_runtime_settings(
+    store: &SettingsStore,
+) -> Result<MessageRuntimeSettingsResponse, AppError> {
+    let server_storage = store
+        .get_general_setting(MESSAGE_SERVER_STORAGE_MODE_KEY)
+        .await?;
+    let content_audit = store
+        .get_general_setting(MESSAGE_CONTENT_AUDIT_MODE_KEY)
+        .await?;
+    let (updated_at, updated_by) =
+        merge_message_runtime_metadata(server_storage.as_ref(), content_audit.as_ref());
+
+    Ok(MessageRuntimeSettingsResponse {
+        server_storage_mode: server_storage
+            .as_ref()
+            .map(|record| record.value.clone())
+            .unwrap_or_else(|| DEFAULT_MESSAGE_SERVER_STORAGE_MODE.to_string()),
+        content_audit_mode: content_audit
+            .as_ref()
+            .map(|record| record.value.clone())
+            .unwrap_or_else(|| DEFAULT_MESSAGE_CONTENT_AUDIT_MODE.to_string()),
+        updated_at: updated_at.map(|value| value.to_rfc3339()),
+        updated_by,
+    })
 }
 
 #[derive(Deserialize)]
@@ -133,7 +252,11 @@ pub async fn get_general_settings(
 ) -> Result<Json<GeneralSettingsResponse>, AppError> {
     let store = SettingsStore::new(state.database.clone());
     let app_name = store.get_app_name().await?;
-    Ok(Json(GeneralSettingsResponse { app_name }))
+    let message_runtime = load_message_runtime_settings(&store).await?;
+    Ok(Json(GeneralSettingsResponse {
+        app_name,
+        message_runtime,
+    }))
 }
 
 /// 获取应用名称（公开 API，无需 token）
@@ -172,6 +295,43 @@ pub async fn update_app_name(
     }))
 }
 
+pub async fn get_message_runtime_settings_admin(
+    State(state): State<AppState>,
+) -> Result<Json<MessageRuntimeSettingsResponse>, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    Ok(Json(load_message_runtime_settings(&store).await?))
+}
+
+pub async fn update_message_runtime_settings_admin(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateMessageRuntimeSettingsRequest>,
+) -> Result<Json<MessageRuntimeSettingsResponse>, AppError> {
+    let editor_id = string_to_uuid(&claims.sub)?;
+    let server_storage_mode = MessageServerStorageMode::parse(&payload.server_storage_mode)?;
+    let content_audit_mode = MessageContentAuditMode::parse(&payload.content_audit_mode)?;
+
+    let store = SettingsStore::new(state.database.clone());
+    store
+        .upsert_general_setting(
+            MESSAGE_SERVER_STORAGE_MODE_KEY,
+            server_storage_mode.as_str(),
+            "消息服务器存储模式（persist=落库，relay_only=仅转发）",
+            Some(editor_id),
+        )
+        .await?;
+    store
+        .upsert_general_setting(
+            MESSAGE_CONTENT_AUDIT_MODE_KEY,
+            content_audit_mode.as_str(),
+            "消息内容审计模式（plaintext=明文可审计，e2ee=端侧加密）",
+            Some(editor_id),
+        )
+        .await?;
+
+    Ok(Json(load_message_runtime_settings(&store).await?))
+}
+
 // ===== 验证码设置 API（公开，无需 token）=====
 
 #[derive(Serialize)]
@@ -188,6 +348,49 @@ pub async fn get_captcha_setting_public(
     Ok(Json(CaptchaSettingPublicResponse {
         require_captcha_for_login: require_captcha,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MessageContentAuditMode, MessageServerStorageMode};
+
+    #[test]
+    fn message_server_storage_mode_parse_accepts_supported_values() {
+        assert_eq!(
+            MessageServerStorageMode::parse("persist")
+                .expect("persist should be valid")
+                .as_str(),
+            "persist"
+        );
+        assert_eq!(
+            MessageServerStorageMode::parse("relay_only")
+                .expect("relay_only should be valid")
+                .as_str(),
+            "relay_only"
+        );
+    }
+
+    #[test]
+    fn message_content_audit_mode_parse_accepts_supported_values() {
+        assert_eq!(
+            MessageContentAuditMode::parse("plaintext")
+                .expect("plaintext should be valid")
+                .as_str(),
+            "plaintext"
+        );
+        assert_eq!(
+            MessageContentAuditMode::parse("e2ee")
+                .expect("e2ee should be valid")
+                .as_str(),
+            "e2ee"
+        );
+    }
+
+    #[test]
+    fn message_runtime_mode_parse_rejects_invalid_values() {
+        assert!(MessageServerStorageMode::parse("other").is_err());
+        assert!(MessageContentAuditMode::parse("secret").is_err());
+    }
 }
 
 // ===== 用户账号限制设置 API =====

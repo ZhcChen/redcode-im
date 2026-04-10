@@ -417,8 +417,21 @@ export function testCosCreateBucket(payload: TestCosCreateBucketRequest) {
 
 // ========== 通用设置 API ==========
 
+export interface MessageRuntimeSettingsResponse {
+  server_storage_mode: 'persist' | 'relay_only';
+  content_audit_mode: 'plaintext' | 'e2ee';
+  updated_at?: string | null;
+  updated_by?: string | null;
+}
+
+export interface UpdateMessageRuntimeSettingsPayload {
+  server_storage_mode: 'persist' | 'relay_only';
+  content_audit_mode: 'plaintext' | 'e2ee';
+}
+
 export interface GeneralSettingsResponse {
   app_name: string;
+  message_runtime?: MessageRuntimeSettingsResponse;
 }
 
 export interface AppNameResponse {
@@ -439,6 +452,21 @@ export function getAppName() {
 
 export function updateAppName(payload: UpdateAppNamePayload) {
   return axios.put<AppNameResponse>('/api/admin/settings/app-name', payload);
+}
+
+export function getMessageRuntimeSettings() {
+  return axios.get<MessageRuntimeSettingsResponse>(
+    '/api/admin/settings/message-runtime'
+  );
+}
+
+export function updateMessageRuntimeSettings(
+  payload: UpdateMessageRuntimeSettingsPayload
+) {
+  return axios.put<MessageRuntimeSettingsResponse>(
+    '/api/admin/settings/message-runtime',
+    payload
+  );
 }
 
 // ========== 用户账号限制设置 API ==========

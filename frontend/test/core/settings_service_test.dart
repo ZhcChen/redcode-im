@@ -7,6 +7,44 @@ import 'package:http/testing.dart';
 
 void main() {
   group('SettingsService', () {
+    test('fetchGeneralSettings parses message runtime and falls back safely', () async {
+      final okService = SettingsService(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'app_name': 'Bear Chat',
+              'message_runtime': {
+                'server_storage_mode': 'relay_only',
+                'content_audit_mode': 'e2ee',
+              },
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
+      );
+
+      final fallbackService = SettingsService(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode(['invalid']),
+            200,
+            headers: {'content-type': 'application/json'},
+          ),
+        ),
+      );
+
+      final okSettings = await okService.fetchGeneralSettings();
+      expect(okSettings.appName, 'Bear Chat');
+      expect(okSettings.messageRuntime.serverStorageMode, 'relay_only');
+      expect(okSettings.messageRuntime.contentAuditMode, 'e2ee');
+
+      final fallbackSettings = await fallbackService.fetchGeneralSettings();
+      expect(fallbackSettings.appName, '');
+      expect(fallbackSettings.messageRuntime.serverStorageMode, 'persist');
+      expect(fallbackSettings.messageRuntime.contentAuditMode, 'plaintext');
+    });
+
     test(
       'fetchAppName returns app_name on success and empty on non-200',
       () async {
@@ -26,6 +64,41 @@ void main() {
 
         expect(await successService.fetchAppName(), 'Bear Chat');
         expect(await failService.fetchAppName(), '');
+      },
+    );
+
+    test(
+      'fetchAppName falls back to legacy app-name endpoint when general settings is empty',
+      () async {
+        final service = SettingsService(
+          client: MockClient((request) async {
+            if (request.url.path.endsWith('/settings/general')) {
+              return http.Response(
+                jsonEncode({
+                  'app_name': '',
+                  'message_runtime': {
+                    'server_storage_mode': 'persist',
+                    'content_audit_mode': 'plaintext',
+                  },
+                }),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+
+            if (request.url.path.endsWith('/settings/app-name')) {
+              return http.Response(
+                jsonEncode({'app_name': 'Legacy Name'}),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }
+
+            return http.Response('not found', 404);
+          }),
+        );
+
+        expect(await service.fetchAppName(), 'Legacy Name');
       },
     );
 

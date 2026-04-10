@@ -182,6 +182,11 @@ pub fn create_routes() -> Router<AppState> {
             put(settings::update_app_name),
         )
         .route(
+            "/api/admin/settings/message-runtime",
+            get(settings::get_message_runtime_settings_admin)
+                .put(settings::update_message_runtime_settings_admin),
+        )
+        .route(
             "/api/admin/settings/user-account-limit",
             get(settings::get_user_account_limit).put(settings::update_user_account_limit),
         )
