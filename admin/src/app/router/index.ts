@@ -4,8 +4,8 @@ import 'nprogress/nprogress.css';
 
 import LOGIN_ROUTE from '@/features/auth/routes';
 import appRoutes from './routes';
-import { REDIRECT_MAIN, NOT_FOUND_ROUTE } from './routes/base';
-import createRouteGuard from './guard';
+import { REDIRECT_MAIN, NOT_FOUND_ROUTE } from './base-routes';
+import createRouteGuard from './guards';
 
 NProgress.configure({ showSpinner: false }); // NProgress Configuration
 

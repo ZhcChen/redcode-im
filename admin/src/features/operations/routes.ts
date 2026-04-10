@@ -1,4 +1,4 @@
-import { DEFAULT_LAYOUT } from '@/router/routes/base';
+import { DEFAULT_LAYOUT } from '@/app/router/base-routes';
 import type { AppRouteRecordRaw } from '@/app/router/route-types';
 
 const isDataCleanupEnabled =

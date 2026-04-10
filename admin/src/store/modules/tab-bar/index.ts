@@ -4,7 +4,7 @@ import {
   DEFAULT_ROUTE,
   DEFAULT_ROUTE_NAME,
   REDIRECT_ROUTE_NAME,
-} from '@/router/constants';
+} from '@/app/router/constants';
 import { isString } from '@/utils/is';
 import { TabBarState, TagProps } from './types';
 

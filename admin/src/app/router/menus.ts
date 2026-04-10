@@ -1,4 +1,4 @@
-import appRoutes from '../routes';
+import appRoutes from './routes';
 
 // 在构建时确定的常量，避免环境变量缓存问题
 const isDataCleanupEnabled =

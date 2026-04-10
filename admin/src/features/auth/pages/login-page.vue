@@ -144,7 +144,7 @@
   import { useRouter } from 'vue-router';
 
   import Footer from '@/components/footer/index.vue';
-  import appRoutes from '@/router/routes';
+  import appRoutes from '@/app/router/routes';
   import { useUserStore } from '@/store';
   import usePermission from '@/hooks/permission';
   import { bootstrapAdmin, getAdminBootstrapStatus } from '@/features/auth/api';
