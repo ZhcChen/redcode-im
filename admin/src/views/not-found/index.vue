@@ -11,7 +11,7 @@
   import type { RouteRecordRaw } from 'vue-router';
   import { useRouter } from 'vue-router';
   import usePermission from '@/hooks/permission';
-  import { isLogin } from '@/utils/auth';
+  import { isLogin } from '@/services/auth-runtime';
 
   const router = useRouter();
   const permission = usePermission();

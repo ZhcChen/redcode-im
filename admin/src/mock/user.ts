@@ -5,7 +5,7 @@ import setupMock, {
 } from '@/utils/setup-mock';
 
 import { MockParams } from '@/types/mock';
-import { isLogin } from '@/utils/auth';
+import { isLogin } from '@/services/auth-runtime';
 
 setupMock({
   setup() {

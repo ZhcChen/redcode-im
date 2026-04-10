@@ -6,18 +6,14 @@ import {
   clearToken,
   getRefreshToken,
   getToken,
-} from '@/utils/auth';
+  registerAdminSessionRefresh,
+} from '@/services/auth-runtime';
 import {
   getCurrentAdmin,
   loginAdmin,
   refreshAdminSession,
-} from '@/features/auth/api';
-import type {
-  BackendUserInfo,
-  LoginData,
-  LoginRes,
-} from '@/features/auth/types';
-import { registerAdminSessionRefresh } from '@/features/auth/runtime';
+} from '@/services/auth';
+import type { BackendUserInfo, LoginData, LoginRes } from '@/services/auth';
 import { removeRouteListener } from '@/utils/route-listener';
 import { UserState } from './types';
 import useAppStore from '../app';

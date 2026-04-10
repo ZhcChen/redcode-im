@@ -2,11 +2,12 @@ import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
-import { getToken, clearToken } from '@/utils/auth';
 import {
+  getToken,
+  clearToken,
   requestAdminSessionRefresh,
   shouldBypassAdminSessionRefresh,
-} from '@/features/auth/runtime';
+} from '@/services/auth-runtime';
 
 export interface HttpResponse<T = unknown> {
   status?: number;

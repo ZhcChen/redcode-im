@@ -147,8 +147,8 @@
   import appRoutes from '@/app/router/routes';
   import { useUserStore } from '@/store';
   import usePermission from '@/hooks/permission';
-  import { bootstrapAdmin, getAdminBootstrapStatus } from '@/features/auth/api';
-  import type { LoginRes } from '@/features/auth/types';
+  import { bootstrapAdmin, getAdminBootstrapStatus } from '@/services/auth';
+  import type { LoginRes } from '@/services/auth';
 
   const router = useRouter();
   const { t } = useI18n();

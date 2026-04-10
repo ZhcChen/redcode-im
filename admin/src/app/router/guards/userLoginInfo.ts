@@ -2,7 +2,7 @@ import type { Router, LocationQueryRaw } from 'vue-router';
 import NProgress from 'nprogress'; // progress bar
 
 import { useUserStore } from '@/store';
-import { isLogin } from '@/utils/auth';
+import { isLogin } from '@/services/auth-runtime';
 import appRoutes from '@/app/router/routes';
 import { findFirstAccessibleRoute } from '@/shared/access/route-access';
 
