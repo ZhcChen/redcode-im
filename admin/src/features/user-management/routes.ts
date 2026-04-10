@@ -16,7 +16,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'list',
         name: 'UserList',
-        component: () => import('@/views/user-management/list/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/user-list-page.vue'),
         meta: {
           locale: 'menu.userManagement.list',
           requiresAuth: true,
@@ -26,7 +27,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'feedback',
         name: 'UserFeedback',
-        component: () => import('@/views/feedback/list/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/feedback-page.vue'),
         meta: {
           locale: 'menu.userManagement.feedback',
           requiresAuth: true,
@@ -36,7 +38,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'reports',
         name: 'UserReports',
-        component: () => import('@/views/report/list/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/reports-page.vue'),
         meta: {
           locale: 'menu.userManagement.reports',
           requiresAuth: true,
@@ -46,7 +49,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'chat-history',
         name: 'UserChatHistoryList',
-        component: () => import('@/views/chat-history/list/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/chat-history-list-page.vue'),
         meta: {
           locale: 'menu.userManagement.chatHistory',
           requiresAuth: true,
@@ -56,7 +60,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'chat-history/room/:roomId',
         name: 'RoomChatHistory',
-        component: () => import('@/views/chat-history/room/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/room-chat-history-page.vue'),
         meta: {
           locale: 'menu.chatHistory.room',
           requiresAuth: true,
@@ -67,7 +72,8 @@ const userManagementRoutes: AppRouteRecordRaw[] = [
       {
         path: 'chat-history/user/:userId',
         name: 'UserChatHistoryDetail',
-        component: () => import('@/views/chat-history/user/index.vue'),
+        component: () =>
+          import('@/features/user-management/pages/user-chat-history-page.vue'),
         meta: {
           locale: 'menu.chatHistory.user',
           requiresAuth: true,
