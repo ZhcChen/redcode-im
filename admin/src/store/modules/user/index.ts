@@ -1,13 +1,23 @@
 import { defineStore } from 'pinia';
 import {
-  login as userLogin,
   logout as userLogout,
-  getUserInfo,
   LoginData,
   LoginRes,
   BackendUserInfo,
 } from '@/api/user';
-import { setToken, setRefreshToken, clearToken } from '@/utils/auth';
+import {
+  setToken,
+  setRefreshToken,
+  clearToken,
+  getRefreshToken,
+  getToken,
+} from '@/utils/auth';
+import {
+  getCurrentAdmin,
+  loginAdmin,
+  refreshAdminSession,
+} from '@/features/auth/api';
+import { registerAdminSessionRefresh } from '@/features/auth/runtime';
 import { removeRouteListener } from '@/utils/route-listener';
 import { UserState } from './types';
 import useAppStore from '../app';
@@ -59,6 +69,9 @@ const useUserStore = defineStore('user', {
     userInfo(state: UserState): UserState {
       return { ...state };
     },
+    isSessionHydrated(state: UserState): boolean {
+      return Boolean(state.accountId);
+    },
   },
 
   actions: {
@@ -89,14 +102,58 @@ const useUserStore = defineStore('user', {
 
     // Get user's information
     async info() {
-      const res = await getUserInfo();
+      const res = await getCurrentAdmin();
       this.setInfo(mapBackendUser(res.data));
+      return res.data;
+    },
+
+    async ensureSession() {
+      if (!getToken()) {
+        return false;
+      }
+
+      if (this.isSessionHydrated) {
+        return true;
+      }
+
+      try {
+        await this.info();
+        return true;
+      } catch (error) {
+        return false;
+      }
+    },
+
+    async refreshSession() {
+      const refreshToken = getRefreshToken();
+
+      if (!refreshToken) {
+        this.logoutCallBack();
+        return false;
+      }
+
+      try {
+        const res = await refreshAdminSession({
+          refresh_token: refreshToken,
+        });
+        if (res.data.user) {
+          this.applyAuthResult(res.data);
+        } else {
+          setToken(res.data.token);
+          setRefreshToken(res.data.refresh_token ?? refreshToken);
+          await this.info();
+        }
+        return true;
+      } catch (error) {
+        this.logoutCallBack();
+        return false;
+      }
     },
 
     // Login
     async login(loginForm: LoginData) {
       try {
-        const res = await userLogin(loginForm);
+        const res = await loginAdmin(loginForm);
         this.applyAuthResult(res.data);
       } catch (err) {
         clearToken();
@@ -119,6 +176,11 @@ const useUserStore = defineStore('user', {
       }
     },
   },
+});
+
+registerAdminSessionRefresh(async () => {
+  const userStore = useUserStore();
+  return userStore.refreshSession();
 });
 
 export default useUserStore;

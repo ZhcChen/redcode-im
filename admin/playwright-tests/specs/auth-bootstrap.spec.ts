@@ -40,6 +40,7 @@ test.describe('admin bootstrap auth flow', () => {
   }) => {
     let bootstrapInitCalls = 0;
     let normalLoginCalls = 0;
+    let meCalls = 0;
 
     await page.route(
       /\/api\/admin\/bootstrap\/status(?:\?.*)?$/,
@@ -82,6 +83,7 @@ test.describe('admin bootstrap auth flow', () => {
     });
 
     await page.route(/\/auth\/admin\/me(?:\?.*)?$/, async (route) => {
+      meCalls += 1;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -118,5 +120,6 @@ test.describe('admin bootstrap auth flow', () => {
     await expect(page).toHaveURL(/\/user-management\/list/);
     await expect.poll(() => bootstrapInitCalls).toBe(1);
     await expect.poll(() => normalLoginCalls).toBe(0);
+    await expect.poll(() => meCalls).toBe(0);
   });
 });

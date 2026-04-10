@@ -3,6 +3,8 @@ import NProgress from 'nprogress'; // progress bar
 
 import { useUserStore } from '@/store';
 import { isLogin } from '@/utils/auth';
+import appRoutes from '@/router/routes';
+import { findFirstAccessibleRoute } from '@/shared/access/route-access';
 
 export default function setupUserLoginInfoGuard(router: Router) {
   router.beforeEach(async (to, from, next) => {
@@ -10,8 +12,23 @@ export default function setupUserLoginInfoGuard(router: Router) {
     const userStore = useUserStore();
     if (isLogin()) {
       try {
-        // 总是获取最新的用户信息，确保头像等数据是最新的
-        await userStore.info();
+        const sessionReady = await userStore.ensureSession();
+        if (!sessionReady) {
+          throw new Error('session not ready');
+        }
+
+        if (to.name === 'login') {
+          const destination = findFirstAccessibleRoute(appRoutes, {
+            roleCodes: userStore.roleCodes,
+            permissionKeys: userStore.permissionKeys,
+            isSuperAdmin: userStore.isSuperAdmin,
+            role: userStore.role,
+          }) || { name: 'login' };
+
+          next(destination);
+          return;
+        }
+
         next();
       } catch (error) {
         await userStore.logout();

@@ -42,6 +42,8 @@ const limitedAdminUser = {
 };
 
 async function mockAuth(page: Page) {
+  let meCalls = 0;
+
   await page.route(/\/auth\/admin\/login(?:\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -55,12 +57,19 @@ async function mockAuth(page: Page) {
   });
 
   await page.route(/\/auth\/admin\/me(?:\?.*)?$/, async (route) => {
+    meCalls += 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(adminUser),
     });
   });
+
+  return {
+    getMeCalls() {
+      return meCalls;
+    },
+  };
 }
 
 async function setToken(page: Page) {
@@ -83,7 +92,7 @@ test.describe('admin core flows', () => {
   });
 
   test('login success then navigates to user list', async ({ page }) => {
-    await mockAuth(page);
+    const authTracker = await mockAuth(page);
 
     await page.route(/\/api\/admin\/users(?:\?.*)?$/, async (route) => {
       await route.fulfill({
@@ -122,6 +131,7 @@ test.describe('admin core flows', () => {
     await expect(
       page.locator('.arco-table-td-content').filter({ hasText: /^alice$/ })
     ).toBeVisible();
+    await expect.poll(() => authTracker.getMeCalls()).toBe(0);
   });
 
   test('limited admin login falls back to first accessible page', async ({

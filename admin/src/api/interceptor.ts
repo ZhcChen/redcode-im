@@ -2,13 +2,11 @@ import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
+import { getToken, clearToken } from '@/utils/auth';
 import {
-  getToken,
-  getRefreshToken,
-  setToken,
-  setRefreshToken,
-  clearToken,
-} from '@/utils/auth';
+  requestAdminSessionRefresh,
+  shouldBypassAdminSessionRefresh,
+} from '@/features/auth/runtime';
 
 export interface HttpResponse<T = unknown> {
   status?: number;
@@ -41,10 +39,6 @@ axios.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-// add response interceptors
-let isRefreshing = false;
-let refreshPromise: Promise<void> | null = null;
-
 axios.interceptors.response.use(
   (response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
@@ -103,45 +97,23 @@ axios.interceptors.response.use(
     // 处理 401：尝试使用刷新令牌无感续签
     if (status === 401) {
       const originalRequest = error.config || {};
-      const refreshToken = getRefreshToken();
+      const shouldRetry = !shouldBypassAdminSessionRefresh(originalRequest.url);
 
-      // 登录接口本身或没有刷新令牌时，直接走原有逻辑
-      if (!refreshToken || originalRequest.url === '/auth/admin/login') {
-        // 清理本地 token 并提示
-        clearToken();
+      if (shouldRetry && (await requestAdminSessionRefresh())) {
+        const newToken = getToken();
+        if (newToken) {
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          originalRequest.suppressGlobalErrorMessage = true;
+          return axios(originalRequest);
+        }
       } else {
+        clearToken();
         try {
-          if (!isRefreshing) {
-            isRefreshing = true;
-            refreshPromise = axios
-              .post('/auth/admin/refresh', { refresh_token: refreshToken })
-              .then((res) => {
-                const body = res.data;
-                if (body?.token) {
-                  setToken(body.token);
-                  setRefreshToken(body.refresh_token ?? refreshToken);
-                } else {
-                  clearToken();
-                  throw new Error('刷新令牌响应异常');
-                }
-              })
-              .finally(() => {
-                isRefreshing = false;
-              });
-          }
-
-          await refreshPromise;
-
-          // 使用新的 token 重试原请求
-          const newToken = getToken();
-          if (newToken) {
-            originalRequest.headers = originalRequest.headers || {};
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            originalRequest.suppressGlobalErrorMessage = true;
-            return axios(originalRequest);
-          }
-        } catch (refreshError) {
-          clearToken();
+          const userStore = useUserStore();
+          userStore.logoutCallBack();
+        } catch (logoutError) {
+          // ignore pinia availability errors
         }
       }
     }
