@@ -148,16 +148,16 @@
     }
 
     .monitor-label {
-      font-size: 14px;
       color: var(--color-text-2);
       font-weight: 500;
+      font-size: 14px;
     }
 
     .monitor-value {
       display: flex;
-      align-items: center;
-      gap: 12px;
       flex: 1;
+      gap: 12px;
+      align-items: center;
       margin-left: 20px;
     }
 
@@ -167,10 +167,10 @@
 
     .monitor-number {
       min-width: 40px;
-      text-align: right;
-      font-size: 14px;
-      font-weight: 600;
       color: var(--color-text-1);
+      font-weight: 600;
+      font-size: 14px;
+      text-align: right;
     }
   }
 

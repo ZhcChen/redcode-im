@@ -17,7 +17,7 @@ const dashboardRoutes: AppRouteRecordRaw[] = [
       {
         path: 'workplace',
         name: 'Workplace',
-        component: () => import('@/views/dashboard/workplace/index.vue'),
+        component: () => import('@/features/dashboard/workplace/index.vue'),
         meta: {
           locale: 'menu.dashboard.workplace',
           requiresAuth: true,
@@ -27,7 +27,7 @@ const dashboardRoutes: AppRouteRecordRaw[] = [
       {
         path: 'monitor',
         name: 'Monitor',
-        component: () => import('@/views/dashboard/monitor/index.vue'),
+        component: () => import('@/features/dashboard/monitor/index.vue'),
         meta: {
           locale: 'menu.dashboard.monitor',
           requiresAuth: true,

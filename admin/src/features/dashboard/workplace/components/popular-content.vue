@@ -85,7 +85,7 @@
   }
 
   // 从 API 获取数据
-  const queryPopularList = async (contentType: string = 'text') => {
+  const queryPopularList = async (contentType = 'text') => {
     try {
       const response = await getPopularContent();
       const data =

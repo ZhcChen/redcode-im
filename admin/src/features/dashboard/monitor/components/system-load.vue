@@ -147,45 +147,45 @@
     .load-item {
       .load-header {
         display: flex;
-        justify-content: space-between;
         align-items: center;
+        justify-content: space-between;
         margin-bottom: 8px;
       }
 
       .load-label {
-        font-size: 14px;
         color: var(--color-text-2);
+        font-size: 14px;
       }
 
       .load-value {
-        font-size: 16px;
-        font-weight: 600;
         color: var(--color-text-1);
+        font-weight: 600;
+        font-size: 16px;
       }
     }
 
     .load-summary {
+      display: flex;
+      justify-content: space-between;
       margin-top: 16px;
       padding-top: 16px;
       border-top: 1px solid var(--color-border-2);
-      display: flex;
-      justify-content: space-between;
 
       .summary-item {
         display: flex;
         flex-direction: column;
-        align-items: center;
         gap: 4px;
+        align-items: center;
       }
 
       .summary-label {
-        font-size: 12px;
         color: var(--color-text-3);
+        font-size: 12px;
       }
 
       .summary-value {
-        font-size: 14px;
         font-weight: 600;
+        font-size: 14px;
 
         &.status-normal {
           color: #52c41a;

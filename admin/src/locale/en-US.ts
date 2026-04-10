@@ -1,9 +1,9 @@
 import localeMessageBox from '@/components/message-box/locale/en-US';
 import localeAuth from '@/features/auth/locale/en-US';
 
-import localeWorkplace from '@/views/dashboard/workplace/locale/en-US';
+import localeWorkplace from '@/features/dashboard/workplace/locale/en-US';
 /** simple */
-import localeMonitor from '@/views/dashboard/monitor/locale/en-US';
+import localeMonitor from '@/features/dashboard/monitor/locale/en-US';
 
 import localeUserManagement from '@/features/user-management/locale/user-list-en-US';
 import localeCaptchaSettings from '@/features/settings/locale/captcha-en-US';

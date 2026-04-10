@@ -35,6 +35,7 @@
   import { Message } from '@arco-design/web-vue';
   import axios from 'axios';
   import StatisticCard from '@/components/statistic-card/index.vue';
+  import worldGeoJson from '@/assets/world.json';
 
   defineOptions({
     name: 'UserWorldMap',
@@ -91,51 +92,8 @@
     if (mapDataLoaded) return true;
 
     try {
-      // 尝试多个数据源
-      const mapSources = [
-        'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', // 中国地图
-        'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson', // 备用世界地图
-        'https://raw.githubusercontent.com/python-visualization/folium/master/examples/data/world-countries.json', // 另一个备用源
-      ];
-
-      let geoJson = null;
-      let mapName = 'world';
-      let loadedSource = '';
-
-      // 使用 Promise.any 尝试多个数据源
-      const loadPromises = mapSources.map(async (source) => {
-        const response = await fetch(source);
-        if (response.ok) {
-          return { data: await response.json(), source };
-        }
-        throw new Error(`Failed to load ${source}`);
-      });
-
-      // 使用 Promise.allSettled 找到第一个成功的结果
-      const results = await Promise.allSettled(loadPromises);
-      const successResult = results.find(
-        (
-          result
-        ): result is {
-          status: 'fulfilled';
-          value: { data: any; source: string };
-        } => result.status === 'fulfilled'
-      );
-
-      if (successResult) {
-        geoJson = successResult.value.data;
-        loadedSource = successResult.value.source;
-      } else {
-        throw new Error('所有地图数据源都无法访问');
-      }
-
-      // 如果是中国地图数据，需要调整名称
-      if (loadedSource.includes('100000_full.json')) {
-        mapName = 'china';
-      }
-
-      echarts.registerMap(mapName, geoJson);
-      currentMapName = mapName; // 设置当前地图名称
+      echarts.registerMap('world', worldGeoJson as any);
+      currentMapName = 'world';
       mapDataLoaded = true;
       return true;
     } catch (error) {

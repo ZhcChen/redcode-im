@@ -154,8 +154,8 @@
 
     .info-item {
       display: flex;
-      align-items: center;
       gap: 12px;
+      align-items: center;
       padding: 12px;
       background-color: var(--color-fill-1);
       border-radius: 6px;
@@ -166,15 +166,15 @@
       }
 
       .info-icon {
-        width: 40px;
-        height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: var(--color-primary-light-1);
+        width: 40px;
+        height: 40px;
         color: var(--color-primary-6);
-        border-radius: 6px;
         font-size: 18px;
+        background-color: var(--color-primary-light-1);
+        border-radius: 6px;
       }
 
       .info-content {
@@ -184,43 +184,43 @@
 
         h4 {
           margin: 0;
-          font-size: 14px;
           color: var(--color-text-2);
+          font-size: 14px;
         }
 
         .info-value {
-          font-size: 20px;
-          font-weight: 700;
           color: var(--color-text-1);
+          font-weight: 700;
+          font-size: 20px;
         }
 
         .info-unit {
-          font-size: 12px;
           color: var(--color-text-3);
+          font-size: 12px;
         }
       }
     }
 
     .status-indicator {
-      padding-top: 16px;
-      border-top: 1px solid var(--color-border-2);
       display: flex;
       justify-content: space-between;
+      padding-top: 16px;
+      border-top: 1px solid var(--color-border-2);
 
       .status-item {
         display: flex;
         flex-direction: column;
-        align-items: center;
         gap: 4px;
+        align-items: center;
 
         .status-label {
-          font-size: 12px;
           color: var(--color-text-3);
+          font-size: 12px;
         }
 
         .status-value {
-          font-size: 14px;
           font-weight: 600;
+          font-size: 14px;
 
           &.status-normal {
             color: #52c41a;

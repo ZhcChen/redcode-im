@@ -1,9 +1,9 @@
 import localeMessageBox from '@/components/message-box/locale/zh-CN';
 import localeAuth from '@/features/auth/locale/zh-CN';
 
-import localeWorkplace from '@/views/dashboard/workplace/locale/zh-CN';
+import localeWorkplace from '@/features/dashboard/workplace/locale/zh-CN';
 /** simple */
-import localeMonitor from '@/views/dashboard/monitor/locale/zh-CN';
+import localeMonitor from '@/features/dashboard/monitor/locale/zh-CN';
 
 import localeUserManagement from '@/features/user-management/locale/user-list-zh-CN';
 import localeCaptchaSettings from '@/features/settings/locale/captcha-zh-CN';
