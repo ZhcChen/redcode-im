@@ -4,9 +4,10 @@ import {
   logout as userLogout,
   getUserInfo,
   LoginData,
+  LoginRes,
   BackendUserInfo,
 } from '@/api/user';
-import { setToken, clearToken } from '@/utils/auth';
+import { setToken, setRefreshToken, clearToken } from '@/utils/auth';
 import { removeRouteListener } from '@/utils/route-listener';
 import { UserState } from './types';
 import useAppStore from '../app';
@@ -75,6 +76,12 @@ const useUserStore = defineStore('user', {
       this.$patch(partial);
     },
 
+    applyAuthResult(payload: LoginRes) {
+      setToken(payload.token);
+      setRefreshToken(payload.refresh_token ?? null);
+      this.setInfo(mapBackendUser(payload.user));
+    },
+
     // Reset user's information
     resetInfo() {
       this.$reset();
@@ -90,9 +97,7 @@ const useUserStore = defineStore('user', {
     async login(loginForm: LoginData) {
       try {
         const res = await userLogin(loginForm);
-        const { token, user } = res.data;
-        setToken(token);
-        this.setInfo(mapBackendUser(user));
+        this.applyAuthResult(res.data);
       } catch (err) {
         clearToken();
         throw err;
