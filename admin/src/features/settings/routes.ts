@@ -16,7 +16,7 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'captcha',
         name: 'CaptchaSettings',
-        component: () => import('@/views/settings/captcha/index.vue'),
+        component: () => import('@/features/settings/pages/captcha-page.vue'),
         meta: {
           locale: 'menu.settings.captcha',
           requiresAuth: true,
@@ -26,7 +26,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'privacy-policy',
         name: 'PrivacyPolicySettings',
-        component: () => import('@/views/settings/privacy-policy/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/privacy-policy-page.vue'),
         meta: {
           locale: 'menu.settings.privacyPolicy',
           requiresAuth: true,
@@ -36,7 +37,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'user-agreement',
         name: 'UserAgreementSettings',
-        component: () => import('@/views/settings/user-agreement/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/user-agreement-page.vue'),
         meta: {
           locale: 'menu.settings.userAgreement',
           requiresAuth: true,
@@ -46,7 +48,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'general',
         name: 'GeneralSettings',
-        component: () => import('@/views/settings/general/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/general-settings-page.vue'),
         meta: {
           locale: 'menu.settings.general',
           requiresAuth: true,
@@ -56,7 +59,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'push',
         name: 'PushSettings',
-        component: () => import('@/views/settings/push/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/push-settings-page.vue'),
         meta: {
           locale: 'menu.settings.push',
           requiresAuth: true,
@@ -66,7 +70,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'emoji-pack',
         name: 'EmojiPackSettings',
-        component: () => import('@/views/settings/emoji-pack/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/emoji-pack-page.vue'),
         meta: {
           locale: 'menu.settings.emojiPack',
           requiresAuth: true,
@@ -76,7 +81,8 @@ const settingsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'user-profile',
         name: 'UserProfileSettings',
-        component: () => import('@/views/settings/user-profile/index.vue'),
+        component: () =>
+          import('@/features/settings/pages/user-profile-page.vue'),
         meta: {
           locale: 'menu.settings.userProfile',
           requiresAuth: true,

@@ -412,7 +412,7 @@
     getUploadPolicy,
     updateUploadPolicy,
   } from '@/api/settings';
-  import ApiTest from '../api-test/index.vue';
+  import ApiTest from '../components/api-test-panel.vue';
 
   const { loading, setLoading } = useLoading(false);
 

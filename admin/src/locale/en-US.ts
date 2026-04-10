@@ -6,7 +6,7 @@ import localeWorkplace from '@/views/dashboard/workplace/locale/en-US';
 import localeMonitor from '@/views/dashboard/monitor/locale/en-US';
 
 import localeUserManagement from '@/views/user-management/list/locale/en-US';
-import localeCaptchaSettings from '@/views/settings/captcha/locale/en-US';
+import localeCaptchaSettings from '@/features/settings/locale/captcha-en-US';
 import localeFeedback from '@/views/feedback/list/locale/en-US';
 /** simple end */
 import localeSettings from './en-US/settings';

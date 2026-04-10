@@ -1,10 +1,10 @@
 <template>
-  <div class="privacy-policy-container">
-    <Breadcrumb :items="['menu.settings', 'menu.settings.privacyPolicy']" />
-    <a-card class="general-card" title="隐私协议" :bordered="false">
+  <div class="user-agreement-container">
+    <Breadcrumb :items="['menu.settings', 'menu.settings.userAgreement']" />
+    <a-card class="general-card" title="用户协议" :bordered="false">
       <a-spin :loading="loading" tip="加载中...">
         <div v-if="!loading" class="policy-editor">
-          <a-form layout="vertical">
+          <a-form :model="form" layout="vertical">
             <a-form-item label="标题">
               <a-input
                 v-model="form.title"
@@ -41,8 +41,8 @@
   import useLoading from '@/hooks/loading';
   import RichTextEditor from '@/components/rich-text-editor/index.vue';
   import {
-    getPrivacyPolicy,
-    updatePrivacyPolicy,
+    getUserAgreement,
+    updateUserAgreement,
     type DocumentContent,
   } from '@/api/settings';
 
@@ -58,12 +58,12 @@
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data } = await getPrivacyPolicy();
+      const { data } = await getUserAgreement();
       documentMeta.value = data;
       form.title = data.title ?? '';
       form.content = data.content ?? '';
     } catch (error) {
-      Message.error('加载隐私协议失败，请稍后重试');
+      Message.error('加载用户协议失败，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -77,13 +77,13 @@
 
   const handleSave = async () => {
     if (!form.content || form.content.trim() === '') {
-      Message.warning('请填写隐私协议正文内容');
+      Message.warning('请填写用户协议正文内容');
       return;
     }
 
     saving.value = true;
     try {
-      const { data } = await updatePrivacyPolicy({
+      const { data } = await updateUserAgreement({
         title: form.title,
         content: form.content,
       });
@@ -107,7 +107,7 @@
 </script>
 
 <style lang="less" scoped>
-  .privacy-policy-container {
+  .user-agreement-container {
     padding: 0 20px 20px;
 
     .general-card {

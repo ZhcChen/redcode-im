@@ -457,7 +457,7 @@
     type EmojiItem,
   } from '@/api/emoji-pack';
   import {
-    getDefaultStorageProvider,
+    listStorageProviders,
     testCosUploadSignature,
     testCosDownloadUrl,
     type StorageProvider,
@@ -940,6 +940,21 @@
     fetchPacks();
   };
 
+  const resolveDefaultStorageProvider = async () => {
+    if (defaultStorageProvider.value) {
+      return defaultStorageProvider.value;
+    }
+
+    const response = await listStorageProviders();
+    const data = response.data?.data || response.data;
+    const providers = data?.providers || [];
+    const provider =
+      providers.find((item: StorageProvider) => item.is_default) || null;
+
+    defaultStorageProvider.value = provider;
+    return provider;
+  };
+
   // 触发图标文件选择
   const triggerIconFileSelect = () => {
     iconFileInputRef.value?.click();
@@ -971,13 +986,8 @@
 
     iconUploadLoading.value = true;
     try {
-      // 获取默认存储提供商
-      if (!defaultStorageProvider.value) {
-        const { data } = await getDefaultStorageProvider();
-        defaultStorageProvider.value = data;
-      }
-
-      if (!defaultStorageProvider.value) {
+      const provider = await resolveDefaultStorageProvider();
+      if (!provider) {
         throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
       }
 
@@ -1001,7 +1011,7 @@
 
       // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
-        provider_id: defaultStorageProvider.value.id,
+        provider_id: provider.id,
         key,
         content_type: file.type,
         file_size: file.size,
@@ -1032,7 +1042,7 @@
 
       // 获取下载URL
       const { data: urlData } = await testCosDownloadUrl({
-        provider_id: defaultStorageProvider.value.id,
+        provider_id: provider.id,
         key,
         expires_in_seconds: 31536000, // 1年
       });
@@ -1089,13 +1099,8 @@
 
     itemImageUploadLoading.value = true;
     try {
-      // 获取默认存储提供商
-      if (!defaultStorageProvider.value) {
-        const { data } = await getDefaultStorageProvider();
-        defaultStorageProvider.value = data;
-      }
-
-      if (!defaultStorageProvider.value) {
+      const provider = await resolveDefaultStorageProvider();
+      if (!provider) {
         throw new Error('未配置存储提供商，请先在存储提供商设置中配置');
       }
 
@@ -1122,7 +1127,7 @@
 
       // 获取上传签名
       const { data: signatureData } = await testCosUploadSignature({
-        provider_id: defaultStorageProvider.value.id,
+        provider_id: provider.id,
         key,
         content_type: file.type,
         file_size: file.size,
@@ -1153,7 +1158,7 @@
 
       // 获取下载URL
       const { data: urlData } = await testCosDownloadUrl({
-        provider_id: defaultStorageProvider.value.id,
+        provider_id: provider.id,
         key,
         expires_in_seconds: 31536000, // 1年
       });
@@ -1181,13 +1186,6 @@
 
   onMounted(async () => {
     fetchPacks();
-    // 预加载默认存储提供商
-    try {
-      const { data } = await getDefaultStorageProvider();
-      defaultStorageProvider.value = data;
-    } catch (error) {
-      // 忽略错误，上传时会再次尝试获取
-    }
   });
 </script>
 

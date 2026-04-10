@@ -16,7 +16,7 @@
 
           <div class="section">
             <h3 class="section-title">全局设置</h3>
-            <a-form layout="vertical">
+            <a-form :model="globalForm" layout="vertical">
               <a-form-item label="离线推送总开关（系统通知）">
                 <a-switch v-model="globalForm.enabled" />
               </a-form-item>
@@ -100,7 +100,7 @@
               class="provider-card"
               title="FCM（Firebase Cloud Messaging）"
             >
-              <a-form layout="vertical">
+              <a-form :model="fcmForm" layout="vertical">
                 <a-form-item label="启用 FCM">
                   <a-switch v-model="fcmForm.enabled" />
                 </a-form-item>
@@ -172,7 +172,7 @@
       :mask-closable="false"
       @ok="handleTestSend"
     >
-      <a-form layout="vertical">
+      <a-form :model="testForm" layout="vertical">
         <a-form-item label="device_token（可选）">
           <a-input
             v-model="testForm.device_token"

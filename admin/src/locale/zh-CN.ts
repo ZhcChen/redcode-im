@@ -6,7 +6,7 @@ import localeWorkplace from '@/views/dashboard/workplace/locale/zh-CN';
 import localeMonitor from '@/views/dashboard/monitor/locale/zh-CN';
 
 import localeUserManagement from '@/views/user-management/list/locale/zh-CN';
-import localeCaptchaSettings from '@/views/settings/captcha/locale/zh-CN';
+import localeCaptchaSettings from '@/features/settings/locale/captcha-zh-CN';
 import localeChatHistory from '@/views/chat-history/locale/zh-CN';
 import localeFeedback from '@/views/feedback/list/locale/zh-CN';
 import localeReport from '@/views/report/list/locale/zh-CN';
