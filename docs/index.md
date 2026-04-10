@@ -8,6 +8,7 @@
 |------|------|
 | [需求/方向讨论](brainstorms/) | `ce:brainstorm` 产出目录 |
 | [规划文档目录](plans/) | `ce:plan` 产出目录 |
+| [Admin 架构重构主计划](plans/2026-04-09-admin-rbac-architecture-refactor-plan.md) | 当前 active 执行文档（admin / B2 / SQL / 测试闭环） |
 | [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 
@@ -129,4 +130,4 @@
 
 ---
 
-**文档最后更新**: 2026-03-04
+**文档最后更新**: 2026-04-10
