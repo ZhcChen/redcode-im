@@ -16,7 +16,8 @@ const versionRoutes: AppRouteRecordRaw[] = [
       {
         path: 'frontend',
         name: 'VersionFrontend',
-        component: () => import('@/views/version-management/index.vue'),
+        component: () =>
+          import('@/features/version/pages/app-versions-page.vue'),
         props: { platform: 'frontend' },
         meta: {
           locale: 'menu.version.frontend',
@@ -27,7 +28,8 @@ const versionRoutes: AppRouteRecordRaw[] = [
       {
         path: 'desktop',
         name: 'VersionDesktop',
-        component: () => import('@/views/version-management/index.vue'),
+        component: () =>
+          import('@/features/version/pages/app-versions-page.vue'),
         props: { platform: 'desktop' },
         meta: {
           locale: 'menu.version.desktop',
@@ -38,7 +40,8 @@ const versionRoutes: AppRouteRecordRaw[] = [
       {
         path: 'hot-updates',
         name: 'VersionHotUpdates',
-        component: () => import('@/views/version-management/hot-update.vue'),
+        component: () =>
+          import('@/features/version/pages/hot-updates-page.vue'),
         meta: {
           locale: 'menu.version.hotUpdate',
           requiresAuth: true,
@@ -49,7 +52,7 @@ const versionRoutes: AppRouteRecordRaw[] = [
         path: 'hot-update-events',
         name: 'VersionHotUpdateEvents',
         component: () =>
-          import('@/views/version-management/hot-update-events.vue'),
+          import('@/features/version/pages/hot-update-events-page.vue'),
         meta: {
           locale: 'menu.version.hotUpdateEvents',
           requiresAuth: true,
