@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
+import { adminPassword, adminUsername } from './test-context';
+
 export const liveChatFixture = {
   userAId: '11111111-1111-4111-8111-111111111111',
   userBId: '22222222-2222-4222-8222-222222222222',
@@ -13,6 +15,9 @@ export const liveChatFixture = {
 export const liveRbacFixturePrefix = 'liverbace2e';
 
 let seeded = false;
+let liveAdminReady = false;
+const liveBackendBaseUrl =
+  process.env.ADMIN_API_BASE_URL || 'http://127.0.0.1:8010';
 
 function execLivePostgresSql(sql: string) {
   const composeFile = resolve(
@@ -48,6 +53,66 @@ function execLivePostgresSql(sql: string) {
   } catch (error) {
     throw new Error(`执行 live postgres SQL 失败: ${String(error)}`);
   }
+}
+
+async function postLiveBackendJson(
+  pathname: string,
+  body: Record<string, unknown>
+) {
+  return fetch(`${liveBackendBaseUrl}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function ensureLiveAdminReady() {
+  if (liveAdminReady) {
+    return;
+  }
+
+  const loginResponse = await postLiveBackendJson('/auth/admin/login', {
+    username: adminUsername,
+    password: adminPassword,
+  });
+
+  if (loginResponse.ok) {
+    liveAdminReady = true;
+    return;
+  }
+
+  if (loginResponse.status !== 401) {
+    throw new Error(
+      `校验固定管理员账号失败: HTTP ${
+        loginResponse.status
+      } ${await loginResponse.text()}`
+    );
+  }
+
+  execLivePostgresSql(`
+DELETE FROM admin_users;
+`);
+
+  const bootstrapResponse = await postLiveBackendJson(
+    '/api/admin/bootstrap/init',
+    {
+      username: adminUsername,
+      password: adminPassword,
+      display_name: '系统管理员',
+    }
+  );
+
+  if (!bootstrapResponse.ok) {
+    throw new Error(
+      `初始化固定超级管理员失败: HTTP ${
+        bootstrapResponse.status
+      } ${await bootstrapResponse.text()}`
+    );
+  }
+
+  liveAdminReady = true;
 }
 
 export function ensureLiveChatFixtureSeeded() {

@@ -3,9 +3,8 @@ import { test, expect, type Page, type Response } from '@playwright/test';
 import {
   adminE2EEnabled,
   adminLiveBackendEnabled,
-  adminPassword,
-  adminUsername,
 } from '../support/test-context';
+import { loginLiveAdmin } from '../support/live-admin-auth';
 
 type ServerStorageMode = 'persist' | 'relay_only';
 type ContentAuditMode = 'plaintext' | 'e2ee';
@@ -44,21 +43,10 @@ async function expectOkResponse(
 }
 
 async function loginAsAdmin(page: Page) {
-  const loginResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/login', 'POST')
-  );
-  const meResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/me')
-  );
-
-  await page.goto('/login?redirect=GeneralSettings');
-  await page.getByPlaceholder('用户名：admin').fill(adminUsername);
-  await page.getByPlaceholder('密码：admin').fill(adminPassword);
-  await page.getByRole('button', { name: '登录' }).click();
-
-  await expectOkResponse(loginResponsePromise, '管理员登录');
-  await expectOkResponse(meResponsePromise, '管理员会话拉取');
-  await expect(page).toHaveURL(/\/settings\/general/);
+  await loginLiveAdmin(page, {
+    redirectRouteName: 'GeneralSettings',
+    expectedUrl: /\/settings\/general/,
+  });
 }
 
 async function openMessageRuntimeTab(page: Page) {

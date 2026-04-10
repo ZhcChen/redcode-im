@@ -2,13 +2,12 @@ import { test, expect, type Page, type Response } from '@playwright/test';
 import {
   adminE2EEnabled,
   adminLiveBackendEnabled,
-  adminPassword,
-  adminUsername,
 } from '../support/test-context';
 import {
   ensureLiveChatFixtureSeeded,
   liveChatFixture,
 } from '../support/live-backend-fixtures';
+import { loginLiveAdmin } from '../support/live-admin-auth';
 
 const trackedWarningPatterns = [
   /Feature flag __VUE_PROD_HYDRATION_MISMATCH_DETAILS__/,
@@ -74,21 +73,10 @@ async function expectOkResponse(
 
 async function loginAsAdmin(page: Page, tracker: ConsoleErrorTracker) {
   const checkpoint = tracker.checkpoint();
-  const loginResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/login', 'POST')
-  );
-  const meResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/me')
-  );
-
-  await page.goto('/login?redirect=GeneralSettings');
-  await page.getByPlaceholder('用户名：admin').fill(adminUsername);
-  await page.getByPlaceholder('密码：admin').fill(adminPassword);
-  await page.getByRole('button', { name: '登录' }).click();
-
-  await expectOkResponse(loginResponsePromise, '管理员登录');
-  await expectOkResponse(meResponsePromise, '管理员会话拉取');
-  await expect(page).toHaveURL(/\/settings\/general/);
+  await loginLiveAdmin(page, {
+    redirectRouteName: 'GeneralSettings',
+    expectedUrl: /\/settings\/general/,
+  });
   tracker.expectCleanSince(checkpoint, '登录流程');
 }
 
@@ -156,7 +144,9 @@ test.describe('admin live backend smoke', () => {
       await expect(
         page.locator('.arco-card-header-title', { hasText: '管理员账号管理' })
       ).toBeVisible();
-      await expect(page.getByText('admin@redcode-im.com')).toBeVisible();
+      await expect(
+        page.getByText('admin@bootstrap.redcode-im.local')
+      ).toBeVisible();
       tracker.expectCleanSince(checkpoint, '管理员账号');
     });
 

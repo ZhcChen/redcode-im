@@ -8,13 +8,12 @@ import {
 import {
   adminE2EEnabled,
   adminLiveBackendEnabled,
-  adminPassword,
-  adminUsername,
 } from '../support/test-context';
 import {
   cleanupLiveRbacFixtures,
   liveRbacFixturePrefix,
 } from '../support/live-backend-fixtures';
+import { loginLiveAdmin } from '../support/live-admin-auth';
 
 class ConsoleErrorTracker {
   private readonly entries: string[] = [];
@@ -84,21 +83,10 @@ async function selectArcoOption(
 
 async function loginAsAdmin(page: Page, tracker: ConsoleErrorTracker) {
   const checkpoint = tracker.checkpoint();
-  const loginResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/login', 'POST')
-  );
-  const meResponsePromise = page.waitForResponse((response) =>
-    matchesResponse(response, '/auth/admin/me')
-  );
-
-  await page.goto('/login?redirect=GeneralSettings');
-  await page.getByPlaceholder('用户名：admin').fill(adminUsername);
-  await page.getByPlaceholder('密码：admin').fill(adminPassword);
-  await page.getByRole('button', { name: '登录' }).click();
-
-  await expectOkResponse(loginResponsePromise, '管理员登录');
-  await expectOkResponse(meResponsePromise, '管理员会话拉取');
-  await expect(page).toHaveURL(/\/settings\/general/);
+  await loginLiveAdmin(page, {
+    redirectRouteName: 'GeneralSettings',
+    expectedUrl: /\/settings\/general/,
+  });
   tracker.expectCleanSince(checkpoint, '登录流程');
 }
 
