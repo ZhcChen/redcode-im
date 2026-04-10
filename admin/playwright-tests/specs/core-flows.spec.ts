@@ -41,7 +41,20 @@ const limitedAdminUser = {
   isSuperAdmin: false,
 };
 
-async function mockAuth(page: Page) {
+type MockAuthOptions = {
+  user?: typeof adminUser;
+  token?: string;
+  refreshToken?: string;
+};
+
+async function mockAuth(
+  page: Page,
+  {
+    user = adminUser,
+    token = 'e2e-token',
+    refreshToken = 'e2e-refresh-token',
+  }: MockAuthOptions = {}
+) {
   let meCalls = 0;
 
   await page.route(/\/auth\/admin\/login(?:\?.*)?$/, async (route) => {
@@ -49,9 +62,9 @@ async function mockAuth(page: Page) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        token: 'e2e-token',
-        refresh_token: 'e2e-refresh-token',
-        user: adminUser,
+        token,
+        refresh_token: refreshToken,
+        user,
       }),
     });
   });
@@ -61,7 +74,7 @@ async function mockAuth(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(adminUser),
+      body: JSON.stringify(user),
     });
   });
 
@@ -72,11 +85,30 @@ async function mockAuth(page: Page) {
   };
 }
 
-async function setToken(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem('token', 'e2e-token');
-    window.localStorage.setItem('refresh_token', 'e2e-refresh-token');
-  });
+async function setToken(
+  page: Page,
+  {
+    token = 'e2e-token',
+    refreshToken = 'e2e-refresh-token',
+  }: Pick<MockAuthOptions, 'token' | 'refreshToken'> = {}
+) {
+  await page.addInitScript(
+    ({ nextToken, nextRefreshToken }) => {
+      window.localStorage.setItem('token', nextToken);
+      window.localStorage.setItem('refresh_token', nextRefreshToken);
+    },
+    {
+      nextToken: token,
+      nextRefreshToken: refreshToken,
+    }
+  );
+}
+
+async function expectFallbackToUserProfile(page: Page) {
+  await expect(page).toHaveURL(/\/settings\/user-profile/);
+  await expect(
+    page.locator('.arco-card-header-title', { hasText: '个人设置' })
+  ).toBeVisible();
 }
 
 test.describe('admin core flows', () => {
@@ -137,24 +169,10 @@ test.describe('admin core flows', () => {
   test('limited admin login falls back to first accessible page', async ({
     page,
   }) => {
-    await page.route(/\/auth\/admin\/login(?:\?.*)?$/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          token: 'limited-token',
-          refresh_token: 'limited-refresh-token',
-          user: limitedAdminUser,
-        }),
-      });
-    });
-
-    await page.route(/\/auth\/admin\/me(?:\?.*)?$/, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(limitedAdminUser),
-      });
+    await mockAuth(page, {
+      user: limitedAdminUser,
+      token: 'limited-token',
+      refreshToken: 'limited-refresh-token',
     });
 
     await page.goto('/login');
@@ -162,10 +180,26 @@ test.describe('admin core flows', () => {
     await page.getByPlaceholder('密码：admin').fill(adminPassword);
     await page.getByRole('button', { name: '登录' }).click();
 
-    await expect(page).toHaveURL(/\/settings\/user-profile/);
-    await expect(
-      page.locator('.arco-card-header-title', { hasText: '个人设置' })
-    ).toBeVisible();
+    await expectFallbackToUserProfile(page);
+  });
+
+  test('limited admin direct access to RBAC route is redirected away', async ({
+    page,
+  }) => {
+    const authTracker = await mockAuth(page, {
+      user: limitedAdminUser,
+      token: 'limited-token',
+      refreshToken: 'limited-refresh-token',
+    });
+    await setToken(page, {
+      token: 'limited-token',
+      refreshToken: 'limited-refresh-token',
+    });
+
+    await page.goto('/system/roles');
+
+    await expectFallbackToUserProfile(page);
+    await expect.poll(() => authTracker.getMeCalls()).toBe(2);
   });
 
   test('settings page renders app name and policy panels', async ({ page }) => {
