@@ -39,7 +39,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'storage-provider',
         name: 'StorageProviderSettings',
-        component: () => import('@/views/settings/storage-provider/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/storage-provider-page.vue'),
         meta: {
           locale: 'menu.operations.storageProvider',
           requiresAuth: true,
