@@ -18,7 +18,8 @@ use crate::crypto::SecretCrypto;
 use crate::database::member_with_user_info::RoomMemberWithUserInfo;
 use crate::database::message_store::MessageStore;
 use crate::database::models::{
-    MessagePart, MessagePartType, MessageWithSender, NotificationSetting, PushDevice, RoomType,
+    MessagePart, MessagePartType, MessageType, MessageWithSender, NotificationSetting, PushDevice,
+    RoomType,
 };
 use crate::database::push_device_store::PushDeviceStore;
 use crate::database::push_job_store::{PushJobRecord, PushJobStore};
@@ -498,7 +499,11 @@ fn push_send_semaphore() -> &'static Arc<Semaphore> {
     })
 }
 
-async fn enqueue_push_job_to_db(state: &AppState, job_type: &'static str, payload: serde_json::Value) {
+async fn enqueue_push_job_to_db(
+    state: &AppState,
+    job_type: &'static str,
+    payload: serde_json::Value,
+) {
     // 未启用或未配置离线推送平台时，不入队，避免堆积“历史通知”
     let runtime = push_runtime_snapshot(state).await;
     if !runtime.enabled || runtime.fcm.is_none() {
@@ -514,9 +519,38 @@ async fn enqueue_push_job_to_db(state: &AppState, job_type: &'static str, payloa
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PushMessageSnapshot {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub sender_id: Uuid,
+    pub sender_username: String,
+    pub sender_nickname: Option<String>,
+    pub content: String,
+    pub message_type: MessageType,
+    pub preview: String,
+}
+
+impl PushMessageSnapshot {
+    pub fn from_message(message: &MessageWithSender, parts: &[MessagePart]) -> Self {
+        Self {
+            id: message.id,
+            room_id: message.room_id,
+            sender_id: message.sender_id,
+            sender_username: message.sender_username.clone(),
+            sender_nickname: message.sender_nickname.clone(),
+            content: message.content.clone(),
+            message_type: message.message_type,
+            preview: preview_text(message, parts),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
-struct DbMessageJobPayload {
-    message_id: Uuid,
+#[serde(untagged)]
+enum DbMessageJobPayload {
+    Snapshot { snapshot: PushMessageSnapshot },
+    Legacy { message_id: Uuid },
 }
 
 #[derive(Debug, Deserialize)]
@@ -559,7 +593,8 @@ impl PushDbQueueConfig {
                 env_usize("PUSH_JOB_CONCURRENCY", PUSH_JOB_CONCURRENCY),
             )
             .clamp(1, 200),
-            batch_size: env_i64("PUSH_DB_QUEUE_BATCH_SIZE", PUSH_DB_QUEUE_BATCH_SIZE).clamp(1, 2000),
+            batch_size: env_i64("PUSH_DB_QUEUE_BATCH_SIZE", PUSH_DB_QUEUE_BATCH_SIZE)
+                .clamp(1, 2000),
             lease_seconds: env_i64("PUSH_DB_QUEUE_LEASE_SECONDS", PUSH_DB_QUEUE_LEASE_SECONDS)
                 .clamp(5, 3600),
             poll_interval_seconds: env_u64(
@@ -640,40 +675,50 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
                 Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
             };
 
-            let store = MessageStore::new(state.database.pool());
-            let message = match store.get_message_with_sender(payload.message_id).await {
-                Ok(Some(m)) => m,
-                Ok(None) => return PushDbJobOutcome::Done,
-                Err(e) => {
-                    return PushDbJobOutcome::Retry(format!(
-                        "读取 message 失败 message_id={}, err={}",
-                        payload.message_id, e
-                    ))
+            match payload {
+                DbMessageJobPayload::Snapshot { snapshot } => {
+                    match notify_new_message_snapshot(state, snapshot).await {
+                        Ok(_) => PushDbJobOutcome::Done,
+                        Err(e) => PushDbJobOutcome::Retry(e),
+                    }
                 }
-            };
+                DbMessageJobPayload::Legacy { message_id } => {
+                    let store = MessageStore::new(state.database.pool());
+                    let message = match store.get_message_with_sender(message_id).await {
+                        Ok(Some(m)) => m,
+                        Ok(None) => return PushDbJobOutcome::Done,
+                        Err(e) => {
+                            return PushDbJobOutcome::Retry(format!(
+                                "读取 message 失败 message_id={}, err={}",
+                                message_id, e
+                            ))
+                        }
+                    };
 
-            let mut parts_map = match store.get_message_parts_map(&[payload.message_id]).await {
-                Ok(m) => m,
-                Err(e) => {
-                    return PushDbJobOutcome::Retry(format!(
-                        "读取 message_parts 失败 message_id={}, err={}",
-                        payload.message_id, e
-                    ))
+                    let mut parts_map = match store.get_message_parts_map(&[message_id]).await {
+                        Ok(m) => m,
+                        Err(e) => {
+                            return PushDbJobOutcome::Retry(format!(
+                                "读取 message_parts 失败 message_id={}, err={}",
+                                message_id, e
+                            ))
+                        }
+                    };
+                    let parts = parts_map.remove(&message_id).unwrap_or_default();
+
+                    match notify_new_message(state, message, parts).await {
+                        Ok(_) => PushDbJobOutcome::Done,
+                        Err(e) => PushDbJobOutcome::Retry(e),
+                    }
                 }
-            };
-            let parts = parts_map.remove(&payload.message_id).unwrap_or_default();
-
-            match notify_new_message(state, message, parts).await {
-                Ok(_) => PushDbJobOutcome::Done,
-                Err(e) => PushDbJobOutcome::Retry(e),
             }
         }
         "friend_request" => {
-            let payload: DbFriendRequestJobPayload = match serde_json::from_value(job.payload.clone())
-            {
-                Ok(v) => v,
-                Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
-            };
+            let payload: DbFriendRequestJobPayload =
+                match serde_json::from_value(job.payload.clone()) {
+                    Ok(v) => v,
+                    Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
+                };
 
             match notify_friend_request(
                 state,
@@ -690,7 +735,8 @@ async fn process_push_db_job(state: AppState, job: PushJobRecord) -> PushDbJobOu
             }
         }
         "group_event" => {
-            let payload: DbGroupEventJobPayload = match serde_json::from_value(job.payload.clone()) {
+            let payload: DbGroupEventJobPayload = match serde_json::from_value(job.payload.clone())
+            {
                 Ok(v) => v,
                 Err(e) => return PushDbJobOutcome::Failed(format!("解析 payload 失败: {}", e)),
             };
@@ -720,7 +766,10 @@ async fn run_push_db_queue_once(state: AppState, cfg: &PushDbQueueConfig) {
     }
 
     let store = PushJobStore::new(state.database.pool());
-    let jobs = match store.claim_due_jobs(cfg.batch_size, cfg.lease_seconds).await {
+    let jobs = match store
+        .claim_due_jobs(cfg.batch_size, cfg.lease_seconds)
+        .await
+    {
         Ok(v) => v,
         Err(e) => {
             warn!("Push: claim push_job_queue 失败: {}", e);
@@ -874,12 +923,12 @@ pub fn init_push_dispatcher(state: AppState) {
     start_push_db_queue_cleanup_worker(state);
 }
 
-pub async fn enqueue_new_message(state: &AppState, message_id: Uuid) {
+pub async fn enqueue_new_message(state: &AppState, snapshot: PushMessageSnapshot) {
     enqueue_push_job_to_db(
         state,
         "message",
         serde_json::json!({
-            "message_id": message_id,
+            "snapshot": snapshot,
         }),
     )
     .await;
@@ -1581,6 +1630,14 @@ pub async fn notify_new_message(
     message: MessageWithSender,
     parts: Vec<MessagePart>,
 ) -> Result<(), String> {
+    let snapshot = PushMessageSnapshot::from_message(&message, &parts);
+    notify_new_message_snapshot(state, snapshot).await
+}
+
+pub async fn notify_new_message_snapshot(
+    state: AppState,
+    snapshot: PushMessageSnapshot,
+) -> Result<(), String> {
     let runtime = push_runtime_snapshot(&state).await;
     if !runtime.enabled {
         return Ok(());
@@ -1592,41 +1649,47 @@ pub async fn notify_new_message(
     };
 
     // 系统消息不做离线推送
-    if message.message_type == crate::database::models::MessageType::System {
+    if snapshot.message_type == crate::database::models::MessageType::System {
         return Ok(());
     }
 
     let room_store = RoomStore::new(state.database.pool());
-    let room = match room_store.get_room(message.room_id).await {
+    let room = match room_store.get_room(snapshot.room_id).await {
         Ok(room) => room,
         Err(sqlx::Error::RowNotFound) => return Ok(()),
-        Err(e) => return Err(format!("获取房间失败 room_id={}, err={}", message.room_id, e)),
+        Err(e) => {
+            return Err(format!(
+                "获取房间失败 room_id={}, err={}",
+                snapshot.room_id, e
+            ))
+        }
     };
 
-    let sender_name = message
+    let sender_name = snapshot
         .sender_nickname
         .as_ref()
         .map(|v| v.trim())
         .filter(|v| !v.is_empty())
         .map(|v| v.to_string())
-        .unwrap_or_else(|| message.sender_username.clone());
-
-    let preview = preview_text(&message, &parts);
+        .unwrap_or_else(|| snapshot.sender_username.clone());
 
     let (title, body) = match room.room_type {
-        RoomType::Group => (room.name.clone(), format!("{}: {}", sender_name, preview)),
-        _ => (sender_name.clone(), preview.clone()),
+        RoomType::Group => (
+            room.name.clone(),
+            format!("{}: {}", sender_name, snapshot.preview),
+        ),
+        _ => (sender_name.clone(), snapshot.preview.clone()),
     };
 
     let members = match room_store
-        .list_member_notification_settings(message.room_id)
+        .list_member_notification_settings(snapshot.room_id)
         .await
     {
         Ok(members) => members,
         Err(e) => {
             return Err(format!(
                 "获取房间成员通知设置失败 room_id={}, err={}",
-                message.room_id, e
+                snapshot.room_id, e
             ))
         }
     };
@@ -1634,20 +1697,20 @@ pub async fn notify_new_message(
     let skip_if_online = runtime.skip_if_online;
 
     let mention_decision = if room.room_type == RoomType::Group
-        && message.content.contains('@')
+        && snapshot.content.contains('@')
         && members
             .iter()
             .any(|(_, setting)| *setting == NotificationSetting::MentionsOnly)
     {
         match room_store
-            .list_members_with_user_info(message.room_id)
+            .list_members_with_user_info(snapshot.room_id)
             .await
         {
-            Ok(members) => parse_mentions_from_content(&message.content, &members),
+            Ok(members) => parse_mentions_from_content(&snapshot.content, &members),
             Err(e) => {
                 return Err(format!(
                     "获取房间成员信息失败 room_id={}, err={}",
-                    message.room_id, e
+                    snapshot.room_id, e
                 ))
             }
         }
@@ -1657,7 +1720,7 @@ pub async fn notify_new_message(
 
     let mut targets: Vec<Uuid> = Vec::new();
     for (user_id, setting) in members {
-        if user_id == message.sender_id {
+        if user_id == snapshot.sender_id {
             continue;
         }
         if !should_send_for_setting(setting, room.room_type, &user_id, &mention_decision) {
@@ -1688,10 +1751,10 @@ pub async fn notify_new_message(
 
     let mut data: HashMap<String, String> = HashMap::new();
     data.insert("type".to_string(), "message".to_string());
-    data.insert("room_id".to_string(), message.room_id.to_string());
-    data.insert("message_id".to_string(), message.id.to_string());
+    data.insert("room_id".to_string(), snapshot.room_id.to_string());
+    data.insert("message_id".to_string(), snapshot.id.to_string());
     data.insert("room_type".to_string(), room.room_type.to_string());
-    data.insert("sender_id".to_string(), message.sender_id.to_string());
+    data.insert("sender_id".to_string(), snapshot.sender_id.to_string());
     data.insert("sender_name".to_string(), sender_name.clone());
     data.insert("chat_name".to_string(), title.clone());
     let push_id = Uuid::new_v4();
@@ -1708,8 +1771,8 @@ pub async fn notify_new_message(
         data_json,
         push_id,
         "message",
-        Some(message.room_id),
-        Some(message.id),
+        Some(snapshot.room_id),
+        Some(snapshot.id),
         None,
     )
     .await;
@@ -1765,6 +1828,40 @@ mod tests {
             avatar_object_key: None,
             role: MemberRole::Member,
             joined_at: Some(Utc::now()),
+        }
+    }
+
+    fn sample_message(content: &str) -> MessageWithSender {
+        MessageWithSender {
+            id: Uuid::new_v4(),
+            room_id: Uuid::new_v4(),
+            sender_id: Uuid::new_v4(),
+            content: content.to_string(),
+            encrypted_content: None,
+            encryption_metadata: None,
+            message_type: MessageType::Text,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+            edited_at: None,
+            sender_username: "alice".to_string(),
+            sender_nickname: Some("Alice".to_string()),
+            sender_avatar_url: None,
+            quoted_message_id: None,
+            quoted_message_room_id: None,
+            quoted_message_sender_id: None,
+            quoted_message_sender_username: None,
+            quoted_message_sender_nickname: None,
+            quoted_message_sender_avatar_url: None,
+            quoted_message_content: None,
+            quoted_message_type: None,
+            quoted_message_created_at: None,
+            quoted_message_deleted_at: None,
+            forward_from_message_id: None,
+            forward_from_room_id: None,
+            forward_from_sender_id: None,
+            forward_from_sender_username: None,
+            forward_from_sender_nickname: None,
         }
     }
 
@@ -1858,5 +1955,31 @@ mod tests {
         assert_eq!(cfg.interval_seconds, 60);
         assert_eq!(cfg.batch_size, 200_000);
         assert_eq!(cfg.max_batches, 1);
+    }
+
+    #[test]
+    fn push_message_snapshot_should_use_attachment_preview_when_content_is_empty() {
+        let message = sample_message("");
+        let parts = vec![MessagePart {
+            id: Uuid::new_v4(),
+            message_id: message.id,
+            position: 0,
+            part_type: MessagePartType::Image,
+            text_content: None,
+            attachment_key: Some("messages/demo/image.png".to_string()),
+            attachment_name: Some("image.png".to_string()),
+            attachment_mime: Some("image/png".to_string()),
+            attachment_size: Some(128),
+            width: Some(100),
+            height: Some(100),
+            duration_ms: None,
+            thumbnail_key: None,
+            extra: None,
+            created_at: Utc::now(),
+        }];
+
+        let snapshot = PushMessageSnapshot::from_message(&message, &parts);
+        assert_eq!(snapshot.preview, "[图片]");
+        assert_eq!(snapshot.sender_username, "alice");
     }
 }

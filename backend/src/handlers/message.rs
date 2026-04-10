@@ -20,10 +20,11 @@ use crate::database::{
     message_store::{MessageStore, NewMessagePart},
     models::{
         MessagePart, MessagePartType, MessageType, MessageWithSender, RoomType, StorageProvider,
-        StorageProviderType,
     },
     room_store::RoomStore,
+    settings_store::SettingsStore,
     storage_provider_store::StorageProviderStore,
+    user_store::UserStore,
 };
 use crate::error::AppError;
 use crate::models::{
@@ -36,7 +37,9 @@ use crate::redis::models::{
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
     RoomHistoryClearedPayload,
 };
+use crate::services::message_runtime::load_message_runtime_settings;
 use crate::services::multipart_upload;
+use crate::services::push::PushMessageSnapshot;
 use crate::storage;
 use crate::storage::DirectUploadSignature;
 use crate::AppState;
@@ -103,9 +106,7 @@ fn message_text(key: &str, params: Option<&MessageParams>) -> String {
         "message.attachment_upload_room_membership_required" => {
             "用户不在该房间，无法上传附件".to_string()
         }
-        "message.attachment_signature_text_unsupported" => {
-            "纯文本内容无需生成上传签名".to_string()
-        }
+        "message.attachment_signature_text_unsupported" => "纯文本内容无需生成上传签名".to_string(),
         "message.attachment_mime_unsupported" => {
             format!("不支持的文件类型: {}", param("mime"))
         }
@@ -119,9 +120,7 @@ fn message_text(key: &str, params: Option<&MessageParams>) -> String {
             param("actual_size"),
             param("max_size")
         ),
-        "message.attachment_multipart_session_create_failed" => {
-            "创建分片会话失败".to_string()
-        }
+        "message.attachment_multipart_session_create_failed" => "创建分片会话失败".to_string(),
         "message.attachment_download_room_membership_required" => {
             "用户不在该房间，无法获取附件".to_string()
         }
@@ -137,7 +136,7 @@ fn message_text(key: &str, params: Option<&MessageParams>) -> String {
             param("actual_size")
         ),
         "message.attachment_hash_mismatch" => "附件哈希校验失败，请重新上传".to_string(),
-        "message.attachment_object_not_found" => "COS 中尚未找到该附件，请稍后重试".to_string(),
+        "message.attachment_object_not_found" => "对象存储中尚未找到该附件，请稍后重试".to_string(),
         _ => key.to_string(),
     }
 }
@@ -495,13 +494,6 @@ async fn load_default_storage_provider(state: &AppState) -> Result<StorageProvid
         ));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的存储提供商类型: {:?}",
-            provider.provider_type
-        )));
-    }
-
     Ok(provider)
 }
 
@@ -660,6 +652,96 @@ pub struct PinMessageResponse {
     pub pinned_by: Option<String>,
 }
 
+fn relay_only_unsupported(action: &str) -> AppError {
+    AppError::ValidationError(format!("relay_only 模式暂不支持{}", action))
+}
+
+async fn is_relay_only_runtime(state: &AppState) -> Result<bool, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    Ok(load_message_runtime_settings(&store).await?.is_relay_only())
+}
+
+async fn load_runtime_sender(
+    state: &AppState,
+    sender_id: Uuid,
+) -> Result<crate::database::models::User, AppError> {
+    let user_store = UserStore::new(state.database.clone());
+    user_store
+        .find_by_id(&sender_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("发送者不存在".to_string()))
+}
+
+fn build_runtime_message_with_sender(
+    message_id: Uuid,
+    room_id: Uuid,
+    sender: &crate::database::models::User,
+    content: String,
+    encrypted_content: Option<Vec<u8>>,
+    encryption_metadata: Option<Value>,
+    message_type: MessageType,
+    timestamp: chrono::DateTime<Utc>,
+) -> MessageWithSender {
+    MessageWithSender {
+        id: message_id,
+        room_id,
+        sender_id: sender.id,
+        content,
+        encrypted_content,
+        encryption_metadata,
+        message_type,
+        created_at: timestamp,
+        updated_at: timestamp,
+        deleted_at: None,
+        edited_at: None,
+        sender_username: sender.username.clone(),
+        sender_nickname: sender.nickname.clone(),
+        sender_avatar_url: sender.avatar_url.clone(),
+        quoted_message_id: None,
+        quoted_message_room_id: None,
+        quoted_message_sender_id: None,
+        quoted_message_sender_username: None,
+        quoted_message_sender_nickname: None,
+        quoted_message_sender_avatar_url: None,
+        quoted_message_content: None,
+        quoted_message_type: None,
+        quoted_message_created_at: None,
+        quoted_message_deleted_at: None,
+        forward_from_message_id: None,
+        forward_from_room_id: None,
+        forward_from_sender_id: None,
+        forward_from_sender_username: None,
+        forward_from_sender_nickname: None,
+    }
+}
+
+fn build_runtime_message_parts(
+    message_id: Uuid,
+    timestamp: chrono::DateTime<Utc>,
+    parts: &[NewMessagePart],
+) -> Vec<MessagePart> {
+    parts
+        .iter()
+        .map(|part| MessagePart {
+            id: crate::id::generate(),
+            message_id,
+            position: part.position,
+            part_type: part.part_type,
+            text_content: part.text_content.clone(),
+            attachment_key: part.attachment_key.clone(),
+            attachment_name: part.attachment_name.clone(),
+            attachment_mime: part.attachment_mime.clone(),
+            attachment_size: part.attachment_size,
+            width: part.width,
+            height: part.height,
+            duration_ms: part.duration_ms,
+            thumbnail_key: part.thumbnail_key.clone(),
+            extra: part.extra.clone(),
+            created_at: timestamp,
+        })
+        .collect()
+}
+
 pub async fn send_message(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
@@ -668,6 +750,7 @@ pub async fn send_message(
 ) -> Result<Json<SendMessageResponse>, AppError> {
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
 
     let store = MessageStore::new(state.database.pool());
 
@@ -719,6 +802,10 @@ pub async fn send_message(
         parts,
         quoted_message_id,
     } = payload;
+
+    if relay_only_runtime && quoted_message_id.is_some() {
+        return Err(relay_only_unsupported("引用消息"));
+    }
 
     let (prepared_parts, resolved_message_type, content_summary) =
         normalize_message_parts(content, parts)?;
@@ -913,6 +1000,45 @@ pub async fn send_message(
         None
     };
 
+    if relay_only_runtime {
+        let now = Utc::now();
+        let runtime_message_id = crate::id::generate();
+        let sender = load_runtime_sender(&state, sender_id).await?;
+        let runtime_message = build_runtime_message_with_sender(
+            runtime_message_id,
+            room_id,
+            &sender,
+            content_summary.clone(),
+            None,
+            None,
+            resolved_message_type,
+            now,
+        );
+        let runtime_parts = build_runtime_message_parts(runtime_message_id, now, &db_parts);
+        let mut part_map = HashMap::new();
+        part_map.insert(runtime_message.id, runtime_parts.clone());
+
+        if let Err(e) = broadcast_message_to_room(&state, &runtime_message, &part_map).await {
+            error!("广播 relay_only 消息失败: {}", e);
+        }
+
+        crate::services::push::enqueue_new_message(
+            &state,
+            PushMessageSnapshot::from_message(&runtime_message, &runtime_parts),
+        )
+        .await;
+
+        let api_message = db_message_to_api_message_info(
+            &runtime_message,
+            &part_map,
+            None,
+            Some(crate::models::MessageDeliveryStatus::Sent),
+        );
+        return Ok(Json(SendMessageResponse {
+            message: api_message,
+        }));
+    }
+
     let created = store
         .create_message_with_parts(
             room_id,
@@ -940,7 +1066,14 @@ pub async fn send_message(
         error!("广播消息失败: {}", e);
     }
 
-    crate::services::push::enqueue_new_message(&state, enriched.id).await;
+    crate::services::push::enqueue_new_message(
+        &state,
+        PushMessageSnapshot::from_message(
+            &enriched,
+            part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
+        ),
+    )
+    .await;
 
     let api_message = db_message_to_api_message_info(
         &enriched,
@@ -961,6 +1094,7 @@ pub async fn send_encrypted_message(
 ) -> Result<Json<SendMessageResponse>, AppError> {
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
 
     let store = MessageStore::new(state.database.pool());
 
@@ -1014,6 +1148,10 @@ pub async fn send_encrypted_message(
         quoted_message_id,
     } = payload;
 
+    if relay_only_runtime && quoted_message_id.is_some() {
+        return Err(relay_only_unsupported("引用消息"));
+    }
+
     let content_summary = content_summary
         .unwrap_or_else(|| "[加密消息]".to_string())
         .trim()
@@ -1026,7 +1164,9 @@ pub async fn send_encrypted_message(
 
     let encrypted_content = BASE64_STANDARD
         .decode(encrypted_content.trim())
-        .map_err(|_| AppError::ValidationError("encrypted_content 不是有效的 Base64".to_string()))?;
+        .map_err(|_| {
+            AppError::ValidationError("encrypted_content 不是有效的 Base64".to_string())
+        })?;
     if encrypted_content.is_empty() {
         return Err(AppError::ValidationError(
             "encrypted_content 不能为空".to_string(),
@@ -1070,6 +1210,45 @@ pub async fn send_encrypted_message(
         extra: None,
     }];
 
+    if relay_only_runtime {
+        let now = Utc::now();
+        let runtime_message_id = crate::id::generate();
+        let sender = load_runtime_sender(&state, sender_id).await?;
+        let runtime_message = build_runtime_message_with_sender(
+            runtime_message_id,
+            room_id,
+            &sender,
+            content_summary.clone(),
+            Some(encrypted_content),
+            encryption_metadata,
+            MessageType::Text,
+            now,
+        );
+        let runtime_parts = build_runtime_message_parts(runtime_message_id, now, &db_parts);
+        let mut part_map = HashMap::new();
+        part_map.insert(runtime_message.id, runtime_parts.clone());
+
+        if let Err(e) = broadcast_message_to_room(&state, &runtime_message, &part_map).await {
+            error!("广播 relay_only 加密消息失败: {}", e);
+        }
+
+        crate::services::push::enqueue_new_message(
+            &state,
+            PushMessageSnapshot::from_message(&runtime_message, &runtime_parts),
+        )
+        .await;
+
+        let api_message = db_message_to_api_message_info(
+            &runtime_message,
+            &part_map,
+            None,
+            Some(crate::models::MessageDeliveryStatus::Sent),
+        );
+        return Ok(Json(SendMessageResponse {
+            message: api_message,
+        }));
+    }
+
     let created = store
         .create_encrypted_message_with_parts(
             room_id,
@@ -1099,7 +1278,14 @@ pub async fn send_encrypted_message(
         error!("广播消息失败: {}", e);
     }
 
-    crate::services::push::enqueue_new_message(&state, enriched.id).await;
+    crate::services::push::enqueue_new_message(
+        &state,
+        PushMessageSnapshot::from_message(
+            &enriched,
+            part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
+        ),
+    )
+    .await;
 
     let api_message = db_message_to_api_message_info(
         &enriched,
@@ -1120,6 +1306,7 @@ pub async fn forward_message(
 ) -> Result<Json<SendMessageResponse>, AppError> {
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
 
     let store = MessageStore::new(state.database.pool());
 
@@ -1130,6 +1317,10 @@ pub async fn forward_message(
     }
 
     ensure_group_message_permissions(&state, room_id, sender_id).await?;
+
+    if relay_only_runtime {
+        return Err(relay_only_unsupported("转发消息"));
+    }
 
     let original = store
         .get_message_with_sender(payload.original_message_id)
@@ -1228,7 +1419,17 @@ pub async fn forward_message(
         error!("广播转发消息失败: {}", e);
     }
 
-    crate::services::push::enqueue_new_message(&state, enriched.id).await;
+    crate::services::push::enqueue_new_message(
+        &state,
+        PushMessageSnapshot::from_message(
+            &enriched,
+            parts_map
+                .get(&enriched.id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]),
+        ),
+    )
+    .await;
 
     let api_message = db_message_to_api_message_info(
         &enriched,
@@ -1917,7 +2118,9 @@ pub async fn clear_room_messages(
     let room_store = RoomStore::new(state.database.pool());
 
     if !store.user_in_room(room_id, user_id).await? {
-        return Err(message_forbidden_error("message.clear_room_membership_required"));
+        return Err(message_forbidden_error(
+            "message.clear_room_membership_required",
+        ));
     }
 
     let room = room_store
@@ -2147,7 +2350,9 @@ pub async fn initiate_message_attachment_multipart_upload(
     }
 
     if req.file_size == 0 {
-        return Err(message_validation_error("message.attachment_file_size_required"));
+        return Err(message_validation_error(
+            "message.attachment_file_size_required",
+        ));
     }
 
     let policy = crate::services::upload_policy::get_upload_policy(&state).await;
