@@ -99,10 +99,85 @@
 3. 房间历史 / 搜索 / 后台聊天记录 / 引用转发 / reaction / 已读功能按模式降级
 4. 客户端根据模式隐藏不支持的交互
 
+### 6.1 第二阶段代码扫描结论（2026-04-10）
+已确认以下链路直接依赖消息落库，不能只改发送端：
+
+- 发送主链路：
+  - `backend/src/handlers/message.rs`
+    - `send_message`
+    - `send_encrypted_message`
+    - `forward_message`
+- 广播链路：
+  - `broadcast_message_to_room` 当前可接受“内存快照”，这部分可以复用，不是主要阻塞点
+- Push 链路：
+  - `backend/src/services/push.rs`
+  - 当前 job payload 只有 `message_id`
+  - worker 会二次查询 `messages` / `message_parts`
+- 房间消息历史：
+  - `backend/src/database/message_store.rs`
+  - `backend/src/handlers/message.rs` 的 `/rooms/{room_id}/messages`
+- 搜索：
+  - `backend/src/handlers/message_search.rs`
+- 后台聊天记录：
+  - `backend/src/handlers/chat_history.rs`
+- 聊天摘要 / 未读：
+  - `backend/src/database/room_store.rs::list_chat_summaries`
+  - `backend/src/handlers/message_read.rs`
+
+### 6.2 第二阶段建议拆分
+
+#### Unit 4：抽出公共消息运行模式服务
+- Files:
+  - `backend/src/services/message_runtime.rs`
+  - `backend/src/handlers/settings.rs`
+  - `backend/src/services/mod.rs`
+- Goal:
+  - 把 `persist / relay_only` 与 `plaintext / e2ee` 的读取、校验、更新抽成公共能力
+- Why:
+  - 后续发送链路、push、读侧降级都要共用，不能继续把逻辑锁死在 settings handler 里
+
+#### Unit 5：实现 relay-only 的最小发送闭环
+- Files:
+  - `backend/src/handlers/message.rs`
+  - `backend/src/services/push.rs`
+  - `backend/src/database/user_store.rs`（如需补发件人资料读取）
+- Goal:
+  - `send_message` / `send_encrypted_message` 在 `relay_only` 下不写 `messages` / `message_parts`
+  - 改为构造消息快照后：
+    - 直接广播到 WebSocket
+    - push 入队使用最小快照 payload
+- Scope note:
+  - 最小可行版本建议先禁止 `quoted_message_id`
+  - `forward_message` 暂不支持 relay-only，直接返回模式不支持错误
+
+#### Unit 6：读侧与变更侧降级
+- Files:
+  - `backend/src/handlers/message.rs`
+  - `backend/src/handlers/message_search.rs`
+  - `backend/src/handlers/chat_history.rs`
+  - `backend/src/handlers/message_read.rs`
+  - `backend/src/database/room_store.rs`
+- Goal:
+  - 在 `relay_only` 下明确行为，而不是继续假装支持
+- 建议口径:
+  - 房间历史消息：返回空列表
+  - 搜索：返回空结果
+  - 后台聊天记录：返回空结果
+  - 转发 / 编辑 / 删除 / reaction / pin / read：返回“当前消息运行模式不支持该操作”
+  - 聊天摘要：`last_message = null`，`unread_count = 0`
+
+### 6.3 第二阶段的产品边界
+- `relay_only + plaintext`：
+  - 服务端可看见消息内容，但不保留消息记录
+- `relay_only + e2ee`：
+  - 服务端只做密文转发，且不落库
+- 由于当前客户端没有“纯实时无历史”的完整降级体验，后端切换前必须同步补客户端 UI 降级
+
 ## 7. 风险
 1. 配置已存在但行为未切换，容易让人误以为功能已完全生效
 2. relay-only 真正落地后，会影响较多既有接口契约
 3. push / unread / search 三条链路最容易遗漏
+4. 房间摘要 `last_message / unread_count` 目前同样依赖落库，若不处理，聊天列表会出现“模式已切换但列表仍假定可追溯”的错位
 
 ## 8. 验证策略
 - Backend:
