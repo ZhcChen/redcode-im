@@ -73,20 +73,38 @@ type adminUserRoleAssignmentResponse struct {
 
 func initDefaultAdmin(t *testing.T, c *testutil.Client) {
 	t.Helper()
-	resp, err := c.HTTP.Post(c.BaseURL+"/api/admin/init-default-admin", "application/json", bytes.NewReader([]byte("{}")))
+	statusResp, err := c.HTTP.Get(c.BaseURL + "/api/admin/bootstrap/status")
 	if err != nil {
-		t.Fatalf("init default admin failed: %v", err)
+		t.Fatalf("get bootstrap status failed: %v", err)
+	}
+	defer statusResp.Body.Close()
+
+	var status struct {
+		BootstrapRequired bool `json:"bootstrap_required"`
+	}
+	if err := json.NewDecoder(statusResp.Body).Decode(&status); err != nil {
+		t.Fatalf("decode bootstrap status failed: %v", err)
+	}
+
+	if !status.BootstrapRequired {
+		return
+	}
+
+	payload := []byte(`{"username":"admin","password":"BhgNKtC1RbOBj1sCVKmt9Rwx","display_name":"系统管理员"}`)
+	resp, err := c.HTTP.Post(c.BaseURL+"/api/admin/bootstrap/init", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("bootstrap init failed: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("init default admin expect 200, got %d: %s", resp.StatusCode, string(body))
+		t.Fatalf("bootstrap init expect 200, got %d: %s", resp.StatusCode, string(body))
 	}
 }
 
 func adminLoginRaw(t *testing.T, c *testutil.Client) adminLoginResponse {
 	t.Helper()
-	payload := []byte(`{"username":"admin","password":"admin123"}`)
+	payload := []byte(`{"username":"admin","password":"BhgNKtC1RbOBj1sCVKmt9Rwx"}`)
 	resp, err := c.HTTP.Post(c.BaseURL+"/auth/admin/login", "application/json", bytes.NewReader(payload))
 	if err != nil {
 		t.Fatalf("admin login failed: %v", err)

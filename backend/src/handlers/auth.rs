@@ -287,6 +287,19 @@ pub struct AdminLoginResponse {
     pub refresh_token: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AdminBootstrapStatusResponse {
+    pub bootstrap_required: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdminBootstrapInitRequest {
+    pub username: String,
+    pub password: String,
+    #[serde(default, alias = "display_name")]
+    pub display_name: Option<String>,
+}
+
 /// 生成刷新令牌并写入 Redis，返回明文刷新令牌
 async fn generate_and_store_refresh_token(
     state: &AppState,
@@ -1050,6 +1063,228 @@ async fn build_admin_session_user_info(
     })
 }
 
+fn build_bootstrap_admin_email(username: &str) -> String {
+    let mut local = username
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        .collect::<String>();
+
+    if local.is_empty() {
+        local = format!("admin-{}", uuid::Uuid::new_v4().simple());
+    }
+
+    format!("{local}@bootstrap.redcode-im.local")
+}
+
+async fn count_active_admin_users(state: &AppState) -> Result<i64, AppError> {
+    sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::BIGINT FROM admin_users WHERE deleted_at IS NULL",
+    )
+    .fetch_one(&state.database.pool)
+    .await
+    .map_err(AppError::DatabaseError)
+}
+
+async fn issue_admin_session_response(
+    state: &AppState,
+    db_admin_user: &AdminUser,
+) -> Result<AdminLoginResponse, AppError> {
+    let claims = Claims {
+        sub: db_admin_user.id.to_string(),
+        username: db_admin_user.username.clone(),
+        is_admin: true,
+        exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
+        iat: chrono::Utc::now().timestamp() as usize,
+    };
+
+    let token =
+        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
+
+    let refresh_token =
+        generate_and_store_refresh_token(&state, &db_admin_user.id.to_string(), true)
+            .await
+            .map_err(|e| {
+                tracing::warn!("生成管理员刷新令牌失败: {:?}", e);
+                AppError::InternalError("生成刷新令牌失败".to_string())
+            })?;
+
+    Ok(AdminLoginResponse {
+        token,
+        user: build_admin_session_user_info(state, db_admin_user).await?,
+        refresh_token: Some(refresh_token),
+    })
+}
+
+pub async fn get_admin_bootstrap_status(
+    State(state): State<AppState>,
+) -> Result<Json<AdminBootstrapStatusResponse>, AppError> {
+    let admin_count = count_active_admin_users(&state).await?;
+
+    Ok(Json(AdminBootstrapStatusResponse {
+        bootstrap_required: admin_count == 0,
+    }))
+}
+
+pub async fn bootstrap_admin(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<AdminBootstrapInitRequest>,
+) -> Result<Json<AdminLoginResponse>, AppError> {
+    let username = payload.username.trim();
+    let password = payload.password.trim();
+    let display_name = payload
+        .display_name
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+
+    if username.is_empty() || password.is_empty() {
+        return Err(AppError::ValidationError(
+            "用户名和密码不能为空".to_string(),
+        ));
+    }
+
+    if username.len() < 3 {
+        return Err(AppError::ValidationError(
+            "用户名长度至少为3个字符".to_string(),
+        ));
+    }
+
+    if password.len() < 8 {
+        return Err(AppError::ValidationError(
+            "初始化密码长度至少为8个字符".to_string(),
+        ));
+    }
+
+    let mut tx = state
+        .database
+        .pool
+        .begin()
+        .await
+        .map_err(AppError::DatabaseError)?;
+
+    let existing_admin_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*)::BIGINT FROM admin_users WHERE deleted_at IS NULL",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    if existing_admin_count > 0 {
+        return Err(AppError::AlreadyExists(
+            "管理员已初始化，不能重复创建首个超级管理员".to_string(),
+        ));
+    }
+
+    let username_exists: Option<bool> = sqlx::query_scalar(
+        "SELECT TRUE FROM admin_users WHERE username = $1 AND deleted_at IS NULL",
+    )
+    .bind(username)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    if username_exists == Some(true) {
+        return Err(AppError::AlreadyExists("用户名已存在".to_string()));
+    }
+
+    let password_hash =
+        hash_password(password).map_err(|_| AppError::InternalError("密码哈希失败".to_string()))?;
+
+    let admin_user = sqlx::query_as::<_, AdminUser>(
+        r#"
+        INSERT INTO admin_users
+            (username, email, password_hash, nickname, status, require_password_change, password_changed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+        RETURNING
+            id, username, email, password_hash, nickname, avatar_url,
+            status, last_login_at, login_attempts, locked_until,
+            require_password_change, password_changed_at,
+            created_at, updated_at, deleted_at
+        "#,
+    )
+    .bind(username)
+    .bind(build_bootstrap_admin_email(username))
+    .bind(password_hash)
+    .bind(display_name.or_else(|| Some(username.to_string())))
+    .bind(AdminUserStatus::Active)
+    .bind(false)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    let super_admin_role_id = sqlx::query_scalar::<_, uuid::Uuid>(
+        "SELECT id FROM roles WHERE code = 'super_admin' LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?
+    .ok_or_else(|| AppError::InternalError("系统缺少 super_admin 角色".to_string()))?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO admin_user_roles (admin_user_id, role_id, assigned_by)
+        VALUES ($1, $2, NULL)
+        "#,
+    )
+    .bind(admin_user.id)
+    .bind(super_admin_role_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?;
+
+    tx.commit().await.map_err(AppError::DatabaseError)?;
+
+    let store = admin::AdminUserStore::new(state.database.clone());
+
+    let client_ip: Option<std::net::IpAddr> = headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim())
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            headers
+                .get("X-Real-IP")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.trim().parse().ok())
+        });
+
+    let user_agent: Option<String> = headers
+        .get("User-Agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    if let Err(e) = store
+        .record_login_history(
+            &admin_user.id,
+            client_ip.map(|ip: std::net::IpAddr| ip.into()),
+            user_agent,
+            true,
+            None,
+        )
+        .await
+    {
+        tracing::warn!("记录初始化管理员登录历史失败: {:?}", e);
+    }
+
+    if let Err(e) = store.update_login_info(&admin_user.id).await {
+        tracing::warn!("更新初始化管理员登录信息失败: {:?}", e);
+    }
+
+    let refreshed_admin_user = store
+        .find_by_id(&admin_user.id)
+        .await?
+        .ok_or_else(|| AppError::InternalError("初始化后的管理员用户不存在".to_string()))?;
+
+    Ok(Json(
+        issue_admin_session_response(&state, &refreshed_admin_user).await?,
+    ))
+}
+
 pub async fn get_current_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1151,34 +1386,9 @@ pub async fn admin_login(
         db_admin_user.username
     );
 
-    // 生成 JWT token（可设置更短的过期时间以提高安全性）
-    let claims = Claims {
-        sub: db_admin_user.id.to_string(),
-        username: db_admin_user.username.clone(),
-        is_admin: true,
-        exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize, // 8小时过期
-        iat: chrono::Utc::now().timestamp() as usize,
-    };
-
-    let token =
-        generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
-
-    // 生成管理员刷新令牌
-    let refresh_token =
-        generate_and_store_refresh_token(&state, &db_admin_user.id.to_string(), true)
-            .await
-            .map_err(|e| {
-                tracing::warn!("生成管理员刷新令牌失败: {:?}", e);
-                AppError::InternalError("生成刷新令牌失败".to_string())
-            })?;
-
-    let response = AdminLoginResponse {
-        token,
-        user: build_admin_session_user_info(&state, &db_admin_user).await?,
-        refresh_token: Some(refresh_token),
-    };
-
-    Ok(Json(response))
+    Ok(Json(
+        issue_admin_session_response(&state, &db_admin_user).await?,
+    ))
 }
 
 /// 获取当前管理员用户信息
@@ -1279,13 +1489,11 @@ pub async fn admin_refresh_token(
         .await
         .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
 
-    let response = AdminLoginResponse {
+    Ok(Json(AdminLoginResponse {
         token: new_token,
         user: build_admin_session_user_info(&state, &db_admin_user).await?,
         refresh_token: Some(token.to_string()),
-    };
-
-    Ok(Json(response))
+    }))
 }
 
 /// 更新当前管理员用户信息

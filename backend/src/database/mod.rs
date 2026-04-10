@@ -1,5 +1,5 @@
-use sqlx::{postgres::PgPoolOptions, Acquire, Executor, PgPool, Postgres, Row};
 use sha2::{Digest, Sha256};
+use sqlx::{postgres::PgPoolOptions, Acquire, Executor, PgPool, Postgres, Row};
 use std::env;
 
 pub mod account_store;
@@ -45,6 +45,12 @@ const MIGRATION_ADVISORY_LOCK_KEY: i64 = 0x7265_6463_6f64_65; // "redcode"
 /// 基础初始化脚本（base.sql）
 const BASE_MIGRATION_NAME: &str = "base.sql";
 const BASE_MIGRATION_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
+const REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_NAME: &str =
+    "20260410093000_remove_default_admin_seed.sql";
+const REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/sql/migrations/20260410093000_remove_default_admin_seed.sql"
+));
 const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 
 /// 按执行顺序写死的迁移脚本列表
@@ -56,6 +62,10 @@ const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 const MIGRATIONS: &[(&str, &str)] = &[
     // 基础初始化脚本
     (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
+    (
+        REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_NAME,
+        REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL,
+    ),
 ];
 
 #[derive(Debug, Clone)]
@@ -207,7 +217,10 @@ impl Database {
             );
             ensure_database_matches_current_baseline(&mut **conn).await?;
 
-            tracing::info!("结构校验通过：补记当前基线 {:?} 已执行", BASE_MIGRATION_NAME);
+            tracing::info!(
+                "结构校验通过：补记当前基线 {:?} 已执行",
+                BASE_MIGRATION_NAME
+            );
             self.insert_migration_record(
                 &mut **conn,
                 BASE_MIGRATION_NAME,
@@ -257,7 +270,9 @@ impl Database {
             MIGRATIONS_TABLE_FQN
         );
 
-        sqlx::query(&create_table_sql).execute(&mut *executor).await?;
+        sqlx::query(&create_table_sql)
+            .execute(&mut *executor)
+            .await?;
         sqlx::query(&format!(
             "ALTER TABLE {} ADD COLUMN IF NOT EXISTS checksum TEXT;",
             MIGRATIONS_TABLE_FQN
@@ -288,9 +303,7 @@ impl Database {
         .await?;
 
         Ok(row.map(|row| MigrationRecord {
-            checksum: row
-                .try_get::<Option<String>, _>("checksum")
-                .unwrap_or(None),
+            checksum: row.try_get::<Option<String>, _>("checksum").unwrap_or(None),
         }))
     }
 
@@ -524,10 +537,7 @@ async fn ensure_database_matches_current_baseline(
     )))
 }
 
-async fn table_exists(
-    executor: &mut sqlx::PgConnection,
-    table: &str,
-) -> Result<bool, sqlx::Error> {
+async fn table_exists(executor: &mut sqlx::PgConnection, table: &str) -> Result<bool, sqlx::Error> {
     let exists: bool = sqlx::query(
         "SELECT EXISTS (
              SELECT 1
@@ -545,10 +555,7 @@ async fn table_exists(
     Ok(exists)
 }
 
-async fn view_exists(
-    executor: &mut sqlx::PgConnection,
-    view: &str,
-) -> Result<bool, sqlx::Error> {
+async fn view_exists(executor: &mut sqlx::PgConnection, view: &str) -> Result<bool, sqlx::Error> {
     let exists: bool = sqlx::query(
         "SELECT EXISTS (
              SELECT 1
@@ -817,7 +824,8 @@ mod tests {
             .collect::<Vec<_>>();
         manifest_names.sort();
 
-        let migrations_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sql/migrations");
+        let migrations_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("sql/migrations");
         let mut filesystem_names = fs::read_dir(migrations_dir)
             .unwrap()
             .filter_map(|entry| {

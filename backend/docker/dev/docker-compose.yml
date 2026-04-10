@@ -90,7 +90,6 @@ services:
       REDIS_CACHE_URL: redis://:123456@redis-cache:6379/0
       SQLX_OFFLINE: "true"
       JWT_SECRET: dev-secret-change-me
-      ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
       TZ: Asia/Shanghai
       CARGO_TARGET_DIR: /app/target
     depends_on:

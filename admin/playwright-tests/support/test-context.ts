@@ -3,7 +3,8 @@ export const adminLiveBackendEnabled =
   process.env.ADMIN_LIVE_BACKEND_ENABLED === 'true';
 
 export const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-export const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+export const adminPassword =
+  process.env.ADMIN_PASSWORD || 'BhgNKtC1RbOBj1sCVKmt9Rwx';
 
 export type AdminRouteProfile = 'default' | 'data-cleanup';
 

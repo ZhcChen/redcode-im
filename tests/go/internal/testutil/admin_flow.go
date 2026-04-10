@@ -11,6 +11,11 @@ import (
 	"sync"
 )
 
+const (
+	defaultAdminUsername = "admin"
+	defaultAdminPassword = "BhgNKtC1RbOBj1sCVKmt9Rwx"
+)
+
 type storageProviderResponse struct {
 	ID        string `json:"id"`
 	Endpoint  string `json:"endpoint"`
@@ -116,14 +121,30 @@ func AdminLogin(t TestingT, c *Client) LoginResponse {
 }
 
 func adminLogin(c *Client) (LoginResponse, error) {
-	initResp, _ := c.HTTP.Post(c.BaseURL+"/api/admin/init-default-admin", "application/json", bytes.NewReader([]byte("{}")))
-	if initResp != nil {
-		_ = initResp.Body.Close()
+	statusResp, err := c.HTTP.Get(c.BaseURL + "/api/admin/bootstrap/status")
+	if err == nil && statusResp != nil {
+		var status struct {
+			BootstrapRequired bool `json:"bootstrap_required"`
+		}
+		_ = json.NewDecoder(statusResp.Body).Decode(&status)
+		_ = statusResp.Body.Close()
+		if status.BootstrapRequired {
+			initPayload := map[string]any{
+				"username":     defaultAdminUsername,
+				"password":     defaultAdminPassword,
+				"display_name": "系统管理员",
+			}
+			raw, _ := json.Marshal(initPayload)
+			initResp, initErr := c.HTTP.Post(c.BaseURL+"/api/admin/bootstrap/init", "application/json", bytes.NewReader(raw))
+			if initErr == nil && initResp != nil {
+				_ = initResp.Body.Close()
+			}
+		}
 	}
 
 	loginPayload := map[string]any{
-		"username": "admin",
-		"password": "admin123",
+		"username": defaultAdminUsername,
+		"password": defaultAdminPassword,
 	}
 	raw, _ := json.Marshal(loginPayload)
 	loginResp, err := c.HTTP.Post(c.BaseURL+"/auth/admin/login", "application/json", bytes.NewReader(raw))

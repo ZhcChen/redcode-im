@@ -25,7 +25,6 @@ x-rust-service: &rust_service
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me
     PUSH_ENABLED: "true"
-    ALLOW_INSECURE_ADMIN_BOOTSTRAP: "true"
     REDCODE_IM_STORAGE_DISABLE_NETWORK: "false"
     REDCODE_IM_STORAGE_SCHEME: "http"
     GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
@@ -123,7 +122,7 @@ services:
     image: golang:1.25
     working_dir: /workspace/tests/go
     volumes:
-      - ./go:/workspace/tests/go
+      - ..:/workspace
       - go_mod_cache:/go/pkg/mod
       - go_build_cache:/root/.cache/go-build
     environment:
@@ -134,7 +133,7 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
-    command: ["go", "test", "./...", "-v"]
+    command: ["go", "test", "./...", "-v", "-p", "1"]
 
 volumes:
   postgres_data:

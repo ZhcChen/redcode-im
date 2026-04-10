@@ -1,5 +1,7 @@
 import type { Page, Request, Route } from '@playwright/test';
 
+import { adminPassword } from './test-context';
+
 interface FailureRule {
   endpoint: RegExp;
   status: number;
@@ -1640,7 +1642,7 @@ export async function ensureAdminLogin(page: Page) {
   await page.goto('/login');
 
   await page.getByPlaceholder('用户名：admin').fill('admin');
-  await page.getByPlaceholder('密码：admin').fill('admin123');
+  await page.getByPlaceholder('密码：admin').fill(adminPassword);
   await page.getByRole('button', { name: '登录' }).click();
 }
 

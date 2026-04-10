@@ -63,8 +63,8 @@ impl TempDatabase {
             r#"DROP DATABASE IF EXISTS "{}" WITH (FORCE)"#,
             self.name
         ))
-            .execute(&admin_pool)
-            .await?;
+        .execute(&admin_pool)
+        .await?;
         admin_pool.close().await;
         Ok(())
     }
@@ -132,7 +132,8 @@ async fn column_exists(pool: &PgPool, table: &str, column: &str) -> Result<bool,
 }
 
 #[tokio::test]
-async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn std::error::Error>> {
+async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn std::error::Error>>
+{
     let temp = TempDatabase::create().await?;
 
     let db = run_migrate(&temp.url).await?;
@@ -161,12 +162,11 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     assert!(column_exists(pool, "messages", "encryption_metadata").await?);
     assert!(column_exists(pool, "app_versions", "app_store_url").await?);
 
-    let admin_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM admin_users WHERE username = 'admin')",
-    )
-    .fetch_one(pool)
-    .await?;
-    assert!(admin_exists);
+    let admin_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM admin_users WHERE deleted_at IS NULL")
+            .fetch_one(pool)
+            .await?;
+    assert_eq!(admin_count, 0);
 
     let permissions_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permissions")
         .fetch_one(pool)
@@ -176,13 +176,12 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(applied_count, 1);
+    assert_eq!(applied_count, 2);
 
-    let checksum: Option<String> = sqlx::query_scalar(
-        "SELECT checksum FROM db_migrations WHERE name = 'base.sql'",
-    )
-    .fetch_one(pool)
-    .await?;
+    let checksum: Option<String> =
+        sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")
+            .fetch_one(pool)
+            .await?;
     assert!(checksum.is_some());
 
     db.pool.close().await;
@@ -223,14 +222,22 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(adopted.pool())
         .await?;
-    assert_eq!(applied_count, 1);
+    assert_eq!(applied_count, 2);
 
-    let checksum: Option<String> = sqlx::query_scalar(
-        "SELECT checksum FROM db_migrations WHERE name = 'base.sql'",
+    let checksum: Option<String> =
+        sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")
+            .fetch_one(adopted.pool())
+            .await?;
+    assert!(checksum.is_some());
+
+    let remove_default_admin_checksum: Option<String> = sqlx::query_scalar(
+        "SELECT checksum
+         FROM db_migrations
+         WHERE name = '20260410093000_remove_default_admin_seed.sql'",
     )
     .fetch_one(adopted.pool())
     .await?;
-    assert!(checksum.is_some());
+    assert!(remove_default_admin_checksum.is_some());
 
     adopted.pool.close().await;
     temp.cleanup().await?;

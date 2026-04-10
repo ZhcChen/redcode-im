@@ -45,6 +45,11 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/login/oauth", post(auth::login_with_oauth))
         .route("/auth/refresh", post(auth::refresh_token))
         .route("/auth/sms/send", post(auth::send_login_sms))
+        .route(
+            "/api/admin/bootstrap/status",
+            get(auth::get_admin_bootstrap_status),
+        )
+        .route("/api/admin/bootstrap/init", post(auth::bootstrap_admin))
         .route("/auth/admin/login", post(auth::admin_login))
         .route("/auth/admin/refresh", post(auth::admin_refresh_token))
         .route(
@@ -60,21 +65,6 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/settings/captcha",
             get(settings::get_captcha_setting_public),
-        )
-        // 临时API：创建默认管理员用户（仅用于初始化）
-        .route(
-            "/api/admin/init-default-admin",
-            post(admin::create_default_admin_user),
-        )
-        // 临时API：检查管理员用户
-        .route(
-            "/api/admin/check-admin-users",
-            get(admin::check_admin_users),
-        )
-        // 临时API：重置管理员密码
-        .route(
-            "/api/admin/reset-admin-password",
-            post(admin::reset_admin_password),
         );
 
     // 需要认证且必须是管理员 Token 的路由
