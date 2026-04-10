@@ -46,10 +46,11 @@
 
 <script lang="ts" setup>
   import { computed, onMounted, ref } from 'vue';
-  import dayjs from 'dayjs';
   import { Message } from '@arco-design/web-vue';
+
   import useLoading from '@/hooks/loading';
   import { getPermissionList, type PermissionInfo } from '@/api/rbac';
+  import { formatDate } from '../helpers';
 
   const keyword = ref('');
   const permissions = ref<PermissionInfo[]>([]);
@@ -69,7 +70,7 @@
     });
   });
 
-  const fetchPermissions = async () => {
+  async function fetchPermissions() {
     setLoading(true);
     try {
       const { data } = await getPermissionList();
@@ -79,12 +80,7 @@
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatDate = (value?: string) => {
-    if (!value) return '-';
-    return dayjs(value).format('YYYY-MM-DD HH:mm');
-  };
+  }
 
   onMounted(() => {
     fetchPermissions();

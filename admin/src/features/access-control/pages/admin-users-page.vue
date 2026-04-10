@@ -23,9 +23,9 @@
             <a-option value="locked">锁定</a-option>
             <a-option value="banned">封禁</a-option>
           </a-select>
-          <a-button type="primary" @click="openCreateModal"
-            >新建管理员</a-button
-          >
+          <a-button type="primary" @click="createVisible = true">
+            新建管理员
+          </a-button>
           <a-button @click="fetchData">
             <template #icon><icon-refresh /></template>
             刷新
@@ -45,8 +45,8 @@
           <a-table-column title="邮箱" data-index="email" :width="240" />
           <a-table-column title="状态" :width="110">
             <template #cell="{ record }">
-              <a-tag :color="statusColor(record.status)">
-                {{ statusText(record.status) }}
+              <a-tag :color="adminStatusColor(record.status)">
+                {{ adminStatusText(record.status) }}
               </a-tag>
             </template>
           </a-table-column>
@@ -89,87 +89,42 @@
       </a-table>
     </a-card>
 
-    <a-modal
+    <AdminUserCreateModal
       v-model:visible="createVisible"
-      title="新建管理员"
-      :on-before-ok="submitCreate"
-      @cancel="resetCreateForm"
-    >
-      <a-form :model="createForm" layout="vertical">
-        <a-form-item label="用户名" required>
-          <a-input
-            v-model="createForm.username"
-            placeholder="请输入管理员用户名"
-          />
-        </a-form-item>
-        <a-form-item label="邮箱" required>
-          <a-input v-model="createForm.email" placeholder="请输入管理员邮箱" />
-        </a-form-item>
-        <a-form-item label="密码" required>
-          <a-input-password
-            v-model="createForm.password"
-            placeholder="请输入管理员密码"
-          />
-        </a-form-item>
-        <a-form-item label="昵称">
-          <a-input
-            v-model="createForm.nickname"
-            placeholder="请输入管理员昵称"
-          />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <a-modal
+      :submit="submitCreate"
+    />
+    <AdminUserRoleModal
       v-model:visible="roleVisible"
-      title="分配管理员角色"
-      :on-before-ok="submitRoles"
-      @cancel="resetRoleForm"
-    >
-      <a-form :model="roleForm" layout="vertical">
-        <a-form-item label="管理员账号">
-          <a-input :model-value="roleTarget?.username || ''" disabled />
-        </a-form-item>
-        <a-form-item label="角色列表">
-          <a-select
-            v-model="roleForm.roleIds"
-            multiple
-            allow-clear
-            placeholder="请选择角色"
-          >
-            <a-option
-              v-for="role in roleOptions"
-              :key="role.id"
-              :value="role.id"
-            >
-              {{ role.code }} - {{ role.name }}
-            </a-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
+      :target="roleTarget"
+      :role-ids="selectedRoleIds"
+      :role-options="roleOptions"
+      :submit="submitRoles"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
-  import { computed, onMounted, reactive, ref } from 'vue';
-  import dayjs from 'dayjs';
+  import { computed, onMounted, ref } from 'vue';
   import { Message } from '@arco-design/web-vue';
+
   import {
-    getAdminUserList,
     createAdminUser,
+    getAdminUserList,
     updateAdminUserStatus,
-    type AdminUserInfo,
   } from '@/api/user';
   import {
-    getRoleList,
     getAdminUserRoleAssignment,
+    getRoleList,
     updateAdminUserRoleAssignment,
     type RoleInfo,
   } from '@/api/rbac';
   import useLoading from '@/hooks/loading';
-
-  type AdminUserRow = AdminUserInfo & { roleCodes: string[] };
+  import { adminStatusColor, adminStatusText, formatDate } from '../helpers';
+  import type { AdminUserRow } from '../types';
+  import AdminUserCreateModal, {
+    type AdminUserCreateFormValue,
+  } from '../components/admin-user-create-modal.vue';
+  import AdminUserRoleModal from '../components/admin-user-role-modal.vue';
 
   const keyword = ref('');
   const selectedStatus = ref('');
@@ -178,57 +133,8 @@
   const createVisible = ref(false);
   const roleVisible = ref(false);
   const roleTarget = ref<AdminUserRow | null>(null);
+  const selectedRoleIds = ref<string[]>([]);
   const { loading, setLoading } = useLoading(false);
-
-  const createForm = reactive({
-    username: '',
-    email: '',
-    password: '',
-    nickname: '',
-  });
-
-  const roleForm = reactive({
-    roleIds: [] as string[],
-  });
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [{ data: adminData }, { data: roleData }] = await Promise.all([
-        getAdminUserList({
-          page: 1,
-          pageSize: 100,
-          username: keyword.value || undefined,
-          status: selectedStatus.value || undefined,
-        }),
-        getRoleList(),
-      ]);
-
-      roleOptions.value = roleData.roles || [];
-      const users = (adminData.users || []) as AdminUserInfo[];
-      const withRoles = await Promise.all(
-        users.map(async (user) => {
-          try {
-            const { data } = await getAdminUserRoleAssignment(user.id);
-            return {
-              ...user,
-              roleCodes: data.roleCodes || [],
-            };
-          } catch {
-            return {
-              ...user,
-              roleCodes: [],
-            };
-          }
-        })
-      );
-      adminUsers.value = withRoles;
-    } catch (error: any) {
-      Message.error(error?.message || '获取管理员列表失败');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filteredUsers = computed(() => {
     const search = keyword.value.trim().toLowerCase();
@@ -245,23 +151,49 @@
     });
   });
 
-  const resetCreateForm = () => {
-    createForm.username = '';
-    createForm.email = '';
-    createForm.password = '';
-    createForm.nickname = '';
-  };
+  async function fetchData() {
+    setLoading(true);
+    try {
+      const [{ data: adminData }, { data: roleData }] = await Promise.all([
+        getAdminUserList({
+          page: 1,
+          pageSize: 100,
+          username: keyword.value || undefined,
+          status: selectedStatus.value || undefined,
+        }),
+        getRoleList(),
+      ]);
 
-  const openCreateModal = () => {
-    resetCreateForm();
-    createVisible.value = true;
-  };
+      roleOptions.value = roleData.roles || [];
+      const users = adminData.users || [];
+      adminUsers.value = await Promise.all(
+        users.map(async (user) => {
+          try {
+            const { data } = await getAdminUserRoleAssignment(user.id);
+            return {
+              ...user,
+              roleCodes: data.roleCodes || [],
+            };
+          } catch {
+            return {
+              ...user,
+              roleCodes: [],
+            };
+          }
+        })
+      );
+    } catch (error: any) {
+      Message.error(error?.message || '获取管理员列表失败');
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const submitCreate = async () => {
+  async function submitCreate(payload: AdminUserCreateFormValue) {
     if (
-      !createForm.username.trim() ||
-      !createForm.email.trim() ||
-      !createForm.password.trim()
+      !payload.username.trim() ||
+      !payload.email.trim() ||
+      !payload.password.trim()
     ) {
       Message.error('用户名、邮箱、密码不能为空');
       return false;
@@ -269,60 +201,50 @@
 
     try {
       await createAdminUser({
-        username: createForm.username.trim(),
-        email: createForm.email.trim(),
-        password: createForm.password,
-        nickname: createForm.nickname.trim() || undefined,
+        username: payload.username.trim(),
+        email: payload.email.trim(),
+        password: payload.password,
+        nickname: payload.nickname.trim() || undefined,
       });
       Message.success('管理员创建成功');
-      createVisible.value = false;
-      resetCreateForm();
       await fetchData();
       return true;
     } catch (error: any) {
       Message.error(error?.message || '创建管理员失败');
       return false;
     }
-  };
+  }
 
-  const resetRoleForm = () => {
-    roleTarget.value = null;
-    roleForm.roleIds = [];
-  };
-
-  const openRoleModal = async (record: AdminUserRow) => {
+  async function openRoleModal(record: AdminUserRow) {
     try {
       const { data } = await getAdminUserRoleAssignment(record.id);
       roleTarget.value = record;
-      roleForm.roleIds = data.roleIds || [];
+      selectedRoleIds.value = data.roleIds || [];
       roleVisible.value = true;
     } catch (error: any) {
       Message.error(error?.message || '获取管理员角色失败');
     }
-  };
+  }
 
-  const submitRoles = async () => {
+  async function submitRoles(roleIds: string[]) {
     if (!roleTarget.value) {
       return false;
     }
 
     try {
-      await updateAdminUserRoleAssignment(
-        roleTarget.value.id,
-        roleForm.roleIds
-      );
+      await updateAdminUserRoleAssignment(roleTarget.value.id, roleIds);
       Message.success('管理员角色更新成功');
-      roleVisible.value = false;
-      resetRoleForm();
+      selectedRoleIds.value = [];
+      roleTarget.value = null;
       await fetchData();
       return true;
     } catch (error: any) {
       Message.error(error?.message || '更新管理员角色失败');
       return false;
     }
-  };
+  }
 
-  const toggleStatus = async (record: AdminUserRow) => {
+  async function toggleStatus(record: AdminUserRow) {
     const nextStatus = record.status === 'active' ? 'inactive' : 'active';
     try {
       await updateAdminUserStatus(record.id, nextStatus);
@@ -331,42 +253,7 @@
     } catch (error: any) {
       Message.error(error?.message || '更新管理员状态失败');
     }
-  };
-
-  const statusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'green';
-      case 'inactive':
-        return 'orange';
-      case 'banned':
-        return 'red';
-      case 'locked':
-        return 'purple';
-      default:
-        return 'gray';
-    }
-  };
-
-  const statusText = (status: string) => {
-    switch (status) {
-      case 'active':
-        return '正常';
-      case 'inactive':
-        return '停用';
-      case 'banned':
-        return '封禁';
-      case 'locked':
-        return '锁定';
-      default:
-        return status;
-    }
-  };
-
-  const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    return dayjs(value).format('YYYY-MM-DD HH:mm');
-  };
+  }
 
   onMounted(() => {
     fetchData();

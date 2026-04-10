@@ -85,79 +85,26 @@
       </a-table>
     </a-card>
 
-    <a-modal
+    <RoleEditModal
       v-model:visible="editVisible"
-      :title="editingRole ? '编辑角色' : '新建角色'"
-      :on-before-ok="submitRole"
-      @cancel="resetEditForm"
-    >
-      <a-form :model="editForm" layout="vertical">
-        <a-form-item label="角色名称" required>
-          <a-input v-model="editForm.name" placeholder="请输入角色名称" />
-        </a-form-item>
-        <a-form-item label="角色代码" required>
-          <a-input
-            v-model="editForm.code"
-            placeholder="请输入角色代码"
-            :disabled="Boolean(editingRole)"
-          />
-        </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model="editForm.description" placeholder="请输入描述" />
-        </a-form-item>
-        <a-form-item v-if="!editingRole" label="初始权限">
-          <a-select
-            v-model="editForm.permissionIds"
-            multiple
-            allow-clear
-            placeholder="请选择权限"
-          >
-            <a-option
-              v-for="permission in permissions"
-              :key="permission.id"
-              :value="permission.id"
-            >
-              {{ permission.code }} - {{ permission.name }}
-            </a-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <a-modal
+      :editing-role="editingRole"
+      :permissions="permissions"
+      :submit="submitRole"
+    />
+    <RolePermissionModal
       v-model:visible="permissionVisible"
-      title="配置角色权限"
-      :on-before-ok="submitPermissions"
-      @cancel="resetPermissionForm"
-    >
-      <a-form :model="permissionForm" layout="vertical">
-        <a-form-item label="角色">
-          <a-input :model-value="permissionTarget?.name || ''" disabled />
-        </a-form-item>
-        <a-form-item label="权限列表">
-          <a-select
-            v-model="permissionForm.permissionIds"
-            multiple
-            allow-clear
-            placeholder="请选择权限"
-          >
-            <a-option
-              v-for="permission in permissions"
-              :key="permission.id"
-              :value="permission.id"
-            >
-              {{ permission.code }} - {{ permission.name }}
-            </a-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
+      :target="permissionTarget"
+      :permission-ids="selectedPermissionIds"
+      :permissions="permissions"
+      :submit="submitPermissions"
+    />
   </div>
 </template>
 
 <script lang="ts" setup>
-  import { computed, onMounted, reactive, ref } from 'vue';
+  import { computed, onMounted, ref } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
+
   import {
     createRole,
     deleteRole,
@@ -170,6 +117,10 @@
     type RoleInfo,
   } from '@/api/rbac';
   import useLoading from '@/hooks/loading';
+  import RoleEditModal, {
+    type RoleFormValue,
+  } from '../components/role-edit-modal.vue';
+  import RolePermissionModal from '../components/role-permission-modal.vue';
 
   const keyword = ref('');
   const roles = ref<RoleInfo[]>([]);
@@ -178,18 +129,8 @@
   const permissionTarget = ref<RoleInfo | null>(null);
   const editVisible = ref(false);
   const permissionVisible = ref(false);
+  const selectedPermissionIds = ref<string[]>([]);
   const { loading, setLoading } = useLoading(false);
-
-  const editForm = reactive({
-    name: '',
-    code: '',
-    description: '',
-    permissionIds: [] as string[],
-  });
-
-  const permissionForm = reactive({
-    permissionIds: [] as string[],
-  });
 
   const filteredRoles = computed(() => {
     const search = keyword.value.trim().toLowerCase();
@@ -205,7 +146,7 @@
     });
   });
 
-  const fetchData = async () => {
+  async function fetchData() {
     setLoading(true);
     try {
       const [{ data: roleData }, { data: permissionData }] = await Promise.all([
@@ -219,32 +160,20 @@
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const resetEditForm = () => {
+  function openCreateModal() {
     editingRole.value = null;
-    editForm.name = '';
-    editForm.code = '';
-    editForm.description = '';
-    editForm.permissionIds = [];
-  };
-
-  const openCreateModal = () => {
-    resetEditForm();
     editVisible.value = true;
-  };
+  }
 
-  const openEditModal = (role: RoleInfo) => {
+  function openEditModal(role: RoleInfo) {
     editingRole.value = role;
-    editForm.name = role.name;
-    editForm.code = role.code;
-    editForm.description = role.description || '';
-    editForm.permissionIds = role.permissions.map((item) => item.id);
     editVisible.value = true;
-  };
+  }
 
-  const submitRole = async () => {
-    if (!editForm.name.trim() || !editForm.code.trim()) {
+  async function submitRole(payload: RoleFormValue) {
+    if (!payload.name.trim() || !payload.code.trim()) {
       Message.error('角色名称和角色代码不能为空');
       return false;
     }
@@ -252,29 +181,28 @@
     try {
       if (editingRole.value) {
         await updateRole(editingRole.value.id, {
-          name: editForm.name.trim(),
-          description: editForm.description.trim() || null,
+          name: payload.name.trim(),
+          description: payload.description.trim() || null,
         });
       } else {
         await createRole({
-          name: editForm.name.trim(),
-          code: editForm.code.trim(),
-          description: editForm.description.trim() || null,
-          permissionIds: [...editForm.permissionIds],
+          name: payload.name.trim(),
+          code: payload.code.trim(),
+          description: payload.description.trim() || null,
+          permissionIds: [...payload.permissionIds],
         });
       }
       Message.success(editingRole.value ? '角色更新成功' : '角色创建成功');
-      editVisible.value = false;
-      resetEditForm();
+      editingRole.value = null;
       await fetchData();
       return true;
     } catch (error: any) {
       Message.error(error?.message || '保存角色失败');
       return false;
     }
-  };
+  }
 
-  const removeRole = (role: RoleInfo) => {
+  function removeRole(role: RoleInfo) {
     Modal.confirm({
       title: '确认删除角色',
       content: `确定删除角色「${role.name}」吗？`,
@@ -289,25 +217,20 @@
         }
       },
     });
-  };
+  }
 
-  const resetPermissionForm = () => {
-    permissionTarget.value = null;
-    permissionForm.permissionIds = [];
-  };
-
-  const openPermissionModal = async (role: RoleInfo) => {
+  async function openPermissionModal(role: RoleInfo) {
     try {
       const { data } = await getRolePermissionAssignment(role.id);
       permissionTarget.value = role;
-      permissionForm.permissionIds = data.permissionIds || [];
+      selectedPermissionIds.value = data.permissionIds || [];
       permissionVisible.value = true;
     } catch (error: any) {
       Message.error(error?.message || '获取角色权限失败');
     }
-  };
+  }
 
-  const submitPermissions = async () => {
+  async function submitPermissions(permissionIds: string[]) {
     if (!permissionTarget.value) {
       return false;
     }
@@ -315,18 +238,18 @@
     try {
       await updateRolePermissionAssignment(
         permissionTarget.value.id,
-        permissionForm.permissionIds
+        permissionIds
       );
       Message.success('角色权限更新成功');
-      permissionVisible.value = false;
-      resetPermissionForm();
+      permissionTarget.value = null;
+      selectedPermissionIds.value = [];
       await fetchData();
       return true;
     } catch (error: any) {
       Message.error(error?.message || '更新角色权限失败');
       return false;
     }
-  };
+  }
 
   onMounted(() => {
     fetchData();

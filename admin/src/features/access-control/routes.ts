@@ -17,7 +17,8 @@ const accessControlRoutes: AppRouteRecordRaw[] = [
       {
         path: 'admin-users',
         name: 'AdminUsers',
-        component: () => import('@/views/system/admin-users/index.vue'),
+        component: () =>
+          import('@/features/access-control/pages/admin-users-page.vue'),
         meta: {
           locale: 'menu.accessControl.adminUsers',
           requiresAuth: true,
@@ -27,7 +28,8 @@ const accessControlRoutes: AppRouteRecordRaw[] = [
       {
         path: 'roles',
         name: 'RoleManagement',
-        component: () => import('@/views/system/roles/index.vue'),
+        component: () =>
+          import('@/features/access-control/pages/roles-page.vue'),
         meta: {
           locale: 'menu.accessControl.roles',
           requiresAuth: true,
@@ -37,7 +39,8 @@ const accessControlRoutes: AppRouteRecordRaw[] = [
       {
         path: 'permissions',
         name: 'PermissionManagement',
-        component: () => import('@/views/system/permissions/index.vue'),
+        component: () =>
+          import('@/features/access-control/pages/permissions-page.vue'),
         meta: {
           locale: 'menu.accessControl.permissions',
           requiresAuth: true,
