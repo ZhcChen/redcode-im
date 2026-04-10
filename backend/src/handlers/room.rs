@@ -20,6 +20,7 @@ use crate::error::AppError;
 use crate::models::convert::{db_chat_summary_to_api, string_to_uuid};
 use crate::models::{ChatSummary, Claims};
 use crate::redis::models::{CacheKeys, PubSubPayload, RoomUpdatePayload};
+use crate::services::message_runtime::is_relay_only_runtime;
 use crate::websocket::{RoomCreatedPayload, ServerPush};
 use crate::AppState;
 
@@ -163,11 +164,11 @@ pub async fn join_room(
 
             // 开启入群审批：必须先审批通过 join request 才能 join
             if settings.join_approval_required
-                && !group_store.has_approved_join_request(room_id, user_id).await?
+                && !group_store
+                    .has_approved_join_request(room_id, user_id)
+                    .await?
             {
-                return Err(AppError::Forbidden(
-                    "Join request not approved".to_string(),
-                ));
+                return Err(AppError::Forbidden("Join request not approved".to_string()));
             }
         }
         RoomType::Private | RoomType::Favorite => {
@@ -305,7 +306,21 @@ pub async fn list_chat_summaries(
 
     let store = RoomStore::new(state.database.pool());
     store.ensure_favorite_room(user_id).await?;
-    let rows = store.list_chat_summaries(user_id).await?;
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
+    let mut rows = store.list_chat_summaries(user_id).await?;
+
+    if relay_only_runtime {
+        for row in &mut rows {
+            row.last_message_id = None;
+            row.last_message_content = None;
+            row.last_message_type = None;
+            row.last_message_created_at = None;
+            row.last_message_sender_id = None;
+            row.last_message_sender_username = None;
+            row.last_message_sender_nickname = None;
+            row.unread_count = 0;
+        }
+    }
 
     let summaries = rows
         .into_iter()
@@ -973,13 +988,13 @@ pub async fn commit_room_avatar_upload(
         }
         Err(crate::error::AppError::NotFound(_)) => {
             return Err(crate::error::AppError::ValidationError(
-                "COS 中尚未找到该群头像，请稍后重试".to_string(),
+                "对象存储中尚未找到该群头像，请稍后重试".to_string(),
             ));
         }
         Err(crate::error::AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
                 return Err(crate::error::AppError::ValidationError(
-                    "COS 中尚未找到该群头像，请稍后重试".to_string(),
+                    "对象存储中尚未找到该群头像，请稍后重试".to_string(),
                 ));
             }
         }

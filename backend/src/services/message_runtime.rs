@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
+use crate::AppState;
 
 pub const MESSAGE_SERVER_STORAGE_MODE_KEY: &str = "message_server_storage_mode";
 pub const MESSAGE_CONTENT_AUDIT_MODE_KEY: &str = "message_content_audit_mode";
@@ -82,6 +83,10 @@ impl MessageRuntimeSettings {
     }
 }
 
+pub fn relay_only_unsupported(action: &str) -> AppError {
+    AppError::ValidationError(format!("relay_only 模式暂不支持{}", action))
+}
+
 fn merge_message_runtime_metadata(
     left: Option<&crate::database::models::GeneralSettingRecord>,
     right: Option<&crate::database::models::GeneralSettingRecord>,
@@ -134,6 +139,11 @@ pub async fn load_message_runtime_settings(
         updated_at,
         updated_by,
     })
+}
+
+pub async fn is_relay_only_runtime(state: &AppState) -> Result<bool, AppError> {
+    let store = SettingsStore::new(state.database.clone());
+    Ok(load_message_runtime_settings(&store).await?.is_relay_only())
 }
 
 pub async fn update_message_runtime_settings(

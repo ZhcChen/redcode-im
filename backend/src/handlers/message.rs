@@ -22,7 +22,6 @@ use crate::database::{
         MessagePart, MessagePartType, MessageType, MessageWithSender, RoomType, StorageProvider,
     },
     room_store::RoomStore,
-    settings_store::SettingsStore,
     storage_provider_store::StorageProviderStore,
     user_store::UserStore,
 };
@@ -37,7 +36,7 @@ use crate::redis::models::{
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
     RoomHistoryClearedPayload,
 };
-use crate::services::message_runtime::load_message_runtime_settings;
+use crate::services::message_runtime::{is_relay_only_runtime, relay_only_unsupported};
 use crate::services::multipart_upload;
 use crate::services::push::PushMessageSnapshot;
 use crate::storage;
@@ -650,15 +649,6 @@ pub struct PinMessageResponse {
     pub pinned_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pinned_by: Option<String>,
-}
-
-fn relay_only_unsupported(action: &str) -> AppError {
-    AppError::ValidationError(format!("relay_only 模式暂不支持{}", action))
-}
-
-async fn is_relay_only_runtime(state: &AppState) -> Result<bool, AppError> {
-    let store = SettingsStore::new(state.database.clone());
-    Ok(load_message_runtime_settings(&store).await?.is_relay_only())
 }
 
 async fn load_runtime_sender(
@@ -1469,6 +1459,10 @@ pub async fn list_messages(
         ));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(Vec::new()));
+    }
+
     let items = store
         .get_room_messages_paged(room_id, limit, params.before_id, params.since_id)
         .await?;
@@ -1535,6 +1529,10 @@ pub async fn pin_message(
         return Err(AppError::Forbidden(
             "用户不在该房间，无法置顶消息".to_string(),
         ));
+    }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("置顶消息"));
     }
 
     let message = store
@@ -1606,6 +1604,10 @@ pub async fn unpin_message(
         ));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("取消置顶消息"));
+    }
+
     // 允许房间内多条置顶，这里仅取消当前消息的置顶（如果存在）
     let removed = store.remove_room_pin(room_id, Some(message_id)).await?;
 
@@ -1674,6 +1676,10 @@ pub async fn delete_message(
         return Err(AppError::Forbidden(
             "用户不在该房间，无法删除消息".to_string(),
         ));
+    }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("删除消息"));
     }
 
     let existing = store
@@ -1765,6 +1771,18 @@ pub async fn edit_message(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
+    let store = MessageStore::new(state.database.pool());
+
+    if !store.user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "用户不在该房间，无法编辑消息".to_string(),
+        ));
+    }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("编辑消息"));
+    }
+
     let new_content = payload.content.trim();
     if new_content.is_empty() {
         return Err(AppError::ValidationError("消息内容不能为空".to_string()));
@@ -1772,14 +1790,6 @@ pub async fn edit_message(
     if new_content.len() > 10000 {
         return Err(AppError::ValidationError(
             "消息内容不能超过 10000 字符".to_string(),
-        ));
-    }
-
-    let store = MessageStore::new(state.database.pool());
-
-    if !store.user_in_room(room_id, user_id).await? {
-        return Err(AppError::Forbidden(
-            "用户不在该房间，无法编辑消息".to_string(),
         ));
     }
 
@@ -1899,6 +1909,10 @@ pub async fn add_message_reaction(
         ));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息反应"));
+    }
+
     // 验证消息存在且未删除
     let message = message_store
         .get_message_with_sender(message_id)
@@ -1977,6 +1991,10 @@ pub async fn remove_message_reaction(
         ));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息反应"));
+    }
+
     // 删除反应
     let removed = reaction_store
         .remove_reaction(message_id, user_id, &payload.reaction_key)
@@ -2031,6 +2049,10 @@ pub async fn get_message_reactions(
         return Err(AppError::Forbidden(
             "用户不在该房间，无法查看反应".to_string(),
         ));
+    }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息反应"));
     }
 
     // 获取聚合结果

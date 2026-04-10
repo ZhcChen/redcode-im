@@ -5,10 +5,13 @@ use axum::{
 use serde_json::json;
 
 use crate::{
-    database::{message_read_store::MessageReadStore, message_store::MessageStore},
+    database::{
+        message_read_store::MessageReadStore, message_store::MessageStore, room_store::RoomStore,
+    },
     error::AppError,
     models::{convert::*, Claims, MarkMessageReadRequest, MessageReadInfo, UnreadCount},
     redis::models::{CacheKeys, PubSubPayload, ReadReceiptEvent},
+    services::message_runtime::{is_relay_only_runtime, relay_only_unsupported},
     AppState,
 };
 use ::redis::AsyncCommands;
@@ -24,12 +27,17 @@ pub async fn mark_message_read(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_id = string_to_uuid(&claims.sub)?;
     let room_id = string_to_uuid(&room_id)?;
-    let message_id = string_to_uuid(&payload.message_id)?;
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
         return Err(AppError::Forbidden("您不是该房间成员".to_string()));
     }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息已读"));
+    }
+
+    let message_id = string_to_uuid(&payload.message_id)?;
 
     let read_store = MessageReadStore::new(&state.database.pool);
     let _read = read_store
@@ -57,12 +65,17 @@ pub async fn mark_messages_read_until(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let user_id = string_to_uuid(&claims.sub)?;
     let room_id = string_to_uuid(&room_id)?;
-    let message_id = string_to_uuid(&payload.message_id)?;
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
         return Err(AppError::Forbidden("您不是该房间成员".to_string()));
     }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息已读"));
+    }
+
+    let message_id = string_to_uuid(&payload.message_id)?;
 
     let read_store = MessageReadStore::new(&state.database.pool);
     let count = read_store
@@ -127,6 +140,15 @@ pub async fn get_unread_count(
         return Err(AppError::Forbidden("您不是该房间成员".to_string()));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(UnreadCount {
+            room_id,
+            unread_count: 0,
+            last_read_message_id: None,
+            last_read_at: None,
+        }));
+    }
+
     let read_store = MessageReadStore::new(&state.database.pool);
     let unread_count = read_store.get_unread_count(room_id_uuid, user_id).await?;
 
@@ -155,6 +177,21 @@ pub async fn get_all_unread_counts(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<UnreadCount>>, AppError> {
     let user_id = string_to_uuid(&claims.sub)?;
+
+    if is_relay_only_runtime(&state).await? {
+        let room_store = RoomStore::new(&state.database.pool);
+        let rooms = room_store.list_user_rooms(user_id).await?;
+        let result = rooms
+            .into_iter()
+            .map(|room| UnreadCount {
+                room_id: room.id.to_string(),
+                unread_count: 0,
+                last_read_message_id: None,
+                last_read_at: None,
+            })
+            .collect();
+        return Ok(Json(result));
+    }
 
     let read_store = MessageReadStore::new(&state.database.pool);
     let unread_counts = read_store.get_all_unread_counts(user_id).await?;

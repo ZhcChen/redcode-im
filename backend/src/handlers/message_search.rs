@@ -10,6 +10,7 @@ use crate::database::models::MessageType as DbMessageType;
 use crate::error::AppError;
 use crate::models::convert::db_message_type_to_api;
 use crate::models::{Claims, MessageType as ApiMessageType};
+use crate::services::message_runtime::is_relay_only_runtime;
 use crate::AppState;
 
 // 搜索参数
@@ -91,6 +92,18 @@ pub async fn search_messages(
         return Err(AppError::ValidationError(
             "搜索内容过长，最多200个字符".to_string(),
         ));
+    }
+
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(MessageSearchResponse {
+            results: Vec::new(),
+            stats: MessageSearchStats {
+                total_results: 0,
+                search_time_ms: start_time.elapsed().as_millis() as u64,
+                query: params.query,
+            },
+            has_more: false,
+        }));
     }
 
     // 设置分页

@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::database::message_store::MessageStore;
 use crate::error::AppError;
+use crate::services::message_runtime::is_relay_only_runtime;
 use crate::AppState;
 use chrono::{DateTime, Utc};
 
@@ -118,11 +119,20 @@ pub async fn get_chat_history(
     State(state): State<AppState>,
     Query(params): Query<ChatHistoryParams>,
 ) -> Result<Json<ChatHistoryResponse>, AppError> {
-    let pool = &state.database.pool;
-    let message_store = MessageStore::new(&state.database.pool);
-
     let page = params.page.max(1);
     let page_size = params.page_size.max(1).min(100);
+
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(ChatHistoryResponse {
+            messages: Vec::new(),
+            total: 0,
+            page,
+            page_size,
+        }));
+    }
+
+    let pool = &state.database.pool;
+    let message_store = MessageStore::new(&state.database.pool);
 
     // 构建查询条件
     let mut query_conditions = Vec::new();
