@@ -19,7 +19,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'system-log',
         name: 'SystemLog',
-        component: () => import('@/views/dashboard/system-log/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/system-log-page.vue'),
         meta: {
           locale: 'menu.operations.systemLog',
           requiresAuth: true,
@@ -29,7 +30,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'push-log',
         name: 'PushLog',
-        component: () => import('@/views/operations/push-log/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/push-log-page.vue'),
         meta: {
           locale: 'menu.operations.pushLog',
           requiresAuth: true,
@@ -50,7 +52,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'cos-test',
         name: 'CosTestSettings',
-        component: () => import('@/views/settings/cos-test/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/cos-test-page.vue'),
         meta: {
           locale: 'menu.operations.cosTest',
           requiresAuth: true,
@@ -60,7 +63,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'ipinfo-token',
         name: 'IpInfoTokenSettings',
-        component: () => import('@/views/settings/ipinfo-token/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/ipinfo-token-page.vue'),
         meta: {
           locale: 'menu.operations.ipinfoToken',
           requiresAuth: true,
@@ -70,7 +74,8 @@ const operationsRoutes: AppRouteRecordRaw[] = [
       {
         path: 'api-metrics',
         name: 'ApiMetrics',
-        component: () => import('@/views/operations/api-metrics/index.vue'),
+        component: () =>
+          import('@/features/operations/pages/api-metrics-page.vue'),
         meta: {
           locale: 'menu.operations.apiMetrics',
           requiresAuth: true,
@@ -81,7 +86,7 @@ const operationsRoutes: AppRouteRecordRaw[] = [
         path: 'file-upload-audit',
         name: 'FileUploadAudit',
         component: () =>
-          import('@/views/operations/file-upload-audit/index.vue'),
+          import('@/features/operations/pages/file-upload-audit-page.vue'),
         meta: {
           locale: 'menu.operations.fileUploadAudit',
           requiresAuth: true,
@@ -94,7 +99,7 @@ const operationsRoutes: AppRouteRecordRaw[] = [
               path: 'data-cleanup',
               name: 'DataCleanup',
               component: () =>
-                import('@/views/settings/data-cleanup/index.vue'),
+                import('@/features/operations/pages/data-cleanup-page.vue'),
               meta: {
                 locale: 'menu.operations.dataCleanup',
                 requiresAuth: true,
