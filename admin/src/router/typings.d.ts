@@ -2,7 +2,9 @@ import 'vue-router';
 
 declare module 'vue-router' {
   interface RouteMeta {
-    roles?: string[]; // Controls roles that have access to the page
+    roles?: string[]; // Legacy role-based access
+    perm?: string; // Permission key required to access current page
+    superAdminOnly?: boolean; // Whether only super admin can access current page
     requiresAuth: boolean; // Whether login is required to access the current page (every route must declare)
     icon?: string; // The icon show in the side menu
     locale?: string; // The locale name show in side menu and breadcrumb

@@ -1,6 +1,4 @@
-import { appRoutes, appExternalRoutes } from '../routes';
-
-const mixinRoutes = [...appRoutes, ...appExternalRoutes];
+import appRoutes from '../routes';
 
 // 在构建时确定的常量，避免环境变量缓存问题
 const isDataCleanupEnabled =
@@ -8,7 +6,7 @@ const isDataCleanupEnabled =
     ? __VITE_ENABLE_DATA_CLEANUP__ === 'true'
     : false;
 
-const appClientMenus = mixinRoutes
+const appClientMenus = appRoutes
   .map((el) => {
     const { name, path, meta, redirect, children } = el;
     return {

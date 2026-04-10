@@ -1,4 +1,3 @@
-export type RoleType = '' | '*' | 'admin' | 'user';
 export interface UserState {
   name?: string;
   avatar?: string;
@@ -15,5 +14,8 @@ export interface UserState {
   registrationDate?: string;
   accountId?: string;
   certification?: number;
-  role: RoleType;
+  role: string;
+  roleCodes: string[];
+  permissionKeys: string[];
+  isSuperAdmin: boolean;
 }

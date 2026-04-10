@@ -1,6 +1,6 @@
 <template>
   <div class="data-cleanup-container">
-    <Breadcrumb :items="['menu.settings', 'menu.settings.dataCleanup']" />
+    <Breadcrumb :items="['menu.operations', 'menu.operations.dataCleanup']" />
 
     <div class="warning-banner">
       <a-alert type="warning" :closable="false">

@@ -8,6 +8,7 @@ use serde_json;
 use uuid::Uuid;
 
 use crate::auth::hash_password;
+use crate::database::admin_rbac_store::AdminRbacStore;
 use crate::database::models::{
     AdminUser, AdminUserStatus, CaptchaSettingRecord, Permission, Role, StorageProvider,
     StorageProviderType, UserStatus as DbUserStatus,
@@ -409,6 +410,32 @@ pub struct CheckPermissionRequest {
 #[derive(Debug, Serialize)]
 pub struct CheckPermissionResponse {
     pub has_permission: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RolePermissionAssignmentResponse {
+    pub role_id: String,
+    pub permission_ids: Vec<String>,
+    pub permission_codes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateRolePermissionsRequest {
+    pub permission_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminUserRoleAssignmentResponse {
+    pub admin_user_id: String,
+    pub role_ids: Vec<String>,
+    pub role_codes: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAdminUserRolesRequest {
+    pub role_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1868,159 +1895,248 @@ pub async fn delete_user(
 
 // ========== 权限管理 API ==========
 
-/// 获取所有权限列表（简化版本）
+/// 获取所有权限列表
 pub async fn get_permissions(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
 ) -> Result<Json<PermissionListResponse>, AppError> {
-    // 简化版本，返回预定义的权限列表
-    let permissions = vec![
-        PermissionResponse {
-            id: "1".to_string(),
-            name: "查看用户".to_string(),
-            code: "user:view".to_string(),
-            description: Some("查看用户列表和详情".to_string()),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
-        PermissionResponse {
-            id: "2".to_string(),
-            name: "创建用户".to_string(),
-            code: "user:create".to_string(),
-            description: Some("创建新用户".to_string()),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        },
-        // 添加更多权限...
-    ];
+    let store = AdminRbacStore::new(state.database.clone());
+    let permissions = store
+        .list_permissions()
+        .await?
+        .into_iter()
+        .map(PermissionResponse::from)
+        .collect();
 
     Ok(Json(PermissionListResponse { permissions }))
 }
 
-/// 获取所有角色列表（简化版本）
-pub async fn get_roles(State(_state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
-    // 简化版本，返回预定义的角色列表
-    let roles = vec![
-        RoleResponse {
-            id: "1".to_string(),
-            name: "超级管理员".to_string(),
-            code: "super_admin".to_string(),
-            description: Some("拥有所有权限".to_string()),
-            is_system: true,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-            permissions: vec![
-                PermissionResponse {
-                    id: "1".to_string(),
-                    name: "查看用户".to_string(),
-                    code: "user:view".to_string(),
-                    description: Some("查看用户列表和详情".to_string()),
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                },
-                // 添加更多权限...
-            ],
-        },
-        RoleResponse {
-            id: "2".to_string(),
-            name: "管理员".to_string(),
-            code: "admin".to_string(),
-            description: Some("拥有大部分管理权限".to_string()),
-            is_system: false,
-            created_at: chrono::Utc::now().to_rfc3339(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-            permissions: vec![
-                PermissionResponse {
-                    id: "1".to_string(),
-                    name: "查看用户".to_string(),
-                    code: "user:view".to_string(),
-                    description: Some("查看用户列表和详情".to_string()),
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                },
-                // 添加更多权限...
-            ],
-        },
-    ];
+/// 获取所有角色列表
+pub async fn get_roles(State(state): State<AppState>) -> Result<Json<RoleListResponse>, AppError> {
+    let store = AdminRbacStore::new(state.database.clone());
+    let roles = store
+        .list_roles_with_permissions()
+        .await?
+        .into_iter()
+        .map(|(role, permissions)| role_with_permissions_to_response(role, permissions))
+        .collect();
 
     Ok(Json(RoleListResponse { roles }))
 }
 
-/// 创建角色（简化版本）
+/// 创建角色
 pub async fn create_role(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(req): Json<CreateRoleRequest>,
-) -> Result<Json<RoleOperationResponse>, AppError> {
-    // 验证输入
+) -> Result<Json<RoleResponse>, AppError> {
     if req.name.trim().is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "角色名称不能为空".to_string(),
-        }));
+        return Err(AppError::ValidationError("角色名称不能为空".to_string()));
     }
 
     if req.code.trim().is_empty() {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "角色代码不能为空".to_string(),
-        }));
+        return Err(AppError::ValidationError("角色代码不能为空".to_string()));
     }
 
-    // 简化版本，仅返回成功消息
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色创建成功（简化版本）".to_string(),
-    }))
+    let permission_ids = parse_uuid_list(&req.permission_ids, "权限ID")?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let (role, permissions) = store
+        .create_role(
+            req.name.trim(),
+            req.code.trim(),
+            req.description
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+            &permission_ids,
+        )
+        .await?;
+
+    Ok(Json(role_with_permissions_to_response(role, permissions)))
 }
 
-/// 更新角色（简化版本）
+/// 更新角色
 pub async fn update_role(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(role_id): Path<String>,
-    Json(_req): Json<UpdateRoleRequest>,
-) -> Result<Json<RoleOperationResponse>, AppError> {
-    // 简化版本，仅验证输入
-    if role_id == "1" {
-        return Ok(Json(RoleOperationResponse {
-            success: false,
-            message: "系统角色不允许修改".to_string(),
-        }));
-    }
+    Json(req): Json<UpdateRoleRequest>,
+) -> Result<Json<RoleResponse>, AppError> {
+    let role_id = Uuid::parse_str(role_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的角色ID".to_string()))?;
 
-    Ok(Json(RoleOperationResponse {
-        success: true,
-        message: "角色更新成功（简化版本）".to_string(),
+    let permission_ids = req
+        .permission_ids
+        .as_ref()
+        .map(|ids| parse_uuid_list(ids, "权限ID"))
+        .transpose()?;
+
+    let description = if let Some(description) = req.description.as_ref() {
+        let trimmed = description.trim();
+        Some(if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        })
+    } else {
+        None
+    };
+
+    let store = AdminRbacStore::new(state.database.clone());
+    let (role, permissions) = store
+        .update_role(
+            &role_id,
+            req.name
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty()),
+            description,
+            permission_ids,
+        )
+        .await?;
+
+    Ok(Json(role_with_permissions_to_response(role, permissions)))
+}
+
+/// 获取角色权限分配
+pub async fn get_role_permissions(
+    State(state): State<AppState>,
+    Path(role_id): Path<String>,
+) -> Result<Json<RolePermissionAssignmentResponse>, AppError> {
+    let role_id = Uuid::parse_str(role_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的角色ID".to_string()))?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let permission_ids = store.get_role_permission_ids(&role_id).await?;
+    let permissions = store.list_permissions().await?;
+    let permission_codes = permissions
+        .into_iter()
+        .filter(|permission| permission_ids.iter().any(|id| id == &permission.id))
+        .map(|permission| permission.code)
+        .collect();
+
+    Ok(Json(RolePermissionAssignmentResponse {
+        role_id: role_id.to_string(),
+        permission_ids: permission_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        permission_codes,
     }))
 }
 
-/// 删除角色（简化版本）
+/// 更新角色权限分配
+pub async fn update_role_permissions(
+    State(state): State<AppState>,
+    Path(role_id): Path<String>,
+    Json(req): Json<UpdateRolePermissionsRequest>,
+) -> Result<Json<RolePermissionAssignmentResponse>, AppError> {
+    let role_id = Uuid::parse_str(role_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的角色ID".to_string()))?;
+    let permission_ids = parse_uuid_list(&req.permission_ids, "权限ID")?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let permissions = store
+        .update_role_permissions(&role_id, &permission_ids)
+        .await?;
+
+    Ok(Json(RolePermissionAssignmentResponse {
+        role_id: role_id.to_string(),
+        permission_ids: permission_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        permission_codes: permissions
+            .into_iter()
+            .map(|permission| permission.code)
+            .collect(),
+    }))
+}
+
+/// 获取管理员角色分配
+pub async fn get_admin_user_roles(
+    State(state): State<AppState>,
+    Path(admin_user_id): Path<String>,
+) -> Result<Json<AdminUserRoleAssignmentResponse>, AppError> {
+    let admin_user_id = Uuid::parse_str(admin_user_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的管理员用户ID".to_string()))?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let role_ids = store.get_admin_user_role_ids(&admin_user_id).await?;
+    let roles = store.list_roles_with_permissions().await?;
+    let role_codes = roles
+        .into_iter()
+        .filter(|(role, _)| role_ids.iter().any(|id| id == &role.id))
+        .map(|(role, _)| role.code)
+        .collect();
+
+    Ok(Json(AdminUserRoleAssignmentResponse {
+        admin_user_id: admin_user_id.to_string(),
+        role_ids: role_ids.into_iter().map(|id| id.to_string()).collect(),
+        role_codes,
+    }))
+}
+
+/// 更新管理员角色分配
+pub async fn update_admin_user_roles(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admin_user_id): Path<String>,
+    Json(req): Json<UpdateAdminUserRolesRequest>,
+) -> Result<Json<AdminUserRoleAssignmentResponse>, AppError> {
+    let admin_user_id = Uuid::parse_str(admin_user_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的管理员用户ID".to_string()))?;
+    let operator_id = crate::models::convert::string_to_uuid(&claims.sub).ok();
+    let role_ids = parse_uuid_list(&req.role_ids, "角色ID")?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let assigned_role_ids = store
+        .update_admin_user_roles(&admin_user_id, &role_ids, operator_id.as_ref())
+        .await?;
+    let roles = store.list_roles_with_permissions().await?;
+    let role_codes = roles
+        .into_iter()
+        .filter(|(role, _)| assigned_role_ids.iter().any(|id| id == &role.id))
+        .map(|(role, _)| role.code)
+        .collect();
+
+    Ok(Json(AdminUserRoleAssignmentResponse {
+        admin_user_id: admin_user_id.to_string(),
+        role_ids: assigned_role_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        role_codes,
+    }))
+}
+
+/// 删除角色
 pub async fn delete_role(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(role_id): Path<String>,
 ) -> Result<Json<RoleOperationResponse>, AppError> {
-    // 简化版本，仅验证输入
-    if role_id == "1" {
+    let role_id = Uuid::parse_str(role_id.trim())
+        .map_err(|_| AppError::ValidationError("无效的角色ID".to_string()))?;
+    let store = AdminRbacStore::new(state.database.clone());
+    let deleted = store.delete_role(&role_id).await?;
+
+    if !deleted {
         return Ok(Json(RoleOperationResponse {
             success: false,
-            message: "系统角色不允许删除".to_string(),
+            message: "角色删除失败".to_string(),
         }));
     }
 
     Ok(Json(RoleOperationResponse {
         success: true,
-        message: "角色删除成功（简化版本）".to_string(),
+        message: "角色删除成功".to_string(),
     }))
 }
 
 /// 检查用户权限
 pub async fn check_user_permission(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(req): Json<CheckPermissionRequest>,
 ) -> Result<Json<CheckPermissionResponse>, AppError> {
-    let _user_id = Uuid::parse_str(&req.user_id)
+    let user_id = Uuid::parse_str(req.user_id.trim())
         .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
-
-    // 检查用户是否有指定权限（简化版本，使用枚举）
-    let has_permission = true; // 简化处理，实际应该查询数据库
+    let store = AdminRbacStore::new(state.database.clone());
+    let has_permission = store
+        .has_admin_permission(&user_id, req.permission_code.trim())
+        .await?;
 
     Ok(Json(CheckPermissionResponse { has_permission }))
 }
@@ -4151,6 +4267,32 @@ impl From<AdminUserWithCount> for AdminUser {
             deleted_at: row.deleted_at,
         }
     }
+}
+
+fn role_with_permissions_to_response(role: Role, permissions: Vec<Permission>) -> RoleResponse {
+    RoleResponse {
+        id: role.id.to_string(),
+        name: role.name,
+        code: role.code,
+        description: role.description,
+        is_system: role.is_system,
+        created_at: role.created_at.to_rfc3339(),
+        updated_at: role.updated_at.to_rfc3339(),
+        permissions: permissions
+            .into_iter()
+            .map(PermissionResponse::from)
+            .collect(),
+    }
+}
+
+fn parse_uuid_list(values: &[String], field_name: &str) -> Result<Vec<Uuid>, AppError> {
+    values
+        .iter()
+        .map(|value| {
+            Uuid::parse_str(value.trim())
+                .map_err(|_| AppError::ValidationError(format!("{}包含无效 UUID", field_name)))
+        })
+        .collect()
 }
 
 /// 数据库管理员用户转换为API响应

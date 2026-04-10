@@ -1,6 +1,7 @@
 use crate::auth::{generate_token, hash_password};
-use crate::database::models::AdminUserStatus;
+use crate::database::admin_rbac_store::AdminRbacStore;
 use crate::database::models::UpdateUserRequest as DbUpdateUserRequest;
+use crate::database::models::{AdminUser, AdminUserStatus};
 use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
@@ -8,8 +9,9 @@ use crate::handlers::admin;
 use crate::models::convert::{
     api_create_user_to_db, api_login_to_db, db_user_to_api_user_info, string_to_uuid,
 };
-use crate::models::UserStatus;
-use crate::models::{Claims, CreateUserRequest, LoginRequest, LoginResponse, OAuthLoginRequest, UserInfo};
+use crate::models::{
+    Claims, CreateUserRequest, LoginRequest, LoginResponse, OAuthLoginRequest, UserInfo,
+};
 use crate::AppState;
 use axum::{
     extract::{Extension, State},
@@ -18,9 +20,9 @@ use axum::{
 };
 use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use once_cell::sync::Lazy;
-use reqwest::Client;
 use rand::{distributions::Alphanumeric, thread_rng, Rng};
 use redis::AsyncCommands;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -185,7 +187,9 @@ fn build_random_password(len: usize) -> String {
 
 async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
     let client_id = env::var("GOOGLE_OAUTH_CLIENT_ID").map_err(|_| {
-        AppError::ServiceUnavailable("GOOGLE_OAUTH_CLIENT_ID 未配置，无法使用 Google 登录".to_string())
+        AppError::ServiceUnavailable(
+            "GOOGLE_OAUTH_CLIENT_ID 未配置，无法使用 Google 登录".to_string(),
+        )
     })?;
 
     let header = decode_header(id_token)
@@ -218,7 +222,9 @@ async fn verify_google_id_token(id_token: &str) -> Result<ExternalIdentity, AppE
 
 async fn verify_apple_id_token(id_token: &str) -> Result<ExternalIdentity, AppError> {
     let client_id = env::var("APPLE_OAUTH_CLIENT_ID").map_err(|_| {
-        AppError::ServiceUnavailable("APPLE_OAUTH_CLIENT_ID 未配置，无法使用 Apple 登录".to_string())
+        AppError::ServiceUnavailable(
+            "APPLE_OAUTH_CLIENT_ID 未配置，无法使用 Apple 登录".to_string(),
+        )
     })?;
 
     let header = decode_header(id_token)
@@ -254,6 +260,31 @@ async fn verify_apple_id_token(id_token: &str) -> Result<ExternalIdentity, AppEr
 struct RefreshTokenPayload {
     user_id: String,
     is_admin: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminSessionUserInfo {
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub nickname: Option<String>,
+    pub avatar_url: Option<String>,
+    pub status: String,
+    pub last_login_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub role_codes: Vec<String>,
+    pub permission_keys: Vec<String>,
+    pub is_super_admin: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminLoginResponse {
+    pub token: String,
+    pub user: AdminSessionUserInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_token: Option<String>,
 }
 
 /// 生成刷新令牌并写入 Redis，返回明文刷新令牌
@@ -484,9 +515,10 @@ pub async fn login_with_oauth(
             username = format!("{}_{}", username, suffix);
         }
 
-        let mut email = identity.email.clone().unwrap_or_else(|| {
-            format!("{}@{}.oauth", username, identity.provider)
-        });
+        let mut email = identity
+            .email
+            .clone()
+            .unwrap_or_else(|| format!("{}@{}.oauth", username, identity.provider));
         if store.email_exists(&email).await? {
             let suffix = build_random_password(6).to_lowercase();
             email = format!("{}+{}@{}.oauth", username, suffix, identity.provider);
@@ -988,6 +1020,36 @@ fn build_auto_registration_password(username: &str) -> String {
     password
 }
 
+async fn build_admin_session_user_info(
+    state: &AppState,
+    db_admin_user: &AdminUser,
+) -> Result<AdminSessionUserInfo, AppError> {
+    let rbac_store = AdminRbacStore::new(state.database.clone());
+    let snapshot = rbac_store
+        .get_admin_access_snapshot(&db_admin_user.id)
+        .await?;
+
+    Ok(AdminSessionUserInfo {
+        id: db_admin_user.id.to_string(),
+        username: db_admin_user.username.clone(),
+        email: db_admin_user.email.clone(),
+        nickname: db_admin_user.nickname.clone(),
+        avatar_url: db_admin_user.avatar_url.clone(),
+        status: match db_admin_user.status {
+            AdminUserStatus::Active => "active".to_string(),
+            AdminUserStatus::Inactive => "inactive".to_string(),
+            AdminUserStatus::Banned => "banned".to_string(),
+            AdminUserStatus::Locked => "locked".to_string(),
+        },
+        last_login_at: db_admin_user.last_login_at.map(|dt| dt.to_rfc3339()),
+        created_at: db_admin_user.created_at.to_rfc3339(),
+        updated_at: db_admin_user.updated_at.to_rfc3339(),
+        role_codes: snapshot.role_codes,
+        permission_keys: snapshot.permission_keys,
+        is_super_admin: snapshot.is_super_admin,
+    })
+}
+
 pub async fn get_current_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1010,7 +1072,7 @@ pub async fn admin_login(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<LoginRequest>,
-) -> Result<Json<LoginResponse>, AppError> {
+) -> Result<Json<AdminLoginResponse>, AppError> {
     // 基础验证
     if payload.username.trim().is_empty() || payload.password.trim().is_empty() {
         return Err(AppError::ValidationError(
@@ -1110,22 +1172,9 @@ pub async fn admin_login(
                 AppError::InternalError("生成刷新令牌失败".to_string())
             })?;
 
-    let response = LoginResponse {
+    let response = AdminLoginResponse {
         token,
-        user: UserInfo {
-            id: db_admin_user.id.to_string(),
-            username: db_admin_user.username.clone(),
-            email: db_admin_user.email.clone(),
-            nickname: db_admin_user.nickname.clone(),
-            avatar_url: db_admin_user.avatar_url.clone(),
-            avatar_object_key: None,
-            status: match db_admin_user.status {
-                AdminUserStatus::Active => UserStatus::Active,
-                AdminUserStatus::Inactive => UserStatus::Inactive,
-                AdminUserStatus::Banned => UserStatus::Banned,
-                AdminUserStatus::Locked => UserStatus::Banned,
-            },
-        },
+        user: build_admin_session_user_info(&state, &db_admin_user).await?,
         refresh_token: Some(refresh_token),
     };
 
@@ -1136,7 +1185,7 @@ pub async fn admin_login(
 pub async fn get_current_admin_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<admin::AdminUserInfo>, AppError> {
+) -> Result<Json<AdminSessionUserInfo>, AppError> {
     let admin_user_id = string_to_uuid(&claims.sub)
         .map_err(|e| AppError::InvalidToken(format!("Invalid admin user ID in token: {}", e)))?;
 
@@ -1147,23 +1196,7 @@ pub async fn get_current_admin_user(
         .await?
         .ok_or_else(|| AppError::NotFound(format!("管理员用户 {} 不存在", admin_user_id)))?;
 
-    // 转换为 API 层响应
-    let admin_user_info = admin::AdminUserInfo {
-        id: db_admin_user.id.to_string(),
-        username: db_admin_user.username.clone(),
-        email: db_admin_user.email.clone(),
-        nickname: db_admin_user.nickname.clone(),
-        avatar_url: db_admin_user.avatar_url.clone(),
-        status: match db_admin_user.status {
-            AdminUserStatus::Active => "active".to_string(),
-            AdminUserStatus::Inactive => "inactive".to_string(),
-            AdminUserStatus::Banned => "banned".to_string(),
-            AdminUserStatus::Locked => "locked".to_string(),
-        },
-        last_login_at: db_admin_user.last_login_at.map(|dt| dt.to_rfc3339()),
-        created_at: db_admin_user.created_at.to_rfc3339(),
-        updated_at: db_admin_user.updated_at.to_rfc3339(),
-    };
+    let admin_user_info = build_admin_session_user_info(&state, &db_admin_user).await?;
     Ok(Json(admin_user_info))
 }
 
@@ -1171,7 +1204,7 @@ pub async fn get_current_admin_user(
 pub async fn admin_refresh_token(
     State(state): State<AppState>,
     Json(payload): Json<RefreshTokenRequest>,
-) -> Result<Json<LoginResponse>, AppError> {
+) -> Result<Json<AdminLoginResponse>, AppError> {
     let token = payload.refresh_token.trim();
     if token.is_empty() {
         return Err(AppError::ValidationError(
@@ -1246,22 +1279,9 @@ pub async fn admin_refresh_token(
         .await
         .map_err(|_| AppError::CacheError("刷新令牌续期失败".to_string()))?;
 
-    let response = LoginResponse {
+    let response = AdminLoginResponse {
         token: new_token,
-        user: UserInfo {
-            id: db_admin_user.id.to_string(),
-            username: db_admin_user.username.clone(),
-            email: db_admin_user.email.clone(),
-            nickname: db_admin_user.nickname.clone(),
-            avatar_url: db_admin_user.avatar_url.clone(),
-            avatar_object_key: None,
-            status: match db_admin_user.status {
-                AdminUserStatus::Active => UserStatus::Active,
-                AdminUserStatus::Inactive => UserStatus::Inactive,
-                AdminUserStatus::Banned => UserStatus::Banned,
-                AdminUserStatus::Locked => UserStatus::Banned,
-            },
-        },
+        user: build_admin_session_user_info(&state, &db_admin_user).await?,
         refresh_token: Some(token.to_string()),
     };
 

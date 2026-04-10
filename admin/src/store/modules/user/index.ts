@@ -12,6 +12,9 @@ import { UserState } from './types';
 import useAppStore from '../app';
 
 function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
+  const roleCodes = user.roleCodes ?? [];
+  const isSuperAdmin = user.isSuperAdmin ?? roleCodes.includes('super_admin');
+
   return {
     name: user.nickname || user.username,
     avatar:
@@ -21,7 +24,10 @@ function mapBackendUser(user: BackendUserInfo): Partial<UserState> {
     email: user.email,
     introduction: undefined,
     accountId: user.id,
-    role: 'admin',
+    role: roleCodes[0] || (isSuperAdmin ? 'super_admin' : 'admin'),
+    roleCodes,
+    permissionKeys: user.permissionKeys ?? [],
+    isSuperAdmin,
   };
 }
 
@@ -43,6 +49,9 @@ const useUserStore = defineStore('user', {
     accountId: undefined,
     certification: undefined,
     role: '',
+    roleCodes: [],
+    permissionKeys: [],
+    isSuperAdmin: false,
   }),
 
   getters: {
@@ -54,7 +63,10 @@ const useUserStore = defineStore('user', {
   actions: {
     switchRoles() {
       return new Promise((resolve) => {
-        this.role = this.role === 'user' ? 'admin' : 'user';
+        this.isSuperAdmin = !this.isSuperAdmin;
+        this.role = this.isSuperAdmin
+          ? 'super_admin'
+          : this.roleCodes[0] || 'admin';
         resolve(this.role);
       });
     },

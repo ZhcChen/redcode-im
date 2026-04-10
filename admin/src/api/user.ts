@@ -14,6 +14,9 @@ export interface BackendUserInfo {
   nickname?: string | null;
   avatarUrl?: string | null; // 注意：后端返回的是 avatarUrl（驼峰）
   status: string;
+  roleCodes?: string[];
+  permissionKeys?: string[];
+  isSuperAdmin?: boolean;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -108,11 +111,11 @@ export interface AdminUserInfo {
   username: string;
   email: string;
   nickname?: string | null;
-  avatar_url?: string | null;
+  avatarUrl?: string | null;
   status: 'active' | 'inactive' | 'banned' | 'locked';
-  last_login_at?: string | null;
-  created_at: string;
-  updated_at: string;
+  lastLoginAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminUserListParams {

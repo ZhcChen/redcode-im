@@ -69,13 +69,16 @@
   import { useStorage } from '@vueuse/core';
   import { useUserStore } from '@/store';
   import useLoading from '@/hooks/loading';
+  import usePermission from '@/hooks/permission';
   import type { LoginData } from '@/api/user';
+  import appRoutes from '@/router/routes';
 
   const router = useRouter();
   const { t } = useI18n();
   const errorMessage = ref('');
   const { loading, setLoading } = useLoading();
   const userStore = useUserStore();
+  const permission = usePermission();
 
   const hasStoredConfig = Boolean(localStorage.getItem('login-config'));
   const loginConfig = useStorage('login-config', {
@@ -101,8 +104,11 @@
       try {
         await userStore.login(values as LoginData);
         const { redirect, ...othersQuery } = router.currentRoute.value.query;
+        const fallbackRoute = permission.findFirstPermissionRoute(
+          appRoutes
+        ) || { name: 'login' };
         router.push({
-          name: (redirect as string) || 'Workplace',
+          name: (redirect as string) || fallbackRoute.name,
           query: {
             ...othersQuery,
           },

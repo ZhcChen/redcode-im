@@ -6,9 +6,9 @@ use axum::{
 
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
-    activity_logs, admin, auth, chat_history, emoji_pack, feedback, friend, group_management,
+    activity_logs, admin, auth, chat_history, e2ee, emoji_pack, feedback, friend, group_management,
     health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
-    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws, e2ee,
+    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
 };
 use crate::AppState;
 
@@ -136,12 +136,20 @@ pub fn create_routes() -> Router<AppState> {
             patch(admin::update_role).delete(admin::delete_role),
         )
         .route(
+            "/api/admin/roles/{role_id}/permissions",
+            get(admin::get_role_permissions).put(admin::update_role_permissions),
+        )
+        .route(
             "/api/admin/permissions/check",
             post(admin::check_user_permission),
         )
         // 管理员用户管理API
         .route("/api/admin/admin-users", get(admin::get_admin_user_list))
         .route("/api/admin/admin-users", post(admin::create_admin_user))
+        .route(
+            "/api/admin/admin-users/{admin_user_id}/roles",
+            get(admin::get_admin_user_roles).put(admin::update_admin_user_roles),
+        )
         .route(
             "/api/admin/admin-users/{admin_user_id}/status",
             patch(admin::update_admin_user_status),
@@ -652,7 +660,8 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/join-requests/{request_id}/review",
-            patch(group_management::review_join_request).post(group_management::review_join_request),
+            patch(group_management::review_join_request)
+                .post(group_management::review_join_request),
         )
         .route(
             "/rooms/{room_id}/invitations",

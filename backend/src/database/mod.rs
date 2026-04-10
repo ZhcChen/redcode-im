@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use std::env;
 
 pub mod account_store;
+pub mod admin_rbac_store;
 pub mod document_store;
 pub mod e2ee_key_store;
 pub mod emoji_pack_store;

@@ -21,6 +21,114 @@ const adminUser = {
   status: 'active',
   createdAt: now,
   updatedAt: now,
+  roleCodes: ['super_admin'],
+  permissionKeys: [
+    'user:manage',
+    'role:manage',
+    'message:manage',
+    'file:manage',
+    'system:settings',
+    'data:analysis',
+    'log:audit',
+  ],
+  isSuperAdmin: true,
+};
+
+const rbacPermissions = [
+  {
+    id: 'perm-user-manage',
+    name: '用户管理',
+    code: 'user:manage',
+    description: '管理用户账户',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'perm-role-manage',
+    name: '角色管理',
+    code: 'role:manage',
+    description: '管理角色与权限',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'perm-message-manage',
+    name: '消息管理',
+    code: 'message:manage',
+    description: '管理消息与聊天记录',
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'perm-system-settings',
+    name: '系统设置',
+    code: 'system:settings',
+    description: '管理系统配置',
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+const rbacRoles = [
+  {
+    id: 'role-super-admin',
+    name: '超级管理员',
+    code: 'super_admin',
+    description: '拥有全部权限',
+    isSystem: true,
+    createdAt: now,
+    updatedAt: now,
+    permissions: rbacPermissions,
+  },
+  {
+    id: 'role-ops',
+    name: '运营管理员',
+    code: 'operator',
+    description: '负责用户与内容运营',
+    isSystem: false,
+    createdAt: now,
+    updatedAt: now,
+    permissions: rbacPermissions.slice(0, 2),
+  },
+];
+
+const adminUsers = [
+  {
+    id: 'admin-1',
+    username: 'admin',
+    email: 'admin@example.com',
+    nickname: '系统管理员',
+    avatarUrl: null,
+    status: 'active',
+    lastLoginAt: now,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: 'admin-2',
+    username: 'ops',
+    email: 'ops@example.com',
+    nickname: '运营管理员',
+    avatarUrl: null,
+    status: 'active',
+    lastLoginAt: now,
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+const adminUserRoleAssignments: Record<
+  string,
+  { roleIds: string[]; roleCodes: string[] }
+> = {
+  'admin-1': {
+    roleIds: ['role-super-admin'],
+    roleCodes: ['super_admin'],
+  },
+  'admin-2': {
+    roleIds: ['role-ops'],
+    roleCodes: ['operator'],
+  },
 };
 
 const storageProvider = {
@@ -75,6 +183,23 @@ const sampleWorldGeoJson = {
     },
   ],
 };
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function parseJsonBody(request: Request): Record<string, any> {
+  const raw = request.postData();
+  if (!raw) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, any>;
+  } catch {
+    return {};
+  }
+}
 
 export async function bootstrapAdminSession(page: Page) {
   await page.addInitScript(() => {
@@ -153,6 +278,44 @@ function buildSuccessBody(pathname: string, method: string, url: URL) {
 
   if (pathname === '/api/user/menu' && method === 'POST') {
     return [];
+  }
+
+  if (pathname === '/api/admin/permissions' && method === 'GET') {
+    return {
+      permissions: rbacPermissions,
+    };
+  }
+
+  if (pathname === '/api/admin/roles' && method === 'GET') {
+    return {
+      roles: rbacRoles,
+    };
+  }
+
+  if (pathname === '/api/admin/admin-users' && method === 'GET') {
+    return {
+      users: adminUsers,
+      total: adminUsers.length,
+      page: 1,
+      page_size: 20,
+    };
+  }
+
+  if (
+    /^\/api\/admin\/admin-users\/[^/]+\/roles$/.test(pathname) &&
+    method === 'GET'
+  ) {
+    const adminUserId = pathname.split('/')[4];
+    const assignment = adminUserRoleAssignments[adminUserId] || {
+      roleIds: [],
+      roleCodes: [],
+    };
+
+    return {
+      adminUserId,
+      roleIds: assignment.roleIds,
+      roleCodes: assignment.roleCodes,
+    };
   }
 
   // Dashboard
@@ -1198,6 +1361,30 @@ export async function installAdminMockServer(
   page: Page
 ): Promise<AdminMockController> {
   const failures: FailureRule[] = [];
+  const permissionsState = cloneJson(rbacPermissions);
+  const rolesState = cloneJson(rbacRoles);
+  const adminUsersState = cloneJson(adminUsers);
+  const adminUserRoleAssignmentsState = cloneJson(adminUserRoleAssignments);
+
+  const getRoleById = (roleId: string) => {
+    return rolesState.find((item) => item.id === roleId) || null;
+  };
+
+  const buildRoleCodes = (roleIds: string[]) => {
+    return roleIds
+      .map((roleId) => getRoleById(roleId)?.code)
+      .filter((item): item is string => Boolean(item));
+  };
+
+  const syncAdminUserRoleAssignment = (
+    adminUserId: string,
+    roleIds: string[]
+  ) => {
+    adminUserRoleAssignmentsState[adminUserId] = {
+      roleIds: [...roleIds],
+      roleCodes: buildRoleCodes(roleIds),
+    };
+  };
 
   await bootstrapAdminSession(page);
 
@@ -1222,6 +1409,195 @@ export async function installAdminMockServer(
     if (failure) {
       return jsonResponse(route, failure.status, {
         message: failure.message,
+      });
+    }
+
+    if (pathname === '/api/admin/permissions' && method === 'GET') {
+      return jsonResponse(route, 200, {
+        permissions: permissionsState,
+      });
+    }
+
+    if (pathname === '/api/admin/roles' && method === 'GET') {
+      return jsonResponse(route, 200, {
+        roles: rolesState,
+      });
+    }
+
+    if (pathname === '/api/admin/roles' && method === 'POST') {
+      const body = parseJsonBody(request);
+      const permissionIds = Array.isArray(body.permission_ids)
+        ? body.permission_ids
+        : [];
+      const role = {
+        id: `role-${Date.now()}`,
+        name: body.name || '新角色',
+        code: body.code || `role_${rolesState.length + 1}`,
+        description: body.description ?? null,
+        isSystem: false,
+        createdAt: now,
+        updatedAt: now,
+        permissions: permissionsState.filter((item) =>
+          permissionIds.includes(item.id)
+        ),
+      };
+
+      rolesState.push(role);
+      return jsonResponse(route, 200, role);
+    }
+
+    if (/^\/api\/admin\/roles\/[^/]+$/.test(pathname) && method === 'PATCH') {
+      const roleId = pathname.split('/')[4];
+      const role = getRoleById(roleId);
+      const body = parseJsonBody(request);
+      if (!role) {
+        return jsonResponse(route, 404, { message: '角色不存在' });
+      }
+
+      role.name = body.name ?? role.name;
+      role.description = Object.prototype.hasOwnProperty.call(
+        body,
+        'description'
+      )
+        ? body.description
+        : role.description;
+      if (Array.isArray(body.permission_ids)) {
+        role.permissions = permissionsState.filter((item) =>
+          body.permission_ids.includes(item.id)
+        );
+      }
+      role.updatedAt = now;
+
+      return jsonResponse(route, 200, role);
+    }
+
+    if (/^\/api\/admin\/roles\/[^/]+$/.test(pathname) && method === 'DELETE') {
+      const roleId = pathname.split('/')[4];
+      const roleIndex = rolesState.findIndex((item) => item.id === roleId);
+      if (roleIndex >= 0) {
+        rolesState.splice(roleIndex, 1);
+      }
+
+      Object.entries(adminUserRoleAssignmentsState).forEach(
+        ([adminUserId, assignment]) => {
+          const nextRoleIds = assignment.roleIds.filter(
+            (item) => item !== roleId
+          );
+          syncAdminUserRoleAssignment(adminUserId, nextRoleIds);
+        }
+      );
+
+      return jsonResponse(route, 200, {
+        success: true,
+        message: 'ok',
+      });
+    }
+
+    if (/^\/api\/admin\/roles\/[^/]+\/permissions$/.test(pathname)) {
+      const roleId = pathname.split('/')[4];
+      const role = getRoleById(roleId);
+      if (!role) {
+        return jsonResponse(route, 404, { message: '角色不存在' });
+      }
+
+      if (method === 'GET') {
+        return jsonResponse(route, 200, {
+          roleId,
+          permissionIds: role.permissions.map((item) => item.id),
+          permissionCodes: role.permissions.map((item) => item.code),
+        });
+      }
+
+      if (method === 'PUT') {
+        const body = parseJsonBody(request);
+        const permissionIds = Array.isArray(body.permission_ids)
+          ? body.permission_ids
+          : [];
+        role.permissions = permissionsState.filter((item) =>
+          permissionIds.includes(item.id)
+        );
+        role.updatedAt = now;
+
+        return jsonResponse(route, 200, {
+          roleId,
+          permissionIds: role.permissions.map((item) => item.id),
+          permissionCodes: role.permissions.map((item) => item.code),
+        });
+      }
+    }
+
+    if (pathname === '/api/admin/admin-users' && method === 'GET') {
+      return jsonResponse(route, 200, {
+        users: adminUsersState,
+        total: adminUsersState.length,
+        page: 1,
+        pageSize: 20,
+      });
+    }
+
+    if (pathname === '/api/admin/admin-users' && method === 'POST') {
+      const body = parseJsonBody(request);
+      const user = {
+        id: `admin-${Date.now()}`,
+        username: body.username || `admin_${adminUsersState.length + 1}`,
+        email: body.email || `admin_${adminUsersState.length + 1}@example.com`,
+        nickname: body.nickname ?? null,
+        avatarUrl: null,
+        status: 'active',
+        lastLoginAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      adminUsersState.unshift(user);
+      syncAdminUserRoleAssignment(user.id, []);
+      return jsonResponse(route, 200, user);
+    }
+
+    if (/^\/api\/admin\/admin-users\/[^/]+\/roles$/.test(pathname)) {
+      const adminUserId = pathname.split('/')[4];
+      if (method === 'GET') {
+        const assignment = adminUserRoleAssignmentsState[adminUserId] || {
+          roleIds: [],
+          roleCodes: [],
+        };
+
+        return jsonResponse(route, 200, {
+          adminUserId,
+          roleIds: assignment.roleIds,
+          roleCodes: assignment.roleCodes,
+        });
+      }
+
+      if (method === 'PUT') {
+        const body = parseJsonBody(request);
+        const roleIds = Array.isArray(body.role_ids) ? body.role_ids : [];
+        syncAdminUserRoleAssignment(adminUserId, roleIds);
+        const assignment = adminUserRoleAssignmentsState[adminUserId];
+
+        return jsonResponse(route, 200, {
+          adminUserId,
+          roleIds: assignment.roleIds,
+          roleCodes: assignment.roleCodes,
+        });
+      }
+    }
+
+    if (
+      /^\/api\/admin\/admin-users\/[^/]+\/status$/.test(pathname) &&
+      method === 'PATCH'
+    ) {
+      const adminUserId = pathname.split('/')[4];
+      const body = parseJsonBody(request);
+      const adminUser = adminUsersState.find((item) => item.id === adminUserId);
+      if (adminUser) {
+        adminUser.status = body.status || adminUser.status;
+        adminUser.updatedAt = now;
+      }
+
+      return jsonResponse(route, 200, {
+        success: true,
+        message: 'ok',
       });
     }
 

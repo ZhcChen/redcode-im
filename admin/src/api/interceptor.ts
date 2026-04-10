@@ -49,7 +49,10 @@ axios.interceptors.response.use(
   (response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
     const hasCustomCode =
-      res && Object.prototype.hasOwnProperty.call(res, 'code');
+      res &&
+      typeof res === 'object' &&
+      Object.prototype.hasOwnProperty.call(res, 'code') &&
+      typeof (res as { code?: unknown }).code === 'number';
 
     if (hasCustomCode && res.code !== 20000) {
       Message.error({

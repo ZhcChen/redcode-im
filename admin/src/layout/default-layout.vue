@@ -96,9 +96,12 @@
     appStore.updateSettings({ menuCollapse: val });
   };
   watch(
-    () => userStore.role,
-    (roleValue) => {
-      if (roleValue && !permission.accessRouter(route))
+    () =>
+      `${userStore.role}|${userStore.isSuperAdmin}|${userStore.roleCodes.join(
+        ','
+      )}|${userStore.permissionKeys.join(',')}`,
+    (accessSignature) => {
+      if (accessSignature && !permission.accessRouter(route))
         router.push({ name: 'notFound' });
     }
   );

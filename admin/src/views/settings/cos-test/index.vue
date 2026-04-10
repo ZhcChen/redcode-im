@@ -1,6 +1,6 @@
 <template>
   <div class="cos-test-container">
-    <Breadcrumb :items="['menu.settings', 'menu.settings.cosTest']" />
+    <Breadcrumb :items="['menu.operations', 'menu.operations.cosTest']" />
     <a-card class="general-card" title="腾讯云 COS 测试" :bordered="false">
       <a-space direction="vertical" :size="24" style="width: 100%">
         <!-- 提供商选择 -->

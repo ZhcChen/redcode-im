@@ -10,9 +10,21 @@ const adminUser = {
   username: 'admin',
   email: 'admin@example.com',
   nickname: '系统管理员',
+  avatarUrl: null,
   status: 'active',
   createdAt: '2026-03-01T00:00:00Z',
   updatedAt: '2026-03-01T00:00:00Z',
+  roleCodes: ['super_admin'],
+  permissionKeys: [
+    'user:manage',
+    'role:manage',
+    'message:manage',
+    'file:manage',
+    'system:settings',
+    'data:analysis',
+    'log:audit',
+  ],
+  isSuperAdmin: true,
 };
 
 async function setSession(

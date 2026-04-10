@@ -1,6 +1,6 @@
 <template>
   <div class="ipinfo-token-container">
-    <Breadcrumb :items="['menu.settings', 'menu.settings.ipinfoToken']" />
+    <Breadcrumb :items="['menu.operations', 'menu.operations.ipinfoToken']" />
     <a-card class="general-card" title="ipinfo.io Token 管理" :bordered="false">
       <div class="actions">
         <a-space>
@@ -147,7 +147,7 @@
 </template>
 
 <script lang="ts" setup>
-  import { ref, reactive, onMounted, computed } from 'vue';
+  import { ref, reactive, onMounted } from 'vue';
   import { Message, Modal } from '@arco-design/web-vue';
   import { IconPlus } from '@arco-design/web-vue/es/icon';
   import axios from 'axios';
@@ -187,16 +187,6 @@
   // 分页配置
   const currentPage = ref(1);
   const pageSize = ref(10);
-
-  const pagination = computed(() => ({
-    current: currentPage.value,
-    pageSize: pageSize.value,
-    total: total.value,
-    showTotal: true,
-    showJumper: true,
-    showPageSize: true,
-    pageSizeOptions: [10, 20, 50],
-  }));
 
   // 表单数据
   const form = reactive<TokenForm>({
@@ -322,13 +312,6 @@
 
   // 刷新
   const handleRefresh = () => {
-    fetchTokenList(searchKeyword.value || undefined);
-  };
-
-  // 分页变化处理
-  const handlePageChange = (page: number, size: number) => {
-    currentPage.value = page;
-    pageSize.value = size;
     fetchTokenList(searchKeyword.value || undefined);
   };
 

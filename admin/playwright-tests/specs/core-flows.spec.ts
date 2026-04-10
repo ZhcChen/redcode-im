@@ -10,9 +10,35 @@ const adminUser = {
   username: 'admin',
   email: 'admin@example.com',
   nickname: '系统管理员',
+  avatarUrl: null,
   status: 'active',
   createdAt: '2026-03-01T00:00:00Z',
   updatedAt: '2026-03-01T00:00:00Z',
+  roleCodes: ['super_admin'],
+  permissionKeys: [
+    'user:manage',
+    'role:manage',
+    'message:manage',
+    'file:manage',
+    'system:settings',
+    'data:analysis',
+    'log:audit',
+  ],
+  isSuperAdmin: true,
+};
+
+const limitedAdminUser = {
+  id: 'admin-2',
+  username: 'limited',
+  email: 'limited@example.com',
+  nickname: '受限管理员',
+  avatarUrl: null,
+  status: 'active',
+  createdAt: '2026-03-01T00:00:00Z',
+  updatedAt: '2026-03-01T00:00:00Z',
+  roleCodes: [],
+  permissionKeys: [],
+  isSuperAdmin: false,
 };
 
 async function mockAuth(page: Page) {
@@ -95,6 +121,40 @@ test.describe('admin core flows', () => {
     ).toBeVisible();
     await expect(
       page.locator('.arco-table-td-content').filter({ hasText: /^alice$/ })
+    ).toBeVisible();
+  });
+
+  test('limited admin login falls back to first accessible page', async ({
+    page,
+  }) => {
+    await page.route(/\/auth\/admin\/login(?:\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          token: 'limited-token',
+          refresh_token: 'limited-refresh-token',
+          user: limitedAdminUser,
+        }),
+      });
+    });
+
+    await page.route(/\/auth\/admin\/me(?:\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(limitedAdminUser),
+      });
+    });
+
+    await page.goto('/login');
+    await page.getByPlaceholder('用户名：admin').fill(adminUsername);
+    await page.getByPlaceholder('密码：admin').fill(adminPassword);
+    await page.getByRole('button', { name: '登录' }).click();
+
+    await expect(page).toHaveURL(/\/settings\/user-profile/);
+    await expect(
+      page.locator('.arco-card-header-title', { hasText: '个人设置' })
     ).toBeVisible();
   });
 
