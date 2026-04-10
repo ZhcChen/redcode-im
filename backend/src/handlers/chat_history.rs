@@ -325,6 +325,7 @@ pub async fn get_user_rooms(
 ) -> Result<Json<UserRoomResponse>, AppError> {
     let user_id = Uuid::parse_str(&user_id)
         .map_err(|_| AppError::ValidationError("无效的用户ID".to_string()))?;
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
 
     let pool = &state.database.pool;
 
@@ -354,59 +355,63 @@ pub async fn get_user_rooms(
     for row in rows {
         let room_id: Uuid = row.get("id");
 
-        // 获取房间最后一条消息
-        let last_message_query = r#"
-        SELECT 
-            m.id, m.sender_id, m.message_type, m.content,
-            m.created_at, m.updated_at,
-            u.username as sender_name, u.avatar_url as sender_avatar,
-            r.name as room_name
-        FROM messages m
-        LEFT JOIN users u ON m.sender_id = u.id
-        LEFT JOIN rooms r ON m.room_id = r.id
-        WHERE m.room_id = $1 AND m.deleted_at IS NULL
-        ORDER BY m.created_at DESC
-        LIMIT 1
-        "#;
-
-        let last_message_row = sqlx::query(last_message_query)
-            .bind(room_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| {
-                tracing::error!("获取房间最后消息失败: {}", e);
-                AppError::DatabaseError(e)
-            })?;
-
-        let last_message = if let Some(row) = last_message_row {
-            Some(ChatMessage {
-                id: row.get::<Uuid, _>("id").to_string(),
-                room_id: room_id.to_string(),
-                room_name: row.get::<Option<String>, _>("room_name"),
-                sender_id: row.get::<Uuid, _>("sender_id").to_string(),
-                sender_name: row
-                    .get::<Option<String>, _>("sender_name")
-                    .unwrap_or_else(|| "未知用户".to_string()),
-                sender_avatar: row.get("sender_avatar"),
-                message_type: match row.get::<i16, _>("message_type") {
-                    0 => "text".to_string(),
-                    1 => "image".to_string(),
-                    2 => "file".to_string(),
-                    3 => "system".to_string(),
-                    _ => "unknown".to_string(),
-                },
-                content: row.get("content"),
-                parts: Vec::new(),
-                created_at: row
-                    .get::<chrono::DateTime<Utc>, _>("created_at")
-                    .to_rfc3339(),
-                updated_at: row
-                    .get::<chrono::DateTime<Utc>, _>("updated_at")
-                    .to_rfc3339(),
-                deleted_at: None,
-            })
-        } else {
+        let last_message = if relay_only_runtime {
             None
+        } else {
+            // 获取房间最后一条消息
+            let last_message_query = r#"
+            SELECT 
+                m.id, m.sender_id, m.message_type, m.content,
+                m.created_at, m.updated_at,
+                u.username as sender_name, u.avatar_url as sender_avatar,
+                r.name as room_name
+            FROM messages m
+            LEFT JOIN users u ON m.sender_id = u.id
+            LEFT JOIN rooms r ON m.room_id = r.id
+            WHERE m.room_id = $1 AND m.deleted_at IS NULL
+            ORDER BY m.created_at DESC
+            LIMIT 1
+            "#;
+
+            let last_message_row = sqlx::query(last_message_query)
+                .bind(room_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(|e| {
+                    tracing::error!("获取房间最后消息失败: {}", e);
+                    AppError::DatabaseError(e)
+                })?;
+
+            if let Some(row) = last_message_row {
+                Some(ChatMessage {
+                    id: row.get::<Uuid, _>("id").to_string(),
+                    room_id: room_id.to_string(),
+                    room_name: row.get::<Option<String>, _>("room_name"),
+                    sender_id: row.get::<Uuid, _>("sender_id").to_string(),
+                    sender_name: row
+                        .get::<Option<String>, _>("sender_name")
+                        .unwrap_or_else(|| "未知用户".to_string()),
+                    sender_avatar: row.get("sender_avatar"),
+                    message_type: match row.get::<i16, _>("message_type") {
+                        0 => "text".to_string(),
+                        1 => "image".to_string(),
+                        2 => "file".to_string(),
+                        3 => "system".to_string(),
+                        _ => "unknown".to_string(),
+                    },
+                    content: row.get("content"),
+                    parts: Vec::new(),
+                    created_at: row
+                        .get::<chrono::DateTime<Utc>, _>("created_at")
+                        .to_rfc3339(),
+                    updated_at: row
+                        .get::<chrono::DateTime<Utc>, _>("updated_at")
+                        .to_rfc3339(),
+                    deleted_at: None,
+                })
+            } else {
+                None
+            }
         };
 
         let room = UserRoom {

@@ -103,12 +103,17 @@ pub async fn get_message_read_list(
 ) -> Result<Json<Vec<MessageReadInfo>>, AppError> {
     let user_id = string_to_uuid(&claims.sub)?;
     let room_id = string_to_uuid(&room_id)?;
-    let message_id = string_to_uuid(&message_id)?;
 
     let message_store = MessageStore::new(&state.database.pool);
     if !message_store.user_in_room(room_id, user_id).await? {
         return Err(AppError::Forbidden("您不是该房间成员".to_string()));
     }
+
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("消息已读"));
+    }
+
+    let message_id = string_to_uuid(&message_id)?;
 
     let read_store = MessageReadStore::new(&state.database.pool);
     let read_users = read_store.get_message_read_users(message_id).await?;
