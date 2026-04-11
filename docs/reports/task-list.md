@@ -85,3 +85,4 @@
 - ✅ Admin 关键 Playwright 回归 18 条通过
 - ✅ B2 provider 编辑时显式清空 `bucket_name` 会被后端拒绝，并补齐 Go 合同测试
 - ✅ `database_migration_smoke` 环境变量串扰已收口，`cargo test` 可稳定通过
+- ✅ SQL baseline / active migration / verify 脚本口径已统一到 bootstrap-first 流程

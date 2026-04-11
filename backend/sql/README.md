@@ -16,6 +16,13 @@
 - 已有 `db_migrations`：只执行尚未记录的脚本，并校验当前 manifest 的 checksum。
 - 非空库但缺少 `db_migrations`：默认直接报错，避免把半初始化库误认成已完成基线。
 
+> 当前 active migration 链为：
+>
+> 1. `backend/sql/base.sql`
+> 2. `backend/sql/migrations/20260410093000_remove_default_admin_seed.sql`
+>
+> 因此“当前完整 schema”不是只执行 `base.sql`，而是执行完整链路后的结果。
+
 ### 手工执行（排障场景）
 
 如果确实需要手工初始化空库：
@@ -28,7 +35,10 @@ docker exec -i postgres psql -v ON_ERROR_STOP=1 -U postgres -d redcode_im < back
 psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d redcode_im < backend/sql/base.sql
 ```
 
-如果 `backend/sql/migrations/` 中存在新迁移，再按 `backend/src/database/mod.rs` 的 `MIGRATIONS` 顺序补执行。
+然后再按 `backend/src/database/mod.rs` 的 `MIGRATIONS` 顺序补执行后续 active migration。
+
+> 注意：当前首个超级管理员不是依赖 `base.sql` 中的静态默认账号，而是依赖运行时 bootstrap 初始化流程。
+> 手工只执行 `base.sql` 不代表已经完成当前正式初始化链路。
 
 ## 迁移规则
 
