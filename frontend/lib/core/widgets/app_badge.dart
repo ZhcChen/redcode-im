@@ -6,7 +6,7 @@ import '../constants/app_colors.dart';
 /// - 当为一位数字（<10）时保证为正圆
 /// - 支持 `count`（自动处理 99+）或直接传入 `text`
 class AppBadge extends StatelessWidget {
-  AppBadge({
+  const AppBadge({
     super.key,
     this.count,
     this.text,

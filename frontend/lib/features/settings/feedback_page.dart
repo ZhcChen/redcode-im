@@ -98,7 +98,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -110,7 +110,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -169,7 +169,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.primary.withOpacity(
+                        disabledBackgroundColor: AppColors.primary.withValues(alpha: 
                           0.6,
                         ),
                         elevation: 0,

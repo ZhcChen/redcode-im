@@ -242,7 +242,7 @@ class _AboutPageState extends State<AboutPage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -279,8 +279,8 @@ class _AboutPageState extends State<AboutPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: latest.mandatory
-                                      ? Colors.redAccent.withOpacity(0.1)
-                                      : AppColors.primary.withOpacity(0.1),
+                                      ? Colors.redAccent.withValues(alpha: 0.1)
+                                      : AppColors.primary.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -316,7 +316,7 @@ class _AboutPageState extends State<AboutPage> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primary,
                         side: BorderSide(
-                          color: AppColors.primary.withOpacity(0.5),
+                          color: AppColors.primary.withValues(alpha: 0.5),
                         ),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -437,7 +437,7 @@ class _AboutPageState extends State<AboutPage> {
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -464,7 +464,7 @@ class _AboutPageState extends State<AboutPage> {
                   onPressed: _openFeedback,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 2,

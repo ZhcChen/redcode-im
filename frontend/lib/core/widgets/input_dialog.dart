@@ -86,37 +86,17 @@ class InputDialog extends StatefulWidget {
 class _InputDialogState extends State<InputDialog> {
   late final TextEditingController _controller;
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  bool _isValid = false;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initialValue);
-    _controller.addListener(_validate);
-    if (widget.initialValue != null && widget.validator == null) {
-      _isValid = widget.initialValue!.trim().isNotEmpty;
-    }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_validate);
     _controller.dispose();
     super.dispose();
-  }
-
-  void _validate() {
-    if (widget.validator != null) {
-      final value = _controller.text;
-      final error = widget.validator!(value);
-      setState(() {
-        _isValid = error == null && value.trim().isNotEmpty;
-      });
-    } else {
-      setState(() {
-        _isValid = _controller.text.trim().isNotEmpty;
-      });
-    }
   }
 
   Future<bool> _handleConfirm() async {

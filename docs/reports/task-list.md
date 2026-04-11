@@ -97,3 +97,4 @@
 - ✅ backend 已开始把默认对象存储从 COS 专属约束泛化到 B2，并补了无默认存储时的举报列表降级处理
 - ✅ frontend 已移除未接入业务的发现页与对应静态资源占位
 - ✅ frontend 群设置已补群改名、加人/移人能力，并抽出好友选择面板与 room service 测试入口
+- ✅ frontend 设置页与通用组件已开始收口：InputDialog 简化、设置项 trailing 固定化、Flutter 新 API 兼容替换

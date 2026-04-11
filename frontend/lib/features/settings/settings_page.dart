@@ -699,17 +699,15 @@ class _SettingItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trailing =
-        data.trailingBuilder?.call(context) ??
-        const SizedBox(
-          width: 7,
-          height: 15,
-          child: Icon(
-            Icons.chevron_right,
-            size: 15,
-            color: AppColors.textPrimary,
-          ),
-        );
+    const trailing = SizedBox(
+      width: 7,
+      height: 15,
+      child: Icon(
+        Icons.chevron_right,
+        size: 15,
+        color: AppColors.textPrimary,
+      ),
+    );
 
     return Material(
       color: Colors.transparent,
@@ -877,10 +875,8 @@ class _SettingItemData {
   const _SettingItemData({
     required this.title,
     this.onTap,
-    this.trailingBuilder,
   });
 
   final String title;
   final Future<void> Function()? onTap;
-  final Widget Function(BuildContext context)? trailingBuilder;
 }

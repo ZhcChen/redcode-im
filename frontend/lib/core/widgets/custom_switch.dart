@@ -58,7 +58,7 @@ class CustomSwitch extends StatelessWidget {
                 Positioned.fill(
                   child: Container(
                     alignment: Alignment.center,
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     child: const SizedBox(
                       width: 12,
                       height: 12,

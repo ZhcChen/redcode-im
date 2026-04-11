@@ -46,7 +46,7 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = widget.color ?? Colors.grey.withOpacity(0.12);
+    final baseColor = widget.color ?? Colors.grey.withValues(alpha: 0.12);
 
     return AnimatedBuilder(
       animation: _animation,
