@@ -1019,14 +1019,6 @@ class _LoginPageState extends State<LoginPage> {
     return message.contains('已被使用') || message.contains('已存在');
   }
 
-  String _buildAutoRegisterEmail(String phone) {
-    final normalized = phone.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
-    final localPart = normalized.isEmpty
-        ? 'user${DateTime.now().millisecondsSinceEpoch}'
-        : normalized;
-    return '$localPart@auto.redcode-im';
-  }
-
   String _buildAutoRegisterPassword(String phone) {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
     final random = Random();

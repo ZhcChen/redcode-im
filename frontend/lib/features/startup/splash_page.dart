@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -159,8 +158,8 @@ class _SplashPageState extends State<SplashPage> {
       context: context,
       barrierDismissible: !mandatory,
       builder: (dialogContext) {
-        return WillPopScope(
-          onWillPop: () async => !mandatory,
+        return PopScope(
+          canPop: !mandatory,
           child: AlertDialog(
             title: Text(mandatory ? '必须更新至最新版本' : '发现新版本 v${latest.version}'),
             content: Text(
@@ -177,8 +176,7 @@ class _SplashPageState extends State<SplashPage> {
               FilledButton(
                 onPressed: () async {
                   await _launchVersionDownload(latest);
-                  if (!mounted) {
-                    Navigator.of(dialogContext).pop(false);
+                  if (!dialogContext.mounted) {
                     return;
                   }
                   if (mandatory) {

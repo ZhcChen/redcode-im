@@ -1,10 +1,12 @@
-/// 环境配置管理
-/// 根据不同的环境加载相应的配置
-///
-/// 使用方式：
-/// - 开发环境：flutter run --dart-define=ENV=development
-/// - 生产环境：flutter run --dart-define=ENV=production
-/// - 测试环境：flutter run --dart-define=ENV=staging
+import 'package:flutter/foundation.dart';
+
+// 环境配置管理
+// 根据不同的环境加载相应的配置
+//
+// 使用方式：
+// - 开发环境：flutter run --dart-define=ENV=development
+// - 生产环境：flutter run --dart-define=ENV=production
+// - 测试环境：flutter run --dart-define=ENV=staging
 
 /// 环境类型
 enum Environment {
@@ -48,8 +50,9 @@ class EnvironmentConfig {
   static bool get isProduction => current == Environment.production;
 
   /// 开发环境 API 地址
-  static const String devApiBaseUrl = 'http://10.137.203.83:8010';
-  static const String devWsUrl = 'ws://10.137.203.83:8010/ws';
+  /// 本地默认走 localhost；真机联调请通过 --dart-define 覆盖为当前局域网 IP。
+  static const String devApiBaseUrl = 'http://127.0.0.1:8010';
+  static const String devWsUrl = 'ws://127.0.0.1:8010/ws';
 
   /// 测试环境 API 地址
   static const String stagingApiBaseUrl = 'https://staging-api.chatlyme.com';
@@ -139,14 +142,14 @@ class EnvironmentConfig {
   /// 打印当前环境信息
   static void printInfo() {
     if (enableDebugLog) {
-      print('╔══════════════════════════════════════════╗');
-      print('║          🌍 环境配置信息                  ║');
-      print('╠══════════════════════════════════════════╣');
-      print('║  环境: $envName');
-      print('║  API:  $apiBaseUrl');
-      print('║  WS:   $wsUrl');
-      print('║  调试: ${enableDebugLog ? '✅' : '❌'}');
-      print('╚══════════════════════════════════════════╝');
+      debugPrint('╔══════════════════════════════════════════╗');
+      debugPrint('║          🌍 环境配置信息                  ║');
+      debugPrint('╠══════════════════════════════════════════╣');
+      debugPrint('║  环境: $envName');
+      debugPrint('║  API:  $apiBaseUrl');
+      debugPrint('║  WS:   $wsUrl');
+      debugPrint('║  调试: ${enableDebugLog ? '✅' : '❌'}');
+      debugPrint('╚══════════════════════════════════════════╝');
     }
   }
 }

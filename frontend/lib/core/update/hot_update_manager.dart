@@ -136,15 +136,13 @@ class HotUpdateManager extends ChangeNotifier {
       return record;
     } catch (error, stackTrace) {
       Log.e('下载热更新失败: $error\n$stackTrace');
-      if (targetPatch != null) {
-        await _reportEvent(
-          eventType: 'download_failed',
-          baseVersion: baseVersion,
-          patchVersion: targetPatch.patchVersion,
-          channel: targetPatch.channel,
-          message: '$error',
-        );
-      }
+      await _reportEvent(
+        eventType: 'download_failed',
+        baseVersion: baseVersion,
+        patchVersion: targetPatch.patchVersion,
+        channel: targetPatch.channel,
+        message: '$error',
+      );
       _setState(
         _state.copyWith(
           stage: HotUpdateStage.failed,

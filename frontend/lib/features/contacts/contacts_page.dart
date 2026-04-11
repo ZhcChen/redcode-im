@@ -797,7 +797,7 @@ class _ContactAvatarState extends State<_ContactAvatar> {
           _isLoading = false;
         });
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
