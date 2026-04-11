@@ -6,15 +6,29 @@ import 'package:http/http.dart' as http;
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/services/app_config_service.dart';
 import '../../core/services/message_service.dart';
 import '../../core/storage/message_search_storage.dart';
 import '../../core/storage/message_storage.dart';
 import 'models/chat_model.dart';
 
 class MessageSearchPage extends StatefulWidget {
-  const MessageSearchPage({super.key, this.initialRoomId});
+  const MessageSearchPage({
+    super.key,
+    this.initialRoomId,
+    this.searchStorage,
+    this.messageStorage,
+    this.messageService,
+    this.appConfigService,
+    this.httpClient,
+  });
 
   final String? initialRoomId;
+  final MessageSearchStorage? searchStorage;
+  final MessageStorage? messageStorage;
+  final MessageService? messageService;
+  final AppConfigService? appConfigService;
+  final http.Client? httpClient;
 
   @override
   State<MessageSearchPage> createState() => _MessageSearchPageState();
@@ -24,9 +38,11 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
   final _queryController = TextEditingController();
   final _queryFocusNode = FocusNode();
 
-  final MessageSearchStorage _searchStorage = const MessageSearchStorage();
-  final MessageStorage _messageStorage = const MessageStorage();
-  final MessageService _messageService = MessageService.instance;
+  late final MessageSearchStorage _searchStorage;
+  late final MessageStorage _messageStorage;
+  late final MessageService _messageService;
+  late final AppConfigService _appConfigService;
+  late final http.Client _httpClient;
 
   Timer? _debounceTimer;
 
@@ -36,6 +52,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
 
   bool _isSearching = false;
   bool _isLoadingMore = false;
+  bool _serverSearchEnabled = true;
 
   int _searchSequence = 0;
   int _localOffset = 0;
@@ -54,6 +71,12 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
   void initState() {
     super.initState();
 
+    _searchStorage = widget.searchStorage ?? const MessageSearchStorage();
+    _messageStorage = widget.messageStorage ?? const MessageStorage();
+    _messageService = widget.messageService ?? MessageService.instance;
+    _appConfigService = widget.appConfigService ?? AppConfigService.instance;
+    _httpClient = widget.httpClient ?? http.Client();
+    _serverSearchEnabled = !_appConfigService.currentMessageRuntime.isRelayOnly;
     _availableChats = _messageService.chats;
     _roomFilter = widget.initialRoomId?.trim() ?? '';
 
@@ -180,9 +203,13 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
         _stats = local.stats;
         _localOffset = local.results.length;
         _hasMoreLocal = local.hasMore;
+        _hasMoreServer = false;
+        _serverOffset = 0;
       });
 
-      unawaited(_syncServerResults(offset: 0, seq: seq));
+      if (_serverSearchEnabled) {
+        unawaited(_syncServerResults(offset: 0, seq: seq));
+      }
     } catch (_) {
       if (!mounted || seq != _searchSequence) return;
       setState(() {
@@ -190,8 +217,12 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
         _stats = null;
         _localOffset = 0;
         _hasMoreLocal = false;
+        _hasMoreServer = false;
+        _serverOffset = 0;
       });
-      unawaited(_syncServerResults(offset: 0, seq: seq));
+      if (_serverSearchEnabled) {
+        unawaited(_syncServerResults(offset: 0, seq: seq));
+      }
     } finally {
       if (mounted && seq == _searchSequence) {
         setState(() {
@@ -340,7 +371,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/messages/search',
     ).replace(queryParameters: params);
-    final response = await http.get(
+    final response = await _httpClient.get(
       uri,
       headers: {'Authorization': 'Bearer ${session.token}'},
     );
@@ -791,6 +822,26 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
                         ),
                       ),
                   ],
+                ),
+              ),
+            if (!_serverSearchEnabled)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '当前仅搜索本地缓存消息',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             Expanded(

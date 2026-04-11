@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/core/services/app_config_service.dart';
 import 'package:frontend/core/services/message_service.dart';
+import 'package:frontend/core/services/settings_service.dart';
 import 'package:frontend/core/services/websocket_service.dart';
+import 'package:frontend/core/storage/app_config_storage.dart';
 import 'package:frontend/features/chat/models/chat_model.dart';
 import 'package:frontend/features/chat/models/message_model.dart';
 import 'package:frontend/features/chat/providers/chat_provider.dart';
@@ -38,7 +41,13 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   List<Chat> _chats;
   final List<_SendRichCall> sendRichCalls = <_SendRichCall>[];
   final List<_ForwardCall> forwardCalls = <_ForwardCall>[];
+  final List<String> pinnedCalls = <String>[];
+  final List<String> unpinnedCalls = <String>[];
   final List<String> markedDeleted = <String>[];
+  final List<String> markedReadCalls = <String>[];
+  final List<String> addedReactionCalls = <String>[];
+  final List<String> removedReactionCalls = <String>[];
+  final Map<String, List<Message>> roomMessages = <String, List<Message>>{};
   int fetchChatsCallCount = 0;
   Future<void> Function()? onFetchChats;
 
@@ -92,13 +101,43 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   }
 
   @override
+  Future<void> pinMessage(String roomId, String messageId) async {
+    pinnedCalls.add('$roomId::$messageId');
+  }
+
+  @override
+  Future<void> unpinMessage(String roomId, String messageId) async {
+    unpinnedCalls.add('$roomId::$messageId');
+  }
+
+  @override
   Future<void> markMessageDeleted(String roomId, String messageId) async {
     markedDeleted.add('$roomId::$messageId');
   }
 
   @override
+  Future<List<MessageReactionSummary>> addReaction({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+  }) async {
+    addedReactionCalls.add('$roomId::$messageId::$reactionKey');
+    return const <MessageReactionSummary>[];
+  }
+
+  @override
+  Future<List<MessageReactionSummary>> removeReaction({
+    required String roomId,
+    required String messageId,
+    required String reactionKey,
+  }) async {
+    removedReactionCalls.add('$roomId::$messageId::$reactionKey');
+    return const <MessageReactionSummary>[];
+  }
+
+  @override
   Future<List<Message>> loadCachedMessages(String roomId) async =>
-      const <Message>[];
+      List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
 
   @override
   Future<List<Message>> loadMessages(
@@ -106,19 +145,39 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     int limit = 50,
     String? beforeId,
     String? sinceId,
-  }) async => const <Message>[];
+  }) async => List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
 
   @override
-  Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {}
+  Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {
+    markedReadCalls.add('$roomId::$lastMessageId');
+  }
 
   @override
-  List<Message> getMessages(String roomId) => const <Message>[];
+  List<Message> getMessages(String roomId) =>
+      List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
 
   @override
   Future<void> updateChatInfo(String roomId, ChatType chatType) async {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeAppConfigService extends AppConfigService {
+  _FakeAppConfigService({required MessageRuntimeSettings runtime})
+    : _runtime = runtime,
+      super(
+        storage: const AppConfigStorage(),
+        settingsService: SettingsService(),
+      );
+
+  final MessageRuntimeSettings _runtime;
+
+  @override
+  MessageRuntimeSettings get currentMessageRuntime => _runtime;
+
+  @override
+  Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
 }
 
 class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
@@ -354,6 +413,70 @@ void main() {
 
       expect(fakeMessageService.markedDeleted, <String>['room-del::m-del']);
     });
+
+    test(
+      'relay_only drops quoted message and skips unsupported message mutations',
+      () async {
+        final fakeMessageService = _FakeMessageService();
+        fakeMessageService.roomMessages['r1'] = <Message>[
+          _message(
+            id: 'incoming-1',
+            roomId: 'r1',
+            content: 'hello',
+            isSelf: false,
+            status: MessageStatus.sent,
+          ),
+        ];
+        final fakeWs = _FakeWebSocketService();
+        final appConfigService = _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'relay_only',
+            contentAuditMode: 'plaintext',
+          ),
+        );
+        final provider = ChatProvider(
+          messageService: fakeMessageService,
+          webSocketService: fakeWs,
+          appConfigService: appConfigService,
+        );
+        addTearDown(provider.dispose);
+
+        await provider.enterChatRoom(
+          'r1',
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
+        );
+
+        final quoted = _message(id: 'q1', roomId: 'r1', content: 'quoted');
+        await provider.sendRichMessage(
+          text: '  hello world  ',
+          quotedMessage: quoted,
+        );
+
+        final message = _message(id: 'm1', roomId: 'r1', content: 'hello');
+        final target = _chat(
+          id: '2',
+          roomId: 'r2',
+          name: 'Target',
+          lastMessage: '',
+        );
+
+        await provider.forwardMessage(message, target);
+        await provider.pinMessage(message);
+        await provider.unpinMessage(message);
+        await provider.deleteMessage(message);
+        await provider.toggleReaction(message, '👍');
+
+        expect(fakeMessageService.markedReadCalls, isEmpty);
+        expect(fakeMessageService.sendRichCalls, hasLength(1));
+        expect(fakeMessageService.sendRichCalls.first.quotedMessage, isNull);
+        expect(fakeMessageService.forwardCalls, isEmpty);
+        expect(fakeMessageService.pinnedCalls, isEmpty);
+        expect(fakeMessageService.unpinnedCalls, isEmpty);
+        expect(fakeMessageService.markedDeleted, isEmpty);
+        expect(fakeMessageService.addedReactionCalls, isEmpty);
+        expect(fakeMessageService.removedReactionCalls, isEmpty);
+      },
+    );
   });
 }
 
@@ -362,6 +485,8 @@ Message _message({
   required String roomId,
   required String content,
   ForwardInfo? forwardInfo,
+  bool isSelf = true,
+  MessageStatus status = MessageStatus.sent,
 }) {
   return Message(
     id: id,
@@ -371,9 +496,9 @@ Message _message({
     senderName: 'Alice',
     content: content,
     type: MessageType.text,
-    status: MessageStatus.sent,
+    status: status,
     timestamp: DateTime(2026, 3, 5, 12, 0, 0),
-    isSelf: true,
+    isSelf: isSelf,
     forwardInfo: forwardInfo,
   );
 }

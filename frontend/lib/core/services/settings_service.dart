@@ -41,28 +41,35 @@ class MessageRuntimeSettings {
     required this.contentAuditMode,
   });
 
+  static const defaults = MessageRuntimeSettings(
+    serverStorageMode: 'persist',
+    contentAuditMode: 'plaintext',
+  );
+
   final String serverStorageMode;
   final String contentAuditMode;
+
+  bool get isRelayOnly => serverStorageMode == 'relay_only';
+  bool get isPersist => !isRelayOnly;
+  bool get isE2ee => contentAuditMode == 'e2ee';
+  bool get isPlaintext => !isE2ee;
 
   factory MessageRuntimeSettings.fromJson(Map<String, dynamic>? json) {
     return MessageRuntimeSettings(
       serverStorageMode:
           (json?['server_storage_mode'] as String?)?.trim().isNotEmpty == true
-              ? json!['server_storage_mode'] as String
-              : 'persist',
+          ? json!['server_storage_mode'] as String
+          : 'persist',
       contentAuditMode:
           (json?['content_audit_mode'] as String?)?.trim().isNotEmpty == true
-              ? json!['content_audit_mode'] as String
-              : 'plaintext',
+          ? json!['content_audit_mode'] as String
+          : 'plaintext',
     );
   }
 }
 
 class GeneralSettings {
-  const GeneralSettings({
-    required this.appName,
-    required this.messageRuntime,
-  });
+  const GeneralSettings({required this.appName, required this.messageRuntime});
 
   final String appName;
   final MessageRuntimeSettings messageRuntime;
@@ -98,10 +105,7 @@ class SettingsService {
 
     return const GeneralSettings(
       appName: '',
-      messageRuntime: MessageRuntimeSettings(
-        serverStorageMode: 'persist',
-        contentAuditMode: 'plaintext',
-      ),
+      messageRuntime: MessageRuntimeSettings.defaults,
     );
   }
 

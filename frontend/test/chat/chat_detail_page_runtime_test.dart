@@ -1,0 +1,208 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/core/services/app_config_service.dart';
+import 'package:frontend/core/services/message_service.dart';
+import 'package:frontend/core/services/settings_service.dart';
+import 'package:frontend/core/services/websocket_service.dart';
+import 'package:frontend/core/storage/app_config_storage.dart';
+import 'package:frontend/features/chat/chat_detail_page_v2.dart';
+import 'package:frontend/features/chat/models/chat_model.dart';
+import 'package:frontend/features/chat/models/message_model.dart';
+import 'package:frontend/features/chat/providers/chat_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeAppConfigService extends AppConfigService {
+  _FakeAppConfigService({required MessageRuntimeSettings runtime})
+    : _runtime = runtime,
+      super(
+        storage: const AppConfigStorage(),
+        settingsService: SettingsService(),
+      );
+
+  final MessageRuntimeSettings _runtime;
+
+  @override
+  MessageRuntimeSettings get currentMessageRuntime => _runtime;
+
+  @override
+  Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+}
+
+class _FakeMessageService extends ChangeNotifier implements MessageService {
+  _FakeMessageService({required this.roomMessages, required this.seedChats});
+
+  final Map<String, List<Message>> roomMessages;
+  final List<Chat> seedChats;
+
+  @override
+  List<Chat> get chats => List<Chat>.from(seedChats);
+
+  @override
+  Future<List<Message>> loadCachedMessages(String roomId) async =>
+      List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+
+  @override
+  Future<List<Message>> loadMessages(
+    String roomId, {
+    int limit = 50,
+    String? beforeId,
+    String? sinceId,
+  }) async => List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+
+  @override
+  List<Message> getMessages(String roomId) =>
+      List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+
+  @override
+  Future<void> updateChatInfo(String roomId, ChatType chatType) async {}
+
+  @override
+  Message? getPinnedMessage(String roomId) => null;
+
+  @override
+  List<Message> getPinnedMessages(String roomId) => const <Message>[];
+
+  @override
+  bool isMessagePinned(String roomId, String messageId) => false;
+
+  @override
+  int? cachedRoomMemberCount(String roomId) => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
+  @override
+  ConnectionStatus get status => ConnectionStatus.authenticated;
+
+  @override
+  Stream<TypingUpdateEvent> get onTypingUpdate =>
+      const Stream<TypingUpdateEvent>.empty();
+
+  @override
+  Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
+      const Stream<GroupSettingsUpdatedEvent>.empty();
+
+  @override
+  Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
+      const Stream<GroupMemberChangedEvent>.empty();
+
+  @override
+  Future<void> joinRoom(String roomId) async {}
+
+  @override
+  void setTyping(String roomId, bool isTyping) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Message _message() {
+  return Message(
+    id: 'msg-1',
+    roomId: 'room-1',
+    senderId: 'user-1',
+    senderUsername: 'alice',
+    senderName: 'Alice',
+    content: 'hello relay only',
+    type: MessageType.text,
+    status: MessageStatus.sent,
+    timestamp: DateTime(2026, 4, 11, 12, 0, 0),
+    isSelf: false,
+  );
+}
+
+ChatProvider _buildProvider(_FakeWebSocketService websocketService) {
+  final runtime = const MessageRuntimeSettings(
+    serverStorageMode: 'relay_only',
+    contentAuditMode: 'plaintext',
+  );
+  final message = _message();
+  return ChatProvider(
+    messageService: _FakeMessageService(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[message],
+      },
+      seedChats: <Chat>[
+        Chat(
+          id: 'chat-1',
+          roomId: 'room-1',
+          name: 'Alice',
+          type: ChatType.single,
+          lastMessage: message.content,
+          lastMessageTime: message.timestamp,
+        ),
+      ],
+    ),
+    webSocketService: websocketService,
+    appConfigService: _FakeAppConfigService(runtime: runtime),
+  );
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  testWidgets('relay_only action menu hides unsupported message actions', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(websocketService);
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('hello relay only'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('复制文本'), findsOneWidget);
+    expect(find.text('引用'), findsNothing);
+    expect(find.text('转发'), findsNothing);
+    expect(find.text('置顶'), findsNothing);
+    expect(find.text('添加反应'), findsNothing);
+    expect(find.text('删除'), findsNothing);
+  });
+
+  testWidgets('relay_only multi select bar hides unsupported bulk actions', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(websocketService);
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.longPress(find.text('hello relay only'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('已选 1 条'), findsOneWidget);
+    expect(find.text('转发'), findsNothing);
+    expect(find.text('删除'), findsNothing);
+  });
+}

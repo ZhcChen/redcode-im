@@ -53,6 +53,7 @@ class ChatDetailPageV2 extends StatefulWidget {
     this.chatAvatar,
     this.chatType = ChatType.single,
     this.chatProvider,
+    this.websocketService,
     this.initialMessageId,
   });
 
@@ -61,6 +62,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   final String? chatAvatar;
   final ChatType chatType;
   final ChatProvider? chatProvider;
+  final WebSocketService? websocketService;
   final String? initialMessageId;
 
   @override
@@ -110,10 +112,7 @@ class _ReactionPickerSheet extends StatelessWidget {
                 width: 48,
                 height: 48,
                 alignment: Alignment.center,
-                child: Text(
-                  reaction,
-                  style: const TextStyle(fontSize: 28),
-                ),
+                child: Text(reaction, style: const TextStyle(fontSize: 28)),
               ),
             );
           }).toList(),
@@ -135,6 +134,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
+  late final WebSocketService _webSocketService;
   bool _isAtBottom = true;
   bool _skipNextScrollAnimation = true;
   double _messageListOpacity = 0.0;
@@ -187,6 +187,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     WidgetsBinding.instance.addObserver(this);
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
+    _webSocketService = widget.websocketService ?? WebSocketService.instance;
     _initChat();
     _scrollController.addListener(_onScroll);
     unawaited(_ensureCurrentUserId());
@@ -212,19 +213,17 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       }
     });
 
-    _typingSubscription = WebSocketService.instance.onTypingUpdate
+    _typingSubscription = _webSocketService.onTypingUpdate
         .where((event) => event.roomId == widget.roomId)
         .listen(_handleTypingUpdate);
 
     // 监听群设置更新事件（仅群聊）
     if (widget.chatType == ChatType.group) {
-      _groupSettingsSubscription = WebSocketService
-          .instance
-          .onGroupSettingsUpdated
+      _groupSettingsSubscription = _webSocketService.onGroupSettingsUpdated
           .where((event) => event.roomId == widget.roomId)
           .listen(_handleGroupSettingsUpdated);
       // 监听群成员变更事件（用于个人禁言/解禁）
-      _groupMemberSubscription = WebSocketService.instance.onGroupMemberChanged
+      _groupMemberSubscription = _webSocketService.onGroupMemberChanged
           .where((event) => event.roomId == widget.roomId)
           .listen(_handleGroupMemberChanged);
     }
@@ -299,7 +298,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     _lastSentTypingState = isTyping;
     _lastSentTypingAt = now;
-    WebSocketService.instance.setTyping(widget.roomId, isTyping);
+    _webSocketService.setTyping(widget.roomId, isTyping);
   }
 
   void _stopTyping() {
@@ -404,23 +403,33 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
       final parsed = <_MentionMember>[];
       for (final member in members) {
-        final userIdValue = member['user_id'] ?? member['userId'] ?? member['id'];
-        final userId = userIdValue is String ? userIdValue : userIdValue?.toString();
+        final userIdValue =
+            member['user_id'] ?? member['userId'] ?? member['id'];
+        final userId = userIdValue is String
+            ? userIdValue
+            : userIdValue?.toString();
         if (userId == null || userId.trim().isEmpty) continue;
         if (_currentUserId != null && userId == _currentUserId) continue;
 
         final usernameValue = member['username'];
-        final username = usernameValue is String ? usernameValue : usernameValue?.toString();
+        final username = usernameValue is String
+            ? usernameValue
+            : usernameValue?.toString();
         if (username == null || username.trim().isEmpty) continue;
 
         final nicknameValue = member['nickname'];
-        final nickname = nicknameValue is String ? nicknameValue : nicknameValue?.toString();
-        final displayName =
-            (nickname != null && nickname.trim().isNotEmpty) ? nickname.trim() : username.trim();
+        final nickname = nicknameValue is String
+            ? nicknameValue
+            : nicknameValue?.toString();
+        final displayName = (nickname != null && nickname.trim().isNotEmpty)
+            ? nickname.trim()
+            : username.trim();
 
-        final avatarValue = member['avatar_url'] ?? member['avatarUrl'] ?? member['avatar'];
-        final avatarUrl =
-            avatarValue is String ? avatarValue : avatarValue?.toString();
+        final avatarValue =
+            member['avatar_url'] ?? member['avatarUrl'] ?? member['avatar'];
+        final avatarUrl = avatarValue is String
+            ? avatarValue
+            : avatarValue?.toString();
 
         parsed.add(
           _MentionMember(
@@ -450,8 +459,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     final fallbackStart = selection.start.clamp(0, text.length).toInt();
     final replaceStart =
         (_mentionStartIndex >= 0 && _mentionStartIndex <= text.length)
-            ? _mentionStartIndex
-            : fallbackStart;
+        ? _mentionStartIndex
+        : fallbackStart;
     final replaceEnd = selection.end.clamp(replaceStart, text.length).toInt();
 
     final replacement = '@$token ';
@@ -524,47 +533,47 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               ),
             )
           : (showAll || visible.isNotEmpty)
-              ? ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: (showAll ? 1 : 0) + visible.length,
-                  separatorBuilder: (_, __) => const Divider(
-                    height: 1,
-                    thickness: 0.5,
-                    color: AppColors.divider,
-                  ),
-                  itemBuilder: (context, index) {
-                    var effectiveIndex = index;
-                    if (showAll) {
-                      if (effectiveIndex == 0) {
-                        return _MentionTile(
-                          title: '全体成员',
-                          subtitle: '@all',
-                          avatarText: '@',
-                          onTap: () => _insertMentionToken('all'),
-                        );
-                      }
-                      effectiveIndex -= 1;
-                    }
-
-                    final member = visible[effectiveIndex];
+          ? ListView.separated(
+              padding: EdgeInsets.zero,
+              itemCount: (showAll ? 1 : 0) + visible.length,
+              separatorBuilder: (_, __) => const Divider(
+                height: 1,
+                thickness: 0.5,
+                color: AppColors.divider,
+              ),
+              itemBuilder: (context, index) {
+                var effectiveIndex = index;
+                if (showAll) {
+                  if (effectiveIndex == 0) {
                     return _MentionTile(
-                      title: member.displayName,
-                      subtitle: '@${member.username}',
-                      avatarText: member.displayNameAvatar,
-                      avatarUrl: member.avatarUrl,
-                      onTap: () => _insertMentionToken(member.username),
+                      title: '全体成员',
+                      subtitle: '@all',
+                      avatarText: '@',
+                      onTap: () => _insertMentionToken('all'),
                     );
-                  },
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    '未找到匹配的群成员',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
+                  }
+                  effectiveIndex -= 1;
+                }
+
+                final member = visible[effectiveIndex];
+                return _MentionTile(
+                  title: member.displayName,
+                  subtitle: '@${member.username}',
+                  avatarText: member.displayNameAvatar,
+                  avatarUrl: member.avatarUrl,
+                  onTap: () => _insertMentionToken(member.username),
+                );
+              },
+            )
+          : Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                '未找到匹配的群成员',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
                 ),
+              ),
+            ),
     );
   }
 
@@ -720,13 +729,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   @override
   void dispose() {
-    _clearMultiSelect();
+    _multiSelectMode = false;
+    _selectedMessageIds.clear();
     _keyboardUpdateTimer?.cancel();
     _groupSettingsSubscription?.cancel();
     _groupMemberSubscription?.cancel();
     _typingSubscription?.cancel();
     _typingIdleTimer?.cancel();
-    WebSocketService.instance.setTyping(widget.roomId, false);
+    _webSocketService.setTyping(widget.roomId, false);
     _textController.removeListener(_handleLocalTextChanged);
     for (final timer in _remoteTypingTimers.values.toList()) {
       timer.cancel();
@@ -1333,7 +1343,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       isHighlighted: _highlightedMessageId == message.id,
                     ),
                     // 消息反应标签
-                    if (message.reactions != null && message.reactions!.isNotEmpty)
+                    if (message.reactions != null &&
+                        message.reactions!.isNotEmpty)
                       Padding(
                         padding: EdgeInsets.only(
                           top: 6,
@@ -1348,7 +1359,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                               : WrapAlignment.start,
                           children: message.reactions!.map((reaction) {
                             return InkWell(
-                              onTap: () => _handleReactionTagTap(message, reaction.reactionKey),
+                              onTap: _chatProvider.isRelayOnlyMode
+                                  ? null
+                                  : () => _handleReactionTagTap(
+                                      message,
+                                      reaction.reactionKey,
+                                    ),
                               borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -1362,7 +1378,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                                   borderRadius: BorderRadius.circular(12),
                                   border: reaction.hasSelf
                                       ? Border.all(
-                                          color: AppColors.primary.withValues(alpha: 0.3),
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.3,
+                                          ),
                                           width: 1,
                                         )
                                       : null,
@@ -1412,6 +1430,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Widget _buildMultiSelectBar(ThemeData theme) {
+    final isRelayOnlyMode = _chatProvider.isRelayOnlyMode;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: const BoxDecoration(
@@ -1429,16 +1449,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             ),
           ),
           const Spacer(),
-          TextButton(
-            onPressed: _selectedCount == 0 ? null : _forwardSelectedMessages,
-            child: const Text('转发'),
-          ),
-          const SizedBox(width: 6),
-          TextButton(
-            onPressed: _selectedCount == 0 ? null : _deleteSelectedMessages,
-            child: const Text('删除', style: TextStyle(color: AppColors.danger)),
-          ),
-          const SizedBox(width: 6),
+          if (!isRelayOnlyMode) ...[
+            TextButton(
+              onPressed: _selectedCount == 0 ? null : _forwardSelectedMessages,
+              child: const Text('转发'),
+            ),
+            const SizedBox(width: 6),
+            TextButton(
+              onPressed: _selectedCount == 0 ? null : _deleteSelectedMessages,
+              child: const Text(
+                '删除',
+                style: TextStyle(color: AppColors.danger),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           IconButton(
             onPressed: _clearMultiSelect,
             icon: const Icon(Icons.close),
@@ -2046,6 +2071,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     final isTextMessage = message.type == MessageType.text;
     final isPinned = _chatProvider.isMessagePinned(message);
+    final isRelayOnlyMode = _chatProvider.isRelayOnlyMode;
     final actionEntries = <_MessageActionEntry>[];
 
     if (isTextMessage && !message.isDeleted) {
@@ -2058,7 +2084,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
-    if (!message.isDeleted) {
+    if (!isRelayOnlyMode && !message.isDeleted) {
       actionEntries.add(
         const _MessageActionEntry(
           action: _MessageAction.quote,
@@ -2068,7 +2094,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
-    if (isTextMessage && !message.isDeleted) {
+    if (!isRelayOnlyMode && isTextMessage && !message.isDeleted) {
       actionEntries.add(
         const _MessageActionEntry(
           action: _MessageAction.forward,
@@ -2078,7 +2104,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
-    if (!message.isDeleted) {
+    if (!isRelayOnlyMode && !message.isDeleted) {
       actionEntries.add(
         _MessageActionEntry(
           action: _MessageAction.pin,
@@ -2088,7 +2114,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
-    if (!message.isDeleted) {
+    if (!isRelayOnlyMode && !message.isDeleted) {
       actionEntries.add(
         const _MessageActionEntry(
           action: _MessageAction.reaction,
@@ -2098,14 +2124,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       );
     }
 
-    actionEntries.add(
-      const _MessageActionEntry(
-        action: _MessageAction.delete,
-        label: '删除',
-        icon: Icons.delete_outline,
-        danger: true,
-      ),
-    );
+    if (!isRelayOnlyMode) {
+      actionEntries.add(
+        const _MessageActionEntry(
+          action: _MessageAction.delete,
+          label: '删除',
+          icon: Icons.delete_outline,
+          danger: true,
+        ),
+      );
+    }
 
     if (actionEntries.isEmpty) {
       return;
@@ -2316,90 +2344,47 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     }
   }
 
-  static const List<String> _allowedReactions = ['👍', '❤️', '😂', '🎉', '😮', '😢'];
+  static const List<String> _allowedReactions = [
+    '👍',
+    '❤️',
+    '😂',
+    '🎉',
+    '😮',
+    '😢',
+  ];
 
   Future<void> _showReactionPicker(Message message) async {
     final selectedReaction = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ReactionPickerSheet(
-        reactions: _allowedReactions,
-      ),
+      builder: (context) => _ReactionPickerSheet(reactions: _allowedReactions),
     );
 
     if (!mounted || selectedReaction == null) return;
 
     try {
-      // 检查是否已有该反应
-      final existingReaction = message.reactions?.firstWhere(
-        (r) => r.reactionKey == selectedReaction,
-        orElse: () => MessageReactionSummary(
-          reactionKey: '',
-          count: 0,
-          userIds: [],
-          hasSelf: false,
-        ),
-      );
-      final hasSelf = existingReaction?.hasSelf ?? false;
-
-      if (hasSelf) {
-        // 删除反应
-        await MessageService.instance.removeReaction(
-          roomId: message.roomId,
-          messageId: message.id,
-          reactionKey: selectedReaction,
-        );
-      } else {
-        // 添加反应
-        await MessageService.instance.addReaction(
-          roomId: message.roomId,
-          messageId: message.id,
-          reactionKey: selectedReaction,
-        );
-      }
+      await _chatProvider.toggleReaction(message, selectedReaction);
     } catch (e) {
       debugPrint('Reaction action failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('操作失败，请稍后重试')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试')));
     }
   }
 
-  Future<void> _handleReactionTagTap(Message message, String reactionKey) async {
+  Future<void> _handleReactionTagTap(
+    Message message,
+    String reactionKey,
+  ) async {
     try {
-      final existingReaction = message.reactions?.firstWhere(
-        (r) => r.reactionKey == reactionKey,
-        orElse: () => MessageReactionSummary(
-          reactionKey: '',
-          count: 0,
-          userIds: [],
-          hasSelf: false,
-        ),
-      );
-      final hasSelf = existingReaction?.hasSelf ?? false;
-
-      if (hasSelf) {
-        // 删除反应
-        await MessageService.instance.removeReaction(
-          roomId: message.roomId,
-          messageId: message.id,
-          reactionKey: reactionKey,
-        );
-      } else {
-        // 添加反应
-        await MessageService.instance.addReaction(
-          roomId: message.roomId,
-          messageId: message.id,
-          reactionKey: reactionKey,
-        );
-      }
+      await _chatProvider.toggleReaction(message, reactionKey);
     } catch (e) {
       debugPrint('Reaction tag tap failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('操作失败，请稍后重试')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试')));
     }
   }
 
@@ -2885,9 +2870,9 @@ class _MessageBubbleState extends State<_MessageBubble>
       padding: const EdgeInsets.only(bottom: 16),
       child: Text(
         _message.content,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.textTertiary,
-        ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppColors.textTertiary),
         textAlign: TextAlign.center,
       ),
     );
@@ -3062,11 +3047,15 @@ class _MessageBubbleState extends State<_MessageBubble>
     if (parts.isEmpty) return false;
 
     final mediaParts = parts
-        .where((p) =>
-            p.type == MessagePartType.image || p.type == MessagePartType.video)
+        .where(
+          (p) =>
+              p.type == MessagePartType.image ||
+              p.type == MessagePartType.video,
+        )
         .toList();
-    final fileParts =
-        parts.where((p) => p.type == MessagePartType.file).toList();
+    final fileParts = parts
+        .where((p) => p.type == MessagePartType.file)
+        .toList();
     final textPart = _getMeaningfulTextPart(parts);
 
     return _isMixedMessage(mediaParts, fileParts, textPart);
@@ -3078,17 +3067,19 @@ class _MessageBubbleState extends State<_MessageBubble>
     if (parts.isEmpty) return false;
 
     final mediaParts = parts
-        .where((p) =>
-            p.type == MessagePartType.image || p.type == MessagePartType.video)
+        .where(
+          (p) =>
+              p.type == MessagePartType.image ||
+              p.type == MessagePartType.video,
+        )
         .toList();
     final textPart = _getMeaningfulTextPart(parts);
-    final fileParts =
-        parts.where((p) => p.type == MessagePartType.file).toList();
+    final fileParts = parts
+        .where((p) => p.type == MessagePartType.file)
+        .toList();
 
     // 只有一个媒体，没有文字，没有文件
-    return mediaParts.length == 1 &&
-        textPart == null &&
-        fileParts.isEmpty;
+    return mediaParts.length == 1 && textPart == null && fileParts.isEmpty;
   }
 
   Widget _buildMessageBody(BuildContext context) {
@@ -3130,14 +3121,18 @@ class _MessageBubbleState extends State<_MessageBubble>
     if (parts.isNotEmpty) {
       // 按类型分组
       final mediaParts = parts
-          .where((p) =>
-              p.type == MessagePartType.image ||
-              p.type == MessagePartType.video)
+          .where(
+            (p) =>
+                p.type == MessagePartType.image ||
+                p.type == MessagePartType.video,
+          )
           .toList();
-      final fileParts =
-          parts.where((p) => p.type == MessagePartType.file).toList();
-      final audioParts =
-          parts.where((p) => p.type == MessagePartType.audio).toList();
+      final fileParts = parts
+          .where((p) => p.type == MessagePartType.file)
+          .toList();
+      final audioParts = parts
+          .where((p) => p.type == MessagePartType.audio)
+          .toList();
 
       // 获取有意义的文本部分（过滤占位符）
       final textPart = _getMeaningfulTextPart(parts);
@@ -3202,10 +3197,12 @@ class _MessageBubbleState extends State<_MessageBubble>
   MessagePart? _getMeaningfulTextPart(List<MessagePart> parts) {
     // 获取附件名称列表
     final attachmentNames = parts
-        .where((p) =>
-            p.type != MessagePartType.text &&
-            p.attachment?.name != null &&
-            p.attachment!.name!.trim().isNotEmpty)
+        .where(
+          (p) =>
+              p.type != MessagePartType.text &&
+              p.attachment?.name != null &&
+              p.attachment!.name!.trim().isNotEmpty,
+        )
         .map((p) => p.attachment!.name!.trim())
         .toList();
 
@@ -3282,11 +3279,7 @@ class _MessageBubbleState extends State<_MessageBubble>
         children.add(const SizedBox(height: 8));
       }
       children.add(
-        _AudioMessageTile(
-          message: _message,
-          part: part,
-          isSelf: _isSelf,
-        ),
+        _AudioMessageTile(message: _message, part: part, isSelf: _isSelf),
       );
     }
 
@@ -3514,15 +3507,17 @@ class _MessageBubbleState extends State<_MessageBubble>
           (code >= 48 && code <= 57) ||
           (code >= 65 && code <= 90) ||
           (code >= 97 && code <= 122);
-      return isAsciiAlphaNum || ch == '_' || ch == '.' || ch == '+' || ch == '-';
+      return isAsciiAlphaNum ||
+          ch == '_' ||
+          ch == '.' ||
+          ch == '+' ||
+          ch == '-';
     }
 
     final mentionPattern = RegExp(r'@([0-9A-Za-z_\u4e00-\u9fff-]+)');
     final matches = mentionPattern.allMatches(text);
     if (matches.isEmpty) {
-      return <InlineSpan>[
-        TextSpan(text: text, style: baseStyle),
-      ];
+      return <InlineSpan>[TextSpan(text: text, style: baseStyle)];
     }
 
     final spans = <InlineSpan>[];
@@ -4476,7 +4471,6 @@ class _ForwardTargetTile extends StatelessWidget {
     }
     return null;
   }
-
 
   Widget _buildAvatar() {
     const double size = 40;
@@ -6097,7 +6091,9 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
     final key = widget.part.attachment?.key;
     if (key == null) return;
 
-    _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
+    _subscription = MessageService.instance.attachmentPathUpdates.listen((
+      update,
+    ) {
       // 动态获取当前的 key，避免闭包捕获问题
       final currentKey = widget.part.attachment?.key;
       if (update.attachmentKey == currentKey && update.localPath != null) {
@@ -6196,10 +6192,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
             children: [
               Icon(Icons.broken_image, color: Colors.grey, size: 28),
               SizedBox(height: 6),
-              Text(
-                '加载失败',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
-              ),
+              Text('加载失败', style: TextStyle(color: Colors.grey, fontSize: 12)),
             ],
           ),
         ),
@@ -6258,8 +6251,9 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
                           value: attachment!.uploadProgress,
                           strokeWidth: 3,
                           backgroundColor: Colors.white24,
-                          valueColor:
-                              const AlwaysStoppedAnimation(Colors.white),
+                          valueColor: const AlwaysStoppedAnimation(
+                            Colors.white,
+                          ),
                         ),
                       ),
                     ),
@@ -7152,9 +7146,7 @@ class _MediaGridView extends StatelessWidget {
       // 4 张或更多：2x2 网格
       final rows = <Widget>[];
       for (int i = 0; i < count; i += 2) {
-        final rowChildren = <Widget>[
-          Expanded(child: gridChildren[i]),
-        ];
+        final rowChildren = <Widget>[Expanded(child: gridChildren[i])];
         if (i + 1 < count) {
           rowChildren.add(const SizedBox(width: 2));
           rowChildren.add(Expanded(child: gridChildren[i + 1]));
@@ -7162,10 +7154,7 @@ class _MediaGridView extends StatelessWidget {
         if (rows.isNotEmpty) {
           rows.add(const SizedBox(height: 2));
         }
-        rows.add(Row(
-          mainAxisSize: MainAxisSize.min,
-          children: rowChildren,
-        ));
+        rows.add(Row(mainAxisSize: MainAxisSize.min, children: rowChildren));
       }
       grid = Column(mainAxisSize: MainAxisSize.min, children: rows);
     }
@@ -7252,7 +7241,9 @@ class _MediaGridItemState extends State<_MediaGridItem> {
     final key = widget.part.attachment?.key;
     if (key == null) return;
 
-    _subscription = MessageService.instance.attachmentPathUpdates.listen((update) {
+    _subscription = MessageService.instance.attachmentPathUpdates.listen((
+      update,
+    ) {
       // 动态获取当前的 key，避免闭包捕获问题
       final currentKey = widget.part.attachment?.key;
       if (update.attachmentKey == currentKey && update.localPath != null) {
@@ -7316,10 +7307,7 @@ class _MediaGridItemState extends State<_MediaGridItem> {
     final height = widget.total == 1 ? 200.0 : 140.0;
 
     if (_loading) {
-      return SizedBox(
-        height: height,
-        child: const Skeleton(borderRadius: 0),
-      );
+      return SizedBox(height: height, child: const Skeleton(borderRadius: 0));
     }
 
     if (_localPath == null) {
@@ -7365,20 +7353,13 @@ class _MediaGridItemState extends State<_MediaGridItem> {
               color: Colors.black.withValues(alpha: 0.6),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.play_arrow,
-              color: Colors.white,
-              size: 28,
-            ),
+            child: const Icon(Icons.play_arrow, color: Colors.white, size: 28),
           ),
         ],
       );
     }
 
-    return GestureDetector(
-      onTap: () => _preview(context),
-      child: content,
-    );
+    return GestureDetector(onTap: () => _preview(context), child: content);
   }
 
   Future<void> _preview(BuildContext context) async {
@@ -7398,9 +7379,9 @@ class _MediaGridItemState extends State<_MediaGridItem> {
           );
         } catch (error) {
           if (!context.mounted) return;
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            SnackBar(content: Text('加载视频失败：$error')),
-          );
+          ScaffoldMessenger.maybeOf(
+            context,
+          )?.showSnackBar(SnackBar(content: Text('加载视频失败：$error')));
           return;
         }
       }
@@ -7442,10 +7423,7 @@ class _MediaGridItemState extends State<_MediaGridItem> {
 
 /// 媒体时间戳角标
 class _MediaTimeBadge extends StatelessWidget {
-  const _MediaTimeBadge({
-    required this.message,
-    required this.isSelf,
-  });
+  const _MediaTimeBadge({required this.message, required this.isSelf});
 
   final Message message;
   final bool isSelf;
@@ -7463,17 +7441,8 @@ class _MediaTimeBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            time,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white,
-            ),
-          ),
-          if (isSelf) ...[
-            const SizedBox(width: 4),
-            _buildStatusIcon(),
-          ],
+          Text(time, style: const TextStyle(fontSize: 11, color: Colors.white)),
+          if (isSelf) ...[const SizedBox(width: 4), _buildStatusIcon()],
         ],
       ),
     );
@@ -7554,19 +7523,12 @@ class _MixedTextWithTime extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 22),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: borderRadius,
-      ),
+      decoration: BoxDecoration(color: bgColor, borderRadius: borderRadius),
       child: Stack(
         children: [
           Text(
             text,
-            style: TextStyle(
-              fontSize: 15,
-              color: textColor,
-              height: 1.4,
-            ),
+            style: TextStyle(fontSize: 15, color: textColor, height: 1.4),
           ),
           Positioned(
             right: 0,
@@ -7574,17 +7536,8 @@ class _MixedTextWithTime extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  time,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: timeColor,
-                  ),
-                ),
-                if (isSelf) ...[
-                  const SizedBox(width: 4),
-                  _buildStatusIcon(),
-                ],
+                Text(time, style: TextStyle(fontSize: 11, color: timeColor)),
+                if (isSelf) ...[const SizedBox(width: 4), _buildStatusIcon()],
               ],
             ),
           ),

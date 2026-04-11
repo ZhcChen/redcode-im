@@ -1,0 +1,161 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/core/services/app_config_service.dart';
+import 'package:frontend/core/services/message_service.dart';
+import 'package:frontend/core/services/settings_service.dart';
+import 'package:frontend/core/storage/app_config_storage.dart';
+import 'package:frontend/core/storage/message_search_storage.dart';
+import 'package:frontend/core/storage/message_storage.dart';
+import 'package:frontend/features/chat/message_search_page.dart';
+import 'package:frontend/features/chat/models/chat_model.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _FakeAppConfigService extends AppConfigService {
+  _FakeAppConfigService({required MessageRuntimeSettings runtime})
+    : _runtime = runtime,
+      super(
+        storage: const AppConfigStorage(),
+        settingsService: SettingsService(),
+      );
+
+  final MessageRuntimeSettings _runtime;
+
+  @override
+  MessageRuntimeSettings get currentMessageRuntime => _runtime;
+
+  @override
+  Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+}
+
+class _FakeMessageSearchStorage extends MessageSearchStorage {
+  _FakeMessageSearchStorage({required this.response});
+
+  final MessageSearchResponse response;
+  int searchCalls = 0;
+
+  @override
+  Future<MessageSearchResponse> searchMessages({
+    required String query,
+    String? roomId,
+    String? senderId,
+    String? messageType,
+    int? dateFromMs,
+    int? dateToMs,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    searchCalls += 1;
+    return response;
+  }
+
+  @override
+  Future<void> replaceRoomIndex({
+    required String roomId,
+    required String roomName,
+    required List<dynamic> messages,
+    int maxMessages = 200,
+  }) async {}
+}
+
+class _FakeMessageStorage extends MessageStorage {
+  const _FakeMessageStorage();
+
+  @override
+  Future<List<String>> listRoomIds() async => const <String>[];
+}
+
+class _FakeSearchMessageService extends ChangeNotifier
+    implements MessageService {
+  _FakeSearchMessageService({required this.seedChats});
+
+  final List<Chat> seedChats;
+
+  @override
+  List<Chat> get chats => List<Chat>.from(seedChats);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  testWidgets('relay_only shows local cache hint and skips server search', (
+    tester,
+  ) async {
+    final searchStorage = _FakeMessageSearchStorage(
+      response: MessageSearchResponse(
+        results: const <MessageSearchResult>[
+          MessageSearchResult(
+            id: 'msg-1',
+            roomId: 'room-1',
+            roomName: '缓存会话',
+            senderId: 'user-1',
+            senderName: 'Alice',
+            content: 'hello relay only',
+            messageType: 'text',
+            timestampMs: 1712812800000,
+            relevanceScore: 0.9,
+          ),
+        ],
+        stats: const MessageSearchStats(
+          totalResults: 1,
+          searchTimeMs: 1,
+          query: 'hello',
+        ),
+        hasMore: false,
+      ),
+    );
+    const messageStorage = _FakeMessageStorage();
+    final messageService = _FakeSearchMessageService(
+      seedChats: <Chat>[
+        Chat(
+          id: 'chat-1',
+          roomId: 'room-1',
+          name: '缓存会话',
+          type: ChatType.single,
+          lastMessage: 'hello',
+          lastMessageTime: DateTime(2026, 4, 11, 12, 0, 0),
+        ),
+      ],
+    );
+    var httpCalls = 0;
+    final httpClient = MockClient((request) async {
+      httpCalls += 1;
+      return http.Response('unexpected', 500);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessageSearchPage(
+          initialRoomId: 'room-1',
+          searchStorage: searchStorage,
+          messageStorage: messageStorage,
+          messageService: messageService,
+          appConfigService: _FakeAppConfigService(
+            runtime: const MessageRuntimeSettings(
+              serverStorageMode: 'relay_only',
+              contentAuditMode: 'plaintext',
+            ),
+          ),
+          httpClient: httpClient,
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    expect(find.text('当前仅搜索本地缓存消息'), findsOneWidget);
+    expect(find.text('共 1 条'), findsOneWidget);
+    expect(searchStorage.searchCalls, 1);
+    expect(httpCalls, 0);
+  });
+}

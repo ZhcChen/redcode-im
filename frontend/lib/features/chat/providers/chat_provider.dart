@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart' as path_provider;
 import '../../../core/constants/app_config.dart';
+import '../../../core/services/app_config_service.dart';
 import '../../../core/services/message_service.dart'
     show MessageAttachmentDraft, MessageService, MessageStatus;
 import '../../../core/services/websocket_service.dart';
@@ -17,13 +18,19 @@ class ChatProvider with ChangeNotifier {
   ChatProvider({
     MessageService? messageService,
     WebSocketService? webSocketService,
+    AppConfigService? appConfigService,
   }) : _messageService = messageService ?? MessageService.instance,
-       _webSocketService = webSocketService ?? WebSocketService.instance {
+       _webSocketService = webSocketService ?? WebSocketService.instance,
+       _appConfigService = appConfigService ?? AppConfigService.instance {
     _init();
   }
 
   final MessageService _messageService;
   final WebSocketService _webSocketService;
+  final AppConfigService _appConfigService;
+
+  bool get isRelayOnlyMode =>
+      _appConfigService.currentMessageRuntime.isRelayOnly;
 
   // 当前房间ID
   String? _currentRoomId;
@@ -264,7 +271,9 @@ class ChatProvider with ChangeNotifier {
 
       final beforeId = _messages.first.id;
       final previousCount = _messages.length;
-      debugPrint('[loadMessagesUntilFound] beforeId: $beforeId, 当前消息数: $previousCount');
+      debugPrint(
+        '[loadMessagesUntilFound] beforeId: $beforeId, 当前消息数: $previousCount',
+      );
 
       _isLoading = true;
       notifyListeners();
@@ -337,7 +346,7 @@ class ChatProvider with ChangeNotifier {
         roomId: _currentRoomId!,
         text: trimmed,
         attachments: attachments,
-        quotedMessage: quotedMessage,
+        quotedMessage: isRelayOnlyMode ? null : quotedMessage,
       );
     } catch (e) {
       debugPrint('Failed to send message: $e');
@@ -385,6 +394,11 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> forwardMessage(Message original, Chat targetChat) async {
+    if (isRelayOnlyMode) {
+      debugPrint('relay_only mode: forward message is disabled');
+      return;
+    }
+
     final forwardInfo = original.forwardInfo ?? _buildForwardInfo(original);
 
     try {
@@ -400,15 +414,60 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> pinMessage(Message message) async {
+    if (isRelayOnlyMode) {
+      debugPrint('relay_only mode: pin message is disabled');
+      return;
+    }
     await _messageService.pinMessage(message.roomId, message.id);
   }
 
   Future<void> unpinMessage(Message message) async {
+    if (isRelayOnlyMode) {
+      debugPrint('relay_only mode: unpin message is disabled');
+      return;
+    }
     await _messageService.unpinMessage(message.roomId, message.id);
   }
 
   Future<void> deleteMessage(Message message) async {
+    if (isRelayOnlyMode) {
+      debugPrint('relay_only mode: delete message is disabled');
+      return;
+    }
     await _messageService.markMessageDeleted(message.roomId, message.id);
+  }
+
+  Future<void> toggleReaction(Message message, String reactionKey) async {
+    if (isRelayOnlyMode) {
+      debugPrint('relay_only mode: reaction is disabled');
+      return;
+    }
+
+    final existingReaction = message.reactions?.firstWhere(
+      (reaction) => reaction.reactionKey == reactionKey,
+      orElse: () => MessageReactionSummary(
+        reactionKey: '',
+        count: 0,
+        userIds: const <String>[],
+        hasSelf: false,
+      ),
+    );
+    final hasSelf = existingReaction?.hasSelf ?? false;
+
+    if (hasSelf) {
+      await _messageService.removeReaction(
+        roomId: message.roomId,
+        messageId: message.id,
+        reactionKey: reactionKey,
+      );
+      return;
+    }
+
+    await _messageService.addReaction(
+      roomId: message.roomId,
+      messageId: message.id,
+      reactionKey: reactionKey,
+    );
   }
 
   /// 重发消息
@@ -569,9 +628,7 @@ class ChatProvider with ChangeNotifier {
 
       final response = await http.delete(
         Uri.parse('${AppConfig.apiBaseUrl}/chats/${chat.roomId}'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
+        headers: {'Authorization': 'Bearer ${session.token}'},
       );
 
       if (response.statusCode != 200) {
@@ -615,15 +672,11 @@ class ChatProvider with ChangeNotifier {
       final response = isPinned
           ? await http.post(
               Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
-              headers: {
-                'Authorization': 'Bearer ${session.token}',
-              },
+              headers: {'Authorization': 'Bearer ${session.token}'},
             )
           : await http.delete(
               Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
-              headers: {
-                'Authorization': 'Bearer ${session.token}',
-              },
+              headers: {'Authorization': 'Bearer ${session.token}'},
             );
 
       if (response.statusCode != 200) {
@@ -634,7 +687,9 @@ class ChatProvider with ChangeNotifier {
       // 失败时回滚
       final rollbackIndex = _chats.indexWhere((c) => c.id == chatId);
       if (rollbackIndex >= 0) {
-        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(isPinned: oldPinned);
+        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(
+          isPinned: oldPinned,
+        );
         _sortChats();
         notifyListeners();
       }
@@ -664,7 +719,9 @@ class ChatProvider with ChangeNotifier {
       final notificationSettings = isMuted ? 2 : 0;
 
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/notification-settings'),
+        Uri.parse(
+          '${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/notification-settings',
+        ),
         headers: {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
@@ -680,7 +737,9 @@ class ChatProvider with ChangeNotifier {
       // 失败时回滚
       final rollbackIndex = _chats.indexWhere((c) => c.id == chatId);
       if (rollbackIndex >= 0) {
-        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(isMuted: oldMuted);
+        _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(
+          isMuted: oldMuted,
+        );
         notifyListeners();
       }
       rethrow;
@@ -869,6 +928,11 @@ class ChatProvider with ChangeNotifier {
     }
 
     if (_lastReadMessageId == latestIncoming.id) {
+      return;
+    }
+
+    if (isRelayOnlyMode) {
+      _lastReadMessageId = latestIncoming.id;
       return;
     }
 
