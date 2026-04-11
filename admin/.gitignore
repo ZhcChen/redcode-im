@@ -3,6 +3,9 @@ node_modules
 dist
 dist-ssr
 *.local
+package-lock.json
+playwright-report/
+test-results/
 
 # 部署配置文件
 deploy.config

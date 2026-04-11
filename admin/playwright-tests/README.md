@@ -15,7 +15,7 @@
 
 ```bash
 cd admin
-pnpm dev
+bun run dev
 ```
 
 > 默认不启用前端本地 mock。若要手工验证旧 mock 页面，显式加 `VITE_ENABLE_DEV_MOCKS=true`。
@@ -24,28 +24,28 @@ pnpm dev
 
 ```bash
 cd admin
-ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm test:e2e
+ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e
 ```
 
 2.1) 仅运行鉴权韧性用例：
 
 ```bash
 cd admin
-ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 pnpm exec playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1
+ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 bunx playwright test playwright-tests/specs/auth-resilience.spec.ts --workers=1
 ```
 
 3) 仅运行全路由冒烟（默认 profile）：
 
 ```bash
 cd admin
-ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=default pnpm test:e2e:routes
+ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:routes
 ```
 
 4) 运行 data-cleanup profile（需以 `VITE_ENABLE_DATA_CLEANUP=true` 启动 dev）：
 
 ```bash
 cd admin
-ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=data-cleanup pnpm test:e2e:routes
+ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=data-cleanup bun run test:e2e:routes
 ```
 
 5) 运行真实 backend 联调 smoke：
@@ -61,14 +61,21 @@ ADMIN_E2E_ENABLED=true ADMIN_BASE_URL=http://localhost:8011 ADMIN_ROUTE_PROFILE=
 
 ```bash
 cd admin
-ADMIN_BASE_URL=http://localhost:8011 pnpm test:e2e:live
+ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:live
 ```
 
 6) 运行 data-cleanup 条件路由的真实 smoke（需以 `VITE_ENABLE_DATA_CLEANUP=true` 启动 admin dev）：
 
 ```bash
 cd admin
-ADMIN_BASE_URL=http://localhost:8011 pnpm test:e2e:live:data-cleanup
+ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:live:data-cleanup
+```
+
+6.1) 仅运行真实 backend 的 RBAC 管理回归：
+
+```bash
+cd admin
+ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:live:rbac
 ```
 
 覆盖页面：
