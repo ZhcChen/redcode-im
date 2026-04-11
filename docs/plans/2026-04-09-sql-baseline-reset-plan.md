@@ -49,7 +49,7 @@ status: active
   - `backend/sql/migrations_legacy_20260409/`
   - `backend/src/database/mod.rs`
 - Patterns to follow:
-  - `backend/sql/migrations_legacy_20251207/` 的历史归档方式
+  - `backend/sql/migrations_legacy_20260409/` 的归档方式
 - Approach:
   - 把当前 18 个 migration 移到新的 legacy 目录。
   - 保留空的 `backend/sql/migrations/` 作为后续新增变更入口。
