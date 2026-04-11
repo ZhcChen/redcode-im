@@ -87,3 +87,4 @@
 - ✅ `database_migration_smoke` 环境变量串扰已收口，`cargo test` 可稳定通过
 - ✅ SQL baseline / active migration / verify 脚本口径已统一到 bootstrap-first 流程
 - ✅ message runtime settings 已补 Go contract，并与 live Playwright 回归对齐
+- ✅ bootstrap status / repeat init 拒绝语义已补 Go contract
