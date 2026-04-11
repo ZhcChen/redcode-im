@@ -181,50 +181,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   final Set<String> _remoteTypingUsers = <String>{};
   final Map<String, Timer> _remoteTypingTimers = <String, Timer>{};
 
-  String? _peerIdFromExtra(Map<String, dynamic>? extra) {
-    if (extra == null) return null;
-    final candidates = <String?>[
-      extra['friend_user_id'] as String?,
-      extra['friendUserId'] as String?,
-      extra['friend_id'] as String?,
-      extra['friendId'] as String?,
-      extra['target_user_id'] as String?,
-      extra['targetUserId'] as String?,
-      extra['peer_user_id'] as String?,
-      extra['peerUserId'] as String?,
-      extra['user_id'] as String?,
-      extra['userId'] as String?,
-    ];
-    for (final c in candidates) {
-      if (c != null && c.trim().isNotEmpty) return c.trim();
-    }
-    return null;
-  }
-
-  String _chatColorSeed() {
-    Chat? chat = _chatProvider.currentChat;
-    chat ??= _chatProvider.chats.firstWhere(
-      (c) => c.roomId == widget.roomId,
-      orElse: () => Chat(
-        id: widget.roomId,
-        roomId: widget.roomId,
-        name: widget.chatName,
-        avatar: widget.chatAvatar,
-        avatarObjectKey: null,
-        localAvatarPath: null,
-        type: widget.chatType,
-        lastMessage: '',
-        lastMessageTime: DateTime.now(),
-      ),
-    );
-
-    if (chat.type == ChatType.single) {
-      final peerId = _peerIdFromExtra(chat.extra);
-      if (peerId != null) return peerId;
-    }
-    return chat.roomId;
-  }
-
   @override
   void initState() {
     super.initState();
@@ -481,11 +437,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     } catch (e) {
       debugPrint('[Mention] Failed to load members: $e');
     } finally {
-      if (!mounted) {
-        _mentionMembersLoading = false;
-        return;
+      _mentionMembersLoading = false;
+      if (mounted) {
+        setState(() {});
       }
-      setState(() => _mentionMembersLoading = false);
     }
   }
 
@@ -645,7 +600,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     }
     final count = _remoteTypingUsers.length;
     if (count == 1) return '有人正在输入...';
-    return '${count}人正在输入...';
+    return '$count人正在输入...';
   }
 
   Future<void> _initChat() async {
@@ -1522,11 +1477,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               },
               layoutBuilder: (currentChild, previousChildren) {
                 return Stack(
+                  alignment: Alignment.bottomCenter,
                   children: <Widget>[
                     ...previousChildren,
                     if (currentChild != null) currentChild,
                   ],
-                  alignment: Alignment.bottomCenter,
                 );
               },
               child: _quotedMessage == null
@@ -1733,12 +1688,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     final messages = List<Message>.from(
       _chatProvider.messages,
     ).where((m) => _selectedMessageIds.contains(m.id)).toList();
-    // 仅转发文本
-    final invalid = messages.where((m) => m.type != MessageType.text).toList();
-    if (invalid.isNotEmpty) {
-      _showErrorSnack('当前仅支持转发文本消息');
-      return;
-    }
 
     final chats = List<Chat>.from(_chatProvider.chats);
     if (chats.isEmpty) {
@@ -2455,13 +2404,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _forwardMessage(Message message) async {
-    if (message.type != MessageType.text) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前版本仅支持转发文本消息')));
-      return;
-    }
-
     final chats = List<Chat>.from(_chatProvider.chats);
     if (chats.isEmpty) {
       ScaffoldMessenger.of(
@@ -2490,11 +2432,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('已转发到${selectedChat.name}')));
-    } on UnsupportedError {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('当前仅支持转发文本消息')));
     } catch (e) {
       debugPrint('Forward message failed: $e');
       if (!mounted) return;
@@ -2623,7 +2560,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         maxWidth: 4096,
         maxHeight: 4096,
       );
-      if (files == null || files.isEmpty) {
+      if (files.isEmpty) {
         return;
       }
 
@@ -4211,8 +4148,6 @@ class _PinnedMessageBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final preview = _buildPreviewText();
-    final forwardInfo = message.forwardInfo;
-
     // 固定高度，避免轮播切换时整体高度抖动
     const bannerHeight = 52.0;
 
@@ -4520,10 +4455,17 @@ class _ForwardTargetTile extends StatelessWidget {
     return chat.roomId;
   }
 
-  /// 从 extra 字段中提取对端ID
   String? _peerIdFromExtra(Map<String, dynamic>? extra) {
     if (extra == null) return null;
-    final candidates = [
+    final candidates = <String?>[
+      extra['friend_user_id'] as String?,
+      extra['friendUserId'] as String?,
+      extra['friend_id'] as String?,
+      extra['friendId'] as String?,
+      extra['target_user_id'] as String?,
+      extra['targetUserId'] as String?,
+      extra['peer_user_id'] as String?,
+      extra['peerUserId'] as String?,
       extra['peer_id'] as String?,
       extra['peerId'] as String?,
       extra['user_id'] as String?,
@@ -4534,6 +4476,7 @@ class _ForwardTargetTile extends StatelessWidget {
     }
     return null;
   }
+
 
   Widget _buildAvatar() {
     const double size = 40;
@@ -5574,7 +5517,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           if (pack.packType == 1) {
                             // 贴纸包：使用 addUserSuite
                             final result = await service.addUserSuite(pack.id);
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text('成功添加 ${result['count']} 个贴纸'),
@@ -5585,7 +5528,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           } else {
                             // 单个贴纸：使用 addUserPack
                             await service.addUserPack(pack.id);
-                            if (mounted) {
+                            if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('添加成功'),
@@ -5652,7 +5595,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
                           }
                         } catch (e) {
                           debugPrint('添加贴纸失败: $e');
-                          if (mounted) {
+                          if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
@@ -6297,8 +6240,8 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _previewImage(context),
-                    highlightColor: Colors.black.withOpacity(0.1),
-                    splashColor: Colors.black.withOpacity(0.1),
+                    highlightColor: Colors.black.withValues(alpha: 0.1),
+                    splashColor: Colors.black.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -6306,7 +6249,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
               if (attachment?.uploadProgress != null)
                 Positioned.fill(
                   child: Container(
-                    color: Colors.black.withOpacity(0.35),
+                    color: Colors.black.withValues(alpha: 0.35),
                     child: Center(
                       child: SizedBox(
                         width: 32,
@@ -6351,7 +6294,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
         return GestureDetector(
           onTap: () => Navigator.of(context).pop(),
           child: Container(
-            color: Colors.black.withOpacity(0.9),
+            color: Colors.black.withValues(alpha: 0.9),
             alignment: Alignment.center,
             child: InteractiveViewer(child: Image.file(File(_localPath!))),
           ),
@@ -7043,7 +6986,7 @@ class _WaveformPainter extends CustomPainter {
             // 部分可见的条（进度边缘）
             final edgePosition = (progressX - x) / barWidth;
             final edgePaint = Paint()
-              ..color = color.withOpacity(edgePosition.clamp(0.0, 1.0))
+              ..color = color.withValues(alpha: edgePosition.clamp(0.0, 1.0))
               ..style = PaintingStyle.fill;
             canvas.drawRRect(
               RRect.fromRectAndCorners(
@@ -7113,7 +7056,7 @@ class _WaveformPainter extends CustomPainter {
 
     if (currentX < size.width) {
       final indicatorPaint = Paint()
-        ..color = color.withOpacity(0.6 * pulse)
+        ..color = color.withValues(alpha: 0.6 * pulse)
         ..style = PaintingStyle.fill;
 
       // 绘制一个小的指示器
@@ -7454,7 +7397,7 @@ class _MediaGridItemState extends State<_MediaGridItem> {
             forceDownload: true,
           );
         } catch (error) {
-          if (!mounted) return;
+          if (!context.mounted) return;
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
             SnackBar(content: Text('加载视频失败：$error')),
           );
@@ -7462,7 +7405,7 @@ class _MediaGridItemState extends State<_MediaGridItem> {
         }
       }
 
-      if (!mounted) return;
+      if (!context.mounted) return;
       if (path == null || path.isEmpty) return;
 
       await Navigator.of(context).push(

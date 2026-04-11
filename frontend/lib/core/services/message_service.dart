@@ -84,15 +84,18 @@ class MessageService with ChangeNotifier {
     TokenStorage? tokenStorage,
     MessageStorage? messageStorage,
     ChatCache? chatCache,
+    http.Client? client,
   }) : _tokenStorage = tokenStorage ?? const TokenStorage(),
        _messageStorage = messageStorage ?? const MessageStorage(),
-       _chatCache = chatCache ?? const ChatCache() {
+       _chatCache = chatCache ?? const ChatCache(),
+       _client = client ?? http.Client() {
     _loadCachedChats();
   }
 
   final TokenStorage _tokenStorage;
   final MessageStorage _messageStorage;
   final ChatCache _chatCache;
+  final http.Client _client;
 
   // 消息存储 (roomId -> messages)
   final Map<String, List<Message>> _messagesByRoom = {};
@@ -444,7 +447,7 @@ class MessageService with ChangeNotifier {
     final extra = chat.extra;
     final lastReadId =
         extra != null ? (extra['last_read_message_id'] as String?) : null;
-    if (sinceId == null || sinceId!.trim().isEmpty) {
+    if (sinceId == null || sinceId.trim().isEmpty) {
       sinceId = lastReadId;
     }
 
@@ -726,10 +729,6 @@ class MessageService with ChangeNotifier {
       throw ArgumentError('targetRoomId is required');
     }
 
-    if (original.type != MessageType.text) {
-      throw UnsupportedError('当前仅支持转发文本消息');
-    }
-
     final tempId = const uuid_pkg.Uuid().v4();
     final now = DateTime.now();
 
@@ -754,6 +753,7 @@ class MessageService with ChangeNotifier {
       extra: tempExtra,
       quotedMessage: original.quotedMessage,
       forwardInfo: forwardInfo,
+      parts: original.parts,
     );
 
     _addMessage(tempMessage);
@@ -784,6 +784,7 @@ class MessageService with ChangeNotifier {
     } catch (e) {
       debugPrint('Failed to forward message: $e');
       _updateMessageStatus(tempId, MessageStatus.failed);
+      rethrow;
     }
   }
 
@@ -1129,7 +1130,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/forward',
     );
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -2260,8 +2261,8 @@ class MessageService with ChangeNotifier {
         hashResult = const FileHashResult(hashValue: null, hashAlg: null);
       }
 
-      final hashValue = hashResult?.hashValue;
-      final hashAlg = hashResult?.hashAlg;
+      final hashValue = hashResult.hashValue;
+      final hashAlg = hashResult.hashAlg;
 
       final bool shouldUseMultipart = size > _multipartThresholdBytes;
       final _AttachmentSignatureResult? signatureResult;
