@@ -44,7 +44,7 @@
     getUserAgreement,
     updateUserAgreement,
     type DocumentContent,
-  } from '@/api/settings';
+  } from '@/services/settings';
 
   const form = reactive({
     title: '',

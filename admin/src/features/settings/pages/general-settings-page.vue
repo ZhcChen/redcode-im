@@ -411,7 +411,7 @@
     updateUserAccountLimit,
     getUploadPolicy,
     updateUploadPolicy,
-  } from '@/api/settings';
+  } from '@/services/settings';
   import ApiTest from '../components/api-test-panel.vue';
 
   const { loading, setLoading } = useLoading(false);

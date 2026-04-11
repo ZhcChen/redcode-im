@@ -108,7 +108,7 @@
     updateStorageProvider,
     type SetCosCorsRequest,
     type StorageProvider,
-  } from '@/api/settings';
+  } from '@/services/settings';
   import {
     getProviderTypeColor,
     getProviderTypeLabel,

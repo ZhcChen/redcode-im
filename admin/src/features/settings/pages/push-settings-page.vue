@@ -215,7 +215,7 @@
     upsertPushProviderConfig,
     type PushProviderConfigView,
     type PushJobQueueStatsResponse,
-  } from '@/api/settings';
+  } from '@/services/settings';
 
   const router = useRouter();
 

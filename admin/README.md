@@ -99,16 +99,16 @@ admin/
 │   └── README.md        # Nginx 部署说明
 ├── public/              # 静态资源
 ├── src/                 # 源代码
-│   ├── api/             # API 接口
+│   ├── app/             # 应用壳、布局、路由入口
 │   ├── assets/          # 资源文件
 │   ├── components/      # 公共组件
+│   ├── features/        # 业务模块页面与组件
 │   ├── hooks/           # 组合式函数
 │   ├── locale/          # 国际化文件
-│   ├── router/          # 路由配置
+│   ├── services/        # 领域服务与 HTTP 访问层
 │   ├── store/           # 状态管理
-│   ├── types/           # TypeScript 类型定义
+│   ├── shared/          # 权限等共享逻辑
 │   ├── utils/           # 工具函数
-│   ├── views/           # 页面组件
 │   ├── App.vue          # 根组件
 │   └── main.ts          # 入口文件
 ├── deploy.sh            # 自动部署脚本

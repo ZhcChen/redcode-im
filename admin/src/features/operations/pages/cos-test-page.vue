@@ -293,7 +293,7 @@
     type StorageProvider,
     type DirectUploadSignature,
     type SetCosCorsRulePayload,
-  } from '@/api/settings';
+  } from '@/services/settings';
   import { computeFileHash } from '@/utils/fileHash';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
 

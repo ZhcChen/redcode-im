@@ -169,7 +169,10 @@
   import useLocale from '@/hooks/locale';
   import useUser from '@/hooks/user';
   import Menu from '@/components/menu/index.vue';
-  import { getDefaultStorageProvider, getCosDownloadUrl } from '@/api/settings';
+  import {
+    getDefaultStorageProvider,
+    getCosDownloadUrl,
+  } from '@/services/settings';
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();
