@@ -8,6 +8,26 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock,
 }))
 
+const installLocalStorageMock = () => {
+  const storage = new Map<string, string>()
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value)
+      },
+      removeItem: (key: string) => {
+        storage.delete(key)
+      },
+      clear: () => {
+        storage.clear()
+      },
+    },
+  })
+}
+
 const loadCacheModule = async (useTauri: boolean) => {
   vi.resetModules()
   if (useTauri) {
@@ -32,7 +52,7 @@ const writeEnvelope = (key: string, data: unknown, updatedAt = 1234) => {
 describe('cache utils', () => {
   beforeEach(() => {
     invokeMock.mockReset()
-    window.localStorage.clear()
+    installLocalStorageMock()
     delete (window as any).__TAURI__
   })
 

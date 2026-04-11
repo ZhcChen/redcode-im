@@ -92,3 +92,4 @@
 - ✅ 根 Makefile 已整理为模块化入口，frontend 默认真机已切到 Pixel 8 Pro
 - ✅ `tests/run.sh` 已拆分为按 mode 执行的 backend contract 入口，并补了 workflow tooling 守护测试
 - ✅ admin 已补 live Playwright 快捷脚本，并开始清理 lockfile / 测试产物 / 无用说明文件残留
+- ✅ desktop 已对齐 macOS ad-hoc 打包脚本，并开始清理过期示例 / 说明残留
