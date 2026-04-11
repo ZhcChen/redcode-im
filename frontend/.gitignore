@@ -36,6 +36,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/patrol_test/test_bundle.dart
 
 # Symbolication related
 app.*.symbols
@@ -51,3 +52,4 @@ app.*.map.json
 # Firebase（避免误提交敏感配置）
 /android/app/google-services.json
 /ios/Runner/GoogleService-Info.plist
+/ios/Runner.xcodeproj/*.bak-*

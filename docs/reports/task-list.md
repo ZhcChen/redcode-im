@@ -100,3 +100,4 @@
 - ✅ frontend 设置页与通用组件已开始收口：InputDialog 简化、设置项 trailing 固定化、Flutter 新 API 兼容替换
 - ✅ frontend 运行脚本已切到 Pixel 8 Pro 默认真机，并在 development 真机启动前自动检测当前局域网 IP 注入 API / WS 地址
 - ✅ frontend integration smoke 已统一切到 `IntegrationTestWidgetsFlutterBinding`，便于后续 Patrol / 真机联调复用
+- ✅ frontend iOS Patrol harness 已接入 RunnerUITests / TestPlan 链路，并确认需避开默认 `8081 / 8082` 端口冲突

@@ -47,6 +47,17 @@ cd frontend && flutter test
 后续未特别说明时，frontend 模块的真机 smoke、integration、联调验证默认都在这台设备上执行。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP。
 
+### Frontend iOS Simulator / Patrol
+```bash
+make frontend.test.patrol.harness
+make frontend.test.patrol.login
+```
+
+补充约定：
+- Patrol iOS 默认使用 `PATROL_IOS_DEVICE='iPhone 17 Pro'`，可在命令行覆盖。
+- 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
+- `frontend/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
+
 ### Admin 自测
 ```bash
 cd admin && bun run type:check
@@ -80,6 +91,8 @@ make frontend.test.core
 make frontend.test.chat
 make frontend.test.widgets
 make frontend.test.features
+make frontend.test.patrol.harness
+make frontend.test.patrol.login
 
 make admin.test.e2e
 make admin.test.routes

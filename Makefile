@@ -18,6 +18,7 @@ TAIL := tail
 FLUTTER := flutter
 CARGO := cargo
 GO := go
+PATROL := patrol
 
 API_COMPOSE_FILE := $(ROOT_DIR)/backend/docker/dev/docker-compose.yml
 API_SERVICE := backend
@@ -38,6 +39,9 @@ FRONTEND_ENV ?= .env.development
 FLUTTER_DEVICE ?= 3A091FDJG001DN
 FRONTEND_ANDROID_ENV ?= production
 FRONTEND_IOS_ENV ?= production
+PATROL_IOS_DEVICE ?= iPhone 17 Pro
+PATROL_TEST_SERVER_PORT ?= 19081
+PATROL_APP_SERVER_PORT ?= 19082
 
 WEBSITE_DIR := $(ROOT_DIR)/website
 WEBSITE_SCREEN := website
@@ -55,7 +59,7 @@ endef
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.build.android frontend.build.ios frontend.proto \
+	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
 	api-up api-down api-logs api-ps tests \
@@ -308,6 +312,14 @@ frontend.test.widgets: ## 执行 frontend widgets 测试
 frontend.test.features: ## 执行 frontend features 模型测试
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/features
+
+frontend.test.patrol.harness: ## 执行 frontend iOS Patrol harness smoke（可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
+	@$(call require_cmd,$(PATROL))
+	@cd "$(FRONTEND_DIR)" && $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_IOS_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
+
+frontend.test.patrol.login: ## 执行 frontend iOS Patrol 登录 smoke（mock 模式，可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
+	@$(call require_cmd,$(PATROL))
+	@cd "$(FRONTEND_DIR)" && $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_IOS_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
 
 frontend.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))
