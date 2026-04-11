@@ -14,7 +14,7 @@
         <span class="menu-label">复制</span>
       </div>
 
-      <div class="menu-item" :class="{ disabled: !canQuote }" @click="handleAction('quote', canQuote)">
+      <div v-if="showQuote" class="menu-item" :class="{ disabled: !canQuote }" @click="handleAction('quote', canQuote)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21"/>
           <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3"/>
@@ -22,30 +22,30 @@
         <span class="menu-label">引用</span>
       </div>
 
-      <div class="menu-item" :class="{ disabled: !canForward }" @click="handleAction('forward', canForward)">
+      <div v-if="showForward" class="menu-item" :class="{ disabled: !canForward }" @click="handleAction('forward', canForward)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
         </svg>
         <span class="menu-label">转发</span>
       </div>
 
-      <div class="menu-item" :class="{ disabled: !canPin }" @click="handleAction('pin', canPin)">
+      <div v-if="showPin" class="menu-item" :class="{ disabled: !canPin }" @click="handleAction('pin', canPin)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
         </svg>
         <span class="menu-label">{{ isPinned ? '取消置顶' : '置顶' }}</span>
       </div>
 
-      <div class="menu-divider"></div>
+      <div v-if="hasPostPinActions" class="menu-divider"></div>
 
-      <div class="menu-item" @click="handleAction('reaction', true)">
+      <div v-if="showReaction" class="menu-item" @click="handleAction('reaction', true)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 9V5a3 3 0 0 0-6 0v4M7 9h10a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/>
         </svg>
         <span class="menu-label">添加反应</span>
       </div>
 
-      <div v-if="canEdit" class="menu-divider"></div>
+      <div v-if="showReaction && hasPostReactionActions" class="menu-divider"></div>
 
       <div v-if="canEdit" class="menu-item" @click="handleAction('edit', canEdit)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -55,7 +55,7 @@
         <span class="menu-label">编辑</span>
       </div>
 
-      <div v-if="canDownload" class="menu-divider"></div>
+      <div v-if="canEdit && hasDownloadOrDeleteActions" class="menu-divider"></div>
 
       <div v-if="canDownload" class="menu-item" @click="handleAction('download', canDownload)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -66,9 +66,9 @@
         <span class="menu-label">下载附件</span>
       </div>
 
-      <div v-if="canDelete" class="menu-divider"></div>
+      <div v-if="canDownload && showDelete && canDelete" class="menu-divider"></div>
 
-      <div v-if="canDelete" class="menu-item danger" @click="handleAction('delete', canDelete)">
+      <div v-if="showDelete && canDelete" class="menu-item danger" @click="handleAction('delete', canDelete)">
         <svg class="menu-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
           <line x1="10" y1="11" x2="10" y2="17"/>
@@ -86,6 +86,11 @@ import { watch, onUnmounted, computed, ref, onMounted } from 'vue'
 interface Props {
   visible: boolean
   position: { x: number; y: number }
+  showQuote?: boolean
+  showForward?: boolean
+  showPin?: boolean
+  showReaction?: boolean
+  showDelete?: boolean
   canCopy: boolean
   canDownload: boolean
   canDelete: boolean
@@ -108,8 +113,26 @@ interface Emits {
   (e: 'reaction'): void
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showQuote: true,
+  showForward: true,
+  showPin: true,
+  showReaction: true,
+  showDelete: true,
+})
 const emit = defineEmits<Emits>()
+
+const hasPostPinActions = computed(() => {
+  return Boolean(props.showReaction || props.canEdit || props.canDownload || (props.showDelete && props.canDelete))
+})
+
+const hasPostReactionActions = computed(() => {
+  return Boolean(props.canEdit || props.canDownload || (props.showDelete && props.canDelete))
+})
+
+const hasDownloadOrDeleteActions = computed(() => {
+  return Boolean(props.canDownload || (props.showDelete && props.canDelete))
+})
 
 // 计算菜单实际位置，防止超出视口
 const menuStyle = computed(() => {

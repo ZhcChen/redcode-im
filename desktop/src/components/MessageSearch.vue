@@ -114,6 +114,10 @@
       <span>耗时 {{ searchStats.searchTimeMs }}ms</span>
     </div>
 
+    <div v-if="isRelayOnlyMode" class="runtime-hint">
+      当前仅搜索本地缓存消息
+    </div>
+
     <!-- 搜索结果 -->
     <ScrollContainer v-if="searchResults.length > 0" class="search-results">
       <!-- 按日期分组 -->
@@ -194,6 +198,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useStore } from 'vuex';
 import { SearchApi, SearchUtils, type MessageSearchResult, type SearchParams, type SearchStats } from '@/api/search';
 import { searchMessagesFromServer } from '@/api/message-search';
 import ScrollContainer from './ScrollContainer.vue';
@@ -212,6 +217,8 @@ const emit = defineEmits<{
   close: [];
 }>();
 
+const store = useStore() as any;
+
 // 响应式数据
 const searchInput = ref<HTMLInputElement>();
 const searchQuery = ref('');
@@ -228,6 +235,8 @@ const serverOffset = ref(0);
 const hasMoreLocalResults = ref(false);
 const hasMoreServerResults = ref(false);
 const searchSequence = ref(0);
+const isRelayOnlyMode = computed(() => Boolean(store.getters.isRelayOnlyMessageRuntime));
+const serverSearchEnabled = computed(() => !isRelayOnlyMode.value);
 
 // 过滤器
 const showFilters = ref(false);
@@ -271,7 +280,7 @@ const mergeResults = (incoming: MessageSearchResult[]) => {
 };
 
 const refreshHasMore = () => {
-  hasMoreResults.value = hasMoreLocalResults.value || hasMoreServerResults.value;
+  hasMoreResults.value = hasMoreLocalResults.value || (serverSearchEnabled.value && hasMoreServerResults.value);
 };
 
 const syncServerResults = async (
@@ -347,7 +356,9 @@ const handleSearch = async () => {
     refreshHasMore();
 
     // 静默融合服务端搜索：本地结果先展示，服务端结果随后补全
-    void syncServerResults(params, 0, seq);
+    if (serverSearchEnabled.value) {
+      void syncServerResults(params, 0, seq);
+    }
   } catch (error) {
   } finally {
     isSearching.value = false;
@@ -375,7 +386,7 @@ const loadMoreResults = async () => {
     }
 
     // 2) 本地无更多时，继续从服务端拉取（静默补全更多历史）
-    if (hasMoreServerResults.value) {
+    if (serverSearchEnabled.value && hasMoreServerResults.value) {
       await syncServerResults(params, serverOffset.value, seq);
     }
   } catch (error) {
@@ -673,6 +684,15 @@ onUnmounted(() => {
   font-size: 12px;
   color: #64748b;
   margin-bottom: 16px;
+}
+
+.runtime-hint {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fff7e6;
+  color: #ad6800;
+  font-size: 12px;
 }
 
 .search-results {

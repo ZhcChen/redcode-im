@@ -284,8 +284,8 @@
             <div class="multi-select-count">已选择 {{ selectedMessagesCount }} 条</div>
             <div class="multi-select-actions">
               <button class="btn" @click="exitMultiSelect">取消</button>
-              <button class="btn" :disabled="selectedMessagesCount === 0" @click="handleMessageMenuForward">转发</button>
-              <button class="btn danger" :disabled="selectedMessagesCount === 0" @click="deleteSelectedMessages">删除</button>
+              <button v-if="!isRelayOnlyMode" class="btn" :disabled="selectedMessagesCount === 0" @click="handleMessageMenuForward">转发</button>
+              <button v-if="!isRelayOnlyMode" class="btn danger" :disabled="selectedMessagesCount === 0" @click="deleteSelectedMessages">删除</button>
             </div>
           </div>
           <div v-if="pendingAttachments.length > 0" class="pending-attachments-bar">
@@ -646,13 +646,18 @@
   <MessageContextMenu
     v-model:visible="showMessageContextMenu"
     :position="messageContextMenuPosition"
+    :show-quote="!isRelayOnlyMode"
+    :show-forward="!isRelayOnlyMode"
+    :show-pin="!isRelayOnlyMode"
+    :show-reaction="!isRelayOnlyMode"
+    :show-delete="!isRelayOnlyMode"
     :can-copy="!!messageContextMenuTarget && canCopyMessage(messageContextMenuTarget)"
-    :can-quote="!!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
-    :can-forward="!!messageContextMenuTarget && canForwardMessage(messageContextMenuTarget)"
-    :can-pin="!!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
+    :can-quote="!isRelayOnlyMode && !!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
+    :can-forward="!isRelayOnlyMode && !!messageContextMenuTarget && canForwardMessage(messageContextMenuTarget)"
+    :can-pin="!isRelayOnlyMode && !!messageContextMenuTarget && !messageContextMenuTarget.isDeleted"
     :is-pinned="!!messageContextMenuTarget?.pinnedAt"
     :can-download="!!messageContextMenuTarget && canDownloadMessage(messageContextMenuTarget)"
-    :can-delete="!!messageContextMenuTarget && messageContextMenuTarget.isSelf"
+    :can-delete="!isRelayOnlyMode && !!messageContextMenuTarget && messageContextMenuTarget.isSelf"
     :can-edit="!!messageContextMenuTarget && canEditMessage(messageContextMenuTarget)"
     @copy="handleMessageMenuCopy"
     @quote="handleMessageMenuQuote"
@@ -2875,6 +2880,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useStore() as any
 const selectedChat = (ref as any)<ChatItem | null>(null)
+const isRelayOnlyMode = computed(() => Boolean(store.getters.isRelayOnlyMessageRuntime))
 
 // 计算属性：获取当前账号的路由查询参数（用于多实例页面架构）
 const routeQuery = computed(() => {
@@ -5727,20 +5733,21 @@ const selectChat = async (chat: ChatItem) => {
 
   // 如果有接收到的消息，标记为已读
   if (latestIncomingMessage && latestIncomingMessage.status !== messageStatusToUiStatus[MessageStatus.READ]) {
-    try {
-      await MessageApi.markMessagesAsRead({
-        groupId: chat.groupId,
-        messageIds: [latestIncomingMessage.id]
-      })
-      
-      // 更新本地未读数
-      if (chat.unreadCount > 0) {
-        const updatedChat = { ...chat, unreadCount: 0 }
-        store.dispatch('updateChatItem', updatedChat)
-        selectedChat.value.unreadCount = 0
+    if (!isRelayOnlyMode.value) {
+      try {
+        await MessageApi.markMessagesAsRead({
+          groupId: chat.groupId,
+          messageIds: [latestIncomingMessage.id]
+        })
+      } catch (error: any) {
+        console.error('标记消息已读失败:', error)
       }
-    } catch (error: any) {
-      console.error('标记消息已读失败:', error)
+    }
+
+    if (chat.unreadCount > 0) {
+      const updatedChat = { ...chat, unreadCount: 0 }
+      store.dispatch('updateChatItem', updatedChat)
+      selectedChat.value.unreadCount = 0
     }
   } else if (chat.unreadCount > 0) {
     // 如果没有接收到的消息但未读数大于0，直接更新本地状态
@@ -5759,6 +5766,12 @@ const selectChat = async (chat: ChatItem) => {
 
 // 标记聊天为已读状态
 const markChatAsRead = async (chat: ChatItem) => {
+  if (isRelayOnlyMode.value) {
+    const updatedChat = { ...chat, unreadCount: 0 }
+    store.dispatch('updateChatItem', updatedChat)
+    return
+  }
+
   try {
     const currentUser = store.getters.currentUser
     
@@ -6050,7 +6063,7 @@ const sendMessage = async () => {
   const timestamp = Date.now()
   const tempId = `${timestamp}`
   const user = store.getters.currentUser
-  const replyToMessageId = replyingMessage.value?.id
+  const replyToMessageId = isRelayOnlyMode.value ? undefined : replyingMessage.value?.id
 
   {
     const policy = uploadPolicy.value || BUILTIN_UPLOAD_POLICY
@@ -6130,7 +6143,7 @@ const sendMessage = async () => {
     }
   })
 
-  const quotedFromReply = replyingMessage.value
+  const quotedFromReply = !isRelayOnlyMode.value && replyingMessage.value
     ? {
         id: replyingMessage.value.id,
         roomId: replyingMessage.value.roomId || groupId,
@@ -6308,7 +6321,7 @@ const sendMessage = async () => {
       tempId,
       roomId: groupId,
       content,
-      replyToMessageId: replyingMessage.value?.id,
+      replyToMessageId,
       timestamp,
       senderName: user?.nickname || user?.username || '我',
       senderAvatar: user?.avatar,
@@ -7881,6 +7894,7 @@ const handleMessageMenuCopy = async () => {
 }
 
 const handleMessageMenuQuote = () => {
+  if (isRelayOnlyMode.value) return
   const target = messageContextMenuTarget.value
   if (!target) return
   replyingMessage.value = target
@@ -7902,6 +7916,7 @@ const forwardSourceMessage = ref<Message | null>(null)
 const forwardTargetIds = ref<string[]>([])
 
 const handleMessageMenuForward = (message?: Message) => {
+  if (isRelayOnlyMode.value) return
   const target = message ?? messageContextMenuTarget.value
   if (!multiSelectMode.value) {
     if (!target || !canForwardMessage(target)) return
@@ -7915,6 +7930,7 @@ const handleMessageMenuForward = (message?: Message) => {
 }
 
 const confirmForward = async () => {
+  if (isRelayOnlyMode.value) return
   const sources: Message[] = multiSelectMode.value
     ? messages.value.filter((m) => selectedMessageIds.has(m.id))
     : (forwardSourceMessage.value ? [forwardSourceMessage.value] : [])
@@ -7958,6 +7974,7 @@ const handleForwardConfirm = (ids: string[]) => {
 }
 
 const handleMessageMenuPin = async () => {
+  if (isRelayOnlyMode.value) return
   const target = messageContextMenuTarget.value
   if (!target) return
   const roomId = target.roomId || selectedChat.value?.groupId
@@ -8001,6 +8018,7 @@ const handleMessageMenuPin = async () => {
 }
 
 const handleMessageMenuDelete = async () => {
+  if (isRelayOnlyMode.value) return
   const target = messageContextMenuTarget.value
   if (!target) return
   if (!target.isSelf) {
@@ -8056,7 +8074,26 @@ const reactionPickerPosition = ref({ x: 0, y: 0 })
 const reactionPickerTarget = ref<Message | null>(null)
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '🎉', '😮', '😢']
 
+watch(isRelayOnlyMode, (enabled) => {
+  if (!enabled) {
+    return
+  }
+
+  showReactionPicker.value = false
+  showForwardDialog.value = false
+  forwardSourceMessage.value = null
+  messageContextMenuTarget.value = null
+  reactionPickerTarget.value = null
+  if (replyingMessage.value) {
+    clearReplyingMessage()
+  }
+  if (multiSelectMode.value) {
+    exitMultiSelect()
+  }
+})
+
 const handleMessageMenuReaction = () => {
+  if (isRelayOnlyMode.value) return
   const target = messageContextMenuTarget.value
   if (!target || target.isDeleted) return
   
@@ -8071,6 +8108,7 @@ const handleMessageMenuReaction = () => {
 }
 
 const handleReactionSelect = async (reactionKey: string) => {
+  if (isRelayOnlyMode.value) return
   const target = reactionPickerTarget.value
   if (!target || !selectedChat.value) return
   
@@ -8115,6 +8153,7 @@ const handleReactionSelect = async (reactionKey: string) => {
 }
 
 const handleReactionTagClick = async (message: Message, reactionKey: string) => {
+  if (isRelayOnlyMode.value) return
   if (!selectedChat.value) return
   
   try {
@@ -8255,6 +8294,7 @@ const isMessageSelected = (message: Message) => selectedMessageIds.has(message.i
 const selectedMessagesCount = computed(() => selectedMessageIds.size)
 
 const deleteSelectedMessages = async () => {
+  if (isRelayOnlyMode.value) return
   if (!selectedMessageIds.size) return
   const roomId = selectedChat.value?.groupId
   if (!roomId) return
@@ -9554,13 +9594,15 @@ const handleWebSocketMessage = (event: CustomEvent) => {
 
       // 当收到他人发送的新消息时，标记为已读（通知服务器）
       if (!messageData.isSelf && messageData.id) {
-        // 异步调用，不阻塞消息显示
-        MessageApi.markMessagesAsRead({
-          groupId: messageGroupId,
-          messageIds: [messageData.id]
-        }).catch(error => {
-          console.error('标记新消息已读失败:', error)
-        })
+        if (!isRelayOnlyMode.value) {
+          // 异步调用，不阻塞消息显示
+          MessageApi.markMessagesAsRead({
+            groupId: messageGroupId,
+            messageIds: [messageData.id]
+          }).catch(error => {
+            console.error('标记新消息已读失败:', error)
+          })
+        }
       }
     }
 

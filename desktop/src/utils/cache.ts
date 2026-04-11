@@ -73,6 +73,7 @@ export const CACHE_KEYS = {
   chatList: 'cache.chat_list',
   contacts: 'cache.contacts',
   friendRequests: 'cache.friend_requests',
+  generalSettings: 'cache.general_settings',
   uploadPolicy: 'cache.upload_policy',
   messages: (roomId: string) => `cache.messages.${roomId}`,
 };

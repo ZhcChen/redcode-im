@@ -1,5 +1,6 @@
 import { httpClient } from './http';
 import type { ApiResponse } from './http.types';
+import type { GeneralSettingsPayload } from '@/services/messageRuntime';
 
 export interface DocumentContent {
   key: string;
@@ -13,9 +14,7 @@ export interface AppNameResponse {
   app_name: string;
 }
 
-export interface GeneralSettingsResponse {
-  app_name: string;
-}
+export interface GeneralSettingsResponse extends GeneralSettingsPayload {}
 
 export interface CaptchaSettingPublicResponse {
   require_captcha_for_login: boolean;

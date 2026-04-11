@@ -6,6 +6,13 @@ import { UserApi, VersionApi, SettingsApi, apiConfig } from '@/api'
 import favoriteAvatar from '@/assets/image/favorite-avatar.svg'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 import accountsModule from './modules/accounts'
+import {
+    DEFAULT_MESSAGE_RUNTIME,
+    resolveGeneralSettingsPayload,
+    serializeGeneralSettingsPayload,
+    type GeneralSettingsPayload,
+    type MessageRuntimeSettings,
+} from '@/services/messageRuntime'
 
 // 辅助函数：格式化最后在线时间
 function formatLastSeen(timeStr: string): string {
@@ -223,6 +230,8 @@ export interface State {
     userProfiles: Record<string, UserProfile>
     // 应用名称（从服务器加载）
     appName: string
+    // 消息运行模式（从公开通用设置加载）
+    messageRuntime: MessageRuntimeSettings
 }
 
 // 创建 store
@@ -301,7 +310,8 @@ export const store = createStore<State>({
             lastUpdateTime: null
         },
         userProfiles: {},
-        appName: 'Chatly' // 默认应用名称，启动时从服务器加载
+        appName: 'Chatly', // 默认应用名称，启动时从服务器加载
+        messageRuntime: { ...DEFAULT_MESSAGE_RUNTIME }
     },
 
     mutations: {
@@ -505,6 +515,19 @@ export const store = createStore<State>({
         },
         SET_APP_NAME(state: State, appName: string) {
             state.appName = appName
+        },
+        SET_MESSAGE_RUNTIME(state: State, runtime: MessageRuntimeSettings) {
+            state.messageRuntime = {
+                serverStorageMode: runtime.serverStorageMode,
+                contentAuditMode: runtime.contentAuditMode,
+            }
+        },
+        SET_GENERAL_SETTINGS(state: State, payload: { appName: string; messageRuntime: MessageRuntimeSettings }) {
+            state.appName = payload.appName
+            state.messageRuntime = {
+                serverStorageMode: payload.messageRuntime.serverStorageMode,
+                contentAuditMode: payload.messageRuntime.contentAuditMode,
+            }
         },
 
         // 全局加载蒙版控制
@@ -843,17 +866,49 @@ export const store = createStore<State>({
     },
 
     actions: {
-        // 加载应用名称（静默加载，失败不影响启动）
-        async loadAppName({ commit }: { commit: any }) {
+        // 加载公开通用设置（静默加载，失败不影响启动）
+        async loadGeneralSettings({ commit }: { commit: any }) {
+            let hasAppliedCachedSettings = false
+
             try {
-                const response = await SettingsApi.getAppName()
-                if (response?.data?.app_name) {
-                    commit('SET_APP_NAME', response.data.app_name)
+                const cached = await loadCache<GeneralSettingsPayload>(CACHE_KEYS.generalSettings)
+                if (cached?.data) {
+                    commit('SET_GENERAL_SETTINGS', resolveGeneralSettingsPayload(cached.data))
+                    hasAppliedCachedSettings = true
                 }
             } catch (error) {
-                // 静默失败，使用默认值
-                console.warn('Failed to load app name from server, using default')
+                // ignore cache failures
             }
+
+            try {
+                const response = await SettingsApi.getGeneralSettings()
+                const generalSettings = response?.data ?? null
+                let legacyAppName: string | null = null
+
+                if (!generalSettings?.app_name?.trim()) {
+                    const legacyResponse = await SettingsApi.getAppName()
+                    legacyAppName = legacyResponse?.data?.app_name ?? null
+                }
+
+                const resolved = resolveGeneralSettingsPayload(generalSettings, legacyAppName)
+                commit('SET_GENERAL_SETTINGS', resolved)
+                await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
+            } catch (error) {
+                if (!hasAppliedCachedSettings) {
+                    try {
+                        const legacyResponse = await SettingsApi.getAppName()
+                        const resolved = resolveGeneralSettingsPayload(null, legacyResponse?.data?.app_name ?? null)
+                        commit('SET_GENERAL_SETTINGS', resolved)
+                        await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
+                    } catch (legacyError) {
+                        console.warn('Failed to load general settings from server, using defaults')
+                    }
+                }
+            }
+        },
+        // 兼容旧调用入口
+        async loadAppName({ dispatch }: { dispatch: any }) {
+            await dispatch('loadGeneralSettings')
         },
         // 登录
         async login({ commit, state, getters, dispatch }: { commit: any; state: any; getters: any; dispatch: any }, loginData: {
@@ -1937,6 +1992,11 @@ export const store = createStore<State>({
         hasAppUpdate: (state: State) => state.version.latest.hasUpdate,
         appUpdateError: (state: State) => state.version.latest.error,
         appUpdateChecking: (state: State) => state.version.latest.checking,
+        messageRuntime: (state: State) => state.messageRuntime,
+        isRelayOnlyMessageRuntime: (state: State) => state.messageRuntime.serverStorageMode === 'relay_only',
+        isPersistMessageRuntime: (state: State) => state.messageRuntime.serverStorageMode === 'persist',
+        isPlaintextAuditMode: (state: State) => state.messageRuntime.contentAuditMode === 'plaintext',
+        isE2eeAuditMode: (state: State) => state.messageRuntime.contentAuditMode === 'e2ee',
 
         // 联系人相关 getters
         contacts: (state: State) => state.contacts.list,
