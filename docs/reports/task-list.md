@@ -90,3 +90,4 @@
 - ✅ bootstrap status / repeat init 拒绝语义已补 Go contract
 - ✅ RBAC 已补管理员登录快照 / 权限检查接口的 Go contract
 - ✅ 根 Makefile 已整理为模块化入口，frontend 默认真机已切到 Pixel 8 Pro
+- ✅ `tests/run.sh` 已拆分为按 mode 执行的 backend contract 入口，并补了 workflow tooling 守护测试

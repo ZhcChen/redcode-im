@@ -1,13 +1,18 @@
-# Go 黑盒契约测试（重构版）
+# Go 黑盒契约测试
 
-本目录用于承载后端对外 HTTP/WS 契约测试。
+本目录只承载 **backend 对外 HTTP / WebSocket 契约测试**。
 
-当前状态：
-- 已覆盖：`system`、`auth`、`users`、`friends`、`rooms`、`messages`、`uploads`、`versions`、`admin`、`websocket`
-- 待补齐：无（Backend Go 黑盒主域已覆盖，后续进入前端各模块测试）
+## 作用
+- 验证后端公开接口与管理接口的实际契约
+- 验证 WebSocket 握手与关键业务链路
+- 与 `tests/mocks/external`、`tests/docker-compose.yml` 组合运行
 
-测试栈会自动启动 `external-mock`（第三方依赖模拟），用于覆盖：
-- OAuth/JWKS（Google/Apple）
-- FCM Push
-- Tencent COS / CI
-- IPInfo
+## 不负责
+- frontend / admin / desktop / website 的模块测试
+- 视觉回归
+- 页面级 E2E
+
+## 运行
+```bash
+./tests/run.sh go
+```
