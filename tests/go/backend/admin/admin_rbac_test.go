@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"testing"
 
 	"redcode-im-tests/internal/testutil"
@@ -69,6 +70,10 @@ type rolePermissionAssignmentResponse struct {
 type adminUserRoleAssignmentResponse struct {
 	AdminUserID string   `json:"adminUserId"`
 	RoleIDs     []string `json:"roleIds"`
+}
+
+type checkPermissionResponse struct {
+	HasPermission bool `json:"has_permission"`
 }
 
 func initDefaultAdmin(t *testing.T, c *testutil.Client) {
@@ -376,5 +381,89 @@ func TestAdminRolePermissionAndUserRoleAssignments(t *testing.T) {
 	}
 	if len(adminRoles.RoleIDs) != 1 || adminRoles.RoleIDs[0] != createdRole.ID {
 		t.Fatalf("unexpected persisted admin roles: %+v", adminRoles)
+	}
+
+	createdAdminLoginPayload := []byte(fmt.Sprintf(`{"username":"%s","password":"Admin12345"}`, adminUsername))
+	createdAdminLoginResp, err := c.HTTP.Post(c.BaseURL+"/auth/admin/login", "application/json", bytes.NewReader(createdAdminLoginPayload))
+	if err != nil {
+		t.Fatalf("created admin login failed: %v", err)
+	}
+	defer createdAdminLoginResp.Body.Close()
+	if createdAdminLoginResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(createdAdminLoginResp.Body)
+		t.Fatalf("created admin login expect 200, got %d: %s", createdAdminLoginResp.StatusCode, string(body))
+	}
+
+	var createdAdminLogin adminLoginResponse
+	if err := json.NewDecoder(createdAdminLoginResp.Body).Decode(&createdAdminLogin); err != nil {
+		t.Fatalf("decode created admin login response failed: %v", err)
+	}
+	if createdAdminLogin.User.IsSuperAdmin {
+		t.Fatalf("created admin should not be super admin: %+v", createdAdminLogin.User)
+	}
+	if !slices.Contains(createdAdminLogin.User.RoleCodes, createdRole.Code) {
+		t.Fatalf("created admin login missing assigned role code %s: %+v", createdRole.Code, createdAdminLogin.User)
+	}
+	if !slices.Contains(createdAdminLogin.User.PermissionKeys, permissions.Permissions[1].Code) {
+		t.Fatalf("created admin login missing assigned permission code %s: %+v", permissions.Permissions[1].Code, createdAdminLogin.User)
+	}
+	if slices.Contains(createdAdminLogin.User.PermissionKeys, permissions.Permissions[0].Code) {
+		t.Fatalf("created admin login should not keep stale permission code %s after role update: %+v", permissions.Permissions[0].Code, createdAdminLogin.User)
+	}
+
+	checkGrantedReq := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodPost,
+		c.BaseURL+"/api/admin/permissions/check",
+		admin.Token,
+		map[string]any{
+			"user_id":         createdAdmin.ID,
+			"permission_code": permissions.Permissions[1].Code,
+		},
+	)
+	checkGrantedResp, err := c.HTTP.Do(checkGrantedReq)
+	if err != nil {
+		t.Fatalf("check granted permission failed: %v", err)
+	}
+	defer checkGrantedResp.Body.Close()
+	if checkGrantedResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(checkGrantedResp.Body)
+		t.Fatalf("check granted permission expect 200, got %d: %s", checkGrantedResp.StatusCode, string(body))
+	}
+
+	var granted checkPermissionResponse
+	if err := json.NewDecoder(checkGrantedResp.Body).Decode(&granted); err != nil {
+		t.Fatalf("decode granted permission response failed: %v", err)
+	}
+	if !granted.HasPermission {
+		t.Fatalf("created admin should have permission %s", permissions.Permissions[1].Code)
+	}
+
+	checkDeniedReq := testutil.NewAuthedJSONRequest(
+		t,
+		http.MethodPost,
+		c.BaseURL+"/api/admin/permissions/check",
+		admin.Token,
+		map[string]any{
+			"user_id":         createdAdmin.ID,
+			"permission_code": permissions.Permissions[0].Code,
+		},
+	)
+	checkDeniedResp, err := c.HTTP.Do(checkDeniedReq)
+	if err != nil {
+		t.Fatalf("check denied permission failed: %v", err)
+	}
+	defer checkDeniedResp.Body.Close()
+	if checkDeniedResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(checkDeniedResp.Body)
+		t.Fatalf("check denied permission expect 200, got %d: %s", checkDeniedResp.StatusCode, string(body))
+	}
+
+	var denied checkPermissionResponse
+	if err := json.NewDecoder(checkDeniedResp.Body).Decode(&denied); err != nil {
+		t.Fatalf("decode denied permission response failed: %v", err)
+	}
+	if denied.HasPermission {
+		t.Fatalf("created admin should not have stale permission %s", permissions.Permissions[0].Code)
 	}
 }
