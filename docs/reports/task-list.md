@@ -2,7 +2,7 @@
 
 > 本文件用于记录 **RedCode IM** 当前仍需推进的工作流与优先级。默认执行主线以 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md` 为准。
 
-**最后更新**: 2026-04-10
+**最后更新**: 2026-04-11
 
 ---
 
@@ -83,3 +83,5 @@
 - ✅ shared auth runtime / http 服务收口
 - ✅ 首个超级管理员改为 bootstrap 初始化
 - ✅ Admin 关键 Playwright 回归 18 条通过
+- ✅ B2 provider 编辑时显式清空 `bucket_name` 会被后端拒绝，并补齐 Go 合同测试
+- ✅ `database_migration_smoke` 环境变量串扰已收口，`cargo test` 可稳定通过

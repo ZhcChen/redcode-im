@@ -5,6 +5,9 @@ use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 
+static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
+    once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
+
 struct EnvGuard {
     key: &'static str,
     previous: Option<String>,
@@ -134,6 +137,7 @@ async fn column_exists(pool: &PgPool, table: &str, column: &str) -> Result<bool,
 #[tokio::test]
 async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn std::error::Error>>
 {
+    let _lock = ENV_LOCK.lock().await;
     let temp = TempDatabase::create().await?;
 
     let db = run_migrate(&temp.url).await?;
@@ -192,6 +196,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
 #[tokio::test]
 async fn non_empty_database_without_migration_table_is_rejected_by_default(
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = ENV_LOCK.lock().await;
     let temp = TempDatabase::create().await?;
     let pool = PgPool::connect(&temp.url).await?;
     sqlx::query("CREATE TABLE probe (id INTEGER PRIMARY KEY)")
@@ -210,6 +215,7 @@ async fn non_empty_database_without_migration_table_is_rejected_by_default(
 #[tokio::test]
 async fn explicit_adopt_allows_current_schema_without_migration_table(
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = ENV_LOCK.lock().await;
     let temp = TempDatabase::create().await?;
     let db = run_migrate(&temp.url).await?;
     sqlx::query("DROP TABLE db_migrations")
@@ -246,6 +252,7 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
 
 #[tokio::test]
 async fn checksum_mismatch_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = ENV_LOCK.lock().await;
     let temp = TempDatabase::create().await?;
     let db = run_migrate(&temp.url).await?;
     sqlx::query("UPDATE db_migrations SET checksum = 'bad-checksum' WHERE name = 'base.sql'")
