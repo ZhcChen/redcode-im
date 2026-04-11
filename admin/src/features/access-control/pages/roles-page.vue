@@ -115,7 +115,7 @@
     updateRolePermissionAssignment,
     type PermissionInfo,
     type RoleInfo,
-  } from '@/api/rbac';
+  } from '@/services/access-control';
   import useLoading from '@/hooks/loading';
   import RoleEditModal, {
     type RoleFormValue,

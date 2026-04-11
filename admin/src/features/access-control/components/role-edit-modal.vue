@@ -42,7 +42,7 @@
 <script lang="ts" setup>
   import { computed, reactive, watch } from 'vue';
 
-  import type { PermissionInfo, RoleInfo } from '@/api/rbac';
+  import type { PermissionInfo, RoleInfo } from '@/services/access-control';
 
   export type RoleFormValue = {
     name: string;

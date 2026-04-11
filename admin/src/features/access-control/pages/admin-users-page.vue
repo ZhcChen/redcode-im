@@ -111,13 +111,13 @@
     createAdminUser,
     getAdminUserList,
     updateAdminUserStatus,
-  } from '@/api/user';
+  } from '@/services/access-control';
   import {
     getAdminUserRoleAssignment,
     getRoleList,
     updateAdminUserRoleAssignment,
     type RoleInfo,
-  } from '@/api/rbac';
+  } from '@/services/access-control';
   import useLoading from '@/hooks/loading';
   import { adminStatusColor, adminStatusText, formatDate } from '../helpers';
   import type { AdminUserRow } from '../types';

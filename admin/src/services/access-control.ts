@@ -45,6 +45,39 @@ export interface UpdateRolePayload {
   permissionIds?: string[];
 }
 
+export interface AdminUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  nickname?: string | null;
+  avatarUrl?: string | null;
+  status: 'active' | 'inactive' | 'banned' | 'locked';
+  lastLoginAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserListParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  username?: string;
+}
+
+export interface AdminUserListResponse {
+  users: AdminUserInfo[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CreateAdminUserRequest {
+  username: string;
+  email: string;
+  password: string;
+  nickname?: string;
+}
+
 interface BackendPermissionInfo {
   id: string;
   name: string;
@@ -224,4 +257,21 @@ export function updateAdminUserRoleAssignment(
       role_ids: roleIds,
     }
   );
+}
+
+export function getAdminUserList(params?: AdminUserListParams) {
+  return http.get<AdminUserListResponse>('/api/admin/admin-users', { params });
+}
+
+export function createAdminUser(data: CreateAdminUserRequest) {
+  return http.post<AdminUserInfo>('/api/admin/admin-users', data);
+}
+
+export function updateAdminUserStatus(
+  adminUserId: string,
+  status: 'active' | 'inactive' | 'banned' | 'locked'
+) {
+  return http.patch(`/api/admin/admin-users/${adminUserId}/status`, {
+    status,
+  });
 }

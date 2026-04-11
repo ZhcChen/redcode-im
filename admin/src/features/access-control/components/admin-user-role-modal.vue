@@ -28,7 +28,7 @@
 <script lang="ts" setup>
   import { computed, reactive, watch } from 'vue';
 
-  import type { RoleInfo } from '@/api/rbac';
+  import type { RoleInfo } from '@/services/access-control';
   import type { AdminUserRow } from '../types';
 
   const props = defineProps<{

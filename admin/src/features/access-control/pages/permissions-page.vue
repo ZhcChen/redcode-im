@@ -49,7 +49,10 @@
   import { Message } from '@arco-design/web-vue';
 
   import useLoading from '@/hooks/loading';
-  import { getPermissionList, type PermissionInfo } from '@/api/rbac';
+  import {
+    getPermissionList,
+    type PermissionInfo,
+  } from '@/services/access-control';
   import { formatDate } from '../helpers';
 
   const keyword = ref('');
