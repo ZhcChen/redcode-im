@@ -2660,6 +2660,8 @@ pub async fn update_storage_provider(
             .map(str::trim)
             .filter(|bucket_name| !bucket_name.is_empty())
     });
+    let bucket_name_cleared = matches!(req.bucket_name.as_ref(), Some(None))
+        || matches!(req.bucket_name.as_ref(), Some(Some(value)) if value.trim().is_empty());
     let description = req.description.as_ref().map(|value| {
         value
             .as_deref()
@@ -2673,10 +2675,14 @@ pub async fn update_storage_provider(
         .await?
         .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?;
     let effective_provider_type = provider_type.unwrap_or(existing_provider.provider_type);
-    let effective_bucket_name = bucket_name
-        .as_ref()
-        .and_then(|value| value.as_deref())
-        .or(existing_provider.bucket_name.as_deref());
+    let effective_bucket_name = if bucket_name_cleared {
+        None
+    } else {
+        bucket_name
+            .as_ref()
+            .and_then(|value| value.as_deref())
+            .or(existing_provider.bucket_name.as_deref())
+    };
 
     if effective_provider_type == StorageProviderType::BackblazeB2
         && effective_bucket_name

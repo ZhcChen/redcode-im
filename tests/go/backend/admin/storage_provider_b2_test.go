@@ -186,3 +186,68 @@ func TestStorageProviderB2RequiresBucketName(t *testing.T) {
 		t.Fatalf("expected bucket_name validation message, got: %s", string(body))
 	}
 }
+
+func TestStorageProviderB2UpdateRejectsClearingBucketName(t *testing.T) {
+	c := testutil.NewClient()
+	admin := testutil.AdminLogin(t, c)
+
+	createPayload := map[string]any{
+		"provider_type": "backblaze_b2",
+		"name":          fmt.Sprintf("b2_%s", testutil.UniqueUsername("patch")),
+		"secret_id":     "b2-key-id",
+		"secret_key":    "b2-application-key",
+		"region":        "us-east-005",
+		"endpoint":      "https://s3.us-east-005.backblazeb2.com",
+		"bucket_name":   "redcode-im-private-test",
+		"is_active":     true,
+		"is_default":    false,
+		"description":   "b2 update validation contract test",
+	}
+
+	createReq := testutil.NewAuthedJSONRequestWithToken(
+		http.MethodPost,
+		c.BaseURL+"/api/admin/storage-providers",
+		admin.Token,
+		createPayload,
+	)
+	createResp, err := c.HTTP.Do(createReq)
+	if err != nil {
+		t.Fatalf("create b2 storage provider failed: %v", err)
+	}
+	defer createResp.Body.Close()
+	if createResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(createResp.Body)
+		t.Fatalf("create b2 storage provider expect 200, got %d: %s", createResp.StatusCode, string(body))
+	}
+
+	var created storageProviderResponse
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created storage provider failed: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatalf("created provider id is empty: %+v", created)
+	}
+
+	updatePayload := map[string]any{
+		"bucket_name": "",
+	}
+	updateReq := testutil.NewAuthedJSONRequestWithToken(
+		http.MethodPatch,
+		c.BaseURL+"/api/admin/storage-providers/"+created.ID,
+		admin.Token,
+		updatePayload,
+	)
+	updateResp, err := c.HTTP.Do(updateReq)
+	if err != nil {
+		t.Fatalf("update b2 storage provider failed: %v", err)
+	}
+	defer updateResp.Body.Close()
+	if updateResp.StatusCode == http.StatusOK {
+		t.Fatalf("update b2 storage provider clearing bucket_name should fail")
+	}
+
+	body, _ := io.ReadAll(updateResp.Body)
+	if !strings.Contains(string(body), "bucket_name") {
+		t.Fatalf("expected bucket_name validation message, got: %s", string(body))
+	}
+}
