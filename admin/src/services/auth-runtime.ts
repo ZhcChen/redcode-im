@@ -79,12 +79,3 @@ export function shouldBypassAccessTokenRefresh(url?: string) {
     '/auth/admin/refresh',
   ].includes(pathname);
 }
-
-// compatibility exports for legacy callers during migration
-export const isLogin = hasAccessToken;
-export const getToken = getAccessToken;
-export const setToken = setAccessToken;
-export const clearToken = clearAccessToken;
-export const registerAdminSessionRefresh = registerAccessTokenRefresh;
-export const requestAdminSessionRefresh = requestAccessTokenRefresh;
-export const shouldBypassAdminSessionRefresh = shouldBypassAccessTokenRefresh;

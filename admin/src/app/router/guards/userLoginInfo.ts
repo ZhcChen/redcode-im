@@ -2,7 +2,7 @@ import type { Router, LocationQueryRaw } from 'vue-router';
 import NProgress from 'nprogress'; // progress bar
 
 import { useUserStore } from '@/store';
-import { isLogin } from '@/services/auth-runtime';
+import { hasAccessToken } from '@/services/auth-runtime';
 import appRoutes from '@/app/router/routes';
 import { findFirstAccessibleRoute } from '@/shared/access/route-access';
 
@@ -10,7 +10,7 @@ export default function setupUserLoginInfoGuard(router: Router) {
   router.beforeEach(async (to, from, next) => {
     NProgress.start();
     const userStore = useUserStore();
-    if (isLogin()) {
+    if (hasAccessToken()) {
       try {
         const sessionReady = await userStore.ensureSession();
         if (!sessionReady) {

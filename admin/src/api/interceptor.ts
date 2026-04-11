@@ -3,10 +3,10 @@ import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
 import {
-  getToken,
-  clearToken,
-  requestAdminSessionRefresh,
-  shouldBypassAdminSessionRefresh,
+  getAccessToken,
+  clearAccessToken,
+  requestAccessTokenRefresh,
+  shouldBypassAccessTokenRefresh,
 } from '@/services/auth-runtime';
 
 export interface HttpResponse<T = unknown> {
@@ -22,7 +22,7 @@ http.interceptors.request.use(
     // this example using the JWT token
     // Authorization is a custom headers key
     // please modify it according to the actual situation
-    const token = getToken();
+    const token = getAccessToken();
     if (token) {
       if (!config.headers) {
         config.headers = {};
@@ -94,10 +94,10 @@ http.interceptors.response.use(
     // 处理 401：尝试使用刷新令牌无感续签
     if (status === 401) {
       const originalRequest = error.config || {};
-      const shouldRetry = !shouldBypassAdminSessionRefresh(originalRequest.url);
+      const shouldRetry = !shouldBypassAccessTokenRefresh(originalRequest.url);
 
-      if (shouldRetry && (await requestAdminSessionRefresh())) {
-        const newToken = getToken();
+      if (shouldRetry && (await requestAccessTokenRefresh())) {
+        const newToken = getAccessToken();
         if (newToken) {
           originalRequest.headers = originalRequest.headers || {};
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -105,7 +105,7 @@ http.interceptors.response.use(
           return http(originalRequest);
         }
       } else {
-        clearToken();
+        clearAccessToken();
         try {
           const userStore = useUserStore();
           userStore.logoutCallBack();

@@ -7,10 +7,6 @@ export interface AccessSnapshot {
   role?: string;
 }
 
-function normalizeRoles(roles?: string[]) {
-  return roles?.map((item) => item.trim()).filter(Boolean) ?? [];
-}
-
 export function hasPermission(
   access: AccessSnapshot,
   permission?: string,
@@ -47,14 +43,7 @@ export function canAccessRoute(
     return hasPermission(access, route.meta.perm as string);
   }
 
-  const legacyRoles = normalizeRoles(route.meta?.roles as string[] | undefined);
-  if (!legacyRoles.length || legacyRoles.includes('*')) {
-    return true;
-  }
-
-  return legacyRoles.some((role) => {
-    return access.roleCodes.includes(role) || access.role === role;
-  });
+  return true;
 }
 
 export function filterAccessibleRoutes(

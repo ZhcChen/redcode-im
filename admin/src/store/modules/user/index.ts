@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 import { logout as userLogout } from '@/api/user';
 import {
-  setToken,
+  setAccessToken,
   setRefreshToken,
-  clearToken,
+  clearAccessToken,
   getRefreshToken,
-  getToken,
-  registerAdminSessionRefresh,
+  getAccessToken,
+  registerAccessTokenRefresh,
 } from '@/services/auth-runtime';
 import {
   getCurrentAdmin,
@@ -86,7 +86,7 @@ const useUserStore = defineStore('user', {
     },
 
     applyAuthResult(payload: LoginRes) {
-      setToken(payload.token);
+      setAccessToken(payload.token);
       setRefreshToken(payload.refresh_token ?? null);
       if (payload.user) {
         this.setInfo(mapBackendUser(payload.user));
@@ -106,7 +106,7 @@ const useUserStore = defineStore('user', {
     },
 
     async ensureSession() {
-      if (!getToken()) {
+      if (!getAccessToken()) {
         return false;
       }
 
@@ -137,7 +137,7 @@ const useUserStore = defineStore('user', {
         if (res.data.user) {
           this.applyAuthResult(res.data);
         } else {
-          setToken(res.data.token);
+          setAccessToken(res.data.token);
           setRefreshToken(res.data.refresh_token ?? refreshToken);
           await this.info();
         }
@@ -154,14 +154,14 @@ const useUserStore = defineStore('user', {
         const res = await loginAdmin(loginForm);
         this.applyAuthResult(res.data);
       } catch (err) {
-        clearToken();
+        clearAccessToken();
         throw err;
       }
     },
     logoutCallBack() {
       const appStore = useAppStore();
       this.resetInfo();
-      clearToken();
+      clearAccessToken();
       removeRouteListener();
       appStore.clearServerMenu();
     },
@@ -176,7 +176,7 @@ const useUserStore = defineStore('user', {
   },
 });
 
-registerAdminSessionRefresh(async () => {
+registerAccessTokenRefresh(async () => {
   const userStore = useUserStore();
   return userStore.refreshSession();
 });

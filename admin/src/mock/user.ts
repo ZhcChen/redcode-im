@@ -5,7 +5,7 @@ import setupMock, {
 } from '@/utils/setup-mock';
 
 import { MockParams } from '@/types/mock';
-import { isLogin } from '@/services/auth-runtime';
+import { hasAccessToken } from '@/services/auth-runtime';
 
 setupMock({
   setup() {
@@ -13,7 +13,7 @@ setupMock({
 
     // 用户信息
     Mock.mock(new RegExp('/api/user/info'), () => {
-      if (isLogin()) {
+      if (hasAccessToken()) {
         const role = window.localStorage.getItem('userRole') || 'admin';
         return successResponseWrap({
           name: 'admin',
