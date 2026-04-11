@@ -188,6 +188,13 @@ class ChatProvider with ChangeNotifier {
   Future<void> loadMessages({int limit = 50, bool showLoading = true}) async {
     if (_currentRoomId == null || _isLoading) return;
 
+    if (isRelayOnlyMode) {
+      _messages = _messageService.getMessages(_currentRoomId!);
+      _primeReadReceiptStateIfNeeded();
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     if (showLoading || _messages.isEmpty) {
       notifyListeners();
@@ -207,7 +214,7 @@ class ChatProvider with ChangeNotifier {
 
   /// 加载更多消息
   Future<void> loadMoreMessages({int limit = 50}) async {
-    if (_currentRoomId == null || _isLoading || _messages.isEmpty) return;
+    if (_currentRoomId == null || _isLoading || _messages.isEmpty || isRelayOnlyMode) return;
 
     _isLoading = true;
     notifyListeners();
@@ -244,6 +251,10 @@ class ChatProvider with ChangeNotifier {
     if (_currentRoomId == null) {
       debugPrint('[loadMessagesUntilFound] 房间ID为空，返回false');
       return false;
+    }
+
+    if (isRelayOnlyMode) {
+      return _messages.any((m) => m.id == targetMessageId);
     }
 
     // 先检查消息是否已经在列表中

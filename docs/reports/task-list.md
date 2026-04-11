@@ -18,8 +18,11 @@
    - frontend / desktop 已补 plaintext / e2ee 展示层提示闭环：
      - 聊天输入区会展示当前审计模式与服务器存储策略提示
      - `e2ee` 提示文案明确为“按当前配置目标”，避免误导为协议已完整落地
+   - frontend / desktop 已补 relay_only 历史链路一致性：
+     - 进入会话优先使用本地缓存，不再额外请求服务端历史消息
+     - desktop 已避免“本地有缓存但被空历史响应覆盖”的错位
    - 下一步需补齐：
-     - 搜索 / 历史 / 引用 / 转发 / 反应 / 已读等链路的一致行为
+     - 引用跳转 / 历史定位 / 更多边缘交互的一致行为
 
 2. **测试入口与命令体系整理**
    - 根目录 `Makefile`
@@ -91,8 +94,10 @@
 - ✅ frontend 开发环境默认 API / WS 已切到 localhost，启动页更新弹窗已切 `PopScope`，历史聊天示例页残留已移除
 - ✅ frontend 已补 `message_runtime` 本地缓存与 relay_only 第一轮降级：聊天页动作/多选栏裁剪、provider guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ frontend 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
+- ✅ frontend 已补 relay_only 历史加载 guard：进入会话与本地定位不再额外请求服务端历史
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
+- ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

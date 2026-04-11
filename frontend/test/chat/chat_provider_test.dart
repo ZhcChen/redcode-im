@@ -49,6 +49,8 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   final List<String> removedReactionCalls = <String>[];
   final Map<String, List<Message>> roomMessages = <String, List<Message>>{};
   int fetchChatsCallCount = 0;
+  int loadCachedMessagesCallCount = 0;
+  int loadMessagesCallCount = 0;
   Future<void> Function()? onFetchChats;
 
   @override
@@ -136,8 +138,10 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   }
 
   @override
-  Future<List<Message>> loadCachedMessages(String roomId) async =>
-      List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+  Future<List<Message>> loadCachedMessages(String roomId) async {
+    loadCachedMessagesCallCount += 1;
+    return List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+  }
 
   @override
   Future<List<Message>> loadMessages(
@@ -145,7 +149,10 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     int limit = 50,
     String? beforeId,
     String? sinceId,
-  }) async => List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+  }) async {
+    loadMessagesCallCount += 1;
+    return List<Message>.from(roomMessages[roomId] ?? const <Message>[]);
+  }
 
   @override
   Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {
@@ -477,6 +484,41 @@ void main() {
         expect(fakeMessageService.removedReactionCalls, isEmpty);
       },
     );
+
+    test('relay_only enters room with cache only and skips server history fetch', () async {
+      final fakeMessageService = _FakeMessageService();
+      fakeMessageService.roomMessages['r1'] = <Message>[
+        _message(
+          id: 'cached-1',
+          roomId: 'r1',
+          content: 'cached history',
+          isSelf: false,
+          status: MessageStatus.sent,
+        ),
+      ];
+      final fakeWs = _FakeWebSocketService();
+      final appConfigService = _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+      final provider = ChatProvider(
+        messageService: fakeMessageService,
+        webSocketService: fakeWs,
+        appConfigService: appConfigService,
+      );
+      addTearDown(provider.dispose);
+
+      await provider.enterChatRoom(
+        'r1',
+        _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
+      );
+
+      expect(fakeMessageService.loadCachedMessagesCallCount, 1);
+      expect(fakeMessageService.loadMessagesCallCount, 0);
+      expect(provider.messages.map((message) => message.id), <String>['cached-1']);
+    });
   });
 }
 

@@ -797,6 +797,10 @@ import Popover from '../components/Popover.vue'
 import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
 import { getMessageRuntimeNotice } from '../services/messageRuntime'
+import {
+  resolveMessageHistoryForRuntime,
+  shouldUseLocalOnlyMessageHistory,
+} from '../services/messageHistory'
 import EmojiPicker, { type EmojiSelectData } from '../components/EmojiPicker.vue'
 import { EmojiPackApi } from '../api/emoji-pack'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
@@ -1275,65 +1279,6 @@ const persistMessagesCache = async (groupId: string, messageList: Message[]) => 
 /**
  * 合并后端消息和本地缓存，保留本地localPath等字段
  */
-const mergeMessagesWithCache = (backendMessages: Message[], cachedMessages: Message[]): Message[] => {
-  if (!cachedMessages || cachedMessages.length === 0) {
-    return backendMessages;
-  }
-
-  const cacheMap = new Map<string, Message>();
-  cachedMessages.forEach(msg => {
-    cacheMap.set(msg.id, msg);
-  });
-
-  return backendMessages.map(backendMsg => {
-    const cachedMsg = cacheMap.get(backendMsg.id);
-    if (!cachedMsg) {
-      return backendMsg;
-    }
-
-    // 合并 attachment 中的 localPath 等本地字段
-    if (Array.isArray(backendMsg.parts) && Array.isArray(cachedMsg.parts)) {
-      const mergedParts = backendMsg.parts.map((backendPart, index) => {
-        const cachedPart = cachedMsg.parts?.[index];
-        if (!cachedPart?.attachment || !backendPart?.attachment) {
-          return backendPart;
-        }
-
-        // 先保留缓存中的所有字段，再覆盖需要更新的字段
-        const mergedAttachment = {
-          ...cachedPart.attachment,
-          // 覆盖后端数据中的字段（这些字段更准确）
-          key: backendPart.attachment.key,
-          name: backendPart.attachment.name,
-          mime: backendPart.attachment.mime,
-          size: backendPart.attachment.size,
-          width: backendPart.attachment.width,
-          height: backendPart.attachment.height,
-          durationMs: backendPart.attachment.durationMs,
-          thumbnailKey: backendPart.attachment.thumbnailKey,
-          // 保留缓存中的本地字段
-          localPath: cachedPart.attachment.localPath,
-          downloadUrl: cachedPart.attachment.downloadUrl,
-          uploadProgress: cachedPart.attachment.uploadProgress,
-          downloadProgress: cachedPart.attachment.downloadProgress,
-        };
-
-        return {
-          ...backendPart,
-          attachment: mergedAttachment,
-        };
-      });
-
-      return {
-        ...backendMsg,
-        parts: mergedParts,
-      };
-    }
-
-    return backendMsg;
-  });
-};
-
 let messageCachePersistTimer: ReturnType<typeof setTimeout> | null = null
 
 const scheduleMessagesCachePersist = (groupId: string | null | undefined, messageList: Message[]) => {
@@ -3904,6 +3849,7 @@ const loadGroupSettings = async (
 
 const loadMessages = async (groupId: string) => {
   let usedCache = false
+  let cachedMessages: Message[] = []
   try {
     if (!groupId) {
       messages.value = []
@@ -3912,7 +3858,7 @@ const loadMessages = async (groupId: string) => {
 
     const cached = await loadCache<Message[]>(CACHE_KEYS.messages(groupId))
     if (cached?.data && Array.isArray(cached.data) && cached.data.length > 0) {
-      messages.value = cached.data.map((item) => {
+      cachedMessages = cached.data.map((item) => {
         const restoredMessage = restoreMessageFromCache(item)
         // 确保消息有 roomId，如果没有则使用当前群组ID
         if (!restoredMessage.roomId) {
@@ -3920,6 +3866,7 @@ const loadMessages = async (groupId: string) => {
         }
         return restoredMessage
       })
+      messages.value = cachedMessages
       usedCache = true
       
       // 从缓存恢复消息后，也需要同步头像（避免头像显示为空）
@@ -3989,6 +3936,15 @@ const loadMessages = async (groupId: string) => {
       messagesLoading.value = true
     }
 
+    if (shouldUseLocalOnlyMessageHistory(store.getters.messageRuntime)) {
+      restorePendingMessagesToUI(groupId)
+      if (messages.value.length > 0 && selectedChat.value) {
+        messageSearchService.initializeSearchIndex(messages.value, selectedChat.value.name, selectedChat.value.groupId).catch(error => {
+        })
+      }
+      return
+    }
+
     const response = await MessageApi.getMessageListByChatGroupId({
       groupId,
       limit: 50,
@@ -4017,10 +3973,11 @@ const loadMessages = async (groupId: string) => {
       })
 
       // 合并后端消息和本地缓存，保留localPath等字段
-      let mergedMessages = sortedMessages
-      if (usedCache && cached?.data && Array.isArray(cached.data)) {
-        mergedMessages = mergeMessagesWithCache(sortedMessages, cached.data)
-      }
+      const mergedMessages = resolveMessageHistoryForRuntime(
+        store.getters.messageRuntime,
+        sortedMessages,
+        cachedMessages,
+      )
 
       messages.value = mergedMessages
       await persistMessagesCache(groupId, mergedMessages)
