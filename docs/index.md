@@ -71,7 +71,7 @@
 
 | 文档 | 说明 |
 |------|------|
-| [**测试工作流程指南（重构版）**](reference/testing/README.md) | **单入口、分层执行、按模块推进补齐** |
+| [**测试工作流**](reference/testing/README.md) | **模块自测优先，`tests/` 仅负责 backend contract 栈** |
 
 ### 运维部署
 

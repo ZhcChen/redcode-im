@@ -2,6 +2,14 @@
 
 一个基于 Tauri 框架的多窗口即时通讯客户端应用，使用 Vue 3 + TypeScript + Rust 构建。
 
+> 根目录已提供统一入口，优先使用：
+>
+> - `make desktop.install`
+> - `make desktop.up`
+> - `make desktop.test`
+> - `make desktop.package.macos.arm64`
+> - `make desktop.package.macos.intel`
+
 ## 技术栈
 
 - **前端**: Vue 3 + TypeScript + Vite
@@ -58,7 +66,7 @@ bun run build
 # 构建 Tauri 应用
 bun run tauri build
 
-# macOS 架构区分（推荐脚本，会自动注入渠道）
+# macOS 架构区分（推荐脚本，会自动注入渠道，默认 ad-hoc 签名）
 ./scripts/build-macos.sh arm64             # Apple Silicon，对应 stable-macos-arm64
 ./scripts/build-macos.sh intel             # Intel，对应 stable-macos-intel
 # Linux 打包示例
@@ -67,6 +75,8 @@ bun run tauri build
 VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin
 VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin
 VITE_APP_CHANNEL=stable-linux bun run tauri build --target x86_64-unknown-linux-gnu
+MACOS_SIGN_IDENTITY="Developer ID Application: Example Corp (TEAMID)" ./scripts/build-macos.sh arm64
+MACOS_SIGN_IDENTITY=skip ./scripts/build-macos.sh arm64
 
 # Windows 构建
 
@@ -102,8 +112,8 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && bun run tauri build --runner c
 
 | 平台 | 简化命令 | 完整命令 |
 |------|----------|----------|
-| macOS Intel | `./scripts/build-macos.sh intel` | `VITE_APP_CHANNEL=stable-macos-intel bun run tauri build --target x86_64-apple-darwin` |
-| macOS Apple Silicon | `./scripts/build-macos.sh arm64` | `VITE_APP_CHANNEL=stable-macos-arm64 bun run tauri build --target aarch64-apple-darwin` |
+| macOS Intel | `./scripts/build-macos.sh intel` | `VITE_APP_CHANNEL=stable-macos-intel ./scripts/build-macos.sh intel` |
+| macOS Apple Silicon | `./scripts/build-macos.sh arm64` | `VITE_APP_CHANNEL=stable-macos-arm64 ./scripts/build-macos.sh arm64` |
 | Windows x86_64 | `VITE_APP_CHANNEL=stable-windows-x64 bun run build:windows-x64` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && VITE_APP_CHANNEL=stable-windows-x64 bun run tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc` |
 | Windows ARM64 | `VITE_APP_CHANNEL=stable-windows-arm bun run build:windows-arm` | `export PATH="/opt/homebrew/opt/llvm/bin:$PATH" && VITE_APP_CHANNEL=stable-windows-arm bun run tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc` |
 | 所有平台 | `bun run build:all-platforms` | 依次构建所有平台版本 |
@@ -205,6 +215,15 @@ source ~/.zshrc
 - Windows 交叉编译只能生成 NSIS 安装器，不支持 MSI
 - 代码签名需要额外配置
 - 这是实验性功能，建议生产环境使用 CI/CD
+
+### macOS 签名策略
+
+- `./scripts/build-macos.sh` 现在默认使用 **ad-hoc** 签名：
+  - `codesign --force --deep --sign -`
+- 如需使用正式证书：
+  - `MACOS_SIGN_IDENTITY="Developer ID Application: Example Corp (TEAMID)" ./scripts/build-macos.sh arm64`
+- 如需临时跳过签名：
+  - `MACOS_SIGN_IDENTITY=skip ./scripts/build-macos.sh arm64`
 
 ### 构建输出
 

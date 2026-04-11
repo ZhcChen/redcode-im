@@ -24,60 +24,68 @@
 
 ## 快速开始
 
+### 根目录统一命令
+
+优先使用根目录 `Makefile`：
+
+```bash
+make help
+make status
+make backend.up
+make admin.up
+make desktop.up
+make website.up
+make frontend.run
+make tests.run
+```
+
 ### 环境要求
 - Docker
 - Docker Compose 插件（使用 `docker compose` 命令）
 - Rust 1.75+
-- Node.js 18+（管理后台使用 pnpm；桌面端/官网使用 bun）
+- Node.js 18+（前端工具链）
+- Bun 1.0+
 - Flutter 3.9+
 - PostgreSQL 15+
 - Redis 7+
 
 ### 启动后端（开发）
 ```bash
-cd backend
-cp .env.example .env
-docker compose -f docker/dev/docker-compose.yml up -d backend
+make backend.up
 ```
 
 查看日志：
 ```bash
-cd backend
-docker compose -f docker/dev/docker-compose.yml logs -f backend
+make backend.logs
 ```
 
 ### 启动管理后台（admin）
 ```bash
-cd admin
-pnpm install
-pnpm dev
+make admin.install
+make admin.up
 ```
 
 ### 启动桌面端（desktop）
 ```bash
-cd desktop
-bun install
-bun run tauri dev
+make desktop.install
+make desktop.up
 ```
 
 ### 启动移动端（frontend）
 ```bash
-cd frontend
-flutter pub get
-flutter run
+make frontend.install
+make frontend.run
 ```
 
 ### 启动官网（website）
 ```bash
-cd website
-bun install
-bun run dev
+make website.install
+make website.up
 ```
 
 ### 运行测试（重构版）
 ```bash
-# 统一回归入口（Rust 单元 + Rust 集成 + Go 黑盒）
-./tests/run.sh
+make tests.run
 ```
 
 更多文档与规范请从 `docs/index.md` 开始阅读。

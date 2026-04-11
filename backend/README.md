@@ -60,7 +60,7 @@ RUST_LOG=debug cargo run
 
 ## 使用 Docker Compose
 
-在 `backend/` 目录下，开发调试默认使用 dev Compose：
+在 `backend/` 目录下执行以下命令。开发调试默认使用 dev Compose：
 
 ```bash
 docker compose -f docker/dev/docker-compose.yml up -d backend
@@ -106,13 +106,21 @@ docker compose -f docker/release/docker-compose.yml up -d --build backend
 运行统一回归（推荐，从仓库根目录执行）：
 
 ```bash
-cd .. && ./tests/run.sh
+make tests.run
 ```
 
-仅运行当前模块测试：
+仅运行 backend 模块测试：
 
 ```bash
-cargo test
+make backend.test
+make backend.test.smoke
+```
+
+如果需要直接调用底层 contract 入口：
+
+```bash
+./tests/run.sh
+./tests/run.sh go
 ```
 
 运行数据库集成测试（需要 PostgreSQL 可用，并配置 `DATABASE_URL_TEST` 或 `DATABASE_URL`）：
@@ -134,5 +142,6 @@ docker compose -f ../tests/docker-compose.yml run --rm rust-tests \
 
 更多文档：
 
-- `backend/docs/README.md`（已迁移说明）
-- `docs/reference/api/`、`docs/reference/guides/`、`docs/reference/operations/`
+- `docs/reference/api/`
+- `docs/reference/guides/`
+- `docs/reference/operations/`
