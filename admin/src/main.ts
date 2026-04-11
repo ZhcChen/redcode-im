@@ -13,7 +13,7 @@ import App from './App.vue';
 import '@/assets/style/global.less';
 import '@/api/interceptor';
 
-if (import.meta.env.DEV) {
+if (import.meta.env.DEV && __VITE_ENABLE_DEV_MOCKS__ === 'true') {
   import('./mock');
 }
 

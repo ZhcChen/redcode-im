@@ -35,8 +35,14 @@ export default defineConfig({
   },
   define: {
     'process.env': {},
+    '__VUE_OPTIONS_API__': JSON.stringify(true),
+    '__VUE_PROD_DEVTOOLS__': JSON.stringify(false),
+    '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__': JSON.stringify(false),
     '__VITE_ENABLE_DATA_CLEANUP__': JSON.stringify(
       process.env.VITE_ENABLE_DATA_CLEANUP || 'false'
+    ),
+    '__VITE_ENABLE_DEV_MOCKS__': JSON.stringify(
+      process.env.VITE_ENABLE_DEV_MOCKS || 'false'
     ),
   },
   css: {
