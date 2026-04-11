@@ -101,7 +101,7 @@
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
   import useLoading from '@/hooks/loading';
-  import { getSystemStats, type SystemStats } from '@/api/dashboard';
+  import { getSystemStats, type SystemStats } from '@/services/dashboard';
   import StatisticCard from '@/components/statistic-card/index.vue';
 
   const { setLoading } = useLoading(true);

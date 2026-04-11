@@ -87,7 +87,7 @@
   import {
     getApiPerformanceMetrics,
     ApiPerformanceMetric,
-  } from '@/api/dashboard';
+  } from '@/services/dashboard';
   import * as echarts from 'echarts';
   import { PaginationProps } from '@arco-design/web-vue';
 

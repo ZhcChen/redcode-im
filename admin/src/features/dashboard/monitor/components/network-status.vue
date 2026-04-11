@@ -58,7 +58,7 @@
 
 <script lang="ts" setup>
   import { ref, computed, onMounted, onUnmounted } from 'vue';
-  import { getSystemMonitor, type SystemMonitor } from '@/api/dashboard';
+  import { getSystemMonitor, type SystemMonitor } from '@/services/dashboard';
 
   interface NetworkStats extends SystemMonitor {
     network_in: number;

@@ -53,7 +53,7 @@
   import {
     getDashboardStorageStats,
     type DashboardStorageStats,
-  } from '@/api/dashboard';
+  } from '@/services/dashboard';
 
   defineOptions({
     name: 'StorageStats',

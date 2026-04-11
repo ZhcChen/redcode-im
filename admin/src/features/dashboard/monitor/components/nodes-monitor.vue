@@ -147,7 +147,7 @@
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
   import dayjs from 'dayjs';
-  import { getNodesMonitor, type NodeMonitor } from '@/api/dashboard';
+  import { getNodesMonitor, type NodeMonitor } from '@/services/dashboard';
   import useLoading from '@/hooks/loading';
 
   const { loading, setLoading } = useLoading(true);

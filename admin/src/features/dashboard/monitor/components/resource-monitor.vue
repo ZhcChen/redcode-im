@@ -64,7 +64,7 @@
 
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
-  import { getSystemStats, type SystemStats } from '@/api/dashboard';
+  import { getSystemStats, type SystemStats } from '@/services/dashboard';
 
   const systemStats = ref<SystemStats>();
   let timer: number | null = null;

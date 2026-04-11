@@ -19,7 +19,7 @@
 
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
-  import { getSystemMonitor } from '@/api/dashboard';
+  import { getSystemMonitor } from '@/services/dashboard';
 
   interface MonitorItem {
     label: string;

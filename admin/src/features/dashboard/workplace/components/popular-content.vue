@@ -75,7 +75,7 @@
 <script lang="ts" setup>
   import { ref, onMounted, onUnmounted } from 'vue';
   import useLoading from '@/hooks/loading';
-  import { getPopularContent } from '@/api/dashboard';
+  import { getPopularContent } from '@/services/dashboard';
 
   interface PopularRecord {
     key: number;

@@ -23,7 +23,7 @@
   import useChartOption from '@/hooks/chart-option';
   import { ToolTipFormatterParams } from '@/types/echarts';
   import { AnyObject } from '@/types/global';
-  import { getDataStatistics } from '@/api/dashboard';
+  import { getDataStatistics } from '@/services/dashboard';
 
   interface ContentDataRecord {
     x: string;

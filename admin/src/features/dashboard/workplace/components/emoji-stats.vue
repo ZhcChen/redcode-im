@@ -47,7 +47,7 @@
   import {
     getDashboardEmojiStats,
     type DashboardEmojiStats,
-  } from '@/api/dashboard';
+  } from '@/services/dashboard';
 
   defineOptions({
     name: 'EmojiStats',
