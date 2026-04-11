@@ -1,10 +1,10 @@
-import http from '@/services/http';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
+import http from '@/services/http';
 import {
-  getAccessToken,
   clearAccessToken,
+  getAccessToken,
   requestAccessTokenRefresh,
   shouldBypassAccessTokenRefresh,
 } from '@/services/auth-runtime';
@@ -18,10 +18,6 @@ export interface HttpResponse<T = unknown> {
 
 http.interceptors.request.use(
   (config: AxiosRequestConfig) => {
-    // let each request carry token
-    // this example using the JWT token
-    // Authorization is a custom headers key
-    // please modify it according to the actual situation
     const token = getAccessToken();
     if (token) {
       if (!config.headers) {
@@ -31,11 +27,9 @@ http.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    // do something
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
+
 http.interceptors.response.use(
   (response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
@@ -48,7 +42,7 @@ http.interceptors.response.use(
     if (hasCustomCode && res.code !== 20000) {
       Message.error({
         content: res.msg || 'Error',
-        duration: (5 * 1000) as number,
+        duration: 5 * 1000,
       });
       if (
         res.code &&
@@ -62,7 +56,6 @@ http.interceptors.response.use(
           okText: 'Re-Login',
           async onOk() {
             const userStore = useUserStore();
-
             await userStore.logout();
             window.location.reload();
           },
@@ -91,7 +84,6 @@ http.interceptors.response.use(
 
     const status = error?.response?.status;
 
-    // 处理 401：尝试使用刷新令牌无感续签
     if (status === 401) {
       const originalRequest = error.config || {};
       const shouldRetry = !shouldBypassAccessTokenRefresh(originalRequest.url);
@@ -115,11 +107,9 @@ http.interceptors.response.use(
       }
     }
 
-    // 只有在没有自定义错误处理时才显示通用错误消息
     const isCustomHandled = error?.config?.suppressGlobalErrorMessage;
 
     if (!isCustomHandled) {
-      // 根据状态码显示不同的错误消息
       let displayMessage = message;
       if (status === 404) {
         displayMessage = '请求的资源不存在';

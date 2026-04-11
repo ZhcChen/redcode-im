@@ -48,12 +48,6 @@ bun run dev
 
 访问 http://localhost:8011
 
-如需启用旧的本地 Mock 数据，再显式打开：
-
-```bash
-VITE_ENABLE_DEV_MOCKS=true bun run dev
-```
-
 ### 构建
 
 构建生产环境:
@@ -131,7 +125,6 @@ admin/
 
 ```
 VITE_API_BASE_URL=开发环境 API 地址
-VITE_ENABLE_DEV_MOCKS=false
 ```
 
 ### 生产环境 (.env.production)

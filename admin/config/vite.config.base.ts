@@ -41,9 +41,6 @@ export default defineConfig({
     '__VITE_ENABLE_DATA_CLEANUP__': JSON.stringify(
       process.env.VITE_ENABLE_DATA_CLEANUP || 'false'
     ),
-    '__VITE_ENABLE_DEV_MOCKS__': JSON.stringify(
-      process.env.VITE_ENABLE_DEV_MOCKS || 'false'
-    ),
   },
   css: {
     preprocessorOptions: {

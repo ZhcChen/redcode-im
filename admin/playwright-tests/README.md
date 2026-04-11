@@ -18,8 +18,6 @@ cd admin
 bun run dev
 ```
 
-> 默认不启用前端本地 mock。若要手工验证旧 mock 页面，显式加 `VITE_ENABLE_DEV_MOCKS=true`。
-
 2) 运行全量 E2E：
 
 ```bash

@@ -1,6 +1,5 @@
 import { ref, UnwrapRef } from 'vue';
-import { AxiosResponse } from 'axios';
-import { HttpResponse } from '@/api/interceptor';
+import type { HttpResponse } from '@/services/http-interceptor';
 import useLoading from './loading';
 
 // use to fetch list
@@ -9,7 +8,7 @@ import useLoading from './loading';
 // example: useRequest(api.bind(null, {}))
 
 export default function useRequest<T>(
-  api: () => Promise<AxiosResponse<HttpResponse>>,
+  api: () => Promise<HttpResponse<T>>,
   defaultValue = [] as unknown as T,
   isLoading = true
 ) {
