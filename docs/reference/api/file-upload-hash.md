@@ -108,7 +108,7 @@
 #### 3.1.1 直传签名
 
 - 接口：`POST /rooms/{room_id}/messages/attachments/signature`
-- 请求体扩展：详见 `backend/docs/api/messages.md` 中的“消息附件直传”一节。
+- 请求体扩展：详见 `docs/reference/api/messages.md` 中的“消息附件直传”一节。
 - 行为：
   1. 校验房间与权限；
   2. 验证 `content_type` 和 `file_size` 是否符合限制；
@@ -141,7 +141,7 @@
 
 ### 3.2 用户头像
 
-详见 `backend/docs/api/user-profile.md`：
+详见 `docs/reference/api/user-profile.md`：
 
 - `POST /users/me/avatar/direct-upload`：
   - 请求体新增 `file_size`、`hash_value`、`hash_alg`；
@@ -159,7 +159,7 @@
 
 ### 3.4 安装包与热更新补丁
 
-详见 `backend/docs/api/version-management.md`：
+详见 `docs/reference/api/version-management.md`：
 
 - `POST /api/admin/app-versions/upload/signature`：
   - 请求体新增 `file_size`、`hash_value`、`hash_alg`；
@@ -177,4 +177,3 @@
    - 统一使用 MD5（`hash_alg = 1`），后续如需扩展 SHA256，可通过 `hash_alg = 2` 实现。
 3. 复用已有文件时，接口会返回 `signature = null`，前端必须根据这一点跳过 COS 上传流程，仅使用返回的 `key` 绑定业务数据。
 4. 后续如需实现 COS 级的文件清理任务，可根据 `file_upload_records.status = 3` 标记已删除的对象，避免继续被复用。
-

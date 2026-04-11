@@ -4,7 +4,7 @@
 >
 > 详细参数与响应请参考：
 > - `docs/reference/api/api-reference.md`（全量路由清单）
-> - `backend/docs/api/README.md`（后端专题文档索引）
+> - `docs/reference/api/README.md`（专题文档索引）
 
 ## 基础信息
 

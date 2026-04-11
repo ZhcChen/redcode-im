@@ -8,6 +8,8 @@
 - **提交规范**: 遵循 **Conventional Commits**；完成功能或修复后立即提交并推送。
 - **数据库**: 禁止修改已有迁移文件；新增变更使用 `YYYYMMDDHHMMSS_desc.sql`；禁用 PostgreSQL 枚举。
 - **测试**: 核心逻辑修改后必须运行测试（后端 `cargo test`，移动端 `flutter test`；全栈回归入口见 `docs/reference/testing/README.md` 与 `tests/run.sh`）。
+- **Frontend 真机测试设备**: 默认使用 `Pixel 8 Pro (3A091FDJG001DN)` 进行 frontend 模块的真机 smoke、integration 与联调验证；除非用户明确指定其他设备。
+- **Frontend 真机测试网络**: 每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/solutions/`、`docs/reference/`、`docs/reports/`）。
 - **Docker Compose**: 本机统一使用 `docker compose`；Backend 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
@@ -25,9 +27,10 @@
   - 启动：`screen -dmS admin bash -c 'cd admin && npm run dev'`
   - 查看日志：`screen -r admin`（`Ctrl+A D` 退回后台）
   - 停止：`screen -S admin -X quit`
+  - 开发端口：`8011`
   - 重启流程：
     1. `screen -S admin -X quit`
-    2. `lsof -ti:5173 | xargs kill -9`
+    2. `lsof -ti:8011 | xargs kill -9`
     3. `screen -dmS admin bash -c 'cd admin && npm run dev'`
 - **测试栈（不要复用 dev）**:
   - `tests/docker-compose.yml` / `./tests/run.sh`

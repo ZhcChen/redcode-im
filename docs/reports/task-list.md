@@ -93,3 +93,4 @@
 - ✅ `tests/run.sh` 已拆分为按 mode 执行的 backend contract 入口，并补了 workflow tooling 守护测试
 - ✅ admin 已补 live Playwright 快捷脚本，并开始清理 lockfile / 测试产物 / 无用说明文件残留
 - ✅ desktop 已对齐 macOS ad-hoc 打包脚本，并开始清理过期示例 / 说明残留
+- ✅ 仓库级文档与配置已开始对齐：CE 兼容入口、API 文档路径、website 私有部署文件忽略
