@@ -128,7 +128,7 @@ branch: feat/storage-b2-admin
   - 关键 Playwright 回归 18 条
 
 ### Unit 5: Admin 领域服务继续收口
-- **状态**: active
+- **状态**: done
 - **目标**: 把还停留在 `admin/src/api/*.ts` 的调用层按领域迁到 `admin/src/services/*`，让 `src/api` 退出主架构。
 - **执行说明**: 先迁高频领域，再迁低频工具域，保持每次变更可独立验证。
 - **关键文件**:
@@ -156,7 +156,7 @@ branch: feat/storage-b2-admin
   - `admin/playwright-tests/specs/storage-provider-b2.spec.ts`
 
 ### Unit 6: 删除兼容层与模板残留
-- **状态**: pending
+- **状态**: done
 - **目标**: 去掉 Admin 当前仍保留的 legacy compatibility，缩小维护面。
 - **关键文件**:
   - `admin/src/shared/access/route-access.ts`
@@ -182,7 +182,7 @@ branch: feat/storage-b2-admin
   - `admin/playwright-tests/specs/live-backend-smoke.spec.ts`
 
 ### Unit 7: B2 后台 / 后端合同闭环
-- **状态**: pending
+- **状态**: done
 - **目标**: 让 B2 的 Admin 表单、后端 provider 解析、文档与回归测试完全对齐。
 - **关键文件**:
   - `admin/src/features/operations/components/storage-provider-form-modal.vue`
@@ -203,7 +203,7 @@ branch: feat/storage-b2-admin
   - 后端对应 admin / storage 测试（新增到 `tests/go/` 或 `backend/tests/`）
 
 ### Unit 8: SQL 迁移体系整合
-- **状态**: pending
+- **状态**: done
 - **目标**: 把当前 SQL 基线、迁移目录、legacy 归档与校验脚本整理成自洽体系。
 - **关键文件**:
   - `backend/sql/base.sql`
@@ -225,7 +225,7 @@ branch: feat/storage-b2-admin
   - `cargo test --test database_migration_smoke`
 
 ### Unit 9: Admin / Backend 合约测试补齐
-- **状态**: pending
+- **状态**: done
 - **目标**: 让当前分支的关键链路不只依赖 Playwright UI 证明，还要有后端合约层证明。
 - **关键文件**:
   - `tests/go/`
@@ -256,8 +256,8 @@ branch: feat/storage-b2-admin
 - **说明**: 这是下一层工作，先排队，不并入当前最小闭环。
 
 ## 当前剩余任务的执行顺序
-1. Unit 5：继续把 `admin/src/api/*` 迁到领域服务。
-2. Unit 6：删除 compatibility / mock / template 残留。
+1. 当前主线 Unit 1-9 已完成并完成验证。
+2. Unit 10（message runtime 全链路收口）继续保持 `pending-next`，作为下一条独立主线推进。
 3. Unit 7：补完 B2 合同验证与 API 文档。
 4. Unit 8：整理 SQL 迁移体系并跑一致性校验。
 5. Unit 9：补 Go / backend 合约测试。

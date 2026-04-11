@@ -8,39 +8,6 @@
 
 ## 当前主执行线（P0）
 
-1. **Admin 架构重构收尾**
-   - 主计划：`docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md`
-   - 当前优先顺序：
-     1. `admin/src/api/*` -> 领域服务收口
-     2. 删除 compatibility / mock / template 残留
-     3. 清理 legacy 结构与无效说明文件
-
-2. **B2 / bootstrap / SQL 合同闭环**
-   - 覆盖对象：
-     - `backend/src/storage/b2.rs`
-     - `backend/src/handlers/auth.rs`
-     - `backend/sql/base.sql`
-     - `backend/sql/migrations/`
-   - 目标：
-     - B2 后台配置、后端校验、文档、测试一致
-     - 首管 bootstrap 初始化闭环稳定
-     - SQL base 与 migration 逻辑自洽
-
-3. **补齐 admin / backend 合约测试**
-   - 当前最缺：
-     - bootstrap
-     - RBAC
-     - storage provider B2
-     - message runtime settings
-   - 入口：
-     - `admin/playwright-tests/`
-     - `tests/go/`
-     - `tests/run.sh`
-
----
-
-## 下一层工作（P1）
-
 1. **Message runtime 全链路切换**
    - 当前后台已支持配置面与部分行为约束。
    - 下一步需补齐：
@@ -48,16 +15,28 @@
      - plaintext / e2ee 模式消费差异
      - 搜索 / 历史 / 引用 / 转发 / 反应 / 已读等链路的一致行为
 
-2. **Dashboard / dev mock 债务清理**
-   - `admin/src/mock/`
-   - `admin/src/features/dashboard/**/mock.ts`
-   - 需要明确哪些仍保留为开发态模拟，哪些应删除或替换成真实接口。
-
-3. **测试入口与命令体系整理**
+2. **测试入口与命令体系整理**
    - 根目录 `Makefile`
    - `docs/reference/testing/README.md`
    - 各模块 README
    - 目标是把常用 dev / test / verify 命令整理成稳定入口。
+
+3. **跨模块文档清理**
+   - 聚焦当前已完成主线的 README / plan / report 口径同步。
+   - 清理已失效的 legacy 目录引用与过期说明。
+
+---
+
+## 下一层工作（P1）
+
+1. **Dashboard / dev mock 债务清理**
+   - `admin/src/mock/`
+   - `admin/src/features/dashboard/**/mock.ts`
+   - 需要明确哪些仍保留为开发态模拟，哪些应删除或替换成真实接口。
+
+2. **更细粒度的服务层拆分与共享类型整理**
+   - 当前 `admin/src/services/` 已收口完成。
+   - 后续可按业务域继续合并重复类型、抽共享 helper，减少横向重复。
 
 ---
 
@@ -110,3 +89,5 @@
 - ✅ admin 已把 user / version / audit / log / chat-history / emoji 等小型 `src/api` 文件迁到 `src/services`
 - ✅ admin 已完成 `src/api` 业务依赖清零，`settings.ts` 也已迁入 `src/services`
 - ✅ admin 已把单体 `services/settings.ts` 拆分为 documents / push / storage / general 四组领域服务
+- ✅ `backend/scripts/verify-base-sql.sh` 已通过，SQL baseline / active migration / legacy 归档口径一致
+- ✅ `./tests/run.sh go` 已完整通过，admin/bootstrap/RBAC/B2/message runtime 等后端合约链路稳定
