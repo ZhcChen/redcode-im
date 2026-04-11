@@ -275,6 +275,10 @@
           </svg>
         </button>
         <div class="chat-input">
+          <div class="runtime-mode-hint">
+            <div class="runtime-mode-hint__title">{{ messageRuntimeNotice.title }}</div>
+            <div class="runtime-mode-hint__desc">{{ messageRuntimeNotice.description }}</div>
+          </div>
           <div v-if="replyingMessage" class="reply-bar">
             <div class="reply-title">回复 {{ replyingMessage.senderName }}</div>
             <div class="reply-content">{{ getTextContent(replyingMessage) }}</div>
@@ -792,6 +796,7 @@ import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
 import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
+import { getMessageRuntimeNotice } from '../services/messageRuntime'
 import EmojiPicker, { type EmojiSelectData } from '../components/EmojiPicker.vue'
 import { EmojiPackApi } from '../api/emoji-pack'
 import AddGroupMemberDialog from '../components/AddGroupMemberDialog.vue'
@@ -2881,6 +2886,9 @@ const router = useRouter()
 const store = useStore() as any
 const selectedChat = (ref as any)<ChatItem | null>(null)
 const isRelayOnlyMode = computed(() => Boolean(store.getters.isRelayOnlyMessageRuntime))
+const messageRuntimeNotice = computed(() =>
+  getMessageRuntimeNotice(store.getters.messageRuntime)
+)
 
 // 计算属性：获取当前账号的路由查询参数（用于多实例页面架构）
 const routeQuery = computed(() => {
@@ -11615,6 +11623,27 @@ const loadMessageList = async (groupId: string) => {
 
 .chat-input {
   padding: 16px 24px 40px 24px;
+
+  .runtime-mode-hint {
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: #f5f7fb;
+    border: 1px solid #e5e7ee;
+
+    &__title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 4px;
+    }
+
+    &__desc {
+      font-size: 12px;
+      line-height: 1.5;
+      color: #6b7280;
+    }
+  }
 
   .reply-bar {
     position: relative;

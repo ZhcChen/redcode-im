@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MESSAGE_RUNTIME,
   getMessageRuntimeCapabilities,
+  getMessageRuntimeNotice,
   resolveGeneralSettingsPayload,
 } from '@/services/messageRuntime'
 
@@ -44,6 +45,30 @@ describe('message runtime service', () => {
       canReact: false,
       canServerSearch: false,
       canServerReadSync: false,
+    })
+  })
+
+
+
+  it('builds runtime notice copy for plaintext and e2ee modes', () => {
+    expect(
+      getMessageRuntimeNotice({
+        serverStorageMode: 'relay_only',
+        contentAuditMode: 'plaintext',
+      })
+    ).toEqual({
+      title: '当前配置目标：明文可审计',
+      description: '服务器仅做实时转发且不保存聊天记录，消息内容仍可被服务端审计。',
+    })
+
+    expect(
+      getMessageRuntimeNotice({
+        serverStorageMode: 'persist',
+        contentAuditMode: 'e2ee',
+      })
+    ).toEqual({
+      title: '当前配置目标：端到端加密',
+      description: '消息会保存在服务器，按当前配置目标不应被服务端审计。',
     })
   })
 

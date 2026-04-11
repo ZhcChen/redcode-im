@@ -69,6 +69,9 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   int? cachedRoomMemberCount(String roomId) => null;
 
   @override
+  Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -113,11 +116,13 @@ Message _message() {
   );
 }
 
-ChatProvider _buildProvider(_FakeWebSocketService websocketService) {
-  final runtime = const MessageRuntimeSettings(
+ChatProvider _buildProvider(
+  _FakeWebSocketService websocketService, {
+  MessageRuntimeSettings runtime = const MessageRuntimeSettings(
     serverStorageMode: 'relay_only',
     contentAuditMode: 'plaintext',
-  );
+  ),
+}) {
   final message = _message();
   return ChatProvider(
     messageService: _FakeMessageService(
@@ -204,5 +209,33 @@ void main() {
     expect(find.text('已选 1 条'), findsOneWidget);
     expect(find.text('转发'), findsNothing);
     expect(find.text('删除'), findsNothing);
+  });
+
+  testWidgets('shows audit mode hint for e2ee runtime', (tester) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(
+      websocketService,
+      runtime: const MessageRuntimeSettings(
+        serverStorageMode: 'persist',
+        contentAuditMode: 'e2ee',
+      ),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('当前配置目标：端到端加密'), findsOneWidget);
+    expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsOneWidget);
   });
 }

@@ -15,8 +15,10 @@
      - 聊天页动作菜单与多选栏已隐藏 relay_only 不支持动作
      - 发送 / 引用 / 转发 / pin / 删除 / reaction / 服务端已读同步已做 guard
      - 搜索页已切为“仅本地缓存搜索”并跳过服务端搜索
+   - frontend / desktop 已补 plaintext / e2ee 展示层提示闭环：
+     - 聊天输入区会展示当前审计模式与服务器存储策略提示
+     - `e2ee` 提示文案明确为“按当前配置目标”，避免误导为协议已完整落地
    - 下一步需补齐：
-     - plaintext / e2ee 模式消费差异
      - 搜索 / 历史 / 引用 / 转发 / 反应 / 已读等链路的一致行为
 
 2. **测试入口与命令体系整理**
@@ -88,7 +90,9 @@
 - ✅ frontend 聊天列表 / 搜索 / 群管理若干页已收口 Flutter 新 API 与 mounted 守卫，头像颜色种子改为稳定 roomId / senderId
 - ✅ frontend 开发环境默认 API / WS 已切到 localhost，启动页更新弹窗已切 `PopScope`，历史聊天示例页残留已移除
 - ✅ frontend 已补 `message_runtime` 本地缓存与 relay_only 第一轮降级：聊天页动作/多选栏裁剪、provider guard、本地缓存搜索提示与服务端搜索跳过
+- ✅ frontend 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
+- ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

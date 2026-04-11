@@ -31,6 +31,11 @@ export interface MessageRuntimeCapabilities {
   canServerReadSync: boolean
 }
 
+export interface MessageRuntimeNotice {
+  title: string
+  description: string
+}
+
 export const DEFAULT_APP_NAME = 'Chatly'
 
 export const DEFAULT_MESSAGE_RUNTIME: MessageRuntimeSettings = Object.freeze({
@@ -104,4 +109,34 @@ export const getMessageRuntimeCapabilities = (
     canServerSearch: isPersist,
     canServerReadSync: isPersist,
   }
+}
+
+export const getMessageRuntimeNotice = (
+  runtime: MessageRuntimeSettings,
+): MessageRuntimeNotice => {
+  const title = runtime.contentAuditMode === 'e2ee'
+    ? '当前配置目标：端到端加密'
+    : '当前配置目标：明文可审计'
+
+  if (runtime.serverStorageMode === 'relay_only') {
+    return runtime.contentAuditMode === 'e2ee'
+      ? {
+          title,
+          description: '服务器仅做实时转发且不保存聊天记录，按当前配置目标不应被服务端审计。',
+        }
+      : {
+          title,
+          description: '服务器仅做实时转发且不保存聊天记录，消息内容仍可被服务端审计。',
+        }
+  }
+
+  return runtime.contentAuditMode === 'e2ee'
+    ? {
+        title,
+        description: '消息会保存在服务器，按当前配置目标不应被服务端审计。',
+      }
+    : {
+        title,
+        description: '消息会保存在服务器，管理员可审计消息内容。',
+      }
 }

@@ -7,43 +7,46 @@ import 'package:http/testing.dart';
 
 void main() {
   group('SettingsService', () {
-    test('fetchGeneralSettings parses message runtime and falls back safely', () async {
-      final okService = SettingsService(
-        client: MockClient(
-          (_) async => http.Response(
-            jsonEncode({
-              'app_name': 'Bear Chat',
-              'message_runtime': {
-                'server_storage_mode': 'relay_only',
-                'content_audit_mode': 'e2ee',
-              },
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
+    test(
+      'fetchGeneralSettings parses message runtime and falls back safely',
+      () async {
+        final okService = SettingsService(
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'app_name': 'Bear Chat',
+                'message_runtime': {
+                  'server_storage_mode': 'relay_only',
+                  'content_audit_mode': 'e2ee',
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
           ),
-        ),
-      );
+        );
 
-      final fallbackService = SettingsService(
-        client: MockClient(
-          (_) async => http.Response(
-            jsonEncode(['invalid']),
-            200,
-            headers: {'content-type': 'application/json'},
+        final fallbackService = SettingsService(
+          client: MockClient(
+            (_) async => http.Response(
+              jsonEncode(['invalid']),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
           ),
-        ),
-      );
+        );
 
-      final okSettings = await okService.fetchGeneralSettings();
-      expect(okSettings.appName, 'Bear Chat');
-      expect(okSettings.messageRuntime.serverStorageMode, 'relay_only');
-      expect(okSettings.messageRuntime.contentAuditMode, 'e2ee');
+        final okSettings = await okService.fetchGeneralSettings();
+        expect(okSettings.appName, 'Bear Chat');
+        expect(okSettings.messageRuntime.serverStorageMode, 'relay_only');
+        expect(okSettings.messageRuntime.contentAuditMode, 'e2ee');
 
-      final fallbackSettings = await fallbackService.fetchGeneralSettings();
-      expect(fallbackSettings.appName, '');
-      expect(fallbackSettings.messageRuntime.serverStorageMode, 'persist');
-      expect(fallbackSettings.messageRuntime.contentAuditMode, 'plaintext');
-    });
+        final fallbackSettings = await fallbackService.fetchGeneralSettings();
+        expect(fallbackSettings.appName, '');
+        expect(fallbackSettings.messageRuntime.serverStorageMode, 'persist');
+        expect(fallbackSettings.messageRuntime.contentAuditMode, 'plaintext');
+      },
+    );
 
     test(
       'fetchAppName returns app_name on success and empty on non-200',
@@ -101,6 +104,28 @@ void main() {
         expect(await service.fetchAppName(), 'Legacy Name');
       },
     );
+
+    test('message runtime exposes audit mode notice copy', () {
+      const plaintextRelay = MessageRuntimeSettings(
+        serverStorageMode: 'relay_only',
+        contentAuditMode: 'plaintext',
+      );
+      const e2eePersist = MessageRuntimeSettings(
+        serverStorageMode: 'persist',
+        contentAuditMode: 'e2ee',
+      );
+
+      expect(plaintextRelay.runtimeNoticeTitle, '当前配置目标：明文可审计');
+      expect(
+        plaintextRelay.runtimeNoticeDescription,
+        '服务器仅做实时转发且不保存聊天记录，消息内容仍可被服务端审计。',
+      );
+      expect(e2eePersist.runtimeNoticeTitle, '当前配置目标：端到端加密');
+      expect(
+        e2eePersist.runtimeNoticeDescription,
+        '消息会保存在服务器，按当前配置目标不应被服务端审计。',
+      );
+    });
 
     test(
       'fetchPrivacyPolicy parses payload and throws on invalid format',

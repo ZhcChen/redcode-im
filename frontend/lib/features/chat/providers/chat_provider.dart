@@ -8,6 +8,8 @@ import '../../../core/constants/app_config.dart';
 import '../../../core/services/app_config_service.dart';
 import '../../../core/services/message_service.dart'
     show MessageAttachmentDraft, MessageService, MessageStatus;
+import '../../../core/services/settings_service.dart'
+    show MessageRuntimeSettings;
 import '../../../core/services/websocket_service.dart';
 import '../models/message_model.dart';
 import '../models/chat_model.dart';
@@ -31,6 +33,8 @@ class ChatProvider with ChangeNotifier {
 
   bool get isRelayOnlyMode =>
       _appConfigService.currentMessageRuntime.isRelayOnly;
+  MessageRuntimeSettings get currentMessageRuntime =>
+      _appConfigService.currentMessageRuntime;
 
   // 当前房间ID
   String? _currentRoomId;

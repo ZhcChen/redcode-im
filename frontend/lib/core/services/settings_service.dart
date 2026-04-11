@@ -54,6 +54,18 @@ class MessageRuntimeSettings {
   bool get isE2ee => contentAuditMode == 'e2ee';
   bool get isPlaintext => !isE2ee;
 
+  String get runtimeNoticeTitle => isE2ee ? '当前配置目标：端到端加密' : '当前配置目标：明文可审计';
+
+  String get runtimeNoticeDescription {
+    if (isRelayOnly) {
+      return isE2ee
+          ? '服务器仅做实时转发且不保存聊天记录，按当前配置目标不应被服务端审计。'
+          : '服务器仅做实时转发且不保存聊天记录，消息内容仍可被服务端审计。';
+    }
+
+    return isE2ee ? '消息会保存在服务器，按当前配置目标不应被服务端审计。' : '消息会保存在服务器，管理员可审计消息内容。';
+  }
+
   factory MessageRuntimeSettings.fromJson(Map<String, dynamic>? json) {
     return MessageRuntimeSettings(
       serverStorageMode:
