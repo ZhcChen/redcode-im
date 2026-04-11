@@ -236,7 +236,10 @@
   import { useI18n } from 'vue-i18n';
   import useLoading from '@/hooks/loading';
   import { Pagination } from '@/types/global';
-  import { getRoomChatHistory, type ChatMessage } from '@/api/chat-history';
+  import {
+    getRoomChatHistory,
+    type ChatMessage,
+  } from '@/services/chat-history';
   import { Message } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
   import { useRouter, useRoute } from 'vue-router';

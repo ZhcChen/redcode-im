@@ -147,7 +147,7 @@
     cleanupSystemLogs,
     type SystemLogEntry,
     type SystemLogQueryParams,
-  } from '@/api/system-log';
+  } from '@/services/system-log';
 
   const { loading, setLoading } = useLoading(true);
   const logList = ref<SystemLogEntry[]>([]);

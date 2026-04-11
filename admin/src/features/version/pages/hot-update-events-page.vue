@@ -304,8 +304,8 @@
     listHotUpdateEvents,
     type HotUpdateEventInfo,
     type ListHotUpdateEventsParams,
-  } from '@/api/hot-update';
-  import { AppPlatform, PlatformLabels } from '@/api/app-version';
+  } from '@/services/hot-update';
+  import { AppPlatform, PlatformLabels } from '@/services/app-version';
 
   const loading = ref(false);
   const events = ref<HotUpdateEventInfo[]>([]);

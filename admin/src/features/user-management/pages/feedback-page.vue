@@ -131,7 +131,7 @@
     getFeedbackList,
     type FeedbackItem,
     type FeedbackListParams,
-  } from '@/api/feedback';
+  } from '@/services/feedback';
 
   const { loading, setLoading } = useLoading();
 

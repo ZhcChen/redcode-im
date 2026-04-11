@@ -147,7 +147,7 @@
     updateUserAvatar,
     type UpdateUserProfileRequest,
     type ChangePasswordRequest,
-  } from '@/api/user-profile';
+  } from '@/services/user-profile';
   import {
     testCosUploadSignature,
     getDefaultStorageProvider,

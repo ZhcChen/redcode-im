@@ -206,7 +206,7 @@
     type FileUploadAuditTaskListEntry,
     type FileUploadAuditTaskQueryParams,
     type FileUploadAuditTaskDetailEntry,
-  } from '@/api/file-upload-audit';
+  } from '@/services/file-upload-audit';
 
   const { loading, setLoading } = useLoading(true);
   const taskList = ref<FileUploadAuditTaskListEntry[]>([]);

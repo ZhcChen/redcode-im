@@ -182,7 +182,7 @@
     getReportList,
     type ReportItem,
     type ReportListParams,
-  } from '@/api/report';
+  } from '@/services/report';
 
   const { loading, setLoading } = useLoading();
 

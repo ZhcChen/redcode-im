@@ -129,7 +129,7 @@
   import { reactive, onMounted } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
-  import { getCaptchaSetting, updateCaptchaSetting } from '@/api/user';
+  import { getCaptchaSetting, updateCaptchaSetting } from '@/services/user';
 
   const { loading, setLoading } = useLoading(false);
 

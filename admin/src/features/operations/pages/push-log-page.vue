@@ -235,7 +235,7 @@
     cleanupPushLogs,
     type PushLogEntry,
     type PushLogQueryParams,
-  } from '@/api/push-log';
+  } from '@/services/push-log';
 
   const { loading, setLoading } = useLoading(true);
   const logList = ref<PushLogEntry[]>([]);

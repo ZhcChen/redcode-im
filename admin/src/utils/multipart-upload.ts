@@ -4,7 +4,7 @@ import {
   completeAdminMultipartUpload,
   generateAdminMultipartPartSignature,
   type MultipartCompletedPart,
-} from '@/api/multipart-upload';
+} from '@/services/multipart-upload';
 import { uploadWithSignature } from '@/utils/direct-upload';
 
 const normalizeEtag = (etag: string) => etag.trim().replace(/"/g, '');

@@ -92,7 +92,7 @@
     updateUserStatus,
     type UserInfo,
     type UserListParams,
-  } from '@/api/user';
+  } from '@/services/user';
 
   const { loading, setLoading } = useLoading(true);
 

@@ -281,7 +281,7 @@
     type ListAppVersionsParams,
     AppPlatform,
     PlatformLabels,
-  } from '@/api/app-version';
+  } from '@/services/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
   import { computeFileHash } from '@/utils/fileHash';

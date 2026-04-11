@@ -455,7 +455,7 @@
     deleteEmojiItem,
     type EmojiPack,
     type EmojiItem,
-  } from '@/api/emoji-pack';
+  } from '@/services/emoji-pack';
   import {
     listStorageProviders,
     testCosUploadSignature,

@@ -256,7 +256,7 @@
     type HotUpdateInfo,
     type CreateHotUpdatePayload,
     type UpdateHotUpdatePayload,
-  } from '@/api/hot-update';
+  } from '@/services/hot-update';
   import {
     listAppVersions,
     getAppVersion,
@@ -265,7 +265,7 @@
     type AppVersionInfo,
     AppPlatform,
     PlatformLabels,
-  } from '@/api/app-version';
+  } from '@/services/app-version';
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
   import { computeFileHash } from '@/utils/fileHash';

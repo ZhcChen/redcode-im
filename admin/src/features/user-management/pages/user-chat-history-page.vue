@@ -325,7 +325,7 @@
     getChatHistory,
     type UserRoom,
     type ChatMessage,
-  } from '@/api/chat-history';
+  } from '@/services/chat-history';
   import { Message } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
   import { useRouter, useRoute } from 'vue-router';

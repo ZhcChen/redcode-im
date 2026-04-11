@@ -114,7 +114,7 @@
   import { reactive, computed, ref } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
-  import cleanupAllAppData from '@/api/data-cleanup';
+  import cleanupAllAppData from '@/services/data-cleanup';
 
   const { loading, setLoading } = useLoading(false);
   const showConfirmModal = ref(false);

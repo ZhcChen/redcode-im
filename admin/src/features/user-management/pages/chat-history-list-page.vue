@@ -268,7 +268,7 @@
     getChatHistory,
     type ChatMessage,
     type ChatHistoryParams,
-  } from '@/api/chat-history';
+  } from '@/services/chat-history';
   import { Message } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
   import { useRouter } from 'vue-router';

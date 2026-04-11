@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { logout as userLogout } from '@/api/user';
+import { logout as userLogout } from '@/services/user';
 import {
   setAccessToken,
   setRefreshToken,
