@@ -53,7 +53,10 @@
   import { computed, reactive, watch } from 'vue';
   import { Message } from '@arco-design/web-vue';
 
-  import type { SetCosCorsRequest, StorageProvider } from '@/services/settings';
+  import type {
+    SetCosCorsRequest,
+    StorageProvider,
+  } from '@/services/storage-providers';
   import {
     resolveDefaultCorsOrigin,
     splitMultiValueInput,

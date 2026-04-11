@@ -461,7 +461,7 @@
     testCosUploadSignature,
     testCosDownloadUrl,
     type StorageProvider,
-  } from '@/services/settings';
+  } from '@/services/storage-providers';
   import { uploadWithSignature } from '@/utils/direct-upload';
   import { computeFileHash } from '@/utils/fileHash';
 

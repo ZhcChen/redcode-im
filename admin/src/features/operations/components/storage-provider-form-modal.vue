@@ -123,7 +123,7 @@
   import type {
     CreateStorageProviderPayload,
     StorageProvider,
-  } from '@/services/settings';
+  } from '@/services/storage-providers';
 
   export type StorageProviderFormPayload = CreateStorageProviderPayload & {
     description?: string;

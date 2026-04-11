@@ -1,5 +1,5 @@
 import { ref, watch, onMounted } from 'vue';
-import { testCosDownloadUrl } from '@/services/settings';
+import { testCosDownloadUrl } from '@/services/storage-providers';
 
 /**
  * 全局缓存，用于在不同组件实例间复用已签署的 URL

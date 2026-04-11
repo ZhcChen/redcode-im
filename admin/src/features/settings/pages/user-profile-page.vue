@@ -152,7 +152,7 @@
     testCosUploadSignature,
     getDefaultStorageProvider,
     getCosDownloadUrl,
-  } from '@/services/settings';
+  } from '@/services/storage-providers';
   import { computeFileHash } from '@/utils/fileHash';
 
   const userStore = useUserStore();

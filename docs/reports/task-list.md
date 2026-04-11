@@ -109,3 +109,4 @@
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`
 - ✅ admin 已把 user / version / audit / log / chat-history / emoji 等小型 `src/api` 文件迁到 `src/services`
 - ✅ admin 已完成 `src/api` 业务依赖清零，`settings.ts` 也已迁入 `src/services`
+- ✅ admin 已把单体 `services/settings.ts` 拆分为 documents / push / storage / general 四组领域服务

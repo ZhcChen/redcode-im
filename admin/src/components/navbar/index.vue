@@ -172,7 +172,7 @@
   import {
     getDefaultStorageProvider,
     getCosDownloadUrl,
-  } from '@/services/settings';
+  } from '@/services/storage-providers';
   import MessageBox from '../message-box/index.vue';
 
   const appStore = useAppStore();

@@ -44,7 +44,7 @@
     getPrivacyPolicy,
     updatePrivacyPolicy,
     type DocumentContent,
-  } from '@/services/settings';
+  } from '@/services/legal-documents';
 
   const form = reactive({
     title: '',
