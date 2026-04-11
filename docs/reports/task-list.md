@@ -89,3 +89,4 @@
 - ✅ message runtime settings 已补 Go contract，并与 live Playwright 回归对齐
 - ✅ bootstrap status / repeat init 拒绝语义已补 Go contract
 - ✅ RBAC 已补管理员登录快照 / 权限检查接口的 Go contract
+- ✅ 根 Makefile 已整理为模块化入口，frontend 默认真机已切到 Pixel 8 Pro
