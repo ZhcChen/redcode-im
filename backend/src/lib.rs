@@ -27,8 +27,8 @@ pub use models::*;
 pub use crate::database::Database;
 pub use crate::redis::RedisManager;
 
-use std::sync::Arc;
 use logging::LogStore;
+use std::sync::Arc;
 
 /// 应用状态
 #[derive(Clone)]

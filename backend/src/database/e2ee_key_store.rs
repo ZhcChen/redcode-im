@@ -204,4 +204,3 @@ impl<'a> E2eeKeyStore<'a> {
         Ok(row.0)
     }
 }
-

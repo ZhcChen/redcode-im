@@ -1,3 +1,4 @@
+use crate::AppState;
 use axum::{
     body::Body,
     extract::State,
@@ -6,7 +7,6 @@ use axum::{
     response::Response,
 };
 use std::time::Instant;
-use crate::AppState;
 
 /// API 性能监控中间件
 pub async fn metrics_middleware(
@@ -33,7 +33,10 @@ pub async fn metrics_middleware(
     // 异步记录指标，避免阻塞请求响应
     let redis = state.redis.get_session_manager(state.node_id.clone());
     tokio::spawn(async move {
-        if let Err(e) = redis.record_api_metric(method.as_str(), &path, duration, status).await {
+        if let Err(e) = redis
+            .record_api_metric(method.as_str(), &path, duration, status)
+            .await
+        {
             tracing::error!("Failed to record API metric: {:?}", e);
         }
     });

@@ -104,3 +104,4 @@
 - ✅ frontend 消息转发已放开到富媒体消息，转发失败时保留失败态，并补了 rich message 转发测试
 - ✅ frontend 聊天列表 / 搜索 / 群管理若干页已收口 Flutter 新 API 与 mounted 守卫，头像颜色种子改为稳定 roomId / senderId
 - ✅ frontend 开发环境默认 API / WS 已切到 localhost，启动页更新弹窗已切 `PopScope`，历史聊天示例页残留已移除
+- ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过

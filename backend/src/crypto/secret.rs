@@ -69,11 +69,7 @@ impl SecretCrypto {
         let raw = env::var("DATA_ENCRYPTION_KEY")
             .ok()
             .filter(|v| !v.trim().is_empty())
-            .or_else(|| {
-                env::var("JWT_SECRET")
-                    .ok()
-                    .filter(|v| !v.trim().is_empty())
-            })
+            .or_else(|| env::var("JWT_SECRET").ok().filter(|v| !v.trim().is_empty()))
             .ok_or_else(|| "DATA_ENCRYPTION_KEY / JWT_SECRET 均未设置".to_string())?;
 
         let mut hasher = Sha256::new();
@@ -110,4 +106,3 @@ mod tests {
         assert_eq!(decoded, plaintext);
     }
 }
-

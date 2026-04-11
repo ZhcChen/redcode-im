@@ -478,7 +478,7 @@ impl SessionManager {
         page_size: usize,
     ) -> RedisResult<(Vec<serde_json::Value>, usize)> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
-        
+
         let hits_key = CacheKeys::api_metrics_hits();
         let duration_key = CacheKeys::api_metrics_duration();
         let slow_key = CacheKeys::api_metrics_slow_log();
@@ -492,7 +492,7 @@ impl SessionManager {
         for (field, count) in hits {
             let total_dur = durations.get(&field).cloned().unwrap_or(0);
             let avg_dur = if count > 0 { total_dur / count } else { 0 };
-            
+
             let parts: Vec<&str> = field.splitn(2, ':').collect();
             let (method, path) = if parts.len() == 2 {
                 (parts[0], parts[1])
@@ -515,7 +515,7 @@ impl SessionManager {
         let total = all_results.len();
         let start = (page - 1) * page_size;
         let end = (start + page_size).min(total);
-        
+
         let paginated_results = if start < total {
             all_results[start..end].to_vec()
         } else {

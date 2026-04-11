@@ -222,10 +222,24 @@ impl LogStore for PostgresLogStore {
             ORDER BY created_at DESC
             LIMIT ${} OFFSET ${}
             "#,
-            where_clause, bind_idx, bind_idx + 1
+            where_clause,
+            bind_idx,
+            bind_idx + 1
         );
 
-        let mut data_builder = sqlx::query_as::<_, (Uuid, String, String, String, Option<serde_json::Value>, Option<String>, String, DateTime<Utc>)>(&data_query);
+        let mut data_builder = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                String,
+                String,
+                Option<serde_json::Value>,
+                Option<String>,
+                String,
+                DateTime<Utc>,
+            ),
+        >(&data_query);
 
         if let Some(ref level) = params.level {
             data_builder = data_builder.bind(level);
@@ -252,16 +266,18 @@ impl LogStore for PostgresLogStore {
 
         let logs = rows
             .into_iter()
-            .map(|(id, level, target, message, fields, span_id, node_id, created_at)| LogEntry {
-                id: Some(id),
-                level,
-                target,
-                message,
-                fields,
-                span_id,
-                node_id,
-                created_at,
-            })
+            .map(
+                |(id, level, target, message, fields, span_id, node_id, created_at)| LogEntry {
+                    id: Some(id),
+                    level,
+                    target,
+                    message,
+                    fields,
+                    span_id,
+                    node_id,
+                    created_at,
+                },
+            )
             .collect();
 
         Ok(LogQueryResult {
@@ -273,7 +289,18 @@ impl LogStore for PostgresLogStore {
     }
 
     async fn stats(&self) -> Result<LogStats, AppError> {
-        let row = sqlx::query_as::<_, (i64, i64, i64, i64, i64, Option<DateTime<Utc>>, Option<DateTime<Utc>>)>(
+        let row = sqlx::query_as::<
+            _,
+            (
+                i64,
+                i64,
+                i64,
+                i64,
+                i64,
+                Option<DateTime<Utc>>,
+                Option<DateTime<Utc>>,
+            ),
+        >(
             r#"
             SELECT
                 COUNT(*) as total_count,

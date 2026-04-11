@@ -418,10 +418,7 @@ impl ServerPush {
                     .map(|ts| ts.to_rfc3339())
                     .unwrap_or_default(),
                 update_type: data.update_type.to_string(),
-                edited_at: data
-                    .edited_at
-                    .map(|ts| ts.to_rfc3339())
-                    .unwrap_or_default(),
+                edited_at: data.edited_at.map(|ts| ts.to_rfc3339()).unwrap_or_default(),
                 content: data.content.clone().unwrap_or_default(),
             }),
             ServerPush::PinUpdate { data } => Payload::PinUpdate(ws::ServerPinUpdate {
@@ -539,13 +536,15 @@ impl ServerPush {
                 avatar_url: avatar_url.clone().unwrap_or_default(),
                 avatar_object_key: avatar_object_key.clone().unwrap_or_default(),
             }),
-            ServerPush::ReactionUpdate { data } => Payload::ReactionUpdate(ws::ServerReactionUpdate {
-                room_id: data.room_id.to_string(),
-                message_id: data.message_id.to_string(),
-                reaction_key: data.reaction_key.clone(),
-                user_id: data.user_id.to_string(),
-                action: data.action.to_string(),
-            }),
+            ServerPush::ReactionUpdate { data } => {
+                Payload::ReactionUpdate(ws::ServerReactionUpdate {
+                    room_id: data.room_id.to_string(),
+                    message_id: data.message_id.to_string(),
+                    reaction_key: data.reaction_key.clone(),
+                    user_id: data.user_id.to_string(),
+                    action: data.action.to_string(),
+                })
+            }
             ServerPush::TypingUpdate { data } => Payload::TypingUpdate(ws::ServerTypingUpdate {
                 room_id: data.room_id.to_string(),
                 user_id: data.user_id.to_string(),

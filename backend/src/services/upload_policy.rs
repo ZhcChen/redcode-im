@@ -242,7 +242,8 @@ async fn load_upload_policy_from_db(state: &AppState) -> Option<UploadPolicy> {
 
             // 当前后端固定强制“语音不可混合其他内容”，暂不允许通过策略放开
             if policy.audio_only.enabled != default.audio_only.enabled
-                || policy.audio_only.force_single_attachment != default.audio_only.force_single_attachment
+                || policy.audio_only.force_single_attachment
+                    != default.audio_only.force_single_attachment
                 || policy.audio_only.allow_text != default.audio_only.allow_text
             {
                 tracing::warn!("UploadPolicy: audio_only 当前版本固定为默认值，已忽略 DB 配置");

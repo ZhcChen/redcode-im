@@ -12,12 +12,12 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use std::collections::HashMap;
 use std::{
     net::SocketAddr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
-use std::collections::HashMap;
 use tracing::warn;
 
 /// IP 速率限制存储
@@ -63,7 +63,10 @@ impl RateLimitStore {
         }
 
         // 记录当前请求
-        requests.entry(ip.to_string()).or_insert_with(Vec::new).push(now);
+        requests
+            .entry(ip.to_string())
+            .or_insert_with(Vec::new)
+            .push(now);
         false
     }
 
@@ -84,10 +87,7 @@ impl RateLimitStore {
 }
 
 /// 安全头中间件
-pub async fn security_headers(
-    request: axum::extract::Request,
-    next: Next,
-) -> Response {
+pub async fn security_headers(request: axum::extract::Request, next: Next) -> Response {
     let mut response = next.run(request).await;
 
     // 添加安全头
@@ -106,10 +106,7 @@ pub async fn security_headers(
     );
 
     // 防止页面被嵌入 iframe
-    headers.insert(
-        "X-Frame-Options",
-        HeaderValue::from_static("DENY"),
-    );
+    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
 
     // 严格的传输安全（仅 HTTPS）
     headers.insert(
@@ -174,10 +171,7 @@ pub async fn rate_limit_middleware(
         warn!("Rate limit exceeded for IP: {}", ip);
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
-            format!(
-                "Too many requests from {}. Please try again later.",
-                ip
-            ),
+            format!("Too many requests from {}. Please try again later.", ip),
         ));
     }
 
@@ -190,7 +184,8 @@ pub async fn api_key_validation(
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     // 获取 API 密钥（如果需要）
-    let api_key = request.headers()
+    let api_key = request
+        .headers()
         .get("X-API-Key")
         .and_then(|v| v.to_str().ok());
 
@@ -255,7 +250,7 @@ pub fn create_cors_layer() -> tower_http::cors::CorsLayer {
 
 /// JWT 安全增强
 pub mod jwt_security {
-    use jsonwebtoken::{Validation};
+    use jsonwebtoken::Validation;
     use serde::{Deserialize, Serialize};
 
     /// JWT 声明结构
@@ -315,10 +310,11 @@ pub mod jwt_security {
 
         use std::time::{SystemTime, UNIX_EPOCH};
         // 验证过期时间
-        if claims.exp < SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
+        if claims.exp
+            < SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         {
             return Err(jsonwebtoken::errors::ErrorKind::ExpiredSignature.into());
         }
