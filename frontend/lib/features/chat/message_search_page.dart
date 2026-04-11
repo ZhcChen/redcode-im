@@ -111,10 +111,11 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
     } catch (_) {
       // 索引构建失败时不阻塞：仍可继续使用服务端搜索
     } finally {
-      if (!mounted) return;
-      setState(() {
-        _isIndexing = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isIndexing = false;
+        });
+      }
     }
   }
 
@@ -192,10 +193,11 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
       });
       unawaited(_syncServerResults(offset: 0, seq: seq));
     } finally {
-      if (!mounted || seq != _searchSequence) return;
-      setState(() {
-        _isSearching = false;
-      });
+      if (mounted && seq == _searchSequence) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
     }
   }
 
@@ -236,10 +238,11 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
         await _syncServerResults(offset: _serverOffset, seq: seq);
       }
     } finally {
-      if (!mounted || seq != _searchSequence) return;
-      setState(() {
-        _isLoadingMore = false;
-      });
+      if (mounted && seq == _searchSequence) {
+        setState(() {
+          _isLoadingMore = false;
+        });
+      }
     }
   }
 
@@ -585,7 +588,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: selectedRoom.isEmpty ? '' : selectedRoom,
+                      initialValue: selectedRoom.isEmpty ? '' : selectedRoom,
                       items: [
                         const DropdownMenuItem(value: '', child: Text('所有会话')),
                         ..._availableChats.map(
@@ -612,7 +615,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: selectedType.isEmpty ? '' : selectedType,
+                      initialValue: selectedType.isEmpty ? '' : selectedType,
                       items: const [
                         DropdownMenuItem(value: '', child: Text('所有类型')),
                         DropdownMenuItem(value: 'text', child: Text('文本')),

@@ -177,7 +177,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
               const Text('选择禁言时长：'),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
-                value: selectedDuration,
+                initialValue: selectedDuration,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
                   contentPadding: EdgeInsets.symmetric(

@@ -189,9 +189,8 @@ class _MessageAvatarState extends State<MessageAvatar> {
     final name = widget.message.displaySenderName.trim();
     final initial = AvatarColorUtils.getInitial(name);
     // 背景色使用稳定种子(优先 senderId)，保证与聊天列表一致
-    final seed = widget.message.senderId?.toString();
-    final backgroundColor =
-        AvatarColorUtils.generateBackgroundColor(seed ?? name);
+    final seed = widget.message.senderId.toString();
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return CircleAvatar(
       radius: widget.radius,

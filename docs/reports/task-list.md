@@ -102,3 +102,4 @@
 - ✅ frontend integration smoke 已统一切到 `IntegrationTestWidgetsFlutterBinding`，便于后续 Patrol / 真机联调复用
 - ✅ frontend iOS Patrol harness 已接入 RunnerUITests / TestPlan 链路，并确认需避开默认 `8081 / 8082` 端口冲突
 - ✅ frontend 消息转发已放开到富媒体消息，转发失败时保留失败态，并补了 rich message 转发测试
+- ✅ frontend 聊天列表 / 搜索 / 群管理若干页已收口 Flutter 新 API 与 mounted 守卫，头像颜色种子改为稳定 roomId / senderId

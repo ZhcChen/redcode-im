@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/services/message_service.dart';
@@ -107,7 +105,7 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     String roomId, {
     int limit = 50,
     String? beforeId,
-    bool forceRefresh = false,
+    String? sinceId,
   }) async => const <Message>[];
 
   @override

@@ -766,7 +766,7 @@ class _ChatAvatarState extends State<_ChatAvatar> {
           _isLoading = false;
         });
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -786,7 +786,7 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     if (_cachedAvatarPath != null && _cachedAvatarPath!.isNotEmpty) {
       final file = File(_cachedAvatarPath!);
       if (file.existsSync()) {
-        return Container(
+        return SizedBox(
           width: 48,
           height: 48,
           child: ClipRRect(
@@ -835,7 +835,7 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       }
       // asset头像
       if (!avatar.startsWith('http://') && !avatar.startsWith('https://')) {
-        return Container(
+        return SizedBox(
           width: 48,
           height: 48,
           child: ClipRRect(
@@ -910,7 +910,7 @@ String _resolveChatColorSeed(Chat chat) {
     final peerId = _peerIdFromExtra(chat.extra);
     if (peerId != null) return peerId;
   }
-  return chat.roomId ?? chat.id ?? chat.name;
+  return chat.roomId;
 }
 
 class _EmptyPlaceholder extends StatelessWidget {

@@ -119,7 +119,7 @@ class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
       if (hours == null || hours == 0) {
         return '永久禁言了';
       }
-      return '禁言${hours}小时';
+      return '禁言$hours小时';
     }
 
     return baseText;

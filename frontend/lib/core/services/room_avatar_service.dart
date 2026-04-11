@@ -51,7 +51,7 @@ class RoomAvatarService {
           return downloadUrl;
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('获取群头像下载地址失败 room=$roomId err=$e');
     }
     return null;
@@ -109,7 +109,7 @@ class RoomAvatarService {
           }
         }
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       debugPrint('群头像下载失败 room=$roomId key=$avatarObjectKey err=$e');
     }
 
