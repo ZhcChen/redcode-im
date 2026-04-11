@@ -1,7 +1,7 @@
 use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::file_upload_multipart_store::FileUploadMultipartStore;
 use crate::database::file_upload_store::FileUploadStore;
-use crate::database::models::{Platform, StorageProviderType};
+use crate::database::models::Platform;
 use crate::database::storage_provider_store::StorageProviderStore;
 use crate::database::version_store::{
     version_exists, HotUpdateEventInsert, HotUpdateUpdate, VersionStore,
@@ -1302,13 +1302,6 @@ async fn load_default_storage_provider(
         return Err(AppError::ValidationError(
             "默认文件上传提供商未启用".to_string(),
         ));
-    }
-
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的提供商类型: {:?}",
-            provider.provider_type
-        )));
     }
 
     Ok(provider)

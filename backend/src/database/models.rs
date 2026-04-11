@@ -877,10 +877,11 @@ pub struct Friendship {
 #[sqlx(type_name = "int2")]
 pub enum StorageProviderType {
     Unknown = 0,
-    TencentCos = 1, // 腾讯云COS
-    AliyunOss = 2,  // 阿里云OSS
-    AwsS3 = 3,      // AWS S3
-    Minio = 4,      // MinIO
+    TencentCos = 1,  // 腾讯云COS
+    AliyunOss = 2,   // 阿里云OSS
+    AwsS3 = 3,       // AWS S3
+    Minio = 4,       // MinIO
+    BackblazeB2 = 5, // Backblaze B2
 }
 
 impl Default for StorageProviderType {
@@ -897,6 +898,7 @@ impl fmt::Display for StorageProviderType {
             StorageProviderType::AliyunOss => "aliyun_oss",
             StorageProviderType::AwsS3 => "aws_s3",
             StorageProviderType::Minio => "minio",
+            StorageProviderType::BackblazeB2 => "backblaze_b2",
         };
         f.write_str(text)
     }
@@ -1085,10 +1087,7 @@ impl<'de> Deserialize<'de> for JoinRequestStatus {
                     "pending" | "0" => Ok(JoinRequestStatus::Pending),
                     "approved" | "1" => Ok(JoinRequestStatus::Approved),
                     "rejected" | "2" => Ok(JoinRequestStatus::Rejected),
-                    _ => Err(E::custom(format!(
-                        "invalid join request status: {}",
-                        value
-                    ))),
+                    _ => Err(E::custom(format!("invalid join request status: {}", value))),
                 }
             }
         }
@@ -1158,7 +1157,8 @@ impl<'de> Deserialize<'de> for InvitationStatus {
             type Value = InvitationStatus;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("invitation status (0/1/2/3 or pending/accepted/declined/expired)")
+                formatter
+                    .write_str("invitation status (0/1/2/3 or pending/accepted/declined/expired)")
             }
 
             fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>

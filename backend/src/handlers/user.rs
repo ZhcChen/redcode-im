@@ -2,7 +2,7 @@ use crate::auth::{hash_password, verify_password};
 use crate::database::file_upload_audit_store::FileUploadAuditStore;
 use crate::database::friend_store::FriendStore;
 use crate::database::models::{
-    RoomType, StorageProvider, StorageProviderType, UpdateUserRequest as DbUpdateUserRequest,
+    RoomType, StorageProvider, UpdateUserRequest as DbUpdateUserRequest,
 };
 use crate::database::room_store::RoomStore;
 use crate::database::storage_provider_store::StorageProviderStore;
@@ -341,13 +341,13 @@ pub async fn commit_avatar_upload(
         }
         Err(AppError::NotFound(_)) => {
             return Err(AppError::ValidationError(
-                "COS 中尚未找到该头像，请稍后重试".to_string(),
+                "对象存储中尚未找到该头像，请稍后重试".to_string(),
             ));
         }
         Err(AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
                 return Err(AppError::ValidationError(
-                    "COS 中尚未找到该头像，请稍后重试".to_string(),
+                    "对象存储中尚未找到该头像，请稍后重试".to_string(),
                 ));
             }
         }
@@ -725,13 +725,6 @@ pub async fn load_default_storage_provider(state: &AppState) -> Result<StoragePr
         ));
     }
 
-    if provider.provider_type != StorageProviderType::TencentCos {
-        return Err(AppError::ValidationError(format!(
-            "不支持的提供商类型: {:?}",
-            provider.provider_type
-        )));
-    }
-
     Ok(provider)
 }
 
@@ -830,7 +823,10 @@ mod tests {
 
     #[test]
     fn test_infer_avatar_extension_unknown() {
-        assert_eq!(infer_avatar_extension(Some("application/octet-stream")), ".bin");
+        assert_eq!(
+            infer_avatar_extension(Some("application/octet-stream")),
+            ".bin"
+        );
         assert_eq!(infer_avatar_extension(Some("video/mp4")), ".bin");
         assert_eq!(infer_avatar_extension(None), ".bin");
     }

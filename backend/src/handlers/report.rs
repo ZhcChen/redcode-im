@@ -238,13 +238,13 @@ pub async fn commit_report_attachment_upload(
         Err(AppError::ValidationError(_)) => {
             if !storage_service.file_exists(key).await? {
                 return Err(AppError::ValidationError(
-                    "COS 中尚未找到该截图，请稍后重试".to_string(),
+                    "对象存储中尚未找到该截图，请稍后重试".to_string(),
                 ));
             }
         }
         Err(AppError::NotFound(_)) => {
             return Err(AppError::ValidationError(
-                "COS 中尚未找到该截图，请稍后重试".to_string(),
+                "对象存储中尚未找到该截图，请稍后重试".to_string(),
             ));
         }
         Err(e) => return Err(e),
@@ -535,38 +535,65 @@ pub async fn list_reports_admin(
     let attachments = store.list_attachments_by_report_ids(&report_ids).await?;
 
     // 生成附件下载 URL（缓存）
-    let provider = load_default_storage_provider(&state).await?;
-    let storage_service = storage::create_storage_service(&provider)?;
-    let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
+    // 若当前环境未配置默认存储提供商，不应阻塞举报列表本身的查询；
+    // 此时仅降级为不返回附件下载地址。
+    let provider = if attachments.is_empty() {
+        None
+    } else {
+        match load_default_storage_provider(&state).await {
+            Ok(provider) => Some(provider),
+            Err(AppError::NotFound(_)) => None,
+            Err(err) => return Err(err),
+        }
+    };
+    let storage_service = if let Some(provider) = provider.as_ref() {
+        match storage::create_storage_service(provider) {
+            Ok(service) => Some(service),
+            Err(AppError::ValidationError(_)) => None,
+            Err(err) => return Err(err),
+        }
+    } else {
+        None
+    };
+    let cache_manager = storage_service
+        .as_ref()
+        .map(|_| CacheManager::new(state.redis.get_cache_client().clone()));
     let expires = 600u32;
 
     let mut attachment_map: std::collections::HashMap<Uuid, Vec<AdminReportAttachmentInfo>> =
         std::collections::HashMap::new();
 
     for item in attachments {
-        let cache_key = CacheKeys::download_url_cache(
-            item.object_key.trim(),
-            &provider.id.to_string(),
-            expires,
-        );
+        let url = if let (Some(provider), Some(storage_service), Some(cache_manager)) = (
+            provider.as_ref(),
+            storage_service.as_ref(),
+            cache_manager.as_ref(),
+        ) {
+            let cache_key = CacheKeys::download_url_cache(
+                item.object_key.trim(),
+                &provider.id.to_string(),
+                expires,
+            );
 
-        let url = if let Ok(Some(cached)) = cache_manager.get_cached_download_url(&cache_key).await
-        {
-            Some(cached)
-        } else {
-            match storage_service
-                .generate_download_url(item.object_key.trim(), Some(expires))
-                .await
-            {
-                Ok(generated) => {
-                    let ttl = (expires as f64 * 0.9) as u64;
-                    let _ = cache_manager
-                        .cache_download_url(&cache_key, &generated, ttl)
-                        .await;
-                    Some(generated)
+            if let Ok(Some(cached)) = cache_manager.get_cached_download_url(&cache_key).await {
+                Some(cached)
+            } else {
+                match storage_service
+                    .generate_download_url(item.object_key.trim(), Some(expires))
+                    .await
+                {
+                    Ok(generated) => {
+                        let ttl = (expires as f64 * 0.9) as u64;
+                        let _ = cache_manager
+                            .cache_download_url(&cache_key, &generated, ttl)
+                            .await;
+                        Some(generated)
+                    }
+                    Err(_) => None,
                 }
-                Err(_) => None,
             }
+        } else {
+            None
         };
 
         attachment_map

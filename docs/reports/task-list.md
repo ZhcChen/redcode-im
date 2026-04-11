@@ -94,3 +94,4 @@
 - ✅ admin 已补 live Playwright 快捷脚本，并开始清理 lockfile / 测试产物 / 无用说明文件残留
 - ✅ desktop 已对齐 macOS ad-hoc 打包脚本，并开始清理过期示例 / 说明残留
 - ✅ 仓库级文档与配置已开始对齐：CE 兼容入口、API 文档路径、website 私有部署文件忽略
+- ✅ backend 已开始把默认对象存储从 COS 专属约束泛化到 B2，并补了无默认存储时的举报列表降级处理
