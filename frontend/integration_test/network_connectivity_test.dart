@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/config/environment.dart';
+import 'package:integration_test/integration_test.dart';
 
 const bool _enableRealNetworkIntegration = bool.fromEnvironment(
   'ENABLE_REAL_NETWORK_INTEGRATION',
@@ -10,7 +11,7 @@ const bool _enableRealNetworkIntegration = bool.fromEnvironment(
 );
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
     'frontend integration network: backend healthz reachable via API_BASE_URL',

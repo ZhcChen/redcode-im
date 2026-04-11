@@ -3,8 +3,57 @@
 # 通用函数库
 # 被其他脚本 source 引用
 
-DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-2b252911}"
-DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Mi MIX 2S}"
+DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-3A091FDJG001DN}"
+DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Pixel 8 Pro}"
+
+get_current_lan_ip() {
+    local iface=""
+    local ip=""
+
+    iface=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+    if [ -n "$iface" ]; then
+        ip=$(ipconfig getifaddr "$iface" 2>/dev/null || true)
+    fi
+
+    if [ -z "$ip" ]; then
+        return 1
+    fi
+
+    echo "$ip"
+}
+
+is_real_mobile_device() {
+    local device_id="$1"
+
+    case "$device_id" in
+        emulator-*|ios_simulator|macos|chrome|edge|web-server|linux|windows)
+            return 1
+            ;;
+        *simulator*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+}
+
+build_local_backend_dart_defines() {
+    local device_id="$1"
+    local lan_ip=""
+
+    if ! is_real_mobile_device "$device_id"; then
+        return 0
+    fi
+
+    lan_ip=$(get_current_lan_ip) || {
+        echo "无法检测当前局域网 IP，请检查本机网络。" >&2
+        return 1
+    }
+
+    echo "📡 检测到当前局域网 IP: ${lan_ip}" >&2
+    echo " --dart-define=API_BASE_URL=http://${lan_ip}:8010 --dart-define=WS_URL=ws://${lan_ip}:8010/ws"
+}
 
 describe_flutter_device() {
     local device_id="$1"

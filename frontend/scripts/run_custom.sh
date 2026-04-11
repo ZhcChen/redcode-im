@@ -11,19 +11,6 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# 默认值
-DEFAULT_API_URL="http://10.137.203.83:8010"
-
-# 参数处理
-API_BASE_URL="${1:-$DEFAULT_API_URL}"
-
-# 从 API URL 生成 WS URL
-if [[ "$API_BASE_URL" == https://* ]]; then
-    WS_URL="${API_BASE_URL/https:\/\//wss://}/ws"
-else
-    WS_URL="${API_BASE_URL/http:\/\//ws://}/ws"
-fi
-
 echo -e "${BLUE}🚀 自定义配置运行 Flutter 应用...${NC}"
 echo ""
 echo -e "使用方式:"
@@ -31,7 +18,7 @@ echo -e "  ./run_custom.sh [API_URL] [DEVICE_ID]"
 echo ""
 echo -e "示例:"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010"
-echo -e "  ./run_custom.sh http://192.168.1.100:8010 2b252911"
+echo -e "  ./run_custom.sh http://192.168.1.100:8010 3A091FDJG001DN"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010 emulator-5554"
 echo ""
 
@@ -42,6 +29,23 @@ source "$SCRIPT_DIR/common.sh"
 
 DEVICE_ID="${2:-$DEFAULT_FLUTTER_DEVICE_ID}"
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
+DEFAULT_API_URL="http://127.0.0.1:8010"
+
+if is_real_mobile_device "$DEVICE_ID"; then
+    if LAN_IP="$(get_current_lan_ip)"; then
+        DEFAULT_API_URL="http://${LAN_IP}:8010"
+    fi
+fi
+
+# 参数处理
+API_BASE_URL="${1:-$DEFAULT_API_URL}"
+
+# 从 API URL 生成 WS URL
+if [[ "$API_BASE_URL" == https://* ]]; then
+    WS_URL="${API_BASE_URL/https:\/\//wss://}/ws"
+else
+    WS_URL="${API_BASE_URL/http:\/\//ws://}/ws"
+fi
 
 # 获取依赖
 echo -e "${GREEN}1. 获取依赖...${NC}"

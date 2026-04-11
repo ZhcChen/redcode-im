@@ -5,7 +5,7 @@
 ## 快速开始
 
 ```bash
-# 开发环境运行（默认测试真机：Mi MIX 2S / 2b252911）
+# 开发环境运行（默认测试真机：Pixel 8 Pro / 3A091FDJG001DN）
 ./scripts/run.sh
 
 # 生产环境构建 APK
@@ -31,14 +31,16 @@
 ENV=development              # development / staging / production
 
 # 服务器地址
-API_BASE_URL=http://10.137.203.83:8010
-WS_URL=ws://10.137.203.83:8010/ws
+API_BASE_URL=http://127.0.0.1:8010
+WS_URL=ws://127.0.0.1:8010/ws
 
 # 功能开关
 ENABLE_DEBUG_LOG=true        # 调试日志
 ENABLE_PERFORMANCE_MONITOR=false  # 性能监控
 USE_MOCK_DATA=false          # Mock 数据
 ```
+
+> 真机运行时，`run.sh` / `run_dev.sh` 会在启动前自动检测当前本机局域网 IP，并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`，避免使用过期局域网地址。
 
 ### 本地覆盖
 
@@ -59,28 +61,28 @@ vim .env.development.local
 统一运行脚本，自动读取 `.env` 配置文件。
 
 ```bash
-# 基本用法（默认使用 .env.development + 默认测试真机 Mi MIX 2S）
+# 基本用法（默认使用 .env.development + 默认测试真机 Pixel 8 Pro）
 ./scripts/run.sh
 
 # 指定环境配置
 ./scripts/run.sh --env .env.production
 
 # 指定运行设备（覆盖默认真机）
-./scripts/run.sh 2b252911
+./scripts/run.sh 3A091FDJG001DN
 ./scripts/run.sh emulator-5554
 
 # 组合使用
 ./scripts/run.sh --env .env.production emulator-5554
 ```
 
-不传设备参数时，脚本默认使用测试真机 `Mi MIX 2S (2b252911)`；如需切换设备，可通过参数覆盖。
+不传设备参数时，脚本默认使用测试真机 `Pixel 8 Pro (3A091FDJG001DN)`；如需切换设备，可通过参数覆盖。
 
 **参数说明：**
 
 | 参数 | 说明 |
 |------|------|
 | `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
-| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认测试真机为 `Mi MIX 2S (2b252911)` |
+| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认测试真机为 `Pixel 8 Pro (3A091FDJG001DN)` |
 | `--help, -h` | 显示帮助信息 |
 
 ---
@@ -138,7 +140,7 @@ scripts/
 ├── run_dev.sh               # 开发环境运行（传统）
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
-├── run_flutter.sh           # 基础运行脚本（默认 Mi MIX 2S 真机）
+├── run_flutter.sh           # 基础运行脚本（默认 Pixel 8 Pro 真机）
 │
 ├── build_android.sh         # Android 打包（传统）
 ├── build_ipa.sh             # iOS 打包（传统）
@@ -157,10 +159,13 @@ scripts/
 
 ```bash
 # 运行
-flutter run -d 2b252911 \
+LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
+LAN_IP=$(ipconfig getifaddr "$LAN_IFACE")
+
+flutter run -d 3A091FDJG001DN \
     --dart-define=ENV=development \
-    --dart-define=API_BASE_URL=http://10.137.203.83:8010 \
-    --dart-define=WS_URL=ws://10.137.203.83:8010/ws \
+    --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
+    --dart-define=WS_URL=ws://${LAN_IP}:8010/ws \
     --dart-define=ENABLE_DEBUG_LOG=true
 
 # 构建

@@ -5,6 +5,10 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+source "$SCRIPT_DIR/common.sh"
+
 # 颜色输出
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +17,12 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # API配置
-API_BASE_URL="${API_BASE_URL:-http://10.137.203.83:8010}"
+DEFAULT_API_BASE_URL="http://127.0.0.1:8010"
+if LAN_IP="$(get_current_lan_ip)"; then
+    DEFAULT_API_BASE_URL="http://${LAN_IP}:8010"
+fi
+
+API_BASE_URL="${API_BASE_URL:-$DEFAULT_API_BASE_URL}"
 APP_NAME_ENDPOINT="${API_BASE_URL}/settings/app-name"
 
 echo -e "${BLUE}🔄 获取应用名称...${NC}"

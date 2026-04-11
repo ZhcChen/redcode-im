@@ -98,3 +98,5 @@
 - ✅ frontend 已移除未接入业务的发现页与对应静态资源占位
 - ✅ frontend 群设置已补群改名、加人/移人能力，并抽出好友选择面板与 room service 测试入口
 - ✅ frontend 设置页与通用组件已开始收口：InputDialog 简化、设置项 trailing 固定化、Flutter 新 API 兼容替换
+- ✅ frontend 运行脚本已切到 Pixel 8 Pro 默认真机，并在 development 真机启动前自动检测当前局域网 IP 注入 API / WS 地址
+- ✅ frontend integration smoke 已统一切到 `IntegrationTestWidgetsFlutterBinding`，便于后续 Patrol / 真机联调复用

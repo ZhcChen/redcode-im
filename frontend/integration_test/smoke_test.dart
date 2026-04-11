@@ -1,11 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
 import 'package:frontend/core/auth/auth_state.dart';
 import 'package:frontend/core/storage/attachment_url_cache.dart';
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('frontend integration smoke: auth bus can emit state', (tester) async {
     final completer = Completer<AuthState>();

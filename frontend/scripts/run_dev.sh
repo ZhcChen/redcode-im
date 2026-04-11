@@ -29,15 +29,27 @@ DEVICE_ID="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 show_and_verify_flutter_devices "$DEVICE_ID"
 
-# 默认设备为测试真机 Mi MIX 2S（2b252911），可以通过参数覆盖
+LOCAL_BACKEND_DEFINES="$(build_local_backend_dart_defines "$DEVICE_ID")"
+LAN_IP=""
+if is_real_mobile_device "$DEVICE_ID"; then
+    LAN_IP="$(get_current_lan_ip)"
+fi
+
+# 默认设备为测试真机 Pixel 8 Pro（3A091FDJG001DN），可以通过参数覆盖
 
 # 运行应用（开发环境）
 echo ""
 echo -e "${GREEN}3. 运行应用（开发环境）...${NC}"
 echo -e "   环境: development"
-echo -e "   API:  http://10.137.203.83:8010"
+if is_real_mobile_device "$DEVICE_ID"; then
+    echo -e "   API:  http://${LAN_IP}:8010"
+    echo -e "   WS:   ws://${LAN_IP}:8010/ws"
+else
+    echo -e "   API:  使用默认开发配置"
+fi
 echo -e "   设备: $DEVICE_LABEL"
 echo ""
 flutter run -d "$DEVICE_ID" \
     --dart-define=ENV=development \
+    $LOCAL_BACKEND_DEFINES \
     --dart-define=ENABLE_DEBUG_LOG=true

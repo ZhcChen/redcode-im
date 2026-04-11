@@ -30,7 +30,7 @@ DEVICE_ID="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 show_and_verify_flutter_devices "$DEVICE_ID"
 
-# 默认设备为测试真机 Mi MIX 2S（2b252911），可以通过参数覆盖
+# 默认设备为测试真机 Pixel 8 Pro（3A091FDJG001DN），可以通过参数覆盖
 
 # 运行应用（生产环境）
 echo ""
