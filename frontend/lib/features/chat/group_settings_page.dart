@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:async/async.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
@@ -13,6 +12,7 @@ import 'package:path/path.dart' as p;
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
 import '../../core/network/direct_upload.dart';
+import '../../core/services/friend_service.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
@@ -21,6 +21,7 @@ import '../../core/storage/token_storage.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
+import '../../core/widgets/input_dialog.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
 import '../contacts/contact_detail_page.dart';
@@ -32,6 +33,7 @@ import 'group_operation_logs_page.dart';
 import 'group_rules_page.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
+import 'widgets/friend_selection_sheet.dart';
 
 class _GroupAvatar extends StatefulWidget {
   const _GroupAvatar({super.key, required this.chat});
@@ -226,7 +228,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
   late final RoomService _roomService;
+  final FriendService _friendService = FriendService();
   final TokenStorage _tokenStorage = const TokenStorage();
+  late String _chatName;
   bool _isMuted = false;
   bool _isPinned = false;
   bool _isForbidden = false;
@@ -247,7 +251,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _roomService = RoomService();
+    _chatName = widget.chat.name;
     _avatarObjectKey = widget.chat.avatarObjectKey; // 初始化头像 key
+    _isMuted = widget.chat.isMuted;
+    _isPinned = widget.chat.isPinned;
     _loadCurrentUser();
     _loadSettings();
     _loadMembers(); // 加载群成员
@@ -384,6 +391,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   Widget _buildMemberSection(BuildContext context) {
+    final canManageMembers = _isGroupOwner || _isAdmin;
+    final actionCount = canManageMembers ? 2 : 0;
+
     if (_isLoadingMembers) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -430,9 +440,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         // 创建一个没有滚动条的主题
         data: Theme.of(context).copyWith(
           scrollbarTheme: ScrollbarThemeData(
-            thumbVisibility: MaterialStateProperty.all(false),
-            trackVisibility: MaterialStateProperty.all(false),
-            thickness: MaterialStateProperty.all(0),
+            thumbVisibility: WidgetStateProperty.all(false),
+            trackVisibility: WidgetStateProperty.all(false),
+            thickness: WidgetStateProperty.all(0),
             crossAxisMargin: 0,
             minThumbLength: 0,
           ),
@@ -446,25 +456,29 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             crossAxisSpacing: 8,
             childAspectRatio: 0.85,
           ),
-          itemCount: _members.length + 2,
+          itemCount: _members.length + actionCount,
           itemBuilder: (context, index) {
-            if (index == 0) {
+            if (canManageMembers && index == 0) {
               return _buildActionMember(
                 context,
                 true,
                 '添加',
-                () => debugPrint('Add member'),
+                () {
+                  _handleAddMembers();
+                },
               );
             }
-            if (index == 1) {
+            if (canManageMembers && index == 1) {
               return _buildActionMember(
                 context,
                 false,
                 '移除',
-                () => debugPrint('Remove member'),
+                () {
+                  _handleRemoveMembers();
+                },
               );
             }
-            final member = _members[index - 2];
+            final member = _members[index - actionCount];
             return _buildMemberItem(context, member);
           },
         ),
@@ -626,11 +640,13 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         children: [
           _SettingTile(
             label: '群聊名称',
-            value: widget.chat.name,
+            value: _chatName,
             showValueOnRight: true,
-            onTap: () {
-              debugPrint('Edit group name');
-            },
+            onTap: _isGroupOwner || _isAdmin
+                ? () {
+                    _handleRenameGroup();
+                  }
+                : null,
           ),
           _SettingTile(
             label: '群头像',
@@ -649,6 +665,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                 : _GroupAvatar(
                     key: ValueKey(_avatarObjectKey),
                     chat: widget.chat.copyWith(
+                      name: _chatName,
                       avatarObjectKey: _avatarObjectKey,
                     ),
                   ),
@@ -691,16 +708,14 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             label: '消息免打扰',
             value: _isMuted,
             onChanged: (value) {
-              setState(() => _isMuted = value);
-              debugPrint('Toggle mute: $value');
+              _handleMuteToggle(value);
             },
           ),
           _SwitchTile(
             label: '置顶聊天',
             value: _isPinned,
             onChanged: (value) {
-              setState(() => _isPinned = value);
-              debugPrint('Toggle pin: $value');
+              _handlePinToggle(value);
             },
           ),
           _SettingTile(
@@ -1340,7 +1355,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     ];
 
     for (final candidate in candidates) {
-      final value = candidate == null ? null : candidate.toString().trim();
+      final value = candidate?.toString().trim();
       if (value != null && value.isNotEmpty) {
         return value;
       }
@@ -1784,6 +1799,264 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         setState(() => _isLoadingSettings = false);
       }
     }
+  }
+
+  Future<void> _handleRenameGroup() async {
+    if (widget.chat.type != ChatType.group) return;
+
+    final result = await InputDialog.show(
+      context,
+      title: '修改群聊名称',
+      hintText: '请输入新的群聊名称',
+      initialValue: _chatName,
+      maxLength: 50,
+      validator: (value) {
+        final trimmed = value?.trim() ?? '';
+        if (trimmed.isEmpty) {
+          return '群聊名称不能为空';
+        }
+        return null;
+      },
+    );
+
+    if (result == null || !mounted) {
+      return;
+    }
+
+    final nextName = result.trim();
+    if (nextName.isEmpty || nextName == _chatName) {
+      return;
+    }
+
+    try {
+      final updatedRoom = await _roomService.updateRoom(
+        roomId: widget.chat.roomId,
+        name: nextName,
+      );
+      if (!mounted) return;
+
+      setState(() => _chatName = updatedRoom.name);
+      await MessageService.instance.updateChatInfo(
+        widget.chat.roomId,
+        widget.chat.type,
+      );
+      _showSnackBar('群聊名称已更新');
+    } catch (e) {
+      _showSnackBar('更新群聊名称失败：$e');
+    }
+  }
+
+  Future<void> _handleAddMembers() async {
+    if (widget.chat.type != ChatType.group) return;
+
+    try {
+      final friends = await _friendService.fetchFriends();
+      if (!mounted) return;
+
+      final existingMemberIds = _members
+          .map((member) => _memberUserId(member))
+          .whereType<String>()
+          .toSet();
+      final candidates = friends
+          .where((friend) => !existingMemberIds.contains(friend.user.id))
+          .toList();
+
+      if (candidates.isEmpty) {
+        _showSnackBar('暂无可添加的好友');
+        return;
+      }
+
+      final selectedIds = await FriendSelectionSheet.show(
+        context,
+        friends: candidates,
+        initialSelected: const {},
+        title: '添加群成员',
+        confirmTextBuilder: (count) => '添加（$count）',
+      );
+
+      if (!mounted || selectedIds == null || selectedIds.isEmpty) {
+        return;
+      }
+
+      final result = await _roomService.addMembers(
+        roomId: widget.chat.roomId,
+        userIds: selectedIds.toList(),
+      );
+
+      await _refreshMembersAndCount();
+
+      if (!mounted) return;
+      final addedCount = result.addedUserIds.length;
+      final skippedCount = result.skippedUserIds.length;
+      if (addedCount > 0 && skippedCount > 0) {
+        _showSnackBar('已添加 $addedCount 人，跳过 $skippedCount 人');
+      } else if (addedCount > 0) {
+        _showSnackBar('已添加 $addedCount 名成员');
+      } else {
+        _showSnackBar('所选成员已在群聊中');
+      }
+    } catch (e) {
+      _showSnackBar('添加成员失败：$e');
+    }
+  }
+
+  Future<void> _handleRemoveMembers() async {
+    if (widget.chat.type != ChatType.group) return;
+
+    final candidates = _buildRemovableMembers();
+    if (candidates.isEmpty) {
+      _showSnackBar('暂无可移除的成员');
+      return;
+    }
+
+    final selectedIds = await FriendSelectionSheet.show(
+      context,
+      friends: candidates,
+      initialSelected: const {},
+      title: '移除群成员',
+      confirmTextBuilder: (count) => '移除（$count）',
+    );
+
+    if (!mounted || selectedIds == null || selectedIds.isEmpty) {
+      return;
+    }
+
+    final confirmed = await TipDialog.showConfirm(
+      context,
+      title: '确认移除成员',
+      content: '确定要移除选中的 ${selectedIds.length} 名成员吗？',
+      confirmText: '移除',
+      cancelText: '取消',
+      confirmDanger: true,
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    var removedCount = 0;
+    final failedIds = <String>[];
+    for (final userId in selectedIds) {
+      try {
+        await _roomService.removeMember(roomId: widget.chat.roomId, userId: userId);
+        removedCount += 1;
+      } catch (_) {
+        failedIds.add(userId);
+      }
+    }
+
+    await _refreshMembersAndCount();
+
+    if (!mounted) return;
+    if (failedIds.isEmpty) {
+      _showSnackBar('已移除 $removedCount 名成员');
+      return;
+    }
+    if (removedCount > 0) {
+      _showSnackBar('已移除 $removedCount 名成员，${failedIds.length} 名移除失败');
+      return;
+    }
+    _showSnackBar('移除成员失败，请稍后重试');
+  }
+
+  Future<void> _handleMuteToggle(bool value) async {
+    final previousValue = _isMuted;
+    setState(() => _isMuted = value);
+
+    try {
+      await _ensureProviderHasChat();
+      await _chatProvider.muteChat(widget.chat.id, value);
+      _showSnackBar(value ? '已开启消息免打扰' : '已关闭消息免打扰');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isMuted = previousValue);
+      _showSnackBar('更新消息免打扰失败：$e');
+    }
+  }
+
+  Future<void> _handlePinToggle(bool value) async {
+    final previousValue = _isPinned;
+    setState(() => _isPinned = value);
+
+    try {
+      await _ensureProviderHasChat();
+      await _chatProvider.pinChat(widget.chat.id, value);
+      _showSnackBar(value ? '已置顶聊天' : '已取消置顶');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isPinned = previousValue);
+      _showSnackBar('更新置顶状态失败：$e');
+    }
+  }
+
+  Future<void> _ensureProviderHasChat() async {
+    final hasChat = _chatProvider.chats.any(
+      (chat) => chat.id == widget.chat.id || chat.roomId == widget.chat.roomId,
+    );
+    if (hasChat) {
+      return;
+    }
+    await _chatProvider.loadChats(refresh: true);
+  }
+
+  Future<void> _refreshMembersAndCount() async {
+    await _loadMembers();
+    await _chatProvider.getRoomMemberCount(
+      widget.chat.roomId,
+      forceRefresh: true,
+    );
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  List<FriendInfo> _buildRemovableMembers() {
+    return _members
+        .where((member) {
+          final userId = _memberUserId(member);
+          if (userId == null || userId.isEmpty || userId == _currentUserId) {
+            return false;
+          }
+
+          final role = _memberRole(member);
+          if (!_isGroupOwner && role == 'owner') {
+            return false;
+          }
+          return true;
+        })
+        .map(_memberToFriendInfo)
+        .toList();
+  }
+
+  FriendInfo _memberToFriendInfo(Map<String, dynamic> member) {
+    final userId = _memberUserId(member) ?? '';
+    final username = member['username'] as String? ?? '未知用户';
+    final nickname = member['nickname'] as String?;
+    final avatarUrl = member['avatar_url'] as String?;
+    final avatarObjectKey = member['avatar_object_key'] as String?;
+
+    return FriendInfo(
+      id: userId,
+      user: AuthUser(
+        id: userId,
+        username: username,
+        nickname: nickname,
+        avatarUrl: avatarUrl,
+        avatarObjectKey: avatarObjectKey,
+      ),
+      createdAt: DateTime.now(),
+    );
+  }
+
+  String? _memberUserId(Map<String, dynamic> member) {
+    final value = member['user_id'] ?? member['userId'] ?? member['id'];
+    return value is String ? value : value?.toString();
+  }
+
+  String? _memberRole(Map<String, dynamic> member) {
+    final roleValue = member['role'] ?? member['member_role'];
+    return roleValue is String
+        ? roleValue.toLowerCase()
+        : roleValue?.toString().toLowerCase();
   }
 
   void _showSnackBar(String message) {
