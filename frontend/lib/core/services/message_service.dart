@@ -355,6 +355,9 @@ class MessageService with ChangeNotifier {
         final runtime = await _appConfigService.getMessageRuntime();
         _chats = _sanitizeChatsForRuntime(cachedChats, runtime);
         notifyListeners();
+        if (runtime.isRelayOnly) {
+          unawaited(_rehydrateRelayOnlyChatSummaries());
+        }
         debugPrint('Loaded ${cachedChats.length} chats from cache');
       }
     } catch (e) {
@@ -435,6 +438,127 @@ class MessageService with ChangeNotifier {
     _chats = _sanitizeChatsForRuntime(_chats, runtime);
     notifyListeners();
     unawaited(_chatCache.saveChats(_chats));
+    unawaited(_rehydrateRelayOnlyChatSummaries());
+  }
+
+  Future<void> _rehydrateRelayOnlyChatSummaries() async {
+    final runtime = await _appConfigService.getMessageRuntime();
+    if (!runtime.isRelayOnly || _chats.isEmpty) {
+      return;
+    }
+
+    final snapshot = List<Chat>.from(_chats);
+    final hydratedChats = await Future.wait(
+      snapshot.map(_rehydrateRelayOnlyChatSummary),
+    );
+
+    var changed = false;
+    for (var i = 0; i < snapshot.length; i++) {
+      if (!_chatSummaryEquals(snapshot[i], hydratedChats[i])) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) {
+      return;
+    }
+
+    _chats
+      ..clear()
+      ..addAll(hydratedChats);
+    _sortChats();
+    notifyListeners();
+    unawaited(_chatCache.saveChats(_chats));
+  }
+
+  Future<Chat> _rehydrateRelayOnlyChatSummary(Chat chat) async {
+    final roomId = chat.roomId.trim();
+    if (roomId.isEmpty) {
+      return chat;
+    }
+
+    final localMessages = (() {
+      final cached = _messagesByRoom[roomId];
+      if (cached != null && cached.isNotEmpty) {
+        return List<Message>.from(cached);
+      }
+      return null;
+    })();
+
+    final messages =
+        localMessages ?? await _messageStorage.loadMessages(roomId);
+    if (messages.isEmpty) {
+      return chat;
+    }
+
+    messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final latest = messages.last;
+    final unreadCount = chat.type == ChatType.favorite
+        ? 0
+        : messages
+              .where(
+                (message) =>
+                    !message.isSelf &&
+                    !message.isDeleted &&
+                    message.status != MessageStatus.read,
+              )
+              .length;
+
+    final extra = <String, dynamic>{
+      if (chat.extra != null) ...chat.extra!,
+      'last_message_id': latest.id,
+    };
+
+    return Chat(
+      id: chat.id,
+      roomId: chat.roomId,
+      name: chat.name,
+      avatar: chat.avatar,
+      avatarObjectKey: chat.avatarObjectKey,
+      localAvatarPath: chat.localAvatarPath,
+      type: chat.type,
+      lastMessage: _buildChatSummaryPreview(latest),
+      lastMessageTime: latest.timestamp,
+      unreadCount: unreadCount,
+      isPinned: chat.isPinned,
+      isMuted: chat.isMuted,
+      extra: extra,
+    );
+  }
+
+  bool _chatSummaryEquals(Chat left, Chat right) {
+    return left.lastMessage == right.lastMessage &&
+        left.unreadCount == right.unreadCount &&
+        left.lastMessageTime == right.lastMessageTime &&
+        mapEquals(left.extra, right.extra);
+  }
+
+  String _buildChatSummaryPreview(Message message) {
+    if (message.isDeleted) {
+      return '[消息已删除]';
+    }
+
+    final content = message.content.trim();
+    if (content.isNotEmpty) {
+      return content;
+    }
+
+    switch (message.type) {
+      case MessageType.image:
+        return '[图片]';
+      case MessageType.audio:
+        return '[语音]';
+      case MessageType.video:
+        return '[视频]';
+      case MessageType.file:
+        return '[文件]';
+      case MessageType.mixed:
+        return '[多媒体消息]';
+      case MessageType.system:
+        return '[系统消息]';
+      case MessageType.text:
+        return '[消息]';
+    }
   }
 
   /// 从服务器拉取会话列表（带防抖）
@@ -626,6 +750,9 @@ class MessageService with ChangeNotifier {
     _sortChats();
     _syncWebSocketSubscriptions();
     notifyListeners();
+    if (runtime.isRelayOnly) {
+      unawaited(_rehydrateRelayOnlyChatSummaries());
+    }
 
     // 保存到缓存（异步，不阻塞返回）
     unawaited(_chatCache.saveChats(sanitizedChats));

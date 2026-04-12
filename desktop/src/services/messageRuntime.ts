@@ -1,3 +1,5 @@
+import { MessagePartType, MessageStatus, MessageType } from '@/types/models'
+
 export type ServerStorageMode = 'persist' | 'relay_only'
 export type ContentAuditMode = 'plaintext' | 'e2ee'
 
@@ -40,6 +42,29 @@ export type RuntimeChatSummaryShape = {
   lastMessage: string
   unreadCount: number
   lastMessageId?: string | null
+}
+
+export interface RuntimeCachedMessagePartShape {
+  type?: string | null
+  text?: string | null
+}
+
+export interface RuntimeCachedMessageShape {
+  id?: string | null
+  content?: string | null
+  type?: string | null
+  status?: string | null
+  timestamp?: string | number | Date | null
+  isSelf?: boolean
+  isDeleted?: boolean
+  parts?: RuntimeCachedMessagePartShape[] | null
+}
+
+export interface RelayOnlyLocalChatSummary {
+  lastMessage: string
+  unreadCount: number
+  lastMessageId: string | null
+  lastMessageTime: Date | null
 }
 
 export const DEFAULT_APP_NAME = 'Chatly'
@@ -173,4 +198,94 @@ export const didEnterRelayOnlyMode = (
   next: MessageRuntimeSettings,
 ): boolean => {
   return previous.serverStorageMode !== 'relay_only' && next.serverStorageMode === 'relay_only'
+}
+
+export const getRelayOnlyLocalPreview = (
+  message?: RuntimeCachedMessageShape | null,
+): string => {
+  if (!message) {
+    return ''
+  }
+
+  if (message.isDeleted) {
+    return '[消息已删除]'
+  }
+
+  if (Array.isArray(message.parts) && message.parts.length > 0) {
+    const segments: string[] = []
+    message.parts.forEach((part) => {
+      switch (part?.type) {
+        case MessagePartType.TEXT:
+          if (typeof part?.text === 'string' && part.text.trim()) {
+            segments.push(part.text.trim())
+          }
+          break
+        case MessagePartType.IMAGE:
+          segments.push('[图片]')
+          break
+        case MessagePartType.VIDEO:
+          segments.push('[视频]')
+          break
+        case MessagePartType.AUDIO:
+          segments.push('[语音]')
+          break
+        case MessagePartType.FILE:
+          segments.push('[附件]')
+          break
+      }
+    })
+
+    if (segments.length > 0) {
+      return segments.join(' ')
+    }
+  }
+
+  switch (message.type) {
+    case MessageType.IMAGE:
+      return '[图片]'
+    case MessageType.VIDEO:
+      return '[视频]'
+    case MessageType.VOICE:
+      return '[语音]'
+    case MessageType.FILE:
+      return '[附件]'
+    case MessageType.SYSTEM:
+      return '[系统消息]'
+  }
+
+  const text = typeof message.content === 'string' ? message.content.trim() : ''
+  if (text.startsWith('[图片]')) return '[图片]'
+  if (text.startsWith('[视频]')) return '[视频]'
+  if (text.startsWith('[语音]')) return '[语音]'
+  if (text.startsWith('[文件]')) return '[附件]'
+
+  return text || '[消息]'
+}
+
+export const resolveRelayOnlyLocalChatSummary = (
+  messages: RuntimeCachedMessageShape[],
+  isFavoriteRoom = false,
+): RelayOnlyLocalChatSummary | null => {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return null
+  }
+
+  const sortedMessages = messages
+    .slice()
+    .sort((left, right) => new Date(left?.timestamp || 0).getTime() - new Date(right?.timestamp || 0).getTime())
+
+  const latestMessage = sortedMessages[sortedMessages.length - 1]
+
+  return {
+    lastMessage: getRelayOnlyLocalPreview(latestMessage),
+    unreadCount: isFavoriteRoom
+      ? 0
+      : sortedMessages.filter((message) =>
+          !message?.isSelf &&
+          !message?.isDeleted &&
+          message?.status !== MessageStatus.READ
+        ).length,
+    lastMessageId: latestMessage?.id ?? null,
+    lastMessageTime: latestMessage?.timestamp ? new Date(latestMessage.timestamp) : null,
+  }
 }

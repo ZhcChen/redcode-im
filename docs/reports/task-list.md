@@ -29,8 +29,10 @@
      - 启动时若本地 chat cache 留有旧 `lastMessage / unreadCount / lastMessageId`，会先按 relay_only 规则清空，避免闪出旧摘要
    - frontend / desktop 已补 runtime 切换时的即时清洗：
      - 当 `persist -> relay_only` 在运行中生效时，会立刻清空当前会话列表残留摘要，并同步刷新当前聊天页 / 未读汇总
+   - frontend / desktop 已补 relay_only 本地摘要回填：
+     - 清洗旧摘要后，会基于本机消息缓存回填最近一条消息、最后消息 ID 与本地未读数，避免聊天列表长时间空白
    - 下一步需补齐：
-     - 更多边缘交互的一致行为（如 relay_only 的本地摘要回填、局部提示口径）
+     - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
 
 2. **测试入口与命令体系整理**
    - 根目录 `Makefile`
@@ -107,12 +109,14 @@
 - ✅ frontend 已补 relay_only 离线补拉 guard：断线重连后跳过 `syncOfflineMessages` 的服务端历史请求
 - ✅ frontend 已补 relay_only 会话缓存清洗：启动从 chat cache 恢复时先清空旧摘要与未读数
 - ✅ frontend 已补 runtime 切换即时收口：`persist -> relay_only` 时会清空当前内存会话摘要，并刷新聊天页 runtime 提示
+- ✅ frontend 已补 relay_only 本地摘要回填：会基于 SQLite 本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖
 - ✅ desktop 已补历史定位失败提示：目标消息不在当前缓存时不再静默无反馈
 - ✅ desktop 已补 relay_only 会话缓存清洗：缓存聊天列表恢复时先清空旧摘要与未读数
 - ✅ desktop 已补 runtime 切换即时收口：`persist -> relay_only` 时会同步清空当前 store/chat page 残留摘要，并刷新账号未读汇总
+- ✅ desktop 已补 relay_only 本地摘要回填：会基于本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

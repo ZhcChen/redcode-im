@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createStore } from 'vuex'
 import type { AccountInfo } from './modules/accounts'
-import type { Message as DomainMessage, AppVersionInfo } from '@/types/models'
+import { type Message as DomainMessage, AppVersionInfo } from '@/types/models'
 import { UserApi, VersionApi, SettingsApi, apiConfig } from '@/api'
 import favoriteAvatar from '@/assets/image/favorite-avatar.svg'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
@@ -9,6 +9,7 @@ import accountsModule from './modules/accounts'
 import {
     didEnterRelayOnlyMode,
     DEFAULT_MESSAGE_RUNTIME,
+    resolveRelayOnlyLocalChatSummary,
     resolveGeneralSettingsPayload,
     sanitizeChatSummaryForRuntime,
     sanitizeChatSummariesForRuntime,
@@ -150,6 +151,33 @@ const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => 
     })
 }
 
+const formatChatListTime = (timeValue: Date | string | null | undefined) => {
+    if (!timeValue) return ''
+    const now = new Date()
+    const time = timeValue instanceof Date ? timeValue : new Date(timeValue)
+
+    if (isNaN(time.getTime())) return ''
+
+    const diffMs = now.getTime() - time.getTime()
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMinutes < 1) {
+        return '刚刚'
+    } else if (diffMinutes < 60) {
+        return `${diffMinutes}分钟前`
+    } else if (diffHours < 24) {
+        return time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    } else if (diffDays === 1) {
+        return '昨天'
+    } else if (diffDays < 7) {
+        return `${diffDays}天前`
+    } else {
+        return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+    }
+}
+
 const applyMessageRuntimeToChatList = (
     state: State,
     nextRuntime: MessageRuntimeSettings,
@@ -178,6 +206,66 @@ const persistRelayOnlyChatListIfNeeded = async (
     }
 
     await saveCache(CACHE_KEYS.chatList, JSON.parse(JSON.stringify(state.chatList.list)))
+}
+
+const rehydrateRelayOnlyChatListFromMessageCache = async (
+    state: State,
+    commit: any,
+    dispatch: any,
+) => {
+    if (state.messageRuntime.serverStorageMode !== 'relay_only' || state.chatList.list.length === 0) {
+        return
+    }
+
+    const hydratedList = await Promise.all(
+        state.chatList.list.map(async (chat) => {
+            const roomId = chat.groupId || chat.roomId || chat.id
+            if (!roomId) {
+                return chat
+            }
+
+            const cached = await loadCache<any[]>(CACHE_KEYS.messages(roomId))
+            const cachedMessages = Array.isArray(cached?.data) ? cached.data : []
+            if (cachedMessages.length === 0) {
+                return chat
+            }
+
+            const summary = resolveRelayOnlyLocalChatSummary(cachedMessages, chat.groupType === 2)
+            if (!summary) {
+                return chat
+            }
+
+            return {
+                ...chat,
+                lastMessage: summary.lastMessage,
+                time: formatChatListTime(summary.lastMessageTime || new Date()),
+                unreadCount: summary.unreadCount,
+                lastMessageId: summary.lastMessageId,
+            }
+        })
+    )
+
+    const changed = hydratedList.some((chat, index) => {
+        const current = state.chatList.list[index]
+        return !current ||
+            current.lastMessage !== chat.lastMessage ||
+            current.unreadCount !== chat.unreadCount ||
+            current.lastMessageId !== chat.lastMessageId ||
+            current.time !== chat.time
+    })
+
+    if (!changed) {
+        return
+    }
+
+    commit('SET_CHAT_LIST', hydratedList)
+
+    const currentAccountId = state.accounts?.currentAccountId
+    if (currentAccountId) {
+        dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+    }
+
+    await saveCache(CACHE_KEYS.chatList, JSON.parse(JSON.stringify(hydratedList)))
 }
 
 // 定义状态接口
@@ -914,6 +1002,7 @@ export const store = createStore<State>({
                     const previousRuntime = state.messageRuntime
                     commit('SET_GENERAL_SETTINGS', resolved)
                     await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
+                    await rehydrateRelayOnlyChatListFromMessageCache(state, commit, dispatch)
                     hasAppliedCachedSettings = true
                 }
             } catch (error) {
@@ -935,6 +1024,7 @@ export const store = createStore<State>({
                 commit('SET_GENERAL_SETTINGS', resolved)
                 await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
                 await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
+                await rehydrateRelayOnlyChatListFromMessageCache(state, commit, dispatch)
             } catch (error) {
                 if (!hasAppliedCachedSettings) {
                     try {
@@ -944,6 +1034,7 @@ export const store = createStore<State>({
                         commit('SET_GENERAL_SETTINGS', resolved)
                         await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
                         await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
+                        await rehydrateRelayOnlyChatListFromMessageCache(state, commit, dispatch)
                     } catch (legacyError) {
                         console.warn('Failed to load general settings from server, using defaults')
                     }
@@ -1457,6 +1548,7 @@ export const store = createStore<State>({
                             avatarLocalPath: undefined,
                         })).map(chat => sanitizeChatSummaryForRuntime(state.messageRuntime, chat))
                         commit('SET_CHAT_LIST', sanitizedData)
+                        await rehydrateRelayOnlyChatListFromMessageCache(state, commit, dispatch)
                     }
                 }
 
@@ -1616,34 +1708,6 @@ export const store = createStore<State>({
                     }
 
                     const chatList: ChatItem[] = groups.map((group: any) => {
-                        // 时间格式化函数
-                        const formatTime = (timeValue: Date | string | null | undefined) => {
-                            if (!timeValue) return ''
-                            const now = new Date()
-                            const time = timeValue instanceof Date ? timeValue : new Date(timeValue)
-
-                            if (isNaN(time.getTime())) return ''
-
-                            const diffMs = now.getTime() - time.getTime()
-                            const diffMinutes = Math.floor(diffMs / (1000 * 60))
-                            const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-                            const diffDays = Math.floor(diffHours / 24)
-
-                            if (diffMinutes < 1) {
-                                return '刚刚'
-                            } else if (diffMinutes < 60) {
-                                return `${diffMinutes}分钟前`
-                            } else if (diffHours < 24) {
-                                return time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-                            } else if (diffDays === 1) {
-                                return '昨天'
-                            } else if (diffDays < 7) {
-                                return `${diffDays}天前`
-                            } else {
-                                return time.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-                            }
-                        }
-
                         const lastMessageTime = group.lastMessageTime instanceof Date
                             ? group.lastMessageTime
                             : new Date(group.lastMessageTime || Date.now())
@@ -1667,7 +1731,7 @@ export const store = createStore<State>({
                             avatar: displayAvatar,
                             avatarLocalPath: null, // 将在后续加载时填充
                             lastMessage: group.lastMessage || '',
-                            time: formatTime(lastMessageTime),
+                            time: formatChatListTime(lastMessageTime),
                             groupId: group.roomId || group.id || '',
                             memberCount: typeof extra.memberCount === 'number' ? extra.memberCount : null,
                             unreadCount: group.unreadCount || 0,
@@ -1788,6 +1852,7 @@ export const store = createStore<State>({
 
                     const snapshot = JSON.parse(JSON.stringify(validChatList)) as ChatItem[]
                     await saveCache(CACHE_KEYS.chatList, snapshot)
+                    await rehydrateRelayOnlyChatListFromMessageCache(state, commit, dispatch)
 
                 } else {
                     commit('SET_CHAT_LIST_ERROR', response.message || '加载聊天列表失败')

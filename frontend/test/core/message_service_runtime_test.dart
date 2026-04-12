@@ -25,8 +25,14 @@ class _FakeTokenStorage extends TokenStorage {
 }
 
 class _FakeMessageStorage extends MessageStorage {
+  _FakeMessageStorage({Map<String, List<Message>>? roomMessages})
+    : _roomMessages = roomMessages ?? <String, List<Message>>{};
+
+  final Map<String, List<Message>> _roomMessages;
+
   @override
-  Future<List<Message>> loadMessages(String roomId) async => const <Message>[];
+  Future<List<Message>> loadMessages(String roomId) async =>
+      List<Message>.from(_roomMessages[roomId] ?? const <Message>[]);
 }
 
 class _FakeChatCache extends ChatCache {
@@ -197,6 +203,56 @@ void main() {
       expect(service.chats.single.extra, isNull);
     },
   );
+
+  test('relay_only rebuilds local chat summary from cached messages', () async {
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-peer',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: '',
+              type: MessageType.image,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: false,
+            ),
+          ],
+        },
+      ),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: 'stale summary',
+            lastMessageTime: DateTime(2026, 4, 12, 10, 0, 0),
+            unreadCount: 7,
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(service.chats, hasLength(1));
+    expect(service.chats.single.lastMessage, '[图片]');
+    expect(service.chats.single.unreadCount, 1);
+    expect(service.chats.single.extra?['last_message_id'], 'msg-1');
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {

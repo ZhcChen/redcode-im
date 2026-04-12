@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MESSAGE_RUNTIME,
   didEnterRelayOnlyMode,
+  getRelayOnlyLocalPreview,
   getMessageRuntimeCapabilities,
   getMessageRuntimeNotice,
+  resolveRelayOnlyLocalChatSummary,
   sanitizeChatSummaryForRuntime,
   sanitizeChatSummariesForRuntime,
   resolveGeneralSettingsPayload,
@@ -179,5 +181,40 @@ describe('message runtime service', () => {
         lastMessageId: null,
       },
     ])
+  })
+
+  it('rebuilds relay_only local summary from cached messages', () => {
+    expect(
+      getRelayOnlyLocalPreview({
+        type: 'image',
+        content: '',
+      }),
+    ).toBe('[图片]')
+
+    expect(
+      resolveRelayOnlyLocalChatSummary([
+        {
+          id: 'msg-1',
+          type: 'text',
+          content: 'hello',
+          status: 'read',
+          isSelf: false,
+          timestamp: '2026-04-12T12:00:00.000Z',
+        },
+        {
+          id: 'msg-2',
+          type: 'image',
+          content: '',
+          status: 'sent',
+          isSelf: false,
+          timestamp: '2026-04-12T12:30:00.000Z',
+        },
+      ]),
+    ).toEqual({
+      lastMessage: '[图片]',
+      unreadCount: 1,
+      lastMessageId: 'msg-2',
+      lastMessageTime: new Date('2026-04-12T12:30:00.000Z'),
+    })
   })
 })
