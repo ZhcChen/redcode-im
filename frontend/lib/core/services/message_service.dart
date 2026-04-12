@@ -21,6 +21,7 @@ import '../storage/chat_cache.dart';
 import 'local_notification_service.dart';
 import 'upload_policy_service.dart';
 import 'app_config_service.dart';
+import 'settings_service.dart' show MessageRuntimeSettings;
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -350,7 +351,8 @@ class MessageService with ChangeNotifier {
     try {
       final cachedChats = await _chatCache.loadChats();
       if (cachedChats != null && cachedChats.isNotEmpty) {
-        _chats = cachedChats;
+        final runtime = await _appConfigService.getMessageRuntime();
+        _chats = _sanitizeChatsForRuntime(cachedChats, runtime);
         notifyListeners();
         debugPrint('Loaded ${cachedChats.length} chats from cache');
       }
@@ -359,6 +361,42 @@ class MessageService with ChangeNotifier {
     } finally {
       _isLoadingChatsFromCache = false;
     }
+  }
+
+  List<Chat> _sanitizeChatsForRuntime(
+    List<Chat> chats,
+    MessageRuntimeSettings runtime,
+  ) {
+    if (!runtime.isRelayOnly) {
+      return List<Chat>.from(chats);
+    }
+
+    return chats
+        .map(
+          (chat) => chat.copyWith(
+            lastMessage: '',
+            unreadCount: 0,
+            extra: _sanitizeChatExtraForRelayOnly(chat.extra),
+          ),
+        )
+        .toList();
+  }
+
+  Map<String, dynamic>? _sanitizeChatExtraForRelayOnly(
+    Map<String, dynamic>? extra,
+  ) {
+    if (extra == null || extra.isEmpty) {
+      return extra;
+    }
+
+    final sanitized = Map<String, dynamic>.from(extra)
+      ..remove('last_message_id')
+      ..remove('last_message_type')
+      ..remove('last_message_sender_id')
+      ..remove('last_message_sender_username')
+      ..remove('last_message_sender_nickname');
+
+    return sanitized.isEmpty ? null : sanitized;
   }
 
   /// 从服务器拉取会话列表（带防抖）

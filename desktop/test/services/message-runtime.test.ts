@@ -4,6 +4,7 @@ import {
   DEFAULT_MESSAGE_RUNTIME,
   getMessageRuntimeCapabilities,
   getMessageRuntimeNotice,
+  sanitizeChatSummaryForRuntime,
   resolveGeneralSettingsPayload,
 } from '@/services/messageRuntime'
 
@@ -85,6 +86,28 @@ describe('message runtime service', () => {
         serverStorageMode: 'persist',
         contentAuditMode: 'e2ee',
       },
+    })
+  })
+
+  it('sanitizes cached chat summary in relay_only mode', () => {
+    expect(
+      sanitizeChatSummaryForRuntime(
+        {
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        },
+        {
+          id: 'room-1',
+          groupId: 'room-1',
+          lastMessage: 'stale summary',
+          unreadCount: 9,
+          lastMessageId: 'msg-1',
+        },
+      ),
+    ).toMatchObject({
+      lastMessage: '',
+      unreadCount: 0,
+      lastMessageId: null,
     })
   })
 })

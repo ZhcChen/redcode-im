@@ -9,6 +9,7 @@ import accountsModule from './modules/accounts'
 import {
     DEFAULT_MESSAGE_RUNTIME,
     resolveGeneralSettingsPayload,
+    sanitizeChatSummaryForRuntime,
     serializeGeneralSettingsPayload,
     type GeneralSettingsPayload,
     type MessageRuntimeSettings,
@@ -1411,7 +1412,7 @@ export const store = createStore<State>({
                             ...chat,
                             avatar: undefined,
                             avatarLocalPath: undefined,
-                        }))
+                        })).map(chat => sanitizeChatSummaryForRuntime(state.messageRuntime, chat))
                         commit('SET_CHAT_LIST', sanitizedData)
                     }
                 }
@@ -1642,7 +1643,9 @@ export const store = createStore<State>({
                     })
 
                     // 过滤掉隐藏的聊天和无效的群组ID
-                    const validChatList = chatList.filter(chat => !chat.isHidden && chat.groupId && chat.groupId.trim() !== '')
+                    const validChatList = chatList
+                        .filter(chat => !chat.isHidden && chat.groupId && chat.groupId.trim() !== '')
+                        .map(chat => sanitizeChatSummaryForRuntime(state.messageRuntime, chat))
 
                     // 智能同步群头像缓存:
                     // 1. 优先从本地缓存读取(基于 avatar url 检查)

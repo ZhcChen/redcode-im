@@ -36,6 +36,12 @@ export interface MessageRuntimeNotice {
   description: string
 }
 
+export type RuntimeChatSummaryShape = {
+  lastMessage: string
+  unreadCount: number
+  lastMessageId?: string | null
+}
+
 export const DEFAULT_APP_NAME = 'Chatly'
 
 export const DEFAULT_MESSAGE_RUNTIME: MessageRuntimeSettings = Object.freeze({
@@ -139,4 +145,20 @@ export const getMessageRuntimeNotice = (
         title,
         description: '消息会保存在服务器，管理员可审计消息内容。',
       }
+}
+
+export const sanitizeChatSummaryForRuntime = <T extends RuntimeChatSummaryShape>(
+  runtime: MessageRuntimeSettings,
+  chat: T,
+): T => {
+  if (runtime.serverStorageMode !== 'relay_only') {
+    return chat
+  }
+
+  return {
+    ...chat,
+    lastMessage: '',
+    unreadCount: 0,
+    lastMessageId: null,
+  }
 }

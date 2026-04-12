@@ -115,6 +115,38 @@ void main() {
 
     expect(roomHistoryFetchCount, 0);
   });
+
+  test('relay_only sanitizes cached chat summaries on startup', () async {
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: 'stale summary',
+            lastMessageTime: DateTime(2026, 4, 12, 10, 0, 0),
+            unreadCount: 7,
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(service.chats, hasLength(1));
+    expect(service.chats.single.lastMessage, '');
+    expect(service.chats.single.unreadCount, 0);
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {
