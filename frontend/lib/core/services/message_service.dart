@@ -20,6 +20,7 @@ import '../storage/message_storage.dart';
 import '../storage/chat_cache.dart';
 import 'local_notification_service.dart';
 import 'upload_policy_service.dart';
+import 'app_config_service.dart';
 import '../../features/chat/models/message_model.dart';
 import '../../features/chat/models/message_reader.dart';
 import '../../features/chat/models/chat_model.dart';
@@ -85,10 +86,12 @@ class MessageService with ChangeNotifier {
     MessageStorage? messageStorage,
     ChatCache? chatCache,
     http.Client? client,
+    AppConfigService? appConfigService,
   }) : _tokenStorage = tokenStorage ?? const TokenStorage(),
        _messageStorage = messageStorage ?? const MessageStorage(),
        _chatCache = chatCache ?? const ChatCache(),
-       _client = client ?? http.Client() {
+       _client = client ?? http.Client(),
+       _appConfigService = appConfigService ?? AppConfigService.instance {
     _loadCachedChats();
   }
 
@@ -96,6 +99,7 @@ class MessageService with ChangeNotifier {
   final MessageStorage _messageStorage;
   final ChatCache _chatCache;
   final http.Client _client;
+  final AppConfigService _appConfigService;
 
   // 消息存储 (roomId -> messages)
   final Map<String, List<Message>> _messagesByRoom = {};
@@ -397,6 +401,11 @@ class MessageService with ChangeNotifier {
     _offlineSyncInProgress = true;
 
     try {
+      final runtime = await _appConfigService.getMessageRuntime();
+      if (runtime.isRelayOnly) {
+        return;
+      }
+
       final candidates = _chats
           .where((chat) {
             if (chat.type == ChatType.favorite) return false;

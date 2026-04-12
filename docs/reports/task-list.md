@@ -23,6 +23,8 @@
      - desktop 已避免“本地有缓存但被空历史响应覆盖”的错位
    - frontend / desktop 已补 relay_only 历史定位提示：
      - 引用消息或置顶消息若不在本地缓存，会提示“当前模式不保存聊天记录，只能定位本地缓存中的消息”
+   - frontend 已补 relay_only 离线补拉 guard：
+     - WebSocket 重连认证后不会再触发服务端历史补拉
    - 下一步需补齐：
      - 更多边缘交互的一致行为（如跨模式残留数据、摘要回填、局部提示口径）
 
@@ -98,6 +100,7 @@
 - ✅ frontend 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ frontend 已补 relay_only 历史加载 guard：进入会话与本地定位不再额外请求服务端历史
 - ✅ frontend 已补 relay_only 引用定位提示：目标消息不在本地缓存时给出明确提示，并清理跳转加载提示队列
+- ✅ frontend 已补 relay_only 离线补拉 guard：断线重连后跳过 `syncOfflineMessages` 的服务端历史请求
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖
