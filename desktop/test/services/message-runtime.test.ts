@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyMessageUpdateToCachedMessages,
   DEFAULT_MESSAGE_RUNTIME,
   didEnterRelayOnlyMode,
   getRelayOnlyLocalPreview,
@@ -212,6 +213,87 @@ describe('message runtime service', () => {
       ]),
     ).toEqual({
       lastMessage: '[图片]',
+      unreadCount: 1,
+      lastMessageId: 'msg-2',
+      lastMessageTime: new Date('2026-04-12T12:30:00.000Z'),
+    })
+  })
+
+  it('keeps deleted latest message in cache so relay_only summary becomes deleted placeholder', () => {
+    const updated = applyMessageUpdateToCachedMessages(
+      [
+        {
+          id: 'msg-1',
+          type: 'text',
+          content: 'older',
+          status: 'read',
+          isSelf: false,
+          timestamp: '2026-04-12T12:00:00.000Z',
+        },
+        {
+          id: 'msg-2',
+          type: 'text',
+          content: 'latest',
+          status: 'sent',
+          isSelf: false,
+          timestamp: '2026-04-12T12:30:00.000Z',
+        },
+      ],
+      {
+        messageId: 'msg-2',
+        updateType: 'deleted',
+        isDeleted: true,
+      },
+    )
+
+    expect(updated).toHaveLength(2)
+    expect(updated[1]).toMatchObject({
+      id: 'msg-2',
+      isDeleted: true,
+      content: 'latest',
+    })
+    expect(resolveRelayOnlyLocalChatSummary(updated)).toEqual({
+      lastMessage: '[消息已删除]',
+      unreadCount: 0,
+      lastMessageId: 'msg-2',
+      lastMessageTime: new Date('2026-04-12T12:30:00.000Z'),
+    })
+  })
+
+  it('updates cached latest message content before rebuilding relay_only summary', () => {
+    const updated = applyMessageUpdateToCachedMessages(
+      [
+        {
+          id: 'msg-1',
+          type: 'text',
+          content: 'older',
+          status: 'read',
+          isSelf: false,
+          timestamp: '2026-04-12T12:00:00.000Z',
+        },
+        {
+          id: 'msg-2',
+          type: 'text',
+          content: 'latest',
+          status: 'sent',
+          isSelf: false,
+          timestamp: '2026-04-12T12:30:00.000Z',
+        },
+      ],
+      {
+        messageId: 'msg-2',
+        updateType: 'edited',
+        content: 'latest edited',
+        editedAt: '2026-04-12T12:31:00.000Z',
+      },
+    )
+
+    expect(updated[1]).toMatchObject({
+      id: 'msg-2',
+      content: 'latest edited',
+    })
+    expect(resolveRelayOnlyLocalChatSummary(updated)).toEqual({
+      lastMessage: 'latest edited',
       unreadCount: 1,
       lastMessageId: 'msg-2',
       lastMessageTime: new Date('2026-04-12T12:30:00.000Z'),

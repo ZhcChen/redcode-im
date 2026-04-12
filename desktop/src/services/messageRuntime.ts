@@ -60,6 +60,15 @@ export interface RuntimeCachedMessageShape {
   parts?: RuntimeCachedMessagePartShape[] | null
 }
 
+export interface RuntimeMessageUpdatePayload {
+  messageId: string
+  updateType?: string | null
+  isDeleted?: boolean
+  content?: string | null
+  editedAt?: string | number | Date | null
+  deletedAt?: string | number | Date | null
+}
+
 export interface RelayOnlyLocalChatSummary {
   lastMessage: string
   unreadCount: number
@@ -288,4 +297,68 @@ export const resolveRelayOnlyLocalChatSummary = (
     lastMessageId: latestMessage?.id ?? null,
     lastMessageTime: latestMessage?.timestamp ? new Date(latestMessage.timestamp) : null,
   }
+}
+
+const normalizeRuntimeUpdateTimestamp = (
+  value?: string | number | Date | null,
+): string | number | Date | null | undefined => {
+  if (value == null) {
+    return value
+  }
+
+  if (value instanceof Date) {
+    return value
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? value : parsed
+  }
+
+  return value
+}
+
+export const applyMessageUpdateToCachedMessages = <T extends RuntimeCachedMessageShape>(
+  messages: T[],
+  payload: RuntimeMessageUpdatePayload,
+): T[] => {
+  if (!Array.isArray(messages) || messages.length === 0 || !payload.messageId) {
+    return Array.isArray(messages) ? messages.slice() : []
+  }
+
+  const index = messages.findIndex((message) => message?.id === payload.messageId)
+  if (index === -1) {
+    return messages.slice()
+  }
+
+  const next = messages.slice()
+  const target = messages[index]
+  const normalizedType = typeof payload.updateType === 'string'
+    ? payload.updateType.trim().toLowerCase()
+    : ''
+  const isDeleteUpdate = payload.isDeleted === true || normalizedType === 'deleted'
+  const isEditUpdate = !isDeleteUpdate && (normalizedType === 'edited' || payload.editedAt != null)
+
+  const updated = {
+    ...(target as T & Record<string, unknown>),
+  } as T
+  const mutableUpdated = updated as Record<string, unknown>
+
+  if (isDeleteUpdate) {
+    updated.isDeleted = true
+    if (payload.deletedAt != null) {
+      mutableUpdated['deletedAt'] = normalizeRuntimeUpdateTimestamp(payload.deletedAt)
+    }
+  } else if (isEditUpdate) {
+    if (typeof payload.content === 'string') {
+      updated.content = payload.content
+    }
+    mutableUpdated['isEdited'] = true
+    if (payload.editedAt != null) {
+      mutableUpdated['editedAt'] = normalizeRuntimeUpdateTimestamp(payload.editedAt)
+    }
+  }
+
+  next[index] = updated as T
+  return next
 }

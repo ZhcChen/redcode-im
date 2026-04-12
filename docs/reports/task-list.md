@@ -39,6 +39,8 @@
      - 最新一条消息在本地被编辑或删除后，会同步刷新 relay_only 聊天列表摘要，且不再受启动阶段 chat cache 初始化竞态影响
    - frontend 已补 live 消息摘要预览统一：
      - 实时收到图片/语音/文件等消息时，聊天列表会立即使用统一 preview 规则刷新摘要，并同步写入 `last_message_id`
+   - desktop 已补消息更新缓存收口：
+     - 编辑/删除事件会同步写回本地消息缓存，删除不再直接丢记录，relay_only 重启后仍能稳定重建 `[消息已删除]` 等摘要
    - 下一步需补齐：
      - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
 
@@ -129,6 +131,7 @@
 - ✅ desktop 已补 relay_only 会话缓存清洗：缓存聊天列表恢复时先清空旧摘要与未读数
 - ✅ desktop 已补 runtime 切换即时收口：`persist -> relay_only` 时会同步清空当前 store/chat page 残留摘要，并刷新账号未读汇总
 - ✅ desktop 已补 relay_only 本地摘要回填：会基于本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
+- ✅ desktop 已补消息更新缓存收口：编辑/删除事件会同步写回本地消息缓存，删除消息保留 tombstone 以保证 relay_only 重启后摘要与未读统计一致
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

@@ -796,7 +796,12 @@ import SearchInput from '../components/SearchInput.vue'
 import Popover from '../components/Popover.vue'
 import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
-import { getMessageRuntimeNotice } from '../services/messageRuntime'
+import {
+  applyMessageUpdateToCachedMessages,
+  getMessageRuntimeNotice,
+  getRelayOnlyLocalPreview,
+  resolveRelayOnlyLocalChatSummary,
+} from '../services/messageRuntime'
 import {
   getMessageHistoryLocateMissNotice,
   resolveMessageHistoryForRuntime,
@@ -9710,12 +9715,88 @@ const handleWebSocketTypingUpdate = (event: CustomEvent) => {
   delete next[actorUserId]
   typingUsers.value = next
 
-  const existingTimer = typingCleanupTimers.get(actorUserId)
-  if (existingTimer) clearTimeout(existingTimer)
-  typingCleanupTimers.delete(actorUserId)
+const existingTimer = typingCleanupTimers.get(actorUserId)
+if (existingTimer) clearTimeout(existingTimer)
+typingCleanupTimers.delete(actorUserId)
 }
 
-const handleWebSocketMessageUpdate = (event: CustomEvent) => {
+type IncomingMessageUpdatePayload = {
+  messageId: string
+  updateType?: string
+  isDeleted?: boolean
+  content?: string
+  editedAt?: string | Date | null
+  deletedAt?: string | Date | null
+}
+
+const syncMessageUpdateToRoomCache = async (
+  roomId: string,
+  payload: IncomingMessageUpdatePayload,
+  liveMessages?: Message[] | null,
+): Promise<Message[] | null> => {
+  if (!roomId) {
+    return liveMessages ?? null
+  }
+
+  if (Array.isArray(liveMessages)) {
+    const updatedMessages = applyMessageUpdateToCachedMessages(liveMessages, payload) as Message[]
+    await persistMessagesCache(roomId, updatedMessages)
+    return updatedMessages
+  }
+
+  const cached = await loadCache<Message[]>(CACHE_KEYS.messages(roomId))
+  const cachedMessages = Array.isArray(cached?.data) ? cached.data : []
+  if (cachedMessages.length === 0) {
+    return null
+  }
+
+  const updatedMessages = applyMessageUpdateToCachedMessages(cachedMessages, payload) as Message[]
+  await persistMessagesCache(roomId, updatedMessages)
+  return updatedMessages
+}
+
+const resolveUpdatedChatPreview = (
+  chatItem: any,
+  payload: IncomingMessageUpdatePayload,
+  updatedMessages?: Message[] | null,
+) => {
+  if (Array.isArray(updatedMessages) && updatedMessages.length > 0) {
+    if (store.getters.isRelayOnlyMessageRuntime) {
+      const summary = resolveRelayOnlyLocalChatSummary(
+        updatedMessages,
+        chatItem?.groupType === 2,
+      )
+      if (summary) {
+        return {
+          lastMessage: summary.lastMessage,
+          lastMessageId: summary.lastMessageId ?? chatItem.lastMessageId,
+        }
+      }
+    }
+
+    const updatedMessage = updatedMessages.find((message) => message.id === payload.messageId)
+    if (updatedMessage) {
+      return {
+        lastMessage: getRelayOnlyLocalPreview(updatedMessage),
+        lastMessageId: updatedMessage.id ?? chatItem.lastMessageId,
+      }
+    }
+  }
+
+  let lastMessage = chatItem.lastMessage
+  if (payload.isDeleted) {
+    lastMessage = '[消息已删除]'
+  } else if (typeof payload.content === 'string' && payload.content.length > 0) {
+    lastMessage = payload.content.substring(0, 50)
+  }
+
+  return {
+    lastMessage,
+    lastMessageId: chatItem.lastMessageId,
+  }
+}
+
+const handleWebSocketMessageUpdate = async (event: CustomEvent) => {
   // 支持两种格式：
   // 1. 旧格式：{ message: DomainMessage } - 删除消息事件
   // 2. 新格式：{ room_id, message_id, update_type, is_deleted, content, edited_at, ... }
@@ -9738,40 +9819,36 @@ const handleWebSocketMessageUpdate = (event: CustomEvent) => {
     const updateType = detail.update_type || (detail.is_deleted ? 'deleted' : 'edited')
     const isDeleted = detail.is_deleted === true
     const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === roomId
+    const payload: IncomingMessageUpdatePayload = {
+      messageId,
+      updateType,
+      isDeleted,
+      content: detail.content,
+      editedAt: detail.edited_at ?? null,
+    }
+    let updatedRoomMessages: Message[] | null = null
 
     if (isCurrentRoom) {
-      const existingIndex = messages.value.findIndex((msg) => msg.id === messageId)
-
-      if (updateType === 'deleted' || isDeleted) {
-        // 删除消息
-        if (existingIndex !== -1) {
-          messages.value.splice(existingIndex, 1)
-        }
-      } else if (updateType === 'edited' && existingIndex !== -1) {
-        // 编辑消息：更新内容
-        const existingMessage = messages.value[existingIndex]
-        const updatedMessage = {
-          ...existingMessage,
-          content: detail.content ?? existingMessage.content,
-          isEdited: true,
-          editedAt: detail.edited_at ? new Date(detail.edited_at) : new Date(),
-        }
-        messages.value.splice(existingIndex, 1, updatedMessage)
+      updatedRoomMessages = await syncMessageUpdateToRoomCache(roomId, payload, messages.value)
+      if (updatedRoomMessages) {
+        messages.value = updatedRoomMessages
       }
+    } else {
+      updatedRoomMessages = await syncMessageUpdateToRoomCache(roomId, payload)
     }
 
     // 更新会话列表的最后消息
     const chatItem = store.getters.getChatByGroupId(roomId)
     if (chatItem && chatItem.lastMessageId === messageId) {
-      let newLastMessage = chatItem.lastMessage
-      if (isDeleted) {
-        newLastMessage = '[消息已删除]'
-      } else if (updateType === 'edited' && detail.content) {
-        newLastMessage = detail.content.substring(0, 50)
-      }
+      const { lastMessage, lastMessageId } = resolveUpdatedChatPreview(
+        chatItem,
+        payload,
+        updatedRoomMessages,
+      )
       const updatedChat = {
         ...chatItem,
-        lastMessage: newLastMessage,
+        lastMessage,
+        lastMessageId,
       }
       store.dispatch('updateChatItem', updatedChat)
     }
@@ -9786,29 +9863,39 @@ const handleWebSocketMessageUpdate = (event: CustomEvent) => {
   const message = detail.message
   const uiMessage = mapDomainMessageToUi(message)
   const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === message.roomId
+  const payload: IncomingMessageUpdatePayload = {
+    messageId: message.id,
+    updateType: message.isDeleted ? 'deleted' : 'edited',
+    isDeleted: message.isDeleted,
+    content: uiMessage.content,
+    editedAt: message.editedAt ?? null,
+  }
+  let updatedRoomMessages: Message[] | null = null
 
   if (isCurrentRoom) {
-    const existingIndex = messages.value.findIndex((msg) => msg.id === uiMessage.id)
-
-    if (message.isDeleted) {
-      if (existingIndex !== -1) {
-        messages.value.splice(existingIndex, 1)
-      }
-    } else if (existingIndex !== -1) {
-      const mergedMessage = mergeMessagePreservingLocalData(
-        messages.value[existingIndex],
-        uiMessage,
-      )
-      mergedMessage.isEdited = true
-      messages.value.splice(existingIndex, 1, mergedMessage)
+    updatedRoomMessages = await syncMessageUpdateToRoomCache(
+      message.roomId,
+      payload,
+      messages.value,
+    )
+    if (updatedRoomMessages) {
+      messages.value = updatedRoomMessages
     }
+  } else {
+    updatedRoomMessages = await syncMessageUpdateToRoomCache(message.roomId, payload)
   }
 
   const chatItem = store.getters.getChatByGroupId(message.roomId)
   if (chatItem && chatItem.lastMessageId === message.id) {
+    const { lastMessage, lastMessageId } = resolveUpdatedChatPreview(
+      chatItem,
+      payload,
+      updatedRoomMessages,
+    )
     const updatedChat = {
       ...chatItem,
-      lastMessage: message.isDeleted ? '[消息已删除]' : getMessagePreviewText(uiMessage),
+      lastMessage,
+      lastMessageId,
       time: uiMessage.time
     }
     store.dispatch('updateChatItem', updatedChat)
