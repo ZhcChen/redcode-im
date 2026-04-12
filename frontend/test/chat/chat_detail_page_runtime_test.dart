@@ -116,18 +116,36 @@ Message _message() {
   );
 }
 
+Message _messageWithQuoted({required QuotedMessage quotedMessage}) {
+  return Message(
+    id: 'msg-quoted',
+    roomId: 'room-1',
+    senderId: 'user-1',
+    senderUsername: 'alice',
+    senderName: 'Alice',
+    content: 'reply with quote',
+    type: MessageType.text,
+    status: MessageStatus.sent,
+    timestamp: DateTime(2026, 4, 11, 12, 0, 0),
+    isSelf: false,
+    quotedMessage: quotedMessage,
+  );
+}
+
 ChatProvider _buildProvider(
   _FakeWebSocketService websocketService, {
   MessageRuntimeSettings runtime = const MessageRuntimeSettings(
     serverStorageMode: 'relay_only',
     contentAuditMode: 'plaintext',
   ),
+  List<Message>? roomMessages,
 }) {
-  final message = _message();
+  final seedMessages = roomMessages ?? <Message>[_message()];
+  final message = seedMessages.first;
   return ChatProvider(
     messageService: _FakeMessageService(
       roomMessages: <String, List<Message>>{
-        'room-1': <Message>[message],
+        'room-1': seedMessages,
       },
       seedChats: <Chat>[
         Chat(
@@ -237,5 +255,49 @@ void main() {
 
     expect(find.text('当前配置目标：端到端加密'), findsOneWidget);
     expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsOneWidget);
+  });
+
+  testWidgets('relay_only quoted jump shows local-cache-only hint when target missing', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(
+      websocketService,
+      roomMessages: <Message>[
+        _messageWithQuoted(
+          quotedMessage: QuotedMessage(
+            id: 'missing-quoted',
+            roomId: 'room-1',
+            senderId: 'user-2',
+            senderUsername: 'bob',
+            senderName: 'Bob',
+            content: 'history not cached',
+            type: MessageType.text,
+            isDeleted: false,
+          ),
+        ),
+      ],
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('history not cached'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text('当前模式不保存聊天记录，只能定位本地缓存中的消息'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
   });
 }

@@ -66,6 +66,11 @@ class MessageRuntimeSettings {
     return isE2ee ? '消息会保存在服务器，按当前配置目标不应被服务端审计。' : '消息会保存在服务器，管理员可审计消息内容。';
   }
 
+  String get messageLocateMissNotice =>
+      isRelayOnly
+      ? '当前模式不保存聊天记录，只能定位本地缓存中的消息'
+      : '当前未加载到该消息，可能已被删除或尚未同步';
+
   factory MessageRuntimeSettings.fromJson(Map<String, dynamic>? json) {
     return MessageRuntimeSettings(
       serverStorageMode:

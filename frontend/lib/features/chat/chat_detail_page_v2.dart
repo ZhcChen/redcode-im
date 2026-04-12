@@ -1905,6 +1905,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     if (!mounted) return;
 
+    messenger?.hideCurrentSnackBar();
+
     if (found) {
       // 等待 widget 重建
       await Future.delayed(const Duration(milliseconds: 50));
@@ -1924,7 +1926,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     } else {
       // 未找到消息
       debugPrint('[跳转] 消息未找到');
-      messenger?.showSnackBar(const SnackBar(content: Text('未能找到该消息，可能已被删除')));
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(_chatProvider.currentMessageRuntime.messageLocateMissNotice),
+        ),
+      );
     }
   }
 

@@ -125,6 +125,14 @@ void main() {
         e2eePersist.runtimeNoticeDescription,
         '消息会保存在服务器，按当前配置目标不应被服务端审计。',
       );
+      expect(
+        plaintextRelay.messageLocateMissNotice,
+        '当前模式不保存聊天记录，只能定位本地缓存中的消息',
+      );
+      expect(
+        e2eePersist.messageLocateMissNotice,
+        '当前未加载到该消息，可能已被删除或尚未同步',
+      );
     });
 
     test(

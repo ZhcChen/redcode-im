@@ -798,6 +798,7 @@ import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
 import { getMessageRuntimeNotice } from '../services/messageRuntime'
 import {
+  getMessageHistoryLocateMissNotice,
   resolveMessageHistoryForRuntime,
   shouldUseLocalOnlyMessageHistory,
 } from '../services/messageHistory'
@@ -4855,7 +4856,10 @@ const scrollToMessageById = (messageId: string | null | undefined) => {
   nextTick(() => {
     const container = getMessagesViewport()
     const target = container?.querySelector(`[data-message-id="${messageId}"]`) as HTMLElement | null
-    if (!target) return
+    if (!target) {
+      toast.warning(getMessageHistoryLocateMissNotice(store.getters.messageRuntime))
+      return
+    }
 
     target.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
