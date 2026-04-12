@@ -123,6 +123,8 @@ class ChatProvider with ChangeNotifier {
     _messageService.addListener(_onMessageServiceChanged);
     // 监听WebSocket连接状态
     _webSocketService.addListener(_onWebSocketStatusChanged);
+    // 监听运行模式变化，确保提示文案与能力开关及时刷新
+    _appConfigService.addListener(_onAppConfigChanged);
     // 初始化当前会话与列表为消息服务已有数据（避免进入页面即触发HTTP拉取）
     _chats = _messageService.chats;
     notifyListeners();
@@ -214,7 +216,12 @@ class ChatProvider with ChangeNotifier {
 
   /// 加载更多消息
   Future<void> loadMoreMessages({int limit = 50}) async {
-    if (_currentRoomId == null || _isLoading || _messages.isEmpty || isRelayOnlyMode) return;
+    if (_currentRoomId == null ||
+        _isLoading ||
+        _messages.isEmpty ||
+        isRelayOnlyMode) {
+      return;
+    }
 
     _isLoading = true;
     notifyListeners();
@@ -824,10 +831,15 @@ class ChatProvider with ChangeNotifier {
   /// 消息服务变化回调
   void _onMessageServiceChanged() {
     if (_currentRoomId != null) {
-      final exists = _messageService.chats.any(
-        (chat) => chat.roomId == _currentRoomId,
-      );
-      if (exists) {
+      Chat? currentChat;
+      for (final chat in _messageService.chats) {
+        if (chat.roomId == _currentRoomId) {
+          currentChat = chat;
+          break;
+        }
+      }
+      if (currentChat != null) {
+        _currentChat = currentChat;
         _messages = _messageService.getMessages(_currentRoomId!);
         _primeReadReceiptStateIfNeeded();
         unawaited(_syncReadState());
@@ -838,6 +850,10 @@ class ChatProvider with ChangeNotifier {
       }
     }
     _chats = _messageService.chats;
+    notifyListeners();
+  }
+
+  void _onAppConfigChanged() {
     notifyListeners();
   }
 
@@ -967,6 +983,7 @@ class ChatProvider with ChangeNotifier {
     _isDisposed = true;
     _messageService.removeListener(_onMessageServiceChanged);
     _webSocketService.removeListener(_onWebSocketStatusChanged);
+    _appConfigService.removeListener(_onAppConfigChanged);
     super.dispose();
   }
 }

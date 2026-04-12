@@ -46,75 +46,78 @@ void main() {
 
   const session = AuthSession(
     token: 'token-runtime',
-    user: AuthUser(
-      id: 'user-self',
-      username: 'alice',
-      nickname: 'Alice',
-    ),
+    user: AuthUser(id: 'user-self', username: 'alice', nickname: 'Alice'),
   );
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('syncOfflineMessages skips server history fetch in relay_only mode', () async {
-    var roomHistoryFetchCount = 0;
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: _FakeMessageStorage(),
-      chatCache: _FakeChatCache(
-        chats: <Chat>[
-          Chat(
-            id: 'room-1',
-            roomId: 'room-1',
-            name: 'Alice',
-            type: ChatType.single,
-            lastMessage: '',
-            lastMessageTime: DateTime(2026, 4, 12, 12, 0, 0),
-            unreadCount: 1,
-            extra: const <String, dynamic>{
-              'last_read_message_id': 'msg-last-read',
-            },
-          ),
-        ],
-      ),
-      appConfigService: _FakeAppConfigService(
-        runtime: const MessageRuntimeSettings(
-          serverStorageMode: 'relay_only',
-          contentAuditMode: 'plaintext',
-        ),
-      ),
-      client: MockClient((request) async {
-        if (request.url.path == '/chats') {
-          return http.Response(
-            jsonEncode([
-              {
-                'room_id': 'room-1',
-                'name': 'Alice',
-                'room_type': 'single',
-                'unread_count': 1,
+  test(
+    'syncOfflineMessages skips server history fetch in relay_only mode',
+    () async {
+      var roomHistoryFetchCount = 0;
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(
+          chats: <Chat>[
+            Chat(
+              id: 'room-1',
+              roomId: 'room-1',
+              name: 'Alice',
+              type: ChatType.single,
+              lastMessage: '',
+              lastMessageTime: DateTime(2026, 4, 12, 12, 0, 0),
+              unreadCount: 1,
+              extra: const <String, dynamic>{
                 'last_read_message_id': 'msg-last-read',
               },
-            ]),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
+            ),
+          ],
+        ),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'relay_only',
+            contentAuditMode: 'plaintext',
+          ),
+        ),
+        client: MockClient((request) async {
+          if (request.url.path == '/chats') {
+            return http.Response(
+              jsonEncode([
+                {
+                  'room_id': 'room-1',
+                  'name': 'Alice',
+                  'room_type': 'single',
+                  'unread_count': 1,
+                  'last_read_message_id': 'msg-last-read',
+                },
+              ]),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
 
-        if (request.url.path == '/rooms/room-1/messages') {
-          roomHistoryFetchCount += 1;
-          return http.Response('[]', 200, headers: {'content-type': 'application/json'});
-        }
+          if (request.url.path == '/rooms/room-1/messages') {
+            roomHistoryFetchCount += 1;
+            return http.Response(
+              '[]',
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
 
-        return http.Response('not found', 404);
-      }),
-    );
+          return http.Response('not found', 404);
+        }),
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    await service.syncOfflineMessages();
+      await Future<void>.delayed(Duration.zero);
+      await service.syncOfflineMessages();
 
-    expect(roomHistoryFetchCount, 0);
-  });
+      expect(roomHistoryFetchCount, 0);
+    },
+  );
 
   test('relay_only sanitizes cached chat summaries on startup', () async {
     final service = MessageService(
@@ -147,20 +150,70 @@ void main() {
     expect(service.chats.single.lastMessage, '');
     expect(service.chats.single.unreadCount, 0);
   });
+
+  test(
+    'runtime switches to relay_only sanitize in-memory chat summaries',
+    () async {
+      final appConfigService = _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(
+          chats: <Chat>[
+            Chat(
+              id: 'room-1',
+              roomId: 'room-1',
+              name: 'Alice',
+              type: ChatType.single,
+              lastMessage: 'recent summary',
+              lastMessageTime: DateTime(2026, 4, 12, 10, 0, 0),
+              unreadCount: 3,
+              extra: const <String, dynamic>{'last_message_id': 'msg-1'},
+            ),
+          ],
+        ),
+        appConfigService: appConfigService,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      expect(service.chats.single.lastMessage, 'recent summary');
+      expect(service.chats.single.unreadCount, 3);
+
+      appConfigService.updateRuntime(
+        const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(service.chats.single.lastMessage, '');
+      expect(service.chats.single.unreadCount, 0);
+      expect(service.chats.single.extra, isNull);
+    },
+  );
 }
 
 class _FakeAppConfigService extends AppConfigService {
   _FakeAppConfigService({required MessageRuntimeSettings runtime})
     : _runtime = runtime,
-      super(
-        settingsService: SettingsService(),
-      );
+      super(settingsService: SettingsService());
 
-  final MessageRuntimeSettings _runtime;
+  MessageRuntimeSettings _runtime;
 
   @override
   MessageRuntimeSettings get currentMessageRuntime => _runtime;
 
   @override
   Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+
+  void updateRuntime(MessageRuntimeSettings runtime) {
+    _runtime = runtime;
+    notifyListeners();
+  }
 }

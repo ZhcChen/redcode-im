@@ -7,9 +7,11 @@ import favoriteAvatar from '@/assets/image/favorite-avatar.svg'
 import { loadCache, saveCache, CACHE_KEYS } from '../utils/cache'
 import accountsModule from './modules/accounts'
 import {
+    didEnterRelayOnlyMode,
     DEFAULT_MESSAGE_RUNTIME,
     resolveGeneralSettingsPayload,
     sanitizeChatSummaryForRuntime,
+    sanitizeChatSummariesForRuntime,
     serializeGeneralSettingsPayload,
     type GeneralSettingsPayload,
     type MessageRuntimeSettings,
@@ -146,6 +148,36 @@ const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => 
         // 时间倒序（最新消息在前）
         return new Date(b.time).getTime() - new Date(a.time).getTime()
     })
+}
+
+const applyMessageRuntimeToChatList = (
+    state: State,
+    nextRuntime: MessageRuntimeSettings,
+    previousRuntime: MessageRuntimeSettings,
+) => {
+    if (!didEnterRelayOnlyMode(previousRuntime, nextRuntime)) {
+        return
+    }
+
+    state.chatList.list = sanitizeChatSummariesForRuntime(nextRuntime, state.chatList.list)
+}
+
+const persistRelayOnlyChatListIfNeeded = async (
+    state: State,
+    dispatch: any,
+    previousRuntime: MessageRuntimeSettings,
+    nextRuntime: MessageRuntimeSettings,
+) => {
+    if (!didEnterRelayOnlyMode(previousRuntime, nextRuntime) || state.chatList.list.length === 0) {
+        return
+    }
+
+    const currentAccountId = state.accounts?.currentAccountId
+    if (currentAccountId) {
+        dispatch('accounts/syncAccountUnreadCount', currentAccountId)
+    }
+
+    await saveCache(CACHE_KEYS.chatList, JSON.parse(JSON.stringify(state.chatList.list)))
 }
 
 // 定义状态接口
@@ -518,17 +550,21 @@ export const store = createStore<State>({
             state.appName = appName
         },
         SET_MESSAGE_RUNTIME(state: State, runtime: MessageRuntimeSettings) {
+            const previousRuntime = state.messageRuntime
             state.messageRuntime = {
                 serverStorageMode: runtime.serverStorageMode,
                 contentAuditMode: runtime.contentAuditMode,
             }
+            applyMessageRuntimeToChatList(state, state.messageRuntime, previousRuntime)
         },
         SET_GENERAL_SETTINGS(state: State, payload: { appName: string; messageRuntime: MessageRuntimeSettings }) {
+            const previousRuntime = state.messageRuntime
             state.appName = payload.appName
             state.messageRuntime = {
                 serverStorageMode: payload.messageRuntime.serverStorageMode,
                 contentAuditMode: payload.messageRuntime.contentAuditMode,
             }
+            applyMessageRuntimeToChatList(state, state.messageRuntime, previousRuntime)
         },
 
         // 全局加载蒙版控制
@@ -868,13 +904,16 @@ export const store = createStore<State>({
 
     actions: {
         // 加载公开通用设置（静默加载，失败不影响启动）
-        async loadGeneralSettings({ commit }: { commit: any }) {
+        async loadGeneralSettings({ commit, state, dispatch }: { commit: any; state: State; dispatch: any }) {
             let hasAppliedCachedSettings = false
 
             try {
                 const cached = await loadCache<GeneralSettingsPayload>(CACHE_KEYS.generalSettings)
                 if (cached?.data) {
-                    commit('SET_GENERAL_SETTINGS', resolveGeneralSettingsPayload(cached.data))
+                    const resolved = resolveGeneralSettingsPayload(cached.data)
+                    const previousRuntime = state.messageRuntime
+                    commit('SET_GENERAL_SETTINGS', resolved)
+                    await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
                     hasAppliedCachedSettings = true
                 }
             } catch (error) {
@@ -892,15 +931,19 @@ export const store = createStore<State>({
                 }
 
                 const resolved = resolveGeneralSettingsPayload(generalSettings, legacyAppName)
+                const previousRuntime = state.messageRuntime
                 commit('SET_GENERAL_SETTINGS', resolved)
                 await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
+                await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
             } catch (error) {
                 if (!hasAppliedCachedSettings) {
                     try {
                         const legacyResponse = await SettingsApi.getAppName()
                         const resolved = resolveGeneralSettingsPayload(null, legacyResponse?.data?.app_name ?? null)
+                        const previousRuntime = state.messageRuntime
                         commit('SET_GENERAL_SETTINGS', resolved)
                         await saveCache(CACHE_KEYS.generalSettings, serializeGeneralSettingsPayload(resolved))
+                        await persistRelayOnlyChatListIfNeeded(state, dispatch, previousRuntime, resolved.messageRuntime)
                     } catch (legacyError) {
                         console.warn('Failed to load general settings from server, using defaults')
                     }

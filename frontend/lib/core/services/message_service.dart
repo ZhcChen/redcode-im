@@ -93,6 +93,7 @@ class MessageService with ChangeNotifier {
        _chatCache = chatCache ?? const ChatCache(),
        _client = client ?? http.Client(),
        _appConfigService = appConfigService ?? AppConfigService.instance {
+    _appConfigService.addListener(_handleAppConfigChanged);
     _loadCachedChats();
   }
 
@@ -373,9 +374,19 @@ class MessageService with ChangeNotifier {
 
     return chats
         .map(
-          (chat) => chat.copyWith(
+          (chat) => Chat(
+            id: chat.id,
+            roomId: chat.roomId,
+            name: chat.name,
+            avatar: chat.avatar,
+            avatarObjectKey: chat.avatarObjectKey,
+            localAvatarPath: chat.localAvatarPath,
+            type: chat.type,
             lastMessage: '',
+            lastMessageTime: chat.lastMessageTime,
             unreadCount: 0,
+            isPinned: chat.isPinned,
+            isMuted: chat.isMuted,
             extra: _sanitizeChatExtraForRelayOnly(chat.extra),
           ),
         )
@@ -397,6 +408,33 @@ class MessageService with ChangeNotifier {
       ..remove('last_message_sender_nickname');
 
     return sanitized.isEmpty ? null : sanitized;
+  }
+
+  bool _hasRelayOnlyChatSummaryDiff(List<Chat> chats) {
+    for (final chat in chats) {
+      final sanitizedExtra = _sanitizeChatExtraForRelayOnly(chat.extra);
+      if (chat.lastMessage.isNotEmpty ||
+          chat.unreadCount != 0 ||
+          !mapEquals(chat.extra, sanitizedExtra)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _handleAppConfigChanged() {
+    final runtime = _appConfigService.currentMessageRuntime;
+    if (!runtime.isRelayOnly) {
+      return;
+    }
+
+    if (!_hasRelayOnlyChatSummaryDiff(_chats)) {
+      return;
+    }
+
+    _chats = _sanitizeChatsForRuntime(_chats, runtime);
+    notifyListeners();
+    unawaited(_chatCache.saveChats(_chats));
   }
 
   /// 从服务器拉取会话列表（带防抖）
@@ -444,14 +482,13 @@ class MessageService with ChangeNotifier {
         return;
       }
 
-      final candidates = _chats
-          .where((chat) {
-            if (chat.type == ChatType.favorite) return false;
-            if (chat.roomId.trim().isEmpty) return false;
-            return chat.unreadCount > 0;
-          })
-          .toList()
-        ..sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
+      final candidates =
+          _chats.where((chat) {
+              if (chat.type == ChatType.favorite) return false;
+              if (chat.roomId.trim().isEmpty) return false;
+              return chat.unreadCount > 0;
+            }).toList()
+            ..sort((a, b) => b.lastMessageTime.compareTo(a.lastMessageTime));
 
       if (candidates.isEmpty) return;
 
@@ -492,8 +529,9 @@ class MessageService with ChangeNotifier {
 
     // 3) 会话列表中的 last_read_message_id（确保最少能补到未读消息）
     final extra = chat.extra;
-    final lastReadId =
-        extra != null ? (extra['last_read_message_id'] as String?) : null;
+    final lastReadId = extra != null
+        ? (extra['last_read_message_id'] as String?)
+        : null;
     if (sinceId == null || sinceId.trim().isEmpty) {
       sinceId = lastReadId;
     }
@@ -579,17 +617,20 @@ class MessageService with ChangeNotifier {
       }
     }
 
+    final runtime = await _appConfigService.getMessageRuntime();
+    final sanitizedChats = _sanitizeChatsForRuntime(chats, runtime);
+
     _chats
       ..clear()
-      ..addAll(chats);
+      ..addAll(sanitizedChats);
     _sortChats();
     _syncWebSocketSubscriptions();
     notifyListeners();
 
     // 保存到缓存（异步，不阻塞返回）
-    unawaited(_chatCache.saveChats(chats));
+    unawaited(_chatCache.saveChats(sanitizedChats));
 
-    return chats;
+    return sanitizedChats;
   }
 
   /// 发送文本消息
@@ -625,9 +666,7 @@ class MessageService with ChangeNotifier {
     final totalSize = await _calculateAttachmentSize(attachments);
     final maxBytes = policy.maxTotalBytes();
     if (totalSize > maxBytes) {
-      throw StateError(
-        '附件总大小超过 ${policy.maxTotalSizeMb} MB 限制',
-      );
+      throw StateError('附件总大小超过 ${policy.maxTotalSizeMb} MB 限制');
     }
 
     final session = await _tokenStorage.readSession();
@@ -1002,8 +1041,9 @@ class MessageService with ChangeNotifier {
     );
 
     // 更新消息的反应列表
-    final messageIndex = _messagesByRoom[roomId]
-        ?.indexWhere((m) => m.id == messageId);
+    final messageIndex = _messagesByRoom[roomId]?.indexWhere(
+      (m) => m.id == messageId,
+    );
     if (messageIndex != null && messageIndex >= 0) {
       final messages = _messagesByRoom[roomId]!;
       messages[messageIndex] = messages[messageIndex].copyWith(
@@ -1034,8 +1074,9 @@ class MessageService with ChangeNotifier {
     );
 
     // 更新消息的反应列表
-    final messageIndex = _messagesByRoom[roomId]
-        ?.indexWhere((m) => m.id == messageId);
+    final messageIndex = _messagesByRoom[roomId]?.indexWhere(
+      (m) => m.id == messageId,
+    );
     if (messageIndex != null && messageIndex >= 0) {
       final messages = _messagesByRoom[roomId]!;
       messages[messageIndex] = messages[messageIndex].copyWith(
@@ -1649,8 +1690,9 @@ class MessageService with ChangeNotifier {
     if (index == -1) return;
 
     final message = messages[index];
-    final isEditUpdate = updateType == 'edited' || (!isDeleted && editedAt != null);
-    
+    final isEditUpdate =
+        updateType == 'edited' || (!isDeleted && editedAt != null);
+
     if (isEditUpdate) {
       // 编辑消息
       final extra = _mergeExtra(message.extra, {
@@ -1708,9 +1750,7 @@ class MessageService with ChangeNotifier {
       if (messages != null && messages.isNotEmpty) {
         final index = messages.indexWhere((m) => m.id == messageId);
         if (index >= 0) {
-          messages[index] = messages[index].copyWith(
-            reactions: summaries,
-          );
+          messages[index] = messages[index].copyWith(reactions: summaries);
           notifyListeners();
           unawaited(_persistMessages(roomId));
         }
@@ -1807,10 +1847,7 @@ class MessageService with ChangeNotifier {
   }
 
   /// 插入系统消息（用于群信息变更等通知）
-  void insertSystemMessage({
-    required String roomId,
-    required String content,
-  }) {
+  void insertSystemMessage({required String roomId, required String content}) {
     if (roomId.isEmpty || content.isEmpty) return;
 
     final now = DateTime.now();
@@ -2225,9 +2262,7 @@ class MessageService with ChangeNotifier {
       final perFileLimitBytes = policy.maxSizeBytesForPartType(partTypeKey);
       if (perFileLimitBytes != null && size > perFileLimitBytes) {
         final mb = policy.maxSizeMbByPartType[partTypeKey] ?? 0;
-        throw StateError(
-          '附件 "${draft.displayName ?? file.path}" 超过 $mb MB 限制',
-        );
+        throw StateError('附件 "${draft.displayName ?? file.path}" 超过 $mb MB 限制');
       }
 
       final mime = draft.mime ?? lookupMimeType(file.path) ?? '';
@@ -2607,10 +2642,7 @@ class MessageService with ChangeNotifier {
     }
 
     final sig = plan.signature!;
-    final request = http.StreamedRequest(
-      sig.method,
-      Uri.parse(sig.url),
-    );
+    final request = http.StreamedRequest(sig.method, Uri.parse(sig.url));
     sig.applyHeaders(request, defaultContentType: plan.contentType);
 
     final total = plan.size.toDouble().clamp(1, double.infinity);
@@ -2672,7 +2704,9 @@ class MessageService with ChangeNotifier {
     );
   }
 
-  Future<void> _executeAttachmentMultipartUpload(_AttachmentUploadPlan plan) async {
+  Future<void> _executeAttachmentMultipartUpload(
+    _AttachmentUploadPlan plan,
+  ) async {
     final session = await _tokenStorage.readSession();
     if (session == null) {
       throw Exception('User not authenticated');
@@ -2681,7 +2715,10 @@ class MessageService with ChangeNotifier {
     final sessionId = plan.multipartSessionId;
     final partSize = plan.multipartPartSize;
     final totalParts = plan.multipartTotalParts;
-    if (sessionId == null || sessionId.isEmpty || partSize == null || totalParts == null) {
+    if (sessionId == null ||
+        sessionId.isEmpty ||
+        partSize == null ||
+        totalParts == null) {
       throw Exception('分片上传会话信息不完整');
     }
 
@@ -2771,8 +2808,13 @@ class MessageService with ChangeNotifier {
       final lastUpdate = _progressUpdateThrottle[throttleKey] ?? 0;
       if (now - lastUpdate < 100) {
         // 更新数据但不立刻通知监听者（除非是 0 或 1）
-        _doUpdateProgressValue(roomId, messageId, key, progress,
-            shouldNotify: false);
+        _doUpdateProgressValue(
+          roomId,
+          messageId,
+          key,
+          progress,
+          shouldNotify: false,
+        );
         return;
       }
       _progressUpdateThrottle[throttleKey] = now;
@@ -2781,7 +2823,13 @@ class MessageService with ChangeNotifier {
       _progressUpdateThrottle.remove('$roomId:$messageId:$key');
     }
 
-    _doUpdateProgressValue(roomId, messageId, key, progress, shouldNotify: true);
+    _doUpdateProgressValue(
+      roomId,
+      messageId,
+      key,
+      progress,
+      shouldNotify: true,
+    );
   }
 
   void _doUpdateProgressValue(
@@ -2879,11 +2927,13 @@ class MessageService with ChangeNotifier {
         unawaited(_persistMessages(roomId));
 
         // 广播附件路径更新事件
-        _attachmentPathController.add(AttachmentPathUpdate(
-          messageId: messageId,
-          attachmentKey: key,
-          localPath: localPath,
-        ));
+        _attachmentPathController.add(
+          AttachmentPathUpdate(
+            messageId: messageId,
+            attachmentKey: key,
+            localPath: localPath,
+          ),
+        );
       }
       break;
     }
@@ -2944,13 +2994,11 @@ class MessageService with ChangeNotifier {
       }
     }
 
-    return _AttachmentSignatureResult(
-      key: key,
-      signature: signature,
-    );
+    return _AttachmentSignatureResult(key: key, signature: signature);
   }
 
-  Future<_AttachmentMultipartInitiateResult> _requestAttachmentMultipartInitiate({
+  Future<_AttachmentMultipartInitiateResult>
+  _requestAttachmentMultipartInitiate({
     required String roomId,
     required MessagePartType type,
     required String fileName,
@@ -3098,10 +3146,7 @@ class MessageService with ChangeNotifier {
       },
       body: jsonEncode(<String, dynamic>{
         'parts': parts
-            .map((part) => {
-                  'part_number': part.partNumber,
-                  'etag': part.etag,
-                })
+            .map((part) => {'part_number': part.partNumber, 'etag': part.etag})
             .toList(),
       }),
     );
@@ -3624,6 +3669,13 @@ class MessageService with ChangeNotifier {
     }
   }
 
+  @override
+  void dispose() {
+    _appConfigService.removeListener(_handleAppConfigChanged);
+    _client.close();
+    super.dispose();
+  }
+
   /// 将会话标记为已读
   void markChatAsRead(String roomId) {
     final chatIndex = _chats.indexWhere((c) => c.roomId == roomId);
@@ -3753,11 +3805,10 @@ class MessageService with ChangeNotifier {
 
     final isMuted =
         _readBool(json, const ['is_muted', 'isMuted']) ||
-        _readInt(
-              json,
-              const ['notification_settings', 'notificationSettings'],
-              defaultValue: 0,
-            ) ==
+        _readInt(json, const [
+              'notification_settings',
+              'notificationSettings',
+            ], defaultValue: 0) ==
             2;
 
     var lastMessageText =
@@ -4028,14 +4079,10 @@ class MessageService with ChangeNotifier {
       if (value is num) return value.toInt() != 0;
       if (value is String) {
         final normalized = value.trim().toLowerCase();
-        if (normalized == 'true' ||
-            normalized == '1' ||
-            normalized == 'yes') {
+        if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
           return true;
         }
-        if (normalized == 'false' ||
-            normalized == '0' ||
-            normalized == 'no') {
+        if (normalized == 'false' || normalized == '0' || normalized == 'no') {
           return false;
         }
       }
@@ -4796,10 +4843,7 @@ class _AttachmentMultipartInitiateResult {
 }
 
 class _MultipartCompletedPart {
-  const _MultipartCompletedPart({
-    required this.partNumber,
-    required this.etag,
-  });
+  const _MultipartCompletedPart({required this.partNumber, required this.etag});
 
   final int partNumber;
   final String etag;

@@ -178,13 +178,18 @@ class _FakeAppConfigService extends AppConfigService {
         settingsService: SettingsService(),
       );
 
-  final MessageRuntimeSettings _runtime;
+  MessageRuntimeSettings _runtime;
 
   @override
   MessageRuntimeSettings get currentMessageRuntime => _runtime;
 
   @override
   Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+
+  void updateRuntime(MessageRuntimeSettings runtime) {
+    _runtime = runtime;
+    notifyListeners();
+  }
 }
 
 class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
@@ -291,6 +296,76 @@ void main() {
 
       expect(provider.chats.length, 2);
       expect(provider.chats.map((chat) => chat.roomId), <String>['r1', 'r2']);
+    });
+
+    test(
+      'message service notify refreshes currentChat snapshot for active room',
+      () async {
+        final fakeMessageService = _FakeMessageService(
+          chats: <Chat>[
+            _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'm1'),
+          ],
+        );
+        final fakeWs = _FakeWebSocketService();
+        final provider = ChatProvider(
+          messageService: fakeMessageService,
+          webSocketService: fakeWs,
+        );
+        addTearDown(provider.dispose);
+
+        await provider.enterChatRoom(
+          'r1',
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'm1'),
+          delayHistoryLoad: true,
+        );
+
+        fakeMessageService.setChats(<Chat>[
+          _chat(
+            id: '1',
+            roomId: 'r1',
+            name: 'Alice Updated',
+            lastMessage: 'm2',
+          ),
+        ]);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(provider.currentChat, isNotNull);
+        expect(provider.currentChat!.name, 'Alice Updated');
+        expect(provider.currentChat!.lastMessage, 'm2');
+      },
+    );
+
+    test('runtime change notifies provider listeners for UI refresh', () async {
+      final fakeMessageService = _FakeMessageService();
+      final fakeWs = _FakeWebSocketService();
+      final appConfigService = _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+      final provider = ChatProvider(
+        messageService: fakeMessageService,
+        webSocketService: fakeWs,
+        appConfigService: appConfigService,
+      );
+      addTearDown(provider.dispose);
+
+      var notifyCount = 0;
+      provider.addListener(() {
+        notifyCount += 1;
+      });
+
+      appConfigService.updateRuntime(
+        const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'e2ee',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.currentMessageRuntime.contentAuditMode, 'e2ee');
+      expect(notifyCount, greaterThan(0));
     });
 
     test('loadChats delegates to messageService.fetchChats', () async {
@@ -485,40 +560,45 @@ void main() {
       },
     );
 
-    test('relay_only enters room with cache only and skips server history fetch', () async {
-      final fakeMessageService = _FakeMessageService();
-      fakeMessageService.roomMessages['r1'] = <Message>[
-        _message(
-          id: 'cached-1',
-          roomId: 'r1',
-          content: 'cached history',
-          isSelf: false,
-          status: MessageStatus.sent,
-        ),
-      ];
-      final fakeWs = _FakeWebSocketService();
-      final appConfigService = _FakeAppConfigService(
-        runtime: const MessageRuntimeSettings(
-          serverStorageMode: 'relay_only',
-          contentAuditMode: 'plaintext',
-        ),
-      );
-      final provider = ChatProvider(
-        messageService: fakeMessageService,
-        webSocketService: fakeWs,
-        appConfigService: appConfigService,
-      );
-      addTearDown(provider.dispose);
+    test(
+      'relay_only enters room with cache only and skips server history fetch',
+      () async {
+        final fakeMessageService = _FakeMessageService();
+        fakeMessageService.roomMessages['r1'] = <Message>[
+          _message(
+            id: 'cached-1',
+            roomId: 'r1',
+            content: 'cached history',
+            isSelf: false,
+            status: MessageStatus.sent,
+          ),
+        ];
+        final fakeWs = _FakeWebSocketService();
+        final appConfigService = _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'relay_only',
+            contentAuditMode: 'plaintext',
+          ),
+        );
+        final provider = ChatProvider(
+          messageService: fakeMessageService,
+          webSocketService: fakeWs,
+          appConfigService: appConfigService,
+        );
+        addTearDown(provider.dispose);
 
-      await provider.enterChatRoom(
-        'r1',
-        _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
-      );
+        await provider.enterChatRoom(
+          'r1',
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
+        );
 
-      expect(fakeMessageService.loadCachedMessagesCallCount, 1);
-      expect(fakeMessageService.loadMessagesCallCount, 0);
-      expect(provider.messages.map((message) => message.id), <String>['cached-1']);
-    });
+        expect(fakeMessageService.loadCachedMessagesCallCount, 1);
+        expect(fakeMessageService.loadMessagesCallCount, 0);
+        expect(provider.messages.map((message) => message.id), <String>[
+          'cached-1',
+        ]);
+      },
+    );
   });
 }
 

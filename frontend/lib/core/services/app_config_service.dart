@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
+
 import '../storage/app_config_storage.dart';
 import 'settings_service.dart';
 
 /// 应用配置服务（统一管理应用配置，包括从 API 获取和从 SQLite 读取）
-class AppConfigService {
+class AppConfigService extends ChangeNotifier {
   AppConfigService({
     AppConfigStorage? storage,
     SettingsService? settingsService,
@@ -122,7 +124,16 @@ class AppConfigService {
   }
 
   void _cacheMessageRuntime(MessageRuntimeSettings runtime) {
+    final previous = _cachedMessageRuntime;
+    final hadCachedRuntime = _hasCachedMessageRuntime;
+
     _cachedMessageRuntime = runtime;
     _hasCachedMessageRuntime = true;
+
+    if (!hadCachedRuntime ||
+        previous.serverStorageMode != runtime.serverStorageMode ||
+        previous.contentAuditMode != runtime.contentAuditMode) {
+      notifyListeners();
+    }
   }
 }

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   DEFAULT_MESSAGE_RUNTIME,
+  didEnterRelayOnlyMode,
   getMessageRuntimeCapabilities,
   getMessageRuntimeNotice,
   sanitizeChatSummaryForRuntime,
+  sanitizeChatSummariesForRuntime,
   resolveGeneralSettingsPayload,
 } from '@/services/messageRuntime'
 
@@ -109,5 +111,73 @@ describe('message runtime service', () => {
       unreadCount: 0,
       lastMessageId: null,
     })
+  })
+
+  it('sanitizes chat list only when runtime enters relay_only', () => {
+    expect(
+      didEnterRelayOnlyMode(
+        {
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        },
+        {
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        },
+      ),
+    ).toBe(true)
+
+    expect(
+      didEnterRelayOnlyMode(
+        {
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        },
+        {
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'e2ee',
+        },
+      ),
+    ).toBe(false)
+
+    expect(
+      sanitizeChatSummariesForRuntime(
+        {
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        },
+        [
+          {
+            id: 'room-1',
+            groupId: 'room-1',
+            lastMessage: 'stale summary',
+            unreadCount: 9,
+            lastMessageId: 'msg-1',
+          },
+          {
+            id: 'room-2',
+            groupId: 'room-2',
+            lastMessage: '',
+            unreadCount: 0,
+            lastMessageId: null,
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        id: 'room-1',
+        groupId: 'room-1',
+        lastMessage: '',
+        unreadCount: 0,
+        lastMessageId: null,
+      },
+      {
+        id: 'room-2',
+        groupId: 'room-2',
+        lastMessage: '',
+        unreadCount: 0,
+        lastMessageId: null,
+      },
+    ])
   })
 })

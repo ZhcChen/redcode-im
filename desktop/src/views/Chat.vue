@@ -5621,6 +5621,36 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => [selectedChat.value?.groupId ?? null, chatList.value] as [string | null, ChatItem[]],
+  ([currentGroupId, chats]) => {
+    if (!currentGroupId || !selectedChat.value) return
+
+    const latestChat = chats.find((chat) => chat.groupId === currentGroupId || chat.id === currentGroupId)
+    if (!latestChat) return
+
+    const shouldRefreshSelectedChat =
+      selectedChat.value.lastMessage !== latestChat.lastMessage ||
+      selectedChat.value.unreadCount !== latestChat.unreadCount ||
+      selectedChat.value.lastMessageId !== latestChat.lastMessageId ||
+      selectedChat.value.name !== latestChat.name ||
+      selectedChat.value.avatar !== latestChat.avatar ||
+      selectedChat.value.avatarLocalPath !== latestChat.avatarLocalPath
+
+    if (!shouldRefreshSelectedChat) return
+
+    selectedChat.value = {
+      ...selectedChat.value,
+      ...latestChat,
+      extra: {
+        ...(selectedChat.value.extra || {}),
+        ...(latestChat.extra || {}),
+      },
+    }
+  },
+  { immediate: true }
+)
+
 // 监听滚动请求：将目标未读会话滚动到列表顶部，但不自动选中
 watch(
   () => [store.state.chatListScrollRequest, chatList.value] as [{ groupId: string | null; timestamp: number } | null, ChatItem[]],

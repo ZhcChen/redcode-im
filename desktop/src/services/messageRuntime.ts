@@ -162,3 +162,15 @@ export const sanitizeChatSummaryForRuntime = <T extends RuntimeChatSummaryShape>
     lastMessageId: null,
   }
 }
+
+export const sanitizeChatSummariesForRuntime = <T extends RuntimeChatSummaryShape>(
+  runtime: MessageRuntimeSettings,
+  chats: T[],
+): T[] => chats.map((chat) => sanitizeChatSummaryForRuntime(runtime, chat))
+
+export const didEnterRelayOnlyMode = (
+  previous: MessageRuntimeSettings,
+  next: MessageRuntimeSettings,
+): boolean => {
+  return previous.serverStorageMode !== 'relay_only' && next.serverStorageMode === 'relay_only'
+}
