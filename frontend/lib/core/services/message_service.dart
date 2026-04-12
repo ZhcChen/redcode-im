@@ -2287,15 +2287,21 @@ class MessageService with ChangeNotifier {
 
   /// 更新聊天的最后消息
   void _updateChatLastMessage(String roomId, Message message) {
+    final preview = _buildChatSummaryPreview(message);
     final chatIndex = _chats.indexWhere((c) => c.roomId == roomId);
     if (chatIndex >= 0) {
       final isSelfMessage = message.isSelf;
       final unread = isSelfMessage ? 0 : (_chats[chatIndex].unreadCount + 1);
+      final nextExtra = <String, dynamic>{
+        if (_chats[chatIndex].extra != null) ..._chats[chatIndex].extra!,
+        'last_message_id': message.id,
+      };
 
       _chats[chatIndex] = _chats[chatIndex].copyWith(
-        lastMessage: message.content,
+        lastMessage: preview,
         lastMessageTime: message.timestamp,
         unreadCount: unread,
+        extra: nextExtra,
       );
       _sortChats();
       notifyListeners();
@@ -2359,12 +2365,13 @@ class MessageService with ChangeNotifier {
             ? AppAssets.chatFavorite
             : message.senderAvatar,
         type: inferredType,
-        lastMessage: message.content,
+        lastMessage: preview,
         lastMessageTime: message.timestamp,
         unreadCount: inferredType == ChatType.favorite ? 0 : 1,
         isPinned: inferredType == ChatType.favorite,
         extra: {
           if (message.extra != null) ...message.extra!,
+          'last_message_id': message.id,
           'placeholder': true,
         },
       );

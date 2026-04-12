@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/services/app_config_service.dart';
 import 'package:frontend/core/services/message_service.dart';
 import 'package:frontend/core/services/settings_service.dart';
+import 'package:frontend/core/services/websocket_service.dart';
 import 'package:frontend/core/storage/chat_cache.dart';
 import 'package:frontend/core/storage/message_storage.dart';
 import 'package:frontend/core/storage/token_storage.dart';
@@ -316,6 +317,54 @@ void main() {
       expect(service.chats.single.extra?['last_message_id'], 'msg-1');
     },
   );
+
+  test('live websocket image message uses preview summary immediately', () async {
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: '',
+            lastMessageTime: DateTime(2026, 4, 12, 12, 0, 0),
+            unreadCount: 0,
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    await service.handleWebSocketMessage(
+      WebSocketMessage(
+        id: 'msg-image-1',
+        roomId: 'room-1',
+        senderId: 'user-peer',
+        senderUsername: 'bob',
+        senderNickname: 'Bob',
+        senderAvatarUrl: null,
+        content: '',
+        messageType: 'image',
+        timestamp: DateTime(2026, 4, 12, 12, 40, 0),
+        extra: null,
+        quotedMessage: null,
+        forwardMessage: null,
+        parts: const <WebSocketMessagePart>[],
+      ),
+    );
+
+    expect(service.chats.single.lastMessage, '[图片]');
+    expect(service.chats.single.extra?['last_message_id'], 'msg-image-1');
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {
