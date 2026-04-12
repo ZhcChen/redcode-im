@@ -35,6 +35,8 @@
      - 进入当前会话后会在本地立即清空未读数，不再依赖服务端已读接口
    - frontend 已补搜索页 runtime 响应式切换：
      - 若搜索页打开期间 runtime 从 persist 切到 relay_only，会自动切回“仅本地缓存搜索”
+   - frontend 已补消息编辑/删除后的本地摘要即时刷新：
+     - 最新一条消息在本地被编辑或删除后，会同步刷新 relay_only 聊天列表摘要，且不再受启动阶段 chat cache 初始化竞态影响
    - 下一步需补齐：
      - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
 
@@ -116,6 +118,7 @@
 - ✅ frontend 已补 relay_only 本地摘要回填：会基于 SQLite 本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
 - ✅ frontend 已补 relay_only 本地已读清零：进入会话后会立刻清空本地未读数，不再残留红点
 - ✅ frontend 已补搜索页 runtime 响应式切换：搜索页打开期间若切到 relay_only，会立即隐藏服务端搜索并重跑本地搜索
+- ✅ frontend 已补消息编辑/删除后的 relay_only 摘要即时刷新：`handleMessageUpdate` 会等待 chat cache 初始化完成，再刷新最新消息摘要与 `last_message_id`
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖

@@ -94,7 +94,7 @@ class MessageService with ChangeNotifier {
        _client = client ?? http.Client(),
        _appConfigService = appConfigService ?? AppConfigService.instance {
     _appConfigService.addListener(_handleAppConfigChanged);
-    _loadCachedChats();
+    _cachedChatsLoaded = _loadCachedChats();
   }
 
   final TokenStorage _tokenStorage;
@@ -102,6 +102,7 @@ class MessageService with ChangeNotifier {
   final ChatCache _chatCache;
   final http.Client _client;
   final AppConfigService _appConfigService;
+  late final Future<void> _cachedChatsLoaded;
 
   // 消息存储 (roomId -> messages)
   final Map<String, List<Message>> _messagesByRoom = {};
@@ -1855,7 +1856,34 @@ class MessageService with ChangeNotifier {
       }
     }
 
+    await _cachedChatsLoaded;
+
+    final chatIndex = _chats.indexWhere((chat) => chat.roomId == roomId);
+    if (chatIndex >= 0) {
+      Message? latestMessage;
+      for (final candidate in messages) {
+        if (latestMessage == null ||
+            candidate.timestamp.isAfter(latestMessage.timestamp)) {
+          latestMessage = candidate;
+        }
+      }
+
+      if (latestMessage != null && latestMessage.id == messageId) {
+        final chat = _chats[chatIndex];
+        final nextExtra = <String, dynamic>{
+          if (chat.extra != null) ...chat.extra!,
+          'last_message_id': latestMessage.id,
+        };
+        _chats[chatIndex] = chat.copyWith(
+          lastMessage: _buildChatSummaryPreview(latestMessage),
+          lastMessageTime: latestMessage.timestamp,
+          extra: nextExtra,
+        );
+      }
+    }
+
     notifyListeners();
+    unawaited(_chatCache.saveChats(_chats));
     unawaited(_persistMessages(roomId));
   }
 

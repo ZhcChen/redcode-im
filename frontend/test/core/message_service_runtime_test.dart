@@ -33,6 +33,11 @@ class _FakeMessageStorage extends MessageStorage {
   @override
   Future<List<Message>> loadMessages(String roomId) async =>
       List<Message>.from(_roomMessages[roomId] ?? const <Message>[]);
+
+  @override
+  Future<void> saveMessages(String roomId, List<Message> messages) async {
+    _roomMessages[roomId] = List<Message>.from(messages);
+  }
 }
 
 class _FakeChatCache extends ChatCache {
@@ -253,6 +258,64 @@ void main() {
     expect(service.chats.single.unreadCount, 1);
     expect(service.chats.single.extra?['last_message_id'], 'msg-1');
   });
+
+  test(
+    'message update refreshes latest local relay_only chat summary',
+    () async {
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(
+          roomMessages: <String, List<Message>>{
+            'room-1': <Message>[
+              Message(
+                id: 'msg-1',
+                roomId: 'room-1',
+                senderId: 'user-peer',
+                senderUsername: 'bob',
+                senderName: 'Bob',
+                content: 'hello latest',
+                type: MessageType.text,
+                status: MessageStatus.sent,
+                timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+                isSelf: false,
+              ),
+            ],
+          },
+        ),
+        chatCache: _FakeChatCache(
+          chats: <Chat>[
+            Chat(
+              id: 'room-1',
+              roomId: 'room-1',
+              name: 'Alice',
+              type: ChatType.single,
+              lastMessage: 'hello latest',
+              lastMessageTime: DateTime(2026, 4, 12, 12, 30, 0),
+              unreadCount: 1,
+              extra: const <String, dynamic>{'last_message_id': 'msg-1'},
+            ),
+          ],
+        ),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'relay_only',
+            contentAuditMode: 'plaintext',
+          ),
+        ),
+      );
+
+      await service.loadCachedMessages('room-1');
+      await service.handleMessageUpdate(
+        roomId: 'room-1',
+        messageId: 'msg-1',
+        isDeleted: true,
+        deletedAt: DateTime(2026, 4, 12, 12, 31, 0),
+      );
+
+      expect(service.chats.single.lastMessage, '[消息已删除]');
+      expect(service.chats.single.extra?['last_message_id'], 'msg-1');
+    },
+  );
 }
 
 class _FakeAppConfigService extends AppConfigService {
