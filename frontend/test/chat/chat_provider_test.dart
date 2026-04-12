@@ -45,6 +45,7 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   final List<String> unpinnedCalls = <String>[];
   final List<String> markedDeleted = <String>[];
   final List<String> markedReadCalls = <String>[];
+  final List<String> localMarkedReadRooms = <String>[];
   final List<String> addedReactionCalls = <String>[];
   final List<String> removedReactionCalls = <String>[];
   final Map<String, List<Message>> roomMessages = <String, List<Message>>{};
@@ -157,6 +158,16 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   @override
   Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {
     markedReadCalls.add('$roomId::$lastMessageId');
+  }
+
+  @override
+  void markChatAsRead(String roomId) {
+    localMarkedReadRooms.add(roomId);
+    final index = _chats.indexWhere((chat) => chat.roomId == roomId);
+    if (index >= 0) {
+      _chats[index] = _chats[index].copyWith(unreadCount: 0);
+      notifyListeners();
+    }
   }
 
   @override
@@ -563,7 +574,16 @@ void main() {
     test(
       'relay_only enters room with cache only and skips server history fetch',
       () async {
-        final fakeMessageService = _FakeMessageService();
+        final fakeMessageService = _FakeMessageService(
+          chats: <Chat>[
+            _chat(
+              id: '1',
+              roomId: 'r1',
+              name: 'Alice',
+              lastMessage: 'x',
+            ).copyWith(unreadCount: 4),
+          ],
+        );
         fakeMessageService.roomMessages['r1'] = <Message>[
           _message(
             id: 'cached-1',
@@ -594,9 +614,11 @@ void main() {
 
         expect(fakeMessageService.loadCachedMessagesCallCount, 1);
         expect(fakeMessageService.loadMessagesCallCount, 0);
+        expect(fakeMessageService.localMarkedReadRooms, <String>['r1']);
         expect(provider.messages.map((message) => message.id), <String>[
           'cached-1',
         ]);
+        expect(provider.chats.single.unreadCount, 0);
       },
     );
   });

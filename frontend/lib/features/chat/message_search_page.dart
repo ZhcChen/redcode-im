@@ -77,6 +77,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
     _appConfigService = widget.appConfigService ?? AppConfigService.instance;
     _httpClient = widget.httpClient ?? http.Client();
     _serverSearchEnabled = !_appConfigService.currentMessageRuntime.isRelayOnly;
+    _appConfigService.addListener(_handleRuntimeChanged);
     _availableChats = _messageService.chats;
     _roomFilter = widget.initialRoomId?.trim() ?? '';
 
@@ -90,10 +91,34 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
 
   @override
   void dispose() {
+    _appConfigService.removeListener(_handleRuntimeChanged);
     _debounceTimer?.cancel();
     _queryController.dispose();
     _queryFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleRuntimeChanged() {
+    final nextEnabled = !_appConfigService.currentMessageRuntime.isRelayOnly;
+    if (_serverSearchEnabled == nextEnabled) {
+      return;
+    }
+
+    if (!mounted) {
+      _serverSearchEnabled = nextEnabled;
+      return;
+    }
+
+    setState(() {
+      _serverSearchEnabled = nextEnabled;
+      _hasMoreServer = false;
+      _serverOffset = 0;
+    });
+
+    final query = _queryController.text.trim();
+    if (query.isNotEmpty) {
+      unawaited(_runSearch(reset: true));
+    }
   }
 
   Future<void> _rebuildIndexFromCache() async {

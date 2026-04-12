@@ -72,6 +72,9 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {}
 
   @override
+  void markChatAsRead(String roomId) {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -144,9 +147,7 @@ ChatProvider _buildProvider(
   final message = seedMessages.first;
   return ChatProvider(
     messageService: _FakeMessageService(
-      roomMessages: <String, List<Message>>{
-        'room-1': seedMessages,
-      },
+      roomMessages: <String, List<Message>>{'room-1': seedMessages},
       seedChats: <Chat>[
         Chat(
           id: 'chat-1',
@@ -257,47 +258,48 @@ void main() {
     expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsOneWidget);
   });
 
-  testWidgets('relay_only quoted jump shows local-cache-only hint when target missing', (
-    tester,
-  ) async {
-    final websocketService = _FakeWebSocketService();
-    final provider = _buildProvider(
-      websocketService,
-      roomMessages: <Message>[
-        _messageWithQuoted(
-          quotedMessage: QuotedMessage(
-            id: 'missing-quoted',
+  testWidgets(
+    'relay_only quoted jump shows local-cache-only hint when target missing',
+    (tester) async {
+      final websocketService = _FakeWebSocketService();
+      final provider = _buildProvider(
+        websocketService,
+        roomMessages: <Message>[
+          _messageWithQuoted(
+            quotedMessage: QuotedMessage(
+              id: 'missing-quoted',
+              roomId: 'room-1',
+              senderId: 'user-2',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: 'history not cached',
+              type: MessageType.text,
+              isDeleted: false,
+            ),
+          ),
+        ],
+      );
+      addTearDown(provider.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ChatDetailPageV2(
             roomId: 'room-1',
-            senderId: 'user-2',
-            senderUsername: 'bob',
-            senderName: 'Bob',
-            content: 'history not cached',
-            type: MessageType.text,
-            isDeleted: false,
+            chatName: 'Alice',
+            chatProvider: provider,
+            websocketService: websocketService,
           ),
         ),
-      ],
-    );
-    addTearDown(provider.dispose);
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ChatDetailPageV2(
-          roomId: 'room-1',
-          chatName: 'Alice',
-          chatProvider: provider,
-          websocketService: websocketService,
-        ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.text('history not cached'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.tap(find.text('history not cached'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(find.text('当前模式不保存聊天记录，只能定位本地缓存中的消息'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-  });
+      expect(find.text('当前模式不保存聊天记录，只能定位本地缓存中的消息'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
 }

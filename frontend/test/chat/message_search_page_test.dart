@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/services/app_config_service.dart';
@@ -20,13 +22,18 @@ class _FakeAppConfigService extends AppConfigService {
         settingsService: SettingsService(),
       );
 
-  final MessageRuntimeSettings _runtime;
+  MessageRuntimeSettings _runtime;
 
   @override
   MessageRuntimeSettings get currentMessageRuntime => _runtime;
 
   @override
   Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+
+  void updateRuntime(MessageRuntimeSettings runtime) {
+    _runtime = runtime;
+    notifyListeners();
+  }
 }
 
 class _FakeMessageSearchStorage extends MessageSearchStorage {
@@ -158,4 +165,99 @@ void main() {
     expect(searchStorage.searchCalls, 1);
     expect(httpCalls, 0);
   });
+
+  testWidgets(
+    'runtime change to relay_only refreshes search to local-only mode',
+    (tester) async {
+      final searchStorage = _FakeMessageSearchStorage(
+        response: MessageSearchResponse(
+          results: const <MessageSearchResult>[
+            MessageSearchResult(
+              id: 'msg-1',
+              roomId: 'room-1',
+              roomName: '缓存会话',
+              senderId: 'user-1',
+              senderName: 'Alice',
+              content: 'hello relay only',
+              messageType: 'text',
+              timestampMs: 1712812800000,
+              relevanceScore: 0.9,
+            ),
+          ],
+          stats: const MessageSearchStats(
+            totalResults: 1,
+            searchTimeMs: 1,
+            query: 'hello',
+          ),
+          hasMore: false,
+        ),
+      );
+      const messageStorage = _FakeMessageStorage();
+      final messageService = _FakeSearchMessageService(
+        seedChats: <Chat>[
+          Chat(
+            id: 'chat-1',
+            roomId: 'room-1',
+            name: '缓存会话',
+            type: ChatType.single,
+            lastMessage: 'hello',
+            lastMessageTime: DateTime(2026, 4, 11, 12, 0, 0),
+          ),
+        ],
+      );
+      final httpClient = MockClient((request) async {
+        return http.Response(
+          jsonEncode(<String, Object?>{
+            'results': <Object?>[],
+            'stats': <String, Object?>{
+              'total_results': 0,
+              'search_time_ms': 1,
+              'query': 'hello',
+            },
+            'has_more': false,
+          }),
+          200,
+          headers: <String, String>{'content-type': 'application/json'},
+        );
+      });
+      final appConfigService = _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MessageSearchPage(
+            initialRoomId: 'room-1',
+            searchStorage: searchStorage,
+            messageStorage: messageStorage,
+            messageService: messageService,
+            appConfigService: appConfigService,
+            httpClient: httpClient,
+          ),
+        ),
+      );
+
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+
+      expect(find.text('当前仅搜索本地缓存消息'), findsNothing);
+
+      appConfigService.updateRuntime(
+        const MessageRuntimeSettings(
+          serverStorageMode: 'relay_only',
+          contentAuditMode: 'plaintext',
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump();
+
+      expect(find.text('当前仅搜索本地缓存消息'), findsOneWidget);
+      expect(searchStorage.searchCalls, 2);
+    },
+  );
 }

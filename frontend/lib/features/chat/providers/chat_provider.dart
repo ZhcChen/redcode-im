@@ -964,6 +964,7 @@ class ChatProvider with ChangeNotifier {
 
     if (isRelayOnlyMode) {
       _lastReadMessageId = latestIncoming.id;
+      _messageService.markChatAsRead(roomId);
       return;
     }
 
