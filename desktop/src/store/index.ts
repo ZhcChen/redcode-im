@@ -151,6 +151,9 @@ const sortChatItems = (list: ChatItem[], currentChatGroupId?: string | null) => 
     })
 }
 
+const buildChatListCacheSnapshot = (list: ChatItem[]) =>
+    JSON.parse(JSON.stringify(list))
+
 const formatChatListTime = (timeValue: Date | string | null | undefined) => {
     if (!timeValue) return ''
     const now = new Date()
@@ -1877,12 +1880,14 @@ export const store = createStore<State>({
         },
 
         // 更新聊天项
-        updateChatItem({ commit }: { commit: any }, chatItem: ChatItem) {
+        async updateChatItem({ commit, state }: { commit: any; state: State }, chatItem: ChatItem) {
             commit('UPDATE_CHAT_ITEM', chatItem)
+            await saveCache(CACHE_KEYS.chatList, buildChatListCacheSnapshot(state.chatList.list))
         },
 
-        setChatUnreadCount({ commit, dispatch, state }: { commit: any; dispatch: any; state: State }, payload: { groupId: string; unreadCount: number }) {
+        async setChatUnreadCount({ commit, dispatch, state }: { commit: any; dispatch: any; state: State }, payload: { groupId: string; unreadCount: number }) {
             commit('SET_CHAT_UNREAD_COUNT', payload)
+            await saveCache(CACHE_KEYS.chatList, buildChatListCacheSnapshot(state.chatList.list))
 
             // 同步更新当前账号的未读数
             const currentAccountId = state.accounts?.currentAccountId
