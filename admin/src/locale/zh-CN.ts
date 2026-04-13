@@ -29,7 +29,7 @@ export default {
   'menu.operations': '运维管理',
   'menu.operations.systemLog': '系统日志',
   'menu.operations.pushLog': 'Push 日志',
-  'menu.operations.storageProvider': '对象存储提供商',
+  'menu.operations.storageProvider': '对象存储配置',
   'menu.operations.storageTest': '对象存储测试',
   'menu.operations.ipinfoToken': 'IP地理位置Token',
   'menu.operations.dataCleanup': '数据清理',

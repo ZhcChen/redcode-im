@@ -76,6 +76,12 @@ async fn main() {
     services::geolocation::init_geolocation_service(database.pool().clone());
     eprintln!("[STARTUP] 地理位置服务初始化完成!");
 
+    if let Err(err) =
+        services::storage_config::ensure_bootstrap_default_provider(database.clone()).await
+    {
+        eprintln!("[STARTUP] 同步对象存储默认 provider 失败: {err}");
+    }
+
     // 初始化 WebSocket 连接管理器
     let connection_manager = std::sync::Arc::new(websocket::ConnectionManager::new());
 

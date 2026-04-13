@@ -156,6 +156,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
         "push_job_queue",
         "user_oauth_accounts",
         "e2ee_identity_keys",
+        "object_storage_configs",
     ] {
         assert!(table_exists(pool, table).await?, "缺少表: {table}");
     }
@@ -180,7 +181,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(applied_count, 2);
+    assert_eq!(applied_count, 3);
 
     let checksum: Option<String> =
         sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")
@@ -228,7 +229,7 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(adopted.pool())
         .await?;
-    assert_eq!(applied_count, 2);
+    assert_eq!(applied_count, 3);
 
     let checksum: Option<String> =
         sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")
@@ -244,6 +245,15 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
     .fetch_one(adopted.pool())
     .await?;
     assert!(remove_default_admin_checksum.is_some());
+
+    let add_object_storage_configs_checksum: Option<String> = sqlx::query_scalar(
+        "SELECT checksum
+         FROM db_migrations
+         WHERE name = '20260413153000_add_object_storage_configs.sql'",
+    )
+    .fetch_one(adopted.pool())
+    .await?;
+    assert!(add_object_storage_configs_checksum.is_some());
 
     adopted.pool.close().await;
     temp.cleanup().await?;

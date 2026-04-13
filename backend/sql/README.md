@@ -20,6 +20,7 @@
 >
 > 1. `backend/sql/base.sql`
 > 2. `backend/sql/migrations/20260410093000_remove_default_admin_seed.sql`
+> 3. `backend/sql/migrations/20260413153000_add_object_storage_configs.sql`
 >
 > 因此“当前完整 schema”不是只执行 `base.sql`，而是执行完整链路后的结果。
 

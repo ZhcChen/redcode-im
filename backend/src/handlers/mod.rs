@@ -1,5 +1,6 @@
 pub mod activity_logs;
 pub mod admin;
+pub mod admin_storage_config;
 pub mod auth;
 pub mod chat_history;
 pub mod e2ee;

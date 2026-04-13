@@ -63,6 +63,23 @@ impl StorageProviderStore {
         Ok(provider)
     }
 
+    pub async fn get_any_default_provider(&self) -> Result<Option<StorageProvider>, Error> {
+        let provider = query_as::<_, StorageProvider>(
+            r#"
+            SELECT id, provider_type, name, secret_id, secret_key, region, endpoint,
+                   bucket_name, is_active, is_default, description, created_at, updated_at, updated_by
+            FROM storage_providers
+            WHERE is_default = TRUE
+            ORDER BY updated_at DESC
+            LIMIT 1
+            "#,
+        )
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(provider)
+    }
+
     /// 创建提供商配置
     pub async fn create_provider(
         &self,
@@ -187,5 +204,51 @@ impl StorageProviderStore {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn upsert_default_b2_provider(
+        &self,
+        name: &str,
+        secret_id: &str,
+        secret_key: &str,
+        region: &str,
+        endpoint: &str,
+        bucket_name: &str,
+        description: Option<&str>,
+        updated_by: Option<Uuid>,
+    ) -> Result<StorageProvider, Error> {
+        if let Some(existing) = self.get_any_default_provider().await? {
+            self.update_provider(
+                &existing.id,
+                Some(StorageProviderType::BackblazeB2),
+                Some(name),
+                Some(secret_id),
+                Some(secret_key),
+                Some(region),
+                Some(endpoint),
+                Some(Some(bucket_name)),
+                Some(true),
+                Some(true),
+                Some(description),
+                updated_by,
+            )
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)
+        } else {
+            self.create_provider(
+                StorageProviderType::BackblazeB2,
+                name,
+                secret_id,
+                secret_key,
+                region,
+                endpoint,
+                Some(bucket_name),
+                true,
+                true,
+                description,
+                updated_by,
+            )
+            .await
+        }
     }
 }

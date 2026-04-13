@@ -17,6 +17,7 @@ pub mod message_reaction_store;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;
+pub mod object_storage_config_store;
 pub mod push_device_store;
 pub mod push_job_store;
 pub mod push_log_store;
@@ -51,6 +52,12 @@ const REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/sql/migrations/20260410093000_remove_default_admin_seed.sql"
 ));
+const ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_NAME: &str =
+    "20260413153000_add_object_storage_configs.sql";
+const ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/sql/migrations/20260413153000_add_object_storage_configs.sql"
+));
 const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 
 /// 按执行顺序写死的迁移脚本列表
@@ -65,6 +72,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (
         REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_NAME,
         REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL,
+    ),
+    (
+        ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_NAME,
+        ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL,
     ),
 ];
 

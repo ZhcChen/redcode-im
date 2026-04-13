@@ -6,8 +6,10 @@
 
 1. `backend/sql/base.sql`
 2. `backend/sql/migrations/20260410093000_remove_default_admin_seed.sql`
+3. `backend/sql/migrations/20260413153000_add_object_storage_configs.sql`
 
 其中 `20260410093000_remove_default_admin_seed.sql` 用于把默认管理员 seed 切换为“运行时 bootstrap 初始化首个超级管理员”的新流程。
+其中 `20260413153000_add_object_storage_configs.sql` 用于引入对象存储运行时配置版本表，承接 B2-only runtime config 工作流。
 
 后续若有新的数据库结构或 seed 变更，请继续从本目录追加，并保持顺序：
 

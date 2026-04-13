@@ -152,6 +152,111 @@ const storageProvider = {
   updated_by: 'admin',
 };
 
+const objectStorageCurrent = {
+  source: 'database',
+  version: 3,
+  provider: 'backblaze_b2',
+  endpoint: 'https://s3.us-east-005.backblazeb2.com',
+  region: 'us-east-005',
+  private_bucket: 'demo-private-bucket',
+  public_bucket: 'demo-public-bucket',
+  public_base_url: 'https://cdn.example.com',
+  upload_url_ttl_seconds: 900,
+  download_url_ttl_seconds: 600,
+  key_id_configured: true,
+  application_key_configured: true,
+  last_applied_by: 'admin',
+  last_applied_at: now,
+  rollback_source_version: null,
+  updated_at: now,
+};
+
+const objectStorageHistory = [
+  {
+    ...objectStorageCurrent,
+    status: 'active',
+    change_note: '切换到新的 B2 Key',
+    created_by: 'admin',
+    created_at: now,
+    applied_by: 'admin',
+    applied_at: now,
+  },
+  {
+    ...objectStorageCurrent,
+    version: 2,
+    status: 'superseded',
+    change_note: '初始接入 B2',
+    created_by: 'admin',
+    created_at: now,
+    applied_by: 'admin',
+    applied_at: now,
+  },
+];
+
+const objectStorageProbePayload = {
+  normalized: objectStorageCurrent,
+  probe: {
+    status: 'pass',
+    allowed_capabilities: [
+      'listBuckets',
+      'readFiles',
+      'writeBuckets',
+      'writeFiles',
+    ],
+    required_runtime_capabilities: ['readFiles', 'writeFiles'],
+    missing_runtime_capabilities: [],
+    bucket_init_supported: true,
+    s3_api_url: 'https://s3.us-east-005.backblazeb2.com',
+    allowed: {
+      buckets: [
+        {
+          id: 'bucket-1',
+          name: 'demo-private-bucket',
+        },
+      ],
+      name_prefix: null,
+    },
+    checks: [
+      {
+        code: 'authorize_account',
+        status: 'pass',
+        message: 'B2 authorize_account 成功。',
+      },
+      {
+        code: 'runtime_capabilities',
+        status: 'pass',
+        message: '运行时所需能力齐全。',
+      },
+      {
+        code: 'bucket_init_capability',
+        status: 'pass',
+        message: '当前 key 具备 writeBuckets，可执行初始化桶。',
+      },
+    ],
+  },
+};
+
+const objectStorageBucketInitPayload = {
+  current: objectStorageCurrent,
+  result: {
+    status: 'success',
+    items: [
+      {
+        bucket_name: 'demo-private-bucket',
+        bucket_role: 'private',
+        status: 'already_exists',
+        message: '当前 key 的允许桶范围已包含该桶。',
+      },
+      {
+        bucket_name: 'demo-public-bucket',
+        bucket_role: 'public',
+        status: 'already_exists',
+        message: '当前 key 的允许桶范围已包含该桶。',
+      },
+    ],
+  },
+};
+
 const sampleChatMessage = {
   id: 'msg-1',
   room_id: 'room-e2e',
@@ -1198,6 +1303,72 @@ function buildSuccessBody(pathname: string, method: string, url: URL) {
   }
 
   // Storage provider and object storage tests
+  if (pathname === '/api/admin/system/storage-config' && method === 'GET') {
+    return {
+      current: objectStorageCurrent,
+    };
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/history' &&
+    method === 'GET'
+  ) {
+    return {
+      list: objectStorageHistory,
+    };
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/validate' &&
+    method === 'POST'
+  ) {
+    return {
+      valid: true,
+      normalized: objectStorageCurrent,
+    };
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/probe' &&
+    method === 'POST'
+  ) {
+    return objectStorageProbePayload;
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/apply' &&
+    method === 'POST'
+  ) {
+    return {
+      current: objectStorageCurrent,
+      version: objectStorageCurrent.version,
+      applied_at: objectStorageCurrent.last_applied_at,
+    };
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/init-bucket' &&
+    method === 'POST'
+  ) {
+    return objectStorageBucketInitPayload;
+  }
+
+  if (
+    pathname === '/api/admin/system/storage-config/rollback' &&
+    method === 'POST'
+  ) {
+    return {
+      current: {
+        ...objectStorageCurrent,
+        version: 4,
+        rollback_source_version: 2,
+      },
+      version: 4,
+      rolled_back_from_version: 2,
+      applied_at: now,
+    };
+  }
+
   if (pathname === '/api/admin/storage-providers/default' && method === 'GET') {
     return storageProvider;
   }

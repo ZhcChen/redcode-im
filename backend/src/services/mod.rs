@@ -4,4 +4,5 @@ pub mod geolocation;
 pub mod message_runtime;
 pub mod multipart_upload;
 pub mod push;
+pub mod storage_config;
 pub mod upload_policy;

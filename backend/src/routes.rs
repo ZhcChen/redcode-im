@@ -6,9 +6,10 @@ use axum::{
 
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
-    activity_logs, admin, auth, chat_history, e2ee, emoji_pack, feedback, friend, group_management,
-    health, healthz, message, message_read, message_search, multipart_upload, push, push_logs,
-    push_queue, push_settings, report, room, root, settings, upload_policy, user, version, ws,
+    activity_logs, admin, admin_storage_config, auth, chat_history, e2ee, emoji_pack, feedback,
+    friend, group_management, health, healthz, message, message_read, message_search,
+    multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
+    upload_policy, user, version, ws,
 };
 use crate::AppState;
 
@@ -198,6 +199,34 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/api/admin/settings/push/test",
             post(push_settings::test_push_admin),
+        )
+        .route(
+            "/api/admin/system/storage-config",
+            get(admin_storage_config::get_storage_config),
+        )
+        .route(
+            "/api/admin/system/storage-config/validate",
+            post(admin_storage_config::validate_storage_config),
+        )
+        .route(
+            "/api/admin/system/storage-config/probe",
+            post(admin_storage_config::probe_storage_config),
+        )
+        .route(
+            "/api/admin/system/storage-config/apply",
+            post(admin_storage_config::apply_storage_config),
+        )
+        .route(
+            "/api/admin/system/storage-config/history",
+            get(admin_storage_config::list_storage_config_history),
+        )
+        .route(
+            "/api/admin/system/storage-config/init-bucket",
+            post(admin_storage_config::init_storage_buckets),
+        )
+        .route(
+            "/api/admin/system/storage-config/rollback",
+            post(admin_storage_config::rollback_storage_config),
         )
         .route(
             "/api/admin/storage-providers",

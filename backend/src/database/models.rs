@@ -915,6 +915,31 @@ pub struct StorageProvider {
     pub updated_by: Option<Uuid>,
 }
 
+/// 对象存储运行时配置版本记录
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ObjectStorageConfigRecord {
+    pub id: Uuid,
+    pub provider: String,
+    pub endpoint: Option<String>,
+    pub region: String,
+    pub encrypted_key_id: Option<String>,
+    pub encrypted_application_key: Option<String>,
+    pub private_bucket: String,
+    pub public_bucket: Option<String>,
+    pub public_base_url: Option<String>,
+    pub upload_url_ttl_seconds: i32,
+    pub download_url_ttl_seconds: i32,
+    pub version: i32,
+    pub status: String,
+    pub rollback_source_version: Option<i32>,
+    pub change_note: Option<String>,
+    pub created_by: Option<String>,
+    pub applied_by: Option<String>,
+    pub activated_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// 文件上传记录（统一管理通过对象存储直传的文件）
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FileUploadRecord {
