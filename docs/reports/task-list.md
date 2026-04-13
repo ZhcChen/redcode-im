@@ -43,6 +43,8 @@
      - 编辑或删除最新一条消息时，API 返回替换本地消息后会立即同步 chat summary，不再依赖后续 websocket 回推
    - desktop 已补消息更新缓存收口：
      - 编辑/删除事件会同步写回本地消息缓存，删除不再直接丢记录，relay_only 重启后仍能稳定重建 `[消息已删除]` 等摘要
+   - desktop 已补本地主动编辑/删除摘要刷新：
+     - 右键删除、编辑、批量删除已接入统一 message update 链路，本地操作后会立刻刷新当前消息缓存与聊天列表摘要
    - 下一步需补齐：
      - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
 
@@ -135,6 +137,7 @@
 - ✅ desktop 已补 runtime 切换即时收口：`persist -> relay_only` 时会同步清空当前 store/chat page 残留摘要，并刷新账号未读汇总
 - ✅ desktop 已补 relay_only 本地摘要回填：会基于本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
 - ✅ desktop 已补消息更新缓存收口：编辑/删除事件会同步写回本地消息缓存，删除消息保留 tombstone 以保证 relay_only 重启后摘要与未读统计一致
+- ✅ desktop 已补本地主动编辑/删除摘要刷新：右键删除、编辑、批量删除已统一走 message update cache 链路，本地操作后聊天列表摘要立即同步
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

@@ -8041,10 +8041,11 @@ const handleMessageMenuDelete = async () => {
   try {
     const res = await MessageApi.deleteMessage({ groupId: roomId, messageId: target.id })
     if (res.success) {
-      const index = messages.value.findIndex((msg) => msg.id === target.id)
-      if (index !== -1) {
-        messages.value.splice(index, 1)
-      }
+      await applyLocalMessageUpdate(roomId, {
+        messageId: target.id,
+        updateType: 'deleted',
+        isDeleted: true,
+      })
       toast.success('消息已删除')
     } else {
       toast.error(res.message || '删除失败')
@@ -8225,17 +8226,12 @@ const confirmEditMessage = async () => {
     })
     
     if (res.success && res.data) {
-      // 更新本地消息
-      const index = messages.value.findIndex((msg) => msg.id === message.id)
-      if (index !== -1) {
-        const updatedMessage = {
-          ...messages.value[index],
-          ...res.data,
-          isEdited: true,
-          editedAt: new Date(),
-        }
-        messages.value.splice(index, 1, updatedMessage)
-      }
+      await applyLocalMessageUpdate(roomId, {
+        messageId: message.id,
+        updateType: 'edited',
+        content: res.data.content || newContent,
+        editedAt: res.data.editedAt ?? new Date(),
+      })
       toast.success('消息已编辑')
       showEditMessageDialog.value = false
       editingMessage.value = null
@@ -8316,8 +8312,11 @@ const deleteSelectedMessages = async () => {
       if (!res.success) {
         throw new Error(res.message || '删除失败')
       }
-      const idx = messages.value.findIndex((m) => m.id === msg.id)
-      if (idx !== -1) messages.value.splice(idx, 1)
+      await applyLocalMessageUpdate(roomId, {
+        messageId: msg.id,
+        updateType: 'deleted',
+        isDeleted: true,
+      })
     }
     toast.success('已删除所选消息')
     exitMultiSelect()
@@ -9793,6 +9792,35 @@ const resolveUpdatedChatPreview = (
   return {
     lastMessage,
     lastMessageId: chatItem.lastMessageId,
+  }
+}
+
+const applyLocalMessageUpdate = async (
+  roomId: string,
+  payload: IncomingMessageUpdatePayload,
+) => {
+  const updatedRoomMessages = await syncMessageUpdateToRoomCache(
+    roomId,
+    payload,
+    messages.value,
+  )
+  if (updatedRoomMessages) {
+    messages.value = updatedRoomMessages
+  }
+
+  const chatItem = store.getters.getChatByGroupId(roomId)
+  if (chatItem && chatItem.lastMessageId === payload.messageId) {
+    const { lastMessage, lastMessageId } = resolveUpdatedChatPreview(
+      chatItem,
+      payload,
+      updatedRoomMessages,
+    )
+    const updatedChat = {
+      ...chatItem,
+      lastMessage,
+      lastMessageId,
+    }
+    store.dispatch('updateChatItem', updatedChat)
   }
 }
 
