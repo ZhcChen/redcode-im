@@ -3912,6 +3912,7 @@ class MessageService with ChangeNotifier {
     if (chatIndex >= 0) {
       _chats[chatIndex] = _chats[chatIndex].copyWith(unreadCount: 0);
       notifyListeners();
+      unawaited(_chatCache.saveChats(_chats));
     }
   }
 

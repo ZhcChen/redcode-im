@@ -42,15 +42,18 @@ class _FakeMessageStorage extends MessageStorage {
 }
 
 class _FakeChatCache extends ChatCache {
-  const _FakeChatCache({this.chats});
+  _FakeChatCache({this.chats});
 
   final List<Chat>? chats;
+  List<Chat>? savedChats;
 
   @override
   Future<List<Chat>?> loadChats() async => chats;
 
   @override
-  Future<void> saveChats(List<Chat> chats) async {}
+  Future<void> saveChats(List<Chat> chats) async {
+    savedChats = List<Chat>.from(chats);
+  }
 }
 
 void main() {
@@ -258,6 +261,40 @@ void main() {
     expect(service.chats.single.lastMessage, '[图片]');
     expect(service.chats.single.unreadCount, 1);
     expect(service.chats.single.extra?['last_message_id'], 'msg-1');
+  });
+
+  test('markChatAsRead persists unread reset to chat cache', () async {
+    final chatCache = _FakeChatCache(
+      chats: <Chat>[
+        Chat(
+          id: 'room-1',
+          roomId: 'room-1',
+          name: 'Alice',
+          type: ChatType.single,
+          lastMessage: 'hello',
+          lastMessageTime: DateTime(2026, 4, 12, 12, 30, 0),
+          unreadCount: 3,
+        ),
+      ],
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(),
+      chatCache: chatCache,
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    service.markChatAsRead('room-1');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(service.chats.single.unreadCount, 0);
+    expect(chatCache.savedChats?.single.unreadCount, 0);
   });
 
   test(
@@ -541,7 +578,7 @@ void main() {
     final service = MessageService(
       tokenStorage: const _FakeTokenStorage(session),
       messageStorage: storage,
-      chatCache: const _FakeChatCache(),
+      chatCache: _FakeChatCache(),
       client: MockClient((request) async {
         if (request.method == 'POST' &&
             request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
@@ -611,7 +648,7 @@ void main() {
     final service = MessageService(
       tokenStorage: const _FakeTokenStorage(session),
       messageStorage: storage,
-      chatCache: const _FakeChatCache(),
+      chatCache: _FakeChatCache(),
       client: MockClient((request) async {
         if (request.method == 'DELETE' &&
             request.url.path == '/rooms/room-1/messages/msg-1/reactions' &&
@@ -664,7 +701,7 @@ void main() {
     final service = MessageService(
       tokenStorage: const _FakeTokenStorage(session),
       messageStorage: storage,
-      chatCache: const _FakeChatCache(),
+      chatCache: _FakeChatCache(),
       client: MockClient((request) async {
         if (request.method == 'GET' &&
             request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
@@ -721,7 +758,7 @@ void main() {
     final service = MessageService(
       tokenStorage: const _FakeTokenStorage(session),
       messageStorage: storage,
-      chatCache: const _FakeChatCache(),
+      chatCache: _FakeChatCache(),
     );
 
     await service.handlePinUpdate(
