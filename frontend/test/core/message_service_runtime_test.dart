@@ -641,6 +641,101 @@ void main() {
     expect(service.getMessages('room-1').single.reactions, isEmpty);
     expect(storage._roomMessages['room-1']?.single.reactions, isEmpty);
   });
+
+  test('getReactions refreshes cached message reactions for unloaded room', () async {
+    final storage = _FakeMessageStorage(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[
+          Message(
+            id: 'msg-1',
+            roomId: 'room-1',
+            senderId: 'user-peer',
+            senderUsername: 'bob',
+            senderName: 'Bob',
+            content: 'hello latest',
+            type: MessageType.text,
+            status: MessageStatus.sent,
+            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+            isSelf: false,
+          ),
+        ],
+      },
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: storage,
+      chatCache: const _FakeChatCache(),
+      client: MockClient((request) async {
+        if (request.method == 'GET' &&
+            request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'message': 'ok',
+              'summaries': [
+                {
+                  'reaction_key': '🎉',
+                  'count': 2,
+                  'user_ids': ['user-a', 'user-b'],
+                  'has_self': false,
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      }),
+    );
+
+    final summaries = await service.getReactions(
+      roomId: 'room-1',
+      messageId: 'msg-1',
+    );
+    final persisted = await storage.loadMessages('room-1');
+
+    expect(summaries.single.reactionKey, '🎉');
+    expect(persisted.single.reactions?.single.reactionKey, '🎉');
+  });
+
+  test('handlePinUpdate persists cached message pin state for unloaded room', () async {
+    final storage = _FakeMessageStorage(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[
+          Message(
+            id: 'msg-1',
+            roomId: 'room-1',
+            senderId: 'user-peer',
+            senderUsername: 'bob',
+            senderName: 'Bob',
+            content: 'hello latest',
+            type: MessageType.text,
+            status: MessageStatus.sent,
+            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+            isSelf: false,
+          ),
+        ],
+      },
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: storage,
+      chatCache: const _FakeChatCache(),
+    );
+
+    await service.handlePinUpdate(
+      roomId: 'room-1',
+      messageId: 'msg-1',
+      isPinned: true,
+      pinnedAt: DateTime(2026, 4, 12, 12, 45, 0),
+      pinnedBy: 'admin-1',
+    );
+
+    final persisted = await storage.loadMessages('room-1');
+    expect(persisted.single.pinnedAt, DateTime(2026, 4, 12, 12, 45, 0));
+    expect(persisted.single.extra?['pinned_by'], 'admin-1');
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {

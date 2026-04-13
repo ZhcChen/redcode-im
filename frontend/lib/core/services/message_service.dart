@@ -155,6 +155,7 @@ class MessageService with ChangeNotifier {
     try {
       final cached = await _messageStorage.loadMessages(roomId);
       _messagesByRoom[roomId] = List<Message>.from(cached);
+      _refreshPinnedCache(roomId);
 
       // 恢复发送中或失败的消息到重试队列
       _restorePendingMessages(roomId, cached);
@@ -1234,6 +1235,28 @@ class MessageService with ChangeNotifier {
       token: session.token,
     );
 
+    final messages = _messagesByRoom[roomId];
+    if (messages != null && messages.isNotEmpty) {
+      final index = messages.indexWhere((m) => m.id == messageId);
+      if (index >= 0) {
+        messages[index] = messages[index].copyWith(reactions: response.summaries);
+        notifyListeners();
+        unawaited(_persistMessages(roomId));
+      }
+      return response.summaries;
+    }
+
+    final cachedMessages = await _messageStorage.loadMessages(roomId);
+    if (cachedMessages.isNotEmpty) {
+      final index = cachedMessages.indexWhere((m) => m.id == messageId);
+      if (index >= 0) {
+        cachedMessages[index] = cachedMessages[index].copyWith(
+          reactions: response.summaries,
+        );
+        await _messageStorage.saveMessages(roomId, cachedMessages);
+      }
+    }
+
     return response.summaries;
   }
 
@@ -1898,20 +1921,10 @@ class MessageService with ChangeNotifier {
   }) async {
     // 重新获取反应列表以更新 UI
     try {
-      final summaries = await getReactions(
+      await getReactions(
         roomId: roomId,
         messageId: messageId,
       );
-
-      final messages = _messagesByRoom[roomId];
-      if (messages != null && messages.isNotEmpty) {
-        final index = messages.indexWhere((m) => m.id == messageId);
-        if (index >= 0) {
-          messages[index] = messages[index].copyWith(reactions: summaries);
-          notifyListeners();
-          unawaited(_persistMessages(roomId));
-        }
-      }
     } catch (e) {
       debugPrint('Failed to handle reaction update: $e');
     }
@@ -1962,13 +1975,33 @@ class MessageService with ChangeNotifier {
       }
     }
 
-    _refreshPinnedCache(roomId);
+    if (messages != null) {
+      _refreshPinnedCache(roomId);
+      notifyListeners();
+      if (changed) {
+        unawaited(_persistMessages(roomId));
+      }
+      return;
+    }
 
-    if (changed) {
-      notifyListeners();
-      unawaited(_persistMessages(roomId));
-    } else {
-      notifyListeners();
+    if (messageId != null && messageId.isNotEmpty) {
+      final cachedMessages = await _messageStorage.loadMessages(roomId);
+      if (cachedMessages.isNotEmpty) {
+        final index = cachedMessages.indexWhere((m) => m.id == messageId);
+        if (index >= 0) {
+          final message = cachedMessages[index];
+          final extra = _mergeExtra(message.extra, {
+            'pinned_at': pinnedAt?.toIso8601String(),
+            'pinned_by': pinnedBy,
+          });
+
+          cachedMessages[index] = message.copyWith(
+            pinnedAt: isPinned ? pinnedAt : null,
+            extra: extra,
+          );
+          await _messageStorage.saveMessages(roomId, cachedMessages);
+        }
+      }
     }
   }
 
