@@ -815,7 +815,7 @@ export class GroupApi {
   }
 
   /**
-   * 上传群头像 - 使用腾讯 COS 直传
+   * 上传群头像 - 使用对象存储直传
    */
   static async uploadGroupAvatar(
     groupId: string,

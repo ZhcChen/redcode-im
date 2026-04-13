@@ -37,13 +37,13 @@ type auditTaskDetailResponse struct {
 	} `json:"task"`
 }
 
-func TestFileUploadAuditTaskLifecycle_WithViolationMock(t *testing.T) {
+func TestFileUploadAuditTaskLifecycle_ApprovesExistingB2Object(t *testing.T) {
 	c := testutil.NewClient()
 	testutil.EnsureDefaultStorageProvider(t, c)
 	admin := testutil.AdminLogin(t, c)
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
-	key := "reports/violation-audit-" + suffix + ".png"
+	key := "reports/existing-audit-" + suffix + ".png"
 
 	uploadReq := testutil.NewAuthedJSONRequestWithToken(http.MethodPost, c.BaseURL+"/api/admin/storage-providers/test/upload", admin.Token, map[string]any{
 		"key":          key,
@@ -70,9 +70,9 @@ func TestFileUploadAuditTaskLifecycle_WithViolationMock(t *testing.T) {
 		t.Fatalf("admin test upload success=false: %+v", uploadPayload)
 	}
 
-	task, ok := waitAuditTaskRejected(t, c, admin.Token, key, 90*time.Second)
+	task, ok := waitAuditTaskApproved(t, c, admin.Token, key, 90*time.Second)
 	if !ok {
-		t.Fatalf("audit task did not reach rejected status in time, key=%s", key)
+		t.Fatalf("audit task did not reach approved status in time, key=%s", key)
 	}
 
 	detailReq := testutil.NewAuthedJSONRequestWithToken(http.MethodGet, c.BaseURL+"/api/admin/file-upload-audit/tasks/"+task.ID, admin.Token, nil)
@@ -92,17 +92,23 @@ func TestFileUploadAuditTaskLifecycle_WithViolationMock(t *testing.T) {
 	if detailPayload.Task.ID != task.ID || detailPayload.Task.ObjectKey != key {
 		t.Fatalf("audit detail mismatch: %+v", detailPayload.Task)
 	}
-	if detailPayload.Task.Status != 2 {
-		t.Fatalf("audit detail expect rejected status=2, got %d", detailPayload.Task.Status)
+	if detailPayload.Task.Status != 1 {
+		t.Fatalf("audit detail expect approved status=1, got %d", detailPayload.Task.Status)
 	}
-	if detailPayload.Task.RejectedReason == nil || strings.TrimSpace(*detailPayload.Task.RejectedReason) == "" {
-		t.Fatalf("audit detail rejected_reason should not be empty: %+v", detailPayload.Task)
+	if detailPayload.Task.RejectedReason != nil && strings.TrimSpace(*detailPayload.Task.RejectedReason) != "" {
+		t.Fatalf("audit detail rejected_reason should be empty: %+v", detailPayload.Task)
 	}
-	if detailPayload.Task.VendorJobID == nil || strings.TrimSpace(*detailPayload.Task.VendorJobID) == "" {
-		t.Fatalf("audit detail vendor_job_id should not be empty: %+v", detailPayload.Task)
+	if detailPayload.Task.VendorJobID != nil && strings.TrimSpace(*detailPayload.Task.VendorJobID) != "" {
+		t.Fatalf("audit detail vendor_job_id should be empty for B2 head check: %+v", detailPayload.Task)
 	}
 	if len(detailPayload.Task.Result) == 0 {
 		t.Fatalf("audit detail result should not be empty")
+	}
+	if detailPayload.Task.Result["vendor"] != "backblaze_b2" {
+		t.Fatalf("audit detail vendor mismatch: %+v", detailPayload.Task.Result)
+	}
+	if detailPayload.Task.Result["check"] != "head_object" {
+		t.Fatalf("audit detail check mismatch: %+v", detailPayload.Task.Result)
 	}
 
 	existsReq := testutil.NewAuthedJSONRequestWithToken(http.MethodPost, c.BaseURL+"/api/admin/storage-providers/test/exists", admin.Token, map[string]any{
@@ -127,8 +133,8 @@ func TestFileUploadAuditTaskLifecycle_WithViolationMock(t *testing.T) {
 	if !existsPayload.Success {
 		t.Fatalf("object exists response success=false: %+v", existsPayload)
 	}
-	if existsPayload.Exists {
-		t.Fatalf("violation object should be deleted after audit rejection, key=%s", key)
+	if !existsPayload.Exists {
+		t.Fatalf("approved object should still exist after audit, key=%s", key)
 	}
 
 	requeueReq := testutil.NewAuthedJSONRequestWithToken(http.MethodPost, c.BaseURL+"/api/admin/file-upload-audit/tasks/"+task.ID+"/requeue", admin.Token, nil)
@@ -153,7 +159,7 @@ func TestFileUploadAuditTaskLifecycle_WithViolationMock(t *testing.T) {
 	}
 }
 
-func waitAuditTaskRejected(t *testing.T, c *testutil.Client, adminToken, objectKey string, timeout time.Duration) (task struct {
+func waitAuditTaskApproved(t *testing.T, c *testutil.Client, adminToken, objectKey string, timeout time.Duration) (task struct {
 	ID             string
 	ObjectKey      string
 	Status         int
@@ -208,7 +214,7 @@ func waitAuditTaskRejected(t *testing.T, c *testutil.Client, adminToken, objectK
 				LastError:      item.LastError,
 			}
 
-			if item.Status == 2 && item.RejectedReason != nil && strings.TrimSpace(*item.RejectedReason) != "" {
+			if item.Status == 1 {
 				return task, true
 			}
 

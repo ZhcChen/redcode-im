@@ -1230,45 +1230,41 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **功能**: 删除存储提供商配置
 - **Handler**: `admin::delete_storage_provider`
 
-### COS 测试接口
+### 对象存储测试接口
 
-> 以下接口用于测试腾讯云 COS 存储功能
+> 以下接口用于测试 Backblaze B2 对象存储能力
 
 #### 6. 测试上传
 - **接口**: `POST /api/admin/storage-providers/test/upload`
-- **Handler**: `admin::test_cos_upload`
+- **Handler**: `admin::test_storage_upload`
 
 #### 7. 测试上传签名
 - **接口**: `POST /api/admin/storage-providers/test/upload/signature`
-- **Handler**: `admin::test_cos_upload_signature`
+- **Handler**: `admin::test_storage_upload_signature`
 
-#### 8. 测试下载链接
+#### 8. 测试初始化分片上传
+- **接口**: `POST /api/admin/storage-providers/test/upload/multipart/initiate`
+- **Handler**: `admin::test_storage_upload_multipart_initiate`
+
+#### 9. 测试下载链接
 - **接口**: `POST /api/admin/storage-providers/test/download-url`
-- **Handler**: `admin::test_cos_download_url`
+- **Handler**: `admin::test_storage_download_url`
 
-#### 9. 测试获取 CORS 配置
-- **接口**: `POST /api/admin/storage-providers/test/cors/list`
-- **Handler**: `admin::test_cos_get_cors`
-
-#### 10. 测试设置 CORS
-- **接口**: `POST /api/admin/storage-providers/test/cors`
-- **Handler**: `admin::test_cos_set_cors`
-
-#### 11. 测试删除文件
+#### 10. 测试删除文件
 - **接口**: `POST /api/admin/storage-providers/test/delete`
-- **Handler**: `admin::test_cos_delete`
+- **Handler**: `admin::test_storage_delete`
 
-#### 12. 测试文件是否存在
+#### 11. 测试文件是否存在
 - **接口**: `POST /api/admin/storage-providers/test/exists`
-- **Handler**: `admin::test_cos_exists`
+- **Handler**: `admin::test_storage_exists`
 
-#### 13. 测试列出存储桶
+#### 12. 测试列出存储桶
 - **接口**: `POST /api/admin/storage-providers/test/buckets`
-- **Handler**: `admin::test_cos_list_buckets`
+- **Handler**: `admin::test_storage_list_buckets`
 
-#### 14. 测试创建存储桶
+#### 13. 测试创建存储桶
 - **接口**: `POST /api/admin/storage-providers/test/buckets/create`
-- **Handler**: `admin::test_cos_create_bucket`
+- **Handler**: `admin::test_storage_create_bucket`
 
 ---
 

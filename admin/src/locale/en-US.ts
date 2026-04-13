@@ -28,7 +28,7 @@ export default {
   'menu.operations.systemLog': 'System Logs',
   'menu.operations.pushLog': 'Push Logs',
   'menu.operations.storageProvider': 'Object Storage Provider',
-  'menu.operations.cosTest': 'COS Test',
+  'menu.operations.storageTest': 'Storage Test',
   'menu.operations.ipinfoToken': 'IP Geolocation Token',
   'menu.operations.dataCleanup': 'Data Cleanup',
   'menu.operations.apiMetrics': 'API Metrics',

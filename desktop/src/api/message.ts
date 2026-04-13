@@ -248,7 +248,7 @@ const mapQuotedMessage = (
     senderId: quoted.sender_id,
     senderUsername: quoted.sender_username,
     senderName: quoted.sender_nickname?.trim() || quoted.sender_username,
-    // 不设置 senderAvatar，避免直接使用 COS URL 导致 403 错误
+    // 不设置 senderAvatar，避免直接使用私有对象存储 URL 导致 403 错误
     senderAvatar: undefined,
     content: quoted.content ?? null,
     type: parseMessageType(quoted.message_type),
@@ -419,7 +419,7 @@ export const transformBackendMessage = (
     senderUsername: message.sender_username,
     senderName,
     // 不设置 senderAvatar，等待后续通过 avatarObjectKey 同步头像为 blob URL
-    // 这样可以避免直接使用 COS URL 导致 403 错误
+    // 这样可以避免直接使用私有对象存储 URL 导致 403 错误
     senderAvatar: undefined,
     senderAvatarObjectKey: senderAvatarObjectKey,
     content: message.content,

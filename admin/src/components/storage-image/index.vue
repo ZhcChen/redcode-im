@@ -1,8 +1,8 @@
 <template>
-  <div class="cos-image-container" :style="containerStyle">
+  <div class="storage-image-container" :style="containerStyle">
     <img v-if="url" :src="url" v-bind="$attrs" @error="handleError" />
     <slot v-else-if="!loading" name="fallback"></slot>
-    <div v-if="loading" class="cos-image-loading">
+    <div v-if="loading" class="storage-image-loading">
       <a-spin :size="16" />
     </div>
   </div>
@@ -10,10 +10,10 @@
 
 <script setup lang="ts">
   import { computed } from 'vue';
-  import useCosUrl from '@/hooks/use-cos-url';
+  import useStorageUrl from '@/hooks/use-storage-url';
 
   const props = defineProps<{
-    /** COS 对象键 */
+    /** 对象存储对象键 */
     objectKey?: string | null;
     /** 初始 URL（可选，可能已过期） */
     initialUrl?: string | null;
@@ -25,7 +25,7 @@
     height?: string | number;
   }>();
 
-  const { url, loading, refresh } = useCosUrl(
+  const { url, loading, refresh } = useStorageUrl(
     props.objectKey,
     props.initialUrl,
     props.providerId
@@ -42,10 +42,9 @@
   }));
 
   const handleError = () => {
-    // 如果图片加载失败，且我们有 key，尝试强制刷新一次 URL
     if (props.objectKey) {
       console.warn(
-        `[CosImage] Image load failed for key: ${props.objectKey}, retrying...`
+        `[StorageImage] Image load failed for key: ${props.objectKey}, retrying...`
       );
       refresh();
     }
@@ -53,11 +52,11 @@
 </script>
 
 <style scoped>
-  .cos-image-container {
+  .storage-image-container {
     overflow: hidden;
   }
 
-  .cos-image-loading {
+  .storage-image-loading {
     display: flex;
     align-items: center;
     justify-content: center;

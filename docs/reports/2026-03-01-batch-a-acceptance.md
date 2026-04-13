@@ -6,14 +6,14 @@
 ## 1. 验收目标
 
 1. 在无公网/无真实云资源前提下，Backend 可完成 OAuth 与基础健康链路回归。
-2. 外部依赖（COS/CI/JWKS/FCM/IPInfo）具备本地可调用模拟实现。
+2. 外部依赖（对象存储/JWKS/FCM/IPInfo）具备本地可调用模拟实现。
 3. 测试栈默认注入模拟地址并可执行。
 
 ## 2. 交付清单
 
 - 外部模拟服务：`tests/mocks/external/cmd/external-mock/main.go`
 - 外部模拟测试：`tests/mocks/external/cmd/external-mock/main_test.go`
-- Backend 可配置项（JWKS/FCM/IPInfo/CI/COS scheme）
+- Backend 可配置项（JWKS/FCM/IPInfo/对象存储 scheme）
 - 测试栈接入：`tests/docker-compose.yml`、`tests/run.sh`
 - Go 黑盒新增：OAuth 登录、external-mock 健康检查
 
@@ -42,10 +42,8 @@
 
 - `go -C tests/mocks/external test ./... -v` 通过
 - 覆盖能力：
-  - COS 对象生命周期（PUT/HEAD/GET/DELETE）
-  - COS 分片上传（initiate/upload/complete）
-  - COS CORS 读写
-  - 腾讯 CI 提交与查询
+  - 对象存储对象生命周期（PUT/HEAD/GET/DELETE）
+  - 对象存储分片上传（initiate/upload/complete）
   - Google/Apple JWKS
   - Google/Apple 测试 ID Token 生成
   - FCM 发送成功/invalid/unregistered 场景

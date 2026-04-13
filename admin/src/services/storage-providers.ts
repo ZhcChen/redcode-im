@@ -31,34 +31,8 @@ export interface ApiResponse<T> {
   message?: string;
 }
 
-export interface TestCosDeleteResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface TestCosExistsResponse {
-  success: boolean;
-  exists?: boolean;
-  message: string;
-}
-
-export interface TestCosListBucketsResponse {
-  success: boolean;
-  buckets: Array<{
-    name: string;
-    region: string;
-    creation_date?: string | null;
-  }>;
-  message: string;
-}
-
-export interface TestCosCreateBucketResponse {
-  success: boolean;
-  message: string;
-}
-
 export interface CreateStorageProviderPayload {
-  provider_type: string;
+  provider_type: 'backblaze_b2';
   name: string;
   secret_id: string;
   secret_key: string;
@@ -71,7 +45,7 @@ export interface CreateStorageProviderPayload {
 }
 
 export interface UpdateStorageProviderPayload {
-  provider_type?: string;
+  provider_type?: 'backblaze_b2';
   name?: string;
   secret_id?: string;
   secret_key?: string;
@@ -83,20 +57,6 @@ export interface UpdateStorageProviderPayload {
   description?: string | null;
 }
 
-export interface TestCosUploadRequest {
-  provider_id?: string;
-  key: string;
-  content?: string;
-  file_base64?: string;
-  content_type?: string;
-}
-
-export interface TestCosUploadResponse {
-  success: boolean;
-  url?: string;
-  message: string;
-}
-
 export interface DirectUploadSignature {
   url: string;
   method: string;
@@ -104,7 +64,21 @@ export interface DirectUploadSignature {
   key: string;
 }
 
-export interface TestCosUploadSignatureRequest {
+export interface TestStorageUploadRequest {
+  provider_id?: string;
+  key: string;
+  content?: string;
+  file_base64?: string;
+  content_type?: string;
+}
+
+export interface TestStorageUploadResponse {
+  success: boolean;
+  url?: string;
+  message: string;
+}
+
+export interface TestStorageUploadSignatureRequest {
   provider_id?: string;
   key: string;
   content_type?: string;
@@ -113,13 +87,13 @@ export interface TestCosUploadSignatureRequest {
   hash_alg?: number;
 }
 
-export interface TestCosUploadSignatureResponse {
+export interface TestStorageUploadSignatureResponse {
   success: boolean;
   signature?: DirectUploadSignature;
   message: string;
 }
 
-export interface TestCosMultipartUploadInitiateRequest {
+export interface TestStorageMultipartUploadInitiateRequest {
   provider_id?: string;
   key: string;
   content_type?: string;
@@ -128,7 +102,7 @@ export interface TestCosMultipartUploadInitiateRequest {
   hash_alg?: number;
 }
 
-export interface TestCosMultipartUploadInitiateResponse {
+export interface TestStorageMultipartUploadInitiateResponse {
   success: boolean;
   message: string;
   key?: string;
@@ -137,72 +111,70 @@ export interface TestCosMultipartUploadInitiateResponse {
   total_parts?: number;
 }
 
-export interface TestCosDownloadUrlRequest {
+export interface TestStorageDownloadUrlRequest {
   provider_id?: string;
   key: string;
   expires_in_seconds?: number;
 }
 
-export interface TestCosDownloadUrlResponse {
+export interface TestStorageDownloadUrlResponse {
   success: boolean;
-  url?: string;
+  url?: string | null;
   message: string;
 }
 
-export interface SetCosCorsRulePayload {
-  allowed_origins: string[];
-  allowed_methods: string[];
-  allowed_headers?: string[];
-  expose_headers?: string[];
-  max_age_seconds?: number;
-}
-
-export interface SetCosCorsRequest {
-  provider_id?: string;
-  rules: SetCosCorsRulePayload[];
-}
-
-export interface GetCosCorsRequest {
-  provider_id?: string;
-}
-
-export interface GetCosCorsResponse {
-  success: boolean;
-  message: string;
-  rules: SetCosCorsRulePayload[];
-}
-
-export interface SetCosCorsResponse {
-  success: boolean;
-  message: string;
-}
-
-export interface TestCosDeleteRequest {
+export interface TestStorageDeleteRequest {
   provider_id?: string;
   key: string;
 }
 
-export interface TestCosExistsRequest {
+export interface TestStorageDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface TestStorageExistsRequest {
   provider_id?: string;
   key: string;
 }
 
-export interface TestCosListBucketsRequest {
+export interface TestStorageExistsResponse {
+  success: boolean;
+  exists?: boolean;
+  message: string;
+}
+
+export interface TestStorageListBucketsRequest {
   provider_id?: string;
 }
 
-export interface TestCosCreateBucketRequest {
+export interface TestStorageListBucketsResponse {
+  success: boolean;
+  buckets: Array<{
+    name: string;
+    region: string;
+    creation_date?: string | null;
+  }>;
+  message: string;
+}
+
+export interface TestStorageCreateBucketRequest {
   provider_id?: string;
   bucket_name: string;
 }
 
-export interface GetCosDownloadUrlRequest {
+export interface TestStorageCreateBucketResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface GetStorageDownloadUrlRequest {
   provider_id: string;
   key: string;
   expires_in_seconds?: number;
 }
 
-export interface GetCosDownloadUrlResponse {
+export interface GetStorageDownloadUrlResponse {
   success: boolean;
   url: string | null;
   message: string;
@@ -234,80 +206,70 @@ export function getDefaultStorageProvider() {
   return http.get<StorageProvider>('/api/admin/storage-providers/default');
 }
 
-export function testCosUpload(payload: TestCosUploadRequest) {
-  return http.post<TestCosUploadResponse>(
+export function testStorageUpload(payload: TestStorageUploadRequest) {
+  return http.post<TestStorageUploadResponse>(
     '/api/admin/storage-providers/test/upload',
     payload
   );
 }
 
-export function testCosUploadSignature(payload: TestCosUploadSignatureRequest) {
-  return http.post<TestCosUploadSignatureResponse>(
+export function testStorageUploadSignature(
+  payload: TestStorageUploadSignatureRequest
+) {
+  return http.post<TestStorageUploadSignatureResponse>(
     '/api/admin/storage-providers/test/upload/signature',
     payload
   );
 }
 
-export function testCosMultipartUploadInitiate(
-  payload: TestCosMultipartUploadInitiateRequest
+export function testStorageMultipartUploadInitiate(
+  payload: TestStorageMultipartUploadInitiateRequest
 ) {
-  return http.post<TestCosMultipartUploadInitiateResponse>(
+  return http.post<TestStorageMultipartUploadInitiateResponse>(
     '/api/admin/storage-providers/test/upload/multipart/initiate',
     payload
   );
 }
 
-export function setCosCors(payload: SetCosCorsRequest) {
-  return http.post<SetCosCorsResponse>(
-    '/api/admin/storage-providers/test/cors',
-    payload
-  );
-}
-
-export function getCosCors(payload: GetCosCorsRequest) {
-  return http.post<GetCosCorsResponse>(
-    '/api/admin/storage-providers/test/cors/list',
-    payload
-  );
-}
-
-export function testCosDelete(payload: TestCosDeleteRequest) {
-  return http.post<TestCosDeleteResponse>(
+export function testStorageDelete(payload: TestStorageDeleteRequest) {
+  return http.post<TestStorageDeleteResponse>(
     '/api/admin/storage-providers/test/delete',
     payload
   );
 }
 
-export function testCosExists(payload: TestCosExistsRequest) {
-  return http.post<TestCosExistsResponse>(
+export function testStorageExists(payload: TestStorageExistsRequest) {
+  return http.post<TestStorageExistsResponse>(
     '/api/admin/storage-providers/test/exists',
     payload
   );
 }
 
-export function testCosDownloadUrl(payload: TestCosDownloadUrlRequest) {
-  return http.post<TestCosDownloadUrlResponse>(
+export function testStorageDownloadUrl(payload: TestStorageDownloadUrlRequest) {
+  return http.post<TestStorageDownloadUrlResponse>(
     '/api/admin/storage-providers/test/download-url',
     payload
   );
 }
 
-export function testCosListBuckets(payload: TestCosListBucketsRequest) {
-  return http.post<TestCosListBucketsResponse>(
+export function testStorageListBuckets(payload: TestStorageListBucketsRequest) {
+  return http.post<TestStorageListBucketsResponse>(
     '/api/admin/storage-providers/test/buckets',
     payload
   );
 }
 
-export function testCosCreateBucket(payload: TestCosCreateBucketRequest) {
-  return http.post<TestCosCreateBucketResponse>(
+export function testStorageCreateBucket(
+  payload: TestStorageCreateBucketRequest
+) {
+  return http.post<TestStorageCreateBucketResponse>(
     '/api/admin/storage-providers/test/buckets/create',
     payload
   );
 }
 
-export function getCosDownloadUrl(payload: GetCosDownloadUrlRequest) {
-  return http.post<GetCosDownloadUrlResponse>(
+export function getStorageDownloadUrl(payload: GetStorageDownloadUrlRequest) {
+  return http.post<GetStorageDownloadUrlResponse>(
     '/api/admin/storage-providers/test/download-url',
     payload
   );

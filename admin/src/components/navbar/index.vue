@@ -171,7 +171,7 @@
   import Menu from '@/components/menu/index.vue';
   import {
     getDefaultStorageProvider,
-    getCosDownloadUrl,
+    getStorageDownloadUrl,
   } from '@/services/storage-providers';
   import MessageBox from '../message-box/index.vue';
 
@@ -204,7 +204,7 @@
         const providerResponse = await getDefaultStorageProvider();
         const provider = providerResponse.data;
         if (provider) {
-          const downloadUrlResponse = await getCosDownloadUrl({
+          const downloadUrlResponse = await getStorageDownloadUrl({
             provider_id: provider.id,
             key: avatar,
           });

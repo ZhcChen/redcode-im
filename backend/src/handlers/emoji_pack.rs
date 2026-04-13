@@ -26,7 +26,7 @@ pub struct EmojiPackResponse {
     pub id: String,
     pub name: String,
     pub icon_url: Option<String>,
-    /// COS 对象键（用于生成临时下载地址）
+    /// 对象键（用于生成临时下载地址）
     pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: bool,
@@ -41,7 +41,7 @@ pub struct EmojiItemResponse {
     pub id: String,
     pub pack_id: String,
     pub image_url: String,
-    /// COS 对象键（用于生成临时下载地址）
+    /// 对象键（用于生成临时下载地址）
     pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: i32,
@@ -580,7 +580,7 @@ pub async fn list_user_suite_packs(
 
 #[derive(Debug, Deserialize)]
 pub struct EmojiDownloadUrlQuery {
-    /// COS 对象键，例如 emoji-items/xxx.gif 或 emoji-packs/icons/xxx.png
+    /// 对象键，例如 emoji-items/xxx.gif 或 emoji-packs/icons/xxx.png
     pub object_key: String,
     /// 有效期（秒），默认 3600，范围 [60, 86400]
     pub expires_in_seconds: Option<u32>,
@@ -594,7 +594,7 @@ pub struct EmojiDownloadUrlResponse {
     pub download_url: Option<String>,
 }
 
-/// 根据 COS 对象键生成表情图片的临时下载地址
+/// 根据对象键生成表情图片的临时下载地址
 pub async fn get_emoji_download_url(
     State(state): State<AppState>,
     Extension(_claims): Extension<Claims>,

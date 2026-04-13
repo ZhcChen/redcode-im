@@ -86,11 +86,11 @@ func ensureDefaultStorageProvider(c *Client) error {
 	defaultResp.Body.Close()
 
 	createPayload := map[string]any{
-		"provider_type": "tencent_cos",
-		"name":          "mock-cos-default",
+		"provider_type": "backblaze_b2",
+		"name":          "mock-b2-default",
 		"secret_id":     "mock-secret-id",
 		"secret_key":    "mock-secret-key",
-		"region":        "ap-shanghai",
+		"region":        "us-east-005",
 		"endpoint":      expectedEndpoint,
 		"bucket_name":   "mock-bucket",
 		"is_active":     true,

@@ -41,4 +41,4 @@ BE-SYS-001,backend,system,健康检查,/healthz,"integration",TC-BE-SYS-001,AC-B
 BE-SYS-002,backend,system,就绪检查,/readyz,"integration",TC-BE-SYS-002,AC-BE-SYS-002,done,go readyz_test 覆盖 status/checks/latency 契约
 BE-SYS-003,backend,system,系统日志清理配置解析,backend/src/logging/writer.rs,"unit",TC-BE-SYS-003,AC-BE-SYS-003,done,log_writer_config 单测覆盖正向读取与非法值回退
 BE-EXT-001,backend,external-mock,外部模拟服务健康检查,/healthz@external-mock,"integration",TC-BE-EXT-001,AC-BE-EXT-001,done,Go system 测试已覆盖
-BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,COS/CI/JWKS/FCM/IPInfo 已覆盖
+BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,B2 对象存储 / JWKS / FCM / IPInfo 已覆盖

@@ -2349,7 +2349,7 @@ pub async fn generate_message_attachment_signature(
     }))
 }
 
-/// 初始化消息附件大文件分片直传会话（COS Multipart Upload）
+/// 初始化消息附件大文件分片直传会话（对象存储 Multipart Upload）
 pub async fn initiate_message_attachment_multipart_upload(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
@@ -2622,7 +2622,7 @@ pub async fn generate_message_attachment_download_url(
     }))
 }
 
-/// 消息附件上传完成回调：在前端成功上传 COS 之后调用
+/// 消息附件上传完成回调：在前端成功上传对象存储之后调用
 pub async fn commit_message_attachment_upload(
     State(state): State<AppState>,
     Path(room_id): Path<Uuid>,
@@ -2671,7 +2671,7 @@ pub async fn commit_message_attachment_upload(
                 let hash_value = hash_value.trim();
                 if !hash_value.is_empty() && req.hash_alg.unwrap_or(1) == 1 {
                     if let Some(etag) = head.etag.as_deref() {
-                        // COS 的 ETag 对于非分块上传通常等价于 MD5；分块上传会带 '-'，不做严格校验
+                        // 对象存储的 ETag 对于非分块上传通常等价于 MD5；分块上传会带 '-'，不做严格校验
                         if !etag.contains('-') && is_hex_32(etag) && is_hex_32(hash_value) {
                             if normalize_hash_hex(etag) != normalize_hash_hex(hash_value) {
                                 return Err(message_validation_error(

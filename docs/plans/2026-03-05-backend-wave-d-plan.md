@@ -6,7 +6,7 @@
 
 **Architecture:** 在 uploads/push 业务域新增独立黑盒用例，复用现有 testutil 与 external-mock。对涉及后台异步任务（审核、push）采用有上限轮询，确保结果可验证且避免脆弱的固定 sleep。
 
-**Tech Stack:** Go 1.25、HTTP black-box tests、Docker Compose 隔离栈、external-mock（COS/CI/FCM）
+**Tech Stack:** Go 1.25、HTTP black-box tests、Docker Compose 隔离栈、external-mock（对象存储/FCM）
 
 ---
 
@@ -26,8 +26,8 @@
 - Create: `tests/go/backend/uploads/file_audit_flow_test.go`
 
 **Steps:**
-1. 写失败测试：`admin test upload -> audit tasks list/detail -> rejected status -> requeue -> object exists check`。
-2. 运行：`cd tests/go && go test ./backend/uploads -run TestFileUploadAuditTaskLifecycle_WithViolationMock -v`。
+1. 写失败测试：`admin test upload -> audit tasks list/detail -> approved status -> requeue -> object exists check`。
+2. 运行：`cd tests/go && go test ./backend/uploads -run TestFileUploadAuditTaskLifecycle_ApprovesExistingB2Object -v`。
 3. 对异步审核场景增加可复用轮询 helper 并稳定通过。
 
 ### Task 3: Push 设备注册与发送链路（BE-PUSH-001）

@@ -9,12 +9,12 @@
 | frontend（Flutter） | Android / iOS | **整包更新**（App Store/TestFlight、APK/应用商店）<br>**热更新**（仅 Flutter 层；绑定基线整包版本或范围） |
 | desktop（Tauri） | Windows / macOS / Linux | **整包更新**（下载安装包，客户端或官网提示） |
 | admin（Vue） | 版本管理后台 | 管理整包版本、上传安装包、维护热更新补丁（Flutter 专用） |
-| website（Nuxt） | 官网首页下载按钮 | 调用后端「无 Token 的临时下载链接」接口，获取整包下载地址（腾讯 COS 私有读 + 临时签名） |
+| website（Nuxt） | 官网首页下载按钮 | 调用后端「无 Token 的临时下载链接」接口，获取整包下载地址（B2 私有对象存储 + 临时签名） |
 
 ## 2. 整包更新流程
 
 1. **Admin 录入整包版本**：平台、版本号、构建号、渠道、下载 Key / URL、强制标记、发布时间。
-2. **官网下载按钮**：调用后端开放接口（无需 Token）获取最新整包的临时下载地址（基于 COS 临时签名），赋给按钮（Android 直链 APK，iOS 跳 App Store/TestFlight）。
+2. **官网下载按钮**：调用后端开放接口（无需 Token）获取最新整包的临时下载地址（基于 B2 临时签名），赋给按钮（Android 直链 APK，iOS 跳 App Store/TestFlight）。
 3. **Flutter / Tauri 客户端**：启动时调用 `/versions/latest?platform=xxx&channel=stable&current_version=1.0.0`，若返回 `has_update && mandatory`，则强制整包升级（iOS 只能跳 App Store，Android 可内置下载流程），否则提示或忽略。
 4. **桌面端**：保持整包更新策略即可，暂不做热更新。
 
@@ -26,7 +26,7 @@
 
 2. **Admin 功能**
    - 新增“热更新管理”页面：列表展示 patch，支持新增/编辑/启用/停用/回滚。
-   - 上传 patch 包后生成下载 Key / URL（同 COS 私有读），并设置灰度比例、渠道、强制标记、描述。
+   - 上传 patch 包后生成下载 Key / URL（同 B2 私有读），并设置灰度比例、渠道、强制标记、描述。
    - 提供回滚操作，一旦 patch 有问题可迅速停用。
 
 3. **客户端逻辑**
@@ -41,7 +41,7 @@
 
 ## 4. 官网整包下载接口
 
-- 提供无需 Token 的公开 API，根据平台/渠道返回最新整包的 COS 临时下载地址。
+- 提供无需 Token 的公开 API，根据平台/渠道返回最新整包的对象存储临时下载地址。
 - 官网首页已有下载按钮，直接调用该接口即可。
 - 如需展示版本日志，可复用整包的 `release_notes` 字段。
 
@@ -52,7 +52,7 @@
 2. 实现热更新管理 API（新增/编辑/启用/停用/回滚/删除），上传补丁生成下载 Key / URL。
 3. 实现 `GET /versions/hot-update` 接口（支持灰度策略）。
 4. （可选）实现客户端上报接口记录 patch 应用/失败/回滚日志。
-5. 提供官网使用的整包下载接口（返回 COS 临时签名 URL，公开访问）。
+5. 提供官网使用的整包下载接口（返回对象存储临时签名 URL，公开访问）。
 
 ### Admin 前端
 1. 保持整包管理页面：平台切换、固定渠道列表、下载 Key 只读。

@@ -154,8 +154,7 @@
 
 ## 6. 外部依赖（需本地可模拟）
 
-- Tencent COS（对象、分片、CORS）
-- Tencent CI（审核提交/查询）
+- Backblaze B2 / S3 兼容对象存储（对象、分片）
 - Google OAuth/JWKS
 - Apple JWKS
 - FCM Send + Google OAuth Token

@@ -4,7 +4,7 @@ export interface EmojiPack {
   id: string;
   name: string;
   icon_url?: string | null;
-  icon_object_key?: string | null;  // COS 对象键，用于获取临时下载地址
+  icon_object_key?: string | null;  // 对象键，用于获取临时下载地址
   description?: string | null;
   is_active: boolean;
   pack_type: number; // 0=单个, 1=贴纸包
@@ -18,7 +18,7 @@ export interface EmojiItem {
   id: string;
   pack_id: string;
   image_url: string;
-  image_object_key?: string | null;  // COS 对象键，用于获取临时下载地址
+  image_object_key?: string | null;  // 对象键，用于获取临时下载地址
   name?: string | null;
   sort_order: number;
   created_at: string;
@@ -109,7 +109,7 @@ export class EmojiPackApi {
 
   /**
    * 获取表情图片临时下载地址
-   * @param objectKey COS 对象键
+   * @param objectKey 对象键
    * @param expiresInSeconds 有效期（秒），默认 3600
    * @returns 临时下载 URL
    */

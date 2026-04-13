@@ -25,7 +25,7 @@
 | 用户数据 | PostgreSQL | 关键 | 每日 |
 | 消息记录 | PostgreSQL | 关键 | 每日 |
 | 会话状态 | Redis | 重要 | 每小时 |
-| 媒体文件 | COS/S3 | 重要 | 实时同步 |
+| 媒体文件 | Backblaze B2 / S3 兼容对象存储 | 重要 | 实时同步 |
 | 配置文件 | 文件系统 | 重要 | 每次变更 |
 
 ### 备份存储位置
@@ -193,33 +193,32 @@ echo "Redis backup completed: $DATE"
 
 ## 文件存储备份
 
-### 腾讯云 COS 跨区域复制
+### Backblaze B2 跨区域备份
 
 ```bash
-# 使用 COSCMD 同步到备份 Bucket
-pip install coscmd
+# 使用 rclone 同步到备份 Bucket
+brew install rclone
 
-# 配置 COSCMD
-coscmd config -a $COS_SECRET_ID -s $COS_SECRET_KEY \
-  -b redcode-backup -r ap-beijing
+# 配置 rclone B2 remote
+rclone config create b2 b2 account <keyId> key <applicationKey>
 
 # 同步文件
-coscmd sync -r /source-bucket /backup-bucket
+rclone sync b2:redcode-im-bucket b2:redcode-backup-bucket --progress --transfers 10
 ```
 
 ### 本地备份
 
 ```bash
 #!/bin/bash
-# 从 COS 下载到本地
+# 从 B2 下载到本地
 
-BACKUP_DIR="/backup/cos"
+BACKUP_DIR="/backup/b2"
 DATE=$(date +%Y-%m-%d)
 
 mkdir -p "$BACKUP_DIR/$DATE"
 
 # 下载所有文件（使用 rclone）
-rclone sync cos:redcode-im-bucket "$BACKUP_DIR/$DATE" \
+rclone sync b2:redcode-im-bucket "$BACKUP_DIR/$DATE" \
   --progress \
   --transfers 10
 
@@ -431,13 +430,13 @@ redis-cli DBSIZE
 ### 文件存储恢复
 
 ```bash
-# 从本地备份恢复到 COS
-rclone sync /backup/cos/2026-01-13 cos:redcode-im-bucket \
+# 从本地备份恢复到 B2
+rclone sync /backup/b2/2026-01-13 b2:redcode-im-bucket \
   --progress \
   --transfers 10
 
 # 或从备份 Bucket 恢复
-coscmd copy -r cos://redcode-backup/2026-01-13/ cos://redcode-im-bucket/
+rclone sync b2:redcode-backup-bucket/2026-01-13 b2:redcode-im-bucket --progress --transfers 10
 ```
 
 ---

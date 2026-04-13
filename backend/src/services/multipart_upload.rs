@@ -6,10 +6,10 @@ pub const MULTIPART_THRESHOLD_BYTES: i64 = 5 * 1024 * 1024;
 /// 默认分片大小：8MB（兼顾请求次数与内存占用）
 pub const DEFAULT_PART_SIZE_BYTES: i64 = 8 * 1024 * 1024;
 
-/// COS/S3 协议分片上传最小分片大小（除最后一片外）：1MB
+/// S3 兼容分片上传最小分片大小（除最后一片外）：1MB
 pub const MIN_PART_SIZE_BYTES: i64 = 1 * 1024 * 1024;
 
-/// COS/S3 分片上传最大分片数：10,000
+/// S3 兼容分片上传最大分片数：10,000
 pub const MAX_PARTS: i64 = 10_000;
 
 fn div_ceil_i64(n: i64, d: i64) -> i64 {

@@ -436,7 +436,7 @@ impl HttpClientState {
         ));
 
         let mut builder = client.get(&url);
-        // 只对内部 API URL 添加 Authorization header,外部 URL(如 COS 签名 URL)不需要
+        // 只对内部 API URL 添加 Authorization header，外部临时签名 URL 不需要
         if !is_external_url {
             if let Some(token_value) = &token {
                 builder = builder.header("Authorization", format!("Bearer {}", token_value));

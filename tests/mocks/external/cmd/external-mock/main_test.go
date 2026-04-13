@@ -166,42 +166,7 @@ func TestIPInfo(t *testing.T) {
 	}
 }
 
-func TestTencentCI(t *testing.T) {
-	_, ts := newTestServer()
-	defer ts.Close()
-
-	submitBody := `<Request><Input><Object>chat/violation-image.png</Object></Input></Request>`
-	resp, err := http.Post(ts.URL+"/tencentci/image/auditing", "application/xml", strings.NewReader(submitBody))
-	if err != nil {
-		t.Fatalf("submit request failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(resp.Body)
-		t.Fatalf("submit expect 200, got %d: %s", resp.StatusCode, string(raw))
-	}
-	body, _ := io.ReadAll(resp.Body)
-	jobID := extractTag(string(body), "JobId")
-	if jobID == "" {
-		t.Fatalf("job id is empty, body=%s", string(body))
-	}
-
-	queryResp, err := http.Get(ts.URL + "/tencentci/image/auditing/" + jobID)
-	if err != nil {
-		t.Fatalf("query request failed: %v", err)
-	}
-	defer queryResp.Body.Close()
-	if queryResp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(queryResp.Body)
-		t.Fatalf("query expect 200, got %d: %s", queryResp.StatusCode, string(raw))
-	}
-	queryBody, _ := io.ReadAll(queryResp.Body)
-	if extractTag(string(queryBody), "Result") != "1" {
-		t.Fatalf("expect result=1, body=%s", string(queryBody))
-	}
-}
-
-func TestCOSObjectLifecycle(t *testing.T) {
+func TestObjectStorageObjectLifecycle(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()
 
@@ -256,7 +221,7 @@ func TestCOSObjectLifecycle(t *testing.T) {
 	}
 }
 
-func TestCOSMultipartLifecycle(t *testing.T) {
+func TestObjectStorageMultipartLifecycle(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()
 
@@ -313,43 +278,6 @@ func TestCOSMultipartLifecycle(t *testing.T) {
 	finalBody, _ := io.ReadAll(getResp.Body)
 	if string(finalBody) != part1+part2 {
 		t.Fatalf("expect %s, got %s", part1+part2, string(finalBody))
-	}
-}
-
-func TestCOSCORS(t *testing.T) {
-	_, ts := newTestServer()
-	defer ts.Close()
-
-	getBefore, err := http.DefaultClient.Do(newRequest(t, http.MethodGet, ts.URL+"/?cors", nil))
-	if err != nil {
-		t.Fatalf("cors get before set failed: %v", err)
-	}
-	getBefore.Body.Close()
-	if getBefore.StatusCode != http.StatusNotFound {
-		t.Fatalf("expect 404 before set, got %d", getBefore.StatusCode)
-	}
-
-	corsXML := `<CORSConfiguration><CORSRule><AllowedOrigin>*</AllowedOrigin></CORSRule></CORSConfiguration>`
-	putResp, err := http.DefaultClient.Do(newRequest(t, http.MethodPut, ts.URL+"/?cors", strings.NewReader(corsXML)))
-	if err != nil {
-		t.Fatalf("cors put failed: %v", err)
-	}
-	putResp.Body.Close()
-	if putResp.StatusCode != http.StatusOK {
-		t.Fatalf("expect 200, got %d", putResp.StatusCode)
-	}
-
-	getAfter, err := http.DefaultClient.Do(newRequest(t, http.MethodGet, ts.URL+"/?cors", nil))
-	if err != nil {
-		t.Fatalf("cors get after set failed: %v", err)
-	}
-	defer getAfter.Body.Close()
-	if getAfter.StatusCode != http.StatusOK {
-		t.Fatalf("expect 200, got %d", getAfter.StatusCode)
-	}
-	body, _ := io.ReadAll(getAfter.Body)
-	if !strings.Contains(string(body), "AllowedOrigin") {
-		t.Fatalf("unexpected cors body: %s", string(body))
 	}
 }
 

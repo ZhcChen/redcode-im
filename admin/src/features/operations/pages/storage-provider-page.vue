@@ -27,9 +27,8 @@
 
       <a-alert type="info" style="margin-bottom: 16px">
         <template #title>Backblaze B2 配置说明</template>
-        当前页优先维护 Backblaze B2 的 Key ID、Application Key、Region、S3
-        Endpoint 与私有 Bucket。输入面默认按 B2 语义展示，便于直接复用 cartoon
-        已验证过的配置方式。
+        当前后台仅保留 Backblaze B2。这里维护 Key ID、Application Key、Region、
+        S3 Endpoint 与私有 Bucket。
       </a-alert>
 
       <a-table
@@ -57,14 +56,6 @@
 
         <template #operations="{ record }">
           <a-space size="mini">
-            <a-button
-              v-if="record.provider_type === 'tencent_cos'"
-              type="text"
-              size="small"
-              @click="openCorsModal(record)"
-            >
-              配置跨域
-            </a-button>
             <a-button type="text" size="small" @click="handleEdit(record)">
               编辑
             </a-button>
@@ -86,12 +77,6 @@
         :submitting="actionLoading"
         :submit="submitProvider"
       />
-      <StorageProviderCorsModal
-        v-model:visible="corsModalVisible"
-        :provider="currentCorsProvider"
-        :submitting="corsSubmitting"
-        :submit="submitCors"
-      />
     </a-card>
   </div>
 </template>
@@ -104,26 +89,20 @@
     createStorageProvider,
     deleteStorageProvider,
     listStorageProviders,
-    setCosCors,
     updateStorageProvider,
-    type SetCosCorsRequest,
     type StorageProvider,
   } from '@/services/storage-providers';
   import {
     getProviderTypeColor,
     getProviderTypeLabel,
   } from '../helpers/storage-provider';
-  import StorageProviderCorsModal from '../components/storage-provider-cors-modal.vue';
   import StorageProviderFormModal, {
     type StorageProviderFormPayload,
   } from '../components/storage-provider-form-modal.vue';
 
   const providers = ref<StorageProvider[]>([]);
   const formVisible = ref(false);
-  const corsModalVisible = ref(false);
-  const corsSubmitting = ref(false);
   const editingProvider = ref<StorageProvider | null>(null);
-  const currentCorsProvider = ref<StorageProvider | null>(null);
   const listLoading = ref(false);
   const actionLoading = ref(false);
 
@@ -138,11 +117,11 @@
       dataIndex: 'name',
     },
     {
-      title: '地域',
+      title: 'Region',
       dataIndex: 'region',
     },
     {
-      title: '端点',
+      title: 'S3 Endpoint',
       dataIndex: 'endpoint',
       ellipsis: true,
     },
@@ -159,7 +138,7 @@
     {
       title: '操作',
       slotName: 'operations',
-      width: 260,
+      width: 220,
     },
   ];
 
@@ -214,42 +193,6 @@
       return false;
     } finally {
       actionLoading.value = false;
-    }
-  }
-
-  function openCorsModal(record: StorageProvider) {
-    if (record.provider_type !== 'tencent_cos') {
-      Message.warning('当前提供商不支持跨域配置');
-      return;
-    }
-
-    currentCorsProvider.value = record;
-    corsModalVisible.value = true;
-  }
-
-  async function submitCors(payload: SetCosCorsRequest) {
-    try {
-      corsSubmitting.value = true;
-      const response = await setCosCors(payload);
-      const { data } = response;
-      if (data.success) {
-        Message.success(data.message || '跨域规则配置成功');
-        currentCorsProvider.value = null;
-        return true;
-      }
-
-      Message.error(data.message || '跨域规则配置失败');
-      return false;
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '跨域规则配置失败';
-      Message.error(errorMsg);
-      return false;
-    } finally {
-      corsSubmitting.value = false;
     }
   }
 

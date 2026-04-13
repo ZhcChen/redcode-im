@@ -51,12 +51,12 @@ export async function uploadFileByMultipartAndComplete(
         throw new Error(text || `上传分片失败（part ${partNumber}）`);
       }
 
-      // 注意：浏览器侧读取 ETag 依赖 COS CORS 配置（ExposeHeaders 需要包含 ETag）
+      // 注意：浏览器侧必须能读取 ETag，否则无法完成分片合并。
       const rawEtag =
         response.headers.get('etag') || response.headers.get('ETag');
       if (!rawEtag) {
         throw new Error(
-          '上传分片成功但未读取到 ETag，请在 COS 的 CORS 配置中将 ExposeHeaders 添加 ETag'
+          '上传分片成功但未读取到 ETag，请检查对象存储返回头是否允许浏览器读取 ETag'
         );
       }
       const etag = normalizeEtag(rawEtag);

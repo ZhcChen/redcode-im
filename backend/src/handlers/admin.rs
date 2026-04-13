@@ -2489,15 +2489,10 @@ pub async fn create_storage_provider(
 
     // 解析提供商类型
     let provider_type = match req.provider_type.as_str() {
-        "tencent_cos" => StorageProviderType::TencentCos,
-        "aliyun_oss" => StorageProviderType::AliyunOss,
-        "aws_s3" => StorageProviderType::AwsS3,
-        "minio" => StorageProviderType::Minio,
         "backblaze_b2" => StorageProviderType::BackblazeB2,
-        "unknown" => StorageProviderType::Unknown,
         _ => {
             return Err(AppError::ValidationError(format!(
-                "不支持的提供商类型: {}",
+                "当前仅支持 Backblaze B2，收到: {}",
                 req.provider_type
             )));
         }
@@ -2508,7 +2503,7 @@ pub async fn create_storage_provider(
     let store = StorageProviderStore::new(state.database.clone());
 
     // 统一清理 bucket_name，空字符串视为未提供
-    let mut bucket_name = req
+    let bucket_name = req
         .bucket_name
         .as_deref()
         .map(str::trim)
@@ -2519,49 +2514,6 @@ pub async fn create_storage_provider(
         return Err(AppError::ValidationError(
             "Backblaze B2 需要配置 bucket_name".to_string(),
         ));
-    }
-
-    // 如果是腾讯云 COS 且没有指定 bucket_name，尝试创建一个默认的 bucket
-    if provider_type == StorageProviderType::TencentCos && bucket_name.is_none() {
-        // 生成一个默认的 bucket 名称
-        let uuid_str = Uuid::new_v4().to_string().replace("-", "");
-        let default_bucket_name = format!("redcode-im-{}", &uuid_str[..8]);
-
-        // 创建临时的存储服务实例来创建 bucket
-        let temp_provider = StorageProvider {
-            id: Uuid::new_v4(),
-            provider_type: StorageProviderType::TencentCos,
-            name: req.name.clone(),
-            secret_id: req.secret_id.clone(),
-            secret_key: req.secret_key.clone(),
-            region: req.region.clone(),
-            endpoint: req.endpoint.clone(),
-            bucket_name: None,
-            is_active: false,
-            is_default: false,
-            description: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            updated_by: None,
-        };
-
-        match storage::create_storage_service_without_bucket(&temp_provider) {
-            Ok(storage_service) => {
-                match storage_service.create_bucket(&default_bucket_name).await {
-                    Ok(_) => {
-                        bucket_name = Some(default_bucket_name);
-                        tracing::info!("自动创建 bucket: {}", bucket_name.as_ref().unwrap());
-                    }
-                    Err(e) => {
-                        tracing::warn!("自动创建 bucket 失败: {}，将使用用户指定的 bucket_name", e);
-                        // 继续执行，让用户稍后手动指定 bucket_name
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!("创建存储服务实例失败: {}，将使用用户指定的 bucket_name", e);
-            }
-        }
     }
 
     let provider = store
@@ -2612,15 +2564,10 @@ pub async fn update_storage_provider(
     // 解析提供商类型（如果提供）
     let provider_type = if let Some(ref pt) = req.provider_type {
         match pt.as_str() {
-            "tencent_cos" => Some(StorageProviderType::TencentCos),
-            "aliyun_oss" => Some(StorageProviderType::AliyunOss),
-            "aws_s3" => Some(StorageProviderType::AwsS3),
-            "minio" => Some(StorageProviderType::Minio),
             "backblaze_b2" => Some(StorageProviderType::BackblazeB2),
-            "unknown" => Some(StorageProviderType::Unknown),
             _ => {
                 return Err(AppError::ValidationError(format!(
-                    "不支持的提供商类型: {}",
+                    "当前仅支持 Backblaze B2，收到: {}",
                     pt
                 )));
             }
@@ -2751,10 +2698,10 @@ pub async fn get_default_storage_provider(
     }
 }
 
-// ========== COS 测试 API ==========
+// ========== 对象存储测试 API ==========
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosUploadRequest {
+pub struct TestStorageUploadRequest {
     pub provider_id: Option<String>,
     pub key: String,
     pub content: Option<String>,
@@ -2763,14 +2710,14 @@ pub struct TestCosUploadRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosUploadResponse {
+pub struct TestStorageUploadResponse {
     pub success: bool,
     pub url: Option<String>,
     pub message: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosUploadSignatureRequest {
+pub struct TestStorageUploadSignatureRequest {
     pub provider_id: Option<String>,
     pub key: String,
     pub content_type: Option<String>,
@@ -2783,14 +2730,14 @@ pub struct TestCosUploadSignatureRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosUploadSignatureResponse {
+pub struct TestStorageUploadSignatureResponse {
     pub success: bool,
     pub signature: Option<storage::DirectUploadSignature>,
     pub message: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosUploadMultipartInitiateRequest {
+pub struct TestStorageUploadMultipartInitiateRequest {
     pub provider_id: Option<String>,
     pub key: String,
     pub content_type: Option<String>,
@@ -2803,7 +2750,7 @@ pub struct TestCosUploadMultipartInitiateRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosUploadMultipartInitiateResponse {
+pub struct TestStorageUploadMultipartInitiateResponse {
     pub success: bool,
     pub message: String,
     pub key: Option<String>,
@@ -2813,63 +2760,28 @@ pub struct TestCosUploadMultipartInitiateResponse {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosDownloadUrlRequest {
+pub struct TestStorageDownloadUrlRequest {
     pub provider_id: Option<String>,
     pub key: String,
     pub expires_in_seconds: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosDownloadUrlResponse {
+pub struct TestStorageDownloadUrlResponse {
     pub success: bool,
     pub url: Option<String>,
     pub message: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CorsRuleInput {
-    pub allowed_origins: Vec<String>,
-    pub allowed_methods: Vec<String>,
-    #[serde(default)]
-    pub allowed_headers: Vec<String>,
-    #[serde(default)]
-    pub expose_headers: Vec<String>,
-    pub max_age_seconds: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TestCosSetCorsRequest {
-    pub provider_id: Option<String>,
-    pub rules: Vec<CorsRuleInput>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TestCosGetCorsRequest {
-    pub provider_id: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TestCosSetCorsResponse {
-    pub success: bool,
-    pub message: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TestCosGetCorsResponse {
-    pub success: bool,
-    pub message: String,
-    pub rules: Vec<CorsRuleInput>,
-}
-
-/// 测试 COS 文件上传
-pub async fn test_cos_upload(
+/// 测试对象存储文件上传
+pub async fn test_storage_upload(
     State(state): State<AppState>,
-    Json(req): Json<TestCosUploadRequest>,
-) -> Result<Json<TestCosUploadResponse>, AppError> {
+    Json(req): Json<TestStorageUploadRequest>,
+) -> Result<Json<TestStorageUploadResponse>, AppError> {
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use base64::Engine;
 
-    let TestCosUploadRequest {
+    let TestStorageUploadRequest {
         provider_id,
         key,
         content,
@@ -2879,7 +2791,6 @@ pub async fn test_cos_upload(
 
     let store = StorageProviderStore::new(state.database.clone());
 
-    // 获取提供商配置
     let provider = if let Some(provider_id) = provider_id {
         let provider_uuid = Uuid::parse_str(&provider_id)
             .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
@@ -2894,21 +2805,16 @@ pub async fn test_cos_upload(
             .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
     };
 
-    // 检查提供商是否启用
     if !provider.is_active {
-        return Ok(Json(TestCosUploadResponse {
+        return Ok(Json(TestStorageUploadResponse {
             success: false,
             url: None,
             message: "提供商未启用".to_string(),
         }));
     }
 
-    // 检查是否为腾讯云 COS
-
-    // 创建存储服务
     let storage_service = storage::create_storage_service(&provider)?;
 
-    // 上传文件
     let content_bytes = if let Some(file_base64) = file_base64 {
         let data_part = file_base64
             .split_once(',')
@@ -2918,7 +2824,7 @@ pub async fn test_cos_upload(
         match BASE64_STANDARD.decode(data_part) {
             Ok(bytes_vec) => bytes::Bytes::from(bytes_vec),
             Err(e) => {
-                return Ok(Json(TestCosUploadResponse {
+                return Ok(Json(TestStorageUploadResponse {
                     success: false,
                     url: None,
                     message: format!("文件内容解码失败: {}", e),
@@ -2928,7 +2834,7 @@ pub async fn test_cos_upload(
     } else if let Some(text_content) = content {
         bytes::Bytes::from(text_content)
     } else {
-        return Ok(Json(TestCosUploadResponse {
+        return Ok(Json(TestStorageUploadResponse {
             success: false,
             url: None,
             message: "请提供文件内容或选择文件上传".to_string(),
@@ -2940,7 +2846,6 @@ pub async fn test_cos_upload(
         .await
     {
         Ok(url) => {
-            // 仅测试接口：也进入审核队列，便于验证审核链路与后台展示
             let media_kind = content_type
                 .as_deref()
                 .map(|v| v.trim().to_ascii_lowercase())
@@ -2973,13 +2878,13 @@ pub async fn test_cos_upload(
                 )
                 .await;
 
-            Ok(Json(TestCosUploadResponse {
+            Ok(Json(TestStorageUploadResponse {
                 success: true,
                 url: Some(url),
                 message: "上传成功".to_string(),
             }))
         }
-        Err(e) => Ok(Json(TestCosUploadResponse {
+        Err(e) => Ok(Json(TestStorageUploadResponse {
             success: false,
             url: None,
             message: format!("上传失败: {}", e),
@@ -2987,22 +2892,21 @@ pub async fn test_cos_upload(
     }
 }
 
-/// 生成 COS 前端直传签名
-pub async fn test_cos_upload_signature(
+/// 生成对象存储前端直传签名
+pub async fn test_storage_upload_signature(
     State(state): State<AppState>,
-    Json(req): Json<TestCosUploadSignatureRequest>,
-) -> Result<Json<TestCosUploadSignatureResponse>, AppError> {
+    Json(req): Json<TestStorageUploadSignatureRequest>,
+) -> Result<Json<TestStorageUploadSignatureResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     if req.key.trim().is_empty() {
-        return Ok(Json(TestCosUploadSignatureResponse {
+        return Ok(Json(TestStorageUploadSignatureResponse {
             success: false,
             signature: None,
             message: "文件路径不能为空".to_string(),
         }));
     }
 
-    // 获取提供商配置
     let provider = if let Some(provider_id) = req.provider_id.clone() {
         let provider_uuid = Uuid::parse_str(&provider_id)
             .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
@@ -3018,7 +2922,7 @@ pub async fn test_cos_upload_signature(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosUploadSignatureResponse {
+        return Ok(Json(TestStorageUploadSignatureResponse {
             success: false,
             signature: None,
             message: "提供商未启用".to_string(),
@@ -3027,7 +2931,6 @@ pub async fn test_cos_upload_signature(
 
     let storage_service = storage::create_storage_service(&provider)?;
 
-    // 如果提供了 hash 和 size，这里也尝试走一遍统一的去重逻辑，便于调试
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
         if file_size > 0 {
             let hash_alg = req.hash_alg.unwrap_or(1);
@@ -3043,7 +2946,7 @@ pub async fn test_cos_upload_signature(
                     existing.object_key, hash_alg, hash_value
                 );
 
-                return Ok(Json(TestCosUploadSignatureResponse {
+                return Ok(Json(TestStorageUploadSignatureResponse {
                     success: true,
                     signature: None,
                     message: "复用已上传的测试文件，未生成新的直传签名".to_string(),
@@ -3052,7 +2955,6 @@ pub async fn test_cos_upload_signature(
         }
     }
 
-    // 新的上传，则记录一条“上传中”的文件记录
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
         if file_size > 0 {
             let hash_alg = req.hash_alg.unwrap_or(1);
@@ -3078,13 +2980,13 @@ pub async fn test_cos_upload_signature(
     {
         Ok(signature) => {
             info!("前端获取直传参数 key: {}", req.key);
-            Ok(Json(TestCosUploadSignatureResponse {
+            Ok(Json(TestStorageUploadSignatureResponse {
                 success: true,
                 signature: Some(signature),
                 message: "生成直传签名成功".to_string(),
             }))
         }
-        Err(e) => Ok(Json(TestCosUploadSignatureResponse {
+        Err(e) => Ok(Json(TestStorageUploadSignatureResponse {
             success: false,
             signature: None,
             message: format!("生成直传签名失败: {}", e),
@@ -3092,15 +2994,15 @@ pub async fn test_cos_upload_signature(
     }
 }
 
-/// 初始化 COS 分片上传（Multipart Upload）并创建后端会话（仅用于测试页面）
-pub async fn test_cos_upload_multipart_initiate(
+/// 初始化对象存储分片上传（Multipart Upload）并创建后端会话（仅用于测试页面）
+pub async fn test_storage_upload_multipart_initiate(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(req): Json<TestCosUploadMultipartInitiateRequest>,
-) -> Result<Json<TestCosUploadMultipartInitiateResponse>, AppError> {
+    Json(req): Json<TestStorageUploadMultipartInitiateRequest>,
+) -> Result<Json<TestStorageUploadMultipartInitiateResponse>, AppError> {
     let key = req.key.trim();
     if key.is_empty() {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+        return Ok(Json(TestStorageUploadMultipartInitiateResponse {
             success: false,
             message: "文件路径不能为空".to_string(),
             key: None,
@@ -3111,7 +3013,7 @@ pub async fn test_cos_upload_multipart_initiate(
     }
 
     if req.file_size <= 0 {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+        return Ok(Json(TestStorageUploadMultipartInitiateResponse {
             success: false,
             message: "file_size 必填且必须大于 0".to_string(),
             key: Some(key.to_string()),
@@ -3124,7 +3026,7 @@ pub async fn test_cos_upload_multipart_initiate(
     let (part_size, total_parts) = match multipart_upload::plan_multipart_upload(req.file_size) {
         Ok(plan) => plan,
         Err(e) => {
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            return Ok(Json(TestStorageUploadMultipartInitiateResponse {
                 success: false,
                 message: format!("{}", e),
                 key: Some(key.to_string()),
@@ -3151,7 +3053,7 @@ pub async fn test_cos_upload_multipart_initiate(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosUploadMultipartInitiateResponse {
+        return Ok(Json(TestStorageUploadMultipartInitiateResponse {
             success: false,
             message: "提供商未启用".to_string(),
             key: Some(key.to_string()),
@@ -3163,7 +3065,6 @@ pub async fn test_cos_upload_multipart_initiate(
 
     let storage_service = storage::create_storage_service(&provider)?;
 
-    // 如果提供了 hash 和 size，优先复用已上传完成的对象（与测试直传签名保持一致）
     if let Some(ref hash_value) = req.hash_value {
         let hash_value_trimmed = hash_value.trim();
         if !hash_value_trimmed.is_empty() {
@@ -3181,7 +3082,6 @@ pub async fn test_cos_upload_multipart_initiate(
                 .await
                 .map_err(AppError::from)?
             {
-                // 防御：记录为 completed 但对象已不存在时，避免返回“秒传 key”
                 if !storage_service.file_exists(&existing.object_key).await? {
                     let _ = upload_store
                         .mark_deleted_by_key(
@@ -3196,7 +3096,7 @@ pub async fn test_cos_upload_multipart_initiate(
                         existing.object_key, hash_alg, hash_value_trimmed
                     );
 
-                    return Ok(Json(TestCosUploadMultipartInitiateResponse {
+                    return Ok(Json(TestStorageUploadMultipartInitiateResponse {
                         success: true,
                         message: "复用已上传的对象，无需重新上传".to_string(),
                         key: Some(existing.object_key),
@@ -3209,7 +3109,6 @@ pub async fn test_cos_upload_multipart_initiate(
         }
     }
 
-    // 新的上传，则记录一条“上传中”的文件记录（仅在提供 hash 时）
     if let Some(ref hash_value) = req.hash_value {
         let hash_value_trimmed = hash_value.trim();
         if !hash_value_trimmed.is_empty() {
@@ -3242,7 +3141,7 @@ pub async fn test_cos_upload_multipart_initiate(
     {
         Ok(upload_id) => upload_id,
         Err(e) => {
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            return Ok(Json(TestStorageUploadMultipartInitiateResponse {
                 success: false,
                 message: format!("初始化分片上传失败: {}", e),
                 key: Some(key.to_string()),
@@ -3278,7 +3177,7 @@ pub async fn test_cos_upload_multipart_initiate(
             let _ = storage_service
                 .abort_multipart_upload(key, &upload_id)
                 .await;
-            return Ok(Json(TestCosUploadMultipartInitiateResponse {
+            return Ok(Json(TestStorageUploadMultipartInitiateResponse {
                 success: false,
                 message: format!("创建分片会话失败: {}", e),
                 key: Some(key.to_string()),
@@ -3289,7 +3188,7 @@ pub async fn test_cos_upload_multipart_initiate(
         }
     };
 
-    Ok(Json(TestCosUploadMultipartInitiateResponse {
+    Ok(Json(TestStorageUploadMultipartInitiateResponse {
         success: true,
         message: "初始化分片上传会话成功".to_string(),
         key: Some(key.to_string()),
@@ -3300,14 +3199,14 @@ pub async fn test_cos_upload_multipart_initiate(
 }
 
 /// 生成可访问的下载链接
-pub async fn test_cos_download_url(
+pub async fn test_storage_download_url(
     State(state): State<AppState>,
-    Json(req): Json<TestCosDownloadUrlRequest>,
-) -> Result<Json<TestCosDownloadUrlResponse>, AppError> {
+    Json(req): Json<TestStorageDownloadUrlRequest>,
+) -> Result<Json<TestStorageDownloadUrlResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     if req.key.trim().is_empty() {
-        return Ok(Json(TestCosDownloadUrlResponse {
+        return Ok(Json(TestStorageDownloadUrlResponse {
             success: false,
             url: None,
             message: "文件路径（key）不能为空".to_string(),
@@ -3329,7 +3228,7 @@ pub async fn test_cos_download_url(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosDownloadUrlResponse {
+        return Ok(Json(TestStorageDownloadUrlResponse {
             success: false,
             url: None,
             message: "提供商未启用".to_string(),
@@ -3338,53 +3237,47 @@ pub async fn test_cos_download_url(
 
     let storage_service = storage::create_storage_service(&provider)?;
 
-    // 生成缓存键
     let cache_key = CacheKeys::download_url_cache(
         req.key.trim(),
         &provider.id.to_string(),
         req.expires_in_seconds.unwrap_or(3600),
     );
 
-    // 创建缓存管理器
     let cache_manager = CacheManager::new(state.redis.get_cache_client().clone());
 
-    // 尝试从缓存获取URL
     if let Ok(Some(cached_url)) = cache_manager.get_cached_download_url(&cache_key).await {
         info!("命中下载URL缓存: {}", req.key.trim());
-        return Ok(Json(TestCosDownloadUrlResponse {
+        return Ok(Json(TestStorageDownloadUrlResponse {
             success: true,
             url: Some(cached_url),
             message: "生成下载链接成功（缓存）".to_string(),
         }));
     }
 
-    // 缓存未命中，生成新的URL
     match storage_service
         .generate_download_url(req.key.trim(), req.expires_in_seconds)
         .await
     {
         Ok(url) => {
-            // 缓存URL，过期时间为URL有效期的90%
             let url_expires_in = req.expires_in_seconds.unwrap_or(3600);
-            let cache_ttl = (url_expires_in as f64 * 0.9) as u64; // 90% of URL expiration time
+            let cache_ttl = (url_expires_in as f64 * 0.9) as u64;
 
             if let Err(e) = cache_manager
                 .cache_download_url(&cache_key, &url, cache_ttl)
                 .await
             {
                 error!("缓存下载URL失败: {:?}", e);
-                // 缓存失败不影响正常功能，继续返回URL
             } else {
                 info!("缓存下载URL成功: {} (TTL: {}s)", req.key.trim(), cache_ttl);
             }
 
-            Ok(Json(TestCosDownloadUrlResponse {
+            Ok(Json(TestStorageDownloadUrlResponse {
                 success: true,
                 url: Some(url),
                 message: "生成下载链接成功".to_string(),
             }))
         }
-        Err(e) => Ok(Json(TestCosDownloadUrlResponse {
+        Err(e) => Ok(Json(TestStorageDownloadUrlResponse {
             success: false,
             url: None,
             message: format!("生成下载链接失败: {}", e),
@@ -3392,201 +3285,23 @@ pub async fn test_cos_download_url(
     }
 }
 
-/// 获取 COS 跨域规则
-pub async fn test_cos_get_cors(
-    State(state): State<AppState>,
-    Json(req): Json<TestCosGetCorsRequest>,
-) -> Result<Json<TestCosGetCorsResponse>, AppError> {
-    let store = StorageProviderStore::new(state.database.clone());
-
-    let provider = if let Some(provider_id) = req.provider_id.clone() {
-        let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
-        store
-            .get_provider_by_id(&provider_uuid)
-            .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
-    } else {
-        store
-            .get_default_provider()
-            .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
-    };
-
-    if !provider.is_active {
-        return Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-            rules: vec![],
-        }));
-    }
-
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    match storage_service.get_cors_rules().await {
-        Ok(rules) => {
-            let mapped_rules = rules
-                .into_iter()
-                .map(|rule| {
-                    let storage::CorsRule {
-                        allowed_origins,
-                        allowed_methods,
-                        allowed_headers,
-                        expose_headers,
-                        max_age_seconds,
-                    } = rule;
-                    CorsRuleInput {
-                        allowed_origins,
-                        allowed_methods,
-                        allowed_headers,
-                        expose_headers,
-                        max_age_seconds,
-                    }
-                })
-                .collect();
-
-            Ok(Json(TestCosGetCorsResponse {
-                success: true,
-                message: "获取跨域规则成功".to_string(),
-                rules: mapped_rules,
-            }))
-        }
-        Err(e) => Ok(Json(TestCosGetCorsResponse {
-            success: false,
-            message: format!("获取跨域规则失败: {}", e),
-            rules: vec![],
-        })),
-    }
-}
-
-/// 配置 COS 跨域规则
-pub async fn test_cos_set_cors(
-    State(state): State<AppState>,
-    Json(req): Json<TestCosSetCorsRequest>,
-) -> Result<Json<TestCosSetCorsResponse>, AppError> {
-    let store = StorageProviderStore::new(state.database.clone());
-
-    if req.rules.is_empty() {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "请至少提供一条跨域规则".to_string(),
-        }));
-    }
-
-    let provider = if let Some(provider_id) = req.provider_id.clone() {
-        let provider_uuid = Uuid::parse_str(&provider_id)
-            .map_err(|_| AppError::ValidationError("无效的提供商ID".to_string()))?;
-        store
-            .get_provider_by_id(&provider_uuid)
-            .await?
-            .ok_or_else(|| AppError::NotFound("提供商配置不存在".to_string()))?
-    } else {
-        store
-            .get_default_provider()
-            .await?
-            .ok_or_else(|| AppError::NotFound("未找到默认文件上传提供商配置".to_string()))?
-    };
-
-    if !provider.is_active {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "提供商未启用".to_string(),
-        }));
-    }
-
-    let storage_service = storage::create_storage_service(&provider)?;
-
-    let normalize = |items: &[String]| -> Vec<String> {
-        items
-            .iter()
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect()
-    };
-
-    let cors_rules: Vec<storage::CorsRule> = req
-        .rules
-        .iter()
-        .map(|rule| storage::CorsRule {
-            allowed_origins: normalize(&rule.allowed_origins),
-            allowed_methods: normalize(&rule.allowed_methods),
-            allowed_headers: normalize(&rule.allowed_headers),
-            expose_headers: normalize(&rule.expose_headers),
-            max_age_seconds: rule.max_age_seconds,
-        })
-        .collect();
-
-    if cors_rules
-        .iter()
-        .any(|rule| rule.allowed_origins.is_empty())
-    {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "每条跨域规则必须至少配置一个允许的来源".to_string(),
-        }));
-    }
-
-    const SUPPORTED_METHODS: [&str; 5] = ["GET", "PUT", "POST", "DELETE", "HEAD"];
-
-    if cors_rules
-        .iter()
-        .any(|rule| rule.allowed_methods.is_empty())
-    {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: "每条跨域规则必须至少配置一个允许的方法".to_string(),
-        }));
-    }
-
-    if let Some(invalid_method) = cors_rules
-        .iter()
-        .flat_map(|rule| &rule.allowed_methods)
-        .find(|method| {
-            let uppercase = method.to_ascii_uppercase();
-            !SUPPORTED_METHODS
-                .iter()
-                .any(|supported| supported.eq_ignore_ascii_case(&uppercase))
-        })
-    {
-        return Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!(
-                "不支持的跨域方法: {}，COS 仅允许 GET/PUT/POST/DELETE/HEAD",
-                invalid_method
-            ),
-        }));
-    }
-
-    match storage_service.set_cors_rules(&cors_rules).await {
-        Ok(_) => Ok(Json(TestCosSetCorsResponse {
-            success: true,
-            message: "跨域规则配置成功".to_string(),
-        })),
-        Err(e) => Ok(Json(TestCosSetCorsResponse {
-            success: false,
-            message: format!("配置跨域规则失败: {}", e),
-        })),
-    }
-}
-
 #[derive(Debug, Deserialize)]
-pub struct TestCosDeleteRequest {
+pub struct TestStorageDeleteRequest {
     pub provider_id: Option<String>,
     pub key: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosDeleteResponse {
+pub struct TestStorageDeleteResponse {
     pub success: bool,
     pub message: String,
 }
 
-/// 测试 COS 文件删除
-pub async fn test_cos_delete(
+/// 测试对象存储文件删除
+pub async fn test_storage_delete(
     State(state): State<AppState>,
-    Json(req): Json<TestCosDeleteRequest>,
-) -> Result<Json<TestCosDeleteResponse>, AppError> {
+    Json(req): Json<TestStorageDeleteRequest>,
+) -> Result<Json<TestStorageDeleteResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     // 获取提供商配置
@@ -3605,7 +3320,7 @@ pub async fn test_cos_delete(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosDeleteResponse {
+        return Ok(Json(TestStorageDeleteResponse {
             success: false,
             message: "提供商未启用".to_string(),
         }));
@@ -3614,11 +3329,11 @@ pub async fn test_cos_delete(
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.delete_file(&req.key).await {
-        Ok(_) => Ok(Json(TestCosDeleteResponse {
+        Ok(_) => Ok(Json(TestStorageDeleteResponse {
             success: true,
             message: "删除成功".to_string(),
         })),
-        Err(e) => Ok(Json(TestCosDeleteResponse {
+        Err(e) => Ok(Json(TestStorageDeleteResponse {
             success: false,
             message: format!("删除失败: {}", e),
         })),
@@ -3626,23 +3341,23 @@ pub async fn test_cos_delete(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosExistsRequest {
+pub struct TestStorageExistsRequest {
     pub provider_id: Option<String>,
     pub key: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosExistsResponse {
+pub struct TestStorageExistsResponse {
     pub success: bool,
     pub exists: bool,
     pub message: String,
 }
 
-/// 测试 COS 文件是否存在
-pub async fn test_cos_exists(
+/// 测试对象存储文件是否存在
+pub async fn test_storage_exists(
     State(state): State<AppState>,
-    Json(req): Json<TestCosExistsRequest>,
-) -> Result<Json<TestCosExistsResponse>, AppError> {
+    Json(req): Json<TestStorageExistsRequest>,
+) -> Result<Json<TestStorageExistsResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     // 获取提供商配置
@@ -3661,7 +3376,7 @@ pub async fn test_cos_exists(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosExistsResponse {
+        return Ok(Json(TestStorageExistsResponse {
             success: false,
             exists: false,
             message: "提供商未启用".to_string(),
@@ -3671,7 +3386,7 @@ pub async fn test_cos_exists(
     let storage_service = storage::create_storage_service(&provider)?;
 
     match storage_service.file_exists(&req.key).await {
-        Ok(exists) => Ok(Json(TestCosExistsResponse {
+        Ok(exists) => Ok(Json(TestStorageExistsResponse {
             success: true,
             exists,
             message: if exists {
@@ -3680,7 +3395,7 @@ pub async fn test_cos_exists(
                 "文件不存在".to_string()
             },
         })),
-        Err(e) => Ok(Json(TestCosExistsResponse {
+        Err(e) => Ok(Json(TestStorageExistsResponse {
             success: false,
             exists: false,
             message: format!("检查失败: {}", e),
@@ -3691,22 +3406,22 @@ pub async fn test_cos_exists(
 // ========== Bucket 管理 API ==========
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosListBucketsRequest {
+pub struct TestStorageListBucketsRequest {
     pub provider_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosListBucketsResponse {
+pub struct TestStorageListBucketsResponse {
     pub success: bool,
     pub buckets: Vec<storage::BucketInfo>,
     pub message: String,
 }
 
-/// 测试 COS 获取 bucket 列表
-pub async fn test_cos_list_buckets(
+/// 测试对象存储获取 bucket 列表
+pub async fn test_storage_list_buckets(
     State(state): State<AppState>,
-    Json(req): Json<TestCosListBucketsRequest>,
-) -> Result<Json<TestCosListBucketsResponse>, AppError> {
+    Json(req): Json<TestStorageListBucketsRequest>,
+) -> Result<Json<TestStorageListBucketsResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     // 获取提供商配置
@@ -3725,7 +3440,7 @@ pub async fn test_cos_list_buckets(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosListBucketsResponse {
+        return Ok(Json(TestStorageListBucketsResponse {
             success: false,
             buckets: Vec::new(),
             message: "提供商未启用".to_string(),
@@ -3735,12 +3450,12 @@ pub async fn test_cos_list_buckets(
     let storage_service = storage::create_storage_service_without_bucket(&provider)?;
 
     match storage_service.list_buckets().await {
-        Ok(buckets) => Ok(Json(TestCosListBucketsResponse {
+        Ok(buckets) => Ok(Json(TestStorageListBucketsResponse {
             success: true,
             buckets: buckets.clone(),
             message: format!("成功获取 {} 个 bucket", buckets.len()),
         })),
-        Err(e) => Ok(Json(TestCosListBucketsResponse {
+        Err(e) => Ok(Json(TestStorageListBucketsResponse {
             success: false,
             buckets: Vec::new(),
             message: format!("获取 bucket 列表失败: {}", e),
@@ -3749,22 +3464,22 @@ pub async fn test_cos_list_buckets(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct TestCosCreateBucketRequest {
+pub struct TestStorageCreateBucketRequest {
     pub provider_id: Option<String>,
     pub bucket_name: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct TestCosCreateBucketResponse {
+pub struct TestStorageCreateBucketResponse {
     pub success: bool,
     pub message: String,
 }
 
-/// 测试 COS 创建 bucket
-pub async fn test_cos_create_bucket(
+/// 测试对象存储创建 bucket
+pub async fn test_storage_create_bucket(
     State(state): State<AppState>,
-    Json(req): Json<TestCosCreateBucketRequest>,
-) -> Result<Json<TestCosCreateBucketResponse>, AppError> {
+    Json(req): Json<TestStorageCreateBucketRequest>,
+) -> Result<Json<TestStorageCreateBucketResponse>, AppError> {
     let store = StorageProviderStore::new(state.database.clone());
 
     // 获取提供商配置
@@ -3783,14 +3498,14 @@ pub async fn test_cos_create_bucket(
     };
 
     if !provider.is_active {
-        return Ok(Json(TestCosCreateBucketResponse {
+        return Ok(Json(TestStorageCreateBucketResponse {
             success: false,
             message: "提供商未启用".to_string(),
         }));
     }
 
     if req.bucket_name.trim().is_empty() {
-        return Ok(Json(TestCosCreateBucketResponse {
+        return Ok(Json(TestStorageCreateBucketResponse {
             success: false,
             message: "bucket 名称不能为空".to_string(),
         }));
@@ -3799,11 +3514,11 @@ pub async fn test_cos_create_bucket(
     let storage_service = storage::create_storage_service_without_bucket(&provider)?;
 
     match storage_service.create_bucket(&req.bucket_name.trim()).await {
-        Ok(_) => Ok(Json(TestCosCreateBucketResponse {
+        Ok(_) => Ok(Json(TestStorageCreateBucketResponse {
             success: true,
             message: format!("成功创建 bucket: {}", req.bucket_name),
         })),
-        Err(e) => Ok(Json(TestCosCreateBucketResponse {
+        Err(e) => Ok(Json(TestStorageCreateBucketResponse {
             success: false,
             message: format!("创建 bucket 失败: {}", e),
         })),
@@ -5111,7 +4826,7 @@ pub async fn cleanup_system_logs(
     }))
 }
 
-// ========== 文件内容审核（COS/CI）运维 API ==========
+// ========== 文件内容审核运维 API ==========
 
 /// 文件内容审核任务查询参数
 #[derive(Debug, Deserialize)]

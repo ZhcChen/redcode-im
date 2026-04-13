@@ -2816,7 +2816,7 @@ class MessageService with ChangeNotifier {
   }
 
   Future<void> _executeAttachmentUpload(_AttachmentUploadPlan plan) async {
-    // 分片上传：使用 COS Multipart Upload（> 5MB）
+    // 分片上传：使用对象存储 Multipart Upload（> 5MB）
     if (plan.multipartSessionId != null) {
       await _executeAttachmentMultipartUpload(plan);
 

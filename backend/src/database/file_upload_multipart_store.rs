@@ -3,7 +3,7 @@ use crate::database::Database;
 use sqlx::{query_as, Error};
 use uuid::Uuid;
 
-/// 分片上传会话存储（COS Multipart Upload）
+/// 分片上传会话存储（对象存储 Multipart Upload）
 #[derive(Clone)]
 pub struct FileUploadMultipartStore {
     database: Database,

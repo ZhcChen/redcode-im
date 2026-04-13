@@ -9,8 +9,8 @@ import { EmojiPackApi } from './emoji-pack'
 export class EmojiItemApi {
   /**
    * 加载并缓存表情图片
-   * @param imageUrl 表情图片 URL（私有 COS 链接，不可直接访问）
-   * @param objectKey COS 对象键，用于获取临时下载地址
+   * @param imageUrl 表情图片 URL（私有对象存储链接，不可直接访问）
+   * @param objectKey 对象键，用于获取临时下载地址
    * @returns Promise<string | null> 返回缓存的 blob URL，失败返回 null（组件会使用原始 URL）
    */
   static async loadAndCacheEmoji(imageUrl: string, objectKey?: string | null): Promise<string | null> {
@@ -24,14 +24,9 @@ export class EmojiItemApi {
       return cached.webPath
     }
 
-    const extractCosObjectKeyFromUrl = (url: string): string | null => {
+    const extractObjectKeyFromUrl = (url: string): string | null => {
       try {
         const parsed = new URL(url)
-        const host = parsed.hostname || ''
-        // 仅在典型 COS 域名下尝试提取对象键，避免误处理非 COS URL
-        if (!host.includes('cos.') && !host.includes('myqcloud.com')) {
-          return null
-        }
         const pathname = parsed.pathname || ''
         const key = pathname.startsWith('/') ? pathname.slice(1) : pathname
         return key || null
@@ -47,7 +42,7 @@ export class EmojiItemApi {
 
       // 若未显式提供 objectKey，尝试从 URL 中解析（兼容旧数据）
       if (!resolvedObjectKey) {
-        resolvedObjectKey = extractCosObjectKeyFromUrl(imageUrl)
+        resolvedObjectKey = extractObjectKeyFromUrl(imageUrl)
       }
 
       if (resolvedObjectKey) {

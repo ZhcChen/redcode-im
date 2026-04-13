@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
@@ -36,13 +35,6 @@ type multipartSession struct {
 	Parts map[int][]byte
 }
 
-type ciJob struct {
-	Kind      string
-	ObjectKey string
-	Result    int
-	Label     string
-}
-
 type createIDTokenRequest struct {
 	Sub   string `json:"sub"`
 	Email string `json:"email"`
@@ -56,9 +48,6 @@ type mockServer struct {
 
 	objects map[string]objectEntry
 	uploads map[string]*multipartSession
-	ciJobs  map[string]ciJob
-
-	corsXML string
 	buckets map[string]time.Time
 
 	googleKey *rsa.PrivateKey
@@ -80,8 +69,6 @@ func newMockServer() *mockServer {
 	return &mockServer{
 		objects:   make(map[string]objectEntry),
 		uploads:   make(map[string]*multipartSession),
-		ciJobs:    make(map[string]ciJob),
-		corsXML:   "",
 		buckets:   map[string]time.Time{"mock-bucket": time.Now().UTC()},
 		googleKey: googleKey,
 		appleKey:  appleKey,
@@ -130,10 +117,8 @@ func (s *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleFCMSend(w, r)
 	case strings.HasPrefix(path, "/ipinfo/") && strings.HasSuffix(path, "/json") && r.Method == http.MethodGet:
 		s.handleIPInfo(w, r)
-	case strings.HasPrefix(path, "/tencentci/"):
-		s.handleTencentCI(w, r)
 	default:
-		s.handleCOS(w, r)
+		s.handleObjectStorage(w, r)
 	}
 }
 
@@ -279,76 +264,12 @@ func (s *mockServer) handleIPInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *mockServer) handleTencentCI(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/tencentci")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) < 2 || parts[1] != "auditing" {
-		http.NotFound(w, r)
-		return
-	}
-	kind := parts[0]
-
-	if r.Method == http.MethodPost && len(parts) == 2 {
-		body, _ := io.ReadAll(r.Body)
-		objectKey := extractXMLValue(string(body), "Object")
-		if strings.TrimSpace(objectKey) == "" {
-			objectKey = "unknown"
-		}
-
-		result := 0
-		label := ""
-		lowerKey := strings.ToLower(objectKey)
-		if strings.Contains(lowerKey, "violation") {
-			result = 1
-			label = "Porn"
-		} else if strings.Contains(lowerKey, "review") {
-			result = 2
-			label = "Ads"
-		}
-
-		jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
-		s.mu.Lock()
-		s.ciJobs[jobID] = ciJob{Kind: kind, ObjectKey: objectKey, Result: result, Label: label}
-		s.mu.Unlock()
-
-		xmlResp := fmt.Sprintf(`<Response><JobsDetail><Code>Success</Code><Message></Message><JobId>%s</JobId><State>Success</State></JobsDetail></Response>`, xmlEscape(jobID))
-		writeXML(w, http.StatusOK, xmlResp)
-		return
-	}
-
-	if r.Method == http.MethodGet && len(parts) == 3 {
-		jobID := parts[2]
-		s.mu.RLock()
-		job, ok := s.ciJobs[jobID]
-		s.mu.RUnlock()
-		if !ok {
-			writeXML(w, http.StatusNotFound, `<Response><JobsDetail><Code>NoSuchJob</Code><Message>job not found</Message></JobsDetail></Response>`)
-			return
-		}
-
-		xmlResp := fmt.Sprintf(
-			`<Response><JobsDetail><Code>Success</Code><Message></Message><JobId>%s</JobId><State>Success</State><Result>%d</Result><Label>%s</Label></JobsDetail></Response>`,
-			xmlEscape(jobID),
-			job.Result,
-			xmlEscape(job.Label),
-		)
-		writeXML(w, http.StatusOK, xmlResp)
-		return
-	}
-
-	http.NotFound(w, r)
-}
-
-func (s *mockServer) handleCOS(w http.ResponseWriter, r *http.Request) {
+func (s *mockServer) handleObjectStorage(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	path := r.URL.Path
 
 	if path == "/" {
-		if _, ok := query["cors"]; ok {
-			s.handleCOSCors(w, r)
-			return
-		}
-		s.handleCOSBucketRoot(w, r)
+		s.handleObjectStorageBucketRoot(w, r)
 		return
 	}
 
@@ -359,7 +280,7 @@ func (s *mockServer) handleCOS(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, ok := query["uploads"]; ok && r.Method == http.MethodPost {
-		s.handleCOSMultipartInitiate(w, key)
+		s.handleObjectStorageMultipartInitiate(w, key)
 		return
 	}
 
@@ -368,32 +289,32 @@ func (s *mockServer) handleCOS(w http.ResponseWriter, r *http.Request) {
 		partNumber := query.Get("partNumber")
 		switch r.Method {
 		case http.MethodPut:
-			s.handleCOSMultipartUploadPart(w, r, key, uploadID, partNumber)
+			s.handleObjectStorageMultipartUploadPart(w, r, key, uploadID, partNumber)
 			return
 		case http.MethodPost:
-			s.handleCOSMultipartComplete(w, r, key, uploadID)
+			s.handleObjectStorageMultipartComplete(w, r, key, uploadID)
 			return
 		case http.MethodDelete:
-			s.handleCOSMultipartAbort(w, key, uploadID)
+			s.handleObjectStorageMultipartAbort(w, key, uploadID)
 			return
 		}
 	}
 
 	switch r.Method {
 	case http.MethodPut:
-		s.handleCOSPutObject(w, r, key)
+		s.handleObjectStoragePutObject(w, r, key)
 	case http.MethodHead:
-		s.handleCOSHeadObject(w, key)
+		s.handleObjectStorageHeadObject(w, key)
 	case http.MethodGet:
-		s.handleCOSGetObject(w, key)
+		s.handleObjectStorageGetObject(w, key)
 	case http.MethodDelete:
-		s.handleCOSDeleteObject(w, key)
+		s.handleObjectStorageDeleteObject(w, key)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
-func (s *mockServer) handleCOSBucketRoot(w http.ResponseWriter, r *http.Request) {
+func (s *mockServer) handleObjectStorageBucketRoot(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		s.mu.RLock()
@@ -412,7 +333,7 @@ func (s *mockServer) handleCOSBucketRoot(w http.ResponseWriter, r *http.Request)
 		var sb strings.Builder
 		sb.WriteString(`<ListAllMyBucketsResult><Buckets>`)
 		for _, b := range items {
-			sb.WriteString(`<Bucket><Name>` + xmlEscape(b.Name) + `</Name><Location>ap-shanghai</Location><CreationDate>` + xmlEscape(b.CreationDate) + `</CreationDate></Bucket>`)
+			sb.WriteString(`<Bucket><Name>` + xmlEscape(b.Name) + `</Name><Location>us-east-005</Location><CreationDate>` + xmlEscape(b.CreationDate) + `</CreationDate></Bucket>`)
 		}
 		sb.WriteString(`</Buckets></ListAllMyBucketsResult>`)
 		writeXML(w, http.StatusOK, sb.String())
@@ -430,30 +351,7 @@ func (s *mockServer) handleCOSBucketRoot(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (s *mockServer) handleCOSCors(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	switch r.Method {
-	case http.MethodGet:
-		if strings.TrimSpace(s.corsXML) == "" {
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
-		writeXML(w, http.StatusOK, s.corsXML)
-	case http.MethodPut:
-		body, _ := io.ReadAll(r.Body)
-		s.corsXML = strings.TrimSpace(string(body))
-		if s.corsXML == "" {
-			s.corsXML = `<CORSConfiguration></CORSConfiguration>`
-		}
-		w.WriteHeader(http.StatusOK)
-	default:
-		http.NotFound(w, r)
-	}
-}
-
-func (s *mockServer) handleCOSPutObject(w http.ResponseWriter, r *http.Request, key string) {
+func (s *mockServer) handleObjectStoragePutObject(w http.ResponseWriter, r *http.Request, key string) {
 	body, _ := io.ReadAll(r.Body)
 	sum := md5.Sum(body)
 	eTag := hex.EncodeToString(sum[:])
@@ -466,7 +364,7 @@ func (s *mockServer) handleCOSPutObject(w http.ResponseWriter, r *http.Request, 
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *mockServer) handleCOSHeadObject(w http.ResponseWriter, key string) {
+func (s *mockServer) handleObjectStorageHeadObject(w http.ResponseWriter, key string) {
 	s.mu.RLock()
 	obj, ok := s.objects[key]
 	s.mu.RUnlock()
@@ -482,7 +380,7 @@ func (s *mockServer) handleCOSHeadObject(w http.ResponseWriter, key string) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *mockServer) handleCOSGetObject(w http.ResponseWriter, key string) {
+func (s *mockServer) handleObjectStorageGetObject(w http.ResponseWriter, key string) {
 	s.mu.RLock()
 	obj, ok := s.objects[key]
 	s.mu.RUnlock()
@@ -498,14 +396,14 @@ func (s *mockServer) handleCOSGetObject(w http.ResponseWriter, key string) {
 	_, _ = w.Write(obj.Body)
 }
 
-func (s *mockServer) handleCOSDeleteObject(w http.ResponseWriter, key string) {
+func (s *mockServer) handleObjectStorageDeleteObject(w http.ResponseWriter, key string) {
 	s.mu.Lock()
 	delete(s.objects, key)
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (s *mockServer) handleCOSMultipartInitiate(w http.ResponseWriter, key string) {
+func (s *mockServer) handleObjectStorageMultipartInitiate(w http.ResponseWriter, key string) {
 	uploadID := fmt.Sprintf("upload-%d", time.Now().UnixNano())
 	s.mu.Lock()
 	s.uploads[uploadID] = &multipartSession{Key: key, Parts: make(map[int][]byte)}
@@ -515,7 +413,7 @@ func (s *mockServer) handleCOSMultipartInitiate(w http.ResponseWriter, key strin
 	writeXML(w, http.StatusOK, xmlResp)
 }
 
-func (s *mockServer) handleCOSMultipartUploadPart(w http.ResponseWriter, r *http.Request, key, uploadID, partNumberRaw string) {
+func (s *mockServer) handleObjectStorageMultipartUploadPart(w http.ResponseWriter, r *http.Request, key, uploadID, partNumberRaw string) {
 	partNumber, err := strconv.Atoi(partNumberRaw)
 	if err != nil || partNumber <= 0 {
 		writeText(w, http.StatusBadRequest, "invalid partNumber")
@@ -545,7 +443,7 @@ func (s *mockServer) handleCOSMultipartUploadPart(w http.ResponseWriter, r *http
 	w.WriteHeader(http.StatusOK)
 }
 
-func (s *mockServer) handleCOSMultipartComplete(w http.ResponseWriter, r *http.Request, key, uploadID string) {
+func (s *mockServer) handleObjectStorageMultipartComplete(w http.ResponseWriter, r *http.Request, key, uploadID string) {
 	body, _ := io.ReadAll(r.Body)
 	partNumbers := extractPartNumbers(string(body))
 
@@ -580,7 +478,7 @@ func (s *mockServer) handleCOSMultipartComplete(w http.ResponseWriter, r *http.R
 	writeXML(w, http.StatusOK, xmlResp)
 }
 
-func (s *mockServer) handleCOSMultipartAbort(w http.ResponseWriter, key, uploadID string) {
+func (s *mockServer) handleObjectStorageMultipartAbort(w http.ResponseWriter, key, uploadID string) {
 	s.mu.Lock()
 	session, ok := s.uploads[uploadID]
 	if ok && session.Key == key {
@@ -588,15 +486,6 @@ func (s *mockServer) handleCOSMultipartAbort(w http.ResponseWriter, key, uploadI
 	}
 	s.mu.Unlock()
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func extractXMLValue(source, tag string) string {
-	re := regexp.MustCompile(fmt.Sprintf(`(?s)<%s>(.*?)</%s>`, regexp.QuoteMeta(tag), regexp.QuoteMeta(tag)))
-	matches := re.FindStringSubmatch(source)
-	if len(matches) < 2 {
-		return ""
-	}
-	return xmlUnescape(strings.TrimSpace(matches[1]))
 }
 
 func extractPartNumbers(xmlBody string) []int {
@@ -669,17 +558,6 @@ func xmlEscape(v string) string {
 	return esc.Replace(v)
 }
 
-func xmlUnescape(v string) string {
-	unesc := strings.NewReplacer(
-		"&lt;", "<",
-		"&gt;", ">",
-		"&amp;", "&",
-		"&quot;", `"`,
-		"&apos;", "'",
-	)
-	return unesc.Replace(v)
-}
-
 func envOrDefault(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
@@ -703,8 +581,4 @@ func writeText(w http.ResponseWriter, status int, body string) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = io.WriteString(w, body)
-}
-
-func _unusedXML() {
-	_ = xml.Header
 }

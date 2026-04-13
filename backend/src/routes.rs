@@ -214,43 +214,35 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/api/admin/storage-providers/test/upload",
-            post(admin::test_cos_upload),
+            post(admin::test_storage_upload),
         )
         .route(
             "/api/admin/storage-providers/test/upload/signature",
-            post(admin::test_cos_upload_signature),
+            post(admin::test_storage_upload_signature),
         )
         .route(
             "/api/admin/storage-providers/test/upload/multipart/initiate",
-            post(admin::test_cos_upload_multipart_initiate),
+            post(admin::test_storage_upload_multipart_initiate),
         )
         .route(
             "/api/admin/storage-providers/test/download-url",
-            post(admin::test_cos_download_url),
-        )
-        .route(
-            "/api/admin/storage-providers/test/cors/list",
-            post(admin::test_cos_get_cors),
-        )
-        .route(
-            "/api/admin/storage-providers/test/cors",
-            post(admin::test_cos_set_cors),
+            post(admin::test_storage_download_url),
         )
         .route(
             "/api/admin/storage-providers/test/delete",
-            post(admin::test_cos_delete),
+            post(admin::test_storage_delete),
         )
         .route(
             "/api/admin/storage-providers/test/exists",
-            post(admin::test_cos_exists),
+            post(admin::test_storage_exists),
         )
         .route(
             "/api/admin/storage-providers/test/buckets",
-            post(admin::test_cos_list_buckets),
+            post(admin::test_storage_list_buckets),
         )
         .route(
             "/api/admin/storage-providers/test/buckets/create",
-            post(admin::test_cos_create_bucket),
+            post(admin::test_storage_create_bucket),
         )
         .route(
             "/api/admin/app-versions/upload/signature",
@@ -260,7 +252,7 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/app-versions/upload/multipart/initiate",
             post(version::initiate_version_multipart_upload),
         )
-        // COS 大文件分片直传（管理员）
+        // 对象存储大文件分片直传（管理员）
         .route(
             "/api/admin/uploads/multipart/sessions/{session_id}",
             get(multipart_upload::get_multipart_session),
@@ -358,7 +350,7 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/push/job-queue/stats",
             get(push_queue::get_push_job_queue_stats),
         )
-        // 文件内容审核（COS/CI）运维 API
+        // 文件内容审核运维 API
         .route(
             "/api/admin/file-upload-audit/tasks",
             get(admin::list_file_upload_audit_tasks),
@@ -436,7 +428,7 @@ pub fn create_routes() -> Router<AppState> {
             "/reports/attachments/commit",
             post(report::commit_report_attachment_upload),
         )
-        // COS 大文件分片直传（普通用户）
+        // 对象存储大文件分片直传（普通用户）
         .route(
             "/uploads/multipart/sessions/{session_id}",
             get(multipart_upload::get_multipart_session),

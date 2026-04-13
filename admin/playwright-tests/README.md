@@ -94,7 +94,7 @@ ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:live:rbac
 - `/operations/api-metrics`
 - `/operations/file-upload-audit`
 - `/operations/ipinfo-token`
-- `/operations/cos-test`
+- `/operations/storage-test`
 - `/operations/system-log`
 - `/operations/push-log`
 - `/user-management/list`

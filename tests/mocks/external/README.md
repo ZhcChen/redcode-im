@@ -5,7 +5,7 @@
 ## 覆盖范围
 - OAuth / JWKS（Google / Apple）
 - FCM Push
-- Tencent COS / CI
+- B2 / S3 兼容对象存储
 - IPInfo
 - 测试用 ID Token 生成
 

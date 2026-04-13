@@ -1410,7 +1410,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       throw Exception('上传签名响应不完整');
     }
 
-    // 2) 直传到 COS
+    // 2) 直传到对象存储
     final signature = DirectUploadSignature.fromJson(signatureMap);
     final uploadRequest = http.Request(signature.method, Uri.parse(signature.url));
     signature.applyHeaders(uploadRequest, defaultContentType: contentType);

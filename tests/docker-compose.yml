@@ -33,8 +33,6 @@ x-rust-service: &rust_service
     APPLE_OIDC_JWKS_URL: "http://external-mock:19080/apple/auth/keys"
     IPINFO_BASE_URL: "http://external-mock:19080/ipinfo"
     PUSH_FCM_BASE_URL: "http://external-mock:19080/fcm"
-    FILE_UPLOAD_AUDIT_TENCENT_CI_BASE_URL: "http://external-mock:19080/tencentci"
-
 services:
   external-mock:
     image: golang:1.25

@@ -277,12 +277,12 @@ export class RustUserApi {
   }
 
   /**
-   * 上传头像 - 使用腾讯 COS 直传
-   * 注意: 头像上传使用直传流程(获取签名 -> 上传到 COS -> 提交),不走常规 HTTP upload
+   * 上传头像 - 使用对象存储直传
+   * 注意: 头像上传使用直传流程(获取签名 -> 上传到对象存储 -> 提交),不走常规 HTTP upload
    */
   static async uploadAvatar(file: File): Promise<ApiResponse<AvatarUploadResult>> {
     // 头像上传使用 TypeScript 实现的完整流程
-    // 包括: 1. 获取直传签名 2. 上传到 COS 3. 提交头像配置 4. 缓存头像
+    // 包括: 1. 获取直传签名 2. 上传到对象存储 3. 提交头像配置 4. 缓存头像
     return await this.uploadAvatarWithTs(file)
   }
 

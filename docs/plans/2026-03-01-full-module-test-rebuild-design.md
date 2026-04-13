@@ -70,8 +70,7 @@
 
 基于当前代码，需模拟的外部依赖：
 
-1. **Tencent COS**：对象上传、删除、存在性检查、下载链接、分片上传生命周期、CORS。
-2. **Tencent CI（COS 内容审核）**：任务提交与查询。
+1. **对象存储（当前为 Backblaze B2）**：对象上传、删除、存在性检查、下载链接、分片上传生命周期。
 3. **Google OAuth/JWKS（用于 OAuth 登录校验）**。
 4. **Apple JWKS（用于 Apple 登录校验）**。
 5. **Google OAuth Token + FCM Send（Push 发送链路）**。

@@ -53,7 +53,6 @@
 | [推送配置需求](reference/architecture/push-provider-config-requirements.md) | Push 凭据后台化 |
 | [端到端加密设计](reference/architecture/end-to-end-encryption-design.md) | E2EE 方案（设计完成，待实现） |
 | [消息搜索设计](reference/architecture/message-search-design.md) | 搜索实现方案 |
-| [COS 集成](reference/architecture/cos-integration.md) | 腾讯云对象存储 |
 | [Redis 配置](reference/architecture/redis-setup.md) | Redis 部署指南 |
 | [Redis 安全](reference/architecture/redis-security.md) | Redis 安全配置 |
 | [桌面端图标规范](reference/architecture/desktop-icon-design-spec.md) | 图标设计标准 |

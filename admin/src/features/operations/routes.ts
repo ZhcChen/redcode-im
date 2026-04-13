@@ -50,12 +50,12 @@ const operationsRoutes: AppRouteRecordRaw[] = [
         },
       },
       {
-        path: 'cos-test',
-        name: 'CosTestSettings',
+        path: 'storage-test',
+        name: 'StorageTestSettings',
         component: () =>
-          import('@/features/operations/pages/cos-test-page.vue'),
+          import('@/features/operations/pages/storage-test-page.vue'),
         meta: {
-          locale: 'menu.operations.cosTest',
+          locale: 'menu.operations.storageTest',
           requiresAuth: true,
           perm: 'system:settings',
         },

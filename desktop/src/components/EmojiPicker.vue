@@ -173,7 +173,7 @@ interface EmojiDisplayItem {
   type: 'emoji' | 'image'
   value: string
   name?: string
-  objectKey?: string | null  // COS 对象键，用于获取临时下载地址
+  objectKey?: string | null  // 对象键，用于获取临时下载地址
   // 归属的贴纸 ID（用于删除收藏）
   packId?: string
 }
@@ -187,7 +187,7 @@ const props = defineProps<{
 export interface EmojiSelectData {
   value: string           // 表情值（emoji 字符或图片 URL）
   type: 'emoji' | 'image' // 表情类型
-  objectKey?: string | null // COS 对象键（仅图片类型）
+  objectKey?: string | null // 对象键（仅图片类型）
 }
 
 // Emits

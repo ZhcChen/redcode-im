@@ -201,7 +201,7 @@ pub async fn generate_version_upload_signature(
     }))
 }
 
-/// 初始化安装包大文件分片直传会话（COS Multipart Upload）
+/// 初始化安装包大文件分片直传会话（对象存储 Multipart Upload）
 pub async fn initiate_version_multipart_upload(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -304,7 +304,7 @@ pub async fn initiate_version_multipart_upload(
     {
         Ok(session) => session,
         Err(e) => {
-            // 尝试回滚 COS multipart 会话，避免遗留分片
+            // 尝试回滚 multipart 会话，避免遗留分片
             let _ = storage_service
                 .abort_multipart_upload(&key, &upload_id)
                 .await;

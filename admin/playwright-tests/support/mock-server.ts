@@ -1197,7 +1197,7 @@ function buildSuccessBody(pathname: string, method: string, url: URL) {
     };
   }
 
-  // Storage provider and COS tests
+  // Storage provider and object storage tests
   if (pathname === '/api/admin/storage-providers/default' && method === 'GET') {
     return storageProvider;
   }

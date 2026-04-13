@@ -414,11 +414,9 @@ proxy_send_timeout 86400;
 
 1. **检查存储配置**
 ```bash
-# 确认 COS 配置
-echo $COS_SECRET_ID
-echo $COS_SECRET_KEY
-echo $COS_BUCKET
-echo $COS_REGION
+# 确认对象存储配置
+# 当前默认使用 Backblaze B2，请在 Admin -> 运维管理 -> 对象存储提供商 中检查
+# region / endpoint / bucket_name / secret_id / secret_key 是否填写正确
 ```
 
 2. **检查文件大小限制**

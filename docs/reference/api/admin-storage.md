@@ -1,192 +1,140 @@
-# 存储测试接口（Admin）
+# 对象存储测试接口（Admin）
 
-> 这些接口位于「后台管理」域下，默认只对已登录且拥有管理权限的用户开放。用于验证腾讯云 COS 配置、直传签名以及跨域策略等能力，方便日常调试。
+> 这些接口位于后台管理域下，仅对已登录管理员开放。当前仅支持 **Backblaze B2**，不再包含历史存储专用跨域配置能力。
 
-## POST /api/admin/storage-providers/test/upload/signature — 生成直传签名
+## POST /api/admin/storage-providers/test/upload
 
-- 认证：需要
-- 标识：storage.test.upload-signature
+直接上传一个测试对象，验证提供商配置可用。
 
 ### 请求体
 | 字段 | 类型 | 必填 | 说明 |
 | ---- | ---- | ---- | ---- |
-| provider_id | string | 否 | 指定存储提供商 ID，不填时使用默认提供商 |
-| key | string | 是 | 对象在 COS 中的存储路径，例如 `test/hello.png` |
-| content_type | string | 否 | 传入浏览器实际上传时使用的 `Content-Type` |
-| file_size | number | 否 | 文件大小（字节），用于哈希去重 |
-| hash_value | string | 否 | 文件哈希值（十六进制字符串），例如 MD5 |
-| hash_alg | number | 否 | 哈希算法，当前约定：1=md5，2=sha256（默认 1） |
+| provider_id | string | 否 | 指定存储提供商 ID；不填则使用默认提供商 |
+| key | string | 是 | 对象键，例如 `test/hello.png` |
+| content_type | string | 否 | MIME 类型 |
+| content | string | 否 | 可选文本内容 |
 
-示例：
+### 响应
 ```json
 {
-  "provider_id": "f5f7b3c8-0ce3-4c3d-a4bf-5f67f8f0d4c2",
-  "key": "test/20251104-hello.png",
-  "content_type": "image/png"
+  "success": true,
+  "message": "上传成功",
+  "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/hello.png"
 }
 ```
 
+## POST /api/admin/storage-providers/test/upload/signature
+
+生成前端直传签名。
+
+### 请求体
+| 字段 | 类型 | 必填 | 说明 |
+| ---- | ---- | ---- | ---- |
+| provider_id | string | 否 | 指定存储提供商 ID |
+| key | string | 是 | 对象键，例如 `test/20260413-demo.png` |
+| content_type | string | 否 | 实际上传使用的 `Content-Type` |
+| file_size | number | 否 | 文件大小（字节），用于哈希去重 |
+| hash_value | string | 否 | 文件哈希 |
+| hash_alg | number | 否 | 哈希算法，默认 `1=md5` |
+
 ### 响应
-#### HTTP 200
 ```json
 {
   "success": true,
   "message": "生成直传签名成功",
-  "key": "test/20251104-hello.png",
   "signature": {
-    "url": "https://bucket-123.cos.ap-guangzhou.myqcloud.com/test/20251104-hello.png",
+    "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/20260413-demo.png",
     "method": "PUT",
     "headers": {
-      "Authorization": "q-sign-algorithm=sha1&...",
+      "Authorization": "AWS4-HMAC-SHA256 Credential=...",
       "Content-Type": "image/png"
     },
-    "key": "test/20251104-hello.png"
+    "key": "test/20260413-demo.png"
   }
 }
 ```
 
-> 如果请求中提供了 `hash_value + file_size` 且命中已上传完成的文件，接口会返回：
-> ```json
-> {
->   "success": true,
->   "message": "复用已上传的测试文件，未生成新的直传签名",
->   "key": "test/20251104-hello.png",
->   "signature": null
-> }
-> ```
-> 此时前端只需复用返回的 `key`，无需再执行 COS 上传。
+若命中哈希去重，接口会返回：
 
-失败时 `success=false`，`message` 包含错误说明。
+```json
+{
+  "success": true,
+  "message": "复用已上传的测试文件，未生成新的直传签名",
+  "signature": null
+}
+```
 
-上传前端需使用返回的 `url`、`method`、`headers` 调用 COS 对象存储，body 即文件内容。
+## POST /api/admin/storage-providers/test/upload/multipart/initiate
 
----
-
-## POST /api/admin/storage-providers/test/download-url — 生成带过期时间的私有下载链接
-
-- 认证：需要
-- 标识：storage.test.download-url
+初始化分片上传会话。
 
 ### 请求体
 | 字段 | 类型 | 必填 | 说明 |
 | ---- | ---- | ---- | ---- |
-| provider_id | string | 否 | 指定存储提供商 ID，不填为默认提供商 |
-| key | string | 是 | 对象路径，与上传时的 key 一致 |
-| expires_in_seconds | number | 否 | 链接有效时间（秒），默认 3600，最小 60，最大 86400 |
+| provider_id | string | 否 | 指定存储提供商 ID |
+| key | string | 是 | 对象键 |
+| file_size | number | 是 | 文件大小（字节） |
+| content_type | string | 否 | MIME 类型 |
+| hash_value | string | 否 | 文件哈希 |
+| hash_alg | number | 否 | 哈希算法 |
 
-示例：
+### 响应
 ```json
 {
-  "key": "test/20251104-hello.png",
-  "expires_in_seconds": 600
+  "success": true,
+  "message": "初始化分片上传会话成功",
+  "key": "test/large.bin",
+  "session_id": "8df5f87b-...",
+  "part_size": 8388608,
+  "total_parts": 4
 }
 ```
 
+## POST /api/admin/storage-providers/test/download-url
+
+生成临时下载链接。
+
+### 请求体
+| 字段 | 类型 | 必填 | 说明 |
+| ---- | ---- | ---- | ---- |
+| provider_id | string | 否 | 指定存储提供商 ID |
+| key | string | 是 | 对象键 |
+| expires_in_seconds | number | 否 | 有效期，默认 3600 |
+
 ### 响应
-#### HTTP 200
 ```json
 {
   "success": true,
   "message": "生成下载链接成功",
-  "url": "https://bucket-123.cos.ap-guangzhou.myqcloud.com/test/20251104-hello.png?q-sign-algorithm=sha1&..."
+  "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/hello.png?X-Amz-Algorithm=AWS4-HMAC-SHA256..."
 }
 ```
 
-前端可直接使用 `url` 访问对象，超过有效期后链接失效。
+## POST /api/admin/storage-providers/test/delete
 
----
+删除测试对象。
 
-## POST /api/admin/storage-providers/test/cors/list — 查询跨域规则
+## POST /api/admin/storage-providers/test/exists
 
-- 认证：需要
-- 标识：storage.test.cors.get
-
-### 请求体
-| 字段 | 类型 | 必填 | 说明 |
-| ---- | ---- | ---- | ---- |
-| provider_id | string | 否 | 指定存储提供商 ID |
+检查测试对象是否存在。
 
 ### 响应
 ```json
 {
   "success": true,
-  "message": "获取跨域规则成功",
-  "rules": [
-    {
-      "allowed_origins": ["http://localhost:8011"],
-      "allowed_methods": ["PUT", "GET"],
-      "allowed_headers": ["*"],
-      "expose_headers": [],
-      "max_age_seconds": 600
-    }
-  ]
+  "exists": true,
+  "message": "文件存在"
 }
 ```
+
+## POST /api/admin/storage-providers/test/buckets
+
+列出当前凭据可访问的 bucket。
+
+## POST /api/admin/storage-providers/test/buckets/create
+
+创建 bucket（取决于提供商权限）。
 
 ---
 
-## POST /api/admin/storage-providers/test/cors — 设置跨域规则
-
-- 认证：需要
-- 标识：storage.test.cors.set
-
-### 请求体
-| 字段 | 类型 | 必填 | 说明 |
-| ---- | ---- | ---- | ---- |
-| provider_id | string | 否 | 指定存储提供商 ID |
-| rules | array | 是 | CORS 规则数组，至少一条且每条需包含 `allowed_origins`、`allowed_methods` |
-
-示例：
-```json
-{
-  "rules": [
-    {
-      "allowed_origins": ["http://localhost:8011"],
-      "allowed_methods": ["PUT", "GET", "HEAD"],
-      "allowed_headers": ["*"],
-      "max_age_seconds": 600
-    }
-  ]
-}
-```
-
-### 响应
-```json
-{
-  "success": true,
-  "message": "跨域规则配置成功"
-}
-```
-
-若包含 COS 不支持的方法（例如 `OPTIONS`），接口会返回 `success=false` 并提示错误原因。
-
----
-
-## POST /api/admin/storage-providers/test/buckets — 获取 Bucket 列表
-
-- 认证：需要
-- 标识：storage.test.buckets.list
-
-### 请求体
-| 字段 | 类型 | 必填 | 说明 |
-| ---- | ---- | ---- | ---- |
-| provider_id | string | 否 | 指定存储提供商 ID |
-
-### 响应
-```json
-{
-  "success": true,
-  "message": "成功获取 3 个 bucket",
-  "buckets": [
-    {
-      "name": "bucket-123",
-      "region": "ap-guangzhou",
-      "creation_date": "2025-08-01T09:12:34Z"
-    }
-  ]
-}
-```
-
----
-
-> 说明：上述接口均为「测试」用途，仅用于验证配置或手工调试，正式业务路径仍推荐通过面向业务的 API 访问。
+说明：这些接口仅用于配置验证与日常排障，正式业务请使用面向消息、头像、版本管理等业务接口。

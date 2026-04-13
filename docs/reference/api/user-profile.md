@@ -85,7 +85,7 @@
 
 ## 4. 头像直传流程
 
-头像上传采用「前端直传对象存储 + 后端确认」模式。请先确保默认存储提供商（`/api/admin/storage-providers/default`）已配置并启用（腾讯 COS / 兼容 S3）。
+头像上传采用「前端直传对象存储 + 后端确认」模式。请先确保默认存储提供商（`/api/admin/storage-providers/default`）已配置并启用（Backblaze B2）。
 
 ### 4.1 获取直传签名
 
@@ -112,10 +112,10 @@
   "message": "生成头像直传签名成功",
   "key": "avatars/{user-id}/20251104160135-8fd3aa12.png",
   "signature": {
-    "url": "https://<bucket>.cos.<region>.myqcloud.com/avatars/...",
+    "url": "https://s3.us-east-005.backblazeb2.com/<bucket>/avatars/...",
     "method": "PUT",
     "headers": {
-      "Authorization": "q-sign-algorithm=...",
+      "Authorization": "AWS4-HMAC-SHA256 Credential=...",
       "Content-Type": "image/png"
     },
     "key": "avatars/{user-id}/20251104160135-8fd3aa12.png"
@@ -147,7 +147,7 @@
 {
   "success": true,
   "message": "头像更新成功",
-  "download_url": "https://<bucket>.cos.<region>.myqcloud.com/...&sign=..."
+  "download_url": "https://s3.us-east-005.backblazeb2.com/<bucket>/avatars/...?..."
 }
 ```
 

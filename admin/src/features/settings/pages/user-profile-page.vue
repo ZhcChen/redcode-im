@@ -149,9 +149,9 @@
     type ChangePasswordRequest,
   } from '@/services/user-profile';
   import {
-    testCosUploadSignature,
+    testStorageUploadSignature,
     getDefaultStorageProvider,
-    getCosDownloadUrl,
+    getStorageDownloadUrl,
   } from '@/services/storage-providers';
   import { computeFileHash } from '@/utils/fileHash';
 
@@ -243,7 +243,7 @@
             const providerResponse = await getDefaultStorageProvider();
             const provider = providerResponse.data;
             if (provider) {
-              const downloadUrlResponse = await getCosDownloadUrl({
+              const downloadUrlResponse = await getStorageDownloadUrl({
                 provider_id: provider.id,
                 key: userInfo.avatarUrl,
               });
@@ -315,8 +315,8 @@
         console.warn('[UserProfile] 计算头像哈希失败，将跳过哈希上报', error);
       }
 
-      // 4. 请求COS上传签名
-      const signatureResponse = await testCosUploadSignature({
+      // 4. 请求对象存储上传签名
+      const signatureResponse = await testStorageUploadSignature({
         provider_id: provider.id,
         key: fileKey,
         content_type: file.type,
@@ -326,7 +326,7 @@
       });
       const { signature, message } = signatureResponse.data;
 
-      // 5. 如有签名则直传 COS；否则认为命中哈希去重，跳过上传
+      // 5. 如有签名则直传对象存储；否则认为命中哈希去重，跳过上传
       if (signature) {
         const headers = new Headers();
         Object.entries(signature.headers || {}).forEach(([key, value]) => {
@@ -357,7 +357,7 @@
       }
 
       // 6. 获取临时下载URL（用于前端渲染）
-      const downloadUrlResponse = await getCosDownloadUrl({
+      const downloadUrlResponse = await getStorageDownloadUrl({
         provider_id: provider.id,
         key: fileKey,
       });

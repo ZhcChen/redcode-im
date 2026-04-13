@@ -41,7 +41,7 @@
         class="pack-table"
       >
         <template #icon_url="{ record }">
-          <CosImage
+          <StorageImage
             :object-key="record.icon_object_key"
             :initial-url="record.icon_url"
             :provider-id="defaultStorageProvider?.id"
@@ -51,7 +51,7 @@
             <template #fallback>
               <span class="pack-icon-placeholder">无图标</span>
             </template>
-          </CosImage>
+          </StorageImage>
         </template>
 
         <template #pack_type="{ record }">
@@ -124,7 +124,7 @@
           <a-form-item field="icon_url" label="图标">
             <div class="icon-upload-wrapper">
               <div v-if="packFormData.icon_url" class="icon-preview">
-                <CosImage
+                <StorageImage
                   :object-key="packFormData.icon_object_key"
                   :initial-url="packFormData.icon_url"
                   :provider-id="defaultStorageProvider?.id"
@@ -243,7 +243,7 @@
             class="suite-pack-table"
           >
             <template #icon_url="{ record }">
-              <CosImage
+              <StorageImage
                 :object-key="record.icon_object_key"
                 :initial-url="record.icon_url"
                 :provider-id="defaultStorageProvider?.id"
@@ -253,7 +253,7 @@
                 <template #fallback>
                   <span class="pack-icon-placeholder">无图标</span>
                 </template>
-              </CosImage>
+              </StorageImage>
             </template>
 
             <template #is_active="{ record }">
@@ -320,7 +320,7 @@
             class="item-table"
           >
             <template #image_url="{ record }">
-              <CosImage
+              <StorageImage
                 :object-key="record.image_object_key"
                 :initial-url="record.image_url"
                 :provider-id="defaultStorageProvider?.id"
@@ -371,7 +371,7 @@
             <a-form-item field="image_url" label="图片">
               <div class="item-image-upload-wrapper">
                 <div v-if="itemFormData.image_url" class="item-image-preview">
-                  <CosImage
+                  <StorageImage
                     :object-key="itemFormData.image_object_key"
                     :initial-url="itemFormData.image_url"
                     :provider-id="defaultStorageProvider?.id"
@@ -442,7 +442,7 @@
   import { ref, reactive, computed, onMounted } from 'vue';
   import { Message } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
-  import CosImage from '@/components/cos-image/index.vue';
+  import StorageImage from '@/components/storage-image/index.vue';
   import {
     listAllEmojiPacks,
     createEmojiPack,
@@ -458,8 +458,8 @@
   } from '@/services/emoji-pack';
   import {
     listStorageProviders,
-    testCosUploadSignature,
-    testCosDownloadUrl,
+    testStorageUploadSignature,
+    testStorageDownloadUrl,
     type StorageProvider,
   } from '@/services/storage-providers';
   import { uploadWithSignature } from '@/utils/direct-upload';
@@ -1010,7 +1010,7 @@
       }
 
       // 获取上传签名
-      const { data: signatureData } = await testCosUploadSignature({
+      const { data: signatureData } = await testStorageUploadSignature({
         provider_id: provider.id,
         key,
         content_type: file.type,
@@ -1041,7 +1041,7 @@
       }
 
       // 获取下载URL
-      const { data: urlData } = await testCosDownloadUrl({
+      const { data: urlData } = await testStorageDownloadUrl({
         provider_id: provider.id,
         key,
         expires_in_seconds: 31536000, // 1年
@@ -1126,7 +1126,7 @@
       }
 
       // 获取上传签名
-      const { data: signatureData } = await testCosUploadSignature({
+      const { data: signatureData } = await testStorageUploadSignature({
         provider_id: provider.id,
         key,
         content_type: file.type,
@@ -1157,7 +1157,7 @@
       }
 
       // 获取下载URL
-      const { data: urlData } = await testCosDownloadUrl({
+      const { data: urlData } = await testStorageDownloadUrl({
         provider_id: provider.id,
         key,
         expires_in_seconds: 31536000, // 1年

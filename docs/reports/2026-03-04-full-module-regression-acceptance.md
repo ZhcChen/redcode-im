@@ -1,9 +1,9 @@
 # 全模块回归验收报告
 
-**日期**: 2026-03-04  
-**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend/Desktop/Website 测试扩展与真机链路；Backend 成本与生命周期清理链路补测）  
-**范围**: Backend / Frontend / Admin / Desktop / Website 全模块回归  
-**执行分支**: `feat/full-test-rebuild`  
+**日期**: 2026-03-04
+**补充更新**: 2026-03-05（Admin 全路由冒烟增强；Frontend/Desktop/Website 测试扩展与真机链路；Backend 成本与生命周期清理链路补测）
+**范围**: Backend / Frontend / Admin / Desktop / Website 全模块回归
+**执行分支**: `feat/full-test-rebuild`
 **关联提交**: `d451295`、`5b19065`
 
 ## 1. 验收目标
@@ -180,25 +180,25 @@
   - `tests/go/backend/push/push_device_flow_test.go`
 - 覆盖新增：
   - `/rooms/{room_id}/messages/attachments/multipart/initiate` + `/uploads/multipart/sessions/*`：分片签名、分片上传、分片提交、合并完成、消息发送与下载回读全链路
-  - `/api/admin/file-upload-audit/tasks*`：管理员上传触发审核、任务 list/detail、违规拒绝与对象删除、requeue 契约
+  - `/api/admin/file-upload-audit/tasks*`：管理员上传触发审核、任务 list/detail、对象可达性校验与 requeue 契约
   - `/push/devices` + push service：管理员配置 FCM、设备注册、消息触发推送、`/api/admin/push/logs` 成功日志、设备注销
 - 波次执行结果：
-  - `go test ./backend/uploads -run 'Test(MessageAttachmentMultipartUploadAndDownload_OK|FileUploadAuditTaskLifecycle_WithViolationMock)$' -v` 通过
+  - `go test ./backend/uploads -run 'Test(MessageAttachmentMultipartUploadAndDownload_OK|TestFileUploadAuditTaskLifecycle_ApprovesExistingB2Object)$' -v` 通过
   - `go test ./backend/push -run TestPushDeviceRegisterSendAndUnregister_OK -v` 通过
   - 隔离栈 `docker compose -f tests/docker-compose.yml run --rm go-tests` 通过（含新增 Wave D 全部用例）
 
 ## 5. 执行过程中的关键问题与处理
 
-- 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/COS 相关失败。  
+- 问题 1：本机 dev backend 未配置 OAuth client id，且历史默认存储 endpoint 为 `external-mock:19080`，直接执行 `go test ./...` 会出现 OAuth/对象存储 相关失败。
   处理：使用隔离测试栈执行全量 Go 套件（`docker compose -f tests/docker-compose.yml run --rm go-tests`），并增强 `EnsureDefaultStorageProvider` 自动修正 endpoint 到当前 `EXTERNAL_MOCK_BASE_URL` 对应 host。
 
-- 问题 2：Admin Playwright 首次使用 `127.0.0.1:8011` 出现连接拒绝。  
+- 问题 2：Admin Playwright 首次使用 `127.0.0.1:8011` 出现连接拒绝。
   处理：固定使用 `http://localhost:8011` 并确认 dev server 监听后重跑，全部通过。
 
-- 问题 3：Frontend 真机联调脚本在当前机器 `en0` 无地址（默认网卡为 `en1`）。  
+- 问题 3：Frontend 真机联调脚本在当前机器 `en0` 无地址（默认网卡为 `en1`）。
   处理：改为“先解析默认路由网卡再取 IP”（`route -n get default` + `ipconfig getifaddr`），已写入测试文档。
 
-- 问题 4：`LogWriterConfig::from_env` 会接受 `0/-1` 等非法值，可能导致日志清理策略异常。  
+- 问题 4：`LogWriterConfig::from_env` 会接受 `0/-1` 等非法值，可能导致日志清理策略异常。
   处理：新增失败测试后修复解析逻辑，仅接受 `>0`，非法值回退默认值。
 
 ## 6. 可追溯性
@@ -209,6 +209,6 @@
 
 ## 7. 后续建议（下一步）
 
-1. 将本次“本机等价执行路径”补充进 `docs/reference/testing/README.md` 的故障分支。  
-2. 在 CI 增加最小门禁组合（backend Rust+Go / frontend unit / desktop+website vitest / admin e2e smoke）。  
-3. 下一轮回归优先验证 `tests/run.sh` 的 Docker 原生路径可用性并恢复单入口执行。  
+1. 将本次“本机等价执行路径”补充进 `docs/reference/testing/README.md` 的故障分支。
+2. 在 CI 增加最小门禁组合（backend Rust+Go / frontend unit / desktop+website vitest / admin e2e smoke）。
+3. 下一轮回归优先验证 `tests/run.sh` 的 Docker 原生路径可用性并恢复单入口执行。

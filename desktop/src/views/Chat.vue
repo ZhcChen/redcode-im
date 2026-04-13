@@ -1070,7 +1070,7 @@ type AttachmentMeta = {
   mime: string;
   summary: string;
   /**
-   * 视频首帧缩略图在 COS 中的 key（可选）
+   * 视频首帧缩略图对象键（可选）
    * 仅对视频附件生效，由上传流程填充
    */
   thumbnailKey?: string | null;
@@ -6499,15 +6499,10 @@ const handleEmojiClick = () => {
 
 // 处理表情选择
 // 发送表情消息
-const extractCosObjectKeyFromUrl = (url: string | null | undefined): string | null => {
+const extractObjectKeyFromUrl = (url: string | null | undefined): string | null => {
   if (!url) return null
   try {
     const parsed = new URL(url)
-    const host = parsed.hostname || ''
-    // 仅在典型 COS 域名下尝试提取对象键，避免误处理非 COS URL
-    if (!host.includes('cos.') && !host.includes('myqcloud.com')) {
-      return null
-    }
     const pathname = parsed.pathname || ''
     const key = pathname.startsWith('/') ? pathname.slice(1) : pathname
     return key || null
@@ -6527,15 +6522,15 @@ const sendEmojiMessage = async (data: EmojiSelectData) => {
   // 图片表情
   if (type === 'image') {
     try {
-      // 获取下载地址：优先使用 COS objectKey 获取临时下载地址
+      // 获取下载地址：优先使用对象键获取临时下载地址
       let downloadUrl = emoji
 
       // 1. 优先使用显式传入的 objectKey
       let resolvedObjectKey: string | null = objectKey || null
 
-      // 2. 如果没有显式 objectKey，尝试从 URL 中解析出 COS 对象键
+      // 2. 如果没有显式 objectKey，尝试从 URL 中解析对象键
       if (!resolvedObjectKey) {
-        resolvedObjectKey = extractCosObjectKeyFromUrl(emoji)
+        resolvedObjectKey = extractObjectKeyFromUrl(emoji)
       }
 
       if (resolvedObjectKey) {
@@ -7407,7 +7402,7 @@ const uploadAndSendFile = async (file: File) => {
     recentSentMessages.value.add(tempId)
 
     if (multipartSession) {
-      console.log('开始分片上传文件到 COS:', file.name, multipartSession)
+      console.log('开始分片上传文件到对象存储:', file.name, multipartSession)
       await uploadMultipartWithSession(
         multipartSession.sessionId,
         file,
@@ -8666,7 +8661,7 @@ const updateGroupAvatar = async (file: File) => {
     // 显示加载状态
     store.dispatch('showGlobalLoading', '正在上传群头像...')
 
-    // 使用 GroupApi.uploadGroupAvatar 上传到 COS
+    // 使用 GroupApi.uploadGroupAvatar 上传到对象存储
     const uploadResult = await GroupApi.uploadGroupAvatar(selectedChat.value.groupId, file)
 
     if (uploadResult.success && uploadResult.data) {
@@ -10953,7 +10948,7 @@ const confirmDissolveGroup = async () => {
   }
 }
 
-// 语音功能：录音 + 直传 COS + 发送语音消息
+// 语音功能：录音 + 直传对象存储 + 发送语音消息
 const handleVoiceClick = () => {
   if (!selectedChat.value) {
     toast.error('请先选择一个会话')
@@ -11062,7 +11057,7 @@ const handleVoiceSend = async (recording: any) => {
     }
 
     if (multipartSession) {
-      console.log('[handleVoiceSend] 2. 开始分片上传到 COS...', multipartSession)
+      console.log('[handleVoiceSend] 2. 开始分片上传到对象存储...', multipartSession)
       await uploadMultipartWithSession(
         multipartSession.sessionId,
         voiceBlob,
@@ -11087,8 +11082,8 @@ const handleVoiceSend = async (recording: any) => {
         console.warn('[handleVoiceSend] 调用语音附件上传完成通知接口异常:', commitError?.message || commitError)
       }
     } else if (directUploadSignature) {
-      // 2. 需要直传到 COS 的情况
-      console.log('[handleVoiceSend] 2. 开始上传到 COS...')
+      // 2. 需要直传到对象存储的情况
+      console.log('[handleVoiceSend] 2. 开始上传到对象存储...')
       const headersObj: Record<string, string> = {}
 
       // 将 Headers 转换为普通对象

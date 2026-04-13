@@ -86,9 +86,9 @@ fn infer_media_kind_from_object_key(object_key: &str, content_type: Option<&str>
 pub struct FileUploadCleanupConfig {
     /// pending 记录超时阈值（秒）：超过后视为“上传未确认”
     pub pending_timeout_seconds: i64,
-    /// pending 且无引用对象的删除阈值（秒）：超过后会尝试删除 COS 对象以回收空间
+    /// pending 且无引用对象的删除阈值（秒）：超过后会尝试删除对象存储文件以回收空间
     pub orphan_delete_after_seconds: i64,
-    /// completed 但无引用对象的保留阈值（秒）：超过后会尝试删除 COS 对象以回收空间
+    /// completed 但无引用对象的保留阈值（秒）：超过后会尝试删除对象存储文件以回收空间
     pub unreferenced_retention_seconds: i64,
     /// 单次批处理条数
     pub batch_size: i64,

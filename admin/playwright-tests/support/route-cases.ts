@@ -62,9 +62,9 @@ const ROUTE_CASES: AdminRouteCase[] = [
     profiles: bothProfiles,
   },
   {
-    id: 'operations-cos-test',
-    path: '/operations/cos-test',
-    anchorText: '腾讯云 COS 测试',
+    id: 'operations-storage-test',
+    path: '/operations/storage-test',
+    anchorText: '对象存储测试',
     primaryEndpoint: /\/api\/admin\/storage-providers\/test\/buckets$/,
     interaction: 'bucket-list',
     profiles: bothProfiles,

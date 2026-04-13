@@ -6,7 +6,7 @@ export interface EmojiPack {
   id: string;
   name: string;
   icon_url?: string | null;
-  // COS 对象键，用于生成临时下载地址
+  // 对象存储对象键，用于生成临时下载地址
   icon_object_key?: string | null;
   description?: string | null;
   is_active: boolean;
@@ -20,7 +20,7 @@ export interface EmojiItem {
   id: string;
   pack_id: string;
   image_url: string;
-  // COS 对象键，用于生成临时下载地址
+  // 对象存储对象键，用于生成临时下载地址
   image_object_key?: string | null;
   name?: string | null;
   sort_order: number;

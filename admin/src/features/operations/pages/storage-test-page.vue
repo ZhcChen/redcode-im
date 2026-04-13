@@ -1,9 +1,8 @@
 <template>
-  <div class="cos-test-container">
-    <Breadcrumb :items="['menu.operations', 'menu.operations.cosTest']" />
-    <a-card class="general-card" title="腾讯云 COS 测试" :bordered="false">
+  <div class="storage-test-container">
+    <Breadcrumb :items="['menu.operations', 'menu.operations.storageTest']" />
+    <a-card class="general-card" title="对象存储测试" :bordered="false">
       <a-space direction="vertical" :size="24" style="width: 100%">
-        <!-- 提供商选择 -->
         <a-form :model="formData" layout="vertical">
           <a-form-item label="选择提供商">
             <a-select
@@ -19,9 +18,9 @@
                 :disabled="!provider.is_active"
               >
                 {{ provider.name }}
-                <span v-if="provider.is_default" style="color: #1890ff"
-                  >(默认)</span
-                >
+                <span v-if="provider.is_default" style="color: #1890ff">
+                  (默认)
+                </span>
                 <a-tag
                   v-if="!provider.is_active"
                   size="small"
@@ -35,7 +34,6 @@
           </a-form-item>
         </a-form>
 
-        <!-- 测试一：Bucket 列表 -->
         <a-card title="测试一：Bucket 列表" size="small">
           <a-space direction="vertical" :size="16" style="width: 100%">
             <a-button
@@ -65,104 +63,7 @@
           </a-space>
         </a-card>
 
-        <!-- 测试二：跨域规则配置 -->
-        <a-card title="测试二：跨域规则配置" size="small">
-          <a-space direction="vertical" :size="16" style="width: 100%">
-            <a-space wrap>
-              <a-button
-                type="primary"
-                :loading="corsLoading"
-                @click="handleLoadCorsRules"
-              >
-                加载跨域规则
-              </a-button>
-              <a-tag v-if="corsLoaded" color="arcoblue">
-                当前 {{ corsRules.length }} 条
-              </a-tag>
-            </a-space>
-            <a-table
-              v-if="corsRulesTableData.length > 0"
-              :columns="corsTableColumns"
-              :data="corsRulesTableData"
-              :pagination="false"
-              size="small"
-              row-key="key"
-            />
-            <a-empty
-              v-else-if="corsLoaded && !corsLoading"
-              description="暂无跨域规则"
-            />
-            <a-result
-              v-if="corsResult"
-              :status="corsResult.success ? 'success' : 'error'"
-              :title="corsResult.message"
-            />
-            <a-divider />
-            <a-form :model="corsForm" layout="vertical">
-              <a-form-item label="允许的来源（Origin）">
-                <a-input
-                  v-model="corsForm.origin"
-                  placeholder="例如：http://localhost:8011, https://admin.example.com"
-                />
-              </a-form-item>
-              <a-form-item
-                label="允许的方法（COS 仅支持 GET/PUT/POST/DELETE/HEAD）"
-              >
-                <a-select
-                  v-model="corsForm.methods"
-                  mode="multiple"
-                  allow-clear
-                  placeholder="选择允许的方法"
-                >
-                  <a-option
-                    v-for="method in corsMethodOptions"
-                    :key="method"
-                    :value="method"
-                  >
-                    {{ method }}
-                  </a-option>
-                </a-select>
-              </a-form-item>
-              <a-form-item label="允许的 Header（逗号分隔，留空默认 *）">
-                <a-input
-                  v-model="corsForm.allowedHeaders"
-                  placeholder="例如：Content-Type,x-cos-acl"
-                />
-              </a-form-item>
-              <a-form-item label="暴露的 Header（逗号分隔，可留空）">
-                <a-input
-                  v-model="corsForm.exposeHeaders"
-                  placeholder="例如：ETag"
-                />
-              </a-form-item>
-              <a-form-item label="缓存时间（秒，可留空）">
-                <a-input-number
-                  v-model="corsForm.maxAgeSeconds"
-                  :min="0"
-                  :precision="0"
-                  style="width: 100%"
-                />
-              </a-form-item>
-              <a-form-item label="覆盖已存在的规则">
-                <a-switch v-model="corsForm.overrideExisting" />
-                <span style="margin-left: 8px">开启后仅保留本次配置</span>
-              </a-form-item>
-              <a-form-item>
-                <a-button
-                  type="primary"
-                  status="success"
-                  :loading="corsSaveLoading"
-                  @click="handleAddCorsRule"
-                >
-                  保存跨域规则
-                </a-button>
-              </a-form-item>
-            </a-form>
-          </a-space>
-        </a-card>
-
-        <!-- 测试三：本地文件直传 -->
-        <a-card title="测试三：本地文件直传" size="small">
+        <a-card title="测试二：本地文件直传" size="small">
           <a-form :model="uploadForm" layout="vertical">
             <a-form-item label="文件路径（Key）">
               <a-input
@@ -193,7 +94,7 @@
                 type="warning"
                 show-icon
                 style="margin-bottom: 12px"
-                title="大于 5MB 会自动使用分片直传；请确保 COS 跨域规则的 ExposeHeaders 包含 ETag"
+                title="大于 5MB 会自动使用分片直传；请确保对象存储返回可读取的 ETag。"
               />
               <a-progress
                 v-if="multipartUploadProgress !== null"
@@ -226,8 +127,7 @@
           </a-result>
         </a-card>
 
-        <!-- 测试四：下载链接生成 -->
-        <a-card title="测试四：生成下载链接" size="small">
+        <a-card title="测试三：生成下载链接" size="small">
           <a-form :model="downloadForm" layout="vertical">
             <a-form-item label="文件路径（Key）">
               <a-input
@@ -284,15 +184,12 @@
   import { Message } from '@arco-design/web-vue';
   import {
     listStorageProviders,
-    testCosListBuckets,
-    testCosUploadSignature,
-    testCosMultipartUploadInitiate,
-    testCosDownloadUrl,
-    getCosCors,
-    setCosCors,
+    testStorageListBuckets,
+    testStorageUploadSignature,
+    testStorageMultipartUploadInitiate,
+    testStorageDownloadUrl,
     type StorageProvider,
     type DirectUploadSignature,
-    type SetCosCorsRulePayload,
   } from '@/services/storage-providers';
   import { computeFileHash } from '@/utils/fileHash';
   import { uploadFileByMultipartAndComplete } from '@/utils/multipart-upload';
@@ -306,7 +203,7 @@
   type DownloadUrlResult = {
     success: boolean;
     message: string;
-    url?: string;
+    url?: string | null;
   };
 
   type SimpleResult = {
@@ -333,18 +230,9 @@
   const bucketsResult = ref<SimpleResult | null>(null);
 
   const bucketColumns = [
-    {
-      title: 'Bucket 名称',
-      dataIndex: 'name',
-    },
-    {
-      title: '地域',
-      dataIndex: 'region',
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'creation_date',
-    },
+    { title: 'Bucket 名称', dataIndex: 'name' },
+    { title: '地域', dataIndex: 'region' },
+    { title: '创建时间', dataIndex: 'creation_date' },
   ];
 
   const uploadForm = reactive({
@@ -380,45 +268,6 @@
     return `${selectedFile.value.name} (${displaySize})`;
   });
 
-  const corsRules = ref<SetCosCorsRulePayload[]>([]);
-  const corsRulesTableData = computed(() =>
-    corsRules.value.map((rule, index) => ({
-      key: `${index}`,
-      origins: (rule.allowed_origins || []).join(', '),
-      methods: (rule.allowed_methods || []).join(', '),
-      headers:
-        rule.allowed_headers && rule.allowed_headers.length > 0
-          ? rule.allowed_headers.join(', ')
-          : '*',
-      exposeHeaders:
-        rule.expose_headers && rule.expose_headers.length > 0
-          ? rule.expose_headers.join(', ')
-          : '-',
-      maxAge:
-        typeof rule.max_age_seconds === 'number' ? rule.max_age_seconds : '-',
-    }))
-  );
-  const corsTableColumns = [
-    { title: '允许来源', dataIndex: 'origins' },
-    { title: '允许方法', dataIndex: 'methods' },
-    { title: '允许 Header', dataIndex: 'headers' },
-    { title: '暴露 Header', dataIndex: 'exposeHeaders' },
-    { title: '缓存时间 (秒)', dataIndex: 'maxAge' },
-  ];
-  const corsLoaded = ref(false);
-  const corsLoading = ref(false);
-  const corsSaveLoading = ref(false);
-  const corsResult = ref<SimpleResult | null>(null);
-  const corsMethodOptions = ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'];
-  const corsForm = reactive({
-    origin: 'http://localhost:8011',
-    methods: ['PUT'] as string[],
-    allowedHeaders: '*',
-    exposeHeaders: '',
-    maxAgeSeconds: 600 as number | null,
-    overrideExisting: false,
-  });
-
   const downloadForm = reactive({
     key: '',
     expires_in_seconds: 600,
@@ -444,63 +293,12 @@
     }
   };
 
-  const loadCorsRules = async (silent = false): Promise<boolean> => {
-    try {
-      corsLoading.value = true;
-      const response = await getCosCors({
-        provider_id: formData.provider_id,
-      });
-      const { data } = response;
-      if (data.success) {
-        corsRules.value = data.rules || [];
-        corsLoaded.value = true;
-        corsResult.value = {
-          success: true,
-          message: data.message || '获取跨域规则成功',
-        };
-        if (!silent) {
-          Message.success(corsResult.value.message);
-        }
-        return true;
-      }
-      corsRules.value = data.rules || [];
-      corsResult.value = {
-        success: false,
-        message: data.message || '获取跨域规则失败',
-      };
-      if (!silent) {
-        Message.error(corsResult.value.message);
-      }
-      return false;
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '获取跨域规则失败';
-      corsResult.value = {
-        success: false,
-        message: errorMsg,
-      };
-      if (!silent) {
-        Message.error(errorMsg);
-      }
-      return false;
-    } finally {
-      corsLoading.value = false;
-    }
-  };
-
-  const handleLoadCorsRules = async () => {
-    await loadCorsRules(false);
-  };
-
   const handleListBuckets = async () => {
     try {
       bucketsLoading.value = true;
       bucketsResult.value = null;
 
-      const response = await testCosListBuckets({
+      const response = await testStorageListBuckets({
         provider_id: formData.provider_id,
       });
       const { data } = response;
@@ -553,8 +351,7 @@
         hashAlg: hash.hashAlg ?? 2,
       };
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[COS Test] 计算文件哈希失败，将跳过哈希上报', error);
+      console.warn('[Storage Test] 计算文件哈希失败，将跳过哈希上报', error);
       return {};
     }
   };
@@ -569,16 +366,13 @@
     message: string;
   }> => {
     const hash = await computeHashForFile(file);
-    const { hashValue } = hash;
-    const { hashAlg } = hash;
-
-    const response = await testCosUploadSignature({
+    const response = await testStorageUploadSignature({
       provider_id: formData.provider_id,
       key,
       content_type: contentType?.trim() || undefined,
       file_size: file?.size,
-      hash_value: hashValue,
-      hash_alg: hashAlg,
+      hash_value: hash.hashValue,
+      hash_alg: hash.hashAlg,
     });
     const { data } = response;
     if (!data.success) {
@@ -604,7 +398,7 @@
       const key = uploadForm.key.trim();
       const hash = await computeHashForFile(file);
 
-      const { data } = await testCosMultipartUploadInitiate({
+      const { data } = await testStorageMultipartUploadInitiate({
         provider_id: formData.provider_id,
         key,
         content_type: contentType?.trim() || undefined,
@@ -619,7 +413,6 @@
 
       const finalKey = data.key || key;
 
-      // 命中哈希去重：无需上传
       if (!data.session_id) {
         multipartUploadProgress.value = null;
         uploadResult.value = {
@@ -661,10 +454,7 @@
       return true;
     } catch (error: any) {
       const errorMsg = error?.message || '上传失败';
-      uploadResult.value = {
-        success: false,
-        message: errorMsg,
-      };
+      uploadResult.value = { success: false, message: errorMsg };
       Message.error(errorMsg);
       return false;
     } finally {
@@ -689,7 +479,6 @@
         selected || undefined
       );
 
-      // 命中哈希去重：无需上传
       if (!signatureResult.signature) {
         uploadResult.value = {
           success: true,
@@ -702,7 +491,6 @@
       }
 
       const { signature } = signatureResult;
-
       const headers = new Headers();
       Object.entries(signature.headers || {}).forEach(
         ([headerKey, headerValue]) => {
@@ -731,7 +519,7 @@
           errorDetails = '';
         }
         throw new Error(
-          `COS 返回 ${response.status}${
+          `对象存储返回 ${response.status}${
             errorDetails ? `: ${errorDetails.slice(0, 200)}` : ''
           }`
         );
@@ -747,10 +535,7 @@
       return true;
     } catch (error: any) {
       const errorMsg = error?.message || '上传失败';
-      uploadResult.value = {
-        success: false,
-        message: errorMsg,
-      };
+      uploadResult.value = { success: false, message: errorMsg };
       Message.error(errorMsg);
       return false;
     } finally {
@@ -842,7 +627,7 @@
     downloadLoading.value = true;
     downloadResult.value = null;
     try {
-      const response = await testCosDownloadUrl({
+      const response = await testStorageDownloadUrl({
         provider_id: formData.provider_id,
         key: downloadForm.key.trim(),
         expires_in_seconds: expiresIn,
@@ -860,118 +645,10 @@
         error?.response?.data?.details ||
         error?.message ||
         '生成下载链接失败';
-      downloadResult.value = {
-        success: false,
-        message: errorMsg,
-      };
+      downloadResult.value = { success: false, message: errorMsg };
       Message.error(errorMsg);
     } finally {
       downloadLoading.value = false;
-    }
-  };
-
-  const handleAddCorsRule = async () => {
-    const originList = corsForm.origin
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-
-    if (originList.length === 0) {
-      Message.error('请至少提供一个允许的来源');
-      return;
-    }
-
-    const normalizedMethods = corsForm.methods
-      .map((method) => method.trim().toUpperCase())
-      .filter((method) => method.length > 0);
-    const methodList =
-      normalizedMethods.length > 0
-        ? Array.from(new Set(normalizedMethods))
-        : ['PUT', 'OPTIONS'];
-
-    const allowedHeaders = corsForm.allowedHeaders
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-
-    const exposeHeaders = corsForm.exposeHeaders
-      .split(',')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-
-    const maxAge =
-      typeof corsForm.maxAgeSeconds === 'number'
-        ? corsForm.maxAgeSeconds
-        : undefined;
-
-    if (typeof maxAge === 'number' && maxAge < 0) {
-      Message.error('缓存时间必须大于或等于 0');
-      return;
-    }
-
-    if (!corsForm.overrideExisting && !corsLoaded.value) {
-      await loadCorsRules(true);
-    }
-
-    const baseRules = corsForm.overrideExisting
-      ? []
-      : corsRules.value.map((rule) => ({
-          allowed_origins: [...rule.allowed_origins],
-          allowed_methods: [...rule.allowed_methods],
-          allowed_headers: rule.allowed_headers
-            ? [...rule.allowed_headers]
-            : undefined,
-          expose_headers: rule.expose_headers
-            ? [...rule.expose_headers]
-            : undefined,
-          max_age_seconds: rule.max_age_seconds,
-        }));
-
-    baseRules.push({
-      allowed_origins: originList,
-      allowed_methods: methodList,
-      allowed_headers: allowedHeaders.length > 0 ? allowedHeaders : undefined,
-      expose_headers: exposeHeaders.length > 0 ? exposeHeaders : undefined,
-      max_age_seconds: maxAge,
-    });
-
-    corsSaveLoading.value = true;
-    try {
-      const response = await setCosCors({
-        provider_id: formData.provider_id,
-        rules: baseRules,
-      });
-      const { data } = response;
-      if (data.success) {
-        Message.success(data.message || '跨域规则配置成功');
-        const reloaded = await loadCorsRules(true);
-        if (!reloaded) {
-          Message.warning('跨域规则已更新，但刷新列表失败，请手动重新加载');
-        }
-        corsResult.value = {
-          success: true,
-          message: data.message || '跨域规则配置成功',
-        };
-      } else {
-        corsResult.value = {
-          success: false,
-          message: data.message || '配置跨域规则失败',
-        };
-        Message.error(corsResult.value.message);
-      }
-    } catch (error: any) {
-      const errorMsg =
-        error?.response?.data?.message ||
-        error?.response?.data?.details ||
-        error?.message ||
-        '配置跨域规则失败';
-      corsResult.value = {
-        success: false,
-        message: errorMsg,
-      };
-      Message.error(errorMsg);
-    } finally {
-      corsSaveLoading.value = false;
     }
   };
 
@@ -981,7 +658,7 @@
 </script>
 
 <style scoped>
-  .cos-test-container {
+  .storage-test-container {
     padding: 0 20px 20px;
   }
 </style>

@@ -200,7 +200,7 @@ async fn start_background_tasks(
         }
     });
 
-    // 启动直传文件清理任务（回收 COS 空间，修正脏数据）
+    // 启动直传文件清理任务（回收对象存储空间，修正脏数据）
     let cleanup_db = database.clone();
     let cleanup_cfg = services::file_upload_cleanup::FileUploadCleanupConfig::from_env();
     let cleanup_interval_seconds = env::var("FILE_UPLOAD_CLEANUP_INTERVAL_SECONDS")
@@ -222,7 +222,7 @@ async fn start_background_tasks(
         }
     });
 
-    // 启动文件内容审核任务（COS + 数据万象 CI）
+    // 启动文件内容审核任务（基于对象存储可达性）
     let audit_db = database.clone();
     let audit_cfg = services::file_upload_audit::FileUploadAuditConfig::from_env();
     let audit_interval_seconds = env::var("FILE_UPLOAD_AUDIT_INTERVAL_SECONDS")

@@ -30,7 +30,7 @@ export default {
   'menu.operations.systemLog': '系统日志',
   'menu.operations.pushLog': 'Push 日志',
   'menu.operations.storageProvider': '对象存储提供商',
-  'menu.operations.cosTest': 'COS 测试',
+  'menu.operations.storageTest': '对象存储测试',
   'menu.operations.ipinfoToken': 'IP地理位置Token',
   'menu.operations.dataCleanup': '数据清理',
   'menu.operations.apiMetrics': 'API 性能监控',

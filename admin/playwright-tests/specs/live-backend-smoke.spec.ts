@@ -373,21 +373,21 @@ test.describe('admin live backend smoke', () => {
       tracker.expectCleanSince(checkpoint, '贴纸设置');
     });
 
-    await test.step('COS 测试', async () => {
+    await test.step('对象存储测试', async () => {
       const checkpoint = tracker.checkpoint();
       const providerResponsePromise = page.waitForResponse((response) =>
         matchesResponse(response, '/api/admin/storage-providers')
       );
 
-      await page.goto('/operations/cos-test');
+      await page.goto('/operations/storage-test');
 
-      await expectOkResponse(providerResponsePromise, 'COS 提供商列表');
+      await expectOkResponse(providerResponsePromise, '对象存储提供商列表');
       await expect(
         page.locator('.arco-card-header-title', {
-          hasText: '腾讯云 COS 测试',
+          hasText: '对象存储测试',
         })
       ).toBeVisible();
-      tracker.expectCleanSince(checkpoint, 'COS 测试');
+      tracker.expectCleanSince(checkpoint, '对象存储测试');
     });
 
     await test.step('系统日志', async () => {

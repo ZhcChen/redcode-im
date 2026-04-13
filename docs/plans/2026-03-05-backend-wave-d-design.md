@@ -16,8 +16,7 @@
 - 测试类型：Go 黑盒契约（对外 HTTP API + 后台异步任务结果）。
 - 执行环境：隔离测试栈 `tests/docker-compose.yml`（含 external-mock / postgres / redis / backend）。
 - 依赖模拟：
-  - COS Multipart / 对象存储：`tests/mocks/external`。
-  - 腾讯 CI 审核：`tests/mocks/external/tencentci/*`。
+  - B2 / S3 兼容对象存储：`tests/mocks/external`。
   - FCM 发送：`tests/mocks/external/fcm/*`。
 
 ## 3. 用例设计

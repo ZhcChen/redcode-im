@@ -118,9 +118,9 @@
 }
 ```
 
-## 消息附件直传与哈希去重（COS）
+## 消息附件直传与哈希去重（对象存储）
 
-> 以下接口用于客户端通过腾讯云 COS 直传消息附件（图片/视频/文件），并支持基于文件哈希的去重与 key 复用。
+> 以下接口用于客户端通过 Backblaze B2 直传消息附件（图片/视频/文件），并支持基于文件哈希的去重与 key 复用。
 
 ### 1. 获取附件直传签名
 
@@ -152,7 +152,7 @@
 | `hash_value` | string   | 否   | 文件哈希值（十六进制字符串，例如 MD5）   |
 | `hash_alg`   | number   | 否   | 哈希算法，1=md5（默认）、2=sha256        |
 
-响应示例（需要实际上传 COS 的情况）：
+响应示例（需要实际上传对象存储的情况）：
 
 ```json
 {
@@ -160,10 +160,10 @@
   "message": "生成消息附件直传签名成功",
   "key": "messages/{room_id}/20251211120000_xxx/image_xxx.png",
   "signature": {
-    "url": "https://<bucket>.cos.<region>.myqcloud.com/messages/...",
+    "url": "https://s3.us-east-005.backblazeb2.com/<bucket>/messages/...",
     "method": "PUT",
     "headers": {
-      "Authorization": "q-sign-algorithm=...",
+      "Authorization": "AWS4-HMAC-SHA256 Credential=...",
       "Content-Type": "image/png"
     },
     "key": "messages/{room_id}/20251211120000_xxx/image_xxx.png"
@@ -182,8 +182,8 @@
 }
 ```
 
-- `signature != null`：前端必须按照返回的 `url/method/headers` 上传文件到 COS；
-- `signature == null`：前端无需上传 COS，可直接使用返回的 `key` 作为附件的 `object_key` 发送消息。
+- `signature != null`：前端必须按照返回的 `url/method/headers` 上传文件到对象存储；
+- `signature == null`：前端无需上传对象存储，可直接使用返回的 `key` 作为附件的 `object_key` 发送消息。
 
 ### 2. 附件上传完成通知（commit）
 

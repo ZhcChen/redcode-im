@@ -18,14 +18,12 @@
   - Google/Apple JWKS URL
   - IPInfo Base URL
   - FCM Base URL
-  - 腾讯 CI Base URL 或 Host Override
-  - COS 请求协议（测试支持 HTTP）
+  - 对象存储请求协议（测试支持 HTTP）
 
 ### A2. 本地模拟服务（Go）
 
 - 新增 `tests/mocks/external`：
-  - COS Mock（对象/分片/CORS）
-  - CI Mock（提交/查询）
+  - 对象存储 Mock（对象/分片）
   - JWKS Mock（Google/Apple）
   - OAuth Token Mock（Google）
   - FCM Mock（发送）

@@ -877,10 +877,6 @@ pub struct Friendship {
 #[sqlx(type_name = "int2")]
 pub enum StorageProviderType {
     Unknown = 0,
-    TencentCos = 1,  // 腾讯云COS
-    AliyunOss = 2,   // 阿里云OSS
-    AwsS3 = 3,       // AWS S3
-    Minio = 4,       // MinIO
     BackblazeB2 = 5, // Backblaze B2
 }
 
@@ -894,10 +890,6 @@ impl fmt::Display for StorageProviderType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
             StorageProviderType::Unknown => "unknown",
-            StorageProviderType::TencentCos => "tencent_cos",
-            StorageProviderType::AliyunOss => "aliyun_oss",
-            StorageProviderType::AwsS3 => "aws_s3",
-            StorageProviderType::Minio => "minio",
             StorageProviderType::BackblazeB2 => "backblaze_b2",
         };
         f.write_str(text)
@@ -940,7 +932,7 @@ pub struct FileUploadRecord {
     pub last_error: Option<String>,
 }
 
-/// 大文件分片直传会话（COS Multipart Upload）
+/// 大文件分片直传会话（对象存储 Multipart Upload）
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FileUploadMultipartSession {
     pub id: Uuid,
@@ -960,7 +952,7 @@ pub struct FileUploadMultipartSession {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-/// 文件内容审核任务（COS + 数据万象 CI）
+/// 文件内容审核任务（对象存储可达性审核）
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FileUploadAuditTask {
     pub id: Uuid,
@@ -1403,7 +1395,7 @@ pub struct EmojiPack {
     pub id: Uuid,
     pub name: String,
     pub icon_url: Option<String>,
-    /// COS 对象键（用于生成临时下载地址）
+    /// 对象键（用于生成临时下载地址）
     pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: EmojiPackStatus,
@@ -1419,7 +1411,7 @@ pub struct EmojiItem {
     pub id: Uuid,
     pub pack_id: Uuid,
     pub image_url: String,
-    /// COS 对象键（用于生成临时下载地址）
+    /// 对象键（用于生成临时下载地址）
     pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: i32,
@@ -1439,7 +1431,7 @@ pub struct UserEmojiPack {
 pub struct CreateEmojiPackRequest {
     pub name: String,
     pub icon_url: Option<String>,
-    /// COS 对象键（可选，若传入则优先作为下载地址生成依据）
+    /// 对象键（可选，若传入则优先作为下载地址生成依据）
     pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
@@ -1452,7 +1444,7 @@ pub struct CreateEmojiPackRequest {
 pub struct UpdateEmojiPackRequest {
     pub name: Option<String>,
     pub icon_url: Option<String>,
-    /// COS 对象键（可选）
+    /// 对象键（可选）
     pub icon_object_key: Option<String>,
     pub description: Option<String>,
     pub is_active: Option<bool>,
@@ -1465,7 +1457,7 @@ pub struct UpdateEmojiPackRequest {
 pub struct CreateEmojiItemRequest {
     pub pack_id: String,
     pub image_url: String,
-    /// COS 对象键（可选）
+    /// 对象键（可选）
     pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: Option<i32>,
@@ -1475,7 +1467,7 @@ pub struct CreateEmojiItemRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateEmojiItemRequest {
     pub image_url: Option<String>,
-    /// COS 对象键（可选）
+    /// 对象键（可选）
     pub image_object_key: Option<String>,
     pub name: Option<String>,
     pub sort_order: Option<i32>,

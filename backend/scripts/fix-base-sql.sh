@@ -177,12 +177,12 @@ CREATE TABLE IF NOT EXISTS general_settings (
 -- 文件上传提供商配置表（在数据清理时保留）
 CREATE TABLE IF NOT EXISTS storage_providers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider_type SMALLINT NOT NULL DEFAULT 1,  -- 0=unknown, 1=tencent_cos, 2=aliyun_oss, 3=aws_s3, 4=minio
+    provider_type SMALLINT NOT NULL DEFAULT 5,  -- 0=unknown, 5=backblaze_b2
     name VARCHAR(100) NOT NULL,                 -- 提供商名称（用于显示）
     secret_id TEXT NOT NULL,                    -- 密钥ID（Access Key ID）
     secret_key TEXT NOT NULL,                   -- 密钥Key（Secret Access Key）
     region VARCHAR(50) NOT NULL,                 -- 地域（如 ap-beijing）
-    endpoint TEXT NOT NULL,                      -- 端点域名（如 cos.ap-beijing.myqcloud.com）
+    endpoint TEXT NOT NULL,                      -- 端点域名（如 s3.us-east-005.backblazeb2.com）
     bucket_name VARCHAR(100),                    -- 存储桶名称（可选，某些场景需要）
     is_active BOOLEAN NOT NULL DEFAULT FALSE,    -- 是否启用
     is_default BOOLEAN NOT NULL DEFAULT FALSE,   -- 是否为默认提供商
