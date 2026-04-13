@@ -1423,7 +1423,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId',
     );
-    final response = await http.delete(
+    final response = await _client.delete(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -1451,7 +1451,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId',
     );
-    final response = await http.patch(
+    final response = await _client.patch(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -2037,8 +2037,41 @@ class MessageService with ChangeNotifier {
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
     _applyPinnedState(newMessage.roomId, newMessage);
     _refreshPinnedCache(newMessage.roomId);
+    final latestMessage = messages.isNotEmpty ? messages.last : null;
+    final chatSummaryChanged =
+        latestMessage != null &&
+        latestMessage.id == newMessage.id &&
+        _syncChatSummaryPreview(newMessage.roomId, latestMessage);
     notifyListeners();
+    if (chatSummaryChanged) {
+      unawaited(_chatCache.saveChats(_chats));
+    }
     unawaited(_persistMessages(newMessage.roomId));
+  }
+
+  bool _syncChatSummaryPreview(String roomId, Message latestMessage) {
+    final chatIndex = _chats.indexWhere((chat) => chat.roomId == roomId);
+    if (chatIndex < 0) {
+      return false;
+    }
+
+    final chat = _chats[chatIndex];
+    final nextExtra = <String, dynamic>{
+      if (chat.extra != null) ...chat.extra!,
+      'last_message_id': latestMessage.id,
+    };
+    final updatedChat = chat.copyWith(
+      lastMessage: _buildChatSummaryPreview(latestMessage),
+      lastMessageTime: latestMessage.timestamp,
+      extra: nextExtra,
+    );
+
+    if (_chatSummaryEquals(chat, updatedChat)) {
+      return false;
+    }
+
+    _chats[chatIndex] = updatedChat;
+    return true;
   }
 
   /// 合并消息，保留最新状态和显示信息

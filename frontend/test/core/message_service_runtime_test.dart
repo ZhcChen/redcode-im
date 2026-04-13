@@ -365,6 +365,159 @@ void main() {
     expect(service.chats.single.lastMessage, '[图片]');
     expect(service.chats.single.extra?['last_message_id'], 'msg-image-1');
   });
+
+  test('local delete refreshes latest chat summary immediately', () async {
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-self',
+              senderUsername: 'alice',
+              senderName: 'Alice',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: true,
+            ),
+          ],
+        },
+      ),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: 'hello latest',
+            lastMessageTime: DateTime(2026, 4, 12, 12, 30, 0),
+            unreadCount: 0,
+            extra: const <String, dynamic>{'last_message_id': 'msg-1'},
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+      client: MockClient((request) async {
+        if (request.method == 'DELETE' &&
+            request.url.path == '/rooms/room-1/messages/msg-1') {
+          return http.Response(
+            jsonEncode({
+              'id': 'msg-1',
+              'room_id': 'room-1',
+              'sender_id': 'user-self',
+              'sender_username': 'alice',
+              'sender_nickname': 'Alice',
+              'content': 'hello latest',
+              'message_type': 'text',
+              'created_at': '2026-04-12T12:30:00.000Z',
+              'status': 'sent',
+              'is_deleted': true,
+              'deleted_at': '2026-04-12T12:31:00.000Z',
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    await service.loadCachedMessages('room-1');
+    await service.markMessageDeleted('room-1', 'msg-1');
+
+    expect(service.chats.single.lastMessage, '[消息已删除]');
+    expect(service.chats.single.extra?['last_message_id'], 'msg-1');
+  });
+
+  test('local edit refreshes latest chat summary immediately', () async {
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-self',
+              senderUsername: 'alice',
+              senderName: 'Alice',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: true,
+            ),
+          ],
+        },
+      ),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: 'hello latest',
+            lastMessageTime: DateTime(2026, 4, 12, 12, 30, 0),
+            unreadCount: 0,
+            extra: const <String, dynamic>{'last_message_id': 'msg-1'},
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+      client: MockClient((request) async {
+        if (request.method == 'PATCH' &&
+            request.url.path == '/rooms/room-1/messages/msg-1') {
+          return http.Response(
+            jsonEncode({
+              'id': 'msg-1',
+              'room_id': 'room-1',
+              'sender_id': 'user-self',
+              'sender_username': 'alice',
+              'sender_nickname': 'Alice',
+              'content': 'hello latest edited',
+              'message_type': 'text',
+              'created_at': '2026-04-12T12:30:00.000Z',
+              'status': 'sent',
+              'is_deleted': false,
+              'is_edited': true,
+              'edited_at': '2026-04-12T12:31:00.000Z',
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    await service.loadCachedMessages('room-1');
+    await service.editMessage(
+      roomId: 'room-1',
+      messageId: 'msg-1',
+      content: 'hello latest edited',
+    );
+
+    expect(service.chats.single.lastMessage, 'hello latest edited');
+    expect(service.chats.single.extra?['last_message_id'], 'msg-1');
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {
