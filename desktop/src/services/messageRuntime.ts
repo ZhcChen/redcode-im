@@ -1,4 +1,4 @@
-import { MessagePartType, MessageStatus, MessageType } from '@/types/models'
+import { MessagePartType, MessageReactionSummary, MessageStatus, MessageType } from '@/types/models'
 
 export type ServerStorageMode = 'persist' | 'relay_only'
 export type ContentAuditMode = 'plaintext' | 'e2ee'
@@ -49,6 +49,8 @@ export interface RuntimeCachedMessagePartShape {
   text?: string | null
 }
 
+export interface RuntimeCachedMessageReactionShape extends Pick<MessageReactionSummary, 'reactionKey' | 'count' | 'userIds' | 'hasSelf'> {}
+
 export interface RuntimeCachedMessageShape {
   id?: string | null
   content?: string | null
@@ -57,7 +59,10 @@ export interface RuntimeCachedMessageShape {
   timestamp?: string | number | Date | null
   isSelf?: boolean
   isDeleted?: boolean
+  pinnedAt?: string | number | Date | null
+  pinnedBy?: string | null
   parts?: RuntimeCachedMessagePartShape[] | null
+  reactions?: RuntimeCachedMessageReactionShape[] | null
 }
 
 export interface RuntimeMessageUpdatePayload {
@@ -67,6 +72,12 @@ export interface RuntimeMessageUpdatePayload {
   content?: string | null
   editedAt?: string | number | Date | null
   deletedAt?: string | number | Date | null
+}
+
+export interface RuntimePinnedStatePayload {
+  isPinned: boolean
+  pinnedAt?: string | number | Date | null
+  pinnedBy?: string | null
 }
 
 export interface RelayOnlyLocalChatSummary {
@@ -299,6 +310,40 @@ export const resolveRelayOnlyLocalChatSummary = (
   }
 }
 
+const normalizeRuntimeReactionSummaries = (
+  reactions?: RuntimeCachedMessageReactionShape[] | null,
+): RuntimeCachedMessageReactionShape[] => {
+  if (!Array.isArray(reactions)) {
+    return []
+  }
+
+  return reactions.map((reaction) => ({
+    reactionKey: reaction.reactionKey,
+    count: reaction.count,
+    userIds: Array.isArray(reaction.userIds) ? [...reaction.userIds] : [],
+    hasSelf: Boolean(reaction.hasSelf),
+  }))
+}
+
+const updateCachedMessageById = <T extends RuntimeCachedMessageShape>(
+  messages: T[],
+  messageId: string,
+  updater: (message: T) => T,
+): T[] => {
+  if (!Array.isArray(messages) || messages.length === 0 || !messageId) {
+    return Array.isArray(messages) ? messages.slice() : []
+  }
+
+  const index = messages.findIndex((message) => message?.id === messageId)
+  if (index === -1) {
+    return messages.slice()
+  }
+
+  const next = messages.slice()
+  next[index] = updater(messages[index])
+  return next
+}
+
 const normalizeRuntimeUpdateTimestamp = (
   value?: string | number | Date | null,
 ): string | number | Date | null | undefined => {
@@ -322,43 +367,58 @@ export const applyMessageUpdateToCachedMessages = <T extends RuntimeCachedMessag
   messages: T[],
   payload: RuntimeMessageUpdatePayload,
 ): T[] => {
-  if (!Array.isArray(messages) || messages.length === 0 || !payload.messageId) {
-    return Array.isArray(messages) ? messages.slice() : []
-  }
-
-  const index = messages.findIndex((message) => message?.id === payload.messageId)
-  if (index === -1) {
-    return messages.slice()
-  }
-
-  const next = messages.slice()
-  const target = messages[index]
   const normalizedType = typeof payload.updateType === 'string'
     ? payload.updateType.trim().toLowerCase()
     : ''
   const isDeleteUpdate = payload.isDeleted === true || normalizedType === 'deleted'
   const isEditUpdate = !isDeleteUpdate && (normalizedType === 'edited' || payload.editedAt != null)
 
-  const updated = {
+  return updateCachedMessageById(messages, payload.messageId, (target) => {
+    const updated = {
+      ...(target as T & Record<string, unknown>),
+    } as T
+    const mutableUpdated = updated as Record<string, unknown>
+
+    if (isDeleteUpdate) {
+      updated.isDeleted = true
+      if (payload.deletedAt != null) {
+        mutableUpdated['deletedAt'] = normalizeRuntimeUpdateTimestamp(payload.deletedAt)
+      }
+    } else if (isEditUpdate) {
+      if (typeof payload.content === 'string') {
+        updated.content = payload.content
+      }
+      mutableUpdated['isEdited'] = true
+      if (payload.editedAt != null) {
+        mutableUpdated['editedAt'] = normalizeRuntimeUpdateTimestamp(payload.editedAt)
+      }
+    }
+
+    return updated as T
+  })
+}
+
+export const applyMessageReactionsToCachedMessages = <T extends RuntimeCachedMessageShape>(
+  messages: T[],
+  messageId: string,
+  reactions?: RuntimeCachedMessageReactionShape[] | null,
+): T[] => {
+  return updateCachedMessageById(messages, messageId, (target) => ({
     ...(target as T & Record<string, unknown>),
-  } as T
-  const mutableUpdated = updated as Record<string, unknown>
+    reactions: normalizeRuntimeReactionSummaries(reactions),
+  } as T))
+}
 
-  if (isDeleteUpdate) {
-    updated.isDeleted = true
-    if (payload.deletedAt != null) {
-      mutableUpdated['deletedAt'] = normalizeRuntimeUpdateTimestamp(payload.deletedAt)
-    }
-  } else if (isEditUpdate) {
-    if (typeof payload.content === 'string') {
-      updated.content = payload.content
-    }
-    mutableUpdated['isEdited'] = true
-    if (payload.editedAt != null) {
-      mutableUpdated['editedAt'] = normalizeRuntimeUpdateTimestamp(payload.editedAt)
-    }
-  }
-
-  next[index] = updated as T
-  return next
+export const applyMessagePinnedStateToCachedMessages = <T extends RuntimeCachedMessageShape>(
+  messages: T[],
+  messageId: string,
+  payload: RuntimePinnedStatePayload,
+): T[] => {
+  return updateCachedMessageById(messages, messageId, (target) => ({
+    ...(target as T & Record<string, unknown>),
+    pinnedAt: payload.isPinned
+      ? (normalizeRuntimeUpdateTimestamp(payload.pinnedAt ?? new Date()) ?? new Date())
+      : null,
+    pinnedBy: payload.isPinned ? (payload.pinnedBy ?? null) : null,
+  } as T))
 }

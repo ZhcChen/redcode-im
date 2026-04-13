@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  applyMessagePinnedStateToCachedMessages,
+  applyMessageReactionsToCachedMessages,
   applyMessageUpdateToCachedMessages,
   DEFAULT_MESSAGE_RUNTIME,
   didEnterRelayOnlyMode,
@@ -297,6 +299,80 @@ describe('message runtime service', () => {
       unreadCount: 1,
       lastMessageId: 'msg-2',
       lastMessageTime: new Date('2026-04-12T12:30:00.000Z'),
+    })
+  })
+
+  it('updates cached message reactions without mutating unrelated messages', () => {
+    const updated = applyMessageReactionsToCachedMessages(
+      [
+        {
+          id: 'msg-1',
+          type: 'text',
+          content: 'older',
+          status: 'read',
+          isSelf: false,
+          timestamp: '2026-04-12T12:00:00.000Z',
+          reactions: [{ reactionKey: '👍', count: 1, userIds: ['u-1'], hasSelf: false }],
+        },
+        {
+          id: 'msg-2',
+          type: 'text',
+          content: 'latest',
+          status: 'sent',
+          isSelf: false,
+          timestamp: '2026-04-12T12:30:00.000Z',
+        },
+      ],
+      'msg-2',
+      [{ reactionKey: '🎉', count: 2, userIds: ['u-1', 'u-2'], hasSelf: true }],
+    )
+
+    expect(updated).toHaveLength(2)
+    expect(updated[0]).toMatchObject({
+      id: 'msg-1',
+      reactions: [{ reactionKey: '👍', count: 1, userIds: ['u-1'], hasSelf: false }],
+    })
+    expect(updated[1]).toMatchObject({
+      id: 'msg-2',
+      reactions: [{ reactionKey: '🎉', count: 2, userIds: ['u-1', 'u-2'], hasSelf: true }],
+    })
+  })
+
+  it('updates cached pin state with normalized timestamps', () => {
+    const pinned = applyMessagePinnedStateToCachedMessages(
+      [
+        {
+          id: 'msg-1',
+          type: 'text',
+          content: 'older',
+          status: 'read',
+          isSelf: false,
+          timestamp: '2026-04-12T12:00:00.000Z',
+          pinnedAt: null,
+        },
+      ],
+      'msg-1',
+      {
+        isPinned: true,
+        pinnedAt: '2026-04-12T12:40:00.000Z',
+        pinnedBy: 'admin-1',
+      },
+    )
+
+    expect(pinned[0]).toMatchObject({
+      id: 'msg-1',
+      pinnedBy: 'admin-1',
+    })
+    expect(pinned[0]?.pinnedAt).toEqual(new Date('2026-04-12T12:40:00.000Z'))
+
+    const unpinned = applyMessagePinnedStateToCachedMessages(pinned, 'msg-1', {
+      isPinned: false,
+    })
+
+    expect(unpinned[0]).toMatchObject({
+      id: 'msg-1',
+      pinnedAt: null,
+      pinnedBy: null,
     })
   })
 })

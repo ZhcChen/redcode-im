@@ -2,7 +2,7 @@
 
 > 本文件用于记录 **RedCode IM** 当前仍需推进的工作流与优先级。默认执行主线以 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md` 为准。
 
-**最后更新**: 2026-04-12
+**最后更新**: 2026-04-13
 
 ---
 
@@ -47,6 +47,9 @@
      - 编辑/删除事件会同步写回本地消息缓存，删除不再直接丢记录，relay_only 重启后仍能稳定重建 `[消息已删除]` 等摘要
    - desktop 已补本地主动编辑/删除摘要刷新：
      - 右键删除、编辑、批量删除已接入统一 message update 链路，本地操作后会立刻刷新当前消息缓存与聊天列表摘要
+   - desktop 已补 reaction / pin 本地缓存收口：
+     - 当前房间的添加/取消 reaction、置顶/取消置顶，以及对应 websocket 更新，都会同步写回本地消息缓存
+     - 非当前房间收到 reaction / pin websocket 更新时，也会刷新对应 room 的本地消息缓存，避免 reload 后状态回退
    - 下一步需补齐：
      - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
 
@@ -141,6 +144,7 @@
 - ✅ desktop 已补 relay_only 本地摘要回填：会基于本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
 - ✅ desktop 已补消息更新缓存收口：编辑/删除事件会同步写回本地消息缓存，删除消息保留 tombstone 以保证 relay_only 重启后摘要与未读统计一致
 - ✅ desktop 已补本地主动编辑/删除摘要刷新：右键删除、编辑、批量删除已统一走 message update cache 链路，本地操作后聊天列表摘要立即同步
+- ✅ desktop 已补 reaction / pin 本地缓存收口：本地操作与 websocket 更新都会同步刷新消息缓存，非当前房间的 reaction / pin 事件也不再在 reload 后回退
 - ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`

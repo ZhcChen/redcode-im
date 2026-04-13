@@ -797,6 +797,8 @@ import Popover from '../components/Popover.vue'
 import SearchDialog from '../components/SearchDialog.vue'
 import { messageSearchService } from '../services/messageSearchService'
 import {
+  applyMessagePinnedStateToCachedMessages,
+  applyMessageReactionsToCachedMessages,
   applyMessageUpdateToCachedMessages,
   getMessageRuntimeNotice,
   getRelayOnlyLocalPreview,
@@ -4932,7 +4934,15 @@ const unpinCurrentMessage = async () => {
       messageId: pinned.id
     })
     if (res.success) {
-      pinned.pinnedAt = null
+      const updatedMessages = await syncMessagePinnedStateToRoomCache(
+        selectedChat.value.groupId,
+        pinned.id,
+        { isPinned: false },
+        messages.value,
+      )
+      if (updatedMessages) {
+        messages.value = updatedMessages
+      }
       toast.success('已取消置顶')
     } else {
       toast.error(res.message || '取消置顶失败')
@@ -7989,7 +7999,15 @@ const handleMessageMenuPin = async () => {
     if (isPinned) {
       const res = await MessageApi.unpinMessage({ groupId: roomId, messageId: target.id })
       if (res.success) {
-        target.pinnedAt = null
+        const updatedMessages = await syncMessagePinnedStateToRoomCache(
+          roomId,
+          target.id,
+          { isPinned: false },
+          messages.value,
+        )
+        if (updatedMessages) {
+          messages.value = updatedMessages
+        }
         toast.success('已取消置顶')
         // 取消置顶时，当前 Banner 索引自动回到 0
         currentPinnedIndex.value = 0
@@ -7999,7 +8017,19 @@ const handleMessageMenuPin = async () => {
     } else {
       const res = await MessageApi.pinMessage({ groupId: roomId, messageId: target.id, currentUserId: currentUserId.value })
       if (res.success) {
-        target.pinnedAt = res.data?.pinnedAt || new Date()
+        const updatedMessages = await syncMessagePinnedStateToRoomCache(
+          roomId,
+          target.id,
+          {
+            isPinned: true,
+            pinnedAt: res.data?.pinnedAt || new Date(),
+            pinnedBy: res.data?.pinnedBy ?? currentUserId.value ?? null,
+          },
+          messages.value,
+        )
+        if (updatedMessages) {
+          messages.value = updatedMessages
+        }
         toast.success('消息已置顶')
         // 置顶成功后，Banner 立即切换到最新置顶的这一条
         nextTick(() => {
@@ -8140,13 +8170,14 @@ const handleReactionSelect = async (reactionKey: string) => {
     }
     
     if (response.success && response.data) {
-      // 更新消息的反应列表
-      const messageIndex = messages.value.findIndex(m => m.id === target.id)
-      if (messageIndex !== -1) {
-        messages.value[messageIndex] = {
-          ...messages.value[messageIndex],
-          reactions: response.data.summaries,
-        }
+      const updatedMessages = await syncMessageReactionsToRoomCache(
+        selectedChat.value.groupId,
+        target.id,
+        response.data.summaries,
+        messages.value,
+      )
+      if (updatedMessages) {
+        messages.value = updatedMessages
       }
     }
   } catch (error: any) {
@@ -8183,13 +8214,14 @@ const handleReactionTagClick = async (message: Message, reactionKey: string) => 
     }
     
     if (response.success && response.data) {
-      // 更新消息的反应列表
-      const messageIndex = messages.value.findIndex(m => m.id === message.id)
-      if (messageIndex !== -1) {
-        messages.value[messageIndex] = {
-          ...messages.value[messageIndex],
-          reactions: response.data.summaries,
-        }
+      const updatedMessages = await syncMessageReactionsToRoomCache(
+        selectedChat.value.groupId,
+        message.id,
+        response.data.summaries,
+        messages.value,
+      )
+      if (updatedMessages) {
+        messages.value = updatedMessages
       }
     }
   } catch (error: any) {
@@ -9634,27 +9666,27 @@ const handleWebSocketReactionUpdate = (event: CustomEvent) => {
   const messageId = detail.message_id
   const isCurrentRoom = !!selectedChat.value && selectedChat.value.groupId === roomId
 
-  if (isCurrentRoom) {
-    const existingIndex = messages.value.findIndex((msg) => msg.id === messageId)
-    if (existingIndex !== -1) {
-      const existingMessage = messages.value[existingIndex]
-      // 重新获取反应列表以更新 UI
-      MessageApi.getReactions({
-        groupId: roomId,
-        messageId: messageId,
-      }).then((response) => {
-        if (response.success && response.data) {
-          const updatedMessage = {
-            ...existingMessage,
-            reactions: response.data.summaries,
-          }
-          messages.value.splice(existingIndex, 1, updatedMessage)
-        }
-      }).catch(() => {
-        // 静默失败，不影响用户体验
-      })
+  MessageApi.getReactions({
+    groupId: roomId,
+    messageId: messageId,
+  }).then(async (response) => {
+    if (!response.success || !response.data) {
+      return
     }
-  }
+
+    const updatedMessages = await syncMessageReactionsToRoomCache(
+      roomId,
+      messageId,
+      response.data.summaries,
+      isCurrentRoom ? messages.value : undefined,
+    )
+
+    if (isCurrentRoom && updatedMessages) {
+      messages.value = updatedMessages
+    }
+  }).catch(() => {
+    // 静默失败，不影响用户体验
+  })
 }
 
 const handleWebSocketTypingUpdate = (event: CustomEvent) => {
@@ -9750,6 +9782,80 @@ const syncMessageUpdateToRoomCache = async (
   }
 
   const updatedMessages = applyMessageUpdateToCachedMessages(cachedMessages, payload) as Message[]
+  await persistMessagesCache(roomId, updatedMessages)
+  return updatedMessages
+}
+
+const syncMessageReactionsToRoomCache = async (
+  roomId: string,
+  messageId: string,
+  reactions: Message['reactions'],
+  liveMessages?: Message[] | null,
+): Promise<Message[] | null> => {
+  if (!roomId || !messageId) {
+    return liveMessages ?? null
+  }
+
+  if (Array.isArray(liveMessages)) {
+    const updatedMessages = applyMessageReactionsToCachedMessages(
+      liveMessages,
+      messageId,
+      reactions,
+    ) as Message[]
+    await persistMessagesCache(roomId, updatedMessages)
+    return updatedMessages
+  }
+
+  const cached = await loadCache<Message[]>(CACHE_KEYS.messages(roomId))
+  const cachedMessages = Array.isArray(cached?.data) ? cached.data : []
+  if (cachedMessages.length === 0) {
+    return null
+  }
+
+  const updatedMessages = applyMessageReactionsToCachedMessages(
+    cachedMessages,
+    messageId,
+    reactions,
+  ) as Message[]
+  await persistMessagesCache(roomId, updatedMessages)
+  return updatedMessages
+}
+
+const syncMessagePinnedStateToRoomCache = async (
+  roomId: string,
+  messageId: string,
+  payload: {
+    isPinned: boolean
+    pinnedAt?: string | Date | null
+    pinnedBy?: string | null
+  },
+  liveMessages?: Message[] | null,
+): Promise<Message[] | null> => {
+  if (!roomId || !messageId) {
+    return liveMessages ?? null
+  }
+
+  if (Array.isArray(liveMessages)) {
+    const updatedMessages = applyMessagePinnedStateToCachedMessages(
+      liveMessages,
+      messageId,
+      payload,
+    ) as Message[]
+    await persistMessagesCache(roomId, updatedMessages)
+    return updatedMessages
+  }
+
+  const cached = await loadCache<Message[]>(CACHE_KEYS.messages(roomId))
+  const cachedMessages = Array.isArray(cached?.data) ? cached.data : []
+  if (cachedMessages.length === 0) {
+    return null
+  }
+
+  const updatedMessages = applyMessagePinnedStateToCachedMessages(
+    cachedMessages,
+    messageId,
+    payload,
+  ) as Message[]
   await persistMessagesCache(roomId, updatedMessages)
   return updatedMessages
 }
@@ -10049,7 +10155,7 @@ const handleWebSocketMessageRead = (event: CustomEvent) => {
   }
 }
 
-const handleWebSocketPinUpdate = (event: CustomEvent) => {
+const handleWebSocketPinUpdate = async (event: CustomEvent) => {
   const detail = event.detail as {
     room_id?: string
     roomId?: string
@@ -10069,50 +10175,50 @@ const handleWebSocketPinUpdate = (event: CustomEvent) => {
   const messageId = detail.message_id || detail.messageId
   if (!roomId) return
 
-  // 只处理当前选中聊天室的消息置顶事件
-  if (!selectedChat.value || roomId !== selectedChat.value.groupId) {
-    return
-  }
-
+  const isCurrentRoom = !!selectedChat.value && roomId === selectedChat.value.groupId
   const isPinned = detail.is_pinned ?? detail.isPinned ?? false
   const pinnedAt = detail.pinned_at || detail.pinnedAt
+  const pinnedBy = detail.pinned_by || detail.pinnedBy || null
+  const targetId = detail.message?.id || messageId
 
-  // 如果服务器返回了完整的消息，使用它来更新
-  if (detail.message) {
+  if (!targetId) return
+
+  // 如果服务器返回了完整的消息，使用它补齐当前房间内存态
+  if (isCurrentRoom && detail.message) {
     const uiMessage = mapDomainMessageToUi(detail.message)
     const existingIndex = messages.value.findIndex((msg) => msg.id === uiMessage.id)
     if (existingIndex !== -1) {
       messages.value.splice(existingIndex, 1, {
         ...messages.value[existingIndex],
         ...uiMessage,
-        pinnedAt: isPinned && pinnedAt ? new Date(pinnedAt) : null
       })
     }
-  } else if (messageId) {
-    // 没有完整消息，只更新对应消息的 pinnedAt 字段
-    messages.value.forEach((msg) => {
-      if (msg.id === messageId) {
-        if (isPinned) {
-          msg.pinnedAt = pinnedAt ? new Date(pinnedAt) : new Date()
-        } else {
-          msg.pinnedAt = null
-        }
-      }
-    })
+  }
+
+  const updatedMessages = await syncMessagePinnedStateToRoomCache(
+    roomId,
+    targetId,
+    {
+      isPinned,
+      pinnedAt: pinnedAt ?? null,
+      pinnedBy,
+    },
+    isCurrentRoom ? messages.value : undefined,
+  )
+
+  if (isCurrentRoom && updatedMessages) {
+    messages.value = updatedMessages
   }
 
   // 如果是置顶操作（无论来自自己还是其他端），Banner 立即切换到这条消息
-  if (isPinned && (detail.message || messageId)) {
-    const targetId = detail.message?.id || messageId
-    if (targetId) {
-      nextTick(() => {
-        const list = pinnedMessagesList.value
-        const idx = list.findIndex((msg) => msg.id === targetId)
-        if (idx >= 0) {
-          currentPinnedIndex.value = idx
-        }
-      })
-    }
+  if (isCurrentRoom && isPinned) {
+    nextTick(() => {
+      const list = pinnedMessagesList.value
+      const idx = list.findIndex((msg) => msg.id === targetId)
+      if (idx >= 0) {
+        currentPinnedIndex.value = idx
+      }
+    })
   }
 }
 
