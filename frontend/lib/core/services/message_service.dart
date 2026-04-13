@@ -1178,6 +1178,7 @@ class MessageService with ChangeNotifier {
         reactions: response.summaries,
       );
       notifyListeners();
+      unawaited(_persistMessages(roomId));
     }
 
     return response.summaries;
@@ -1211,6 +1212,7 @@ class MessageService with ChangeNotifier {
         reactions: response.summaries,
       );
       notifyListeners();
+      unawaited(_persistMessages(roomId));
     }
 
     return response.summaries;
@@ -1321,7 +1323,7 @@ class MessageService with ChangeNotifier {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/messages');
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: {
         'Authorization': 'Bearer ${session.token}',
@@ -1375,7 +1377,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/pin',
     );
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -1399,7 +1401,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/pin',
     );
-    final response = await http.delete(
+    final response = await _client.delete(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -1480,7 +1482,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions',
     );
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -1509,7 +1511,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions?reaction_key=${Uri.encodeComponent(reactionKey)}',
     );
-    final response = await http.delete(
+    final response = await _client.delete(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -1536,7 +1538,7 @@ class MessageService with ChangeNotifier {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/$messageId/reactions',
     );
-    final response = await http.get(
+    final response = await _client.get(
       uri,
       headers: {
         'Authorization': 'Bearer $token',
@@ -3599,7 +3601,7 @@ class MessageService with ChangeNotifier {
       '${AppConfig.apiBaseUrl}/rooms/$roomId/messages/attachments/download',
     ).replace(queryParameters: {'key': key});
 
-    final response = await http.get(
+    final response = await _client.get(
       uri,
       headers: {'Authorization': 'Bearer $token'},
     );

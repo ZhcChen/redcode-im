@@ -41,6 +41,8 @@
      - 实时收到图片/语音/文件等消息时，聊天列表会立即使用统一 preview 规则刷新摘要，并同步写入 `last_message_id`
    - frontend 已补本地主动编辑/删除摘要刷新：
      - 编辑或删除最新一条消息时，API 返回替换本地消息后会立即同步 chat summary，不再依赖后续 websocket 回推
+   - frontend 已补 reaction 本地缓存收口：
+     - 添加/取消 reaction 已统一走可注入 HTTP client，并在更新内存消息后同步落盘本地消息缓存
    - desktop 已补消息更新缓存收口：
      - 编辑/删除事件会同步写回本地消息缓存，删除不再直接丢记录，relay_only 重启后仍能稳定重建 `[消息已删除]` 等摘要
    - desktop 已补本地主动编辑/删除摘要刷新：
@@ -129,6 +131,7 @@
 - ✅ frontend 已补消息编辑/删除后的 relay_only 摘要即时刷新：`handleMessageUpdate` 会等待 chat cache 初始化完成，再刷新最新消息摘要与 `last_message_id`
 - ✅ frontend 已补 live 消息摘要预览统一：实时收到图片/语音/文件等消息时，聊天列表摘要不再直接取 `message.content`，而是统一走 preview 规则并写入 `last_message_id`
 - ✅ frontend 已补本地主动编辑/删除摘要刷新：`editMessage` / `markMessageDeleted` 通过 `_replaceMessage` 回写最新摘要，且相关 API helper 已统一走可注入 `_client`
+- ✅ frontend 已补 reaction 本地缓存收口：`addReaction/removeReaction/getReactions` 已统一走可注入 `_client`，且 `add/remove` 成功后会落盘本地消息缓存
 - ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
 - ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
 - ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖

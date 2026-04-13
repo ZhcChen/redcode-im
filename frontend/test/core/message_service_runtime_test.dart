@@ -518,6 +518,129 @@ void main() {
     expect(service.chats.single.lastMessage, 'hello latest edited');
     expect(service.chats.single.extra?['last_message_id'], 'msg-1');
   });
+
+  test('addReaction persists updated message reactions to local cache', () async {
+    final storage = _FakeMessageStorage(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[
+          Message(
+            id: 'msg-1',
+            roomId: 'room-1',
+            senderId: 'user-peer',
+            senderUsername: 'bob',
+            senderName: 'Bob',
+            content: 'hello latest',
+            type: MessageType.text,
+            status: MessageStatus.sent,
+            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+            isSelf: false,
+          ),
+        ],
+      },
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: storage,
+      chatCache: const _FakeChatCache(),
+      client: MockClient((request) async {
+        if (request.method == 'POST' &&
+            request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'message': 'ok',
+              'summaries': [
+                {
+                  'reaction_key': '👍',
+                  'count': 1,
+                  'user_ids': ['user-self'],
+                  'has_self': true,
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await service.loadCachedMessages('room-1');
+    final summaries = await service.addReaction(
+      roomId: 'room-1',
+      messageId: 'msg-1',
+      reactionKey: '👍',
+    );
+
+    expect(summaries.single.reactionKey, '👍');
+    expect(service.getMessages('room-1').single.reactions?.single.reactionKey, '👍');
+    expect(
+      storage._roomMessages['room-1']?.single.reactions?.single.reactionKey,
+      '👍',
+    );
+  });
+
+  test('removeReaction persists updated message reactions to local cache', () async {
+    final storage = _FakeMessageStorage(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[
+          Message(
+            id: 'msg-1',
+            roomId: 'room-1',
+            senderId: 'user-peer',
+            senderUsername: 'bob',
+            senderName: 'Bob',
+            content: 'hello latest',
+            type: MessageType.text,
+            status: MessageStatus.sent,
+            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+            isSelf: false,
+            reactions: <MessageReactionSummary>[
+              MessageReactionSummary(
+                reactionKey: '👍',
+                count: 1,
+                userIds: <String>['user-self'],
+                hasSelf: true,
+              ),
+            ],
+          ),
+        ],
+      },
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: storage,
+      chatCache: const _FakeChatCache(),
+      client: MockClient((request) async {
+        if (request.method == 'DELETE' &&
+            request.url.path == '/rooms/room-1/messages/msg-1/reactions' &&
+            request.url.queryParameters['reaction_key'] == '👍') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'message': 'ok',
+              'summaries': [],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('not found', 404);
+      }),
+    );
+
+    await service.loadCachedMessages('room-1');
+    final summaries = await service.removeReaction(
+      roomId: 'room-1',
+      messageId: 'msg-1',
+      reactionKey: '👍',
+    );
+
+    expect(summaries, isEmpty);
+    expect(service.getMessages('room-1').single.reactions, isEmpty);
+    expect(storage._roomMessages['room-1']?.single.reactions, isEmpty);
+  });
 }
 
 class _FakeAppConfigService extends AppConfigService {
