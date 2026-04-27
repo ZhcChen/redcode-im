@@ -33,7 +33,7 @@
   - `~/.codex/skills/ce-*`
   - `~/.codex/CE_AGENTS.md`
   - `~/.codex/scripts/ce-init`
-- 若仓库中仍存在旧流程说明，仅视为**历史产物**，不代表当前默认流程。
+- 仓库工作流以 CE 目录约定与根目录 `AGENTS.md` 为准。
 
 ## 3. 本地开发约定（关键项）
 - **Backend 开发调试（dev）**：`backend/docker/dev/docker-compose.yml`
