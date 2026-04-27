@@ -39,6 +39,8 @@ backend/
 /etc/systemd/system/redcode-im.service
 ├── Environment=DATABASE_URL=postgresql://...
 ├── Environment=REDIS_SESSION_URL=redis://...
+├── Environment=REDIS_PUBSUB_URL=redis://...
+├── Environment=REDIS_CACHE_URL=redis://...
 └── Environment=JWT_SECRET=...
 ```
 
@@ -49,6 +51,7 @@ backend/
 # 设置系统环境变量
 export DATABASE_URL="postgresql://user:pass@host:5432/db"
 export REDIS_SESSION_URL="redis://:password@host:6381"
+export REDIS_PUBSUB_URL="redis://:password@host:6381"
 export REDIS_CACHE_URL="redis://:password@host:6383"
 export JWT_SECRET="your-jwt-secret"
 export PORT=8080

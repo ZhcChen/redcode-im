@@ -2,14 +2,17 @@
 
 ## 概述
 
-当前仓库的 backend 采用 **两套 Redis**：
+当前仓库的 backend 采用 **3 个逻辑 Redis 入口**，部署上可映射到 **1~3 套 Redis 实例**：
 
 - **Session Redis**
-  - 用途：用户会话、节点心跳、Pub/Sub
+  - 用途：用户会话、节点心跳、跨节点在线态
   - 环境变量：`REDIS_SESSION_URL`
+- **Pub/Sub Redis**
+  - 用途：跨节点广播；代码里始终使用独立 client/connection
+  - 环境变量：`REDIS_PUBSUB_URL`（未设置时回退 `REDIS_SESSION_URL`）
 - **Cache Redis**
-  - 用途：用户/房间等高频缓存
-  - 环境变量：`REDIS_CACHE_URL`
+  - 用途：刷新令牌、短信验证码、下载 URL 缓存
+  - 环境变量：`REDIS_CACHE_URL`（未设置时回退 `REDIS_SESSION_URL`）
 
 > 当前 backend 不再依赖独立的 `REDIS_URL` 主实例；代码入口见 `backend/src/redis/mod.rs`。
 
@@ -53,6 +56,7 @@ backend 对应环境变量：
 
 ```bash
 REDIS_SESSION_URL=redis://:123456@redis-session:6381/0
+REDIS_PUBSUB_URL=redis://:123456@redis-session:6381/0
 REDIS_CACHE_URL=redis://:123456@redis-cache:6383/0
 ```
 
@@ -70,7 +74,8 @@ cd backend
 该模式默认使用：
 
 - Session Redis：`localhost:6381`
-- Cache Redis：`localhost:6383`
+- Pub/Sub Redis：默认复用 Session Redis（可显式设为 `localhost:6381`）
+- Cache Redis：未设置时默认复用 Session Redis；如需独立缓存实例可设为 `localhost:6383`
 
 与 `backend/src/redis/mod.rs` 的默认回退值一致。
 
@@ -82,6 +87,13 @@ cd backend
 
 ```bash
 REDIS_SESSION_URL=redis://localhost:6381
+```
+
+如果需要显式拆出逻辑入口：
+
+```bash
+REDIS_SESSION_URL=redis://localhost:6381
+REDIS_PUBSUB_URL=redis://localhost:6381
 REDIS_CACHE_URL=redis://localhost:6383
 ```
 
@@ -89,6 +101,7 @@ REDIS_CACHE_URL=redis://localhost:6383
 
 ```bash
 REDIS_SESSION_URL=redis://:123456@localhost:6381/0
+REDIS_PUBSUB_URL=redis://:123456@localhost:6381/0
 REDIS_CACHE_URL=redis://:123456@localhost:6383/0
 ```
 
@@ -96,33 +109,35 @@ REDIS_CACHE_URL=redis://:123456@localhost:6383/0
 
 `backend/src/redis/mod.rs` 中的连接职责：
 
-- `pubsub_client`：复用 **Session Redis**
+- `pubsub_client`：Pub/Sub 专用 client/connection；默认复用 `REDIS_SESSION_URL`，也可单独指定 `REDIS_PUBSUB_URL`
 - `session_client`：Session 数据
-- `cache_client`：Cache 数据
+- `cache_client`：Cache 数据；默认复用 `REDIS_SESSION_URL`，也可单独指定 `REDIS_CACHE_URL`
 
-也就是说，当前并不是三套 Redis，而是：
+也就是说，当前是 **三类逻辑入口**，但不要求三套物理 Redis：
 
-- **1 套 Session Redis**（会话 + Pub/Sub）
-- **1 套 Cache Redis**（缓存）
+- **1 套 Redis**：session + pub/sub + cache 都复用同一实例
+- **2 套 Redis**：session/pubsub 一套，cache 一套（当前 Compose 默认）
+- **3 套 Redis**：session / pubsub / cache 各自独立
 
 ## 常见键空间
 
 ### Session Redis
 
 ```text
-session:{user_id}
-node_sessions:{node_id}
-node_heartbeat:{node_id}
-active_nodes
+session:user:{user_id}
+sessions:node:{node_id}
+node:heartbeat:{node_id}
+nodes:active
+room:{room_id}
+user:online:{user_id}
 ```
 
 ### Cache Redis
 
 ```text
-cache:user:{user_id}
-cache:room:{room_id}
-cache:room_members:{id}
-user_online:{user_id}
+auth:refresh:{token}
+auth:sms:{phone}
+cache:download_url:{object_key}:{provider_id}:{expires_in}
 ```
 
 ## 常用排查命令
@@ -157,10 +172,11 @@ redis-cli -p 6383 flushall
 
 优先检查：
 
-1. `REDIS_SESSION_URL` / `REDIS_CACHE_URL` 是否与当前运行形态一致
-2. 当前是 dev Compose、tests Compose，还是宿主机本地 Redis
-3. Redis 是否带密码；URL 是否包含 `:123456@`
-4. backend 与 Redis 是否在同一网络中
+1. `REDIS_SESSION_URL` 是否与当前运行形态一致；`REDIS_CACHE_URL` 是否需要显式覆盖
+2. `REDIS_PUBSUB_URL` 是否显式配置；未配置时是否预期回退 `REDIS_SESSION_URL`
+3. 当前是 dev Compose、tests Compose，还是宿主机本地 Redis
+4. Redis 是否带密码；URL 是否包含 `:123456@`
+5. backend 与 Redis 是否在同一网络中
 
 ### 端口占用
 
@@ -178,7 +194,7 @@ lsof -i :6383
 - **Compose 内部容器网络**：每个 Redis 容器内部都可监听 `6379`
 - **宿主机本地直连模式**：为了区分两套 Redis，使用 `6381/6383`
 
-只要 `REDIS_SESSION_URL` / `REDIS_CACHE_URL` 配对正确即可。
+只要 `REDIS_SESSION_URL`、`REDIS_PUBSUB_URL`、`REDIS_CACHE_URL` 与当前运行形态匹配，或明确依赖回退规则即可。
 
 ## 参考文件
 

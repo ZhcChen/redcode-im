@@ -1,4 +1,4 @@
-use crate::database::models::{MemberRole, MessagePart, MessagePartType, MessageType, UserStatus};
+use crate::database::models::{MessagePart, MessagePartType, MessageType};
 use crate::proto::ws;
 use chrono::{DateTime, Utc};
 use prost::Message as _;
@@ -116,31 +116,6 @@ impl Default for NodeStatus {
     fn default() -> Self {
         NodeStatus::Active
     }
-}
-
-/// 房间成员信息 (Redis 缓存)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct RoomMemberCache {
-    pub user_id: Uuid,
-    pub username: String,
-    pub nickname: Option<String>,
-    pub avatar_url: Option<String>,
-    pub role: MemberRole,
-    pub joined_at: DateTime<Utc>,
-    pub last_seen: DateTime<Utc>,
-}
-
-/// 用户在线状态 (Redis 缓存)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
-pub struct UserOnlineStatus {
-    pub user_id: Uuid,
-    pub username: String,
-    pub status: UserStatus,
-    pub last_activity: DateTime<Utc>,
-    pub current_node: Option<String>,
-    pub is_online: bool,
 }
 
 /// 消息发送结果
@@ -1125,14 +1100,7 @@ impl CacheKeys {
         format!("sessions:node:{}", node_id)
     }
 
-    /// 房间成员缓存键
-    #[allow(dead_code)]
-    pub fn room_members(room_id: &Uuid) -> String {
-        format!("room:members:{}", room_id)
-    }
-
     /// 用户在线状态键
-    #[allow(dead_code)]
     pub fn user_online_status(user_id: &Uuid) -> String {
         format!("user:online:{}", user_id)
     }
@@ -1150,18 +1118,6 @@ impl CacheKeys {
     /// Pub/Sub 频道名
     pub fn pubsub_channel(room_id: &Uuid) -> String {
         format!("room:{}", room_id)
-    }
-
-    /// 用户缓存键
-    #[allow(dead_code)]
-    pub fn user_cache(user_id: &Uuid) -> String {
-        format!("cache:user:{}", user_id)
-    }
-
-    /// 房间信息缓存键
-    #[allow(dead_code)]
-    pub fn room_cache(room_id: &Uuid) -> String {
-        format!("cache:room:{}", room_id)
     }
 
     pub fn download_url_cache(key: &str, provider_id: &str, expires_in: u32) -> String {

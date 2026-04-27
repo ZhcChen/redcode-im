@@ -11,7 +11,6 @@ use crate::redis::models::{CacheKeys, NodeHeartbeat, SessionInfo};
 pub struct SessionManager {
     client: Client,
     node_id: String,
-    #[allow(dead_code)]
     session_ttl: u64, // 会话过期时间（秒）
 }
 
@@ -25,14 +24,7 @@ impl SessionManager {
         }
     }
 
-    /// 设置会话过期时间
-    #[allow(dead_code)]
-    pub fn set_session_ttl(&mut self, ttl_seconds: u64) {
-        self.session_ttl = ttl_seconds;
-    }
-
     /// 创建用户会话
-    #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn create_session(
         &self,
         user_id: Uuid,
@@ -103,8 +95,7 @@ impl SessionManager {
         }
     }
 
-    /// 更新会话心跳和IP
-    #[allow(dead_code)]
+    /// 更新会话心跳和 IP。
     pub async fn update_session_heartbeat_with_ip(
         &self,
         user_id: &Uuid,
@@ -132,62 +123,6 @@ impl SessionManager {
             Ok(true)
         } else {
             warn!("尝试更新不存在的会话: {}", user_id);
-            Ok(false)
-        }
-    }
-
-    /// 更新会话心跳
-    #[allow(dead_code)]
-    pub async fn update_session_heartbeat(&self, user_id: &Uuid) -> RedisResult<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let session_key = CacheKeys::user_session(user_id);
-
-        // 获取现有会话信息
-        if let Some(mut session) = self.get_user_session(user_id).await? {
-            session.last_heartbeat = Utc::now();
-
-            let session_json = serde_json::to_string(&session).map_err(|e| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "JSON序列化失败",
-                    e.to_string(),
-                ))
-            })?;
-
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
-                .await?;
-            info!("更新会话心跳: {}", user_id);
-            Ok(true)
-        } else {
-            warn!("尝试更新不存在的会话: {}", user_id);
-            Ok(false)
-        }
-    }
-
-    /// 更新用户房间列表
-    #[allow(dead_code)]
-    pub async fn update_user_rooms(&self, user_id: &Uuid, rooms: Vec<Uuid>) -> RedisResult<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let session_key = CacheKeys::user_session(user_id);
-
-        // 获取现有会话信息
-        if let Some(mut session) = self.get_user_session(user_id).await? {
-            session.rooms = rooms;
-
-            let session_json = serde_json::to_string(&session).map_err(|e| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "JSON序列化失败",
-                    e.to_string(),
-                ))
-            })?;
-
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
-                .await?;
-            info!("更新用户房间列表: {}", user_id);
-            Ok(true)
-        } else {
-            warn!("尝试更新不存在会话的房间列表: {}", user_id);
             Ok(false)
         }
     }
@@ -333,8 +268,7 @@ impl SessionManager {
         Ok(())
     }
 
-    /// 获取所有活跃节点
-    #[allow(dead_code)]
+    /// 获取所有活跃节点。
     pub async fn get_active_nodes(&self) -> RedisResult<Vec<NodeHeartbeat>> {
         let mut conn = self.client.get_multiplexed_async_connection().await?;
         let active_nodes_key = CacheKeys::active_nodes();
@@ -355,91 +289,6 @@ impl SessionManager {
         }
 
         Ok(nodes)
-    }
-
-    /// 检查节点是否活跃
-    #[allow(dead_code)]
-    pub async fn is_node_active(&self, node_id: &str) -> RedisResult<bool> {
-        let heartbeat_key = CacheKeys::node_heartbeat(node_id);
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
-
-        let exists: bool = conn.exists(&heartbeat_key).await?;
-        Ok(exists)
-    }
-
-    /// 迁移用户会话到新节点
-    #[allow(dead_code)]
-    pub async fn migrate_user_session(
-        &self,
-        user_id: &Uuid,
-        new_node_id: &str,
-        new_socket_id: String,
-    ) -> RedisResult<bool> {
-        if let Some(mut session) = self.get_user_session(user_id).await? {
-            // 更新节点信息
-            session.node_id = new_node_id.to_string();
-            session.socket_id = new_socket_id;
-            session.last_heartbeat = Utc::now();
-
-            // 保存更新的会话信息
-            let mut conn = self.client.get_multiplexed_async_connection().await?;
-            let session_key = CacheKeys::user_session(user_id);
-            let session_json = serde_json::to_string(&session).map_err(|e| {
-                redis::RedisError::from((
-                    redis::ErrorKind::TypeError,
-                    "JSON序列化失败",
-                    e.to_string(),
-                ))
-            })?;
-
-            conn.set_ex::<_, _, ()>(&session_key, &session_json, self.session_ttl)
-                .await?;
-
-            // 从旧节点会话列表移除
-            let old_node_sessions_key = CacheKeys::node_sessions(&self.node_id);
-            conn.srem::<_, _, ()>(&old_node_sessions_key, &user_id.to_string())
-                .await?;
-
-            // 添加到新节点会话列表
-            let new_node_sessions_key = CacheKeys::node_sessions(new_node_id);
-            conn.sadd::<_, _, ()>(&new_node_sessions_key, &user_id.to_string())
-                .await?;
-            conn.expire::<_, ()>(&new_node_sessions_key, self.session_ttl.try_into().unwrap())
-                .await?;
-
-            info!(
-                "迁移用户会话: {} -> {}@{}",
-                user_id, new_node_id, session.socket_id
-            );
-            Ok(true)
-        } else {
-            warn!("尝试迁移不存在的会话: {}", user_id);
-            Ok(false)
-        }
-    }
-
-    /// 获取会话统计信息
-    #[allow(dead_code)]
-    pub async fn get_session_stats(&self) -> RedisResult<HashMap<String, usize>> {
-        let mut stats = HashMap::new();
-
-        // 当前节点会话数
-        let current_sessions = self.get_current_node_sessions().await?;
-        stats.insert("current_node_sessions".to_string(), current_sessions.len());
-
-        // 活跃节点数
-        let active_nodes = self.get_active_nodes().await?;
-        stats.insert("active_nodes".to_string(), active_nodes.len());
-
-        // 总连接用户数
-        let total_users: usize = active_nodes.iter().map(|n| n.connected_users).sum();
-        stats.insert("total_connected_users".to_string(), total_users);
-
-        // 总活跃房间数
-        let total_rooms: usize = active_nodes.iter().map(|n| n.active_rooms).sum();
-        stats.insert("total_active_rooms".to_string(), total_rooms);
-
-        Ok(stats)
     }
 
     /// 记录 API 性能指标

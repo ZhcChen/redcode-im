@@ -80,6 +80,7 @@ services:
       RUST_LOG: debug
       DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
       REDIS_SESSION_URL: redis://:123456@redis-session:6379/0
+      REDIS_PUBSUB_URL: redis://:123456@redis-session:6379/0
       REDIS_CACHE_URL: redis://:123456@redis-cache:6379/0
       JWT_SECRET: dev-secret-change-me
       TZ: Asia/Shanghai

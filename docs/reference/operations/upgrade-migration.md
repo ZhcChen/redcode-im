@@ -159,7 +159,9 @@ docker stop redcode-backend
 docker run -d \
   --name redcode-backend \
   -e DATABASE_URL=$DATABASE_URL \
-  -e REDIS_URL=$REDIS_URL \
+  -e REDIS_SESSION_URL=$REDIS_SESSION_URL \
+  -e REDIS_PUBSUB_URL=${REDIS_PUBSUB_URL:-$REDIS_SESSION_URL} \
+  -e REDIS_CACHE_URL=${REDIS_CACHE_URL:-$REDIS_SESSION_URL} \
   -p 8010:8010 \
   redcode/backend:v1.2.0
 

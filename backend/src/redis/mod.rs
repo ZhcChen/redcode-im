@@ -1,18 +1,27 @@
 use redis::Client;
-use std::env;
 use tracing::info;
 
 pub mod cache;
+pub mod config;
 pub mod models;
 pub mod session;
 
+pub use config::{RedisConfig, RedisTopology};
+
 /// Redis 连接管理器
 ///
-/// 多实例架构:
-/// - Session专用Redis (6381): 持久化模式，存储用户会话和节点心跳
-/// - Cache专用Redis (6383): 纯缓存模式，存储房间信息、用户资料等元数据
+/// 逻辑入口架构：
+/// - Session：持久化状态，存储用户会话、节点心跳和跨节点在线态
+/// - Cache：纯缓存数据，存储刷新令牌、短信验证码和下载 URL 缓存
+/// - Pub/Sub：单独 client/connection，负责跨节点广播
+///
+/// 部署上可映射到 1~3 套 Redis 实例：
+/// - `REDIS_SESSION_URL` 必填逻辑入口，未设置时回退 `redis://localhost:6381`
+/// - `REDIS_CACHE_URL` 可选，未设置时回退 `REDIS_SESSION_URL`
+/// - `REDIS_PUBSUB_URL` 可选，未设置时回退 `REDIS_SESSION_URL`
 #[derive(Clone)]
 pub struct RedisManager {
+    config: RedisConfig,
     pub pubsub_client: Client,
     pub cache_client: Client,
     pub session_client: Client,
@@ -22,53 +31,50 @@ impl RedisManager {
     /// 创建 Redis 管理器
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         dotenvy::dotenv().ok();
+        Self::from_config(RedisConfig::from_env())
+    }
 
-        // Pub/Sub 专用连接 (使用Session Redis)
-        let pubsub_url =
-            env::var("REDIS_SESSION_URL").unwrap_or_else(|_| "redis://localhost:6381".to_string());
-        let pubsub_client = Client::open(pubsub_url)?;
-        info!("Redis Pub/Sub 连接建立成功");
+    /// 基于解析后的 Redis 配置创建管理器。
+    pub fn from_config(config: RedisConfig) -> Result<Self, Box<dyn std::error::Error>> {
+        let pubsub_client = Self::open_client("Pub/Sub", config.pubsub_url())?;
+        let cache_client = Self::open_client("Cache", config.cache_url())?;
+        let session_client = Self::open_client("Session", config.session_url())?;
 
-        // Cache 专用连接
-        let cache_url =
-            env::var("REDIS_CACHE_URL").unwrap_or_else(|_| "redis://localhost:6383".to_string());
-        let cache_client = Client::open(cache_url)?;
-        info!("Redis Cache 连接建立成功");
-
-        // Session 专用连接
-        let session_url =
-            env::var("REDIS_SESSION_URL").unwrap_or_else(|_| "redis://localhost:6381".to_string());
-        let session_client = Client::open(session_url)?;
-        info!("Redis Session 连接建立成功");
-
-        Ok(RedisManager {
+        Ok(Self {
+            config,
             pubsub_client,
             cache_client,
             session_client,
         })
     }
 
+    fn open_client(label: &str, url: &str) -> Result<Client, redis::RedisError> {
+        let client = Client::open(url)?;
+        info!("Redis {} 连接建立成功", label);
+        Ok(client)
+    }
+
+    pub fn config(&self) -> &RedisConfig {
+        &self.config
+    }
+
+    pub fn topology(&self) -> RedisTopology {
+        self.config.topology()
+    }
+
     /// 测试连接
     pub async fn test_connections(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // 测试各个专用连接
-        let mut pubsub_conn = self
-            .pubsub_client
-            .get_multiplexed_async_connection()
-            .await?;
-        let _: String = redis::cmd("PING").query_async(&mut pubsub_conn).await?;
-        info!("Redis Pub/Sub 连接测试成功");
+        Self::ping_client("Pub/Sub", &self.pubsub_client).await?;
+        Self::ping_client("Cache", &self.cache_client).await?;
+        Self::ping_client("Session", &self.session_client).await?;
 
-        let mut cache_conn = self.cache_client.get_multiplexed_async_connection().await?;
-        let _: String = redis::cmd("PING").query_async(&mut cache_conn).await?;
-        info!("Redis Cache 连接测试成功");
+        Ok(())
+    }
 
-        let mut session_conn = self
-            .session_client
-            .get_multiplexed_async_connection()
-            .await?;
-        let _: String = redis::cmd("PING").query_async(&mut session_conn).await?;
-        info!("Redis Session 连接测试成功");
-
+    async fn ping_client(label: &str, client: &Client) -> Result<(), redis::RedisError> {
+        let mut conn = client.get_multiplexed_async_connection().await?;
+        let _: String = redis::cmd("PING").query_async(&mut conn).await?;
+        info!("Redis {} 连接测试成功", label);
         Ok(())
     }
 
@@ -90,10 +96,5 @@ impl RedisManager {
     /// 获取会话管理器
     pub fn get_session_manager(&self, node_id: String) -> session::SessionManager {
         session::SessionManager::new(self.session_client.clone(), node_id)
-    }
-
-    /// 获取配置Redis客户端（使用Session Redis作为配置存储）
-    pub fn get_config_client(&self) -> &Client {
-        &self.session_client
     }
 }

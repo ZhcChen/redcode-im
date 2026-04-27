@@ -94,6 +94,7 @@ docker run --rm \
 ```bash
 DATABASE_URL=... \
 REDIS_SESSION_URL=... \
+REDIS_PUBSUB_URL=... \
 REDIS_CACHE_URL=... \
 JWT_SECRET=... \
 PORT=8010 \

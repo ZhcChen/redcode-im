@@ -2,7 +2,7 @@
 
 ## 🔐 密码认证配置
 
-本项目已为所有 Redis 实例启用密码认证，提高安全性。
+本项目已为所有 Redis 实例启用密码认证，提高安全性。当前 backend 保留 session / pubsub / cache 三类逻辑入口，其中 pubsub 通常复用 session 所在实例。
 
 ### 密码设置
 
@@ -46,6 +46,8 @@ redis://:密码@主机:端口
 例如：
 ```bash
 REDIS_SESSION_URL=redis://:redis_session_password@localhost:6381
+REDIS_PUBSUB_URL=redis://:redis_session_password@localhost:6381
+REDIS_CACHE_URL=redis://:redis_cache_password@localhost:6383
 ```
 
 ## 🛡️ 安全最佳实践

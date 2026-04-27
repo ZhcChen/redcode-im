@@ -21,6 +21,7 @@ x-rust-service: &rust_service
     PORT: "8010"
     DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
     REDIS_SESSION_URL: redis://:123456@redis-session:6381/0
+    REDIS_PUBSUB_URL: redis://:123456@redis-session:6381/0
     REDIS_CACHE_URL: redis://:123456@redis-cache:6383/0
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me

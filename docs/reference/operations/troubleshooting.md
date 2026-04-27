@@ -38,7 +38,9 @@ docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
 ```bash
 # 确认必需的环境变量已设置
 echo $DATABASE_URL
-echo $REDIS_URL
+echo $REDIS_SESSION_URL
+echo ${REDIS_PUBSUB_URL:-$REDIS_SESSION_URL}
+echo ${REDIS_CACHE_URL:-$REDIS_SESSION_URL}
 echo $JWT_SECRET
 ```
 
@@ -64,8 +66,10 @@ kill -9 $(lsof -t -i:8010)
 # 检查数据库连接
 psql $DATABASE_URL -c "SELECT 1"
 
-# 检查 Redis 连接
-redis-cli -u $REDIS_URL ping
+# 检查 Redis 连接（Pub/Sub / Cache 未配置时默认复用 Session）
+redis-cli -u "$REDIS_SESSION_URL" ping
+redis-cli -u "${REDIS_PUBSUB_URL:-$REDIS_SESSION_URL}" ping
+redis-cli -u "${REDIS_CACHE_URL:-$REDIS_SESSION_URL}" ping
 ```
 
 ---

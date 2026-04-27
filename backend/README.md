@@ -33,7 +33,7 @@
 cp .env.example .env
 ```
 
-按需修改 `.env` 中的 `DATABASE_URL`、`REDIS_SESSION_URL`、`REDIS_CACHE_URL`、`JWT_SECRET` 等配置。
+按需修改 `.env` 中的 `DATABASE_URL`、`REDIS_SESSION_URL`、`REDIS_PUBSUB_URL`、`REDIS_CACHE_URL`、`JWT_SECRET` 等配置。
 
 ### 3) 启动服务
 
@@ -83,7 +83,8 @@ docker compose -f docker/release/docker-compose.yml up -d --build backend
 - `PORT`：服务端口（默认 `8010`）
 - `DATABASE_URL`：PostgreSQL 连接串
 - `REDIS_SESSION_URL`：Session Redis
-- `REDIS_CACHE_URL`：Cache Redis
+- `REDIS_PUBSUB_URL`：Pub/Sub Redis（可选；默认回退 `REDIS_SESSION_URL`）
+- `REDIS_CACHE_URL`：Cache Redis（可选；默认回退 `REDIS_SESSION_URL`）
 - `JWT_SECRET`：JWT 密钥
 - `RUST_LOG`：日志级别
 
