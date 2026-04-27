@@ -149,7 +149,7 @@ RedCode IM 采用了多层次的安全防护措施，确保系统安全可靠地
 DATABASE_URL=postgresql://user:password@localhost:5432/redcode_im_dev
 REDIS_SESSION_URL=redis://localhost:6381
 REDIS_PUBSUB_URL=redis://localhost:6381
-REDIS_CACHE_URL=redis://localhost:6383
+REDIS_CACHE_URL=redis://localhost:6381
 JWT_SECRET=development-secret-not-for-production
 JWT_PRIVATE_KEY_PATH=./keys/private.pem
 JWT_PUBLIC_KEY_PATH=./keys/public.pem
@@ -166,9 +166,9 @@ JWT_PUBLIC_KEY_PATH=./keys/public.pem
 ```bash
 # .env.production
 DATABASE_URL=postgresql://user:strong-password@prod-db:5432/redcode_im
-REDIS_SESSION_URL=redis://:strong-redis-password@prod-redis-session:6379
-REDIS_PUBSUB_URL=redis://:strong-redis-password@prod-redis-session:6379
-REDIS_CACHE_URL=redis://:strong-redis-password@prod-redis-cache:6379
+REDIS_SESSION_URL=redis://:strong-redis-password@prod-redis:6379
+REDIS_PUBSUB_URL=redis://:strong-redis-password@prod-redis:6379
+REDIS_CACHE_URL=redis://:strong-redis-password@prod-redis:6379
 JWT_SECRET=<从密钥管理服务获取>
 JWT_PRIVATE_KEY_PATH=/secure/keys/private.pem
 JWT_PUBLIC_KEY_PATH=/secure/keys/public.pem

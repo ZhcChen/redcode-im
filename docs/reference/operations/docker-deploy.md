@@ -67,13 +67,14 @@ docker compose -f backend/docker/release/docker-compose.yml down -v
 如需手动控制：
 
 ```bash
-docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend
+docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis backend
 docker compose -f tests/docker-compose.yml run --rm go-tests
 docker compose -f tests/docker-compose.yml down -v --remove-orphans
 ```
 
 说明：
 - 测试栈不要复用 dev / release 栈
+- 测试栈只启动一个 Redis；backend 的 session / pubsub / cache 三个逻辑入口都指向该 Redis
 - 测试栈包含 `external-mock`，用于模拟 OAuth / B2/S3 兼容对象存储 / FCM / IPInfo 等外部依赖
 
 ## Website 与 Admin 独立 Compose

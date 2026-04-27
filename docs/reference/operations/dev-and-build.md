@@ -32,7 +32,13 @@
    - 如果数据库**非空但缺少 `db_migrations`**，backend 默认会拒绝自动 adopt；本地旧环境更推荐直接重建数据库 / volume。
 5. **宿主机本地调试（可选）**：仅在需要直接运行宿主机进程时使用。
    ```bash
-   docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache
+   # dev Compose 的 PostgreSQL / Redis 不映射宿主机端口；
+   # 宿主机 cargo run 需使用本机可访问的 PostgreSQL / Redis。
+   ./start-redis.sh start
+   DATABASE_URL=postgresql://postgres:123456@localhost:5432/redcode_im \
+   REDIS_SESSION_URL=redis://localhost:6381 \
+   REDIS_PUBSUB_URL=redis://localhost:6381 \
+   REDIS_CACHE_URL=redis://localhost:6381 \
    RUST_LOG=debug cargo run
    ```
    - `cargo run` 会自动执行数据库迁移并启动 HTTP 服务。
@@ -65,7 +71,7 @@ cargo build --release
 
 #### 方案 B：使用 Docker 镜像交叉编译（推荐生成 Linux/musl 二进制）
 
-在执行交叉编译前，请确保 PostgreSQL/Redis 服务已在宿主机监听（可通过 `docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache` 启动默认依赖）。
+在执行交叉编译前，请确保 PostgreSQL/Redis 服务已在宿主机监听，或设置 `SQLX_OFFLINE=1` 使用已准备好的 SQLx 元数据。dev Compose 的 PostgreSQL/Redis 默认不映射宿主机端口，不能作为宿主机直连依赖。
 ```bash
 docker run --rm \
   --add-host=host.docker.internal:host-gateway \

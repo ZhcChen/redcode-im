@@ -92,7 +92,7 @@ trap cleanup EXIT
 start_deps() {
   echo "[tests] project=${COMPOSE_PROJECT_NAME}" >&2
   echo "[tests] 启动 backend contract 依赖（external-mock / postgres / redis）..." >&2
-  dc up -d --build external-mock postgres redis-session redis-cache >/dev/null
+  dc up -d --build external-mock postgres redis >/dev/null
 }
 
 run_rust_lib() {

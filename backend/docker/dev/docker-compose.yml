@@ -22,12 +22,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # Session 专用 Redis - 持久化模式
-  redis-session:
+  # Redis（session / pubsub / cache 三个逻辑入口共用）
+  redis:
     image: redis:7-alpine
-    container_name: redcode-dev-redis-session
+    container_name: redcode-dev-redis
     volumes:
-      - redis_session_data:/data
+      - redis_data:/data
     command: >
       redis-server
       --port 6379
@@ -38,26 +38,6 @@ services:
       --save 60 10000
       --maxmemory 128mb
       --maxmemory-policy volatile-lru
-    networks:
-      - dev-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
-  # Cache 专用 Redis - 纯缓存模式
-  redis-cache:
-    image: redis:7-alpine
-    container_name: redcode-dev-redis-cache
-    command: >
-      redis-server
-      --port 6379
-      --requirepass 123456
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
-      --save ""
     networks:
       - dev-network
     restart: unless-stopped
@@ -86,9 +66,9 @@ services:
       PORT: "8010"
       RUST_LOG: debug
       DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
-      REDIS_SESSION_URL: redis://:123456@redis-session:6379/0
-      REDIS_PUBSUB_URL: redis://:123456@redis-session:6379/0
-      REDIS_CACHE_URL: redis://:123456@redis-cache:6379/0
+      REDIS_SESSION_URL: redis://:123456@redis:6379/0
+      REDIS_PUBSUB_URL: redis://:123456@redis:6379/0
+      REDIS_CACHE_URL: redis://:123456@redis:6379/0
       SQLX_OFFLINE: "true"
       JWT_SECRET: dev-secret-change-me
       TZ: Asia/Shanghai
@@ -96,9 +76,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis-session:
-        condition: service_healthy
-      redis-cache:
+      redis:
         condition: service_healthy
     networks:
       - dev-network
@@ -113,8 +91,8 @@ services:
 volumes:
   postgres_data:
     name: redcode_dev_postgres_data
-  redis_session_data:
-    name: redcode_dev_redis_session_data
+  redis_data:
+    name: redcode_dev_redis_data
   cargo_target:
     name: redcode_dev_cargo_target
   cargo_registry:

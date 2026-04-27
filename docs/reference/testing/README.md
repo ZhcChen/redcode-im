@@ -77,7 +77,11 @@ cd website && bun run test
 ./tests/run.sh go
 ```
 
-说明：Go 黑盒契约测试默认按包串行执行（`-p 1`），避免共享同一 backend / DB 时发生状态竞争。
+说明：
+- Go 黑盒契约测试默认按包串行执行（`-p 1`），避免共享同一 backend / DB 时发生状态竞争。
+- `tests/docker-compose.yml` 将 backend / PostgreSQL / Redis 放在同一个 Compose 网络中。
+- 测试栈只启动一个 Redis，backend 的 `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 都指向该实例。
+- PostgreSQL / Redis 不映射宿主机端口。
 
 ### Makefile 入口
 ```bash

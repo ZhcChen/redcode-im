@@ -1,6 +1,9 @@
-# 重构后的最小测试栈：
+# backend contract 最小测试栈：
 # - 统一为 tests/run.sh 入口
 # - 不依赖测试可视化 Dashboard
+# - API / PostgreSQL / Redis 放在同一个 Compose 网络内
+# - PostgreSQL / Redis 不映射宿主机端口
+# - 只启动一个 Redis，backend 的 session / pubsub / cache 三个逻辑入口都指向它
 
 x-rust-service: &rust_service
   build:
@@ -20,9 +23,9 @@ x-rust-service: &rust_service
     RUSTFLAGS: "-C debuginfo=0 -C codegen-units=1"
     PORT: "8010"
     DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
-    REDIS_SESSION_URL: redis://:123456@redis-session:6381/0
-    REDIS_PUBSUB_URL: redis://:123456@redis-session:6381/0
-    REDIS_CACHE_URL: redis://:123456@redis-cache:6383/0
+    REDIS_SESSION_URL: redis://:123456@redis:6379/0
+    REDIS_PUBSUB_URL: redis://:123456@redis:6379/0
+    REDIS_CACHE_URL: redis://:123456@redis:6379/0
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me
     PUSH_ENABLED: "true"
@@ -65,22 +68,13 @@ services:
       timeout: 5s
       retries: 20
 
-  redis-session:
+  redis:
     image: redis:8.2.2-alpine
-    command: ["redis-server", "--port", "6381", "--requirepass", "123456", "--appendonly", "yes"]
+    command: ["redis-server", "--port", "6379", "--requirepass", "123456", "--appendonly", "yes"]
     volumes:
-      - redis_session_data:/data
+      - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6381", "-a", "123456", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  redis-cache:
-    image: redis:8.2.2-alpine
-    command: ["redis-server", "--port", "6383", "--requirepass", "123456"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6383", "-a", "123456", "ping"]
+      test: ["CMD", "redis-cli", "-p", "6379", "-a", "123456", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -93,9 +87,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      redis-session:
-        condition: service_healthy
-      redis-cache:
+      redis:
         condition: service_healthy
 
   backend:
@@ -106,9 +98,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      redis-session:
-        condition: service_healthy
-      redis-cache:
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8010/healthz >/dev/null || exit 1"]
@@ -136,7 +126,7 @@ services:
 
 volumes:
   postgres_data:
-  redis_session_data:
+  redis_data:
   cargo_target:
   cargo_registry:
   cargo_git:

@@ -1,8 +1,9 @@
-# Redis 多实例配置指南
+# Redis 配置指南
 
 ## 概述
 
-当前仓库的 backend 采用 **3 个逻辑 Redis 入口**，部署上可映射到 **1~3 套 Redis 实例**：
+当前仓库的 backend 采用 **3 个逻辑 Redis 入口**，部署上可映射到 **1~3 套 Redis 实例**。
+本地开发、测试与验收默认只启动 **1 套 Redis**，并把三个逻辑入口都指向同一个 Redis 实例，避免浪费本机资源。
 
 - **Session Redis**
   - 用途：用户会话、节点心跳、跨节点在线态
@@ -30,11 +31,10 @@ docker compose -f backend/docker/dev/docker-compose.yml down -v
 
 特点：
 
-- Compose 内部网络里有两个 Redis 服务：`redis-session`、`redis-cache`
-- 两个容器内部都监听 `6379`
+- Compose 内部网络里只有一个 Redis 服务：`redis`
+- Redis 容器内部监听 `6379`
 - backend 通过服务名连接：
-  - `redis://:123456@redis-session:6379/0`
-  - `redis://:123456@redis-cache:6379/0`
+  - `redis://:123456@redis:6379/0`
 - 开发栈 **不会把 Redis 端口映射到宿主机**
 
 ### 2. 测试隔离栈
@@ -42,22 +42,22 @@ docker compose -f backend/docker/dev/docker-compose.yml down -v
 使用 `tests/docker-compose.yml`：
 
 ```bash
-docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis-session redis-cache backend
+docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis backend
 docker compose -f tests/docker-compose.yml run --rm go-tests
 docker compose -f tests/docker-compose.yml down -v --remove-orphans
 ```
 
-测试栈里 Redis 明确拆成：
+测试栈里 Redis 只启动一套：
 
-- `redis-session`：容器内监听 `6381`
-- `redis-cache`：容器内监听 `6383`
+- `redis`：容器内监听 `6379`
+- PostgreSQL / Redis 均不映射宿主机端口
 
 backend 对应环境变量：
 
 ```bash
-REDIS_SESSION_URL=redis://:123456@redis-session:6381/0
-REDIS_PUBSUB_URL=redis://:123456@redis-session:6381/0
-REDIS_CACHE_URL=redis://:123456@redis-cache:6383/0
+REDIS_SESSION_URL=redis://:123456@redis:6379/0
+REDIS_PUBSUB_URL=redis://:123456@redis:6379/0
+REDIS_CACHE_URL=redis://:123456@redis:6379/0
 ```
 
 ### 3. 宿主机本地 Redis（可选，不是默认）
@@ -71,11 +71,9 @@ cd backend
 ./start-redis.sh stop
 ```
 
-该模式默认使用：
+该模式默认使用一套本地 Redis：
 
-- Session Redis：`localhost:6381`
-- Pub/Sub Redis：默认复用 Session Redis（可显式设为 `localhost:6381`）
-- Cache Redis：未设置时默认复用 Session Redis；如需独立缓存实例可设为 `localhost:6383`
+- Session / Pub/Sub / Cache：`localhost:6381`
 
 与 `backend/src/redis/mod.rs` 的默认回退值一致。
 
@@ -94,7 +92,7 @@ REDIS_SESSION_URL=redis://localhost:6381
 ```bash
 REDIS_SESSION_URL=redis://localhost:6381
 REDIS_PUBSUB_URL=redis://localhost:6381
-REDIS_CACHE_URL=redis://localhost:6383
+REDIS_CACHE_URL=redis://localhost:6381
 ```
 
 如果 Redis 开启密码，例如本仓库 Compose 默认密码 `123456`：
@@ -102,7 +100,7 @@ REDIS_CACHE_URL=redis://localhost:6383
 ```bash
 REDIS_SESSION_URL=redis://:123456@localhost:6381/0
 REDIS_PUBSUB_URL=redis://:123456@localhost:6381/0
-REDIS_CACHE_URL=redis://:123456@localhost:6383/0
+REDIS_CACHE_URL=redis://:123456@localhost:6381/0
 ```
 
 ## 代码内职责划分
@@ -115,8 +113,8 @@ REDIS_CACHE_URL=redis://:123456@localhost:6383/0
 
 也就是说，当前是 **三类逻辑入口**，但不要求三套物理 Redis：
 
-- **1 套 Redis**：session + pub/sub + cache 都复用同一实例
-- **2 套 Redis**：session/pubsub 一套，cache 一套（当前 Compose 默认）
+- **1 套 Redis**：session + pub/sub + cache 都复用同一实例（当前本地 Compose 默认）
+- **2 套 Redis**：session/pubsub 一套，cache 一套
 - **3 套 Redis**：session / pubsub / cache 各自独立
 
 ## 常见键空间
@@ -146,24 +144,21 @@ cache:download_url:{object_key}:{provider_id}:{expires_in}
 
 ```bash
 docker compose -f backend/docker/dev/docker-compose.yml ps
-docker compose -f backend/docker/dev/docker-compose.yml logs -f redis-session
-docker compose -f backend/docker/dev/docker-compose.yml logs -f redis-cache
+docker compose -f backend/docker/dev/docker-compose.yml logs -f redis
 ```
 
 ### 宿主机本地 Redis
 
 ```bash
 redis-cli -p 6381 ping
-redis-cli -p 6383 ping
 
 redis-cli -p 6381 info memory
-redis-cli -p 6383 info memory
 ```
 
-### 清理缓存 Redis
+### 清理本地 Redis
 
 ```bash
-redis-cli -p 6383 flushall
+redis-cli -p 6381 flushall
 ```
 
 ## 故障排查
@@ -184,15 +179,14 @@ redis-cli -p 6383 flushall
 
 ```bash
 lsof -i :6381
-lsof -i :6383
 ```
 
-### 为什么 dev Compose 里 Redis 端口是 6379，而代码默认回退是 6381/6383？
+### 为什么 dev Compose 里 Redis 端口是 6379，而代码默认回退是 6381？
 
 因为这是两种不同运行形态：
 
-- **Compose 内部容器网络**：每个 Redis 容器内部都可监听 `6379`
-- **宿主机本地直连模式**：为了区分两套 Redis，使用 `6381/6383`
+- **Compose 内部容器网络**：Redis 容器内部监听 `6379`
+- **宿主机本地直连模式**：本地 Redis 使用 `6381`
 
 只要 `REDIS_SESSION_URL`、`REDIS_PUBSUB_URL`、`REDIS_CACHE_URL` 与当前运行形态匹配，或明确依赖回退规则即可。
 

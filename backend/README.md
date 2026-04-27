@@ -52,7 +52,13 @@ docker compose -f docker/dev/docker-compose.yml logs -f backend
 如需宿主机本地进程调试（非默认方式）：
 
 ```bash
-docker compose -f docker/dev/docker-compose.yml up -d postgres redis-session redis-cache
+# dev Compose 的 PostgreSQL / Redis 不映射宿主机端口；
+# 宿主机 cargo run 需使用本机可访问的 PostgreSQL / Redis。
+./start-redis.sh start
+DATABASE_URL=postgresql://postgres:123456@localhost:5432/redcode_im \
+REDIS_SESSION_URL=redis://localhost:6381 \
+REDIS_PUBSUB_URL=redis://localhost:6381 \
+REDIS_CACHE_URL=redis://localhost:6381 \
 RUST_LOG=debug cargo run
 ```
 

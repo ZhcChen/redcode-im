@@ -52,7 +52,7 @@ backend/
 export DATABASE_URL="postgresql://user:pass@host:5432/db"
 export REDIS_SESSION_URL="redis://:password@host:6381"
 export REDIS_PUBSUB_URL="redis://:password@host:6381"
-export REDIS_CACHE_URL="redis://:password@host:6383"
+export REDIS_CACHE_URL="redis://:password@host:6381"
 export JWT_SECRET="your-jwt-secret"
 export PORT=8080
 export RUST_LOG=info
