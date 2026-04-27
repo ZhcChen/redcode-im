@@ -8,6 +8,15 @@
 - `tests/go/`：backend HTTP / WS 黑盒契约测试
 - `tests/mocks/external/`：第三方依赖 mock（OAuth / Push / B2/S3 兼容对象存储 / IPInfo）
 
+## 对象存储 mock
+backend contract 栈默认把 Backblaze B2 / S3 兼容对象存储指向 `external-mock`：
+
+- B2 authorize：`http://external-mock:19080/b2api/v4/b2_authorize_account`
+- S3 endpoint：`http://external-mock:19080`
+- bucket：`mock-bucket`
+
+测试过程中不要把 contract 栈改成线上 Backblaze B2 endpoint，避免消耗真实对象存储资源。
+
 ## 不包含内容
 - frontend 单元 / widget / integration 测试
 - admin 页面测试 / Playwright 规范
@@ -24,6 +33,7 @@
 make tests.run
 make tests.go
 make tests.rust
+make tests.all
 
 ./tests/run.sh
 ./tests/run.sh rust
@@ -33,3 +43,4 @@ make tests.rust
 说明：
 - `make tests.*` 是仓库根目录的推荐入口。
 - `tests/run.sh` 是底层 backend contract 执行脚本，适合排障或独立运行。
+- `make tests.all` 是兼容入口，实际转到仓库全量本地测试 `make test.all`。

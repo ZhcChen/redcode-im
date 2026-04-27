@@ -113,6 +113,8 @@ func (s *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleCreateGoogleIDToken(w, r)
 	case r.Method == http.MethodPost && path == "/mock/apple/id-token":
 		s.handleCreateAppleIDToken(w, r)
+	case r.Method == http.MethodGet && path == "/b2api/v4/b2_authorize_account":
+		s.handleB2AuthorizeAccount(w, r)
 	case strings.HasPrefix(path, "/fcm/v1/projects/") && strings.HasSuffix(path, "/messages:send") && r.Method == http.MethodPost:
 		s.handleFCMSend(w, r)
 	case strings.HasPrefix(path, "/ipinfo/") && strings.HasSuffix(path, "/json") && r.Method == http.MethodGet:
@@ -212,6 +214,58 @@ func (s *mockServer) handleCreateAppleIDToken(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, map[string]any{"id_token": signed})
 }
 
+func (s *mockServer) handleB2AuthorizeAccount(w http.ResponseWriter, r *http.Request) {
+	keyID, applicationKey, ok := r.BasicAuth()
+	if !ok || strings.TrimSpace(keyID) == "" || strings.TrimSpace(applicationKey) == "" {
+		writeJSON(w, http.StatusUnauthorized, map[string]any{
+			"status":  401,
+			"code":    "unauthorized",
+			"message": "missing basic auth",
+		})
+		return
+	}
+
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	s3APIURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+
+	s.mu.RLock()
+	buckets := make([]any, 0, len(s.buckets))
+	for name := range s.buckets {
+		buckets = append(buckets, map[string]any{
+			"id":   "bucket-" + name,
+			"name": name,
+		})
+	}
+	s.mu.RUnlock()
+	sort.Slice(buckets, func(i, j int) bool {
+		left := buckets[i].(map[string]any)["name"].(string)
+		right := buckets[j].(map[string]any)["name"].(string)
+		return left < right
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"apiInfo": map[string]any{
+			"storageApi": map[string]any{
+				"s3ApiUrl": s3APIURL,
+				"allowed": map[string]any{
+					"buckets": buckets,
+					"capabilities": []string{
+						"deleteFiles",
+						"listBuckets",
+						"readFiles",
+						"writeBuckets",
+						"writeFiles",
+					},
+					"namePrefix": nil,
+				},
+			},
+		},
+	})
+}
+
 func (s *mockServer) handleFCMSend(w http.ResponseWriter, r *http.Request) {
 	var payload map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -278,6 +332,10 @@ func (s *mockServer) handleObjectStorage(w http.ResponseWriter, r *http.Request)
 		writeText(w, http.StatusBadRequest, "invalid object key")
 		return
 	}
+	if r.Method == http.MethodPut && !strings.Contains(strings.TrimPrefix(path, "/"), "/") {
+		s.handleObjectStorageCreateBucket(w, key)
+		return
+	}
 
 	if _, ok := query["uploads"]; ok && r.Method == http.MethodPost {
 		s.handleObjectStorageMultipartInitiate(w, key)
@@ -312,6 +370,19 @@ func (s *mockServer) handleObjectStorage(w http.ResponseWriter, r *http.Request)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (s *mockServer) handleObjectStorageCreateBucket(w http.ResponseWriter, bucketName string) {
+	bucketName = strings.TrimSpace(bucketName)
+	if bucketName == "" {
+		writeText(w, http.StatusBadRequest, "bucket name is empty")
+		return
+	}
+
+	s.mu.Lock()
+	s.buckets[bucketName] = time.Now().UTC()
+	s.mu.Unlock()
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *mockServer) handleObjectStorageBucketRoot(w http.ResponseWriter, r *http.Request) {

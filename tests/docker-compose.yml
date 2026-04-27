@@ -29,8 +29,18 @@ x-rust-service: &rust_service
     REDCODE_IM_MACHINE_ID: docker-test-machine-id
     JWT_SECRET: dev-secret-change-me
     PUSH_ENABLED: "true"
+    # 测试栈对象存储必须走 external-mock，避免访问线上 B2。
     REDCODE_IM_STORAGE_DISABLE_NETWORK: "false"
     REDCODE_IM_STORAGE_SCHEME: "http"
+    REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL: "http://external-mock:19080/b2api/v4/b2_authorize_account"
+    REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT: "true"
+    REDCODE_IM_B2_ENDPOINT: "http://external-mock:19080"
+    REDCODE_IM_B2_REGION: "us-east-005"
+    REDCODE_IM_B2_KEY_ID: "mock-key-id"
+    REDCODE_IM_B2_APPLICATION_KEY: "mock-application-key"
+    REDCODE_IM_B2_PRIVATE_BUCKET: "mock-bucket"
+    REDCODE_IM_B2_PUBLIC_BUCKET: "mock-bucket"
+    REDCODE_IM_B2_PUBLIC_BASE_URL: "http://external-mock:19080/mock-bucket"
     GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
     APPLE_OAUTH_CLIENT_ID: "mock-apple-client-id"
     GOOGLE_OIDC_JWKS_URL: "http://external-mock:19080/google/oauth2/v3/certs"

@@ -41,11 +41,24 @@ cd backend && cargo test
 ```bash
 cd frontend && flutter analyze
 cd frontend && flutter test
+make frontend.test.integration.smoke
 ```
 
 默认 frontend 真机 / 集成测试设备：`Pixel 8 Pro (3A091FDJG001DN)`。
 后续未特别说明时，frontend 模块的真机 smoke、integration、联调验证默认都在这台设备上执行。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP。
+推荐使用 Makefile 入口自动完成：
+
+```bash
+# 不访问真实 backend，快速验证 integration harness
+make frontend.test.integration.smoke
+
+# 本机 backend 联通性验证（默认 macos + http://127.0.0.1:8010）
+make frontend.test.integration.network
+
+# 真机联调验证：自动检测当前 LAN IP，默认 Pixel 8 Pro
+make frontend.test.integration.device
+```
 
 ### Frontend iOS Simulator / Patrol
 ```bash
@@ -82,9 +95,15 @@ cd website && bun run test
 - `tests/docker-compose.yml` 将 backend / PostgreSQL / Redis 放在同一个 Compose 网络中。
 - 测试栈只启动一个 Redis，backend 的 `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 都指向该实例。
 - PostgreSQL / Redis 不映射宿主机端口。
+- B2 / S3 兼容对象存储默认走 `tests/mocks/external` 的 `external-mock`：
+  - `REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL=http://external-mock:19080/b2api/v4/b2_authorize_account`
+  - `REDCODE_IM_B2_ENDPOINT=http://external-mock:19080`
+  - 测试环境禁止使用线上 Backblaze B2 endpoint 消耗对象存储资源。
 
 ### Makefile 入口
 ```bash
+make test.all
+
 make backend.test.unit
 make backend.test.integration
 make backend.test.smoke
@@ -95,6 +114,9 @@ make frontend.test.core
 make frontend.test.chat
 make frontend.test.widgets
 make frontend.test.features
+make frontend.test.integration.smoke
+make frontend.test.integration.network
+make frontend.test.integration.device
 make frontend.test.patrol.harness
 make frontend.test.patrol.login
 
@@ -120,6 +142,7 @@ make website.test
 make tests.run
 make tests.contract
 make tests.go
+make tests.all
 ```
 
 ---
@@ -141,6 +164,7 @@ cd backend && cargo test
 - backend contract
 - admin route / core flow smoke
 - frontend integration smoke
+- backend + frontend 联调时先启动 backend，再跑 `make frontend.test.integration.network`；真机联调用 `make frontend.test.integration.device`。
 
 ---
 
@@ -149,3 +173,4 @@ cd backend && cargo test
 - `tests/run.sh` 默认跑 backend contract 全量：Rust lib + Rust integration + Go contract
 - `tests/` 不承载 frontend / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
+- 仓库根目录 `make test.all` 是本地全量测试编排入口，内部仍调用各模块自己的测试命令。

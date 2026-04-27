@@ -87,6 +87,40 @@ vim .env.development.local
 
 ---
 
+## 集成测试脚本
+
+### test_integration.sh
+
+统一 frontend integration 入口，Makefile 已封装常用命令：
+
+```bash
+# 不访问真实 backend，快速验证 integration harness
+make frontend.test.integration.smoke
+
+# 访问本机 backend，默认 macos + http://127.0.0.1:8010
+make frontend.test.integration.network
+
+# 真机联调：每次自动检测当前 LAN IP，默认 Pixel 8 Pro
+make frontend.test.integration.device
+```
+
+也可直接调用脚本：
+
+```bash
+./scripts/test_integration.sh smoke
+./scripts/test_integration.sh network --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
+./scripts/test_integration.sh device --device 3A091FDJG001DN
+```
+
+`device` 模式会在每次执行前重新检测当前本机局域网 IP，并注入：
+
+```bash
+API_BASE_URL=http://<LAN_IP>:8010
+WS_URL=ws://<LAN_IP>:8010/ws
+```
+
+---
+
 ## 构建脚本
 
 ### build.sh（推荐）
@@ -141,6 +175,7 @@ scripts/
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
 ├── run_flutter.sh           # 基础运行脚本（默认 Pixel 8 Pro 真机）
+├── test_integration.sh      # integration smoke / backend 联通 / 真机联调测试
 │
 ├── build_android.sh         # Android 打包（传统）
 ├── build_ipa.sh             # iOS 打包（传统）

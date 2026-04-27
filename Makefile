@@ -37,8 +37,11 @@ DESKTOP_LOG := /tmp/redcode-desktop.log
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 FRONTEND_ENV ?= .env.development
 FLUTTER_DEVICE ?= 3A091FDJG001DN
+FRONTEND_TEST_DEVICE ?= macos
 FRONTEND_ANDROID_ENV ?= production
 FRONTEND_IOS_ENV ?= production
+FRONTEND_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+FRONTEND_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 PATROL_IOS_DEVICE ?= iPhone 17 Pro
 PATROL_TEST_SERVER_PORT ?= 19081
 PATROL_APP_SERVER_PORT ?= 19082
@@ -54,12 +57,12 @@ define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
-.PHONY: help status install.all dev.up dev.down dev.logs \
+.PHONY: help status install.all test.all tests.all dev.up dev.down dev.logs \
 	backend.up backend.down backend.restart backend.reset backend.logs backend.ps backend.test backend.test.unit backend.test.integration backend.test.smoke \
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
+	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.device frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
 	api-up api-down api-logs api-ps tests \
@@ -97,6 +100,17 @@ install.all: ## 安装 admin / desktop / website 依赖，并拉取 frontend 依
 	@$(MAKE) desktop.install
 	@$(MAKE) website.install
 	@$(MAKE) frontend.install
+
+test.all: ## 运行仓库全量本地测试入口（backend contract + frontend + admin + desktop + website）
+	@$(MAKE) tests.contract
+	@$(MAKE) frontend.check
+	@$(MAKE) frontend.test.unit
+	@$(MAKE) frontend.test.integration.smoke
+	@$(MAKE) admin.check
+	@$(MAKE) admin.test.routes
+	@$(MAKE) desktop.check
+	@$(MAKE) desktop.test.unit
+	@$(MAKE) website.test.unit
 
 dev.up: ## 启动常用开发链路（backend + admin + website）
 	@$(MAKE) backend.up
@@ -313,6 +327,18 @@ frontend.test.features: ## 执行 frontend features 模型测试
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/features
 
+frontend.test.integration.smoke: ## 执行 frontend integration smoke（不访问真实 backend）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh smoke
+
+frontend.test.integration.network: ## 执行 frontend network integration（默认 macos + 127.0.0.1:8010，可覆盖 FRONTEND_TEST_DEVICE / FRONTEND_API_BASE_URL / FRONTEND_WS_URL）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh network --device "$(FRONTEND_TEST_DEVICE)"
+
+frontend.test.integration.device: ## 执行 frontend 真机 network integration（自动检测 LAN IP，默认 Pixel 8 Pro）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"
+
 frontend.test.patrol.harness: ## 执行 frontend iOS Patrol harness smoke（可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
 	@cd "$(FRONTEND_DIR)" && $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_IOS_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
@@ -395,6 +421,8 @@ tests.rust-integration: ## 仅运行 backend Rust 集成测试
 
 tests.run: ## 兼容旧命令：运行 backend contract 全量测试栈
 	@bash "$(TESTS_SCRIPT)" all
+
+tests.all: test.all ## 兼容命令：运行仓库全量本地测试入口
 
 # 兼容旧命令 ---------------------------------------------------------------
 

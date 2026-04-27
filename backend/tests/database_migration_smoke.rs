@@ -261,6 +261,28 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
 }
 
 #[tokio::test]
+async fn explicit_adopt_rejects_schema_missing_latest_tables(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let _lock = ENV_LOCK.lock().await;
+    let temp = TempDatabase::create().await?;
+    let db = run_migrate(&temp.url).await?;
+    sqlx::query("DROP TABLE object_storage_configs")
+        .execute(db.pool())
+        .await?;
+    sqlx::query("DROP TABLE db_migrations")
+        .execute(db.pool())
+        .await?;
+    db.pool.close().await;
+
+    let _adopt_guard = EnvGuard::set(ADOPT_ENV, "true");
+    let err = migrate_error(&temp.url).await?;
+    assert!(err.contains("table:object_storage_configs"));
+
+    temp.cleanup().await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn checksum_mismatch_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
     let _lock = ENV_LOCK.lock().await;
     let temp = TempDatabase::create().await?;

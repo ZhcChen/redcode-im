@@ -228,19 +228,10 @@ impl Database {
             );
             ensure_database_matches_current_baseline(&mut **conn).await?;
 
-            tracing::info!(
-                "结构校验通过：补记当前基线 {:?} 已执行",
-                BASE_MIGRATION_NAME
-            );
-            self.insert_migration_record(
-                &mut **conn,
-                BASE_MIGRATION_NAME,
-                &migration_checksum(BASE_MIGRATION_SQL),
-            )
-            .await?;
-
-            if MIGRATIONS.len() > 1 {
-                self.apply_migrations(conn, &MIGRATIONS[1..]).await?;
+            tracing::info!("结构校验通过：补记当前迁移链已执行");
+            for (name, sql) in MIGRATIONS {
+                self.insert_migration_record(&mut **conn, name, &migration_checksum(sql))
+                    .await?;
             }
 
             tracing::info!("迁移记录表已建立，当前数据库已 adopt 为最新基线");
@@ -506,6 +497,7 @@ async fn ensure_database_matches_current_baseline(
         "push_job_queue",
         "user_oauth_accounts",
         "e2ee_identity_keys",
+        "object_storage_configs",
     ];
     const REQUIRED_VIEWS: &[&str] = &["group_detail_view"];
     const REQUIRED_COLUMNS: &[(&str, &str)] = &[

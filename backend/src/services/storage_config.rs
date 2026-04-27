@@ -38,7 +38,7 @@ const DEFAULT_REGION: &str = "us-east-005";
 const DEFAULT_PRIVATE_BUCKET: &str = "redcode-im-private";
 const DEFAULT_UPLOAD_URL_TTL_SECONDS: u32 = 900;
 const DEFAULT_DOWNLOAD_URL_TTL_SECONDS: u32 = 600;
-const BACKBLAZE_AUTHORIZE_ACCOUNT_URL: &str =
+const DEFAULT_BACKBLAZE_AUTHORIZE_ACCOUNT_URL: &str =
     "https://api.backblazeb2.com/b2api/v4/b2_authorize_account";
 const DEFAULT_PROVIDER_SYNC_NAME: &str = "system-b2-runtime";
 const DEFAULT_PROVIDER_SYNC_DESCRIPTION: &str = "由对象存储运行时配置同步";
@@ -1198,7 +1198,7 @@ impl BackblazeOpsExecutor {
     ) -> Result<AuthorizedAccount, AppError> {
         let response = self
             .client
-            .get(BACKBLAZE_AUTHORIZE_ACCOUNT_URL)
+            .get(backblaze_authorize_account_url())
             .basic_auth(key_id.trim(), Some(application_key.trim()))
             .send()
             .await
@@ -1271,6 +1271,20 @@ impl BackblazeOpsExecutor {
             name_prefix: optional_string(allowed.name_prefix.unwrap_or_default()),
         })
     }
+}
+
+fn backblaze_authorize_account_url() -> String {
+    env::var("REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_BACKBLAZE_AUTHORIZE_ACCOUNT_URL.to_string())
+}
+
+fn allow_mock_b2_endpoint() -> bool {
+    env::var("REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT")
+        .ok()
+        .is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true"))
 }
 
 async fn build_s3_client(
@@ -1382,10 +1396,21 @@ fn backblaze_region_from_s3_api_url(url: &str) -> Result<String, AppError> {
         .host_str()
         .ok_or_else(|| AppError::ValidationError(format!("无效的 B2 S3 API URL: {url}")))?;
     let host = host.strip_prefix("s3.").unwrap_or(host);
-    let host = host
-        .strip_suffix(".backblazeb2.com")
-        .ok_or_else(|| AppError::ValidationError(format!("无法从 URL 推断 B2 region: {url}")))?;
-    Ok(host.to_string())
+    if let Some(region) = host.strip_suffix(".backblazeb2.com") {
+        return Ok(region.to_string());
+    }
+
+    if allow_mock_b2_endpoint() {
+        return Ok(env::var("REDCODE_IM_B2_REGION")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_REGION.to_string()));
+    }
+
+    Err(AppError::ValidationError(format!(
+        "无法从 URL 推断 B2 region: {url}"
+    )))
 }
 
 #[cfg(test)]
@@ -1454,6 +1479,32 @@ mod tests {
     fn backblaze_region_from_s3_api_url_works() {
         assert_eq!(
             backblaze_region_from_s3_api_url("https://s3.us-east-005.backblazeb2.com").unwrap(),
+            "us-east-005"
+        );
+    }
+
+    #[test]
+    fn backblaze_authorize_account_url_can_use_mock() {
+        let _lock = env_lock().lock().unwrap();
+        let _url = TestEnvGuard::set(
+            "REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL",
+            "http://external-mock:19080/b2api/v4/b2_authorize_account",
+        );
+
+        assert_eq!(
+            backblaze_authorize_account_url(),
+            "http://external-mock:19080/b2api/v4/b2_authorize_account"
+        );
+    }
+
+    #[test]
+    fn mock_s3_api_url_uses_env_region_when_explicitly_allowed() {
+        let _lock = env_lock().lock().unwrap();
+        let _allow = TestEnvGuard::set("REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT", "true");
+        let _region = TestEnvGuard::set("REDCODE_IM_B2_REGION", "us-east-005");
+
+        assert_eq!(
+            backblaze_region_from_s3_api_url("http://external-mock:19080").unwrap(),
             "us-east-005"
         );
     }

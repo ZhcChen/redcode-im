@@ -113,6 +113,55 @@ func TestCreateGoogleIDToken(t *testing.T) {
 	}
 }
 
+func TestB2AuthorizeAccount(t *testing.T) {
+	_, ts := newTestServer()
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/b2api/v4/b2_authorize_account", nil)
+	if err != nil {
+		t.Fatalf("build request failed: %v", err)
+	}
+	req.SetBasicAuth("mock-key-id", "mock-application-key")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expect 200, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var payload struct {
+		APIInfo struct {
+			StorageAPI struct {
+				S3APIURL string `json:"s3ApiUrl"`
+				Allowed  struct {
+					Buckets []struct {
+						Name string `json:"name"`
+					} `json:"buckets"`
+					Capabilities []string `json:"capabilities"`
+				} `json:"allowed"`
+			} `json:"storageApi"`
+		} `json:"apiInfo"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode authorize response failed: %v", err)
+	}
+	if payload.APIInfo.StorageAPI.S3APIURL != ts.URL {
+		t.Fatalf("expect s3ApiUrl=%s, got %s", ts.URL, payload.APIInfo.StorageAPI.S3APIURL)
+	}
+	if len(payload.APIInfo.StorageAPI.Allowed.Buckets) == 0 || payload.APIInfo.StorageAPI.Allowed.Buckets[0].Name != "mock-bucket" {
+		t.Fatalf("expected mock-bucket in allowed buckets: %+v", payload.APIInfo.StorageAPI.Allowed.Buckets)
+	}
+	if !containsString(payload.APIInfo.StorageAPI.Allowed.Capabilities, "readFiles") ||
+		!containsString(payload.APIInfo.StorageAPI.Allowed.Capabilities, "writeFiles") ||
+		!containsString(payload.APIInfo.StorageAPI.Allowed.Capabilities, "writeBuckets") {
+		t.Fatalf("missing expected capabilities: %+v", payload.APIInfo.StorageAPI.Allowed.Capabilities)
+	}
+}
+
 func TestFCMSendScenarios(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()
@@ -221,6 +270,33 @@ func TestObjectStorageObjectLifecycle(t *testing.T) {
 	}
 }
 
+func TestObjectStorageCreateBucketPathStyle(t *testing.T) {
+	_, ts := newTestServer()
+	defer ts.Close()
+
+	createResp, err := http.DefaultClient.Do(newRequest(t, http.MethodPut, ts.URL+"/new-bucket", nil))
+	if err != nil {
+		t.Fatalf("create bucket failed: %v", err)
+	}
+	createResp.Body.Close()
+	if createResp.StatusCode != http.StatusOK {
+		t.Fatalf("create bucket expect 200, got %d", createResp.StatusCode)
+	}
+
+	listResp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("list buckets failed: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("list buckets expect 200, got %d", listResp.StatusCode)
+	}
+	body, _ := io.ReadAll(listResp.Body)
+	if !strings.Contains(string(body), "<Name>new-bucket</Name>") {
+		t.Fatalf("new bucket missing from list response: %s", string(body))
+	}
+}
+
 func TestObjectStorageMultipartLifecycle(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()
@@ -297,4 +373,13 @@ func extractTag(source, tag string) string {
 		return ""
 	}
 	return strings.TrimSpace(m[1])
+}
+
+func containsString(items []string, expected string) bool {
+	for _, item := range items {
+		if item == expected {
+			return true
+		}
+	}
+	return false
 }
