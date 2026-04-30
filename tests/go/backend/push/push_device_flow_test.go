@@ -37,8 +37,8 @@ func TestPushDeviceRegisterSendAndUnregister_OK(t *testing.T) {
 	configurePushSettings(t, c, admin.Token, serviceAccount)
 
 	password := "pass123456"
-	senderName := testutil.UniqueUsername("pusha")
-	targetName := testutil.UniqueUsername("pushb")
+	senderName := testutil.UniqueEmail("pusha")
+	targetName := testutil.UniqueEmail("pushb")
 	sender := registerAndLogin(t, c, senderName, password)
 	target := registerAndLogin(t, c, targetName, password)
 	room := testutil.CreateGroupRoom(t, c, sender.Token, target.User.ID, "push-room")

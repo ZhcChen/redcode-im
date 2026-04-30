@@ -13,14 +13,14 @@ import (
 func TestUserSearchAndUpdateMe_OK(t *testing.T) {
 	c := testutil.NewClient()
 
-	userA := testutil.UniqueUsername("usera")
-	userB := testutil.UniqueUsername("userb")
+	userA := testutil.UniqueEmail("usera")
+	userB := testutil.UniqueEmail("userb")
 	password := "pass123456"
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)
 
-	keyword := userB[len(userB)-6:]
+	keyword := strings.Split(userB, "@")[0]
 	req := testutil.NewAuthedJSONRequest(t, http.MethodGet, c.BaseURL+"/users/search?keyword="+keyword, loginA.Token, nil)
 	resp, err := c.HTTP.Do(req)
 	if err != nil {

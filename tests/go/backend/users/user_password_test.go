@@ -14,7 +14,7 @@ import (
 func TestChangePassword_WrongOldThenSuccess(t *testing.T) {
 	c := testutil.NewClient()
 
-	username := testutil.UniqueUsername("pwd")
+	username := testutil.UniqueEmail("pwd")
 	oldPassword := "pass123456"
 	newPassword := "newpass654321"
 
@@ -81,7 +81,7 @@ func TestChangePassword_WrongOldThenSuccess(t *testing.T) {
 
 func loginStatus(c *testutil.Client, username, password string) (int, string) {
 	payload := map[string]any{
-		"username": username,
+		"email":    username,
 		"password": password,
 	}
 	raw, _ := json.Marshal(payload)

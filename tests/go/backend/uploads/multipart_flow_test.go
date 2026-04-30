@@ -60,8 +60,8 @@ func TestMessageAttachmentMultipartUploadAndDownload_OK(t *testing.T) {
 	testutil.EnsureDefaultStorageProvider(t, c)
 
 	password := "pass123456"
-	userA := testutil.UniqueUsername("mulpa")
-	userB := testutil.UniqueUsername("mulpb")
+	userA := testutil.UniqueEmail("mulpa")
+	userB := testutil.UniqueEmail("mulpb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

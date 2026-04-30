@@ -42,16 +42,20 @@ class AuthRepository {
   }
 
   Future<AuthSession> login({
-    required String username,
+    required String email,
     required String password,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+
     if (AppConfig.useMockData) {
       await Future<void>.delayed(AppConfig.mockLatency);
       final user = AuthUser(
         id: 'mock-user-id',
-        username: username.isEmpty ? 'bear_user' : username,
+        username: normalizedEmail.isEmpty
+            ? 'bear@example.com'
+            : normalizedEmail,
         nickname: '熊小熊',
-        email: 'bear@example.com',
+        email: normalizedEmail.isEmpty ? 'bear@example.com' : normalizedEmail,
         status: 'active',
       );
       final session = AuthSession(token: 'mock-token', user: user);
@@ -63,13 +67,13 @@ class AuthRepository {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login');
     if (kDebugMode) {
       debugPrint('[Auth] 登录请求 - API Base URL: ${AppConfig.apiBaseUrl}');
-      debugPrint('[Auth] 登录请求 - Username: $username');
+      debugPrint('[Auth] 登录请求 - Email: $normalizedEmail');
     }
     final response = await _makeRequest(
       () => http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'username': username, 'password': password}),
+        body: jsonEncode({'email': normalizedEmail, 'password': password}),
       ),
       uri: uri,
     );
@@ -162,28 +166,30 @@ class AuthRepository {
 
     final message = _extractErrorMessage(response.body);
     if (response.statusCode == 401) {
-      throw AuthException(message ?? '用户名或密码错误');
+      throw AuthException(message ?? '邮箱或密码错误');
     }
 
     throw AuthException(message ?? '登录失败，请稍后重试');
   }
 
   Future<AuthUser> register({
-    required String username,
     required String email,
     required String password,
     String? nickname,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
     final effectiveNickname = (nickname != null && nickname.trim().isNotEmpty)
         ? nickname.trim()
-        : username;
+        : normalizedEmail;
 
     if (AppConfig.useMockData) {
       await Future<void>.delayed(AppConfig.mockLatency);
       return AuthUser(
-        id: 'mock-user-${username.isEmpty ? 'new' : username}',
-        username: username.isEmpty ? 'mock_user' : username,
-        email: email,
+        id: 'mock-user-${normalizedEmail.isEmpty ? 'new' : normalizedEmail}',
+        username: normalizedEmail.isEmpty
+            ? 'mock@example.com'
+            : normalizedEmail,
+        email: normalizedEmail,
         nickname: effectiveNickname,
         status: 'active',
       );
@@ -195,8 +201,7 @@ class AuthRepository {
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'username': username,
-          'email': email,
+          'email': normalizedEmail,
           'password': password,
           'nickname': effectiveNickname,
         }),
@@ -286,7 +291,11 @@ class AuthRepository {
       }
 
       final user = AuthUser.fromJson(userJson);
-      final session = AuthSession(token: token, user: user, refreshToken: refreshToken);
+      final session = AuthSession(
+        token: token,
+        user: user,
+        refreshToken: refreshToken,
+      );
       await _storage.saveSession(session);
       await _bootstrapAfterLogin();
       return session;
@@ -340,75 +349,6 @@ class AuthRepository {
 
   Future<AuthSession?> loadSession() {
     return _storage.readSession();
-  }
-
-  Future<AuthSession> loginWithOAuth({
-    required String provider,
-    required String idToken,
-  }) async {
-    final normalizedProvider = provider.trim().toLowerCase();
-    final normalizedToken = idToken.trim();
-    if (normalizedProvider.isEmpty) {
-      throw const AuthException('provider 不能为空');
-    }
-    if (normalizedToken.isEmpty) {
-      throw const AuthException('idToken 不能为空');
-    }
-
-    if (AppConfig.useMockData) {
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      final user = AuthUser(
-        id: 'mock-user-oauth',
-        username: 'oauth_${normalizedProvider}_user',
-        nickname: '第三方用户',
-        email: 'oauth@example.com',
-        status: 'active',
-      );
-      final session = AuthSession(token: 'mock-token', user: user);
-      await _storage.saveSession(session);
-      await _bootstrapAfterLogin();
-      return session;
-    }
-
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login/oauth');
-    final response = await _makeRequest(
-      () => http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'provider': normalizedProvider,
-          'id_token': normalizedToken,
-        }),
-      ),
-      uri: uri,
-    );
-
-    if (response.statusCode == 200) {
-      final payload = jsonDecode(response.body) as Map<String, dynamic>;
-      final token = payload['token'] as String?;
-      final refreshToken = payload['refresh_token'] as String?;
-      final userJson = payload['user'];
-      if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
-        throw const AuthException('登录响应异常');
-      }
-
-      var user = AuthUser.fromJson(userJson);
-      user = await _attachAvatarCache(token, user);
-      final session = AuthSession(
-        token: token,
-        user: user,
-        refreshToken: refreshToken,
-      );
-      await _storage.saveSession(session);
-      await _bootstrapAfterLogin();
-      return session;
-    }
-
-    final message = _extractErrorMessage(response.body);
-    if (response.statusCode == 401) {
-      throw AuthException(message ?? '第三方登录失败');
-    }
-    throw AuthException(message ?? '第三方登录失败，请稍后重试');
   }
 
   Future<AuthUser> updateProfile({String? nickname, String? avatarUrl}) async {
@@ -738,7 +678,8 @@ class AuthRepository {
       final payload = jsonDecode(response.body) as Map<String, dynamic>;
       final token = payload['token'] as String?;
       final userJson = payload['user'];
-      final newRefreshToken = payload['refresh_token'] as String? ?? refreshToken;
+      final newRefreshToken =
+          payload['refresh_token'] as String? ?? refreshToken;
 
       if (token == null || token.isEmpty || userJson is! Map<String, dynamic>) {
         return null;
@@ -747,7 +688,11 @@ class AuthRepository {
       var user = AuthUser.fromJson(userJson);
       user = await _attachAvatarCache(token, user);
 
-      final session = AuthSession(token: token, user: user, refreshToken: newRefreshToken);
+      final session = AuthSession(
+        token: token,
+        user: user,
+        refreshToken: newRefreshToken,
+      );
       await _storage.saveSession(session);
 
       return user;

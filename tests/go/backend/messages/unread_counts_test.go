@@ -20,8 +20,8 @@ func TestUnreadCounts_MultiMessageReadUntil_OK(t *testing.T) {
 	c := testutil.NewClient()
 	password := "pass123456"
 
-	userA := testutil.UniqueUsername("ucnta")
-	userB := testutil.UniqueUsername("ucntb")
+	userA := testutil.UniqueEmail("ucnta")
+	userB := testutil.UniqueEmail("ucntb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

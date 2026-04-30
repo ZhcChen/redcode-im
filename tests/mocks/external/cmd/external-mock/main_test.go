@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 func newTestServer() (*mockServer, *httptest.Server) {
@@ -32,84 +30,6 @@ func TestHealthz(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expect 200, got %d", resp.StatusCode)
-	}
-}
-
-func TestJWKSEndpoints(t *testing.T) {
-	s, ts := newTestServer()
-	defer ts.Close()
-
-	tests := []struct {
-		name   string
-		path   string
-		expect string
-	}{
-		{name: "google", path: "/google/oauth2/v3/certs", expect: s.googleKid},
-		{name: "apple", path: "/apple/auth/keys", expect: s.appleKid},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			resp, err := http.Get(ts.URL + tc.path)
-			if err != nil {
-				t.Fatalf("request failed: %v", err)
-			}
-			defer resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				t.Fatalf("expect 200, got %d", resp.StatusCode)
-			}
-
-			var payload struct {
-				Keys []struct {
-					Kid string `json:"kid"`
-				} `json:"keys"`
-			}
-			if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-				t.Fatalf("decode jwks failed: %v", err)
-			}
-			if len(payload.Keys) == 0 {
-				t.Fatalf("jwks keys empty")
-			}
-			if payload.Keys[0].Kid != tc.expect {
-				t.Fatalf("expect kid=%s, got %s", tc.expect, payload.Keys[0].Kid)
-			}
-		})
-	}
-}
-
-func TestCreateGoogleIDToken(t *testing.T) {
-	s, ts := newTestServer()
-	defer ts.Close()
-
-	body := strings.NewReader(`{"sub":"u1","email":"u1@example.com","aud":"mock-google-client-id"}`)
-	resp, err := http.Post(ts.URL+"/mock/google/id-token", "application/json", body)
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(resp.Body)
-		t.Fatalf("expect 200, got %d: %s", resp.StatusCode, string(raw))
-	}
-
-	var payload struct {
-		IDToken string `json:"id_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode id token failed: %v", err)
-	}
-	if payload.IDToken == "" {
-		t.Fatalf("id token is empty")
-	}
-
-	tok, err := jwt.Parse(payload.IDToken, func(token *jwt.Token) (any, error) {
-		return &s.googleKey.PublicKey, nil
-	})
-	if err != nil {
-		t.Fatalf("verify token failed: %v", err)
-	}
-	if !tok.Valid {
-		t.Fatalf("token is invalid")
 	}
 }
 

@@ -41,10 +41,6 @@ x-rust-service: &rust_service
     REDCODE_IM_B2_PRIVATE_BUCKET: "mock-bucket"
     REDCODE_IM_B2_PUBLIC_BUCKET: "mock-bucket"
     REDCODE_IM_B2_PUBLIC_BASE_URL: "http://external-mock:19080/mock-bucket"
-    GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
-    APPLE_OAUTH_CLIENT_ID: "mock-apple-client-id"
-    GOOGLE_OIDC_JWKS_URL: "http://external-mock:19080/google/oauth2/v3/certs"
-    APPLE_OIDC_JWKS_URL: "http://external-mock:19080/apple/auth/keys"
     IPINFO_BASE_URL: "http://external-mock:19080/ipinfo"
     PUSH_FCM_BASE_URL: "http://external-mock:19080/fcm"
 services:
@@ -56,8 +52,6 @@ services:
     command: ["go", "run", "./cmd/external-mock"]
     environment:
       EXTERNAL_MOCK_ADDR: ":19080"
-      MOCK_GOOGLE_OAUTH_CLIENT_ID: "mock-google-client-id"
-      MOCK_APPLE_OAUTH_CLIENT_ID: "mock-apple-client-id"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:19080/healthz >/dev/null || exit 1"]
       interval: 3s

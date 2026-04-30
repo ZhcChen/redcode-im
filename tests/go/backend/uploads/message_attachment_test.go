@@ -18,8 +18,8 @@ func TestMessageAttachmentUploadCommitSendAndDownload_OK(t *testing.T) {
 	testutil.EnsureDefaultStorageProvider(t, c)
 
 	password := "pass123456"
-	userA := testutil.UniqueUsername("upla")
-	userB := testutil.UniqueUsername("uplb")
+	userA := testutil.UniqueEmail("upla")
+	userB := testutil.UniqueEmail("uplb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

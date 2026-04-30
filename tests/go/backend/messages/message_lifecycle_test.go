@@ -13,8 +13,8 @@ func TestMessageSendEditDeleteAndList_OK(t *testing.T) {
 	c := testutil.NewClient()
 	password := "pass123456"
 
-	userA := testutil.UniqueUsername("msga")
-	userB := testutil.UniqueUsername("msgb")
+	userA := testutil.UniqueEmail("msga")
+	userB := testutil.UniqueEmail("msgb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

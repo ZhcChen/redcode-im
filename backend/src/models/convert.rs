@@ -51,6 +51,7 @@ pub fn api_login_to_db(
 ) -> crate::database::models::LoginRequest {
     crate::database::models::LoginRequest {
         username: api_req.username.clone(),
+        email: api_req.email.clone(),
         password: api_req.password.clone(),
     }
 }

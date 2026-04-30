@@ -62,7 +62,7 @@ endef
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.device frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
+	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.device frontend.test.integration.device.reverse frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
 	api-up api-down api-logs api-ps tests \
@@ -338,6 +338,10 @@ frontend.test.integration.network: ## 执行 frontend network integration（默�
 frontend.test.integration.device: ## 执行 frontend 真机 network integration（自动检测 LAN IP，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"
+
+frontend.test.integration.device.reverse: ## 执行 frontend Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"
 
 frontend.test.patrol.harness: ## 执行 frontend iOS Patrol harness smoke（可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))

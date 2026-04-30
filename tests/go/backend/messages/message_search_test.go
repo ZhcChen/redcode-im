@@ -28,9 +28,9 @@ func TestMessageSearch_MembershipIsolationAndValidation_OK(t *testing.T) {
 	c := testutil.NewClient()
 	password := "pass123456"
 
-	userA := testutil.UniqueUsername("srcha")
-	userB := testutil.UniqueUsername("srchb")
-	userC := testutil.UniqueUsername("srchc")
+	userA := testutil.UniqueEmail("srcha")
+	userB := testutil.UniqueEmail("srchb")
+	userC := testutil.UniqueEmail("srchc")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

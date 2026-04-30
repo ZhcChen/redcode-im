@@ -2,7 +2,7 @@ feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance
 BE-AUTH-001,backend,auth,用户注册,/auth/register,"unit+integration+e2e",TC-BE-AUTH-001,AC-BE-AUTH-001,done,go auth 集成用例已覆盖
 BE-AUTH-002,backend,auth,密码登录,/auth/login,"unit+integration+e2e",TC-BE-AUTH-002,AC-BE-AUTH-002,done,go auth 集成用例已覆盖
 BE-AUTH-003,backend,auth,短信登录,/auth/login/sms,"integration+e2e",TC-BE-AUTH-003,AC-BE-AUTH-003,done,go sms_login_test 覆盖验证码错误与通用验证码成功登录（含自动注册）链路
-BE-AUTH-004,backend,auth,OAuth 登录（Google/Apple）,/auth/login/oauth,"integration+e2e",TC-BE-AUTH-004,AC-BE-AUTH-004,done,已通过 external-mock 集成测试
+BE-AUTH-004,backend,auth,邮箱注册登录,/auth/register + /auth/login,"integration+e2e",TC-BE-AUTH-004,AC-BE-AUTH-004,done,go auth 集成用例覆盖邮箱格式、重复邮箱、错误密码与旧 username 兼容
 BE-AUTH-005,backend,auth,Token 刷新,/auth/refresh,"unit+integration",TC-BE-AUTH-005,AC-BE-AUTH-005,done,go auth 集成用例已覆盖
 BE-USER-001,backend,user,获取当前用户,/auth/me,"integration",TC-BE-USER-001,AC-BE-USER-001,done,go auth 集成用例已覆盖
 BE-USER-002,backend,user,更新个人资料,/users/me,"integration+e2e",TC-BE-USER-002,AC-BE-USER-002,done,go users 集成用例已覆盖
@@ -41,4 +41,4 @@ BE-SYS-001,backend,system,健康检查,/healthz,"integration",TC-BE-SYS-001,AC-B
 BE-SYS-002,backend,system,就绪检查,/readyz,"integration",TC-BE-SYS-002,AC-BE-SYS-002,done,go readyz_test 覆盖 status/checks/latency 契约
 BE-SYS-003,backend,system,系统日志清理配置解析,backend/src/logging/writer.rs,"unit",TC-BE-SYS-003,AC-BE-SYS-003,done,log_writer_config 单测覆盖正向读取与非法值回退
 BE-EXT-001,backend,external-mock,外部模拟服务健康检查,/healthz@external-mock,"integration",TC-BE-EXT-001,AC-BE-EXT-001,done,Go system 测试已覆盖
-BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,B2 对象存储 / JWKS / FCM / IPInfo 已覆盖
+BE-EXT-002,backend,external-mock,外部模拟服务能力自测,tests/mocks/external/cmd/external-mock/main_test.go,"unit+integration",TC-BE-EXT-002,AC-BE-EXT-002,done,B2 对象存储 / FCM / IPInfo 已覆盖

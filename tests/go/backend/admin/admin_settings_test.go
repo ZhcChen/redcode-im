@@ -268,7 +268,7 @@ func TestAdminSettings_MessageRuntimeSettings_OKAndValidationError(t *testing.T)
 
 func TestAdminSettings_NonAdminShouldBeForbidden(t *testing.T) {
 	c := testutil.NewClient()
-	username := testutil.UniqueUsername("adminset")
+	username := testutil.UniqueEmail("adminset")
 	password := "pass123456"
 
 	testutil.RegisterUser(t, c, username, password)

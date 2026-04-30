@@ -58,6 +58,9 @@ make frontend.test.integration.network
 
 # 真机联调验证：自动检测当前 LAN IP，默认 Pixel 8 Pro
 make frontend.test.integration.device
+
+# Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
+make frontend.test.integration.device.reverse
 ```
 
 ### Frontend iOS Simulator / Patrol

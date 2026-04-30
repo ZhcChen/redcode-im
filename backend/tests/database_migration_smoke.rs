@@ -4,6 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
+const EXPECTED_MIGRATION_COUNT: i64 = 4;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -154,7 +155,6 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
         "push_provider_configs",
         "push_logs",
         "push_job_queue",
-        "user_oauth_accounts",
         "e2ee_identity_keys",
         "object_storage_configs",
     ] {
@@ -181,7 +181,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(pool)
         .await?;
-    assert_eq!(applied_count, 3);
+    assert_eq!(applied_count, EXPECTED_MIGRATION_COUNT);
 
     let checksum: Option<String> =
         sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")
@@ -229,7 +229,7 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
     let applied_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM db_migrations")
         .fetch_one(adopted.pool())
         .await?;
-    assert_eq!(applied_count, 3);
+    assert_eq!(applied_count, EXPECTED_MIGRATION_COUNT);
 
     let checksum: Option<String> =
         sqlx::query_scalar("SELECT checksum FROM db_migrations WHERE name = 'base.sql'")

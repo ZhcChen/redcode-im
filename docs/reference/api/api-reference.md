@@ -57,44 +57,28 @@ Authorization: Bearer <your-jwt-token>
 #### 1. 用户注册
 - **接口**: `POST /auth/register`
 - **权限**: 公开
-- **功能**: 创建新用户账户
+- **功能**: 使用邮箱和密码创建新用户账户
 - **Handler**: `auth::register`
 
 #### 2. 用户登录
 - **接口**: `POST /auth/login`
 - **权限**: 公开
-- **功能**: 用户名/密码登录
+- **功能**: 邮箱/密码登录（兼容旧 username 字段）
 - **Handler**: `auth::login`
 
-#### 3. 第三方登录（OAuth/OIDC）
-- **接口**: `POST /auth/login/oauth`
-- **权限**: 公开
-- **功能**: 使用第三方 OIDC `id_token` 登录（Google/Apple）
-- **Handler**: `auth::login_with_oauth`
-
-**请求示例**：
-```json
-{
-  "provider": "google",
-  "id_token": "..."
-}
-```
-
-> 后端需要配置 `GOOGLE_OAUTH_CLIENT_ID` / `APPLE_OAUTH_CLIENT_ID` 用于校验 audience。
-
-#### 4. 短信登录
+#### 3. 短信登录
 - **接口**: `POST /auth/login/sms`
 - **权限**: 公开
 - **功能**: 手机号+验证码登录
 - **Handler**: `auth::login_with_sms`
 
-#### 5. 发送登录短信
+#### 4. 发送登录短信
 - **接口**: `POST /auth/sms/send`
 - **权限**: 公开
 - **功能**: 发送登录验证码短信
 - **Handler**: `auth::send_login_sms`
 
-#### 6. 刷新访问令牌
+#### 5. 刷新访问令牌
 - **接口**: `POST /auth/refresh`
 - **权限**: 公开
 - **功能**: 使用 refresh_token 获取新的 access_token

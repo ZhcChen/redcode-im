@@ -2,15 +2,11 @@ package main
 
 import (
 	"crypto/md5"
-	"crypto/rand"
-	"crypto/rsa"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,8 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	jwt "github.com/golang-jwt/jwt/v5"
 )
 
 type objectEntry struct {
@@ -35,45 +29,19 @@ type multipartSession struct {
 	Parts map[int][]byte
 }
 
-type createIDTokenRequest struct {
-	Sub   string `json:"sub"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
-	Aud   string `json:"aud"`
-	Exp   int64  `json:"exp"`
-}
-
 type mockServer struct {
 	mu sync.RWMutex
 
 	objects map[string]objectEntry
 	uploads map[string]*multipartSession
 	buckets map[string]time.Time
-
-	googleKey *rsa.PrivateKey
-	appleKey  *rsa.PrivateKey
-	googleKid string
-	appleKid  string
 }
 
 func newMockServer() *mockServer {
-	googleKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		panic(fmt.Sprintf("generate google rsa key failed: %v", err))
-	}
-	appleKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		panic(fmt.Sprintf("generate apple rsa key failed: %v", err))
-	}
-
 	return &mockServer{
-		objects:   make(map[string]objectEntry),
-		uploads:   make(map[string]*multipartSession),
-		buckets:   map[string]time.Time{"mock-bucket": time.Now().UTC()},
-		googleKey: googleKey,
-		appleKey:  appleKey,
-		googleKid: "mock-google-kid",
-		appleKid:  "mock-apple-kid",
+		objects: make(map[string]objectEntry),
+		uploads: make(map[string]*multipartSession),
+		buckets: map[string]time.Time{"mock-bucket": time.Now().UTC()},
 	}
 }
 
@@ -103,16 +71,8 @@ func (s *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && path == "/healthz":
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
-	case r.Method == http.MethodGet && path == "/google/oauth2/v3/certs":
-		s.handleGoogleJWKS(w)
-	case r.Method == http.MethodGet && path == "/apple/auth/keys":
-		s.handleAppleJWKS(w)
 	case r.Method == http.MethodPost && path == "/google/oauth2/token":
 		s.handleGoogleOAuthToken(w)
-	case r.Method == http.MethodPost && path == "/mock/google/id-token":
-		s.handleCreateGoogleIDToken(w, r)
-	case r.Method == http.MethodPost && path == "/mock/apple/id-token":
-		s.handleCreateAppleIDToken(w, r)
 	case r.Method == http.MethodGet && path == "/b2api/v4/b2_authorize_account":
 		s.handleB2AuthorizeAccount(w, r)
 	case strings.HasPrefix(path, "/fcm/v1/projects/") && strings.HasSuffix(path, "/messages:send") && r.Method == http.MethodPost:
@@ -124,94 +84,12 @@ func (s *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *mockServer) handleGoogleJWKS(w http.ResponseWriter) {
-	jwk := buildJWK(s.googleKey.PublicKey, s.googleKid)
-	writeJSON(w, http.StatusOK, map[string]any{"keys": []any{jwk}})
-}
-
-func (s *mockServer) handleAppleJWKS(w http.ResponseWriter) {
-	jwk := buildJWK(s.appleKey.PublicKey, s.appleKid)
-	writeJSON(w, http.StatusOK, map[string]any{"keys": []any{jwk}})
-}
-
 func (s *mockServer) handleGoogleOAuthToken(w http.ResponseWriter) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"access_token": "mock-access-token",
 		"expires_in":   3600,
 		"token_type":   "Bearer",
 	})
-}
-
-func (s *mockServer) handleCreateGoogleIDToken(w http.ResponseWriter, r *http.Request) {
-	var req createIDTokenRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
-	if strings.TrimSpace(req.Sub) == "" {
-		req.Sub = "google-user-001"
-	}
-	if strings.TrimSpace(req.Email) == "" {
-		req.Email = "google_user_001@example.com"
-	}
-	if strings.TrimSpace(req.Name) == "" {
-		req.Name = "Google Mock User"
-	}
-	if strings.TrimSpace(req.Aud) == "" {
-		req.Aud = envOrDefault("MOCK_GOOGLE_OAUTH_CLIENT_ID", "mock-google-client-id")
-	}
-	if req.Exp <= 0 {
-		req.Exp = time.Now().Add(30 * time.Minute).Unix()
-	}
-
-	claims := jwt.MapClaims{
-		"sub":   req.Sub,
-		"email": req.Email,
-		"name":  req.Name,
-		"iss":   "https://accounts.google.com",
-		"aud":   req.Aud,
-		"iat":   time.Now().Unix(),
-		"exp":   req.Exp,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.googleKid
-	signed, err := token.SignedString(s.googleKey)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"id_token": signed})
-}
-
-func (s *mockServer) handleCreateAppleIDToken(w http.ResponseWriter, r *http.Request) {
-	var req createIDTokenRequest
-	_ = json.NewDecoder(r.Body).Decode(&req)
-	if strings.TrimSpace(req.Sub) == "" {
-		req.Sub = "apple-user-001"
-	}
-	if strings.TrimSpace(req.Email) == "" {
-		req.Email = "apple_user_001@example.com"
-	}
-	if strings.TrimSpace(req.Aud) == "" {
-		req.Aud = envOrDefault("MOCK_APPLE_OAUTH_CLIENT_ID", "mock-apple-client-id")
-	}
-	if req.Exp <= 0 {
-		req.Exp = time.Now().Add(30 * time.Minute).Unix()
-	}
-
-	claims := jwt.MapClaims{
-		"sub":   req.Sub,
-		"email": req.Email,
-		"iss":   "https://appleid.apple.com",
-		"aud":   req.Aud,
-		"iat":   time.Now().Unix(),
-		"exp":   req.Exp,
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = s.appleKid
-	signed, err := token.SignedString(s.appleKey)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"id_token": signed})
 }
 
 func (s *mockServer) handleB2AuthorizeAccount(w http.ResponseWriter, r *http.Request) {
@@ -575,20 +453,6 @@ func extractPartNumbers(xmlBody string) []int {
 	}
 	sort.Ints(result)
 	return result
-}
-
-func buildJWK(pub rsa.PublicKey, kid string) map[string]any {
-	n := base64.RawURLEncoding.EncodeToString(pub.N.Bytes())
-	e := big.NewInt(int64(pub.E)).Bytes()
-	eStr := base64.RawURLEncoding.EncodeToString(e)
-	return map[string]any{
-		"kty": "RSA",
-		"kid": kid,
-		"alg": "RS256",
-		"use": "sig",
-		"n":   n,
-		"e":   eStr,
-	}
 }
 
 func decodeObjectKey(v string) (string, error) {

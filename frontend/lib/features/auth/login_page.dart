@@ -1,13 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
@@ -20,6 +17,10 @@ import '../home/home_shell_page.dart';
 import 'data/auth_repository.dart';
 
 enum LoginType { password, sms, register }
+
+bool _isValidEmail(String email) {
+  return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -42,13 +43,9 @@ class _LoginPageState extends State<LoginPage> {
   final SettingsService _settingsService = SettingsService();
   final AppConfigService _appConfigService = AppConfigService.instance;
 
-  final TextEditingController _mobileCtrl = TextEditingController();
+  final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _smsCtrl = TextEditingController();
-  final TextEditingController _emailCtrl = TextEditingController();
-
-  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
-  Future<void>? _googleSignInInit;
 
   @override
   void initState() {
@@ -119,10 +116,9 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _smsTimer?.cancel();
-    _mobileCtrl.dispose();
+    _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _smsCtrl.dispose();
-    _emailCtrl.dispose();
     // 恢复默认状态栏样式
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -243,12 +239,14 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildLabel('手机号'),
+                _buildLabel(_type == LoginType.sms ? '手机号' : '邮箱'),
                 SizedBox(height: 12.h),
                 _buildField(
-                  controller: _mobileCtrl,
-                  hint: '请输入手机号',
-                  keyboardType: TextInputType.phone,
+                  controller: _emailCtrl,
+                  hint: _type == LoginType.sms ? '请输入手机号' : '请输入邮箱',
+                  keyboardType: _type == LoginType.sms
+                      ? TextInputType.phone
+                      : TextInputType.emailAddress,
                   enabled: !_loading,
                 ),
                 if (_type == LoginType.password) ...[
@@ -297,10 +295,6 @@ class _LoginPageState extends State<LoginPage> {
                 _buildAgreeRow(),
                 SizedBox(height: 48.h),
                 _buildSwitchRow(),
-                if (_type != LoginType.register) ...[
-                  SizedBox(height: 24.h),
-                  _buildThirdPartyLoginRow(),
-                ],
                 if (_type != LoginType.register) ...[
                   SizedBox(height: 12.h),
                   Center(
@@ -445,7 +439,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _requestSmsCode() async {
-    final phone = _mobileCtrl.text.trim();
+    final phone = _emailCtrl.text.trim();
     if (phone.isEmpty) {
       _showMessage('请输入手机号');
       return;
@@ -613,51 +607,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Widget _buildThirdPartyLoginRow() {
-    final showApple = Platform.isIOS || Platform.isMacOS;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Expanded(child: Divider(height: 1)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.w),
-              child: Text(
-                '其他登录方式',
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ),
-            const Expanded(child: Divider(height: 1)),
-          ],
-        ),
-        SizedBox(height: 12.h),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _loading ? null : _handleGoogleLogin,
-                child: const Text('Google 登录'),
-              ),
-            ),
-            if (showApple) ...[
-              SizedBox(width: 12.w),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _loading ? null : _handleAppleLogin,
-                  child: const Text('Apple 登录'),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-
   Future<void> _submit() async {
     if (_loading) {
       return;
@@ -667,15 +616,13 @@ class _LoginPageState extends State<LoginPage> {
     FocusScope.of(context).unfocus();
 
     if (AppConfig.useMockData) {
-      final phone = _mobileCtrl.text.trim().isEmpty
+      final account = _emailCtrl.text.trim().isEmpty
           ? '13800138000'
-          : _mobileCtrl.text.trim();
+          : _emailCtrl.text.trim();
       final password = _passwordCtrl.text.isEmpty
           ? 'mock-pass'
           : _passwordCtrl.text;
-      final email = _emailCtrl.text.trim().isEmpty
-          ? '$phone@example.com'
-          : _emailCtrl.text.trim();
+      final email = account.contains('@') ? account : '$account@example.com';
       final code = _smsCtrl.text.trim().isEmpty
           ? '123456'
           : _smsCtrl.text.trim();
@@ -684,16 +631,12 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _loading = true);
       try {
         if (_type == LoginType.register) {
-          await _authRepository.register(
-            username: phone,
-            email: email,
-            password: password,
-          );
-          await _authRepository.login(username: phone, password: password);
+          await _authRepository.register(email: email, password: password);
+          await _authRepository.login(email: email, password: password);
         } else if (_type == LoginType.sms) {
-          await _authRepository.loginWithSms(phone: phone, code: code);
+          await _authRepository.loginWithSms(phone: account, code: code);
         } else {
-          await _authRepository.login(username: phone, password: password);
+          await _authRepository.login(email: email, password: password);
         }
         if (!mounted) {
           return;
@@ -752,135 +695,16 @@ class _LoginPageState extends State<LoginPage> {
     await _handlePasswordLogin();
   }
 
-  Future<void> _handleGoogleLogin() async {
-    if (_loading) return;
-    FocusScope.of(context).unfocus();
-
-    if (!_agreed) {
-      await AgreementTipDialog.show(
-        context,
-        content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
-        onConfirm: () async {
-          Navigator.of(context).pop();
-          await Future.delayed(const Duration(milliseconds: 100));
-          if (mounted) {
-            FocusScope.of(context).unfocus();
-          }
-        },
-      );
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      await (_googleSignInInit ??= _googleSignIn.initialize());
-      final account = await _googleSignIn.authenticate();
-
-      final idToken = account.authentication.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        _showMessage('获取 Google 凭证失败');
-        return;
-      }
-
-      await _authRepository.loginWithOAuth(provider: 'google', idToken: idToken);
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShellPage()),
-        (route) => false,
-      );
-    } on AuthException catch (error) {
-      _showMessage(error.message);
-    } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) {
-        _showMessage('已取消登录');
-      } else {
-        debugPrint('Google 登录失败: $e');
-        _showMessage('Google 登录失败，请稍后重试');
-      }
-    } catch (e) {
-      debugPrint('Google 登录失败: $e');
-      _showMessage('第三方登录失败，请稍后重试');
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      } else {
-        _loading = false;
-      }
-    }
-  }
-
-  Future<void> _handleAppleLogin() async {
-    if (_loading) return;
-    FocusScope.of(context).unfocus();
-
-    if (!_agreed) {
-      await AgreementTipDialog.show(
-        context,
-        content: '请勾选并阅读《用户协议》和《隐私协议》，勾选默认代表用户阅读并接受本平台协议。',
-        onConfirm: () async {
-          Navigator.of(context).pop();
-          await Future.delayed(const Duration(milliseconds: 100));
-          if (mounted) {
-            FocusScope.of(context).unfocus();
-          }
-        },
-      );
-      return;
-    }
-
-    if (!(Platform.isIOS || Platform.isMacOS)) {
-      _showMessage('当前平台不支持 Apple 登录');
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      final credential = await SignInWithApple.getAppleIDCredential(
-        scopes: const [
-          AppleIDAuthorizationScopes.email,
-          AppleIDAuthorizationScopes.fullName,
-        ],
-      );
-
-      final idToken = credential.identityToken;
-      if (idToken == null || idToken.isEmpty) {
-        _showMessage('获取 Apple 凭证失败');
-        return;
-      }
-
-      await _authRepository.loginWithOAuth(provider: 'apple', idToken: idToken);
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShellPage()),
-        (route) => false,
-      );
-    } on SignInWithAppleAuthorizationException catch (e) {
-      if (e.code == AuthorizationErrorCode.canceled) {
-        _showMessage('已取消登录');
-      } else {
-        debugPrint('Apple 登录失败: $e');
-        _showMessage('Apple 登录失败，请稍后重试');
-      }
-    } on AuthException catch (error) {
-      _showMessage(error.message);
-    } catch (e) {
-      debugPrint('Apple 登录失败: $e');
-      _showMessage('第三方登录失败，请稍后重试');
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      } else {
-        _loading = false;
-      }
-    }
-  }
-
   Future<void> _handleRegister() async {
-    final username = _mobileCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
     final password = _passwordCtrl.text;
 
-    if (username.isEmpty || password.isEmpty) {
+    if (email.isEmpty || password.isEmpty) {
       _showMessage('请填写完整的注册信息');
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      _showMessage('请输入正确的邮箱地址');
       return;
     }
 
@@ -893,19 +717,12 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
 
-    // 邮箱自动生成：手机号 + @example.com
-    final email = '$username@example.com';
-
     FocusScope.of(context).unfocus();
     setState(() => _loading = true);
 
     try {
-      await _authRepository.register(
-        username: username,
-        email: email,
-        password: password,
-      );
-      await _authRepository.login(username: username, password: password);
+      await _authRepository.register(email: email, password: password);
+      await _authRepository.login(email: email, password: password);
       if (!mounted) {
         return;
       }
@@ -928,7 +745,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleSmsLogin() async {
-    final phone = _mobileCtrl.text.trim();
+    final phone = _emailCtrl.text.trim();
     final code = _smsCtrl.text.trim();
 
     if (phone.isEmpty || code.isEmpty) {
@@ -987,11 +804,7 @@ class _LoginPageState extends State<LoginPage> {
     final password = _buildAutoRegisterPassword(phone);
 
     try {
-      await _authRepository.register(
-        username: phone,
-        email: email,
-        password: password,
-      );
+      await _authRepository.register(email: email, password: password);
     } on AuthException catch (error) {
       if (_isUserAlreadyExistsError(error.message)) {
         // 忽略该错误，后续直接重试登录
@@ -1041,11 +854,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handlePasswordLogin() async {
-    final username = _mobileCtrl.text.trim();
+    final email = _emailCtrl.text.trim().toLowerCase();
     final password = _passwordCtrl.text;
 
-    if (username.isEmpty || password.isEmpty) {
-      _showMessage('请输入完整的账号和密码');
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('请输入完整的邮箱和密码');
+      return;
+    }
+    if (!_isValidEmail(email)) {
+      _showMessage('请输入正确的邮箱地址');
       return;
     }
 
@@ -1053,7 +870,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = true);
 
     try {
-      await _authRepository.login(username: username, password: password);
+      await _authRepository.login(email: email, password: password);
       if (!mounted) {
         return;
       }

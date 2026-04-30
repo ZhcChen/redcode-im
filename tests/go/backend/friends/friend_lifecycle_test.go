@@ -13,8 +13,8 @@ func TestFriendRequestAcceptAndEnsureChat_OK(t *testing.T) {
 	c := testutil.NewClient()
 	password := "pass123456"
 
-	userA := testutil.UniqueUsername("frienda")
-	userB := testutil.UniqueUsername("friendb")
+	userA := testutil.UniqueEmail("frienda")
+	userB := testutil.UniqueEmail("friendb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)

@@ -3,11 +3,9 @@
 本目录是 `tests/` backend contract 测试栈的外部依赖模拟层。
 
 ## 覆盖范围
-- OAuth / JWKS（Google / Apple）
 - FCM Push
 - B2 / S3 兼容对象存储
 - IPInfo
-- 测试用 ID Token 生成
 
 ## B2 / S3 兼容接口
 测试栈通过同一个 mock 服务模拟 B2 authorize 与 S3 path-style 对象接口：

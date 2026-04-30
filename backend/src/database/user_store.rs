@@ -97,7 +97,6 @@ impl UserStore {
     }
 
     /// 根据邮箱查找用户
-    #[allow(dead_code)] // 保留用于将来可能的功能
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
@@ -112,52 +111,6 @@ impl UserStore {
         .await?;
 
         Ok(user)
-    }
-
-    /// 根据第三方账号绑定关系查找用户
-    pub async fn find_by_oauth_account(
-        &self,
-        provider: &str,
-        provider_user_id: &str,
-    ) -> Result<Option<User>, Error> {
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            SELECT u.id, u.username, u.email, u.password_hash, u.nickname, u.avatar_url, u.avatar_object_key, u.status, u.created_at, u.updated_at, u.deleted_at
-            FROM users u
-            INNER JOIN user_oauth_accounts oa ON oa.user_id = u.id
-            WHERE oa.provider = $1 AND oa.provider_user_id = $2
-              AND u.deleted_at IS NULL
-            "#,
-        )
-        .bind(provider)
-        .bind(provider_user_id)
-        .fetch_optional(&self.database.pool)
-        .await?;
-
-        Ok(user)
-    }
-
-    /// 绑定第三方账号（provider + provider_user_id -> user_id）
-    pub async fn link_oauth_account(
-        &self,
-        user_id: &Uuid,
-        provider: &str,
-        provider_user_id: &str,
-    ) -> Result<(), Error> {
-        sqlx::query(
-            r#"
-            INSERT INTO user_oauth_accounts (user_id, provider, provider_user_id)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (provider, provider_user_id) DO NOTHING
-            "#,
-        )
-        .bind(user_id)
-        .bind(provider)
-        .bind(provider_user_id)
-        .execute(&self.database.pool)
-        .await?;
-
-        Ok(())
     }
 
     /// 按用户名查找用户（支持所有状态）
@@ -178,12 +131,35 @@ impl UserStore {
 
     /// 验证用户登录
     pub async fn authenticate(&self, request: LoginRequest) -> Result<Option<User>, Error> {
-        if let Some(user) = self.find_by_username_any_status(&request.username).await? {
+        let user = if !request.email.trim().is_empty() {
+            self.find_by_email_any_status(request.email.trim()).await?
+        } else {
+            self.find_by_username_any_status(request.username.trim())
+                .await?
+        };
+
+        if let Some(user) = user {
             if verify(&request.password, &user.password_hash).unwrap_or(false) {
                 return Ok(Some(user));
             }
         }
         Ok(None)
+    }
+
+    /// 按邮箱查找用户（支持所有状态）
+    pub async fn find_by_email_any_status(&self, email: &str) -> Result<Option<User>, Error> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            FROM users
+            WHERE email = $1 AND deleted_at IS NULL
+            "#,
+        )
+        .bind(email)
+        .fetch_optional(&self.database.pool)
+        .await?;
+
+        Ok(user)
     }
 
     /// 更新用户信息

@@ -6,7 +6,7 @@
 - `tests/run.sh`：backend contract 测试入口
 - `tests/docker-compose.yml`：isolated contract test stack
 - `tests/go/`：backend HTTP / WS 黑盒契约测试
-- `tests/mocks/external/`：第三方依赖 mock（OAuth / Push / B2/S3 兼容对象存储 / IPInfo）
+- `tests/mocks/external/`：第三方依赖 mock（Push / B2/S3 兼容对象存储 / IPInfo）
 
 ## 对象存储 mock
 backend contract 栈默认把 Backblaze B2 / S3 兼容对象存储指向 `external-mock`：

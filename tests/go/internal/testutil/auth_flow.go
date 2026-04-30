@@ -9,12 +9,14 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
 type UserInfo struct {
 	ID       string  `json:"id"`
 	Username string  `json:"username"`
+	Email    string  `json:"email"`
 	Nickname *string `json:"nickname"`
 }
 
@@ -40,14 +42,47 @@ func UniqueUsername(prefix string) string {
 	return fmt.Sprintf("13%09d", n.Int64())
 }
 
-func RegisterUser(t TestingT, c *Client, username, password string) UserInfo {
+func UniqueEmail(prefix string) string {
+	return fmt.Sprintf("%s_%s@example.test", sanitizeEmailLocal(prefix), UniqueUsername(prefix))
+}
+
+func sanitizeEmailLocal(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "user"
+	}
+	var b strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '.' || r == '_' || r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	out := strings.Trim(b.String(), "._-")
+	if out == "" {
+		return "user"
+	}
+	return out
+}
+
+func RegisterUser(t TestingT, c *Client, account, password string) UserInfo {
 	t.Helper()
 
+	email := account
+	if !strings.Contains(email, "@") {
+		email = fmt.Sprintf("%s@example.test", account)
+	}
+
 	payload := map[string]any{
-		"username": username,
-		"email":    fmt.Sprintf("%s@example.com", username),
+		"email":    email,
 		"password": password,
-		"nickname": username,
+		"nickname": email,
 	}
 	raw, _ := json.Marshal(payload)
 
@@ -66,17 +101,22 @@ func RegisterUser(t TestingT, c *Client, username, password string) UserInfo {
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		t.Fatalf("decode register response failed: %v", err)
 	}
-	if user.ID == "" || user.Username == "" {
+	if user.ID == "" || user.Username == "" || user.Email == "" {
 		t.Fatalf("invalid register response: %+v", user)
 	}
 	return user
 }
 
-func LoginWithPassword(t TestingT, c *Client, username, password string) LoginResponse {
+func LoginWithPassword(t TestingT, c *Client, account, password string) LoginResponse {
 	t.Helper()
 
+	email := account
+	if !strings.Contains(email, "@") {
+		email = fmt.Sprintf("%s@example.test", account)
+	}
+
 	payload := map[string]any{
-		"username": username,
+		"email":    email,
 		"password": password,
 	}
 	raw, _ := json.Marshal(payload)

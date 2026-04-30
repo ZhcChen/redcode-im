@@ -37,9 +37,10 @@ void main() {
 
       expect($('你好！'), findsOneWidget);
       expect($('登录账号'), findsOneWidget);
-      expect($('手机号'), findsOneWidget);
+      expect($('邮箱'), findsOneWidget);
       expect($('密码'), findsOneWidget);
-      expect($('Google 登录'), findsOneWidget);
+      expect($('Google 登录'), findsNothing);
+      expect($('Apple 登录'), findsNothing);
     },
   );
 
@@ -58,8 +59,9 @@ void main() {
       await $('立即登录').tap();
       await $('登录账号').waitUntilVisible();
 
-      expect($('其他登录方式'), findsOneWidget);
       expect($('密码登录'), findsOneWidget);
+      expect($('Google 登录'), findsNothing);
+      expect($('Apple 登录'), findsNothing);
     },
   );
 

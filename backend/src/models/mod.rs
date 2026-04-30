@@ -35,6 +35,7 @@ pub struct UserInfo {
 /// 创建用户请求
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateUserRequest {
+    #[serde(default)]
     pub username: String,
     pub email: String,
     pub password: String,
@@ -44,15 +45,11 @@ pub struct CreateUserRequest {
 /// 用户登录请求
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
+    #[serde(default)]
     pub username: String,
+    #[serde(default)]
+    pub email: String,
     pub password: String,
-}
-
-/// 第三方登录请求（OAuth/OIDC）
-#[derive(Debug, Deserialize)]
-pub struct OAuthLoginRequest {
-    pub provider: String,
-    pub id_token: String,
 }
 
 /// 登录响应

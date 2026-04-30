@@ -4,6 +4,7 @@
 # - smoke: 不访问真实 backend，适合日常快速验证。
 # - network: 访问本机 backend，默认使用 127.0.0.1。
 # - device: 访问本机 backend，自动检测当前 LAN IP 并注入到真机。
+# - device-reverse: Android USB 真机通过 adb reverse 访问本机 backend。
 
 set -euo pipefail
 
@@ -21,7 +22,7 @@ TARGET=""
 usage() {
     cat <<'USAGE'
 用法：
-  ./scripts/test_integration.sh [smoke|network|device] [选项]
+  ./scripts/test_integration.sh [smoke|network|device|device-reverse] [选项]
 
 选项：
   --device DEVICE_ID       device 模式目标设备，默认 Pixel 8 Pro
@@ -34,7 +35,30 @@ usage() {
   device 模式每次都会重新检测当前本机 LAN IP，并生成：
     API_BASE_URL=http://<LAN_IP>:8010
     WS_URL=ws://<LAN_IP>:8010/ws
+  device-reverse 模式使用 adb reverse tcp:8010 tcp:8010，并生成：
+    API_BASE_URL=http://127.0.0.1:8010
+    WS_URL=ws://127.0.0.1:8010/ws
 USAGE
+}
+
+find_adb() {
+    if command -v adb >/dev/null 2>&1; then
+        command -v adb
+        return 0
+    fi
+
+    for candidate in \
+        "${ANDROID_HOME:-}/platform-tools/adb" \
+        "${ANDROID_SDK_ROOT:-}/platform-tools/adb" \
+        "$HOME/Library/Android/sdk/platform-tools/adb"
+    do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
 }
 
 if [[ $# -gt 0 && "$1" != --* ]]; then
@@ -100,6 +124,29 @@ case "$MODE" in
 
         echo "📡 检测到当前局域网 IP: ${lan_ip}" >&2
         echo "📱 目标设备: $(describe_flutter_device "$DEVICE_ID")" >&2
+        echo "🌐 API_BASE_URL=${API_BASE_URL}" >&2
+        echo "🌐 WS_URL=${WS_URL}" >&2
+
+        show_and_verify_flutter_devices "$DEVICE_ID"
+        flutter test -d "$DEVICE_ID" "$TARGET" \
+            --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true \
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=WS_URL="$WS_URL"
+        ;;
+    device-reverse)
+        DEVICE_ID="${DEVICE_ID:-$DEFAULT_FLUTTER_DEVICE_ID}"
+        TARGET="${TARGET:-integration_test/network_connectivity_test.dart}"
+        adb_bin="$(find_adb)" || {
+            echo "缺少 adb，无法配置 Android USB 端口反向代理。" >&2
+            exit 1
+        }
+        API_BASE_URL="http://127.0.0.1:8010"
+        WS_URL="ws://127.0.0.1:8010/ws"
+
+        echo "📱 目标设备: $(describe_flutter_device "$DEVICE_ID")" >&2
+        echo "🔁 adb reverse: tcp:8010 -> tcp:8010" >&2
+        "$adb_bin" -s "$DEVICE_ID" reverse tcp:8010 tcp:8010
+        "$adb_bin" -s "$DEVICE_ID" reverse --list >&2 || true
         echo "🌐 API_BASE_URL=${API_BASE_URL}" >&2
         echo "🌐 WS_URL=${WS_URL}" >&2
 

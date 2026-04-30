@@ -3,7 +3,7 @@
 ## 概述
 
 本系统采用 JWT (JSON Web Token) 进行身份认证，支持以下认证方式：
-- 用户名密码登录
+- 邮箱密码登录
 - 手机号验证码登录
 - 管理员登录（独立的 Token 体系）
 
@@ -17,7 +17,7 @@
 
 ### POST /auth/register — 用户注册
 
-创建新的用户账户，包含用户名、邮箱和密码等信息。
+创建新的用户账户，邮箱和密码为必填；用户名默认等于邮箱。
 
 - 需要认证：否
 - 标识：register
@@ -28,11 +28,11 @@
 ```json
 {
   "type": "object",
-  "required": ["username", "email", "password"],
+  "required": ["email", "password"],
   "properties": {
     "username": {
       "type": "string",
-      "description": "用户名，长度至少3个字符",
+      "description": "兼容旧客户端的用户名（可选）；未传时默认等于邮箱",
       "minLength": 3,
       "example": "testuser"
     },
@@ -59,7 +59,6 @@
 - 示例：
 ```json
 {
-  "username": "testuser",
   "email": "test@example.com",
   "password": "password123",
   "nickname": "测试用户"
@@ -72,7 +71,7 @@
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "testuser",
+  "username": "test@example.com",
   "email": "test@example.com",
   "nickname": "测试用户",
   "avatar_url": null,
@@ -89,7 +88,7 @@
 ```
 
 ##### HTTP 409
-用户名或邮箱已存在
+邮箱或用户名已存在
 ```json
 {
   "error": "Username already exists"
@@ -100,7 +99,7 @@
 
 ### POST /auth/login — 用户登录
 
-使用用户名和密码进行身份验证，成功后返回JWT token。
+使用邮箱和密码进行身份验证，成功后返回 JWT token。旧客户端仍可传 `username`。
 
 - 需要认证：否
 - 标识：login
@@ -109,7 +108,7 @@
 - Content-Type：application/json
 ```json
 {
-  "username": "testuser",
+  "email": "test@example.com",
   "password": "password123"
 }
 ```
@@ -123,7 +122,7 @@
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "username": "testuser",
+    "username": "test@example.com",
     "email": "test@example.com",
     "nickname": "测试用户",
     "avatar_url": null,
@@ -133,41 +132,12 @@
 ```
 
 ##### HTTP 401
-用户名或密码错误
+邮箱或密码错误
 ```json
 {
   "error": "Invalid username or password"
 }
 ```
-
----
-
-### POST /auth/login/oauth — 第三方登录（OAuth/OIDC）
-
-客户端获取第三方 `id_token` 后，调用该接口完成登录或注册并返回 Token。
-
-- 需要认证：否
-- 标识：login_oauth
-- 支持 provider：`google` / `apple`
-
-#### 请求体
-- Content-Type：application/json
-```json
-{
-  "provider": "google",
-  "id_token": "..."
-}
-```
-
-#### 响应
-##### HTTP 200
-登录成功（返回结构与 `/auth/login` 一致）
-
-#### 环境变量
-后端需要配置对应平台的 Client ID，用于校验 `id_token` 的 audience：
-
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `APPLE_OAUTH_CLIENT_ID`
 
 ---
 

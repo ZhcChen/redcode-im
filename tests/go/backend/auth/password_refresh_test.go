@@ -1,7 +1,11 @@
 package auth_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"redcode-im-tests/internal/testutil"
@@ -9,7 +13,7 @@ import (
 
 func TestPasswordLoginAndRefresh_OK(t *testing.T) {
 	c := testutil.NewClient()
-	username := testutil.UniqueUsername("auth_user")
+	username := testutil.UniqueEmail("auth_user")
 	password := "pass123456"
 
 	registered := testutil.RegisterUser(t, c, username, password)
@@ -17,6 +21,9 @@ func TestPasswordLoginAndRefresh_OK(t *testing.T) {
 
 	if loginResp.User.ID != registered.ID {
 		t.Fatalf("login user id mismatch: expect %s, got %s", registered.ID, loginResp.User.ID)
+	}
+	if loginResp.User.Email != username {
+		t.Fatalf("login user email mismatch: expect %s, got %s", username, loginResp.User.Email)
 	}
 
 	refreshResp := testutil.RefreshToken(t, c, loginResp.RefreshToken)
@@ -33,4 +40,63 @@ func TestPasswordLoginAndRefresh_OK(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expect /auth/me 200, got %d", resp.StatusCode)
 	}
+}
+
+func TestEmailRegisterValidationAndDuplicate_OK(t *testing.T) {
+	c := testutil.NewClient()
+	password := "pass123456"
+
+	invalidReq := map[string]any{
+		"email":    "not-an-email",
+		"password": password,
+	}
+	invalidStatus, invalidBody := postJSON(c, c.BaseURL+"/auth/register", invalidReq)
+	if invalidStatus != http.StatusBadRequest || !strings.Contains(invalidBody, "邮箱格式不正确") {
+		t.Fatalf("invalid email register mismatch: status=%d body=%s", invalidStatus, invalidBody)
+	}
+
+	email := testutil.UniqueEmail("dup")
+	testutil.RegisterUser(t, c, email, password)
+
+	duplicateStatus, duplicateBody := postJSON(c, c.BaseURL+"/auth/register", map[string]any{
+		"email":    strings.ToUpper(email),
+		"password": password,
+	})
+	if duplicateStatus != http.StatusConflict || !strings.Contains(duplicateBody, "邮箱已被使用") {
+		t.Fatalf("duplicate email register mismatch: status=%d body=%s", duplicateStatus, duplicateBody)
+	}
+}
+
+func TestEmailLoginWrongPasswordAndLegacyUsernameCompat_OK(t *testing.T) {
+	c := testutil.NewClient()
+	email := testutil.UniqueEmail("login")
+	password := "pass123456"
+	testutil.RegisterUser(t, c, email, password)
+
+	wrongStatus, wrongBody := postJSON(c, c.BaseURL+"/auth/login", map[string]any{
+		"email":    email,
+		"password": "wrong-password",
+	})
+	if wrongStatus != http.StatusUnauthorized || !strings.Contains(wrongBody, "用户名或密码错误") {
+		t.Fatalf("wrong password login mismatch: status=%d body=%s", wrongStatus, wrongBody)
+	}
+
+	legacyStatus, legacyBody := postJSON(c, c.BaseURL+"/auth/login", map[string]any{
+		"username": email,
+		"password": password,
+	})
+	if legacyStatus != http.StatusOK {
+		t.Fatalf("legacy username login should still work: status=%d body=%s", legacyStatus, legacyBody)
+	}
+}
+
+func postJSON(c *testutil.Client, url string, payload any) (int, string) {
+	raw, _ := json.Marshal(payload)
+	resp, err := c.HTTP.Post(url, "application/json", bytes.NewReader(raw))
+	if err != nil {
+		return 0, err.Error()
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
 }

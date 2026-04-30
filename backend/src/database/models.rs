@@ -221,6 +221,7 @@ pub struct CreateUserRequest {
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub username: String,
+    pub email: String,
     pub password: String,
 }
 

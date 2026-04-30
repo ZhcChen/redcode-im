@@ -58,6 +58,11 @@ const ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/sql/migrations/20260413153000_add_object_storage_configs.sql"
 ));
+const DROP_USER_OAUTH_ACCOUNTS_MIGRATION_NAME: &str = "20260430120000_drop_user_oauth_accounts.sql";
+const DROP_USER_OAUTH_ACCOUNTS_MIGRATION_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/sql/migrations/20260430120000_drop_user_oauth_accounts.sql"
+));
 const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 
 /// 按执行顺序写死的迁移脚本列表
@@ -76,6 +81,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (
         ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_NAME,
         ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL,
+    ),
+    (
+        DROP_USER_OAUTH_ACCOUNTS_MIGRATION_NAME,
+        DROP_USER_OAUTH_ACCOUNTS_MIGRATION_SQL,
     ),
 ];
 
@@ -495,7 +504,6 @@ async fn ensure_database_matches_current_baseline(
         "push_provider_configs",
         "push_logs",
         "push_job_queue",
-        "user_oauth_accounts",
         "e2ee_identity_keys",
         "object_storage_configs",
     ];

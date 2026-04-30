@@ -33,7 +33,7 @@ func TestUserAvatarDirectUploadCommitAndDownload_OK(t *testing.T) {
 	c := testutil.NewClient()
 	testutil.EnsureDefaultStorageProvider(t, c)
 
-	username := testutil.UniqueUsername("avatar")
+	username := testutil.UniqueEmail("avatar")
 	password := "pass123456"
 	login := registerAndLogin(t, c, username, password)
 

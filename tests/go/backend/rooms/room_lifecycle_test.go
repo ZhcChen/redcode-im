@@ -13,8 +13,8 @@ func TestRoomCreateJoinLeaveAndMembers_OK(t *testing.T) {
 	c := testutil.NewClient()
 	password := "pass123456"
 
-	userA := testutil.UniqueUsername("rooma")
-	userB := testutil.UniqueUsername("roomb")
+	userA := testutil.UniqueEmail("rooma")
+	userB := testutil.UniqueEmail("roomb")
 
 	loginA := registerAndLogin(t, c, userA, password)
 	loginB := registerAndLogin(t, c, userB, password)
