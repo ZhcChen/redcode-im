@@ -4,10 +4,7 @@
       <icon-more />
     </template>
     <div class="studio-wrapper">
-      <img
-        src="http://p1-arco.byteimg.com/tos-cn-i-uwbnlip3yd/c788fc704d32cf3b1136c7d45afc2669.png~tplv-uwbnlip3yd-webp.webp"
-        class="studio-preview"
-      />
+      <img :src="monitorPreviewImage" alt="" class="studio-preview" />
       <div class="studio-bar">
         <div v-if="userInfo">
           <a-space :size="12">
@@ -29,6 +26,7 @@
 
 <script lang="ts" setup>
   import { useUserStore } from '@/store';
+  import monitorPreviewImage from '@/assets/images/dashboard-monitor-preview.svg?url';
 
   const userInfo = useUserStore();
 </script>
