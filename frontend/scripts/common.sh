@@ -6,6 +6,69 @@
 DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-3A091FDJG001DN}"
 DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Pixel 8 Pro}"
 
+flutter_devices_output() {
+    flutter devices
+}
+
+find_flutter_device_line() {
+    local device_id="$1"
+
+    [ -n "$device_id" ] || return 0
+    flutter_devices_output | awk -v id="$device_id" '
+        index($0, id) && !found {
+            line=$0
+            found=1
+        }
+        END {
+            if (found) {
+                print line
+            }
+        }
+    '
+}
+
+is_flutter_device_available() {
+    local device_id="$1"
+
+    [ -n "$(find_flutter_device_line "$device_id")" ]
+}
+
+find_first_ios_simulator_device() {
+    flutter_devices_output | awk -F '•' '
+        /\(simulator\)/ && / ios[[:space:]]*•/ && !found {
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+            device_id=$2
+            found=1
+        }
+        END {
+            if (found) {
+                print device_id
+            }
+        }
+    '
+}
+
+resolve_frontend_acceptance_device() {
+    local requested_device_id="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
+    local simulator_id=""
+
+    if is_flutter_device_available "$requested_device_id"; then
+        echo "$requested_device_id"
+        return 0
+    fi
+
+    if [ "$requested_device_id" = "$DEFAULT_FLUTTER_DEVICE_ID" ]; then
+        simulator_id="$(find_first_ios_simulator_device)"
+        if [ -n "$simulator_id" ]; then
+            echo "未检测到默认真机 ${DEFAULT_FLUTTER_DEVICE_NAME} (${DEFAULT_FLUTTER_DEVICE_ID})，切换到本机 iOS Simulator: ${simulator_id}" >&2
+            echo "$simulator_id"
+            return 0
+        fi
+    fi
+
+    echo "$requested_device_id"
+}
+
 get_current_lan_ip() {
     local iface=""
     local ip=""
@@ -25,6 +88,10 @@ get_current_lan_ip() {
 is_real_mobile_device() {
     local device_id="$1"
 
+    if is_flutter_simulator_device "$device_id"; then
+        return 1
+    fi
+
     case "$device_id" in
         emulator-*|ios_simulator|macos|chrome|edge|web-server|linux|windows)
             return 1
@@ -38,11 +105,33 @@ is_real_mobile_device() {
     esac
 }
 
+is_flutter_simulator_device() {
+    local device_id="$1"
+    local device_line
+
+    device_line="$(find_flutter_device_line "$device_id")"
+    [[ "$device_line" == *"(simulator)"* ]]
+}
+
+is_android_emulator_device() {
+    local device_id="$1"
+
+    [[ "$device_id" == emulator-* ]]
+}
+
 build_local_backend_dart_defines() {
     local device_id="$1"
     local lan_ip=""
 
     if ! is_real_mobile_device "$device_id"; then
+        if is_flutter_simulator_device "$device_id"; then
+            echo " --dart-define=API_BASE_URL=http://127.0.0.1:8010 --dart-define=WS_URL=ws://127.0.0.1:8010/ws"
+            return 0
+        fi
+
+        if is_android_emulator_device "$device_id"; then
+            echo " --dart-define=API_BASE_URL=http://10.0.2.2:8010 --dart-define=WS_URL=ws://10.0.2.2:8010/ws"
+        fi
         return 0
     fi
 
@@ -57,6 +146,17 @@ build_local_backend_dart_defines() {
 
 describe_flutter_device() {
     local device_id="$1"
+    local device_line=""
+
+    device_line="$(find_flutter_device_line "$device_id")"
+    if [ -n "$device_line" ]; then
+        echo "$device_line" | awk -F '•' -v id="$device_id" '{
+            name=$1
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+            print name " (" id ")"
+        }'
+        return
+    fi
 
     if [ "$device_id" = "$DEFAULT_FLUTTER_DEVICE_ID" ]; then
         echo "${DEFAULT_FLUTTER_DEVICE_NAME} (${device_id})"
@@ -78,7 +178,7 @@ show_and_verify_flutter_devices() {
     if ! printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
         echo "" >&2
         echo "未找到目标设备: $device_label" >&2
-        echo "请连接默认真机，或通过参数传入其他设备 ID。" >&2
+        echo "请连接目标设备，启动本机 iOS Simulator，或通过参数传入其他设备 ID。" >&2
         return 1
     fi
 }

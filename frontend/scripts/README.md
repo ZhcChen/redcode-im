@@ -5,7 +5,7 @@
 ## 快速开始
 
 ```bash
-# 开发环境运行（默认测试真机：Pixel 8 Pro / 3A091FDJG001DN）
+# 开发环境运行（默认验收设备：优先 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 ./scripts/run.sh
 
 # 生产环境构建 APK
@@ -40,7 +40,7 @@ ENABLE_PERFORMANCE_MONITOR=false  # 性能监控
 USE_MOCK_DATA=false          # Mock 数据
 ```
 
-> 真机运行时，`run.sh` / `run_dev.sh` 会在启动前自动检测当前本机局域网 IP，并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`，避免使用过期局域网地址。
+> 默认验收设备顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，`run.sh`、`run_dev.sh` 与 `test_integration.sh device` 会自动切换到本机 iOS Simulator。真机运行时会重新检测当前本机局域网 IP 并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 
 ### 本地覆盖
 
@@ -61,13 +61,13 @@ vim .env.development.local
 统一运行脚本，自动读取 `.env` 配置文件。
 
 ```bash
-# 基本用法（默认使用 .env.development + 默认测试真机 Pixel 8 Pro）
+# 基本用法（默认使用 .env.development + 默认验收设备）
 ./scripts/run.sh
 
 # 指定环境配置
 ./scripts/run.sh --env .env.production
 
-# 指定运行设备（覆盖默认真机）
+# 指定运行设备（覆盖默认验收设备）
 ./scripts/run.sh 3A091FDJG001DN
 ./scripts/run.sh emulator-5554
 
@@ -75,14 +75,14 @@ vim .env.development.local
 ./scripts/run.sh --env .env.production emulator-5554
 ```
 
-不传设备参数时，脚本默认使用测试真机 `Pixel 8 Pro (3A091FDJG001DN)`；如需切换设备，可通过参数覆盖。
+不传设备参数时，脚本优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动回退到本机 iOS Simulator。如需切换设备，可通过参数覆盖。
 
 **参数说明：**
 
 | 参数 | 说明 |
 |------|------|
 | `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
-| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认测试真机为 `Pixel 8 Pro (3A091FDJG001DN)` |
+| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认优先 `Pixel 8 Pro (3A091FDJG001DN)`，未连接则回退本机 iOS Simulator |
 | `--help, -h` | 显示帮助信息 |
 
 ---
@@ -100,7 +100,7 @@ make frontend.test.integration.smoke
 # 访问本机 backend，默认 macos + http://127.0.0.1:8010
 make frontend.test.integration.network
 
-# 真机联调：每次自动检测当前 LAN IP，默认 Pixel 8 Pro
+# 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make frontend.test.integration.device
 ```
 
@@ -112,11 +112,24 @@ make frontend.test.integration.device
 ./scripts/test_integration.sh device --device 3A091FDJG001DN
 ```
 
-`device` 模式会在每次执行前重新检测当前本机局域网 IP，并注入：
+`device` 模式优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
 
 ```bash
 API_BASE_URL=http://<LAN_IP>:8010
 WS_URL=ws://<LAN_IP>:8010/ws
+```
+
+iOS Simulator 执行时使用：
+
+```bash
+API_BASE_URL=http://127.0.0.1:8010
+WS_URL=ws://127.0.0.1:8010/ws
+```
+
+Makefile 中 `FLUTTER_DEVICE` 默认为空，脚本会自行按验收顺序选择设备；需要强制指定时再传入，例如：
+
+```bash
+make frontend.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN
 ```
 
 ---
@@ -171,11 +184,11 @@ scripts/
 ├── build.sh                 # 统一构建脚本（推荐）
 ├── common.sh                # 通用函数库
 │
-├── run_dev.sh               # 开发环境运行（传统）
+├── run_dev.sh               # 开发环境运行（传统，默认验收设备）
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
-├── run_flutter.sh           # 基础运行脚本（默认 Pixel 8 Pro 真机）
-├── test_integration.sh      # integration smoke / backend 联通 / 真机联调测试
+├── run_flutter.sh           # 基础运行脚本（传统，默认 Pixel 8 Pro）
+├── test_integration.sh      # integration smoke / backend 联通 / 设备联调测试
 │
 ├── build_android.sh         # Android 打包（传统）
 ├── build_ipa.sh             # iOS 打包（传统）

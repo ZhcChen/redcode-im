@@ -44,9 +44,8 @@ cd frontend && flutter test
 make frontend.test.integration.smoke
 ```
 
-默认 frontend 真机 / 集成测试设备：`Pixel 8 Pro (3A091FDJG001DN)`。
-后续未特别说明时，frontend 模块的真机 smoke、integration、联调验证默认都在这台设备上执行。
-每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP。
+默认 frontend 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
+每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 推荐使用 Makefile 入口自动完成：
 
 ```bash
@@ -56,12 +55,14 @@ make frontend.test.integration.smoke
 # 本机 backend 联通性验证（默认 macos + http://127.0.0.1:8010）
 make frontend.test.integration.network
 
-# 真机联调验证：自动检测当前 LAN IP，默认 Pixel 8 Pro
+# 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make frontend.test.integration.device
 
 # Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
 make frontend.test.integration.device.reverse
 ```
+
+`FLUTTER_DEVICE` 默认为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make frontend.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
 
 ### Frontend iOS Simulator / Patrol
 ```bash
@@ -167,7 +168,7 @@ cd backend && cargo test
 - backend contract
 - admin route / core flow smoke
 - frontend integration smoke
-- backend + frontend 联调时先启动 backend，再跑 `make frontend.test.integration.network`；真机联调用 `make frontend.test.integration.device`。
+- backend + frontend 联调时先启动 backend，再跑 `make frontend.test.integration.network`；设备联调用 `make frontend.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
 
 ---
 

@@ -36,7 +36,7 @@ DESKTOP_LOG := /tmp/redcode-desktop.log
 
 FRONTEND_DIR := $(ROOT_DIR)/frontend
 FRONTEND_ENV ?= .env.development
-FLUTTER_DEVICE ?= 3A091FDJG001DN
+FLUTTER_DEVICE ?=
 FRONTEND_TEST_DEVICE ?= macos
 FRONTEND_ANDROID_ENV ?= production
 FRONTEND_IOS_ENV ?= production
@@ -299,7 +299,7 @@ frontend.install: ## 获取 frontend Flutter 依赖
 
 frontend.run: ## 运行 frontend（可覆盖 FRONTEND_ENV / FLUTTER_DEVICE）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/run.sh --env "$(FRONTEND_ENV)" "$(FLUTTER_DEVICE)"
+	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/run.sh --env "$(FRONTEND_ENV)" "$(FLUTTER_DEVICE)"; else ./scripts/run.sh --env "$(FRONTEND_ENV)"; fi
 
 frontend.check: ## 执行 frontend Flutter analyze
 	@$(call require_cmd,$(FLUTTER))
@@ -335,13 +335,13 @@ frontend.test.integration.network: ## 执行 frontend network integration（默�
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh network --device "$(FRONTEND_TEST_DEVICE)"
 
-frontend.test.integration.device: ## 执行 frontend 真机 network integration（自动检测 LAN IP，默认 Pixel 8 Pro）
+frontend.test.integration.device: ## 执行 frontend 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"
+	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
 
 frontend.test.integration.device.reverse: ## 执行 frontend Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"
+	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
 
 frontend.test.patrol.harness: ## 执行 frontend iOS Patrol harness smoke（可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))

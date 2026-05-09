@@ -3,7 +3,7 @@
 # Flutter 运行脚本（读取 .env 配置）
 #
 # 使用方式:
-#   ./scripts/run.sh                    # 使用 .env 配置 + 默认真机运行
+#   ./scripts/run.sh                    # 使用 .env 配置 + 默认验收设备运行
 #   ./scripts/run.sh --env .env.local   # 使用指定的配置文件
 #   ./scripts/run.sh 3A091FDJG001DN     # 指定设备运行
 #
@@ -27,6 +27,7 @@ NC='\033[0m'
 # 默认值
 ENV_FILE=".env.development"
 DEVICE_ID="$DEFAULT_FLUTTER_DEVICE_ID"
+DEVICE_EXPLICIT=0
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -43,18 +44,23 @@ while [[ $# -gt 0 ]]; do
             echo "  --help, -h        显示帮助信息"
             echo ""
             echo "示例:"
-            echo "  ./scripts/run.sh                            # 使用 .env.development + 默认真机运行"
-            echo "  ./scripts/run.sh --env .env.production     # 使用 .env.production + 默认真机运行"
+            echo "  ./scripts/run.sh                            # 使用 .env.development + 默认验收设备运行"
+            echo "  ./scripts/run.sh --env .env.production     # 使用 .env.production + 默认验收设备运行"
             echo "  ./scripts/run.sh 3A091FDJG001DN           # 在 Pixel 8 Pro 上运行"
             echo "  ./scripts/run.sh emulator-5554             # 覆盖为 Android 模拟器"
             exit 0
             ;;
         *)
             DEVICE_ID="$1"
+            DEVICE_EXPLICIT=1
             shift
             ;;
     esac
 done
+
+if [ "$DEVICE_EXPLICIT" = "0" ]; then
+    DEVICE_ID="$(resolve_frontend_acceptance_device "$DEVICE_ID")"
+fi
 
 echo -e "${BLUE}🚀 Flutter 运行脚本${NC}"
 echo ""

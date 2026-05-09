@@ -3,7 +3,7 @@
 # Flutter integration 测试入口。
 # - smoke: 不访问真实 backend，适合日常快速验证。
 # - network: 访问本机 backend，默认使用 127.0.0.1。
-# - device: 访问本机 backend，自动检测当前 LAN IP 并注入到真机。
+# - device: 优先真机；默认真机未连接时切换本机 iOS Simulator。
 # - device-reverse: Android USB 真机通过 adb reverse 访问本机 backend。
 
 set -euo pipefail
@@ -25,16 +25,20 @@ usage() {
   ./scripts/test_integration.sh [smoke|network|device|device-reverse] [选项]
 
 选项：
-  --device DEVICE_ID       device 模式目标设备，默认 Pixel 8 Pro
+  --device DEVICE_ID       device 模式目标设备，默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
   --api-base-url URL       network 模式 API 地址，默认 http://127.0.0.1:8010
   --ws-url URL             network 模式 WS 地址，默认 ws://127.0.0.1:8010/ws
   --target FILE            覆盖 integration_test 目标文件
   -h, --help               显示帮助
 
 说明：
-  device 模式每次都会重新检测当前本机 LAN IP，并生成：
+  device 模式优先使用 Pixel 8 Pro；未连接时自动切换本机 iOS Simulator。
+  真机执行时每次都会重新检测当前本机 LAN IP，并生成：
     API_BASE_URL=http://<LAN_IP>:8010
     WS_URL=ws://<LAN_IP>:8010/ws
+  iOS Simulator 执行时使用：
+    API_BASE_URL=http://127.0.0.1:8010
+    WS_URL=ws://127.0.0.1:8010/ws
   device-reverse 模式使用 adb reverse tcp:8010 tcp:8010，并生成：
     API_BASE_URL=http://127.0.0.1:8010
     WS_URL=ws://127.0.0.1:8010/ws
@@ -113,17 +117,25 @@ case "$MODE" in
             --dart-define=WS_URL="$WS_URL"
         ;;
     device)
-        DEVICE_ID="${DEVICE_ID:-$DEFAULT_FLUTTER_DEVICE_ID}"
+        REQUESTED_DEVICE_ID="${DEVICE_ID:-$DEFAULT_FLUTTER_DEVICE_ID}"
+        DEVICE_ID="$(resolve_frontend_acceptance_device "$REQUESTED_DEVICE_ID")"
         TARGET="${TARGET:-integration_test/network_connectivity_test.dart}"
-        lan_ip="$(get_current_lan_ip)" || {
-            echo "无法检测当前局域网 IP，请检查本机网络。" >&2
-            exit 1
-        }
-        API_BASE_URL="http://${lan_ip}:8010"
-        WS_URL="ws://${lan_ip}:8010/ws"
-
-        echo "📡 检测到当前局域网 IP: ${lan_ip}" >&2
         echo "📱 目标设备: $(describe_flutter_device "$DEVICE_ID")" >&2
+        if is_real_mobile_device "$DEVICE_ID"; then
+            lan_ip="$(get_current_lan_ip)" || {
+                echo "无法检测当前局域网 IP，请检查本机网络。" >&2
+                exit 1
+            }
+            API_BASE_URL="http://${lan_ip}:8010"
+            WS_URL="ws://${lan_ip}:8010/ws"
+            echo "📡 检测到当前局域网 IP: ${lan_ip}" >&2
+        elif is_android_emulator_device "$DEVICE_ID"; then
+            API_BASE_URL="http://10.0.2.2:8010"
+            WS_URL="ws://10.0.2.2:8010/ws"
+        else
+            API_BASE_URL="${API_BASE_URL:-http://127.0.0.1:8010}"
+            WS_URL="${WS_URL:-ws://127.0.0.1:8010/ws}"
+        fi
         echo "🌐 API_BASE_URL=${API_BASE_URL}" >&2
         echo "🌐 WS_URL=${WS_URL}" >&2
 
