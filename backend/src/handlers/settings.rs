@@ -244,7 +244,7 @@ pub struct CaptchaSettingPublicResponse {
     pub require_captcha_for_login: bool,
 }
 
-/// 获取登录/注册是否需要验证码（公开 API，无需 token）
+/// 获取是否开启验证码登录（公开 API，无需 token）；邮箱注册不需要验证码。
 pub async fn get_captcha_setting_public(
     State(state): State<AppState>,
 ) -> Result<Json<CaptchaSettingPublicResponse>, AppError> {

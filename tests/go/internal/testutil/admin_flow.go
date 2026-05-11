@@ -23,6 +23,15 @@ type storageProviderResponse struct {
 	IsDefault bool   `json:"is_default"`
 }
 
+type UserAccountLimitSetting struct {
+	EnablePhoneValidation        bool `json:"enable_phone_validation"`
+	EnableEmailValidation        bool `json:"enable_email_validation"`
+	EnableLengthValidation       bool `json:"enable_length_validation"`
+	MinLength                    int  `json:"min_length"`
+	MaxLength                    int  `json:"max_length"`
+	EnableAlphanumericValidation bool `json:"enable_alphanumeric_validation"`
+}
+
 var ensureDefaultStorageProviderOnce sync.Once
 var ensureDefaultStorageProviderErr error
 
@@ -118,6 +127,40 @@ func AdminLogin(t TestingT, c *Client) LoginResponse {
 		t.Fatalf("admin login failed: %v", err)
 	}
 	return loginResult
+}
+
+func GetUserAccountLimitSetting(t TestingT, c *Client, adminToken string) UserAccountLimitSetting {
+	t.Helper()
+	req := NewAuthedJSONRequest(t, http.MethodGet, c.BaseURL+"/api/admin/settings/user-account-limit", adminToken, nil)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		t.Fatalf("get user-account-limit failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("get user-account-limit expect 200, got %d: %s", resp.StatusCode, string(body))
+	}
+
+	var setting UserAccountLimitSetting
+	if err := json.NewDecoder(resp.Body).Decode(&setting); err != nil {
+		t.Fatalf("decode user-account-limit failed: %v", err)
+	}
+	return setting
+}
+
+func UpdateUserAccountLimitSetting(t TestingT, c *Client, adminToken string, setting UserAccountLimitSetting) {
+	t.Helper()
+	req := NewAuthedJSONRequest(t, http.MethodPut, c.BaseURL+"/api/admin/settings/user-account-limit", adminToken, setting)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		t.Fatalf("put user-account-limit failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("put user-account-limit expect 200, got %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 func adminLogin(c *Client) (LoginResponse, error) {

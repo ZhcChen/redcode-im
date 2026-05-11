@@ -44,7 +44,28 @@ func TestPasswordLoginAndRefresh_OK(t *testing.T) {
 
 func TestEmailRegisterValidationAndDuplicate_OK(t *testing.T) {
 	c := testutil.NewClient()
+	admin := testutil.AdminLogin(t, c)
 	password := "pass123456"
+
+	beforeLimit := testutil.GetUserAccountLimitSetting(t, c, admin.Token)
+	defer testutil.UpdateUserAccountLimitSetting(t, c, admin.Token, beforeLimit)
+	testutil.UpdateUserAccountLimitSetting(t, c, admin.Token, testutil.UserAccountLimitSetting{
+		EnablePhoneValidation:        true,
+		EnableEmailValidation:        false,
+		EnableLengthValidation:       false,
+		MinLength:                    3,
+		MaxLength:                    50,
+		EnableAlphanumericValidation: false,
+	})
+
+	before := getCaptchaSetting(t, c, admin.Token)
+	defer updateCaptchaSetting(t, c, admin.Token, before)
+	updateCaptchaSetting(t, c, admin.Token, captchaSetting{
+		Enabled:                true,
+		CaptchaCode:            "246810",
+		Description:            "email register should not require captcha",
+		RequireCaptchaForLogin: true,
+	})
 
 	invalidReq := map[string]any{
 		"email":    "not-an-email",
@@ -56,7 +77,21 @@ func TestEmailRegisterValidationAndDuplicate_OK(t *testing.T) {
 	}
 
 	email := testutil.UniqueEmail("dup")
-	testutil.RegisterUser(t, c, email, password)
+	registerStatus, registerBody := postJSON(c, c.BaseURL+"/auth/register", map[string]any{
+		"username": strings.ToUpper(email),
+		"email":    strings.ToUpper(email),
+		"password": password,
+	})
+	if registerStatus != http.StatusOK {
+		t.Fatalf("email register should ignore captcha and accept username=email: status=%d body=%s", registerStatus, registerBody)
+	}
+	var registered testutil.UserInfo
+	if err := json.Unmarshal([]byte(registerBody), &registered); err != nil {
+		t.Fatalf("decode register response failed: %v body=%s", err, registerBody)
+	}
+	if registered.Email != email {
+		t.Fatalf("register email mismatch: expect %s, got %s", email, registered.Email)
+	}
 
 	duplicateStatus, duplicateBody := postJSON(c, c.BaseURL+"/auth/register", map[string]any{
 		"email":    strings.ToUpper(email),

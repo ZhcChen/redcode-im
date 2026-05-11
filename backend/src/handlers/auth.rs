@@ -138,9 +138,11 @@ pub async fn register(
         requested_username.as_str()
     };
 
-    // 旧客户端显式传 username 时，保留原有“账号限制”校验。
+    let username_is_same_as_email = !requested_username.is_empty() && requested_username == email;
+
+    // 旧客户端显式传非邮箱 username 时，保留原有“账号限制”校验。
     // 新邮箱注册链路只校验 email，避免默认手机号规则阻断邮箱注册。
-    if !requested_username.is_empty() {
+    if !requested_username.is_empty() && !username_is_same_as_email {
         if account_limit.enable_phone_validation {
             let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
             if !phone_regex.is_match(account_name) {
@@ -398,7 +400,7 @@ pub async fn send_login_sms(
         return Err(AppError::ValidationError("手机号不能为空".to_string()));
     }
 
-    // 检查是否开启登录/注册验证码
+    // 检查是否开启验证码登录；邮箱注册不需要验证码。
     let settings_store = SettingsStore::new(state.database.clone());
     let require_captcha = settings_store
         .require_captcha_for_login()
@@ -445,7 +447,7 @@ pub async fn login_with_sms(
         ));
     }
 
-    // 检查是否开启登录/注册验证码
+    // 检查是否开启验证码登录；邮箱注册不需要验证码。
     let settings_store = SettingsStore::new(state.database.clone());
     let require_captcha = settings_store
         .require_captcha_for_login()
@@ -662,7 +664,7 @@ fn build_auto_registration_request(username: &str) -> CreateUserRequest {
 }
 
 fn build_auto_registration_email(username: &str) -> String {
-    // 自动注册时，邮箱 = 手机号 + @example.com
+    // 验证码登录自动注册时，邮箱 = 账号 + @example.com
     format!("{}@example.com", username)
 }
 

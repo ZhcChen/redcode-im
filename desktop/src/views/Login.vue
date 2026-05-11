@@ -42,7 +42,7 @@
           ></b-input>
         </div>
       </div>
-      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin) || (loginType === 'register' && requireCaptchaForLogin)">
+      <div class="login-container-form-item" v-if="loginType === 'captcha' || (loginType === 'password' && requireCaptchaForLogin)">
         <div class="login-container-form-item-label">验证码</div>
         <div
           class="login-container-form-item-value login-container-form-item-value-captcha"
@@ -349,14 +349,14 @@ async function handleRegister() {
   isLoading.value = true;
 
   try {
-    // 邮箱自动生成：手机号 + @example.com
-    const email = `${loginForm.value.phone}@example.com`;
+    const email = loginForm.value.phone.trim().toLowerCase();
 
     // 调用注册接口
     const registerResponse = await SystemApi.register({
-      username: loginForm.value.phone,
+      username: email,
       email: email,
       password: loginForm.value.password,
+      nickname: email,
     });
 
     if (registerResponse.success && registerResponse.data) {
@@ -369,7 +369,7 @@ async function handleRegister() {
 
       // 使用密码登录
       const loginResponse = await SystemApi.login({
-        mobile: loginForm.value.phone,
+        username: email,
         password: loginForm.value.password,
         userDeviceId: Date.now(),
       });
@@ -378,7 +378,7 @@ async function handleRegister() {
         setLoginTime();
 
         // 保存本次登录的账号
-        saveLastLoginAccount(loginForm.value.phone);
+        saveLastLoginAccount(email);
 
         const userInfo = loginResponse.data.userInfo;
         const mappedUserInfo = {
@@ -797,12 +797,14 @@ const countdown = ref(0);
 let countdownTimer: NodeJS.Timeout | null = null;
 
 // 表单验证
-const primaryFieldLabel = computed(() =>
-  loginType.value === "captcha" ? "账号" : "账号 / 手机号",
-);
-const primaryFieldPlaceholder = computed(() =>
-  loginType.value === "captcha" ? "请输入账号" : "请输入账号或手机号",
-);
+const primaryFieldLabel = computed(() => {
+  if (loginType.value === "register") return "邮箱";
+  return loginType.value === "captcha" ? "账号" : "账号 / 手机号";
+});
+const primaryFieldPlaceholder = computed(() => {
+  if (loginType.value === "register") return "请输入邮箱";
+  return loginType.value === "captcha" ? "请输入账号" : "请输入账号或手机号";
+});
 
 const isFormValid = computed(() => {
   const account = loginForm.value.phone.trim();
@@ -810,7 +812,6 @@ const isFormValid = computed(() => {
     return (
       account.length > 0 &&
       loginForm.value.password.length >= 6 &&
-      loginForm.value.captcha.length === 6 &&
       isAgreed.value
     );
   }
@@ -915,14 +916,12 @@ function validateRegisterForm(): boolean {
   const account = loginForm.value.phone.trim();
 
   if (!account) {
-    toast.error("请输入手机号");
+    toast.error("请输入邮箱");
     return false;
   }
 
-  const phoneValue = loginForm.value.phone;
-  const isAllDigits = /^\d+$/.test(phoneValue);
-  if (isAllDigits && phoneValue.length !== 11) {
-    toast.error("请输入正确的手机号");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account)) {
+    toast.error("请输入正确的邮箱地址");
     return false;
   }
 
@@ -934,19 +933,6 @@ function validateRegisterForm(): boolean {
   if (loginForm.value.password.length < 6) {
     toast.error("密码长度至少为6位");
     return false;
-  }
-
-  // 验证验证码（如果开启验证码）
-  if (requireCaptchaForLogin.value) {
-    if (!loginForm.value.captcha.trim()) {
-      toast.error("请输入验证码");
-      return false;
-    }
-
-    if (loginForm.value.captcha.length !== 6) {
-      toast.error("验证码长度为6位");
-      return false;
-    }
   }
 
   if (!isAgreed.value) {

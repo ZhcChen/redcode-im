@@ -23,7 +23,10 @@ bool _isValidEmail(String email) {
 }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.initialRequireCaptchaForLogin});
+
+  /// 测试入口：生产环境始终从后端读取验证码登录开关。
+  final bool? initialRequireCaptchaForLogin;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -59,7 +62,11 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
     _loadAppName();
-    _loadCaptchaSetting();
+    if (widget.initialRequireCaptchaForLogin != null) {
+      _requireCaptchaForLogin = widget.initialRequireCaptchaForLogin!;
+    } else {
+      _loadCaptchaSetting();
+    }
     _loadAgreementState();
   }
 
@@ -260,9 +267,8 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !_loading,
                   ),
                 ],
-                // 根据设置显示验证码输入：登录时如果开启验证码则显示，注册时如果开启验证码则显示，短信登录始终显示
+                // 邮箱注册不需要验证码；验证码输入只服务登录相关流程。
                 if ((_type == LoginType.password && _requireCaptchaForLogin) ||
-                    (_type == LoginType.register && _requireCaptchaForLogin) ||
                     _type == LoginType.sms) ...[
                   SizedBox(height: 24.h),
                   _buildLabel('验证码'),
@@ -329,7 +335,7 @@ class _LoginPageState extends State<LoginPage> {
               ? [_buildTypeButton(LoginType.register, '注册')]
               : [
                   _buildTypeButton(LoginType.password, '密码登录'),
-                  // 如果关闭了登录/注册验证码，则隐藏验证码登录 tab
+                  // 如果关闭了验证码登录，则隐藏验证码登录 tab
                   if (_requireCaptchaForLogin)
                     _buildTypeButton(LoginType.sms, '验证码登录'),
                 ],
@@ -682,7 +688,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // 如果关闭了登录/注册验证码，不允许验证码登录
+    // 如果关闭了验证码登录，不允许验证码登录
     if (_type == LoginType.sms) {
       if (!_requireCaptchaForLogin) {
         _showMessage('验证码登录功能已关闭，请使用密码登录');
@@ -706,15 +712,6 @@ class _LoginPageState extends State<LoginPage> {
     if (!_isValidEmail(email)) {
       _showMessage('请输入正确的邮箱地址');
       return;
-    }
-
-    // 如果开启验证码，需要验证码
-    if (_requireCaptchaForLogin) {
-      final code = _smsCtrl.text.trim();
-      if (code.isEmpty) {
-        _showMessage('请输入验证码');
-        return;
-      }
     }
 
     FocusScope.of(context).unfocus();

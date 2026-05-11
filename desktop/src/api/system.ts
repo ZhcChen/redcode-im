@@ -5,7 +5,7 @@ type BackendUserStatus = 'active' | 'inactive' | 'banned';
 
 interface BackendUserInfo {
   id: string;
-  username: string; // 后端的 username 实际上是手机号
+  username: string;
   email: string;
   nickname?: string | null;
   avatar_url?: string | null;
@@ -36,6 +36,13 @@ export interface LoginResponse {
   token: string;
   userInfo: LegacyUserInfo;
   refreshToken?: string | null;
+}
+
+export interface RegisterParams {
+  username?: string;
+  email: string;
+  password: string;
+  nickname?: string;
 }
 
 export interface LegacyUserInfo {
@@ -112,7 +119,7 @@ const mapBackendUserToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   avatar: user.avatar_url || '',
   avatarObjectKey: user.avatar_object_key || null,
   avatarLocalPath: null,
-  mobile: user.username, // 后端的 username 就是手机号
+  mobile: user.username,
   email: user.email || '',
   isLoggedIn: true,
   realName: user.nickname || user.username,
@@ -200,7 +207,7 @@ export class SystemApi {
   /**
    * 用户注册
    */
-  static async register(params: { username: string; email: string; password: string; nickname?: string }): Promise<ApiResponse<LegacyUserInfo>> {
+  static async register(params: RegisterParams): Promise<ApiResponse<LegacyUserInfo>> {
     const response = await post<BackendUserInfo>('/auth/register', params);
     if (!response.success || !response.data) {
       return {

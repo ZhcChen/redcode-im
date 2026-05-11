@@ -7,14 +7,14 @@
 import { rustHttp, isRustEnabled, FEATURE_FLAGS } from './rust-http'
 import { get } from './http'
 import type { ApiResponse } from './http'
-import type { LegacyUserInfo } from './system'
+import type { LegacyUserInfo, RegisterParams } from './system'
 
 // 后端用户状态
 type BackendUserStatus = 'active' | 'inactive' | 'banned'
 
 interface BackendUserInfo {
   id: string
-  username: string  // 后端的 username 实际上是手机号
+  username: string
   email: string
   nickname?: string | null
   avatar_url?: string | null
@@ -47,7 +47,7 @@ const mapBackendUserToLegacy = (user: BackendUserInfo): LegacyUserInfo => ({
   avatar: user.avatar_url || '',
   avatarObjectKey: user.avatar_object_key || null,
   avatarLocalPath: null,
-  mobile: user.username,  // 后端的 username 就是手机号
+  mobile: user.username,
   email: user.email || '',
   isLoggedIn: true,
   realName: user.nickname || user.username,
@@ -245,12 +245,7 @@ export class RustSystemApi {
   /**
    * 注册 - 使用 Rust 后端
    */
-  static async register(params: {
-    username: string
-    password: string
-    mobile: string
-    code: string
-  }): Promise<ApiResponse<any>> {
+  static async register(params: RegisterParams): Promise<ApiResponse<any>> {
     if (this.useRust()) {
       try {
         const response = await rustHttp.post('/auth/register', params)

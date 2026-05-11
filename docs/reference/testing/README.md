@@ -102,7 +102,11 @@ cd website && bun run test
 - B2 / S3 兼容对象存储默认走 `tests/mocks/external` 的 `external-mock`：
   - `REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL=http://external-mock:19080/b2api/v4/b2_authorize_account`
   - `REDCODE_IM_B2_ENDPOINT=http://external-mock:19080`
-  - 测试环境禁止使用线上 Backblaze B2 endpoint 消耗对象存储资源。
+- 测试环境禁止使用线上 Backblaze B2 endpoint 消耗对象存储资源。
+
+### 账号注册约定
+- 邮箱注册直接提交邮箱和密码，不需要邮箱验证码二次验证。
+- `require_captcha_for_login` 只控制短信验证码登录能力；不应阻断邮箱注册。
 
 ### Makefile 入口
 ```bash

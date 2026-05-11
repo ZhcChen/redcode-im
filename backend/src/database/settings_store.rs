@@ -95,7 +95,7 @@ impl SettingsStore {
         Ok(record)
     }
 
-    /// 检查登录/注册是否需要验证码
+    /// 检查是否开启验证码登录；邮箱注册不需要验证码。
     pub async fn require_captcha_for_login(&self) -> Result<bool, Error> {
         let setting = self.get_captcha_setting().await?;
         Ok(setting.require_captcha_for_login)

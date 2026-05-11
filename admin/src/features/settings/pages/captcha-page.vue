@@ -32,7 +32,7 @@
 
         <a-form-item
           field="require_captcha_for_login"
-          label="是否开启登录/注册验证码"
+          label="是否开启验证码登录"
         >
           <a-switch
             v-model="formData.require_captcha_for_login"
@@ -42,7 +42,7 @@
             :unchecked-value="false"
           />
           <template #help>
-            开启后，用户登录和注册时必须输入验证码；关闭后，登录和注册将跳过验证码验证。
+            开启后，用户可以使用短信验证码登录；邮箱注册始终不需要验证码。
           </template>
         </a-form-item>
 
@@ -62,7 +62,7 @@
             maxlength="8"
           />
           <template #help>
-            设置后，用户登录/注册时可以使用此验证码绕过验证。仅用于测试环境。
+            设置后，用户验证码登录时可以使用此验证码绕过验证。仅用于测试环境。
           </template>
         </a-form-item>
 
@@ -86,7 +86,7 @@
           >
             <div class="preview-content">
               <div v-if="formData.enabled && formData.captcha_code">
-                <div class="demo-label">用户登录/注册页面将显示：</div>
+                <div class="demo-label">验证码登录页面将显示：</div>
                 <div class="demo-captcha">
                   <a-input
                     :value="formData.captcha_code"
