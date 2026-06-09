@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/services/upload_policy_service.dart';
-import 'package:frontend/core/storage/token_storage.dart';
-import 'package:frontend/features/auth/models/auth_session.dart';
-import 'package:frontend/features/auth/models/auth_user.dart';
+import 'package:app/core/services/upload_policy_service.dart';
+import 'package:app/core/storage/token_storage.dart';
+import 'package:app/features/auth/models/auth_session.dart';
+import 'package:app/features/auth/models/auth_user.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';

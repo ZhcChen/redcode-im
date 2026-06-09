@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:frontend/core/auth/auth_state.dart';
-import 'package:frontend/core/storage/attachment_url_cache.dart';
+import 'package:app/core/auth/auth_state.dart';
+import 'package:app/core/storage/attachment_url_cache.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

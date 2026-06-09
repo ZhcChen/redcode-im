@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/services/app_config_service.dart';
-import 'package:frontend/core/services/settings_service.dart';
-import 'package:frontend/core/storage/app_config_storage.dart';
+import 'package:app/core/services/app_config_service.dart';
+import 'package:app/core/services/settings_service.dart';
+import 'package:app/core/storage/app_config_storage.dart';
 
 class FakeAppConfigStorage extends AppConfigStorage {
   String? appName;

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/emoji/models/emoji_pack_models.dart';
+import 'package:app/features/emoji/models/emoji_pack_models.dart';
 
 void main() {
   group('emoji models', () {

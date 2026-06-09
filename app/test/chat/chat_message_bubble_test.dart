@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/models/chat_message.dart';
-import 'package:frontend/features/chat/widgets/chat_message_bubble.dart';
+import 'package:app/features/chat/models/chat_message.dart';
+import 'package:app/features/chat/widgets/chat_message_bubble.dart';
 
 Widget _harness(Widget child) {
   return MaterialApp(home: Scaffold(body: child));

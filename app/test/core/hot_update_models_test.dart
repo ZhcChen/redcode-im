@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/update/hot_patch_manifest.dart';
-import 'package:frontend/core/update/hot_update_models.dart';
+import 'package:app/core/update/hot_patch_manifest.dart';
+import 'package:app/core/update/hot_update_models.dart';
 
 void main() {
   group('hot update models', () {

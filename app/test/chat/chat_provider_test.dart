@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/services/app_config_service.dart';
-import 'package:frontend/core/services/message_service.dart';
-import 'package:frontend/core/services/settings_service.dart';
-import 'package:frontend/core/services/websocket_service.dart';
-import 'package:frontend/core/storage/app_config_storage.dart';
-import 'package:frontend/features/chat/models/chat_model.dart';
-import 'package:frontend/features/chat/models/message_model.dart';
-import 'package:frontend/features/chat/providers/chat_provider.dart';
+import 'package:app/core/services/app_config_service.dart';
+import 'package:app/core/services/message_service.dart';
+import 'package:app/core/services/settings_service.dart';
+import 'package:app/core/services/websocket_service.dart';
+import 'package:app/core/storage/app_config_storage.dart';
+import 'package:app/features/chat/models/chat_model.dart';
+import 'package:app/features/chat/models/message_model.dart';
+import 'package:app/features/chat/providers/chat_provider.dart';
 
 class _SendRichCall {
   _SendRichCall({

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/widgets/custom_switch.dart';
+import 'package:app/core/widgets/custom_switch.dart';
 
 Widget _buildHost(CustomSwitch child) {
   return MaterialApp(

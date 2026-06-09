@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/theme/app_theme.dart';
-import 'package:frontend/features/auth/login_page.dart';
+import 'package:app/core/theme/app_theme.dart';
+import 'package:app/features/auth/login_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Widget _buildHost() {

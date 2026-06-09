@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/widgets/app_badge.dart';
-import 'package:frontend/features/chat/models/chat_model.dart';
-import 'package:frontend/features/chat/widgets/chat_list_item.dart';
+import 'package:app/core/widgets/app_badge.dart';
+import 'package:app/features/chat/models/chat_model.dart';
+import 'package:app/features/chat/widgets/chat_list_item.dart';
 
 Widget _buildHarness(Widget child) {
   return MaterialApp(home: Scaffold(body: child));

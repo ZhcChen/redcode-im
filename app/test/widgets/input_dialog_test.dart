@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/widgets/input_dialog.dart';
+import 'package:app/core/widgets/input_dialog.dart';
 
 Widget _buildHost({
   required Future<String?> Function(String value)? onConfirm,

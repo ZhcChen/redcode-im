@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/auth/models/auth_user.dart';
-import 'package:frontend/features/chat/widgets/friend_selection_sheet.dart';
-import 'package:frontend/features/contacts/models/friend_models.dart';
+import 'package:app/features/auth/models/auth_user.dart';
+import 'package:app/features/chat/widgets/friend_selection_sheet.dart';
+import 'package:app/features/contacts/models/friend_models.dart';
 
 Widget _buildHost({
   required List<FriendInfo> friends,

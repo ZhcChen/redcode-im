@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/storage/token_storage.dart';
-import 'package:frontend/features/auth/data/auth_repository.dart';
+import 'package:app/core/storage/token_storage.dart';
+import 'package:app/features/auth/data/auth_repository.dart';
 import 'package:integration_test/integration_test.dart';
 
 const bool _enableRealAuthIntegration = bool.fromEnvironment(

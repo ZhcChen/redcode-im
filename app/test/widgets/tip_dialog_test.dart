@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/widgets/tip_dialog.dart';
+import 'package:app/core/widgets/tip_dialog.dart';
 
 void main() {
   testWidgets('showConfirm returns true on confirm and false on cancel', (

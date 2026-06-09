@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/constants/app_colors.dart';
-import 'package:frontend/core/widgets/styled_text_field.dart';
+import 'package:app/core/constants/app_colors.dart';
+import 'package:app/core/widgets/styled_text_field.dart';
 
 Widget _buildHost(StyledTextField field) {
   return MaterialApp(

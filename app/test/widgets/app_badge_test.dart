@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/widgets/app_badge.dart';
+import 'package:app/core/widgets/app_badge.dart';
 
 Widget _wrap(Widget child) {
   return MaterialApp(

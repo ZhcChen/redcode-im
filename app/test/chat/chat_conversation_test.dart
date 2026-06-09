@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/models/chat_conversation.dart';
+import 'package:app/features/chat/models/chat_conversation.dart';
 
 void main() {
   group('ChatConversation', () {

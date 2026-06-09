@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/storage/chat_cache.dart';
-import 'package:frontend/features/chat/models/chat_model.dart';
+import 'package:app/core/storage/chat_cache.dart';
+import 'package:app/features/chat/models/chat_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Chat _buildChat({

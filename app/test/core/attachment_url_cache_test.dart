@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/storage/attachment_url_cache.dart';
+import 'package:app/core/storage/attachment_url_cache.dart';
 
 void main() {
   group('AttachmentUrlCache', () {

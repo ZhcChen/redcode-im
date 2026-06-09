@@ -1,4 +1,4 @@
-import 'package:frontend/features/auth/models/auth_user.dart';
+import 'package:app/features/auth/models/auth_user.dart';
 
 enum FriendRequestStatus { pending, accepted, declined }
 

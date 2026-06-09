@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/models/chat_model.dart';
+import 'package:app/features/chat/models/chat_model.dart';
 
 void main() {
   Chat buildChat({

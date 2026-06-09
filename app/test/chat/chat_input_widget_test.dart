@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/chat_detail_page_v2.dart';
-import 'package:frontend/features/chat/providers/chat_provider.dart';
+import 'package:app/features/chat/chat_detail_page_v2.dart';
+import 'package:app/features/chat/providers/chat_provider.dart';
 import 'package:provider/provider.dart';
 
 class _StubChatProvider extends ChangeNotifier implements ChatProvider {

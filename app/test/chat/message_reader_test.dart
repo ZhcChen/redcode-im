@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/models/message_reader.dart';
+import 'package:app/features/chat/models/message_reader.dart';
 
 void main() {
   group('MessageReader', () {

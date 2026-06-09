@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/widgets/voice_message_widget.dart';
+import 'package:app/features/chat/widgets/voice_message_widget.dart';
 
 Widget _buildHost({required int duration, bool isMine = false}) {
   return MaterialApp(

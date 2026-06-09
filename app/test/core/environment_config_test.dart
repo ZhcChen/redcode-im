@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/config/environment.dart';
+import 'package:app/core/config/environment.dart';
 
 void main() {
   group('EnvironmentConfig (default compile-time)', () {

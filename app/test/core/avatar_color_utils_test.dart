@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/utils/avatar_color_utils.dart';
+import 'package:app/core/utils/avatar_color_utils.dart';
 
 void main() {
   group('AvatarColorUtils', () {

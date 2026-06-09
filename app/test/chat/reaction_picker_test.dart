@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/widgets/reaction_picker.dart';
+import 'package:app/features/chat/widgets/reaction_picker.dart';
 
 Widget _buildHost({
   required void Function(String reaction) onSelected,

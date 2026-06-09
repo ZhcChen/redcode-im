@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/features/chat/models/chat_message.dart';
+import 'package:app/features/chat/models/chat_message.dart';
 
 void main() {
   group('chat_message model', () {

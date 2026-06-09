@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/utils/file_hash.dart';
+import 'package:app/core/utils/file_hash.dart';
 
 void main() {
   group('computeFileHash', () {
