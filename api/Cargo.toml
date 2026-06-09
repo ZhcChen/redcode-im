@@ -80,18 +80,6 @@ quick-xml = { version = "0.37", features = ["serialize"] }
  protoc-bin-vendored = "3.0"
 
 [dev-dependencies]
-# 测试框架
-tokio-test = "0.4"
-# Mock 工具
-mockall = "0.13"
-mockall_derive = "0.13"
-# 容器测试
-testcontainers = "0.25"
-# HTTP 测试
-wiremock = "0.6"
+# 集成测试：axum oneshot 进程内请求
 tower = "0.5"
 http-body-util = "0.1"
-# JSON 测试
-jsonpath-rust = "1.0"
-# WebSocket 测试
-tokio-tungstenite = "0.26"
