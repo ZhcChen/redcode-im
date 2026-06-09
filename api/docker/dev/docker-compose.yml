@@ -54,7 +54,7 @@ services:
       dockerfile: docker/dev/Dockerfile
     container_name: redcode-dev-backend
     working_dir: /app
-    command: ["cargo", "run", "--bin", "redcode-im-backend"]
+    command: ["cargo", "run", "--bin", "redcode-im-api"]
     ports:
       - "8010:8010"  # 仅 backend 对外暴露，供调试访问
     volumes:

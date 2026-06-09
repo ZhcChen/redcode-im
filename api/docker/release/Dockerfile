@@ -51,7 +51,7 @@ RUN apk add --no-cache \
     curl
 
 # 从构建阶段复制二进制
-COPY --from=builder /app/target/release/redcode-im-backend ./redcode-im-backend
+COPY --from=builder /app/target/release/redcode-im-api ./redcode-im-api
 
 # 创建非 root 用户
 RUN addgroup -g 1000 app && \
@@ -65,4 +65,4 @@ EXPOSE 8010
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:8010/healthz || exit 1
 
-CMD ["./redcode-im-backend"]
+CMD ["./redcode-im-api"]

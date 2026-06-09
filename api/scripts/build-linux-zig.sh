@@ -47,4 +47,4 @@ else
   cargo zigbuild --target "$TARGET" --profile "$PROFILE"
 fi
 
-echo "构建完成: target/${TARGET}/${PROFILE}/redcode-im-backend"
+echo "构建完成: target/${TARGET}/${PROFILE}/redcode-im-api"

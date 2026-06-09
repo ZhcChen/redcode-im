@@ -10,7 +10,7 @@ use tower_http::{
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-use redcode_im_backend::{
+use redcode_im_api::{
     database,
     logging::{
         self, DatabaseLayer, LogEntry, LogStore, LogWriter, LoggingConfig, PostgresLogStore,
@@ -274,19 +274,19 @@ async fn register_node_heartbeat(
     let active_rooms = connection_manager.get_active_room_count().await;
 
     // 获取系统指标
-    let cpu_usage = redcode_im_backend::utils::system::get_system_load()
+    let cpu_usage = redcode_im_api::utils::system::get_system_load()
         .await
         .unwrap_or(0.0);
-    let memory_usage = redcode_im_backend::utils::system::get_memory_usage()
+    let memory_usage = redcode_im_api::utils::system::get_memory_usage()
         .await
         .unwrap_or(0.0);
-    let disk_usage = redcode_im_backend::utils::system::get_disk_usage()
+    let disk_usage = redcode_im_api::utils::system::get_disk_usage()
         .await
         .unwrap_or(0.0);
-    let cpu_count = redcode_im_backend::utils::system::get_cpu_count()
+    let cpu_count = redcode_im_api::utils::system::get_cpu_count()
         .await
         .unwrap_or(1);
-    let total_memory = redcode_im_backend::utils::system::get_total_memory()
+    let total_memory = redcode_im_api::utils::system::get_total_memory()
         .await
         .unwrap_or(0);
 

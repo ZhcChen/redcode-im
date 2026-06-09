@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEFAULT_BIN="target/x86_64-unknown-linux-musl/release/redcode-im-backend"
+DEFAULT_BIN="target/x86_64-unknown-linux-musl/release/redcode-im-api"
 TARGET_DIR="/home/ubuntu"
 HOSTS=("xin-im-prod-0")
 

@@ -4,8 +4,8 @@ use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
 /// 导入 backend 的模块
-use redcode_im_backend::crypto::TokenCrypto;
-use redcode_im_backend::database::account_store::{Account, AccountSettings, AccountStore};
+use redcode_im_api::crypto::TokenCrypto;
+use redcode_im_api::database::account_store::{Account, AccountSettings, AccountStore};
 
 /// 账号管理器状态
 pub struct AccountManager {

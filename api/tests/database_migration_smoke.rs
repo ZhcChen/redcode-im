@@ -1,4 +1,4 @@
-use redcode_im_backend::Database;
+use redcode_im_api::Database;
 use sqlx::PgPool;
 use std::env;
 use uuid::Uuid;

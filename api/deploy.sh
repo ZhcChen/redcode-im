@@ -30,7 +30,7 @@ echo -e "\n${YELLOW}[2/2] 上传到服务器...${NC}"
 echo -e "服务器: xin-im-prod-0"
 echo -e "目标路径: /home/ubuntu"
 
-scp target/x86_64-unknown-linux-musl/release/redcode-im-backend xin-im-prod-0:/home/ubuntu
+scp target/x86_64-unknown-linux-musl/release/redcode-im-api xin-im-prod-0:/home/ubuntu
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}上传失败!${NC}"
@@ -45,4 +45,6 @@ echo -e "${GREEN}========================================${NC}"
 
 echo -e "\n${YELLOW}下一步: 登录服务器重启服务${NC}"
 echo -e "  ssh xin-im-prod-0"
-echo -e "  sudo systemctl restart redcode-im-backend"
+echo -e "  sudo systemctl restart redcode-im-api"
+echo -e "  ${YELLOW}# 二进制已更名为 redcode-im-api；systemd 单元名以生产主机实际部署为准，"
+echo -e "  ${YELLOW}# 若线上单元仍为 redcode-im-backend.service，请沿用旧名或在主机侧同步改名${NC}"

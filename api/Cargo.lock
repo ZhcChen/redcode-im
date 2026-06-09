@@ -3264,7 +3264,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "redcode-im-backend"
+name = "redcode-im-api"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",

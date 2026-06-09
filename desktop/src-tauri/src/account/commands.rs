@@ -1,7 +1,7 @@
 use super::{AccountInput, AccountManager, AccountOutput};
 use crate::http::client::HttpClientState;
 use crate::http::commands::http_request;
-use redcode_im_backend::database::account_store::AccountSettings;
+use redcode_im_api::database::account_store::AccountSettings;
 use serde::Serialize;
 use tauri::State;
 

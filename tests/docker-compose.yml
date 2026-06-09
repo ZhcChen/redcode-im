@@ -96,7 +96,7 @@ services:
 
   backend:
     <<: *rust_service
-    command: ["cargo", "run", "--bin", "redcode-im-backend"]
+    command: ["cargo", "run", "--bin", "redcode-im-api"]
     depends_on:
       external-mock:
         condition: service_healthy
