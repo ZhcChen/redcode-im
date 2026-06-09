@@ -39,12 +39,11 @@ docker compose -f api/docker/dev/docker-compose.yml down -v
 
 ### 2. 测试隔离栈
 
-使用 `tests/docker-compose.yml`：
+使用 `tests/docker-compose.test.yml`：
 
 ```bash
-docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis api
-docker compose -f tests/docker-compose.yml run --rm go-tests
-docker compose -f tests/docker-compose.yml down -v --remove-orphans
+docker compose -f tests/docker-compose.test.yml up -d --wait postgres redis external-mock
+docker compose -f tests/docker-compose.test.yml down -v --remove-orphans
 ```
 
 测试栈里 Redis 只启动一套：
@@ -195,5 +194,5 @@ lsof -i :6381
 - `api/src/redis/mod.rs`
 - `api/docker/dev/docker-compose.yml`
 - `api/docker/release/docker-compose.yml`
-- `tests/docker-compose.yml`
+- `tests/docker-compose.test.yml`
 - `api/start-redis.sh`

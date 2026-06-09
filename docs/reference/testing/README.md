@@ -5,7 +5,7 @@
 RedCode IM 的测试策略调整为：
 
 - **模块自测为主**
-- **`tests/` 只负责 api contract 测试栈**
+- **`tests/` 只负责 api 集成测试依赖栈 + 仓库级 tooling 守护**
 - **跨模块 smoke 只保留少量必要链路**
 
 不要再把 `tests/` 当成“全项目统一测试中心”。
@@ -15,7 +15,7 @@ RedCode IM 的测试策略调整为：
 ## 2. 目录边界
 
 ### 模块内测试
-- `api/tests/`：Rust 集成测试
+- `api/tests/`：Rust 集成测试（axum oneshot 进程内 + 共享 harness `api/tests/support`）
 - `app/test/`：Flutter 单元 / widget 测试
 - `app/integration_test/`：Flutter integration smoke
 - `admin/playwright-tests/`：Admin E2E / smoke
@@ -23,10 +23,9 @@ RedCode IM 的测试策略调整为：
 - `website/test/`：Website 模块测试
 
 ### `tests/` 目录
-- `tests/run.sh`：api contract 统一入口
-- `tests/docker-compose.yml`：isolated api contract stack
-- `tests/go/`：api HTTP / WS 黑盒契约测试
-- `tests/mocks/external/`：第三方依赖 mock
+- `tests/docker-compose.test.yml`：api 集成测试依赖栈（pg / redis / external-mock，映射宿主端口）
+- `tests/go/tooling/`：仓库级 Makefile / 脚本守护测试
+- `tests/mocks/external/`：第三方依赖（B2 / IPInfo / FCM）mock
 
 ---
 
@@ -98,22 +97,26 @@ cd desktop && bun run test
 cd website && bun run test
 ```
 
-### API contract 测试栈
+### API 集成测试（Rust 原生）
 ```bash
-./tests/run.sh
-./tests/run.sh rust
-./tests/run.sh go
+# 单元测试（无需依赖）
+make api.test.unit          # = cd api && cargo test --lib
+
+# 集成测试（自动拉起 pg/redis，axum oneshot 进程内）
+make api.test.integration
+
+# 默认套：单元 + 集成
+make api.test
+
+# 跑完停掉依赖栈
+make api.test.deps.down
 ```
 
 说明：
-- Go 黑盒契约测试默认按包串行执行（`-p 1`），避免共享同一 api / DB 时发生状态竞争。
-- `tests/docker-compose.yml` 将 api / PostgreSQL / Redis 放在同一个 Compose 网络中。
-- 测试栈只启动一个 Redis，api 的 `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 都指向该实例。
-- PostgreSQL / Redis 不映射宿主机端口。
-- B2 / S3 兼容对象存储默认走 `tests/mocks/external` 的 `external-mock`：
-  - `REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL=http://external-mock:19080/b2api/v4/b2_authorize_account`
-  - `REDCODE_IM_B2_ENDPOINT=http://external-mock:19080`
-- 测试环境禁止使用线上 Backblaze B2 endpoint 消耗对象存储资源。
+- 集成测试用 `axum` `oneshot` 进程内打 Router，对 `tests/docker-compose.test.yml` 起的依赖运行；每测试 `CREATE/DROP DATABASE` 独立临时库，`--test-threads=1` 串行。
+- `tests/docker-compose.test.yml` 把 pg/redis/external-mock 映射到宿主端口（`5433 / 6380 / 19080`），供本机 `cargo test` 连接。
+- 涉及对象存储 / 推送 / 地理的用例走 `tests/mocks/external` 的 `external-mock`；测试环境禁止使用线上 Backblaze B2 endpoint。
+- 迁移一致性校验保留在 `api/tests/database_migration_smoke.rs`。
 
 ### 账号注册约定
 - 邮箱注册直接提交邮箱和密码，不需要邮箱验证码二次验证。
@@ -159,9 +162,6 @@ make app.test
 make admin.test
 make desktop.test
 make website.test
-make tests.run
-make tests.contract
-make tests.go
 make tests.all
 ```
 
@@ -172,8 +172,7 @@ make tests.all
 ### 改 api handler / database / websocket / 对外接口
 至少跑：
 ```bash
-cd api && cargo test
-./tests/run.sh go
+make api.test          # Rust 单元 + 集成（自动拉起 pg/redis）
 ```
 
 ### 改 app / admin / desktop / website
@@ -190,7 +189,7 @@ cd api && cargo test
 
 ## 5. 当前约定
 
-- `tests/run.sh` 默认跑 api contract 全量：Rust lib + Rust integration + Go contract
+- `make api.test` = api Rust 单元（`cargo test --lib`）+ 集成（`cargo test --tests`，axum oneshot 对单一临时测试库）
 - `tests/` 不承载 app / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
 - 仓库根目录 `make test.all` 是本地全量测试编排入口，内部仍调用各模块自己的测试命令。

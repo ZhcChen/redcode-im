@@ -6,7 +6,7 @@
 
 - API 开发调试：`api/docker/dev/docker-compose.yml`
 - API 发布构建验证：`api/docker/release/docker-compose.yml`
-- 测试隔离栈：`tests/docker-compose.yml`
+- 测试隔离栈：`tests/docker-compose.test.yml`
 - Website 部署：`website/docker/docker-compose.yml`
 - Admin Nginx 部署：`admin/nginx/docker-compose.yml`
 
@@ -61,15 +61,14 @@ docker compose -f api/docker/release/docker-compose.yml down -v
 推荐入口：
 
 ```bash
-./tests/run.sh
+make api.test
 ```
 
 如需手动控制：
 
 ```bash
-docker compose -f tests/docker-compose.yml up -d --build external-mock postgres redis api
-docker compose -f tests/docker-compose.yml run --rm go-tests
-docker compose -f tests/docker-compose.yml down -v --remove-orphans
+docker compose -f tests/docker-compose.test.yml up -d --wait postgres redis external-mock
+docker compose -f tests/docker-compose.test.yml down -v --remove-orphans
 ```
 
 说明：
@@ -103,7 +102,7 @@ docker compose -f api/docker/dev/docker-compose.yml logs -f api
 docker compose -f api/docker/release/docker-compose.yml ps
 
 # 进入测试栈 api 容器
-docker compose -f tests/docker-compose.yml exec api sh
+docker compose -f tests/docker-compose.test.yml exec api sh
 ```
 
 ## 注意事项

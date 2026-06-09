@@ -33,8 +33,8 @@
     2. `lsof -ti:8011 | xargs kill -9`
     3. `screen -dmS admin bash -c 'cd admin && npm run dev'`
 - **测试栈（不要复用 dev）**:
-  - `tests/docker-compose.yml` / `./tests/run.sh`
-  - 测试栈默认不映射 PG/Redis 端口（详见 `docs/reference/testing/README.md`）
+  - api 集成依赖栈：`tests/docker-compose.test.yml`（pg/redis/external-mock，映射宿主端口供本机 `cargo test`）
+  - 入口：`make api.test`（Rust 单元 `--lib` + 集成 `--tests`，axum oneshot 进程内）；详见 `docs/reference/testing/README.md`
 
 ## 2. AI 工作流（Compound Engineering, CE）
 - 当前仓库统一采用 **Compound Engineering (CE)** 作为默认 AI 工作流。

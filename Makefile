@@ -53,21 +53,19 @@ WEBSITE_SCREEN := website
 WEBSITE_PORT := 8015
 WEBSITE_LOG := /tmp/redcode-website.log
 
-TESTS_SCRIPT := $(ROOT_DIR)/tests/run.sh
-
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
 .PHONY: help status install.all test.all tests.all dev.up dev.down dev.logs \
-	api.up api.down api.restart api.reset api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke \
+	api.up api.down api.restart api.reset api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.deps.down \
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
-	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
-	api-up api-down api-logs api-ps tests \
+	tests.all \
+	api-up api-down api-logs api-ps \
 	admin-up admin-down admin-logs \
 	desktop-up desktop-down desktop-logs \
 	website-up website-down website-logs
@@ -103,8 +101,8 @@ install.all: ## 安装 admin / desktop / website 依赖，并拉取 app 依赖
 	@$(MAKE) website.install
 	@$(MAKE) app.install
 
-test.all: ## 运行仓库全量本地测试入口（api contract + app + admin + desktop + website）
-	@$(MAKE) tests.contract
+test.all: ## 运行仓库全量本地测试入口（api + admin + desktop + website）
+	@$(MAKE) api.test
 	@$(MAKE) app.check
 	@$(MAKE) app.test.unit
 	@$(MAKE) app.test.integration.smoke
@@ -162,9 +160,21 @@ api.test.unit: ## 运行 api Rust 单元测试（cargo test --lib）
 	@$(call require_cmd,$(CARGO))
 	@cd "$(ROOT_DIR)/api" && $(CARGO) test --lib
 
-api.test.integration: ## 运行 api Rust 集成测试（cargo test --tests）
+api.test.integration: ## 运行 api Rust 集成测试（自动拉起 tests/docker-compose.test.yml 的 pg/redis，oneshot 进程内）
 	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/api" && $(CARGO) test --tests -- --test-threads=1
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(ROOT_DIR)/tests/docker-compose.test.yml" up -d --wait postgres redis
+	@cd "$(ROOT_DIR)/api" && \
+		SQLX_OFFLINE=true \
+		DATABASE_URL="postgres://postgres:123456@localhost:5433/redcode_im" \
+		REDIS_SESSION_URL="redis://:123456@localhost:6380/0" \
+		REDIS_CACHE_URL="redis://:123456@localhost:6380/0" \
+		REDIS_PUBSUB_URL="redis://:123456@localhost:6380/0" \
+		$(CARGO) test --tests -- --test-threads=1
+
+api.test.deps.down: ## 停止 api 集成测试依赖栈
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(ROOT_DIR)/tests/docker-compose.test.yml" down -v --remove-orphans
 
 api.test.smoke: ## 运行 api Rust smoke 测试
 	@$(call require_cmd,$(CARGO))
@@ -422,25 +432,7 @@ website.test.download: ## 执行 website 下载逻辑测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(WEBSITE_DIR)" && $(BUN) run test -- test/download-utils.test.ts
 
-tests.contract: ## 运行 api contract 全量测试栈（Rust + Go）
-	@bash "$(TESTS_SCRIPT)" all
-
-tests.go: ## 仅运行 api Go 黑盒契约测试
-	@bash "$(TESTS_SCRIPT)" go
-
-tests.rust: ## 运行 api Rust 单元 + 集成测试
-	@bash "$(TESTS_SCRIPT)" rust
-
-tests.rust-lib: ## 仅运行 api Rust 单元测试
-	@bash "$(TESTS_SCRIPT)" rust-lib
-
-tests.rust-integration: ## 仅运行 api Rust 集成测试
-	@bash "$(TESTS_SCRIPT)" rust-integration
-
-tests.run: ## 兼容旧命令：运行 api contract 全量测试栈
-	@bash "$(TESTS_SCRIPT)" all
-
-tests.all: test.all ## 兼容命令：运行仓库全量本地测试入口
+tests.all: test.all ## 运行仓库全量本地测试入口（别名）
 
 # 兼容旧命令 ---------------------------------------------------------------
 
@@ -460,5 +452,3 @@ desktop-logs: desktop.logs ## 兼容旧命令：查看 desktop 日志
 website-up: website.up ## 兼容旧命令：启动 website
 website-down: website.down ## 兼容旧命令：停止 website
 website-logs: website.logs ## 兼容旧命令：查看 website 日志
-
-tests: tests.run ## 兼容旧命令：运行 tests/run.sh

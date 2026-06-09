@@ -65,9 +65,9 @@ func TestRootMakefileExposesUnifiedModuleTargets(t *testing.T) {
 		"website.test:",
 		"website.test.unit:",
 		"website.test.download:",
-		"tests.run:",
-		"tests.contract:",
-		"tests.go:",
+		"api.test:",
+		"api.test.unit:",
+		"api.test.integration:",
 	}
 
 	for _, target := range requiredTargets {
