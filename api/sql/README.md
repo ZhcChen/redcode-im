@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-- `api/sql/base.sql` 已在 **2026-04-09** 重置为当前完整基线，覆盖当前 schema、视图、函数与基础 seed 数据。
-- `api/sql/migrations/` 现在只用于存放 **这次基线之后** 的新增迁移。
-- 重置前的 18 个历史迁移已归档到 `api/sql/migrations_legacy_20260409/`，仅作审计与回溯用途，不再参与默认启动链路。
+- `api/sql/base.sql` 已在 **2026-06-09** 整合重置为当前完整基线（历史增量迁移已折叠进来，schema 等价已验证），覆盖当前 schema、视图、函数与基础 seed 数据。
+- `api/sql/migrations/` 用于存放 **这次整合之后** 的新增增量迁移（additive-only）。
+- 历史增量与旧归档已移除：`MIGRATIONS` 数组当前只有 `base.sql`。
 
 ## 初始化方式
 
@@ -16,14 +16,8 @@
 - 已有 `db_migrations`：只执行尚未记录的脚本，并校验当前 manifest 的 checksum。
 - 非空库但缺少 `db_migrations`：默认直接报错，避免把半初始化库误认成已完成基线。
 
-> 当前 active migration 链为：
->
-> 1. `api/sql/base.sql`
-> 2. `api/sql/migrations/20260410093000_remove_default_admin_seed.sql`
-> 3. `api/sql/migrations/20260413153000_add_object_storage_configs.sql`
-> 4. `api/sql/migrations/20260430120000_drop_user_oauth_accounts.sql`
->
-> 因此“当前完整 schema”不是只执行 `base.sql`，而是执行完整链路后的结果。
+> 当前 `MIGRATIONS` 仅有一条：`api/sql/base.sql`。
+> 整合后“当前完整 schema”即执行 `base.sql` 的结果。
 
 ### 手工执行（排障场景）
 
@@ -47,7 +41,7 @@ psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d redcode_im < api/sql/base.sq
 1. 所有新的结构或 seed 变更，统一写入 `api/sql/migrations/`。
 2. 文件命名格式：`YYYYMMDDHHMMSS_desc.sql`。
 3. 必须同步更新 `api/src/database/mod.rs` 的 `MIGRATIONS` 数组。
-4. 已提交的历史迁移文件禁止修改；如需调整，新增一份后续迁移。
+4. 已提交的迁移文件（含 `base.sql`）禁止修改；如需调整，新增一份后续迁移。该规则由 `make migration.guard` 自动强制（只允许新增，拒绝修改/重命名/删除）。
 5. migration 应尽量幂等：优先使用 `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` 等写法。
 
 ## 迁移记录表

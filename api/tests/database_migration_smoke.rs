@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 4;
+const EXPECTED_MIGRATION_COUNT: i64 = 1;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -236,24 +236,6 @@ async fn explicit_adopt_allows_current_schema_without_migration_table(
             .fetch_one(adopted.pool())
             .await?;
     assert!(checksum.is_some());
-
-    let remove_default_admin_checksum: Option<String> = sqlx::query_scalar(
-        "SELECT checksum
-         FROM db_migrations
-         WHERE name = '20260410093000_remove_default_admin_seed.sql'",
-    )
-    .fetch_one(adopted.pool())
-    .await?;
-    assert!(remove_default_admin_checksum.is_some());
-
-    let add_object_storage_configs_checksum: Option<String> = sqlx::query_scalar(
-        "SELECT checksum
-         FROM db_migrations
-         WHERE name = '20260413153000_add_object_storage_configs.sql'",
-    )
-    .fetch_one(adopted.pool())
-    .await?;
-    assert!(add_object_storage_configs_checksum.is_some());
 
     adopted.pool.close().await;
     temp.cleanup().await?;

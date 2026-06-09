@@ -2,78 +2,34 @@
 set -euo pipefail
 
 BASE_SQL="sql/base.sql"
-ACTIVE_MIGRATIONS=(
-  "sql/migrations/20260410093000_remove_default_admin_seed.sql"
-  "sql/migrations/20260413153000_add_object_storage_configs.sql"
-  "sql/migrations/20260430120000_drop_user_oauth_accounts.sql"
-)
 SQL_README="sql/README.md"
 MIGRATIONS_README="sql/migrations/README.md"
 DATABASE_MANIFEST="src/database/mod.rs"
 MIGRATION_SMOKE_TEST="tests/database_migration_smoke.rs"
-LEGACY_DIR="sql/migrations_legacy_20260409"
 
-pass() {
-    echo "  ✅ $1"
-}
-
-fail() {
-    echo "  ❌ $1"
-    return 1
-}
-
-check_file() {
-    local path="$1"
-    local label="$2"
-    if [ -f "$path" ]; then
-        pass "$label"
-    else
-        fail "${label}（缺失: ${path}）"
-    fi
-}
-
-check_dir() {
-    local path="$1"
-    local label="$2"
-    if [ -d "$path" ]; then
-        pass "$label"
-    else
-        fail "${label}（缺失: ${path}）"
-    fi
-}
-
-check_pattern() {
-    local file="$1"
-    local pattern="$2"
-    local label="$3"
-    if rg -q "$pattern" "$file"; then
-        pass "$label"
-    else
-        fail "${label}（未命中: ${pattern}）"
-    fi
-}
+pass() { echo "  ✅ $1"; }
+fail() { echo "  ❌ $1"; return 1; }
+check_file() { if [ -f "$1" ]; then pass "$2"; else fail "$2（缺失: $1）"; fi; }
+check_pattern() { if rg -q "$2" "$1"; then pass "$3"; else fail "$3（未命中: $2）"; fi; }
 
 echo "========================================="
-echo "验证 SQL 基线 / 迁移链一致性"
+echo "验证 SQL 基线一致性（整合后单一基线）"
 echo "========================================="
 echo ""
 
 echo "📋 核心文件："
 check_file "$BASE_SQL" "base.sql 基线文件"
-for migration in "${ACTIVE_MIGRATIONS[@]}"; do
-    check_file "$migration" "active migration：$(basename "$migration")"
-done
 check_file "$SQL_README" "sql/README.md"
 check_file "$MIGRATIONS_README" "sql/migrations/README.md"
 check_file "$DATABASE_MANIFEST" "Database::MIGRATIONS manifest"
 check_file "$MIGRATION_SMOKE_TEST" "database migration smoke test"
-check_dir "$LEGACY_DIR" "legacy 迁移归档目录"
 echo ""
 
 echo "🔍 base.sql 关键 schema 标记："
 check_pattern "$BASE_SQL" "CREATE TABLE public\\.admin_users" "admin_users 表"
 check_pattern "$BASE_SQL" "CREATE TABLE public\\.messages" "messages 表"
 check_pattern "$BASE_SQL" "CREATE TABLE public\\.storage_providers" "storage_providers 表"
+check_pattern "$BASE_SQL" "CREATE TABLE public\\.object_storage_configs" "object_storage_configs 表（已整合）"
 check_pattern "$BASE_SQL" "CREATE TABLE public\\.push_devices" "push_devices 表"
 check_pattern "$BASE_SQL" "CREATE TABLE public\\.e2ee_identity_keys" "e2ee_identity_keys 表"
 check_pattern "$BASE_SQL" "CREATE VIEW public\\.group_detail_view" "group_detail_view 视图"
@@ -83,34 +39,37 @@ check_pattern "$BASE_SQL" "encryption_metadata jsonb" "messages.encryption_metad
 check_pattern "$BASE_SQL" "app_store_url text" "app_versions.app_store_url 列"
 echo ""
 
-echo "🔍 活跃迁移链与文档口径："
+echo "🔍 整合后口径与反向断言："
 check_pattern "$DATABASE_MANIFEST" "const BASE_MIGRATION_NAME: &str = \"base\\.sql\";" "manifest 引用 base.sql"
-check_pattern "$DATABASE_MANIFEST" "20260410093000_remove_default_admin_seed\\.sql" "manifest 引用移除默认管理员迁移"
-check_pattern "$DATABASE_MANIFEST" "20260413153000_add_object_storage_configs\\.sql" "manifest 引用对象存储配置迁移"
-check_pattern "$DATABASE_MANIFEST" "20260430120000_drop_user_oauth_accounts\\.sql" "manifest 引用移除 OAuth 账号表迁移"
-check_pattern "$MIGRATIONS_README" "20260410093000_remove_default_admin_seed\\.sql" "migrations README 说明移除默认管理员迁移"
-check_pattern "$MIGRATIONS_README" "20260413153000_add_object_storage_configs\\.sql" "migrations README 说明对象存储配置迁移"
-check_pattern "$MIGRATIONS_README" "20260430120000_drop_user_oauth_accounts\\.sql" "migrations README 说明移除 OAuth 账号表迁移"
-check_pattern "$SQL_README" "运行时 bootstrap 初始化流程" "sql README 说明首管走 bootstrap"
 check_pattern "$MIGRATION_SMOKE_TEST" "object_storage_configs" "migration smoke 覆盖对象存储配置表"
 check_pattern "$MIGRATION_SMOKE_TEST" "checksum_mismatch_is_rejected" "migration smoke 覆盖 checksum 校验"
-echo ""
-
-legacy_count=$(find "$LEGACY_DIR" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')
-echo "📦 legacy 归档文件数：${legacy_count}"
+if ls sql/migrations/*.sql >/dev/null 2>&1; then
+    fail "sql/migrations/ 不应再有 *.sql（历史增量已整合进 base.sql）"
+else
+    pass "sql/migrations/ 无残留增量迁移"
+fi
+if [ -d sql/migrations_legacy_20260409 ]; then
+    fail "legacy 归档目录应已删除"
+else
+    pass "无 legacy 归档目录"
+fi
+if rg -q "20260410093000|20260413153000|20260430120000" "$DATABASE_MANIFEST"; then
+    fail "manifest 仍引用已折叠的历史迁移名"
+else
+    pass "manifest 已无历史增量迁移引用"
+fi
 echo ""
 
 echo "📌 当前口径："
-echo "  - 默认执行入口是 api 启动时的 Database::migrate"
-echo "  - 当前有效链路 = base.sql + sql/migrations/20260410093000_remove_default_admin_seed.sql + sql/migrations/20260413153000_add_object_storage_configs.sql + sql/migrations/20260430120000_drop_user_oauth_accounts.sql"
-echo "  - 首个超级管理员由运行时 bootstrap 初始化，不依赖静态默认账号"
-echo "  - 对象存储运行时配置版本表由增量迁移创建，不直接写入 base.sql"
-echo "  - legacy 目录仅用于审计/回溯，不参与默认执行入口"
+echo "  - 默认执行入口：api 启动时 Database::migrate（MIGRATIONS = [base.sql]）"
+echo "  - 2026-06-09 整合重置：历史增量迁移已折叠进 base.sql（schema 等价已验证）"
+echo "  - 首个超级管理员由运行时 bootstrap 初始化，base.sql 不含默认管理员 seed"
+echo "  - 后续数据库变更从 sql/migrations/ 追加增量（additive-only，由 make migration.guard 强制）"
 echo ""
 
 echo "🧪 推荐验证："
-echo "  1. cargo test --test database_migration_smoke"
-echo "  2. cargo test"
+echo "  1. make api.test.integration（含 database_migration_smoke）"
+echo "  2. make migration.guard"
 echo ""
 
 echo "========================================="

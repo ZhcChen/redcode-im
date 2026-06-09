@@ -46,46 +46,17 @@ const MIGRATION_ADVISORY_LOCK_KEY: i64 = 0x7265_6463_6f64_65; // "redcode"
 /// 基础初始化脚本（base.sql）
 const BASE_MIGRATION_NAME: &str = "base.sql";
 const BASE_MIGRATION_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
-const REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_NAME: &str =
-    "20260410093000_remove_default_admin_seed.sql";
-const REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/sql/migrations/20260410093000_remove_default_admin_seed.sql"
-));
-const ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_NAME: &str =
-    "20260413153000_add_object_storage_configs.sql";
-const ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/sql/migrations/20260413153000_add_object_storage_configs.sql"
-));
-const DROP_USER_OAUTH_ACCOUNTS_MIGRATION_NAME: &str = "20260430120000_drop_user_oauth_accounts.sql";
-const DROP_USER_OAUTH_ACCOUNTS_MIGRATION_SQL: &str = include_str!(concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/sql/migrations/20260430120000_drop_user_oauth_accounts.sql"
-));
 const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 
 /// 按执行顺序写死的迁移脚本列表
 ///
 /// 说明：
 /// - 第一个必须是基础脚本 `base.sql`，用于初始化全新数据库；
-/// - 2026-04-09 基线重置后，现有增量迁移已归档；
-/// - 后续若有新增迁移，请按时间顺序追加到此数组中；
+/// - 2026-06-09 整合重置：历史增量迁移已折叠进 base.sql；
+/// - 后续若有新增迁移，请按时间顺序追加到此数组中（additive-only，由 `make migration.guard` 强制）；
 const MIGRATIONS: &[(&str, &str)] = &[
-    // 基础初始化脚本
+    // 基础初始化脚本（已整合历史增量）
     (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
-    (
-        REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_NAME,
-        REMOVE_DEFAULT_ADMIN_SEED_MIGRATION_SQL,
-    ),
-    (
-        ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_NAME,
-        ADD_OBJECT_STORAGE_CONFIGS_MIGRATION_SQL,
-    ),
-    (
-        DROP_USER_OAUTH_ACCOUNTS_MIGRATION_NAME,
-        DROP_USER_OAUTH_ACCOUNTS_MIGRATION_SQL,
-    ),
 ];
 
 #[derive(Debug, Clone)]

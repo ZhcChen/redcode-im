@@ -1,25 +1,20 @@
-# 当前增量迁移目录
+# 增量迁移目录
 
-2026-04-09 已完成一次 SQL 基线重置：此前的增量迁移已归档到 `api/sql/migrations_legacy_20260409/`。
+2026-06-09 已完成一次**整合重置**：历史增量迁移已折叠进 `api/sql/base.sql`（schema 等价已验证），旧归档目录已移除。
 
-当前 active migration 链：
+当前基线：
 
-1. `api/sql/base.sql`
-2. `api/sql/migrations/20260410093000_remove_default_admin_seed.sql`
-3. `api/sql/migrations/20260413153000_add_object_storage_configs.sql`
-4. `api/sql/migrations/20260430120000_drop_user_oauth_accounts.sql`
+- `api/sql/base.sql`（单一基线，`api/src/database/mod.rs` 的 `MIGRATIONS` 数组唯一条目）
 
-其中 `20260410093000_remove_default_admin_seed.sql` 用于把默认管理员 seed 切换为“运行时 bootstrap 初始化首个超级管理员”的新流程。
-其中 `20260413153000_add_object_storage_configs.sql` 用于引入对象存储运行时配置版本表，承接 B2-only runtime config 工作流。
-其中 `20260430120000_drop_user_oauth_accounts.sql` 用于移除 Google/Apple 第三方登录账号绑定表，认证链路统一收敛到邮箱注册/登录。
-
-后续若有新的数据库结构或 seed 变更，请继续从本目录追加，并保持顺序：
+后续新增数据库结构 / seed 变更，从本目录追加增量：
 
 - 文件命名：`YYYYMMDDHHMMSS_desc.sql`
 - 同步在 `api/src/database/mod.rs` 的 `MIGRATIONS` 数组追加条目
-- 不要修改已提交的历史迁移文件
+- migration 尽量幂等（`IF NOT EXISTS` 等）
+- **不要修改已提交的迁移文件（含 `base.sql`）**——由 `make migration.guard` 自动强制（只允许新增，拒绝修改/重命名/删除）
 
-说明：
+校验入口：
 
-- `api/sql/migrations_legacy_20260409/` 仅保留审计与回溯价值，不参与默认执行入口。
-- `api/scripts/verify-base-sql.sh` 与 `api/tests/database_migration_smoke.rs` 是当前迁移链的一致性校验入口。
+- `api/scripts/verify-base-sql.sh`：基线一致性
+- `api/tests/database_migration_smoke.rs`：迁移链运行时校验
+- `make migration.guard`：additive-only 守护

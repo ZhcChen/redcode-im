@@ -1,10 +1,10 @@
--- RedCode IM 数据库当前基线（2026-04-09 重置）
+-- RedCode IM 数据库当前基线（2026-06-09 整合重置：折叠历史增量迁移）
 -- 说明：
 -- 1. 本文件覆盖当前 schema、视图、函数与基础 seed 数据，可直接初始化空库。
 -- 2. 运行态迁移记录表 db_migrations 不包含在本基线中。
--- 3. 后续数据库变更应重新从 backend/sql/migrations/ 追加增量脚本。
-
+-- 3. 后续数据库变更从 api/sql/migrations/ 追加增量脚本（additive-only，由 make migration.guard 强制）。
 --
+-- PostgreSQL database dump
 --
 
 
@@ -777,7 +777,7 @@ CREATE TABLE public.ipinfo_tokens (
     last_used_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ipinfo_tokens_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'exhausted'::character varying])::text[])))
+    CONSTRAINT ipinfo_tokens_status_check CHECK (((status)::text = ANY (ARRAY[('active'::character varying)::text, ('exhausted'::character varying)::text])))
 );
 
 
@@ -896,6 +896,34 @@ COMMENT ON COLUMN public.messages.encrypted_content IS 'E2EE 密文载荷（服�
 --
 
 COMMENT ON COLUMN public.messages.encryption_metadata IS 'E2EE 元数据（JSON），如算法/版本/iv/counter 等';
+
+
+--
+-- Name: object_storage_configs; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.object_storage_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider character varying(50) DEFAULT 'backblaze_b2'::character varying NOT NULL,
+    endpoint text,
+    region character varying(50) NOT NULL,
+    encrypted_key_id text,
+    encrypted_application_key text,
+    private_bucket character varying(100) NOT NULL,
+    public_bucket character varying(100),
+    public_base_url text,
+    upload_url_ttl_seconds integer NOT NULL,
+    download_url_ttl_seconds integer NOT NULL,
+    version integer NOT NULL,
+    status character varying(50) DEFAULT 'active'::character varying NOT NULL,
+    rollback_source_version integer,
+    change_note text,
+    created_by character varying(100),
+    applied_by character varying(100),
+    activated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
 
 
 --
@@ -1389,19 +1417,6 @@ COMMENT ON TABLE public.user_login_history IS '用户登录历史记录，用于
 
 
 --
--- Name: user_oauth_accounts; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.user_oauth_accounts (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
-    provider text NOT NULL,
-    provider_user_id text NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-
---
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -1462,14 +1477,12 @@ CREATE TABLE public.users (
 -- Data for Name: admin_user_roles; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.admin_user_roles VALUES ('fc31bca5-5fa0-468a-a3ce-3a9776126937', '3bc2aafc-dbe8-4774-950f-0779cc90a5db', '692e81df-c87a-483e-95f1-e316d20be3e0', '3bc2aafc-dbe8-4774-950f-0779cc90a5db', '2026-04-09 17:08:09.487041+08');
 
 
 --
 -- Data for Name: admin_users; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.admin_users VALUES ('3bc2aafc-dbe8-4774-950f-0779cc90a5db', 'admin', 'admin@redcode-im.com', '$2b$12$gi6TX7ecBwv3Uv/Hz8n2tO5.GWDA1jV7l.OvUY5b6W5El5O5jJ9v6', '系统管理员', NULL, 0, NULL, 0, NULL, false, '2026-04-09 17:08:09.487041+08', '2026-04-09 17:08:09.487041+08', '2026-04-09 17:08:09.487041+08', NULL);
 
 
 --
@@ -1655,6 +1668,12 @@ INSERT INTO public.general_settings VALUES ('ip_geolocation_enabled', '0', '是�
 
 
 --
+-- Data for Name: object_storage_configs; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
 -- Data for Name: permissions; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -1800,12 +1819,6 @@ INSERT INTO public.user_account_limit_settings VALUES (1, true, false, false, 3,
 
 --
 -- Data for Name: user_login_history; Type: TABLE DATA; Schema: public; Owner: -
---
-
-
-
---
--- Data for Name: user_oauth_accounts; Type: TABLE DATA; Schema: public; Owner: -
 --
 
 
@@ -2221,6 +2234,22 @@ ALTER TABLE ONLY public.messages
 
 
 --
+-- Name: object_storage_configs object_storage_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.object_storage_configs
+    ADD CONSTRAINT object_storage_configs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: object_storage_configs object_storage_configs_version_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.object_storage_configs
+    ADD CONSTRAINT object_storage_configs_version_key UNIQUE (version);
+
+
+--
 -- Name: permissions permissions_code_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2458,30 +2487,6 @@ ALTER TABLE ONLY public.user_heartbeat_logs
 
 ALTER TABLE ONLY public.user_login_history
     ADD CONSTRAINT user_login_history_pkey PRIMARY KEY (id);
-
-
---
--- Name: user_oauth_accounts user_oauth_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_oauth_accounts
-    ADD CONSTRAINT user_oauth_accounts_pkey PRIMARY KEY (id);
-
-
---
--- Name: user_oauth_accounts user_oauth_accounts_provider_provider_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_oauth_accounts
-    ADD CONSTRAINT user_oauth_accounts_provider_provider_user_id_key UNIQUE (provider, provider_user_id);
-
-
---
--- Name: user_oauth_accounts user_oauth_accounts_user_id_provider_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_oauth_accounts
-    ADD CONSTRAINT user_oauth_accounts_user_id_provider_key UNIQUE (user_id, provider);
 
 
 --
@@ -3171,6 +3176,34 @@ CREATE INDEX idx_messages_sender_id ON public.messages USING btree (sender_id);
 
 
 --
+-- Name: idx_object_storage_configs_active_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_object_storage_configs_active_unique ON public.object_storage_configs USING btree (status) WHERE ((status)::text = 'active'::text);
+
+
+--
+-- Name: idx_object_storage_configs_provider; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_object_storage_configs_provider ON public.object_storage_configs USING btree (provider);
+
+
+--
+-- Name: idx_object_storage_configs_rollback_source_version; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_object_storage_configs_rollback_source_version ON public.object_storage_configs USING btree (rollback_source_version);
+
+
+--
+-- Name: idx_object_storage_configs_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_object_storage_configs_status ON public.object_storage_configs USING btree (status);
+
+
+--
 -- Name: idx_permissions_code; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -3574,13 +3607,6 @@ CREATE INDEX idx_user_login_history_user_id ON public.user_login_history USING b
 --
 
 CREATE INDEX idx_user_login_history_user_login_at ON public.user_login_history USING btree (user_id, login_at DESC);
-
-
---
--- Name: idx_user_oauth_accounts_user_id; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_user_oauth_accounts_user_id ON public.user_oauth_accounts USING btree (user_id);
 
 
 --
@@ -4319,14 +4345,6 @@ ALTER TABLE ONLY public.user_login_history
 
 
 --
--- Name: user_oauth_accounts user_oauth_accounts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_oauth_accounts
-    ADD CONSTRAINT user_oauth_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
-
-
---
 -- Name: user_roles user_roles_assigned_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4367,4 +4385,7 @@ ALTER TABLE ONLY public.user_room_pins
 
 
 --
+-- PostgreSQL database dump complete
 --
+
+
