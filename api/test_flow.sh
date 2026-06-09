@@ -19,7 +19,7 @@ require_cmd jq
 
 if ! curl -fsS "${API_BASE_URL}/healthz" >/dev/null 2>&1; then
   log "后端不可用，请先启动后端: ${API_BASE_URL}"
-  log "示例：cd backend && docker compose -f docker/dev/docker-compose.yml up -d backend"
+  log "示例：cd api && docker compose -f docker/dev/docker-compose.yml up -d api"
   exit 1
 fi
 

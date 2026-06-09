@@ -407,7 +407,7 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 ### Protocol Buffers 格式
 使用二进制 Protocol Buffers 格式，性能更高，带宽占用更少。
 
-协议定义位置: `backend/src/proto/ws.proto`
+协议定义位置: `api/src/proto/ws.proto`
 
 连接时通过 `format` 参数指定：
 ```

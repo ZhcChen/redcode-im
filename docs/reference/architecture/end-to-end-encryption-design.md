@@ -57,7 +57,7 @@ interface OneTimePreKey {
 ### 2.2 密钥存储
 
 ```rust
-// backend/src/database/models/e2ee_keys.rs
+// api/src/database/models/e2ee_keys.rs
 use sqlx::FromRow;
 use chrono::{DateTime, Utc};
 
@@ -148,7 +148,7 @@ async function initializeE2EE(userId: string): Promise<void> {
 ### 3.2 服务器API设计
 
 ```rust
-// backend/src/handlers/e2ee.rs
+// api/src/handlers/e2ee.rs
 use axum::{Json, extract::State};
 use crate::auth::Claims;
 
@@ -318,7 +318,7 @@ function performX3DH(keys: {
 ### 4.2 服务器API: 获取密钥包
 
 ```rust
-// backend/src/handlers/e2ee.rs
+// api/src/handlers/e2ee.rs
 
 #[derive(Debug, Serialize)]
 pub struct KeyBundleResponse {

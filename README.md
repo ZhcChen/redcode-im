@@ -31,7 +31,7 @@
 ```bash
 make help
 make status
-make backend.up
+make api.up
 make admin.up
 make desktop.up
 make website.up
@@ -51,12 +51,12 @@ make tests.run
 
 ### 启动后端（开发）
 ```bash
-make backend.up
+make api.up
 ```
 
 查看日志：
 ```bash
-make backend.logs
+make api.logs
 ```
 
 ### 启动管理后台（admin）

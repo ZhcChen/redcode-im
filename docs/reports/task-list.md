@@ -115,11 +115,11 @@
 - ✅ bootstrap status / repeat init 拒绝语义已补 Go contract
 - ✅ RBAC 已补管理员登录快照 / 权限检查接口的 Go contract
 - ✅ 根 Makefile 已整理为模块化入口，frontend 默认真机已切到 Pixel 8 Pro
-- ✅ `tests/run.sh` 已拆分为按 mode 执行的 backend contract 入口，并补了 workflow tooling 守护测试
+- ✅ `tests/run.sh` 已拆分为按 mode 执行的 api contract 入口，并补了 workflow tooling 守护测试
 - ✅ admin 已补 live Playwright 快捷脚本，并开始清理 lockfile / 测试产物 / 无用说明文件残留
 - ✅ desktop 已对齐 macOS ad-hoc 打包脚本，并开始清理过期示例 / 说明残留
 - ✅ 仓库级文档与配置已开始对齐：CE 兼容入口、API 文档路径、website 私有部署文件忽略
-- ✅ backend 已切换到 B2-only 对象存储链路，并补了无默认存储时的举报列表降级处理
+- ✅ api 已切换到 B2-only 对象存储链路，并补了无默认存储时的举报列表降级处理
 - ✅ frontend 已移除未接入业务的发现页与对应静态资源占位
 - ✅ frontend 群设置已补群改名、加人/移人能力，并抽出好友选择面板与 room service 测试入口
 - ✅ frontend 设置页与通用组件已开始收口：InputDialog 简化、设置项 trailing 固定化、Flutter 新 API 兼容替换
@@ -156,11 +156,11 @@
 - ✅ desktop 已补本地主动编辑/删除摘要刷新：右键删除、编辑、批量删除已统一走 message update cache 链路，本地操作后聊天列表摘要立即同步
 - ✅ desktop 已补 reaction / pin 本地缓存收口：本地操作与 websocket 更新都会同步刷新消息缓存，非当前房间的 reaction / pin 事件也不再在 reload 后回退
 - ✅ desktop 已补 chatList store 缓存持久化：`updateChatItem / setChatUnreadCount` 会同步写回 `CACHE_KEYS.chatList`，会话摘要与未读数 reload 后不再回弹
-- ✅ backend 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
+- ✅ api 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
 - ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
 - ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`
 - ✅ admin 已把 user / version / audit / log / chat-history / emoji 等小型 `src/api` 文件迁到 `src/services`
 - ✅ admin 已完成 `src/api` 业务依赖清零，`settings.ts` 也已迁入 `src/services`
 - ✅ admin 已把单体 `services/settings.ts` 拆分为 documents / push / storage / general 四组领域服务
-- ✅ `backend/scripts/verify-base-sql.sh` 已通过，SQL baseline / active migration / legacy 归档口径一致
+- ✅ `api/scripts/verify-base-sql.sh` 已通过，SQL baseline / active migration / legacy 归档口径一致
 - ✅ `./tests/run.sh go` 已完整通过，admin/bootstrap/RBAC/B2/message runtime 等后端合约链路稳定

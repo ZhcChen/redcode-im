@@ -226,8 +226,8 @@ Content-Type: application/json
 
 ```bash
 # 确保后端服务正在运行
-cd backend
-docker compose -f docker/dev/docker-compose.yml up -d backend
+cd api
+docker compose -f docker/dev/docker-compose.yml up -d api
 
 # 在另一个终端运行测试
 ./test_error_handling.sh

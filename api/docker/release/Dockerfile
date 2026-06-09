@@ -1,5 +1,5 @@
 # 本地 release Dockerfile - 多阶段构建
-# Context: backend/
+# Context: api/
 
 # ============ 构建阶段 ============
 FROM rust:alpine AS builder

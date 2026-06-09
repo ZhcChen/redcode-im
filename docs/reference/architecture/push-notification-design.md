@@ -14,10 +14,10 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
 
 ## 当前实现（2025-12-29）
 
-### Backend
+### API
 
-- 数据表：`push_devices`（`backend/sql/migrations/20251228090000_create_push_devices.sql`）
-- 数据表：`push_logs`（`backend/sql/migrations/20251228130000_create_push_logs.sql`）
+- 数据表：`push_devices`（`api/sql/migrations/20251228090000_create_push_devices.sql`）
+- 数据表：`push_logs`（`api/sql/migrations/20251228130000_create_push_logs.sql`）
 - 接口：
   - `POST /push/devices`：注册/更新设备 token（需要登录）
   - `DELETE /push/devices/{device_id}`：注销当前账号在该设备上的 push（软禁用）
@@ -78,7 +78,7 @@ Push 的主队列（所有 push job 落库）：
 
 ### FCM data 字段（用于点击跳转）
 
-Backend 会附带以下 `data`：
+API 会附带以下 `data`：
 - `push_id`: UUID（用于追踪）
 - `type`: `"message" | "friend_request" | "group_event"`
 
@@ -109,13 +109,13 @@ Backend 会附带以下 `data`：
 - Firebase（这里指 Firebase Cloud Messaging, FCM）：Android/iOS 的“系统通知/离线推送”入口。iOS 侧通常是 **FCM 转发到 APNs**，服务端只需对接 FCM HTTP v1。
 - Push capability（iOS 工程能力开关）：Xcode 的 “Signing & Capabilities -> Push Notifications” 对应的能力声明，本质是给 App 打上 entitlements（例如 `aps-environment`），否则无法拿到 APNs token，也无法接收系统推送。
 
-### Backend（FCM HTTP v1）
+### API（FCM HTTP v1）
 
 通过 Admin 后台配置（`系统设置 -> Push 通知`）：
 - FCM：粘贴 Firebase Service Account JSON（服务端会加密落库）
 - 全局开关：`push_enabled`、`push_skip_if_online`
 
-服务端环境变量（见 `backend/.env.example`）：
+服务端环境变量（见 `api/.env.example`）：
 - `DATA_ENCRYPTION_KEY=...`：用于加密存储 Push 平台敏感配置（必填，生产环境建议强随机）
 - `PUSH_ENABLED=true` / `PUSH_SKIP_IF_ONLINE=true`：仅作为开发兜底（优先以后台配置为准）
 

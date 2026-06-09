@@ -14,4 +14,4 @@ RUN apt-get update \
 RUN rustup component add llvm-tools-preview \
   && cargo install cargo-llvm-cov
 
-WORKDIR /workspace/backend
+WORKDIR /workspace/api

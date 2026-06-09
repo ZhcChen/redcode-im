@@ -1,4 +1,4 @@
-//! RedCode IM Backend
+//! RedCode IM API
 //!
 //! 一个基于 Rust + Axum + PostgreSQL + Redis 的即时通讯后端服务
 

@@ -5,7 +5,7 @@
 RedCode IM 的测试策略调整为：
 
 - **模块自测为主**
-- **`tests/` 只负责 backend contract 测试栈**
+- **`tests/` 只负责 api contract 测试栈**
 - **跨模块 smoke 只保留少量必要链路**
 
 不要再把 `tests/` 当成“全项目统一测试中心”。
@@ -15,7 +15,7 @@ RedCode IM 的测试策略调整为：
 ## 2. 目录边界
 
 ### 模块内测试
-- `backend/tests/`：Rust 集成测试
+- `api/tests/`：Rust 集成测试
 - `frontend/test/`：Flutter 单元 / widget 测试
 - `frontend/integration_test/`：Flutter integration smoke
 - `admin/playwright-tests/`：Admin E2E / smoke
@@ -23,18 +23,18 @@ RedCode IM 的测试策略调整为：
 - `website/test/`：Website 模块测试
 
 ### `tests/` 目录
-- `tests/run.sh`：backend contract 统一入口
-- `tests/docker-compose.yml`：isolated backend contract stack
-- `tests/go/`：backend HTTP / WS 黑盒契约测试
+- `tests/run.sh`：api contract 统一入口
+- `tests/docker-compose.yml`：isolated api contract stack
+- `tests/go/`：api HTTP / WS 黑盒契约测试
 - `tests/mocks/external/`：第三方依赖 mock
 
 ---
 
 ## 3. 常用命令
 
-### Backend 自测
+### API 自测
 ```bash
-cd backend && cargo test
+cd api && cargo test
 ```
 
 ### Frontend 自测
@@ -49,10 +49,10 @@ make frontend.test.integration.smoke
 推荐使用 Makefile 入口自动完成：
 
 ```bash
-# 不访问真实 backend，快速验证 integration harness
+# 不访问真实 api，快速验证 integration harness
 make frontend.test.integration.smoke
 
-# 本机 backend 联通性验证（默认 macos + http://127.0.0.1:8010）
+# 本机 api 联通性验证（默认 macos + http://127.0.0.1:8010）
 make frontend.test.integration.network
 
 # 真实邮箱注册/登录验证（默认 macos + http://127.0.0.1:8010）
@@ -98,7 +98,7 @@ cd desktop && bun run test
 cd website && bun run test
 ```
 
-### Backend contract 测试栈
+### API contract 测试栈
 ```bash
 ./tests/run.sh
 ./tests/run.sh rust
@@ -106,9 +106,9 @@ cd website && bun run test
 ```
 
 说明：
-- Go 黑盒契约测试默认按包串行执行（`-p 1`），避免共享同一 backend / DB 时发生状态竞争。
-- `tests/docker-compose.yml` 将 backend / PostgreSQL / Redis 放在同一个 Compose 网络中。
-- 测试栈只启动一个 Redis，backend 的 `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 都指向该实例。
+- Go 黑盒契约测试默认按包串行执行（`-p 1`），避免共享同一 api / DB 时发生状态竞争。
+- `tests/docker-compose.yml` 将 api / PostgreSQL / Redis 放在同一个 Compose 网络中。
+- 测试栈只启动一个 Redis，api 的 `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 都指向该实例。
 - PostgreSQL / Redis 不映射宿主机端口。
 - B2 / S3 兼容对象存储默认走 `tests/mocks/external` 的 `external-mock`：
   - `REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL=http://external-mock:19080/b2api/v4/b2_authorize_account`
@@ -123,9 +123,9 @@ cd website && bun run test
 ```bash
 make test.all
 
-make backend.test.unit
-make backend.test.integration
-make backend.test.smoke
+make api.test.unit
+make api.test.integration
+make api.test.smoke
 
 make frontend.check
 make frontend.test.unit
@@ -154,7 +154,7 @@ make desktop.test.utils
 make website.test.unit
 make website.test.download
 
-make backend.test
+make api.test
 make frontend.test
 make admin.test
 make desktop.test
@@ -169,10 +169,10 @@ make tests.all
 
 ## 4. 什么时候跑什么
 
-### 改 backend handler / database / websocket / 对外接口
+### 改 api handler / database / websocket / 对外接口
 至少跑：
 ```bash
-cd backend && cargo test
+cd api && cargo test
 ./tests/run.sh go
 ```
 
@@ -181,16 +181,16 @@ cd backend && cargo test
 
 ### 发版前
 按改动面补：
-- backend contract
+- api contract
 - admin route / core flow smoke
 - frontend integration smoke
-- backend + frontend 联调时先启动 backend，再跑 `make frontend.test.integration.network`；设备联调用 `make frontend.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
+- api + frontend 联调时先启动 api，再跑 `make frontend.test.integration.network`；设备联调用 `make frontend.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
 
 ---
 
 ## 5. 当前约定
 
-- `tests/run.sh` 默认跑 backend contract 全量：Rust lib + Rust integration + Go contract
+- `tests/run.sh` 默认跑 api contract 全量：Rust lib + Rust integration + Go contract
 - `tests/` 不承载 frontend / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
 - 仓库根目录 `make test.all` 是本地全量测试编排入口，内部仍调用各模块自己的测试命令。

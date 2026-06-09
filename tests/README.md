@@ -1,15 +1,15 @@
 # tests/
 
-`tests/` 目录只负责 **backend contract 测试栈**，不是全项目统一测试中心。
+`tests/` 目录只负责 **api contract 测试栈**，不是全项目统一测试中心。
 
 ## 包含内容
-- `tests/run.sh`：backend contract 测试入口
+- `tests/run.sh`：api contract 测试入口
 - `tests/docker-compose.yml`：isolated contract test stack
-- `tests/go/`：backend HTTP / WS 黑盒契约测试
+- `tests/go/`：api HTTP / WS 黑盒契约测试
 - `tests/mocks/external/`：第三方依赖 mock（Push / B2/S3 兼容对象存储 / IPInfo）
 
 ## 对象存储 mock
-backend contract 栈默认把 Backblaze B2 / S3 兼容对象存储指向 `external-mock`：
+api contract 栈默认把 Backblaze B2 / S3 兼容对象存储指向 `external-mock`：
 
 - B2 authorize：`http://external-mock:19080/b2api/v4/b2_authorize_account`
 - S3 endpoint：`http://external-mock:19080`
@@ -42,5 +42,5 @@ make tests.all
 
 说明：
 - `make tests.*` 是仓库根目录的推荐入口。
-- `tests/run.sh` 是底层 backend contract 执行脚本，适合排障或独立运行。
+- `tests/run.sh` 是底层 api contract 执行脚本，适合排障或独立运行。
 - `make tests.all` 是兼容入口，实际转到仓库全量本地测试 `make test.all`。

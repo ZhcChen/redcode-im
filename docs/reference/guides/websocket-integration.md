@@ -44,7 +44,7 @@
     WebSocket/HTTP
          │
 ┌────────▼────────┐
-│  Backend API    │
+│  API API    │
 │   (Rust/Axum)   │
 ├─────────────────┤
 │ Redis Pub/Sub   │ ← 消息分发
@@ -121,14 +121,14 @@ Consumer<ChatProvider>(
 
 ### 1. 启动后端服务
 ```bash
-cd backend
+cd api
 cp .env.example .env
-docker compose -f docker/dev/docker-compose.yml up -d backend
+docker compose -f docker/dev/docker-compose.yml up -d api
 ```
 
 ### 2. 创建测试用户和房间
 ```bash
-cd backend
+cd api
 ./test_flow.sh
 ```
 

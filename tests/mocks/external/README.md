@@ -1,6 +1,6 @@
 # External Mock
 
-本目录是 `tests/` backend contract 测试栈的外部依赖模拟层。
+本目录是 `tests/` api contract 测试栈的外部依赖模拟层。
 
 ## 覆盖范围
 - FCM Push
@@ -18,7 +18,7 @@
 - `DELETE /mock-bucket/<key>`：删除对象。
 - `POST /mock-bucket/<key>?uploads`、`PUT/POST/DELETE ...?uploadId=...`：multipart lifecycle。
 
-`tests/docker-compose.yml` 已把 backend 的 B2 环境变量指向本服务，contract 测试不应访问线上 Backblaze B2。
+`tests/docker-compose.yml` 已把 api 的 B2 环境变量指向本服务，contract 测试不应访问线上 Backblaze B2。
 
 ## 运行
 ```bash

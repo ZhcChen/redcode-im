@@ -1,5 +1,5 @@
 # 本地开发环境 Dockerfile - 源码运行
-# Context: backend/
+# Context: api/
 
 FROM rust:alpine
 

@@ -1,6 +1,6 @@
 # Go 黑盒契约测试
 
-本目录只承载 **backend 对外 HTTP / WebSocket 契约测试**。
+本目录只承载 **api 对外 HTTP / WebSocket 契约测试**。
 
 ## 作用
 - 验证后端公开接口与管理接口的实际契约

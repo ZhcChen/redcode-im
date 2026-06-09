@@ -1,4 +1,4 @@
-# RedCode IM Backend（Rust）
+# RedCode IM API（Rust）
 
 > 后端服务基于 **Axum + SQLx + Redis**，提供 REST API 与 WebSocket 能力。
 >
@@ -27,7 +27,7 @@
 
 ### 2) 配置环境
 
-在 `backend/` 目录下复制示例配置：
+在 `api/` 目录下复制示例配置：
 
 ```bash
 cp .env.example .env
@@ -38,7 +38,7 @@ cp .env.example .env
 ### 3) 启动服务
 
 ```bash
-docker compose -f docker/dev/docker-compose.yml up -d backend
+docker compose -f docker/dev/docker-compose.yml up -d api
 ```
 
 默认端口为 `8010`，健康检查：`GET /healthz`
@@ -46,7 +46,7 @@ docker compose -f docker/dev/docker-compose.yml up -d backend
 查看日志：
 
 ```bash
-docker compose -f docker/dev/docker-compose.yml logs -f backend
+docker compose -f docker/dev/docker-compose.yml logs -f api
 ```
 
 如需宿主机本地进程调试（非默认方式）：
@@ -66,23 +66,23 @@ RUST_LOG=debug cargo run
 
 ## 使用 Docker Compose
 
-在 `backend/` 目录下执行以下命令。开发调试默认使用 dev Compose：
+在 `api/` 目录下执行以下命令。开发调试默认使用 dev Compose：
 
 ```bash
-docker compose -f docker/dev/docker-compose.yml up -d backend
+docker compose -f docker/dev/docker-compose.yml up -d api
 ```
 
 本地 release 构建验证使用 release Compose：
 
 ```bash
-docker compose -f docker/release/docker-compose.yml up -d --build backend
+docker compose -f docker/release/docker-compose.yml up -d --build api
 ```
 
 ---
 
 ## 环境变量
 
-示例配置见：`backend/.env.example`。
+示例配置见：`api/.env.example`。
 
 常用项：
 
@@ -102,9 +102,9 @@ docker compose -f docker/release/docker-compose.yml up -d --build backend
 
 ## 数据库迁移
 
-服务启动时会自动执行 `Database::migrate`，按顺序执行 `backend/src/database/mod.rs` 中声明的迁移脚本。
+服务启动时会自动执行 `Database::migrate`，按顺序执行 `api/src/database/mod.rs` 中声明的迁移脚本。
 
-数据库迁移与基线说明请查看：`backend/sql/README.md`。
+数据库迁移与基线说明请查看：`api/sql/README.md`。
 
 ---
 
@@ -116,11 +116,11 @@ docker compose -f docker/release/docker-compose.yml up -d --build backend
 make tests.run
 ```
 
-仅运行 backend 模块测试：
+仅运行 api 模块测试：
 
 ```bash
-make backend.test
-make backend.test.smoke
+make api.test
+make api.test.smoke
 ```
 
 如果需要直接调用底层 contract 入口：
@@ -141,11 +141,11 @@ docker compose -f ../tests/docker-compose.yml run --rm rust-tests \
 
 ## 代码入口
 
-- 路由入口：`backend/src/routes.rs`
-- 服务启动：`backend/src/main.rs`
-- 业务处理：`backend/src/handlers/`
-- 数据库访问：`backend/src/database/`
-- WebSocket：`backend/src/websocket/`
+- 路由入口：`api/src/routes.rs`
+- 服务启动：`api/src/main.rs`
+- 业务处理：`api/src/handlers/`
+- 数据库访问：`api/src/database/`
+- WebSocket：`api/src/websocket/`
 
 更多文档：
 

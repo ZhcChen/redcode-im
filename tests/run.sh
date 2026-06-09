@@ -17,8 +17,8 @@ usage() {
   ./tests/run.sh [mode]
 
 说明：
-  tests/ 目录只负责 backend contract 测试栈：
-  - Rust backend 单元 / 集成测试
+  tests/ 目录只负责 api contract 测试栈：
+  - Rust api 单元 / 集成测试
   - Go 黑盒契约测试
   - external-mock / postgres / redis 测试依赖
 
@@ -27,13 +27,13 @@ usage() {
   rust              运行 rust-lib + rust-integration
   rust-lib          仅运行 cargo test --lib
   rust-integration  仅运行 cargo test --tests -- --test-threads=1
-  go                仅运行 go test ./... -v -p 1（自动拉起 backend 与依赖）
+  go                仅运行 go test ./... -v -p 1（自动拉起 api 与依赖）
   help              显示帮助
 
 环境变量：
   KEEP_STACK=1      保留测试栈，不自动 down
-  BACKEND_HEALTH_TIMEOUT=420
-                   backend 健康检查超时时间（秒）
+  API_HEALTH_TIMEOUT=420
+                   api 健康检查超时时间（秒）
 USAGE
 }
 
@@ -77,7 +77,7 @@ if [[ -z "${COMPOSE_PROJECT_NAME:-}" ]]; then
 fi
 
 KEEP_STACK="${KEEP_STACK:-0}"
-BACKEND_HEALTH_TIMEOUT="${BACKEND_HEALTH_TIMEOUT:-420}"
+API_HEALTH_TIMEOUT="${API_HEALTH_TIMEOUT:-420}"
 
 cleanup() {
   if [[ "${KEEP_STACK}" == "1" ]]; then
@@ -91,27 +91,27 @@ trap cleanup EXIT
 
 start_deps() {
   echo "[tests] project=${COMPOSE_PROJECT_NAME}" >&2
-  echo "[tests] 启动 backend contract 依赖（external-mock / postgres / redis）..." >&2
+  echo "[tests] 启动 api contract 依赖（external-mock / postgres / redis）..." >&2
   dc up -d --build external-mock postgres redis >/dev/null
 }
 
 run_rust_lib() {
-  echo "[tests] 运行 backend Rust 单元测试（cargo test --lib）..." >&2
+  echo "[tests] 运行 api Rust 单元测试（cargo test --lib）..." >&2
   dc run --rm rust-tests cargo test --lib
 }
 
 run_rust_integration() {
-  echo "[tests] 运行 backend Rust 集成测试（cargo test --tests）..." >&2
+  echo "[tests] 运行 api Rust 集成测试（cargo test --tests）..." >&2
   dc run --rm rust-tests cargo test --tests -- --test-threads=1
 }
 
-wait_backend() {
-  local deadline=$((SECONDS + BACKEND_HEALTH_TIMEOUT))
+wait_api() {
+  local deadline=$((SECONDS + API_HEALTH_TIMEOUT))
   while (( SECONDS < deadline )); do
     local container_id=""
     local health_status=""
 
-    container_id="$(dc ps -q backend 2>/dev/null || true)"
+    container_id="$(dc ps -q api 2>/dev/null || true)"
     if [[ -n "${container_id}" ]]; then
       health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${container_id}" 2>/dev/null || true)"
     fi
@@ -123,15 +123,15 @@ wait_backend() {
     sleep 1
   done
 
-  echo "[tests] backend 健康检查超时（>${BACKEND_HEALTH_TIMEOUT}s）" >&2
-  dc logs --tail=200 backend >&2 || true
+  echo "[tests] api 健康检查超时（>${API_HEALTH_TIMEOUT}s）" >&2
+  dc logs --tail=200 api >&2 || true
   exit 1
 }
 
-start_backend() {
-  echo "[tests] 启动 backend（供 Go 黑盒契约测试）..." >&2
-  dc up -d backend >/dev/null
-  wait_backend
+start_api() {
+  echo "[tests] 启动 api（供 Go 黑盒契约测试）..." >&2
+  dc up -d api >/dev/null
+  wait_api
 }
 
 run_go_contract() {
@@ -149,7 +149,7 @@ case "${MODE}" in
     start_deps
     run_rust_lib
     run_rust_integration
-    start_backend
+    start_api
     run_go_contract
     ;;
   rust)
@@ -187,7 +187,7 @@ case "${MODE}" in
       exit 1
     fi
     start_deps
-    start_backend
+    start_api
     run_go_contract
     ;;
 esac

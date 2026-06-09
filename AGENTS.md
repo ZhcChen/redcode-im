@@ -12,17 +12,17 @@
 - **Frontend 真机测试网络**: 每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/solutions/`、`docs/reference/`、`docs/reports/`）。
-- **Docker Compose**: 本机统一使用 `docker compose`；Backend 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
+- **Docker Compose**: 本机统一使用 `docker compose`；API 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
 - **端口占用处理**: 启动模块遇到端口冲突时，必须先停止占用进程再启动，禁止改用其他端口。
-- **本地 Backend 环境**:
-  - 开发调试（dev）：`backend/docker/dev/docker-compose.yml`（源码挂载 + 容器内 `cargo run`，默认开发入口）
-  - 发布构建验证（release）：`backend/docker/release/docker-compose.yml`（多阶段构建 + 二进制运行）
-  - 数据库迁移：由 backend 自身执行，不在 PostgreSQL 容器挂载 init SQL
-  - 端口策略：PG/Redis 不映射宿主端口；Backend 可映射 `8010:8010`
+- **本地 API 环境**:
+  - 开发调试（dev）：`api/docker/dev/docker-compose.yml`（源码挂载 + 容器内 `cargo run`，默认开发入口）
+  - 发布构建验证（release）：`api/docker/release/docker-compose.yml`（多阶段构建 + 二进制运行）
+  - 数据库迁移：由 api 自身执行，不在 PostgreSQL 容器挂载 init SQL
+  - 端口策略：PG/Redis 不映射宿主端口；API 可映射 `8010:8010`
 - **本地开发重启规则（dev）**:
-  - 修改 Rust 代码：`docker compose -f backend/docker/dev/docker-compose.yml restart backend`
-  - 修改依赖（`Cargo.toml`/Dockerfile）：`docker compose -f backend/docker/dev/docker-compose.yml up -d --build backend`
-  - 需要全新数据库：`docker compose -f backend/docker/dev/docker-compose.yml down -v`
+  - 修改 Rust 代码：`docker compose -f api/docker/dev/docker-compose.yml restart api`
+  - 修改依赖（`Cargo.toml`/Dockerfile）：`docker compose -f api/docker/dev/docker-compose.yml up -d --build api`
+  - 需要全新数据库：`docker compose -f api/docker/dev/docker-compose.yml down -v`
 - **本地 Admin 开发**:
   - 启动：`screen -dmS admin bash -c 'cd admin && npm run dev'`
   - 查看日志：`screen -r admin`（`Ctrl+A D` 退回后台）
@@ -87,7 +87,7 @@ Tool mapping:
 - 测试流程总览：`docs/reference/testing/README.md`
 
 ## 5. 技术栈速查
-- 后端: Rust (Axum, SQLx, Redis) -> `backend/src/`
+- 后端: Rust (Axum, SQLx, Redis) -> `api/src/`
 - 桌面端: TypeScript (Vue 3, Tauri) -> `desktop/src/`
 - 移动端: Dart (Flutter) -> `frontend/lib/`
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`

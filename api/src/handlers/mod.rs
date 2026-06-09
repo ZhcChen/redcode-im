@@ -32,7 +32,7 @@ use axum::{
 use crate::websocket::handle_websocket_upgrade;
 
 pub async fn root() -> &'static str {
-    "redcode IM backend"
+    "redcode IM api"
 }
 
 pub async fn healthz() -> &'static str {

@@ -12,7 +12,7 @@
 - **Frontend 真机测试网络**：每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址。
 - **工具**：优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
 - **文档结构**：`docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/solutions/`、`docs/reference/`、`docs/reports/`）。
-- **Docker Compose**：本机统一使用 `docker compose`；Backend 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
+- **Docker Compose**：本机统一使用 `docker compose`；API 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
 - **端口占用处理**：启动模块遇到端口冲突时，必须先停止占用进程再启动，禁止改用其他端口。
 
 ## 2. 当前默认 AI 工作流（Compound Engineering, CE）
@@ -36,10 +36,10 @@
 - 仓库工作流以 CE 目录约定与根目录 `AGENTS.md` 为准。
 
 ## 3. 本地开发约定（关键项）
-- **Backend 开发调试（dev）**：`backend/docker/dev/docker-compose.yml`
-- **Backend 发布构建验证（release）**：`backend/docker/release/docker-compose.yml`
-- **Backend 修改 Rust 代码后重启**：
-  - `docker compose -f backend/docker/dev/docker-compose.yml restart backend`
+- **API 开发调试（dev）**：`api/docker/dev/docker-compose.yml`
+- **API 发布构建验证（release）**：`api/docker/release/docker-compose.yml`
+- **API 修改 Rust 代码后重启**：
+  - `docker compose -f api/docker/dev/docker-compose.yml restart api`
 - **Admin 开发端口**：`8011`
 - **Admin 启动**：
   - `screen -dmS admin bash -c 'cd admin && npm run dev'`

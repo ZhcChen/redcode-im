@@ -29,13 +29,13 @@ func TestRootMakefileExposesUnifiedModuleTargets(t *testing.T) {
 	makefile := readRepoFile(t, "Makefile")
 
 	requiredTargets := []string{
-		"backend.up:",
-		"backend.down:",
-		"backend.logs:",
-		"backend.test:",
-		"backend.test.unit:",
-		"backend.test.integration:",
-		"backend.test.smoke:",
+		"api.up:",
+		"api.down:",
+		"api.logs:",
+		"api.test:",
+		"api.test.unit:",
+		"api.test.integration:",
+		"api.test.smoke:",
 		"admin.up:",
 		"admin.build:",
 		"admin.test:",

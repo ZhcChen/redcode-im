@@ -1,5 +1,5 @@
 # 本地开发环境 - 源码运行（容器内 cargo run）
-# 用法: docker compose -f backend/docker/dev/docker-compose.yml up -d
+# 用法: docker compose -f api/docker/dev/docker-compose.yml up -d
 
 services:
   # PostgreSQL 数据库
@@ -56,7 +56,7 @@ services:
     working_dir: /app
     command: ["cargo", "run", "--bin", "redcode-im-api"]
     ports:
-      - "8010:8010"  # 仅 backend 对外暴露，供调试访问
+      - "8010:8010"  # 仅 api 对外暴露，供调试访问
     volumes:
       - ../..:/app
       - cargo_target:/app/target

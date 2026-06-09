@@ -1,6 +1,6 @@
 # 后端开发与构建命令说明
 
-本文档整理了 Rust 后端在本地开发、测试及生产构建阶段常用的命令，便于快速查阅。若无特殊说明，均在 `backend/` 目录执行。
+本文档整理了 Rust 后端在本地开发、测试及生产构建阶段常用的命令，便于快速查阅。若无特殊说明，均在 `api/` 目录执行。
 
 ## 1. 本地开发流程
 
@@ -9,27 +9,27 @@
    cp .env.example .env
    # 按需修改数据库、Redis 等连接字符串
    ```
-2. **默认开发方式（推荐）**：直接启动 dev Compose 中的 backend 服务，Compose 会同时拉起 PostgreSQL/Redis。
+2. **默认开发方式（推荐）**：直接启动 dev Compose 中的 api 服务，Compose 会同时拉起 PostgreSQL/Redis。
    ```bash
-   docker compose -f docker/dev/docker-compose.yml up -d backend
+   docker compose -f docker/dev/docker-compose.yml up -d api
    ```
 3. **查看启动日志**
    ```bash
-   docker compose -f docker/dev/docker-compose.yml logs -f backend
+   docker compose -f docker/dev/docker-compose.yml logs -f api
    ```
 4. **（首次部署）初始化数据库结构**
    > 仅在**首次在新环境使用 RedCode IM** 且目标数据库为空库时需要执行，后续重复启动无需再次执行。
-   - 推荐做法：直接启动 backend，由 `Database::migrate` 自动执行当前 `backend/sql/base.sql`，并记录到 `db_migrations`。
-   - 当前 `base.sql` 已是完整基线；只有 2026-04-09 之后新增的迁移才会继续放入 `backend/sql/migrations/`。
+   - 推荐做法：直接启动 api，由 `Database::migrate` 自动执行当前 `api/sql/base.sql`，并记录到 `db_migrations`。
+   - 当前 `base.sql` 已是完整基线；只有 2026-04-09 之后新增的迁移才会继续放入 `api/sql/migrations/`。
    - 如需手工执行，可在项目根目录运行：
      ```bash
      # PostgreSQL 运行在 Docker 容器中
-     docker exec -i postgres psql -v ON_ERROR_STOP=1 -U postgres -d redcode_im < backend/sql/base.sql
+     docker exec -i postgres psql -v ON_ERROR_STOP=1 -U postgres -d redcode_im < api/sql/base.sql
 
      # PostgreSQL 直接运行在本地
-     psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d redcode_im < backend/sql/base.sql
+     psql -v ON_ERROR_STOP=1 -h localhost -U postgres -d redcode_im < api/sql/base.sql
      ```
-   - 如果数据库**非空但缺少 `db_migrations`**，backend 默认会拒绝自动 adopt；本地旧环境更推荐直接重建数据库 / volume。
+   - 如果数据库**非空但缺少 `db_migrations`**，api 默认会拒绝自动 adopt；本地旧环境更推荐直接重建数据库 / volume。
 5. **宿主机本地调试（可选）**：仅在需要直接运行宿主机进程时使用。
    ```bash
    # dev Compose 的 PostgreSQL / Redis 不映射宿主机端口；
@@ -67,7 +67,7 @@ cargo test
 ```bash
 cargo build --release
 ```
-> 生成的二进制位于 `target/release/redcode-im-backend`，架构与当前主机一致（例如 Mac mini M4 会生成 `aarch64-apple-darwin` 可执行文件）。该方案适合在同架构的 macOS/Linux 环境调试使用；若部署目标是 x86_64 Linux，需要改用方案 B 交叉编译对应架构。
+> 生成的二进制位于 `target/release/redcode-im-api`，架构与当前主机一致（例如 Mac mini M4 会生成 `aarch64-apple-darwin` 可执行文件）。该方案适合在同架构的 macOS/Linux 环境调试使用；若部署目标是 x86_64 Linux，需要改用方案 B 交叉编译对应架构。
 
 #### 方案 B：使用 Docker 镜像交叉编译（推荐生成 Linux/musl 二进制）
 
@@ -76,7 +76,7 @@ cargo build --release
 docker run --rm \
   --add-host=host.docker.internal:host-gateway \
   -v "$(cd .. && pwd)":/work \
-  -w /work/backend \
+  -w /work/api \
   -e DATABASE_URL=postgresql://postgres:123456@host.docker.internal:5432/redcode_im \
   messense/rust-musl-cross:x86_64-musl \
   bash -c 'set -euo pipefail; \
@@ -88,7 +88,7 @@ docker run --rm \
            cd openssl-${OPENSSL_VERSION} && \
            CC=x86_64-unknown-linux-musl-gcc ./Configure linux-x86_64 no-shared --prefix=/usr/local/musl --openssldir=/usr/local/musl --libdir=/usr/local/musl/lib && \
            make -j$(nproc) && make install_sw && \
-           cd /work/backend && \
+           cd /work/api && \
            OPENSSL_DIR=/usr/local/musl \
            OPENSSL_LIB_DIR=/usr/local/musl/lib \
            OPENSSL_INCLUDE_DIR=/usr/local/musl/include \
@@ -96,7 +96,7 @@ docker run --rm \
            PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
            cargo build --release --target x86_64-unknown-linux-musl'
 ```
-> 单条命令即完成 OpenSSL 编译与交叉构建（首次运行约需 3~5 分钟下载、编译 OpenSSL 3.3.1），产物位于 `target/x86_64-unknown-linux-musl/release/redcode-im-backend`，可直接部署到 Linux/x86 或打包到 Docker。`--add-host=host.docker.internal:host-gateway` 让 Linux 主机也能解析 `host.docker.internal`，以便容器访问宿主机上的 PostgreSQL。若使用自定义数据库地址，请将 `-e DATABASE_URL=...` 替换为实际连接串。
+> 单条命令即完成 OpenSSL 编译与交叉构建（首次运行约需 3~5 分钟下载、编译 OpenSSL 3.3.1），产物位于 `target/x86_64-unknown-linux-musl/release/redcode-im-api`，可直接部署到 Linux/x86 或打包到 Docker。`--add-host=host.docker.internal:host-gateway` 让 Linux 主机也能解析 `host.docker.internal`，以便容器访问宿主机上的 PostgreSQL。若使用自定义数据库地址，请将 `-e DATABASE_URL=...` 替换为实际连接串。
 ```bash
 DATABASE_URL=... \
 REDIS_SESSION_URL=... \
@@ -104,7 +104,7 @@ REDIS_PUBSUB_URL=... \
 REDIS_CACHE_URL=... \
 JWT_SECRET=... \
 PORT=8010 \
-./target/x86_64-unknown-linux-musl/release/redcode-im-backend
+./target/x86_64-unknown-linux-musl/release/redcode-im-api
 ```
 
 #### 方案 C：使用 Zig + cargo-zigbuild（macOS 直接产出 Linux/musl 二进制）
@@ -121,7 +121,7 @@ TARGET=x86_64-unknown-linux-musl \
 PROFILE=release \
 scripts/build-linux-zig.sh
 ```
-> 脚本会自动导入 `.env`、校验 `zig`/`cargo-zigbuild` 是否就绪，并执行 `cargo zigbuild --target $TARGET --release`。构建产物位于 `target/$TARGET/$PROFILE/redcode-im-backend`。
+> 脚本会自动导入 `.env`、校验 `zig`/`cargo-zigbuild` 是否就绪，并执行 `cargo zigbuild --target $TARGET --release`。构建产物位于 `target/$TARGET/$PROFILE/redcode-im-api`。
 
 相较方案 B，该方案无需重复编译 OpenSSL，也可以通过 `TARGET`/`PROFILE` 环境变量一次产出多种架构。若希望与服务器一致，保持默认的 `x86_64-unknown-linux-musl` 即可。
 
@@ -132,11 +132,11 @@ scripts/build-linux-zig.sh
    ```
 2. **构建并启动 release 栈**：
    ```bash
-   docker compose -f docker/release/docker-compose.yml up -d --build backend
+   docker compose -f docker/release/docker-compose.yml up -d --build api
    ```
 3. **查看运行日志**：
    ```bash
-   docker compose -f docker/release/docker-compose.yml logs -f backend
+   docker compose -f docker/release/docker-compose.yml logs -f api
    ```
 4. **停止并清理 release 栈**：
    ```bash
@@ -149,7 +149,7 @@ scripts/build-linux-zig.sh
    docker run --rm \
      --add-host=host.docker.internal:host-gateway \
      -v "$(cd .. && pwd)":/work \
-     -w /work/backend \
+     -w /work/api \
      -e DATABASE_URL=postgresql://postgres:123456@host.docker.internal:5432/redcode_im \
      messense/rust-musl-cross:x86_64-musl \
      bash -c 'set -euo pipefail; \
@@ -161,20 +161,20 @@ scripts/build-linux-zig.sh
               cd openssl-${OPENSSL_VERSION} && \
              CC=x86_64-unknown-linux-musl-gcc ./Configure linux-x86_64 no-shared --prefix=/usr/local/musl --openssldir=/usr/local/musl --libdir=/usr/local/musl/lib && \
              make -j$(nproc) && make install_sw && \
-             cd /work/backend && \
+             cd /work/api && \
              OPENSSL_DIR=/usr/local/musl \
              OPENSSL_LIB_DIR=/usr/local/musl/lib \
              OPENSSL_INCLUDE_DIR=/usr/local/musl/include \
              PKG_CONFIG_ALLOW_CROSS=1 \
              PKG_CONFIG_PATH=/usr/local/musl/lib/pkgconfig \
              cargo build --release --target x86_64-unknown-linux-musl'
-   cp target/x86_64-unknown-linux-musl/release/redcode-im-backend docker/
+   cp target/x86_64-unknown-linux-musl/release/redcode-im-api docker/
    cp .env docker/
    ```
-   > 若仅在本机调试，可直接使用方案 A 生成的 `target/release/redcode-im-backend`，但部署到 Linux/x86 时需使用方案 B。
+   > 若仅在本机调试，可直接使用方案 A 生成的 `target/release/redcode-im-api`，但部署到 Linux/x86 时需使用方案 B。
 2. **构建精简运行镜像**：`docker/Dockerfile` 仅复制上述二进制与 `.env`，不包含数据库或其他依赖。
    ```bash
-   docker build -f docker/Dockerfile -t redcode-im/backend:latest docker
+   docker build -f docker/Dockerfile -t redcode-im/api:latest docker
    ```
 3. **更新镜像**：覆盖 `docker/` 目录中的二进制与 `.env`，重新执行第 2 步即可。
 

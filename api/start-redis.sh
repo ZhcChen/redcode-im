@@ -70,7 +70,7 @@ case "${1:-start}" in
         echo ""
         echo "🎉 Redis 单实例启动完成！"
         echo "📝 本地端口: $REDIS_PORT"
-        echo "📝 backend 三个逻辑入口可统一指向:"
+        echo "📝 api 三个逻辑入口可统一指向:"
         echo "   REDIS_SESSION_URL=redis://localhost:$REDIS_PORT"
         echo "   REDIS_PUBSUB_URL=redis://localhost:$REDIS_PORT"
         echo "   REDIS_CACHE_URL=redis://localhost:$REDIS_PORT"

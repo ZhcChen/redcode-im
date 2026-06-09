@@ -33,5 +33,5 @@
 成功获取基础信息
 示例：
 ```json
-"redcode IM backend"
+"redcode IM api"
 ```

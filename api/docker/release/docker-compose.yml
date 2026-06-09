@@ -1,5 +1,5 @@
 # 本地 release 环境 - 镜像内构建并运行二进制
-# 用法: docker compose -f backend/docker/release/docker-compose.yml up -d
+# 用法: docker compose -f api/docker/release/docker-compose.yml up -d
 
 services:
   # PostgreSQL 数据库
@@ -54,7 +54,7 @@ services:
       dockerfile: docker/release/Dockerfile
     container_name: redcode-release-api
     ports:
-      - "8010:8010"  # 仅 backend 对外暴露，供调试访问
+      - "8010:8010"  # 仅 api 对外暴露，供调试访问
     environment:
       PORT: "8010"
       RUST_LOG: debug

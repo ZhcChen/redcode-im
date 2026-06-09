@@ -357,7 +357,7 @@ echo "备份检查通过: $TODAY, 大小: $(numfmt --to=iec $SIZE)"
 
 ```bash
 # 停止后端服务
-systemctl stop redcode-backend
+systemctl stop redcode-api
 
 # 删除现有数据库
 dropdb redcode_im
@@ -372,7 +372,7 @@ pg_restore --dbname=redcode_im \
   /backup/postgresql/daily/redcode_im_2026-01-13.dump
 
 # 重启服务
-systemctl start redcode-backend
+systemctl start redcode-api
 ```
 
 #### 部分恢复（特定表）

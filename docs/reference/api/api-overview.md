@@ -1,6 +1,6 @@
 # RedCode IM API 概览
 
-> 本文档用于“快速查找接口入口”。接口实现以 `backend/src/routes.rs` 为准。
+> 本文档用于“快速查找接口入口”。接口实现以 `api/src/routes.rs` 为准。
 >
 > 详细参数与响应请参考：
 > - `docs/reference/api/api-reference.md`（全量路由清单）
@@ -15,7 +15,7 @@
 ## 响应与错误
 
 - **成功响应**：当前后端并未强制统一 envelope（有的接口返回 `{success,message,...}`，有的接口直接返回业务对象）。建议以 **HTTP 状态码** 为第一判断依据，并按各接口文档解析字段。
-- **错误响应**：当接口返回非 2xx 时，响应体遵循统一结构（见 `backend/src/error.rs`）：
+- **错误响应**：当接口返回非 2xx 时，响应体遵循统一结构（见 `api/src/error.rs`）：
 
 ```json
 {

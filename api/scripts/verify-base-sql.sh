@@ -101,7 +101,7 @@ echo "📦 legacy 归档文件数：${legacy_count}"
 echo ""
 
 echo "📌 当前口径："
-echo "  - 默认执行入口是 backend 启动时的 Database::migrate"
+echo "  - 默认执行入口是 api 启动时的 Database::migrate"
 echo "  - 当前有效链路 = base.sql + sql/migrations/20260410093000_remove_default_admin_seed.sql + sql/migrations/20260413153000_add_object_storage_configs.sql + sql/migrations/20260430120000_drop_user_oauth_accounts.sql"
 echo "  - 首个超级管理员由运行时 bootstrap 初始化，不依赖静态默认账号"
 echo "  - 对象存储运行时配置版本表由增量迁移创建，不直接写入 base.sql"

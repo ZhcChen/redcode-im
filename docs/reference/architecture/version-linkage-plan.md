@@ -47,7 +47,7 @@
 
 ## 5. 开发任务列表
 
-### 后端（backend）
+### 后端（api）
 1. 创建 `hot_updates` 表（迁移）并与 `app_versions` 建立关联。
 2. 实现热更新管理 API（新增/编辑/启用/停用/回滚/删除），上传补丁生成下载 Key / URL。
 3. 实现 `GET /versions/hot-update` 接口（支持灰度策略）。

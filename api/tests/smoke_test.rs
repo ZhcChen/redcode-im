@@ -1,4 +1,4 @@
 #[test]
-fn backend_test_harness_smoke() {
+fn api_test_harness_smoke() {
     assert!(true);
 }

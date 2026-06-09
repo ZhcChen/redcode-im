@@ -63,18 +63,18 @@ pg_restore --list /backup/postgresql/daily/latest.dump
 
 ```bash
 # 优雅停止（等待请求处理完成）
-systemctl stop redcode-backend
+systemctl stop redcode-api
 
 # 或发送 SIGTERM
-kill -15 $(pgrep -f redcode-backend)
+kill -15 $(pgrep -f redcode-api)
 ```
 
 #### 2. 备份当前版本
 
 ```bash
 # 备份二进制文件
-cp /opt/redcode/backend/redcode-backend \
-   /opt/redcode/backup/redcode-backend.$(date +%Y%m%d)
+cp /opt/redcode/api/redcode-api \
+   /opt/redcode/backup/redcode-api.$(date +%Y%m%d)
 
 # 备份配置文件
 cp -r /etc/redcode /etc/redcode.backup.$(date +%Y%m%d)
@@ -84,24 +84,24 @@ cp -r /etc/redcode /etc/redcode.backup.$(date +%Y%m%d)
 
 ```bash
 # 下载新版本
-wget https://releases.example.com/redcode-backend-v1.2.0-linux-x86_64.tar.gz
+wget https://releases.example.com/redcode-api-v1.2.0-linux-x86_64.tar.gz
 
 # 解压
-tar -xzf redcode-backend-v1.2.0-linux-x86_64.tar.gz
+tar -xzf redcode-api-v1.2.0-linux-x86_64.tar.gz
 
 # 替换二进制文件
-mv redcode-backend /opt/redcode/backend/
+mv redcode-api /opt/redcode/api/
 
 # 设置权限
-chmod +x /opt/redcode/backend/redcode-backend
+chmod +x /opt/redcode/api/redcode-api
 ```
 
 #### 4. 数据库迁移
 
 ```bash
-# backend 启动时会自动执行内置迁移 runner
-cd /opt/redcode/backend
-./redcode-backend
+# api 启动时会自动执行内置迁移 runner
+cd /opt/redcode/api
+./redcode-api
 ```
 
 说明：
@@ -112,20 +112,20 @@ cd /opt/redcode/backend
 如需先做排障级手工初始化，可执行：
 
 ```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/base.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f api/sql/base.sql
 ```
 
 #### 5. 启动服务
 
 ```bash
 # 启动服务
-systemctl start redcode-backend
+systemctl start redcode-api
 
 # 检查状态
-systemctl status redcode-backend
+systemctl status redcode-api
 
 # 查看日志
-journalctl -u redcode-backend -f
+journalctl -u redcode-api -f
 ```
 
 #### 6. 验证升级
@@ -147,23 +147,23 @@ curl http://localhost:8010/auth/login \
 
 ```bash
 # 拉取新镜像
-docker pull redcode/backend:v1.2.0
+docker pull redcode/api:v1.2.0
 
 # 停止旧容器
-docker stop redcode-backend
+docker stop redcode-api
 
-# 启动新容器（镜像内 backend 启动后会自动执行迁移）
+# 启动新容器（镜像内 api 启动后会自动执行迁移）
 # 如需先做手工基线初始化，请改为执行 base.sql
 
 # 启动新容器
 docker run -d \
-  --name redcode-backend \
+  --name redcode-api \
   -e DATABASE_URL=$DATABASE_URL \
   -e REDIS_SESSION_URL=$REDIS_SESSION_URL \
   -e REDIS_PUBSUB_URL=${REDIS_PUBSUB_URL:-$REDIS_SESSION_URL} \
   -e REDIS_CACHE_URL=${REDIS_CACHE_URL:-$REDIS_SESSION_URL} \
   -p 8010:8010 \
-  redcode/backend:v1.2.0
+  redcode/api:v1.2.0
 
 # 清理旧镜像
 docker image prune -f
@@ -172,9 +172,9 @@ docker image prune -f
 ### Docker Compose 升级
 
 ```yaml
-# backend/docker/release/docker-compose.yml
+# api/docker/release/docker-compose.yml
 services:
-  backend:
+  api:
     build:
       context: ../..
       dockerfile: docker/release/Dockerfile
@@ -183,10 +183,10 @@ services:
 
 ```bash
 # 重新构建并启动 release 验证栈
-docker compose -f backend/docker/release/docker-compose.yml up -d --build backend
+docker compose -f api/docker/release/docker-compose.yml up -d --build api
 
 # 查看日志
-docker compose -f backend/docker/release/docker-compose.yml logs -f backend
+docker compose -f api/docker/release/docker-compose.yml logs -f api
 ```
 
 ---
@@ -196,7 +196,7 @@ docker compose -f backend/docker/release/docker-compose.yml logs -f backend
 ### 迁移流程
 
 1. 确认目标库是否为空库，或已存在 `db_migrations`。
-2. 部署新 backend 并启动，让 `Database::migrate` 自动执行迁移。
+2. 部署新 api 并启动，让 `Database::migrate` 自动执行迁移。
 3. 验证 `db_migrations`、表结构与关键字段是否符合预期。
 
 ### 常用检查命令
@@ -215,10 +215,10 @@ psql "$DATABASE_URL" -c "\d+ group_detail_view"
 
 ```bash
 # 手工初始化当前基线
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/base.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f api/sql/base.sql
 
-# 如存在新的增量迁移，再按 backend/src/database/mod.rs 的 MIGRATIONS 顺序手工执行
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/sql/migrations/<timestamp>_desc.sql
+# 如存在新的增量迁移，再按 api/src/database/mod.rs 的 MIGRATIONS 顺序手工执行
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f api/sql/migrations/<timestamp>_desc.sql
 ```
 
 ### 兼容开关
@@ -306,12 +306,12 @@ rsync -avz dist/ user@server:/var/www/admin/
 echo "开始回滚..."
 
 # 1. 停止当前服务
-systemctl stop redcode-backend
+systemctl stop redcode-api
 
 # 2. 恢复二进制文件
 BACKUP_VERSION=$1
-cp /opt/redcode/backup/redcode-backend.$BACKUP_VERSION \
-   /opt/redcode/backend/redcode-backend
+cp /opt/redcode/backup/redcode-api.$BACKUP_VERSION \
+   /opt/redcode/api/redcode-api
 
 # 3. 恢复配置文件
 cp -r /etc/redcode.backup.$BACKUP_VERSION/* /etc/redcode/
@@ -320,7 +320,7 @@ cp -r /etc/redcode.backup.$BACKUP_VERSION/* /etc/redcode/
 # 当前项目不提供 sqlx revert；若需要回滚数据库，请恢复备份或重建数据库。
 
 # 5. 启动服务
-systemctl start redcode-backend
+systemctl start redcode-api
 
 # 6. 验证
 sleep 5
@@ -333,30 +333,30 @@ echo "回滚完成"
 
 ```bash
 # 当前项目没有单条 migration revert 机制
-# 推荐做法：停止 backend，恢复数据库备份，或直接重建数据库
-systemctl stop redcode-backend
+# 推荐做法：停止 api，恢复数据库备份，或直接重建数据库
+systemctl stop redcode-api
 dropdb redcode_im
 createdb redcode_im
 pg_restore --dbname=redcode_im /backup/postgresql/daily/latest.dump
-systemctl start redcode-backend
+systemctl start redcode-api
 ```
 
 ### Docker 回滚
 
 ```bash
 # 停止新版本
-docker stop redcode-backend
-docker rm redcode-backend
+docker stop redcode-api
+docker rm redcode-api
 
 # 启动旧版本
 docker run -d \
-  --name redcode-backend \
-  redcode/backend:v1.1.0  # 旧版本
+  --name redcode-api \
+  redcode/api:v1.1.0  # 旧版本
 
 # 或使用 docker compose（release 验证栈）
-docker compose -f backend/docker/release/docker-compose.yml down
-git checkout v1.1.0 -- backend/docker/release/docker-compose.yml
-docker compose -f backend/docker/release/docker-compose.yml up -d backend
+docker compose -f api/docker/release/docker-compose.yml down
+git checkout v1.1.0 -- api/docker/release/docker-compose.yml
+docker compose -f api/docker/release/docker-compose.yml up -d api
 ```
 
 ---
@@ -414,9 +414,9 @@ if api_version < 2 {
 
 ```bash
 # 部署新版本到蓝色环境
-docker run -d --name backend-blue \
+docker run -d --name api-blue \
   -p 8011:8010 \
-  redcode/backend:v1.2.0
+  redcode/api:v1.2.0
 
 # 测试蓝色环境
 curl http://localhost:8011/healthz
@@ -425,8 +425,8 @@ curl http://localhost:8011/healthz
 # 更新 nginx upstream 配置
 
 # 确认无问题后移除旧版本
-docker stop backend-green
-docker rm backend-green
+docker stop api-green
+docker rm api-green
 ```
 
 ### 灰度发布
@@ -434,9 +434,9 @@ docker rm backend-green
 ```bash
 # 配置部分流量到新版本
 # nginx.conf
-upstream backend {
-    server backend-v1.1.0:8010 weight=9;
-    server backend-v1.2.0:8010 weight=1;
+upstream api {
+    server api-v1.1.0:8010 weight=9;
+    server api-v1.2.0:8010 weight=1;
 }
 ```
 

@@ -12,19 +12,19 @@
 
 ### 1. 本地开发（Compose-first）
 ```
-backend/
+api/
 ├── .env                         ✅ 开发环境配置
 └── docker/dev/docker-compose.yml
 ```
-**运行方式**: `docker compose -f docker/dev/docker-compose.yml up -d backend`
+**运行方式**: `docker compose -f docker/dev/docker-compose.yml up -d api`
 
 ### 2. 本地 release 构建验证
 ```
-backend/
+api/
 ├── .env                             ✅ release 验证环境变量
 └── docker/release/docker-compose.yml
 ```
-**运行方式**: `docker compose -f docker/release/docker-compose.yml up -d backend`
+**运行方式**: `docker compose -f docker/release/docker-compose.yml up -d api`
 
 ### 3. 二进制部署
 ```
@@ -131,5 +131,5 @@ chown app:app .env
 # 重启服务
 systemctl restart redcode-im
 # 或
-cd backend && docker compose -f docker/dev/docker-compose.yml restart backend
+cd api && docker compose -f docker/dev/docker-compose.yml restart api
 ```

@@ -1,6 +1,6 @@
-# RedCode IM Backend API 完整参考文档
+# RedCode IM API API 完整参考文档
 
-> 本文档用于记录当前已实现的 REST API 与 WebSocket 接口入口；若与代码不一致，以 `backend/src/routes.rs` 为准。
+> 本文档用于记录当前已实现的 REST API 与 WebSocket 接口入口；若与代码不一致，以 `api/src/routes.rs` 为准。
 
 ## 📋 目录
 
@@ -39,7 +39,7 @@ Authorization: Bearer <your-jwt-token>
 ### 响应格式
 成功响应的结构**不强制统一**（部分接口返回 `{success,message,...}`，部分接口直接返回业务对象），建议以 **HTTP 状态码** 为第一判断依据。
 
-当接口返回非 2xx 时，响应体遵循统一结构（见 `backend/src/error.rs`）：
+当接口返回非 2xx 时，响应体遵循统一结构（见 `api/src/error.rs`）：
 ```json
 {
   "code": 40001,
@@ -2265,7 +2265,7 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 #### Protocol Buffers 格式
 使用二进制 Protocol Buffers 格式，性能更高，带宽占用更少。
 
-协议定义位置: `backend/src/proto/ws.proto`
+协议定义位置: `api/src/proto/ws.proto`
 
 ---
 

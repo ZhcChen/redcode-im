@@ -28,10 +28,10 @@
 1. **检查日志输出**
 ```bash
 # 查看启动日志
-docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
+docker compose -f api/docker/dev/docker-compose.yml logs -f api
 
 # 或查看 Docker 日志
-docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
+docker compose -f api/docker/dev/docker-compose.yml logs -f api
 ```
 
 2. **检查环境变量**
@@ -82,7 +82,7 @@ redis-cli -u "${REDIS_CACHE_URL:-$REDIS_SESSION_URL}" ping
 
 1. **查看详细错误日志**
 ```bash
-docker compose -f backend/docker/dev/docker-compose.yml logs -f backend
+docker compose -f api/docker/dev/docker-compose.yml logs -f api
 ```
 
 2. **检查请求参数**
@@ -170,7 +170,7 @@ echo $DATABASE_MAX_CONNECTIONS  # 默认 10
 **解决方案**：
 ```sql
 -- 终止空闲连接
-SELECT pg_terminate_backend(pid)
+SELECT pg_terminate_api(pid)
 FROM pg_stat_activity
 WHERE datname = 'redcode_im'
   AND state = 'idle'
@@ -187,7 +187,7 @@ max_connections = 200
 
 ### 迁移失败
 
-**症状**：backend 启动时数据库迁移报错
+**症状**：api 启动时数据库迁移报错
 
 **排查步骤**：
 
@@ -215,10 +215,10 @@ psql "$DATABASE_URL" -c "\d+ messages"
 **解决方案**：
 ```bash
 # 方案 A：本地开发环境直接重建数据库 / volume（推荐）
-# 例如：docker compose -f backend/docker/dev/docker-compose.yml down -v
+# 例如：docker compose -f api/docker/dev/docker-compose.yml down -v
 
 # 方案 B：确认当前库已是完整 schema 后，临时允许 adopt
-ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT=true ./redcode-backend
+ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT=true ./redcode-api
 ```
 
 ---
@@ -348,7 +348,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8010/auth/me
 3. **检查 Nginx 配置（如有代理）**
 ```nginx
 location /ws {
-    proxy_pass http://backend;
+    proxy_pass http://api;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
@@ -586,7 +586,7 @@ redis-cli info memory | grep used_memory_human
 echo "=== System Info ===" > diagnosis.txt
 uname -a >> diagnosis.txt
 
-echo "=== Backend Version ===" >> diagnosis.txt
+echo "=== API Version ===" >> diagnosis.txt
 curl -s http://localhost:8010/ >> diagnosis.txt
 
 echo "=== Database Status ===" >> diagnosis.txt
@@ -596,7 +596,7 @@ echo "=== Redis Status ===" >> diagnosis.txt
 redis-cli info >> diagnosis.txt
 
 echo "=== Recent Logs ===" >> diagnosis.txt
-tail -n 100 /var/log/redcode/backend.log >> diagnosis.txt
+tail -n 100 /var/log/redcode/api.log >> diagnosis.txt
 
 echo "Diagnosis report saved to diagnosis.txt"
 ```
@@ -607,13 +607,13 @@ echo "Diagnosis report saved to diagnosis.txt"
 
 ```bash
 # 重启服务
-systemctl restart redcode-backend
+systemctl restart redcode-api
 
 # 查看日志
-journalctl -u redcode-backend -f
+journalctl -u redcode-api -f
 
 # 检查服务状态
-systemctl status redcode-backend
+systemctl status redcode-api
 
 # 数据库备份
 pg_dump $DATABASE_URL > backup.sql

@@ -68,14 +68,14 @@
 
 1. **启动后端服务**
 ```bash
-cd backend
+cd api
 cp .env.example .env
-docker compose -f docker/dev/docker-compose.yml up -d backend
+docker compose -f docker/dev/docker-compose.yml up -d api
 ```
 
 2. **创建测试用户**（如果还没创建）
 ```bash
-cd backend
+cd api
 ./test_flow.sh  # 创建alice和bob两个测试用户
 ```
 
