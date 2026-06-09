@@ -79,13 +79,23 @@ pub struct TestApp {
 }
 
 impl TestApp {
-    /// 发起一次进程内请求并返回 (状态码, 响应体字节)。
-    pub async fn request(&self, method: &str, uri: &str, body: Body) -> (StatusCode, Vec<u8>) {
-        let req = Request::builder()
-            .method(method)
-            .uri(uri)
-            .body(body)
-            .expect("构造请求失败");
+    /// 通用进程内请求：可选 bearer token、可选 JSON content-type。返回 (状态码, 响应体字节)。
+    pub async fn send(
+        &self,
+        method: &str,
+        uri: &str,
+        token: Option<&str>,
+        body: Body,
+        json: bool,
+    ) -> (StatusCode, Vec<u8>) {
+        let mut builder = Request::builder().method(method).uri(uri);
+        if json {
+            builder = builder.header("content-type", "application/json");
+        }
+        if let Some(t) = token {
+            builder = builder.header("authorization", format!("Bearer {t}"));
+        }
+        let req = builder.body(body).expect("构造请求失败");
         let resp = self
             .router
             .clone()
@@ -104,32 +114,38 @@ impl TestApp {
     }
 
     pub async fn get(&self, uri: &str) -> (StatusCode, Vec<u8>) {
-        self.request("GET", uri, Body::empty()).await
+        self.send("GET", uri, None, Body::empty(), false).await
+    }
+
+    pub async fn get_authed(&self, uri: &str, token: &str) -> (StatusCode, Vec<u8>) {
+        self.send("GET", uri, Some(token), Body::empty(), false)
+            .await
     }
 
     pub async fn post_json(&self, uri: &str, json: &str) -> (StatusCode, Vec<u8>) {
-        let req = Request::builder()
-            .method("POST")
-            .uri(uri)
-            .header("content-type", "application/json")
-            .body(Body::from(json.to_owned()))
-            .expect("构造请求失败");
-        let resp = self
-            .router
-            .clone()
-            .oneshot(req)
+        self.send("POST", uri, None, Body::from(json.to_owned()), true)
             .await
-            .expect("oneshot 失败");
-        let status = resp.status();
-        let bytes = resp
-            .into_body()
-            .collect()
-            .await
-            .expect("读取响应体失败")
-            .to_bytes()
-            .to_vec();
-        (status, bytes)
     }
+
+    pub async fn post_json_authed(
+        &self,
+        uri: &str,
+        token: &str,
+        json: &str,
+    ) -> (StatusCode, Vec<u8>) {
+        self.send("POST", uri, Some(token), Body::from(json.to_owned()), true)
+            .await
+    }
+}
+
+/// 把响应体字节解析为 JSON Value（测试断言用）。
+pub fn body_json(bytes: &[u8]) -> serde_json::Value {
+    serde_json::from_slice(bytes).expect("响应体不是合法 JSON")
+}
+
+/// 生成唯一测试邮箱，避免持久库跨轮次冲突。
+pub fn unique_email(prefix: &str) -> String {
+    format!("{prefix}_{}@example.test", Uuid::new_v4().simple())
 }
 
 impl Drop for TestApp {
