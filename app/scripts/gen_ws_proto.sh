@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROTO_DIR="$ROOT_DIR/api/proto"
 PROTO_FILE="$PROTO_DIR/ws.proto"
-OUT_DIR="$ROOT_DIR/frontend/lib/proto"
+OUT_DIR="$ROOT_DIR/app/lib/proto"
 
 if ! command -v protoc >/dev/null 2>&1; then
   echo "protoc not found; please install protoc first"

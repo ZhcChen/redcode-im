@@ -34,7 +34,7 @@ DESKTOP_SCREEN := desktop
 DESKTOP_PORT := 1420
 DESKTOP_LOG := /tmp/redcode-desktop.log
 
-FRONTEND_DIR := $(ROOT_DIR)/frontend
+FRONTEND_DIR := $(ROOT_DIR)/app
 FRONTEND_ENV ?= .env.development
 FLUTTER_DEVICE ?=
 FRONTEND_TEST_DEVICE ?= macos
