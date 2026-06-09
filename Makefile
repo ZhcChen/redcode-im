@@ -1,9 +1,9 @@
 # 根目录统一开发 / 构建 / 测试入口
 #
 # 设计原则：
-# 1. 命令按模块 namespaced：backend.* / admin.* / desktop.* / frontend.* / website.* / tests.*
+# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / frontend.* / website.* / tests.*
 # 2. 保留旧命令别名，避免打断已有使用习惯。
-# 3. backend 默认走 Compose-first；admin / desktop / website 默认走 screen 后台运行。
+# 3. api 默认走 Compose-first；admin / desktop / website 默认走 screen 后台运行。
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
@@ -60,7 +60,7 @@ command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
 .PHONY: help status install.all test.all tests.all dev.up dev.down dev.logs \
-	backend.up backend.down backend.restart backend.reset backend.logs backend.ps backend.test backend.test.unit backend.test.integration backend.test.smoke \
+	api.up api.down api.restart api.reset api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke \
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -75,8 +75,8 @@ endef
 help: ## 显示所有可用命令
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-status: ## 查看各模块状态（backend / admin / desktop / website）
-	@echo "[backend]"
+status: ## 查看各模块状态（api / admin / desktop / website）
+	@echo "[api]"
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" ps || true
 	@printf "healthz: "
@@ -103,7 +103,7 @@ install.all: ## 安装 admin / desktop / website 依赖，并拉取 frontend 依
 	@$(MAKE) website.install
 	@$(MAKE) frontend.install
 
-test.all: ## 运行仓库全量本地测试入口（backend contract + frontend + admin + desktop + website）
+test.all: ## 运行仓库全量本地测试入口（api contract + frontend + admin + desktop + website）
 	@$(MAKE) tests.contract
 	@$(MAKE) frontend.check
 	@$(MAKE) frontend.test.unit
@@ -114,59 +114,59 @@ test.all: ## 运行仓库全量本地测试入口（backend contract + frontend 
 	@$(MAKE) desktop.test.unit
 	@$(MAKE) website.test.unit
 
-dev.up: ## 启动常用开发链路（backend + admin + website）
-	@$(MAKE) backend.up
+dev.up: ## 启动常用开发链路（api + admin + website）
+	@$(MAKE) api.up
 	@$(MAKE) admin.up
 	@$(MAKE) website.up
 
-dev.down: ## 停止常用开发链路（website + admin + desktop + backend）
+dev.down: ## 停止常用开发链路（website + admin + desktop + api）
 	@$(MAKE) website.down
 	@$(MAKE) admin.down
 	@$(MAKE) desktop.down
-	@$(MAKE) backend.down
+	@$(MAKE) api.down
 
 dev.logs: ## 提示查看各模块日志命令
-	@echo "backend: make backend.logs"
+	@echo "api: make api.logs"
 	@echo "admin:   make admin.logs"
 	@echo "desktop: make desktop.logs"
 	@echo "website: make website.logs"
 
-backend.up: ## 启动 backend 开发栈（backend + postgres + redis）
+api.up: ## 启动 api 开发栈（api + postgres + redis）
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" up -d $(API_SERVICE)
-	@echo "[backend] 已启动，健康检查地址: http://localhost:$(API_PORT)/healthz"
+	@echo "[api] 已启动，健康检查地址: http://localhost:$(API_PORT)/healthz"
 
-backend.down: ## 停止 backend 开发栈（保留数据卷）
+api.down: ## 停止 api 开发栈（保留数据卷）
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" down
 
-backend.restart: ## 重启 backend 容器
+api.restart: ## 重启 api 容器
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" restart $(API_SERVICE)
 
-backend.reset: ## 停止 backend 开发栈并删除数据卷
+api.reset: ## 停止 api 开发栈并删除数据卷
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" down -v --remove-orphans
 
-backend.logs: ## 跟随查看 backend 日志
+api.logs: ## 跟随查看 api 日志
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" logs -f --tail=200 $(API_SERVICE)
 
-backend.ps: ## 查看 backend 开发栈容器状态
+api.ps: ## 查看 api 开发栈容器状态
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" ps
 
-backend.test: backend.test.unit backend.test.integration ## 运行 backend 默认 Rust 测试集
+api.test: api.test.unit api.test.integration ## 运行 api 默认 Rust 测试集
 
-backend.test.unit: ## 运行 backend Rust 单元测试（cargo test --lib）
+api.test.unit: ## 运行 api Rust 单元测试（cargo test --lib）
 	@$(call require_cmd,$(CARGO))
 	@cd "$(ROOT_DIR)/api" && $(CARGO) test --lib
 
-backend.test.integration: ## 运行 backend Rust 集成测试（cargo test --tests）
+api.test.integration: ## 运行 api Rust 集成测试（cargo test --tests）
 	@$(call require_cmd,$(CARGO))
 	@cd "$(ROOT_DIR)/api" && $(CARGO) test --tests -- --test-threads=1
 
-backend.test.smoke: ## 运行 backend Rust smoke 测试
+api.test.smoke: ## 运行 api Rust smoke 测试
 	@$(call require_cmd,$(CARGO))
 	@cd "$(ROOT_DIR)/api" && $(CARGO) test --test smoke_test -- --test-threads=1
 
@@ -329,7 +329,7 @@ frontend.test.features: ## 执行 frontend features 模型测试
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/features
 
-frontend.test.integration.smoke: ## 执行 frontend integration smoke（不访问真实 backend）
+frontend.test.integration.smoke: ## 执行 frontend integration smoke（不访问真实 api）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh smoke
 
@@ -422,32 +422,32 @@ website.test.download: ## 执行 website 下载逻辑测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(WEBSITE_DIR)" && $(BUN) run test -- test/download-utils.test.ts
 
-tests.contract: ## 运行 backend contract 全量测试栈（Rust + Go）
+tests.contract: ## 运行 api contract 全量测试栈（Rust + Go）
 	@bash "$(TESTS_SCRIPT)" all
 
-tests.go: ## 仅运行 backend Go 黑盒契约测试
+tests.go: ## 仅运行 api Go 黑盒契约测试
 	@bash "$(TESTS_SCRIPT)" go
 
-tests.rust: ## 运行 backend Rust 单元 + 集成测试
+tests.rust: ## 运行 api Rust 单元 + 集成测试
 	@bash "$(TESTS_SCRIPT)" rust
 
-tests.rust-lib: ## 仅运行 backend Rust 单元测试
+tests.rust-lib: ## 仅运行 api Rust 单元测试
 	@bash "$(TESTS_SCRIPT)" rust-lib
 
-tests.rust-integration: ## 仅运行 backend Rust 集成测试
+tests.rust-integration: ## 仅运行 api Rust 集成测试
 	@bash "$(TESTS_SCRIPT)" rust-integration
 
-tests.run: ## 兼容旧命令：运行 backend contract 全量测试栈
+tests.run: ## 兼容旧命令：运行 api contract 全量测试栈
 	@bash "$(TESTS_SCRIPT)" all
 
 tests.all: test.all ## 兼容命令：运行仓库全量本地测试入口
 
 # 兼容旧命令 ---------------------------------------------------------------
 
-api-up: backend.up ## 兼容旧命令：启动 backend 开发栈
-api-down: backend.down ## 兼容旧命令：停止 backend 开发栈
-api-logs: backend.logs ## 兼容旧命令：查看 backend 日志
-api-ps: backend.ps ## 兼容旧命令：查看 backend 容器状态
+api-up: api.up ## 兼容旧命令：启动 api 开发栈
+api-down: api.down ## 兼容旧命令：停止 api 开发栈
+api-logs: api.logs ## 兼容旧命令：查看 api 日志
+api-ps: api.ps ## 兼容旧命令：查看 api 容器状态
 
 admin-up: admin.up ## 兼容旧命令：启动 admin
 admin-down: admin.down ## 兼容旧命令：停止 admin
