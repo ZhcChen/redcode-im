@@ -1,7 +1,7 @@
 ---
 title: "refactor: 重建 api 测试架构为 Rust 原生轻量"
 type: refactor
-status: active
+status: completed
 date: 2026-06-09
 ---
 
