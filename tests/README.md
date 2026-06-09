@@ -18,12 +18,12 @@ api contract 栈默认把 Backblaze B2 / S3 兼容对象存储指向 `external-m
 测试过程中不要把 contract 栈改成线上 Backblaze B2 endpoint，避免消耗真实对象存储资源。
 
 ## 不包含内容
-- frontend 单元 / widget / integration 测试
+- app 单元 / widget / integration 测试
 - admin 页面测试 / Playwright 规范
 - desktop / website 自身模块测试
 
 这些测试应保留在各自模块目录内：
-- `frontend/test` / `frontend/integration_test`
+- `app/test` / `app/integration_test`
 - `admin/playwright-tests`
 - `desktop/test`
 - `website/test`

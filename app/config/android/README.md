@@ -8,7 +8,7 @@
   Android 构建的统一配置文件，示例内容包括：
   - `APPLICATION_ID`：基础包名（如 `com.chatlyme.app`）
   - `APPLICATION_ID_SUFFIX_*`：可选的环境后缀（当前 Gradle 未启用，仅预留）
-  - `KEYSTORE_FILE`：签名 keystore 文件相对路径（相对于 `frontend/android` 或项目根目录）
+  - `KEYSTORE_FILE`：签名 keystore 文件相对路径（相对于 `app/android` 或项目根目录）
   - `KEYSTORE_PASSWORD`：keystore 密码（示例值，实际请使用本地/CI Secret）
   - `KEY_ALIAS`：密钥别名
   - `KEY_PASSWORD`：密钥密码
@@ -17,9 +17,9 @@
 
 ## 使用方式概览
 
-### 1. Gradle 侧（`frontend/android/app/build.gradle.kts`）
+### 1. Gradle 侧（`app/android/app/build.gradle.kts`）
 
-Gradle 会尝试从 `frontend/config/android/app_config.properties` 读取配置：
+Gradle 会尝试从 `app/config/android/app_config.properties` 读取配置：
 
 - 若文件存在：
   - 使用其中的 `APPLICATION_ID` 作为 `defaultConfig.applicationId`；
@@ -33,7 +33,7 @@ Gradle 会尝试从 `frontend/config/android/app_config.properties` 读取配置
 - 没有配置时，本地仍可通过 `flutter run` 或脚本进行调试；
 - 需要正式打包时，只需在本地/CI 上提供一份正确的 `app_config.properties` 即可。
 
-### 2. 构建脚本侧（`frontend/scripts/build_android.sh`）
+### 2. 构建脚本侧（`app/scripts/build_android.sh`）
 
 构建脚本会从同一份 `config/android/app_config.properties` 中读取 `APPLICATION_ID`，用于：
 
@@ -51,7 +51,7 @@ Gradle 会尝试从 `frontend/config/android/app_config.properties` 读取配置
 2. **CI / 发版环境**
    - 不建议直接修改仓库内的示例文件；
    - 推荐做法：
-     - 在 CI 中通过 Secret 注入一份 `app_config.properties` 到 `frontend/config/android/`；
+     - 在 CI 中通过 Secret 注入一份 `app_config.properties` 到 `app/config/android/`；
      - 或使用环境变量覆盖 keystore 相关字段。
 
 3. **安全注意事项**

@@ -34,7 +34,7 @@ GET /settings/app-name
 运行应用名更新脚本：
 
 ```bash
-cd frontend
+cd app
 ./update_app_name.sh
 ```
 
@@ -72,7 +72,7 @@ export API_BASE_URL=http://your-api-server:port
 ## 文件结构
 
 ```
-frontend/
+app/
 ├── update_app_name.sh          # 应用名更新脚本
 ├── build_android.sh            # Android构建脚本（已集成应用名更新）
 ├── build_ipa.sh               # iOS构建脚本

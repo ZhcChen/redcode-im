@@ -16,7 +16,7 @@
 
 ## 环境配置
 
-项目使用 `.env` 文件管理环境变量，位于 `frontend/` 根目录：
+项目使用 `.env` 文件管理环境变量，位于 `app/` 根目录：
 
 | 文件 | 用途 | 是否提交到 Git |
 |------|------|----------------|
@@ -91,17 +91,17 @@ vim .env.development.local
 
 ### test_integration.sh
 
-统一 frontend integration 入口，Makefile 已封装常用命令：
+统一 app integration 入口，Makefile 已封装常用命令：
 
 ```bash
 # 不访问真实 backend，快速验证 integration harness
-make frontend.test.integration.smoke
+make app.test.integration.smoke
 
 # 访问本机 backend，默认 macos + http://127.0.0.1:8010
-make frontend.test.integration.network
+make app.test.integration.network
 
 # 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
-make frontend.test.integration.device
+make app.test.integration.device
 ```
 
 也可直接调用脚本：
@@ -129,7 +129,7 @@ WS_URL=ws://127.0.0.1:8010/ws
 Makefile 中 `FLUTTER_DEVICE` 默认为空，脚本会自行按验收顺序选择设备；需要强制指定时再传入，例如：
 
 ```bash
-make frontend.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN
+make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN
 ```
 
 ---
@@ -227,7 +227,7 @@ flutter build apk --release \
 
 ## 注意事项
 
-1. 所有脚本可从任意目录执行，会自动切换到 `frontend/` 目录
+1. 所有脚本可从任意目录执行，会自动切换到 `app/` 目录
 2. 构建脚本会自动执行 `flutter clean` 和 `flutter pub get`
 3. iOS 相关脚本需要在 macOS 系统上执行
 4. 首次运行前确保已安装 Flutter SDK

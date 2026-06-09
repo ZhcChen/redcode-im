@@ -6,7 +6,7 @@
 
 | 模块 | 技术栈 | 更新方式 |
 | --- | --- | --- |
-| frontend（Flutter） | Android / iOS | **整包更新**（App Store/TestFlight、APK/应用商店）<br>**热更新**（仅 Flutter 层；绑定基线整包版本或范围） |
+| app（Flutter） | Android / iOS | **整包更新**（App Store/TestFlight、APK/应用商店）<br>**热更新**（仅 Flutter 层；绑定基线整包版本或范围） |
 | desktop（Tauri） | Windows / macOS / Linux | **整包更新**（下载安装包，客户端或官网提示） |
 | admin（Vue） | 版本管理后台 | 管理整包版本、上传安装包、维护热更新补丁（Flutter 专用） |
 | website（Nuxt） | 官网首页下载按钮 | 调用后端「无 Token 的临时下载链接」接口，获取整包下载地址（B2 私有对象存储 + 临时签名） |

@@ -8,7 +8,7 @@
 - 与 `tests/mocks/external`、`tests/docker-compose.yml` 组合运行
 
 ## 不负责
-- frontend / admin / desktop / website 的模块测试
+- app / admin / desktop / website 的模块测试
 - 视觉回归
 - 页面级 E2E
 

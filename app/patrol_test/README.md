@@ -13,7 +13,7 @@
 建议命令：
 
 ```bash
-cd frontend
+cd app
 patrol test -t patrol_test/harness_smoke_test.dart \
   -d <simulator-uuid> \
   --test-server-port 19081 \

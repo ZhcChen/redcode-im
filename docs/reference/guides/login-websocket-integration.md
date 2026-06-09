@@ -83,7 +83,7 @@ cd api
 
 1. **启动Flutter应用**
 ```bash
-cd frontend
+cd app
 flutter run
 ```
 
@@ -107,7 +107,7 @@ flutter run
 ## 配置说明
 
 ### 前端配置文件
-`frontend/lib/core/constants/app_config.dart`
+`app/lib/core/constants/app_config.dart`
 ```dart
 class AppConfig {
   static const apiBaseUrl = 'https://api.chatlyme.com';  // 后端API地址

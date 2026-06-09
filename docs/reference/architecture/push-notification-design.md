@@ -136,12 +136,12 @@ API 会附带以下 `data`：
 ### Flutter（Android / iOS）
 
 - Android：需要 Firebase 项目与 `google-services.json`
-  - 由于仓库默认不携带该文件，`frontend/android/app/build.gradle.kts` 已做“存在才启用 google-services 插件”的降级处理
+  - 由于仓库默认不携带该文件，`app/android/app/build.gradle.kts` 已做“存在才启用 google-services 插件”的降级处理
 - iOS：
   - 需要 `GoogleService-Info.plist`
   - Push capability（仓库已提供 entitlements）：
-    - Debug：`frontend/ios/Runner/RunnerDebug.entitlements`
-    - Release/Profile：`frontend/ios/Runner/RunnerRelease.entitlements`
+    - Debug：`app/ios/Runner/RunnerDebug.entitlements`
+    - Release/Profile：`app/ios/Runner/RunnerRelease.entitlements`
   - 并按 Firebase Messaging 文档配置 APNs（`.p8` / Key ID / Team ID）
 
 ### Desktop（Windows / macOS）
@@ -161,15 +161,15 @@ API 会附带以下 `data`：
 ### 2) Android（Flutter）
 
 1. Firebase 控制台新增 Android App（应用 ID 与 Flutter `applicationId` 一致）。
-2. 下载 `google-services.json` 放入：`frontend/android/app/google-services.json`（仓库已忽略该文件，请勿提交）。
+2. 下载 `google-services.json` 放入：`app/android/app/google-services.json`（仓库已忽略该文件，请勿提交）。
 3. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
 
 ### 3) iOS（Flutter）
 
 1. Firebase 控制台新增 iOS App（Bundle ID 与 Xcode 工程一致）。
-2. 下载 `GoogleService-Info.plist` 放入：`frontend/ios/Runner/GoogleService-Info.plist`（仓库已忽略该文件，请勿提交），并确保加入 Runner target。
+2. 下载 `GoogleService-Info.plist` 放入：`app/ios/Runner/GoogleService-Info.plist`（仓库已忽略该文件，请勿提交），并确保加入 Runner target。
 3. Xcode：开启 Push Notifications capability
-   - 仓库已提供 entitlements：`frontend/ios/Runner/RunnerDebug.entitlements`、`frontend/ios/Runner/RunnerRelease.entitlements`
+   - 仓库已提供 entitlements：`app/ios/Runner/RunnerDebug.entitlements`、`app/ios/Runner/RunnerRelease.entitlements`
 4. Apple Developer：创建 APNs Auth Key（`.p8`），在 Firebase Cloud Messaging 中配置（Key ID / Team ID / Bundle ID 对应）。
 5. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
 

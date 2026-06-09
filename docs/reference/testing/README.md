@@ -16,8 +16,8 @@ RedCode IM 的测试策略调整为：
 
 ### 模块内测试
 - `api/tests/`：Rust 集成测试
-- `frontend/test/`：Flutter 单元 / widget 测试
-- `frontend/integration_test/`：Flutter integration smoke
+- `app/test/`：Flutter 单元 / widget 测试
+- `app/integration_test/`：Flutter integration smoke
 - `admin/playwright-tests/`：Admin E2E / smoke
 - `desktop/test/`：Desktop 模块测试
 - `website/test/`：Website 模块测试
@@ -37,46 +37,46 @@ RedCode IM 的测试策略调整为：
 cd api && cargo test
 ```
 
-### Frontend 自测
+### App 自测
 ```bash
-cd frontend && flutter analyze
-cd frontend && flutter test
-make frontend.test.integration.smoke
+cd app && flutter analyze
+cd app && flutter test
+make app.test.integration.smoke
 ```
 
-默认 frontend 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
+默认 app 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 推荐使用 Makefile 入口自动完成：
 
 ```bash
 # 不访问真实 api，快速验证 integration harness
-make frontend.test.integration.smoke
+make app.test.integration.smoke
 
 # 本机 api 联通性验证（默认 macos + http://127.0.0.1:8010）
-make frontend.test.integration.network
+make app.test.integration.network
 
 # 真实邮箱注册/登录验证（默认 macos + http://127.0.0.1:8010）
-make frontend.test.integration.auth
+make app.test.integration.auth
 
 # 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
-make frontend.test.integration.device
-make frontend.test.integration.device.auth
+make app.test.integration.device
+make app.test.integration.device.auth
 
 # Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
-make frontend.test.integration.device.reverse
-make frontend.test.integration.device.auth.reverse
+make app.test.integration.device.reverse
+make app.test.integration.device.auth.reverse
 ```
 
-`FLUTTER_DEVICE` 默认为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make frontend.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
+`FLUTTER_DEVICE` 默认为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
 
-### Frontend Patrol
+### App Patrol
 ```bash
-make frontend.test.patrol.harness
-make frontend.test.patrol.login
+make app.test.patrol.harness
+make app.test.patrol.login
 
 # 指定 Android Emulator / 真机
-make frontend.test.patrol.harness PATROL_DEVICE=emulator-5554
-make frontend.test.patrol.login PATROL_DEVICE=emulator-5554
+make app.test.patrol.harness PATROL_DEVICE=emulator-5554
+make app.test.patrol.login PATROL_DEVICE=emulator-5554
 ```
 
 补充约定：
@@ -84,7 +84,7 @@ make frontend.test.patrol.login PATROL_DEVICE=emulator-5554
 - Android Patrol 默认通过 Makefile 补充 `PATH=$HOME/Library/Android/sdk/platform-tools:$PATH` 并优先使用 JDK 21；若本机缺少 JDK 21，需先安装或显式设置 `JAVA_HOME`。
 - iOS Patrol 需要 Xcode SDK 与已安装 Simulator runtime 匹配；若 Xcode 提示 `iOS xx.x is not installed`，先在 Xcode Settings > Components 安装对应 runtime。
 - 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
-- `frontend/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
+- `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 
 ### Admin 自测
 ```bash
@@ -127,18 +127,18 @@ make api.test.unit
 make api.test.integration
 make api.test.smoke
 
-make frontend.check
-make frontend.test.unit
-make frontend.test.core
-make frontend.test.chat
-make frontend.test.widgets
-make frontend.test.features
-make frontend.test.integration.smoke
-make frontend.test.integration.network
-make frontend.test.integration.device
-make frontend.test.patrol.harness
-make frontend.test.patrol.login
-make frontend.test.integration.device.auth.reverse
+make app.check
+make app.test.unit
+make app.test.core
+make app.test.chat
+make app.test.widgets
+make app.test.features
+make app.test.integration.smoke
+make app.test.integration.network
+make app.test.integration.device
+make app.test.patrol.harness
+make app.test.patrol.login
+make app.test.integration.device.auth.reverse
 
 make admin.test.e2e
 make admin.test.routes
@@ -155,7 +155,7 @@ make website.test.unit
 make website.test.download
 
 make api.test
-make frontend.test
+make app.test
 make admin.test
 make desktop.test
 make website.test
@@ -176,21 +176,21 @@ cd api && cargo test
 ./tests/run.sh go
 ```
 
-### 改 frontend / admin / desktop / website
+### 改 app / admin / desktop / website
 先跑各自模块测试，不要往 `tests/` 里加模块测试。
 
 ### 发版前
 按改动面补：
 - api contract
 - admin route / core flow smoke
-- frontend integration smoke
-- api + frontend 联调时先启动 api，再跑 `make frontend.test.integration.network`；设备联调用 `make frontend.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
+- app integration smoke
+- api + app 联调时先启动 api，再跑 `make app.test.integration.network`；设备联调用 `make app.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
 
 ---
 
 ## 5. 当前约定
 
 - `tests/run.sh` 默认跑 api contract 全量：Rust lib + Rust integration + Go contract
-- `tests/` 不承载 frontend / admin / desktop / website 的测试用例
+- `tests/` 不承载 app / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
 - 仓库根目录 `make test.all` 是本地全量测试编排入口，内部仍调用各模块自己的测试命令。

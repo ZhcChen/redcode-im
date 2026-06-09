@@ -35,7 +35,7 @@ make api.up
 make admin.up
 make desktop.up
 make website.up
-make frontend.run
+make app.run
 make tests.run
 ```
 
@@ -71,10 +71,10 @@ make desktop.install
 make desktop.up
 ```
 
-### 启动移动端（frontend）
+### 启动移动端（app）
 ```bash
-make frontend.install
-make frontend.run
+make app.install
+make app.run
 ```
 
 ### 启动官网（website）

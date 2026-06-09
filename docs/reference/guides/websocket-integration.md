@@ -134,7 +134,7 @@ cd api
 
 ### 3. 运行Flutter应用
 ```bash
-cd frontend
+cd app
 flutter run
 ```
 
