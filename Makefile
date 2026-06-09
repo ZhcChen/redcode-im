@@ -1,7 +1,7 @@
 # 根目录统一开发 / 构建 / 测试入口
 #
 # 设计原则：
-# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / frontend.* / website.* / tests.*
+# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / app.* / website.* / tests.*
 # 2. 保留旧命令别名，避免打断已有使用习惯。
 # 3. api 默认走 Compose-first；admin / desktop / website 默认走 screen 后台运行。
 
@@ -34,14 +34,14 @@ DESKTOP_SCREEN := desktop
 DESKTOP_PORT := 1420
 DESKTOP_LOG := /tmp/redcode-desktop.log
 
-FRONTEND_DIR := $(ROOT_DIR)/app
-FRONTEND_ENV ?= .env.development
+APP_DIR := $(ROOT_DIR)/app
+APP_ENV ?= .env.development
 FLUTTER_DEVICE ?=
-FRONTEND_TEST_DEVICE ?= macos
-FRONTEND_ANDROID_ENV ?= production
-FRONTEND_IOS_ENV ?= production
-FRONTEND_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
-FRONTEND_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
+APP_TEST_DEVICE ?= macos
+APP_ANDROID_ENV ?= production
+APP_IOS_ENV ?= production
+APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+APP_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 PATROL_IOS_DEVICE ?= iPhone 17 Pro
 PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
@@ -64,7 +64,7 @@ endef
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.auth frontend.test.integration.device frontend.test.integration.device.auth frontend.test.integration.device.reverse frontend.test.integration.device.auth.reverse frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
+	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
 	api-up api-down api-logs api-ps tests \
@@ -90,24 +90,24 @@ status: ## 查看各模块状态（api / admin / desktop / website）
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(DESKTOP_SCREEN)"; then echo "screen: running ($(DESKTOP_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(DESKTOP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(DESKTOP_PORT): listening"; else echo "port $(DESKTOP_PORT): stopped"; fi
 	@echo
-	@echo "[frontend]"
-	@echo "run command: make frontend.run FRONTEND_ENV=$(FRONTEND_ENV) FLUTTER_DEVICE=$(FLUTTER_DEVICE)"
+	@echo "[app]"
+	@echo "run command: make app.run APP_ENV=$(APP_ENV) FLUTTER_DEVICE=$(FLUTTER_DEVICE)"
 	@echo
 	@echo "[website]"
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(WEBSITE_SCREEN)"; then echo "screen: running ($(WEBSITE_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(WEBSITE_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(WEBSITE_PORT): listening"; else echo "port $(WEBSITE_PORT): stopped"; fi
 
-install.all: ## 安装 admin / desktop / website 依赖，并拉取 frontend 依赖
+install.all: ## 安装 admin / desktop / website 依赖，并拉取 app 依赖
 	@$(MAKE) admin.install
 	@$(MAKE) desktop.install
 	@$(MAKE) website.install
-	@$(MAKE) frontend.install
+	@$(MAKE) app.install
 
-test.all: ## 运行仓库全量本地测试入口（api contract + frontend + admin + desktop + website）
+test.all: ## 运行仓库全量本地测试入口（api contract + app + admin + desktop + website）
 	@$(MAKE) tests.contract
-	@$(MAKE) frontend.check
-	@$(MAKE) frontend.test.unit
-	@$(MAKE) frontend.test.integration.smoke
+	@$(MAKE) app.check
+	@$(MAKE) app.test.unit
+	@$(MAKE) app.test.integration.smoke
 	@$(MAKE) admin.check
 	@$(MAKE) admin.test.routes
 	@$(MAKE) desktop.check
@@ -295,86 +295,86 @@ desktop.package.macos.intel: ## 打包 macOS Intel（默认 ad-hoc 签名）
 desktop.package.linux: ## 打包 Linux AppImage
 	@cd "$(DESKTOP_DIR)" && ./scripts/build-linux.sh stable-linux
 
-frontend.install: ## 获取 frontend Flutter 依赖
+app.install: ## 获取 app Flutter 依赖
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) pub get
+	@cd "$(APP_DIR)" && $(FLUTTER) pub get
 
-frontend.run: ## 运行 frontend（可覆盖 FRONTEND_ENV / FLUTTER_DEVICE）
+app.run: ## 运行 app（可覆盖 APP_ENV / FLUTTER_DEVICE）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/run.sh --env "$(FRONTEND_ENV)" "$(FLUTTER_DEVICE)"; else ./scripts/run.sh --env "$(FRONTEND_ENV)"; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/run.sh --env "$(APP_ENV)" "$(FLUTTER_DEVICE)"; else ./scripts/run.sh --env "$(APP_ENV)"; fi
 
-frontend.check: ## 执行 frontend Flutter analyze
+app.check: ## 执行 app Flutter analyze
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) analyze
+	@cd "$(APP_DIR)" && $(FLUTTER) analyze
 
-frontend.test: frontend.test.unit ## 执行 frontend 默认 Flutter 测试
+app.test: app.test.unit ## 执行 app 默认 Flutter 测试
 
-frontend.test.unit: ## 执行 frontend 全量 Flutter test
+app.test.unit: ## 执行 app 全量 Flutter test
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test
+	@cd "$(APP_DIR)" && $(FLUTTER) test
 
-frontend.test.core: ## 执行 frontend core 测试
+app.test.core: ## 执行 app core 测试
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/core
+	@cd "$(APP_DIR)" && $(FLUTTER) test test/core
 
-frontend.test.chat: ## 执行 frontend chat 测试
+app.test.chat: ## 执行 app chat 测试
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/chat
+	@cd "$(APP_DIR)" && $(FLUTTER) test test/chat
 
-frontend.test.widgets: ## 执行 frontend widgets 测试
+app.test.widgets: ## 执行 app widgets 测试
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/widgets
+	@cd "$(APP_DIR)" && $(FLUTTER) test test/widgets
 
-frontend.test.features: ## 执行 frontend features 模型测试
+app.test.features: ## 执行 app features 模型测试
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && $(FLUTTER) test test/features
+	@cd "$(APP_DIR)" && $(FLUTTER) test test/features
 
-frontend.test.integration.smoke: ## 执行 frontend integration smoke（不访问真实 api）
+app.test.integration.smoke: ## 执行 app integration smoke（不访问真实 api）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/test_integration.sh smoke
+	@cd "$(APP_DIR)" && ./scripts/test_integration.sh smoke
 
-frontend.test.integration.network: ## 执行 frontend network integration（默认 macos + 127.0.0.1:8010，可覆盖 FRONTEND_TEST_DEVICE / FRONTEND_API_BASE_URL / FRONTEND_WS_URL）
+app.test.integration.network: ## 执行 app network integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh network --device "$(FRONTEND_TEST_DEVICE)"
+	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh network --device "$(APP_TEST_DEVICE)"
 
-frontend.test.integration.auth: ## 执行 frontend 真实邮箱注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 FRONTEND_TEST_DEVICE / FRONTEND_API_BASE_URL / FRONTEND_WS_URL）
+app.test.integration.auth: ## 执行 app 真实邮箱注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh auth --device "$(FRONTEND_TEST_DEVICE)"
+	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth --device "$(APP_TEST_DEVICE)"
 
-frontend.test.integration.device: ## 执行 frontend 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+app.test.integration.device: ## 执行 app 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
 
-frontend.test.integration.device.auth: ## 执行 frontend 设备真实邮箱注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+app.test.integration.device.auth: ## 执行 app 设备真实邮箱注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart; fi
 
-frontend.test.integration.device.reverse: ## 执行 frontend Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
+app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
 
-frontend.test.integration.device.auth.reverse: ## 执行 frontend Android 真机真实邮箱注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
+app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实邮箱注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart; fi
 
-frontend.test.patrol.harness: ## 执行 frontend Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
+app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
-	@cd "$(FRONTEND_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
+	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
 
-frontend.test.patrol.login: ## 执行 frontend Patrol 登录 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
+app.test.patrol.login: ## 执行 app Patrol 登录 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
-	@cd "$(FRONTEND_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
+	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
 
-frontend.build.android: ## 构建 Android 安装包（默认 production）
+app.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/build_android.sh "$(FRONTEND_ANDROID_ENV)"
+	@cd "$(APP_DIR)" && ./scripts/build_android.sh "$(APP_ANDROID_ENV)"
 
-frontend.build.ios: ## 构建 iOS IPA（无签名，默认 production）
+app.build.ios: ## 构建 iOS IPA（无签名，默认 production）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(FRONTEND_DIR)" && ./scripts/build_ipa.sh "$(FRONTEND_IOS_ENV)"
+	@cd "$(APP_DIR)" && ./scripts/build_ipa.sh "$(APP_IOS_ENV)"
 
-frontend.proto: ## 重新生成 Flutter WebSocket proto
-	@cd "$(FRONTEND_DIR)" && ./scripts/gen_ws_proto.sh
+app.proto: ## 重新生成 Flutter WebSocket proto
+	@cd "$(APP_DIR)" && ./scripts/gen_ws_proto.sh
 
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))
