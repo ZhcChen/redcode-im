@@ -94,7 +94,7 @@ services:
       redis:
         condition: service_healthy
 
-  backend:
+  api:
     <<: *rust_service
     command: ["cargo", "run", "--bin", "redcode-im-api"]
     depends_on:
@@ -119,12 +119,12 @@ services:
       - go_mod_cache:/go/pkg/mod
       - go_build_cache:/root/.cache/go-build
     environment:
-      API_BASE_URL: http://backend:8010
+      API_BASE_URL: http://api:8010
       EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
     depends_on:
       external-mock:
         condition: service_healthy
-      backend:
+      api:
         condition: service_healthy
     command: ["go", "test", "./...", "-v", "-p", "1"]
 

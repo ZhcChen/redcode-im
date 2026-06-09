@@ -48,11 +48,11 @@ services:
       retries: 3
 
   # 后端服务
-  backend:
+  api:
     build:
       context: ../..
       dockerfile: docker/dev/Dockerfile
-    container_name: redcode-dev-backend
+    container_name: redcode-dev-api
     working_dir: /app
     command: ["cargo", "run", "--bin", "redcode-im-api"]
     ports:

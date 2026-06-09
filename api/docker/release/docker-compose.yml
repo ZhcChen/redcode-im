@@ -48,11 +48,11 @@ services:
       retries: 3
 
   # 后端服务
-  backend:
+  api:
     build:
       context: ../..
       dockerfile: docker/release/Dockerfile
-    container_name: redcode-release-backend
+    container_name: redcode-release-api
     ports:
       - "8010:8010"  # 仅 backend 对外暴露，供调试访问
     environment:

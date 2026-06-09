@@ -21,7 +21,7 @@ GO := go
 PATROL := patrol
 
 API_COMPOSE_FILE := $(ROOT_DIR)/api/docker/dev/docker-compose.yml
-API_SERVICE := backend
+API_SERVICE := api
 API_PORT := 8010
 
 ADMIN_DIR := $(ROOT_DIR)/admin
