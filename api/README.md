@@ -110,32 +110,16 @@ docker compose -f docker/release/docker-compose.yml up -d --build api
 
 ## 运行测试
 
-运行统一回归（推荐，从仓库根目录执行）：
+api Rust 单元 + 集成（集成自动拉起 `tests/docker-compose.test.yml` 的 pg/redis）：
 
 ```bash
-make tests.run
+make api.test             # 单元 + 集成
+make api.test.unit        # 仅单元（cargo test --lib）
+make api.test.integration # 仅集成（axum oneshot 进程内）
+make api.test.deps.down   # 停掉集成依赖栈
 ```
 
-仅运行 api 模块测试：
-
-```bash
-make api.test
-make api.test.smoke
-```
-
-如果需要直接调用底层 contract 入口：
-
-```bash
-./tests/run.sh
-./tests/run.sh go
-```
-
-运行数据库集成测试（需要 PostgreSQL 可用，并配置 `DATABASE_URL_TEST` 或 `DATABASE_URL`）：
-
-```bash
-docker compose -f ../tests/docker-compose.yml run --rm rust-tests \
-  cargo test --test database_store_tests -- --test-threads=1
-```
+集成测试用 `axum` `oneshot` 进程内打 Router，对单一临时测试库运行（每测试 `CREATE/DROP DATABASE`，`--test-threads=1`）；详见 `docs/reference/testing/README.md`。
 
 ---
 
