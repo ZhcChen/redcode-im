@@ -20,7 +20,7 @@ CARGO := cargo
 GO := go
 PATROL := patrol
 
-API_COMPOSE_FILE := $(ROOT_DIR)/backend/docker/dev/docker-compose.yml
+API_COMPOSE_FILE := $(ROOT_DIR)/api/docker/dev/docker-compose.yml
 API_SERVICE := backend
 API_PORT := 8010
 
@@ -160,15 +160,15 @@ backend.test: backend.test.unit backend.test.integration ## 运行 backend 默�
 
 backend.test.unit: ## 运行 backend Rust 单元测试（cargo test --lib）
 	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/backend" && $(CARGO) test --lib
+	@cd "$(ROOT_DIR)/api" && $(CARGO) test --lib
 
 backend.test.integration: ## 运行 backend Rust 集成测试（cargo test --tests）
 	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/backend" && $(CARGO) test --tests -- --test-threads=1
+	@cd "$(ROOT_DIR)/api" && $(CARGO) test --tests -- --test-threads=1
 
 backend.test.smoke: ## 运行 backend Rust smoke 测试
 	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/backend" && $(CARGO) test --test smoke_test -- --test-threads=1
+	@cd "$(ROOT_DIR)/api" && $(CARGO) test --test smoke_test -- --test-threads=1
 
 admin.install: ## 安装 admin 依赖（bun install）
 	@$(call require_cmd,$(BUN))

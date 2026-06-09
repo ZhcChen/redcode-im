@@ -22,7 +22,7 @@ const liveBackendBaseUrl =
 function execLivePostgresSql(sql: string) {
   const composeFile = resolve(
     __dirname,
-    '../../../backend/docker/dev/docker-compose.yml'
+    '../../../api/docker/dev/docker-compose.yml'
   );
 
   try {

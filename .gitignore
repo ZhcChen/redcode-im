@@ -27,4 +27,4 @@ node_modules/
 .claude/settings.local.json
 
 # Coverage reports
-backend/coverage/
+api/coverage/

@@ -52,7 +52,7 @@ cpal = "0.15"
 hound = "3.5"
 
 # Backend 依赖
-redcode-im-backend = { path = "../../backend" }
+redcode-im-backend = { path = "../../api" }
 
 [dev-dependencies]
 hyper = { version = "0.14", features = ["full"] }

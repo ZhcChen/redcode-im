@@ -9,10 +9,10 @@ x-rust-service: &rust_service
   build:
     context: .
     dockerfile: rust-tests.Dockerfile
-  working_dir: /workspace/backend
+  working_dir: /workspace/api
   volumes:
-    - ../backend:/workspace/backend
-    - cargo_target:/workspace/backend/target
+    - ../api:/workspace/api
+    - cargo_target:/workspace/api/target
     - cargo_registry:/usr/local/cargo/registry
     - cargo_git:/usr/local/cargo/git
   environment:

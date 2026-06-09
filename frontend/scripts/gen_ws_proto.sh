@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROTO_DIR="$ROOT_DIR/backend/proto"
+PROTO_DIR="$ROOT_DIR/api/proto"
 PROTO_FILE="$PROTO_DIR/ws.proto"
 OUT_DIR="$ROOT_DIR/frontend/lib/proto"
 
