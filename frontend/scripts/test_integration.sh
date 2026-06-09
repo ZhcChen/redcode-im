@@ -3,6 +3,7 @@
 # Flutter integration 测试入口。
 # - smoke: 不访问真实 backend，适合日常快速验证。
 # - network: 访问本机 backend，默认使用 127.0.0.1。
+# - auth: 访问真实 backend，验证邮箱注册/登录链路。
 # - device: 优先真机；默认真机未连接时切换本机 iOS Simulator。
 # - device-reverse: Android USB 真机通过 adb reverse 访问本机 backend。
 
@@ -22,7 +23,7 @@ TARGET=""
 usage() {
     cat <<'USAGE'
 用法：
-  ./scripts/test_integration.sh [smoke|network|device|device-reverse] [选项]
+  ./scripts/test_integration.sh [smoke|network|auth|device|device-reverse] [选项]
 
 选项：
   --device DEVICE_ID       device 模式目标设备，默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
@@ -113,6 +114,16 @@ case "$MODE" in
         show_and_verify_flutter_devices "$DEVICE_ID"
         flutter test -d "$DEVICE_ID" "$TARGET" \
             --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true \
+            --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=WS_URL="$WS_URL"
+        ;;
+    auth)
+        TARGET="${TARGET:-integration_test/auth_email_flow_test.dart}"
+        DEVICE_ID="${DEVICE_ID:-${FRONTEND_TEST_DEVICE:-macos}}"
+        show_and_verify_flutter_devices "$DEVICE_ID"
+        flutter test -d "$DEVICE_ID" "$TARGET" \
+            --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=WS_URL="$WS_URL"
         ;;
@@ -142,6 +153,7 @@ case "$MODE" in
         show_and_verify_flutter_devices "$DEVICE_ID"
         flutter test -d "$DEVICE_ID" "$TARGET" \
             --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true \
+            --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=WS_URL="$WS_URL"
         ;;
@@ -165,6 +177,7 @@ case "$MODE" in
         show_and_verify_flutter_devices "$DEVICE_ID"
         flutter test -d "$DEVICE_ID" "$TARGET" \
             --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true \
+            --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=WS_URL="$WS_URL"
         ;;

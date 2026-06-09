@@ -55,23 +55,34 @@ make frontend.test.integration.smoke
 # 本机 backend 联通性验证（默认 macos + http://127.0.0.1:8010）
 make frontend.test.integration.network
 
+# 真实邮箱注册/登录验证（默认 macos + http://127.0.0.1:8010）
+make frontend.test.integration.auth
+
 # 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make frontend.test.integration.device
+make frontend.test.integration.device.auth
 
 # Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
 make frontend.test.integration.device.reverse
+make frontend.test.integration.device.auth.reverse
 ```
 
 `FLUTTER_DEVICE` 默认为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make frontend.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
 
-### Frontend iOS Simulator / Patrol
+### Frontend Patrol
 ```bash
 make frontend.test.patrol.harness
 make frontend.test.patrol.login
+
+# 指定 Android Emulator / 真机
+make frontend.test.patrol.harness PATROL_DEVICE=emulator-5554
+make frontend.test.patrol.login PATROL_DEVICE=emulator-5554
 ```
 
 补充约定：
-- Patrol iOS 默认使用 `PATROL_IOS_DEVICE='iPhone 17 Pro'`，可在命令行覆盖。
+- Patrol 默认使用 `PATROL_DEVICE='iPhone 17 Pro'`，可在命令行覆盖；Android 本地验收可传 `PATROL_DEVICE=emulator-5554` 或真机设备 ID。
+- Android Patrol 默认通过 Makefile 补充 `PATH=$HOME/Library/Android/sdk/platform-tools:$PATH` 并优先使用 JDK 21；若本机缺少 JDK 21，需先安装或显式设置 `JAVA_HOME`。
+- iOS Patrol 需要 Xcode SDK 与已安装 Simulator runtime 匹配；若 Xcode 提示 `iOS xx.x is not installed`，先在 Xcode Settings > Components 安装对应 runtime。
 - 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
 - `frontend/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 
@@ -127,6 +138,7 @@ make frontend.test.integration.network
 make frontend.test.integration.device
 make frontend.test.patrol.harness
 make frontend.test.patrol.login
+make frontend.test.integration.device.auth.reverse
 
 make admin.test.e2e
 make admin.test.routes

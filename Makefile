@@ -43,6 +43,8 @@ FRONTEND_IOS_ENV ?= production
 FRONTEND_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 FRONTEND_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 PATROL_IOS_DEVICE ?= iPhone 17 Pro
+PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
+PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
 PATROL_TEST_SERVER_PORT ?= 19081
 PATROL_APP_SERVER_PORT ?= 19082
 
@@ -62,7 +64,7 @@ endef
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.device frontend.test.integration.device.reverse frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
+	frontend.install frontend.run frontend.check frontend.test frontend.test.unit frontend.test.core frontend.test.chat frontend.test.widgets frontend.test.features frontend.test.integration.smoke frontend.test.integration.network frontend.test.integration.auth frontend.test.integration.device frontend.test.integration.device.auth frontend.test.integration.device.reverse frontend.test.integration.device.auth.reverse frontend.test.patrol.harness frontend.test.patrol.login frontend.build.android frontend.build.ios frontend.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.run tests.contract tests.go tests.rust tests.rust-lib tests.rust-integration \
 	api-up api-down api-logs api-ps tests \
@@ -335,21 +337,33 @@ frontend.test.integration.network: ## 执行 frontend network integration（默�
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh network --device "$(FRONTEND_TEST_DEVICE)"
 
+frontend.test.integration.auth: ## 执行 frontend 真实邮箱注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 FRONTEND_TEST_DEVICE / FRONTEND_API_BASE_URL / FRONTEND_WS_URL）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && API_BASE_URL="$(FRONTEND_API_BASE_URL)" WS_URL="$(FRONTEND_WS_URL)" ./scripts/test_integration.sh auth --device "$(FRONTEND_TEST_DEVICE)"
+
 frontend.test.integration.device: ## 执行 frontend 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
+
+frontend.test.integration.device.auth: ## 执行 frontend 设备真实邮箱注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart; fi
 
 frontend.test.integration.device.reverse: ## 执行 frontend Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
 
-frontend.test.patrol.harness: ## 执行 frontend iOS Patrol harness smoke（可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
-	@$(call require_cmd,$(PATROL))
-	@cd "$(FRONTEND_DIR)" && $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_IOS_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
+frontend.test.integration.device.auth.reverse: ## 执行 frontend Android 真机真实邮箱注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(FRONTEND_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart; fi
 
-frontend.test.patrol.login: ## 执行 frontend iOS Patrol 登录 smoke（mock 模式，可覆盖 PATROL_IOS_DEVICE / PATROL_*_PORT）
+frontend.test.patrol.harness: ## 执行 frontend Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
-	@cd "$(FRONTEND_DIR)" && $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_IOS_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
+	@cd "$(FRONTEND_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
+
+frontend.test.patrol.login: ## 执行 frontend Patrol 登录 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
+	@$(call require_cmd,$(PATROL))
+	@cd "$(FRONTEND_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
 
 frontend.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))

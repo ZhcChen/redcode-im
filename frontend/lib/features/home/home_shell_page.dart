@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_config.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/friend_store.dart';
 import '../../core/widgets/app_badge.dart';
@@ -32,6 +33,10 @@ class _HomeShellPageState extends State<HomeShellPage> {
   }
 
   Future<void> _initWebSocket() async {
+    if (AppConfig.useMockData) {
+      return;
+    }
+
     // 登录成功后自动连接WebSocket
     try {
       final webSocketService = WebSocketService.instance;

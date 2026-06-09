@@ -30,7 +30,7 @@ Future<void> _pumpTestApp(PatrolIntegrationTester $, Widget home) async {
 
 void main() {
   patrolTest(
-    '登录页基础元素可见',
+    '登录页 smoke',
     config: const PatrolTesterConfig(visibleTimeout: Duration(seconds: 15)),
     ($) async {
       await _pumpTestApp($, const LoginPage());
@@ -41,13 +41,7 @@ void main() {
       expect($('密码'), findsOneWidget);
       expect($('Google 登录'), findsNothing);
       expect($('Apple 登录'), findsNothing);
-    },
-  );
 
-  patrolTest(
-    '登录页可切换注册并返回密码登录',
-    config: const PatrolTesterConfig(visibleTimeout: Duration(seconds: 15)),
-    ($) async {
       await _pumpTestApp($, const LoginPage());
 
       await $('立即注册').tap();
@@ -62,19 +56,12 @@ void main() {
       expect($('密码登录'), findsOneWidget);
       expect($('Google 登录'), findsNothing);
       expect($('Apple 登录'), findsNothing);
-    },
-  );
 
-  patrolTest(
-    'mock 登录后可进入首页并切到设置页',
-    skip: !_useMockData,
-    config: const PatrolTesterConfig(
-      visibleTimeout: Duration(seconds: 15),
-      settleTimeout: Duration(seconds: 15),
-    ),
-    ($) async {
+      if (!_useMockData) {
+        return;
+      }
+
       await _pumpTestApp($, const LoginPage());
-
       await $('登录账号').tap();
       await $('聊天').waitUntilVisible();
 

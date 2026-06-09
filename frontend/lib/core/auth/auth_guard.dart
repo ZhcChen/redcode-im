@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/login_page.dart';
+import '../constants/app_config.dart';
 import '../services/websocket_service.dart';
 import '../services/message_service.dart';
 import '../services/friend_store.dart';
@@ -72,12 +73,14 @@ class _AuthGuardState extends State<AuthGuard> {
         }
       } else {
         // 有有效会话，启动 WebSocket 连接
-        try {
-          await WebSocketService.instance.connect();
-          debugPrint('[AuthGuard] WebSocket 连接启动成功');
-        } catch (e) {
-          debugPrint('[AuthGuard] WebSocket 连接启动失败: $e');
-          // WebSocket 连接失败不影响应用正常使用
+        if (!AppConfig.useMockData) {
+          try {
+            await WebSocketService.instance.connect();
+            debugPrint('[AuthGuard] WebSocket 连接启动成功');
+          } catch (e) {
+            debugPrint('[AuthGuard] WebSocket 连接启动失败: $e');
+            // WebSocket 连接失败不影响应用正常使用
+          }
         }
       }
       // 注意：这里不立即验证会话，因为在启动页面已经验证过了
