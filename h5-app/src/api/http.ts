@@ -42,7 +42,7 @@ export async function requestJson<T>(
     headers,
   });
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
+  const payload = parseResponsePayload(text);
 
   if (!response.ok) {
     throw new ApiError(
@@ -63,4 +63,13 @@ export const withQuery = (path: string, query: Record<string, string | number | 
   });
   const serialized = params.toString();
   return serialized ? `${path}?${serialized}` : path;
+};
+
+const parseResponsePayload = (text: string) => {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
 };

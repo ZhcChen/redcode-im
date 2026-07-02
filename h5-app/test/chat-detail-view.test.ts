@@ -6,9 +6,11 @@ import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 
+let routeRoomId = 'r1';
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({
-    params: { roomId: 'r1' },
+    params: { roomId: routeRoomId },
   }),
   useRouter: () => ({
     push: vi.fn(),
@@ -17,6 +19,7 @@ vi.mock('vue-router', () => ({
 
 describe('ChatDetailView', () => {
   beforeEach(() => {
+    routeRoomId = 'r1';
     setActivePinia(createPinia());
     const authStore = useAuthStore();
     authStore.session = {
@@ -30,19 +33,34 @@ describe('ChatDetailView', () => {
     };
     const chatStore = useChatStore();
     chatStore.initialized = true;
-    chatStore.chats = [{
-      id: 'r1',
-      roomId: 'r1',
-      name: '真实项目群',
-      avatar: null,
-      avatarObjectKey: null,
-      lastMessage: '来自详情页',
-      lastMessageTime: Date.now(),
-      unreadCount: 0,
-      type: 'group',
-      isPinned: false,
-      isMuted: false,
-    }];
+    chatStore.chats = [
+      {
+        id: 'r1',
+        roomId: 'r1',
+        name: '真实项目群',
+        avatar: null,
+        avatarObjectKey: null,
+        lastMessage: '来自详情页',
+        lastMessageTime: Date.now(),
+        unreadCount: 0,
+        type: 'group',
+        isPinned: false,
+        isMuted: false,
+      },
+      {
+        id: 'favorite-real',
+        roomId: 'favorite-real',
+        name: '收藏夹',
+        avatar: null,
+        avatarObjectKey: null,
+        lastMessage: '保存的消息和文件会出现在这里',
+        lastMessageTime: Date.now(),
+        unreadCount: 0,
+        type: 'favorite',
+        isPinned: true,
+        isMuted: false,
+      },
+    ];
   });
 
   it('renders room title, message list and composer', async () => {
@@ -54,5 +72,14 @@ describe('ChatDetailView', () => {
     expect(wrapper.text()).toContain('H5 聊天详情已接入本地缓存和发送状态。');
     expect(wrapper.text()).toContain('引用');
     expect(wrapper.text()).toContain('置顶');
+  });
+
+  it('resolves the favorite route alias to the real favorite room id', async () => {
+    routeRoomId = 'favorite';
+
+    const wrapper = mount(ChatDetailView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('收藏夹');
   });
 });

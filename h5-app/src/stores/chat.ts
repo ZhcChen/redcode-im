@@ -12,6 +12,8 @@ import { useAuthStore } from './auth';
 
 let stopWsEvent: (() => void) | null = null;
 let stopWsStatus: (() => void) | null = null;
+let refreshChatsPromise: Promise<void> | null = null;
+let refreshChatsQueued = false;
 
 const chatSummaryStorage = new ChatSummaryStorage();
 const messageStorage = new MessageStorage();
@@ -72,18 +74,32 @@ export const useChatStore = defineStore('chat', {
     },
 
     async refreshChats() {
-      if (this.refreshing) return;
+      if (this.refreshing) {
+        refreshChatsQueued = true;
+        await refreshChatsPromise;
+        return;
+      }
       this.refreshing = true;
-      this.error = '';
       try {
-        const chats = await messageService.fetchChats();
-        this.chats = sortChats(chats);
-        await persistChatSummaries(this.chats);
-        this.syncWebSocketRooms();
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : '加载会话失败';
+        refreshChatsPromise = (async () => {
+          do {
+            refreshChatsQueued = false;
+            this.error = '';
+            try {
+              const chats = await messageService.fetchChats();
+              this.chats = sortChats(chats);
+              await persistChatSummaries(this.chats);
+              this.syncWebSocketRooms();
+            } catch (error) {
+              this.error = error instanceof Error ? error.message : '加载会话失败';
+            }
+          } while (refreshChatsQueued);
+        })();
+        await refreshChatsPromise;
       } finally {
         this.refreshing = false;
+        refreshChatsPromise = null;
+        refreshChatsQueued = false;
       }
     },
 

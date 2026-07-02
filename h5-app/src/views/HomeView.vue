@@ -623,6 +623,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 11px;
+  min-width: 0;
   min-height: 58px;
   padding: 6px 0;
 }
@@ -668,10 +669,12 @@ onMounted(() => {
 
 .contact-row__actions {
   display: flex;
+  flex: 0 0 auto;
   gap: 6px;
 }
 
 .mini-action {
+  flex: 0 0 auto;
   min-width: 48px;
   height: 32px;
   background: var(--rc-primary);

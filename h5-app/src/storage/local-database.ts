@@ -1,5 +1,6 @@
 import { appEnv } from '@/config/env';
 
+import { IndexedDbSqlAdapter } from './indexeddb-sql-adapter';
 import { MemorySqlAdapter } from './memory-sql-adapter';
 import type { SqlAdapter } from './sql-adapter';
 import { WaSQLiteAdapter } from './wa-sqlite-adapter';
@@ -24,6 +25,9 @@ export const resetLocalDatabaseForTests = async (adapter?: SqlAdapter) => {
 const createDefaultAdapter = async (): Promise<SqlAdapter> => {
   if (appEnv.useMockData || import.meta.env.MODE === 'test') {
     return new MemorySqlAdapter();
+  }
+  if (appEnv.sqlEngine !== 'wa-sqlite') {
+    return IndexedDbSqlAdapter.create();
   }
   try {
     return await WaSQLiteAdapter.create();

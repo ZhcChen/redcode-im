@@ -32,9 +32,17 @@ export class WaSQLiteAdapter implements SqlAdapter {
     ]);
     const module = await factoryModule.default();
     const sqlite = (sqliteModule as unknown as WaSQLiteApiModule).Factory(module);
-    const adapter = new WaSQLiteAdapter(sqlite, databaseName);
-    await adapter.openWithIndexedDb(idbName);
-    return adapter;
+    try {
+      const adapter = new WaSQLiteAdapter(sqlite, databaseName);
+      await adapter.openWithIndexedDb(idbName);
+      return adapter;
+    } catch (error) {
+      console.warn('[h5-app] wa-sqlite IndexedDB 打开失败，清理后重试', error);
+      await deleteIndexedDb(idbName);
+      const adapter = new WaSQLiteAdapter(sqlite, databaseName);
+      await adapter.openWithIndexedDb(idbName);
+      return adapter;
+    }
   }
 
   async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
@@ -93,8 +101,31 @@ export class WaSQLiteAdapter implements SqlAdapter {
     this.vfs = new IDBBatchAtomicVFS(idbName, { durability: 'relaxed' });
     this.sqlite.vfs_register(this.vfs, false);
     this.db = await this.sqlite.open_v2(this.databaseName, 0x06, this.vfs.name);
+    await this.configureConnection();
+  }
+
+  private async configureConnection() {
+    const db = this.requireDb();
+    // Client-side cache can use an in-memory rollback journal. This avoids
+    // IDBBatchAtomicVFS trying to open transient "*-journal" files in IndexedDB.
+    await this.sqlite.exec(db, `
+      PRAGMA journal_mode=MEMORY;
+      PRAGMA temp_store=MEMORY;
+      PRAGMA cache_size=-2000;
+      PRAGMA synchronous=NORMAL;
+    `);
   }
 }
+
+const deleteIndexedDb = async (idbName: string) => {
+  if (typeof indexedDB === 'undefined') return;
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(idbName);
+    request.addEventListener('success', () => resolve());
+    request.addEventListener('error', () => resolve());
+    request.addEventListener('blocked', () => resolve());
+  });
+};
 
 const rowToObject = <T>(columns: string[], row: SqlValue[]) => {
   const record: SqlRow = {};

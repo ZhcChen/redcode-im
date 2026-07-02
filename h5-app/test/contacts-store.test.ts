@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { appEnv } from '@/config/env';
+import { roomService } from '@/services/room-service';
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { useAppShellStore } from '@/stores/app-shell';
@@ -26,6 +28,7 @@ describe('contacts store', () => {
   beforeEach(async () => {
     await resetLocalDatabaseForTests(new MemorySqlAdapter());
     setActivePinia(createPinia());
+    appEnv.useMockData = true;
     saveSession();
   });
 
@@ -78,6 +81,43 @@ describe('contacts store', () => {
     expect(store.groupName).toBe('');
     expect(store.selectedFriendIds).toEqual([]);
     expect(chatStore.chats.some((chat) => chat.roomId === roomId && chat.type === 'group')).toBe(true);
+  });
+
+  it('keeps the created group summary when the immediate backend refresh is stale', async () => {
+    appEnv.useMockData = false;
+    vi.spyOn(roomService, 'createGroup').mockResolvedValue({
+      id: 'r-created',
+      name: '刚创建的群',
+      roomType: 'group',
+      ownerId: 'u1',
+    });
+    const chatStore = useChatStore();
+    vi.spyOn(chatStore, 'refreshChats').mockImplementation(async () => {
+      chatStore.chats = [];
+    });
+    const store = useContactsStore();
+    store.initialized = true;
+    store.friends = [{
+      id: 'f1',
+      user: {
+        id: 'u2',
+        username: 'u2@example.com',
+        nickname: 'U2',
+        email: 'u2@example.com',
+      },
+      createdAt: '2026-07-02T00:00:00Z',
+      remark: null,
+    }];
+    store.groupName = '刚创建的群';
+    store.toggleGroupMember('u2');
+
+    const roomId = await store.createGroup();
+
+    expect(roomId).toBe('r-created');
+    expect(chatStore.chats.find((chat) => chat.roomId === roomId)).toMatchObject({
+      name: '刚创建的群',
+      type: 'group',
+    });
   });
 
   it('opens a mock private chat and inserts it into chat summaries', async () => {

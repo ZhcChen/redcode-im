@@ -39,8 +39,9 @@ const goBack = async () => {
 };
 
 const openGroupSettings = async () => {
-  if (!roomId.value) return;
-  await router.push({ name: 'group-settings', params: { roomId: roomId.value } });
+  const targetRoomId = detailStore.roomId || roomId.value;
+  if (!targetRoomId) return;
+  await router.push({ name: 'group-settings', params: { roomId: targetRoomId } });
 };
 
 const isSelf = (message: ChatMessage) => message.senderId === currentUserId.value;
@@ -70,8 +71,8 @@ const togglePin = async (message: ChatMessage) => {
 
 onMounted(async () => {
   await chatStore.initialize();
-  const chat = chatStore.chats.find((item) => item.roomId === roomId.value);
-  await detailStore.enterRoom(roomId.value, chat);
+  const chat = resolveRouteChat();
+  await detailStore.enterRoom(chat?.roomId ?? roomId.value, chat);
   await scrollToBottom();
 });
 
@@ -82,6 +83,13 @@ onBeforeUnmount(() => {
 watch(() => detailStore.messages.length, () => {
   void scrollToBottom();
 });
+
+const resolveRouteChat = () => {
+  const targetRoomId = roomId.value;
+  return chatStore.chats.find((item) => item.roomId === targetRoomId)
+    ?? (targetRoomId === 'favorite' ? chatStore.chats.find((item) => item.type === 'favorite') : null)
+    ?? null;
+};
 </script>
 
 <template>

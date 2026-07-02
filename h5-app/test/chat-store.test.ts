@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { messageService } from '@/services/message-service';
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { ChatSummaryStorage } from '@/storage/chat-summary-storage';
@@ -71,6 +72,21 @@ describe('chat store', () => {
 
     expect(store.cacheLoaded).toBe(true);
     expect(store.chats.map((item) => item.roomId)).toEqual(['r1', 'r2']);
+  });
+
+  it('reruns refresh when a second refresh is requested while one is in flight', async () => {
+    const firstResponse = Promise.resolve([chat('r1', { name: '旧会话' })]);
+    const fetchChats = vi.spyOn(messageService, 'fetchChats')
+      .mockReturnValueOnce(firstResponse)
+      .mockResolvedValueOnce([chat('r2', { name: '新会话' })]);
+    const store = useChatStore();
+
+    const firstRefresh = store.refreshChats();
+    const secondRefresh = store.refreshChats();
+    await Promise.all([firstRefresh, secondRefresh]);
+
+    expect(fetchChats).toHaveBeenCalledTimes(2);
+    expect(store.chats.map((item) => item.roomId)).toEqual(['r2']);
   });
 
   it('updates chat summary and local message cache from websocket messages', async () => {

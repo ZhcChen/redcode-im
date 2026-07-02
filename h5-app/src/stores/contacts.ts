@@ -8,6 +8,7 @@ import { ContactStorage, compareFriend, displayName } from '@/storage/contact-st
 import type { AuthUser } from '@/types/auth';
 import type { ChatSummary } from '@/types/chat';
 import type { FriendInfo, FriendRequestAction, FriendRequestInfo } from '@/types/friend';
+import type { CreatedRoom } from '@/types/room';
 
 import { useAppShellStore } from './app-shell';
 import { useChatStore } from './chat';
@@ -231,15 +232,20 @@ export const useContactsStore = defineStore('contacts', {
         const room = appEnv.useMockData
           ? { id: `mock-group-${Date.now()}`, name, roomType: 'group' }
           : await roomService.createGroup({ name, memberIds: this.selectedFriendIds });
+        const chatStore = useChatStore();
         this.clearGroupDraft();
         if (appEnv.useMockData) {
-          await useChatStore().upsertChatSummary(createMockChatSummary({
+          await chatStore.upsertChatSummary(createMockChatSummary({
             roomId: room.id,
             name: room.name,
             type: 'group',
           }));
         } else {
-          await useChatStore().refreshChats();
+          await chatStore.upsertChatSummary(chatSummaryFromCreatedRoom(room));
+          await chatStore.refreshChats();
+          if (!chatStore.chats.some((chat) => chat.roomId === room.id)) {
+            await chatStore.upsertChatSummary(chatSummaryFromCreatedRoom(room));
+          }
         }
         return room.id;
       } catch (error) {
@@ -378,4 +384,26 @@ const createMockChatSummary = (params: { roomId: string; name: string; type: 'pr
   type: params.type,
   isPinned: false,
   isMuted: false,
+});
+
+const chatSummaryFromCreatedRoom = (room: CreatedRoom): ChatSummary => ({
+  id: room.id,
+  roomId: room.id,
+  name: room.name || '群聊',
+  avatar: room.avatarUrl ?? null,
+  avatarObjectKey: null,
+  lastMessage: '',
+  lastMessageTime: Date.now(),
+  unreadCount: 0,
+  type: 'group',
+  isPinned: false,
+  isMuted: false,
+  raw: {
+    id: room.id,
+    room_id: room.id,
+    name: room.name,
+    room_type: room.roomType,
+    description: room.description ?? null,
+    owner_id: room.ownerId ?? null,
+  },
 });
