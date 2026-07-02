@@ -61,6 +61,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [Git 工作流规范](standards/git-workflow.md) | 提交边界、暂存、检查与推送规则 |
 | [WebSocket 集成](reference/guides/websocket-integration.md) | 客户端 WebSocket 接入 |
 | [登录 WebSocket 集成](reference/guides/login-websocket-integration.md) | 登录流程与 WS 结合 |
 | [错误处理规范](reference/guides/error-handling.md) | 后端错误处理 |
