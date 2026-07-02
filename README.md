@@ -34,16 +34,17 @@ make status
 make api.up
 make admin.up
 make desktop.up
+make h5-app.up
 make website.up
 make app.run
-make tests.run
+make test.all
 ```
 
 ### 环境要求
 - Docker
 - Docker Compose 插件（使用 `docker compose` 命令）
 - Rust 1.75+
-- Node.js 18+（前端工具链）
+- Node.js 20.19+ 或 22.12+（h5-app 使用 Vite 8）
 - Bun 1.0+
 - Flutter 3.9+
 - PostgreSQL 15+
@@ -77,6 +78,12 @@ make app.install
 make app.run
 ```
 
+### 启动 H5 App（h5-app）
+```bash
+make h5-app.install
+make h5-app.up
+```
+
 ### 启动官网（website）
 ```bash
 make website.install
@@ -85,7 +92,7 @@ make website.up
 
 ### 运行测试（重构版）
 ```bash
-make tests.run
+make test.all
 ```
 
 更多文档与规范请从 `docs/index.md` 开始阅读。

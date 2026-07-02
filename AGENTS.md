@@ -39,6 +39,13 @@
     1. `screen -S admin -X quit`
     2. `lsof -ti:8011 | xargs kill -9`
     3. `screen -dmS admin bash -c 'cd admin && npm run dev'`
+- **本地 H5 App 开发**:
+  - 模块目录：`h5-app/`（Vue 3 + Vite 8 + Vue Router + Pinia）
+  - 启动：`make h5-app.up`
+  - 停止：`make h5-app.down`
+  - 日志：`make h5-app.logs`
+  - 开发端口：`8016`
+  - H5 App 是 Flutter `app/` 的 Web 版本，视觉 token 优先复用 Flutter 移动端的颜色、圆角、间距和登录/App Shell 结构。
 - **测试栈（不要复用 dev）**:
   - api 测试栈：`tests/docker-compose.test.yml`（pg/redis/external-mock/rust-tests/api-smoke；PG/Redis/external-mock 均不映射宿主端口）
   - 入口：`make api.test`（Rust 单元 `--lib` + 集成 `--tests` 均在 Compose 容器内执行；axum oneshot 进程内）；详见 `docs/reference/testing/README.md`
@@ -103,6 +110,7 @@ Tool mapping:
 - 后端: Rust (Axum, SQLx, Redis) -> `api/src/`
 - 桌面端: TypeScript (Vue 3, Tauri) -> `desktop/src/`
 - 移动端: Dart (Flutter) -> `app/lib/`
+- H5 App: TypeScript (Vue 3, Vite 8, Vue Router, Pinia) -> `h5-app/src/`
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`
 
 ---

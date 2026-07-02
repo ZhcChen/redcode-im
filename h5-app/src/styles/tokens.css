@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --rc-primary: #00c2b3;
+  --rc-primary-strong: #00554e;
+  --rc-primary-soft: #caf6f3;
+  --rc-background: #f4f5f6;
+  --rc-surface: #ffffff;
+  --rc-surface-muted: #f3f7f8;
+  --rc-text-primary: #2c2d3a;
+  --rc-text-secondary: #686a8a;
+  --rc-text-tertiary: #999999;
+  --rc-text-quaternary: #707991;
+  --rc-text-black: #000000;
+  --rc-danger: #f6695e;
+  --rc-divider: #e5e8ec;
+  --rc-shadow-card: 0 12px 24px rgb(0 0 0 / 8%);
+  --rc-shadow-nav: 0 -4px 12px rgb(0 0 0 / 6%);
+  --rc-radius-card: 28px;
+  --rc-radius-control: 28px;
+  --rc-safe-top: env(safe-area-inset-top, 0px);
+  --rc-safe-bottom: env(safe-area-inset-bottom, 0px);
+}

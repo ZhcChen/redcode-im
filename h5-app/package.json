@@ -1,0 +1,35 @@
+{
+  "name": "redcode-im-h5-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 8016",
+    "build": "vue-tsc --noEmit && vite build",
+    "type-check": "vue-tsc --noEmit",
+    "preview": "vite preview --host 0.0.0.0 --port 8016",
+    "test": "VITE_USE_MOCK_DATA=true vitest run",
+    "test:watch": "VITE_USE_MOCK_DATA=true vitest",
+    "test:live": "H5_APP_LIVE_BACKEND_ENABLED=true vitest run test/live-backend-smoke.test.ts"
+  },
+  "dependencies": {
+    "pinia": "^3.0.4",
+    "vue": "^3.5.39",
+    "vue-router": "^4.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.9.1",
+    "jsdom": "^29.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.1.2",
+    "vitest": "^4.1.9",
+    "vue-tsc": "^3.3.6"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "bun": ">=1.3.0"
+  }
+}

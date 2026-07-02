@@ -124,6 +124,7 @@
 |------|------|
 | [api](../api/README.md) | 后端服务 (Rust) |
 | [app](../app/README.md) | 移动端 (Flutter) |
+| [h5-app](../h5-app/README.md) | H5 App (Vue 3 + Vite 8) |
 | [desktop](../desktop/README.md) | 桌面端 (Vue + Tauri) |
 | [admin](../admin/README.md) | 管理后台 (Vue) |
 | [website](../website/README.md) | 官网 |

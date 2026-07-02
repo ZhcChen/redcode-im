@@ -1,9 +1,9 @@
 # 根目录统一开发 / 构建 / 测试入口
 #
 # 设计原则：
-# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / app.* / website.* / tests.*
+# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / h5-app.* / app.* / website.* / tests.*
 # 2. 保留旧命令别名，避免打断已有使用习惯。
-# 3. api 默认走 Compose-first；admin / desktop / website 默认走 screen 后台运行。
+# 3. api 默认走 Compose-first；admin / desktop / h5-app / website 默认走 screen 后台运行。
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
@@ -53,6 +53,13 @@ WEBSITE_SCREEN := website
 WEBSITE_PORT := 8015
 WEBSITE_LOG := /tmp/redcode-website.log
 
+H5_APP_DIR := $(ROOT_DIR)/h5-app
+H5_APP_SCREEN := h5-app
+H5_APP_PORT := 8016
+H5_APP_LOG := /tmp/redcode-h5-app.log
+H5_APP_BASE_URL ?= http://localhost:$(H5_APP_PORT)
+H5_APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
@@ -61,6 +68,7 @@ endef
 	api.up api.down api.restart api.reset api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.deps.down \
 	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -68,12 +76,13 @@ endef
 	api-up api-down api-logs api-ps \
 	admin-up admin-down admin-logs \
 	desktop-up desktop-down desktop-logs \
+	h5-app-up h5-app-down h5-app-logs \
 	website-up website-down website-logs
 
 help: ## 显示所有可用命令
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-status: ## 查看各模块状态（api / admin / desktop / website）
+status: ## 查看各模块状态（api / admin / desktop / h5-app / app / website）
 	@echo "[api]"
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" ps || true
@@ -91,13 +100,18 @@ status: ## 查看各模块状态（api / admin / desktop / website）
 	@echo "[app]"
 	@echo "run command: make app.run APP_ENV=$(APP_ENV) FLUTTER_DEVICE=$(FLUTTER_DEVICE)"
 	@echo
+	@echo "[h5-app]"
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then echo "screen: running ($(H5_APP_SCREEN))"; else echo "screen: stopped"; fi
+	@if lsof -nP -iTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(H5_APP_PORT): listening"; else echo "port $(H5_APP_PORT): stopped"; fi
+	@echo
 	@echo "[website]"
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(WEBSITE_SCREEN)"; then echo "screen: running ($(WEBSITE_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(WEBSITE_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(WEBSITE_PORT): listening"; else echo "port $(WEBSITE_PORT): stopped"; fi
 
-install.all: ## 安装 admin / desktop / website 依赖，并拉取 app 依赖
+install.all: ## 安装 admin / desktop / h5-app / website 依赖，并拉取 app 依赖
 	@$(MAKE) admin.install
 	@$(MAKE) desktop.install
+	@$(MAKE) h5-app.install
 	@$(MAKE) website.install
 	@$(MAKE) app.install
 
@@ -110,15 +124,19 @@ test.all: ## 运行仓库全量本地测试入口（api + admin + desktop + webs
 	@$(MAKE) admin.test.routes
 	@$(MAKE) desktop.check
 	@$(MAKE) desktop.test.unit
+	@$(MAKE) h5-app.check
+	@$(MAKE) h5-app.test.unit
 	@$(MAKE) website.test.unit
 
-dev.up: ## 启动常用开发链路（api + admin + website）
+dev.up: ## 启动常用开发链路（api + admin + h5-app + website）
 	@$(MAKE) api.up
 	@$(MAKE) admin.up
+	@$(MAKE) h5-app.up
 	@$(MAKE) website.up
 
-dev.down: ## 停止常用开发链路（website + admin + desktop + api）
+dev.down: ## 停止常用开发链路（website + h5-app + admin + desktop + api）
 	@$(MAKE) website.down
+	@$(MAKE) h5-app.down
 	@$(MAKE) admin.down
 	@$(MAKE) desktop.down
 	@$(MAKE) api.down
@@ -127,6 +145,7 @@ dev.logs: ## 提示查看各模块日志命令
 	@echo "api: make api.logs"
 	@echo "admin:   make admin.logs"
 	@echo "desktop: make desktop.logs"
+	@echo "h5-app:  make h5-app.logs"
 	@echo "website: make website.logs"
 
 api.up: ## 启动 api 开发栈（api + postgres + redis）
@@ -386,6 +405,68 @@ app.build.ios: ## 构建 iOS IPA（无签名，默认 production）
 app.proto: ## 重新生成 Flutter WebSocket proto
 	@cd "$(APP_DIR)" && ./scripts/gen_ws_proto.sh
 
+h5-app.install: ## 安装 h5-app 依赖（bun install）
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) install
+
+h5-app.up: ## 启动 h5-app 开发服务（screen: h5-app，port: 8016）
+	@$(call require_cmd,$(SCREEN))
+	@$(call require_cmd,$(BUN))
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then \
+		echo "[h5-app] 停止已有 screen 会话 $(H5_APP_SCREEN)"; \
+		$(SCREEN) -S $(H5_APP_SCREEN) -X quit || true; \
+	fi
+	@if lsof -tiTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "[h5-app] 清理占用端口 $(H5_APP_PORT) 的进程"; \
+		lsof -tiTCP:$(H5_APP_PORT) -sTCP:LISTEN | xargs kill -9; \
+	fi
+	@echo "[h5-app] 启动中，日志: $(H5_APP_LOG)"
+	@$(SCREEN) -dmS $(H5_APP_SCREEN) bash -lc 'cd "$(H5_APP_DIR)" && VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" exec $(BUN) run dev > "$(H5_APP_LOG)" 2>&1'
+
+h5-app.down: ## 停止 h5-app 开发服务
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then \
+		$(SCREEN) -S $(H5_APP_SCREEN) -X quit || true; \
+	fi
+	@if lsof -tiTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		lsof -tiTCP:$(H5_APP_PORT) -sTCP:LISTEN | xargs kill -9; \
+	fi
+	@echo "[h5-app] 已停止"
+
+h5-app.wait: ## 等待 h5-app dev 就绪
+	@$(call require_cmd,$(CURL))
+	@for i in $$(seq 1 90); do \
+		if $(CURL) -fsS "$(H5_APP_BASE_URL)" >/dev/null 2>&1; then \
+			echo "[h5-app] ready: $(H5_APP_BASE_URL)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "[h5-app] 等待 dev server 超时: $(H5_APP_BASE_URL)" >&2; \
+	exit 1
+
+h5-app.logs: ## 跟随查看 h5-app 日志
+	@$(call require_cmd,$(TAIL))
+	@test -f "$(H5_APP_LOG)" || { echo "[h5-app] 日志不存在: $(H5_APP_LOG)"; exit 1; }
+	@$(TAIL) -n 200 -f "$(H5_APP_LOG)"
+
+h5-app.build: ## 构建 h5-app 生产包
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) run build
+
+h5-app.check: ## 执行 h5-app 类型检查
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) run type-check
+
+h5-app.test: h5-app.test.unit ## 执行 h5-app 默认 Vitest
+
+h5-app.test.unit: ## 执行 h5-app 全量 Vitest
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) run test
+
+h5-app.test.live: ## 执行 h5-app 真实后端邮箱注册/登录 smoke（需 api dev 就绪）
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
+
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))
 	@cd "$(WEBSITE_DIR)" && $(BUN) install
@@ -448,6 +529,10 @@ admin-logs: admin.logs ## 兼容旧命令：查看 admin 日志
 desktop-up: desktop.up ## 兼容旧命令：启动 desktop
 desktop-down: desktop.down ## 兼容旧命令：停止 desktop
 desktop-logs: desktop.logs ## 兼容旧命令：查看 desktop 日志
+
+h5-app-up: h5-app.up ## 兼容旧命令：启动 h5-app
+h5-app-down: h5-app.down ## 兼容旧命令：停止 h5-app
+h5-app-logs: h5-app.logs ## 兼容旧命令：查看 h5-app 日志
 
 website-up: website.up ## 兼容旧命令：启动 website
 website-down: website.down ## 兼容旧命令：停止 website
