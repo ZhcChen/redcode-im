@@ -62,6 +62,18 @@ cd admin
 ADMIN_BASE_URL=http://localhost:8011 bun run test:e2e:live
 ```
 
+仓库根目录也提供封装入口：
+
+```bash
+make admin.test.live
+```
+
+完整本地联调可以直接跑：
+
+```bash
+make test.live
+```
+
 6) 运行 data-cleanup 条件路由的真实 smoke（需以 `VITE_ENABLE_DATA_CLEANUP=true` 启动 admin dev）：
 
 ```bash

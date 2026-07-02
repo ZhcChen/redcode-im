@@ -68,11 +68,14 @@ make api.test
 
 ```bash
 docker compose -f tests/docker-compose.test.yml up -d --wait postgres redis external-mock
+docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --tests -- --test-threads=1
 docker compose -f tests/docker-compose.test.yml down -v --remove-orphans
 ```
 
 说明：
 - 测试栈不要复用 dev / release 栈
+- API 测试和 smoke 都在 Compose 网络内执行，不把宿主机 `cargo test` 作为默认路径
+- PostgreSQL / Redis / external-mock 不映射宿主机端口
 - 测试栈只启动一个 Redis；api 的 session / pubsub / cache 三个逻辑入口都指向该 Redis
 - 测试栈包含 `external-mock`，用于模拟 B2/S3 兼容对象存储 / FCM / IPInfo 等外部依赖
 

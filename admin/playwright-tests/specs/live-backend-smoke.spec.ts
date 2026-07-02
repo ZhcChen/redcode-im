@@ -188,13 +188,17 @@ test.describe('admin live backend smoke', () => {
 
     await test.step('对象存储提供商', async () => {
       const checkpoint = tracker.checkpoint();
-      const providerResponsePromise = page.waitForResponse((response) =>
-        matchesResponse(response, '/api/admin/storage-providers')
+      const configResponsePromise = page.waitForResponse((response) =>
+        matchesResponse(response, '/api/admin/system/storage-config')
+      );
+      const historyResponsePromise = page.waitForResponse((response) =>
+        matchesResponse(response, '/api/admin/system/storage-config/history')
       );
 
       await page.goto('/operations/storage-provider');
 
-      await expectOkResponse(providerResponsePromise, '对象存储提供商列表');
+      await expectOkResponse(configResponsePromise, '对象存储运行时配置');
+      await expectOkResponse(historyResponsePromise, '对象存储配置历史');
       await expect(
         page.locator('.arco-card-header-title', {
           hasText: '对象存储配置',
@@ -206,11 +210,19 @@ test.describe('admin live backend smoke', () => {
       await expect(
         page
           .locator('.arco-breadcrumb-item')
-          .filter({ hasText: '对象存储提供商' })
+          .filter({ hasText: '对象存储配置' })
       ).toBeVisible();
-      await expect(page.getByText('Backblaze B2 配置说明')).toBeVisible();
+      await expect(page.getByText('Backblaze B2 运行时配置')).toBeVisible();
+      await expect(page.getByText('当前生效配置')).toBeVisible();
+      await expect(page.getByText('配置历史')).toBeVisible();
       await expect(
-        page.getByRole('button', { name: '新增配置' })
+        page.getByRole('button', { name: '探测配置' })
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: '应用配置' })
+      ).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: '初始化 Bucket' })
       ).toBeVisible();
       tracker.expectCleanSince(checkpoint, '对象存储提供商');
     });

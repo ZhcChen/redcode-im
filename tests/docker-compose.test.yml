@@ -1,21 +1,80 @@
-# api 集成测试依赖栈（Rust 原生轻量）
-#
-# 仅 pg + redis + external-mock，映射宿主端口供**本机** `cargo test --tests` 连接。
-# 用法：
-#   docker compose -f tests/docker-compose.test.yml up -d
-#   cd api && DATABASE_URL=postgres://postgres:123456@localhost:5433/redcode_im \
-#     REDIS_SESSION_URL=redis://:123456@localhost:6380/0 ... cargo test --tests -- --test-threads=1
-# （通常由 `make api.test.integration` 封装环境变量）
+x-postgres-resources: &postgres-resources
+  cpus: "${POSTGRES_TEST_CPUS:-2.0}"
+  mem_limit: "${POSTGRES_TEST_MEMORY:-2g}"
+  memswap_limit: "${POSTGRES_TEST_MEMORY_SWAP:-2g}"
+
+x-redis-resources: &redis-resources
+  cpus: "${REDIS_TEST_CPUS:-1.0}"
+  mem_limit: "${REDIS_TEST_MEMORY:-512m}"
+  memswap_limit: "${REDIS_TEST_MEMORY_SWAP:-512m}"
+
+x-external-mock-resources: &external-mock-resources
+  cpus: "${EXTERNAL_MOCK_CPUS:-0.25}"
+  mem_limit: "${EXTERNAL_MOCK_MEMORY:-128m}"
+  memswap_limit: "${EXTERNAL_MOCK_MEMORY_SWAP:-128m}"
+
+x-api-resources: &api-resources
+  cpus: "${API_SERVICE_CPUS:-2.0}"
+  mem_limit: "${API_SERVICE_MEMORY:-1g}"
+  memswap_limit: "${API_SERVICE_MEMORY_SWAP:-1g}"
+
+x-rust-test-resources: &rust-test-resources
+  cpus: "${RUST_TEST_CPUS:-4.0}"
+  mem_limit: "${RUST_TEST_MEMORY:-4g}"
+  memswap_limit: "${RUST_TEST_MEMORY_SWAP:-4g}"
+
+x-api-perf-resources: &api-perf-resources
+  cpus: "${API_PERF_CPUS:-1.0}"
+  mem_limit: "${API_PERF_MEMORY:-512m}"
+  memswap_limit: "${API_PERF_MEMORY_SWAP:-512m}"
+
+x-api-test-environment: &api-test-environment
+  PORT: "8010"
+  RUST_LOG: "${API_TEST_RUST_LOG:-warn}"
+  SQLX_OFFLINE: "true"
+  DATABASE_URL: postgres://postgres:123456@postgres:5432/redcode_im
+  DATABASE_MAX_CONNECTIONS: "${DATABASE_MAX_CONNECTIONS:-20}"
+  DATABASE_MIN_CONNECTIONS: "${DATABASE_MIN_CONNECTIONS:-0}"
+  DATABASE_ACQUIRE_TIMEOUT_SECONDS: "${DATABASE_ACQUIRE_TIMEOUT_SECONDS:-30}"
+  REDIS_SESSION_URL: redis://:123456@redis:6379/0
+  REDIS_PUBSUB_URL: redis://:123456@redis:6379/0
+  REDIS_CACHE_URL: redis://:123456@redis:6379/0
+  JWT_SECRET: test-jwt-secret-change-me
+  DATA_ENCRYPTION_KEY: test-data-encryption-key-change-me
+  BCRYPT_COST: "${BCRYPT_COST:-12}"
+  LOG_DB_ENABLED: "false"
+  LOG_CONSOLE_ENABLED: "true"
+  METRICS_ENABLED: "${METRICS_ENABLED:-true}"
+  METRICS_CHANNEL_CAPACITY: "${METRICS_CHANNEL_CAPACITY:-8192}"
+  METRICS_FLUSH_BATCH_SIZE: "${METRICS_FLUSH_BATCH_SIZE:-1000}"
+  METRICS_FLUSH_INTERVAL_SECONDS: "${METRICS_FLUSH_INTERVAL_SECONDS:-5}"
+  METRICS_SAMPLE_RATE: "${METRICS_SAMPLE_RATE:-1.0}"
+  EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
+  REDCODE_IM_B2_ENDPOINT: http://external-mock:19080
+  REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL: http://external-mock:19080/b2api/v4/b2_authorize_account
+  REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT: "true"
+  REDCODE_IM_B2_REGION: us-east-005
+  REDCODE_IM_B2_KEY_ID: mock-key-id
+  REDCODE_IM_B2_APPLICATION_KEY: mock-application-key
+  REDCODE_IM_B2_PRIVATE_BUCKET: mock-bucket
+  REDCODE_IM_B2_PUBLIC_BUCKET: mock-bucket
+  REDCODE_IM_B2_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
+  IPINFO_BASE_URL: http://external-mock:19080/ipinfo
+  PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
+  WS_OUTBOUND_QUEUE_SIZE: "${WS_OUTBOUND_QUEUE_SIZE:-1024}"
+  CARGO_TARGET_DIR: /app/target
+  CARGO_BUILD_JOBS: "${CARGO_BUILD_JOBS:-1}"
+  TZ: Asia/Shanghai
+
 services:
   postgres:
     image: postgres:17.6-alpine3.22
+    <<: *postgres-resources
     environment:
       POSTGRES_DB: redcode_im
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "123456"
       TZ: Asia/Shanghai
-    ports:
-      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 3s
@@ -24,9 +83,8 @@ services:
 
   redis:
     image: redis:8.2.2-alpine
+    <<: *redis-resources
     command: ["redis-server", "--port", "6379", "--requirepass", "123456", "--appendonly", "no"]
-    ports:
-      - "6380:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-p", "6379", "-a", "123456", "ping"]
       interval: 3s
@@ -34,17 +92,155 @@ services:
       retries: 20
 
   external-mock:
-    image: golang:1.25
-    working_dir: /workspace/tests/mocks/external
-    volumes:
-      - ./mocks/external:/workspace/tests/mocks/external
-    command: ["go", "run", "./cmd/external-mock"]
+    build:
+      context: ./mocks/external
+      dockerfile: Dockerfile
+    <<: *external-mock-resources
     environment:
       EXTERNAL_MOCK_ADDR: ":19080"
-    ports:
-      - "19080:19080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:19080/healthz >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:19080/healthz >/dev/null || exit 1"]
       interval: 3s
       timeout: 3s
       retries: 30
+
+  rust-tests:
+    image: redcode-im-api-test-runner
+    build:
+      context: ../api
+      dockerfile: docker/dev/Dockerfile
+    <<: *rust-test-resources
+    working_dir: /app
+    volumes:
+      - ../api:/app
+      - cargo_target:/app/target
+      - cargo_registry:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+    environment:
+      <<: *api-test-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      external-mock:
+        condition: service_healthy
+    command: ["cargo", "test", "--lib"]
+
+  api:
+    image: redcode-im-api-test-runner
+    build:
+      context: ../api
+      dockerfile: docker/dev/Dockerfile
+    <<: *api-resources
+    working_dir: /app
+    volumes:
+      - ../api:/app
+      - cargo_target:/app/target
+      - cargo_registry:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+    environment:
+      <<: *api-test-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      external-mock:
+        condition: service_healthy
+    command: ["/app/target/debug/redcode-im-api"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 300s
+
+  api-release-local:
+    image: redcode-im-api-test-runner
+    build:
+      context: ../api
+      dockerfile: docker/dev/Dockerfile
+    <<: *api-resources
+    working_dir: /app
+    volumes:
+      - ../api:/app
+      - cargo_target:/app/target
+      - cargo_registry:/usr/local/cargo/registry
+      - cargo_git:/usr/local/cargo/git
+    environment:
+      <<: *api-test-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      external-mock:
+        condition: service_healthy
+    command: ["/app/target/release/redcode-im-api"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+
+  api-perf:
+    image: golang:1.25-alpine
+    <<: *api-perf-resources
+    working_dir: /work
+    volumes:
+      - ./perf:/work
+      - ./perf/reports:/reports
+    environment:
+      API_BASE_URL: "${API_BASE_URL:-http://api:8010}"
+      API_RUNTIME: "${API_RUNTIME:-debug}"
+      PERF_SCENARIO: "${PERF_SCENARIO:-healthz}"
+      PERF_DURATION_SECONDS: "${PERF_DURATION_SECONDS:-30}"
+      PERF_WARMUP_SECONDS: "${PERF_WARMUP_SECONDS:-3}"
+      PERF_CONCURRENCY: "${PERF_CONCURRENCY:-64}"
+      PERF_REQUEST_INTERVAL_MS: "${PERF_REQUEST_INTERVAL_MS:-0}"
+      PERF_TIMEOUT_MS: "${PERF_TIMEOUT_MS:-5000}"
+      PERF_MAX_ERROR_RATE: "${PERF_MAX_ERROR_RATE:-0.01}"
+      PERF_WS_CLIENTS: "${PERF_WS_CLIENTS:-32}"
+      PERF_WS_MESSAGES: "${PERF_WS_MESSAGES:-30}"
+      PERF_WS_LINGER_RST: "${PERF_WS_LINGER_RST:-true}"
+      PERF_REPORT_DIR: /reports
+      PERF_REPORT_NAME: "${PERF_REPORT_NAME:-}"
+      PERF_RUN_ID: "${PERF_RUN_ID:-}"
+      API_SERVICE_CPUS: "${API_SERVICE_CPUS:-2.0}"
+      API_SERVICE_MEMORY: "${API_SERVICE_MEMORY:-1g}"
+      POSTGRES_TEST_CPUS: "${POSTGRES_TEST_CPUS:-2.0}"
+      POSTGRES_TEST_MEMORY: "${POSTGRES_TEST_MEMORY:-2g}"
+      REDIS_TEST_CPUS: "${REDIS_TEST_CPUS:-1.0}"
+      REDIS_TEST_MEMORY: "${REDIS_TEST_MEMORY:-512m}"
+      DATABASE_MAX_CONNECTIONS: "${DATABASE_MAX_CONNECTIONS:-20}"
+      DATABASE_MIN_CONNECTIONS: "${DATABASE_MIN_CONNECTIONS:-0}"
+      DATABASE_ACQUIRE_TIMEOUT_SECONDS: "${DATABASE_ACQUIRE_TIMEOUT_SECONDS:-30}"
+      BCRYPT_COST: "${BCRYPT_COST:-12}"
+      METRICS_ENABLED: "${METRICS_ENABLED:-true}"
+      METRICS_SAMPLE_RATE: "${METRICS_SAMPLE_RATE:-1.0}"
+      METRICS_CHANNEL_CAPACITY: "${METRICS_CHANNEL_CAPACITY:-8192}"
+      METRICS_FLUSH_BATCH_SIZE: "${METRICS_FLUSH_BATCH_SIZE:-1000}"
+      WS_OUTBOUND_QUEUE_SIZE: "${WS_OUTBOUND_QUEUE_SIZE:-1024}"
+    command: ["go", "run", "./api-load"]
+
+  api-smoke:
+    image: redcode-im-api-test-runner
+    cpus: "${API_SMOKE_CPUS:-0.25}"
+    mem_limit: "${API_SMOKE_MEMORY:-128m}"
+    memswap_limit: "${API_SMOKE_MEMORY_SWAP:-128m}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        curl -fsS http://api:8010/healthz >/dev/null
+        curl -fsS http://api:8010/readyz >/dev/null
+        echo "api smoke ok"
+
+volumes:
+  cargo_target:
+    name: redcode_test_cargo_target
+  cargo_registry:
+    name: redcode_test_cargo_registry
+  cargo_git:
+    name: redcode_test_cargo_git

@@ -21,18 +21,43 @@ GO := go
 PATROL := patrol
 
 API_COMPOSE_FILE := $(ROOT_DIR)/api/docker/dev/docker-compose.yml
+API_TEST_COMPOSE_FILE := $(ROOT_DIR)/tests/docker-compose.test.yml
 API_SERVICE := api
 API_PORT := 8010
+API_SERVICE_CPUS ?= 2.0
+API_SERVICE_MEMORY ?= 1g
+POSTGRES_PERF_CPUS ?= 4.0
+POSTGRES_PERF_MEMORY ?= 4g
+REDIS_PERF_CPUS ?= 2.0
+REDIS_PERF_MEMORY ?= 1g
+DATABASE_PERF_MAX_CONNECTIONS ?= 80
+DATABASE_PERF_MIN_CONNECTIONS ?= 8
+API_PERF_BCRYPT_COST ?= 8
+API_PERF_REPORT_PREFIX ?= release
+PERF_HEALTHZ_CONCURRENCY ?= 64
+PERF_READYZ_CONCURRENCY ?= 1
+PERF_READYZ_INTERVAL_MS ?= 1000
+PERF_AUTH_CONCURRENCY ?= 4
+PERF_AUTH_TIMEOUT_MS ?= 15000
+PERF_WS_CONNECT_CONCURRENCY ?= 8
+PERF_WS_BROADCAST_CLIENTS ?= 16
+PERF_WS_BROADCAST_MESSAGES ?= 20
+PERF_WS_TIMEOUT_MS ?= 20000
+API_PERF_ENV := API_SERVICE_CPUS=$(API_SERVICE_CPUS) API_SERVICE_MEMORY=$(API_SERVICE_MEMORY) API_SERVICE_MEMORY_SWAP=$(API_SERVICE_MEMORY) POSTGRES_TEST_CPUS=$(POSTGRES_PERF_CPUS) POSTGRES_TEST_MEMORY=$(POSTGRES_PERF_MEMORY) POSTGRES_TEST_MEMORY_SWAP=$(POSTGRES_PERF_MEMORY) REDIS_TEST_CPUS=$(REDIS_PERF_CPUS) REDIS_TEST_MEMORY=$(REDIS_PERF_MEMORY) REDIS_TEST_MEMORY_SWAP=$(REDIS_PERF_MEMORY) DATABASE_MAX_CONNECTIONS=$(DATABASE_PERF_MAX_CONNECTIONS) DATABASE_MIN_CONNECTIONS=$(DATABASE_PERF_MIN_CONNECTIONS) BCRYPT_COST=$(API_PERF_BCRYPT_COST)
 
 ADMIN_DIR := $(ROOT_DIR)/admin
 ADMIN_SCREEN := admin
 ADMIN_PORT := 8011
 ADMIN_LOG := /tmp/redcode-admin.log
+ADMIN_BASE_URL ?= http://localhost:$(ADMIN_PORT)
+ADMIN_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 
 DESKTOP_DIR := $(ROOT_DIR)/desktop
 DESKTOP_SCREEN := desktop
 DESKTOP_PORT := 1420
 DESKTOP_LOG := /tmp/redcode-desktop.log
+DESKTOP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+DESKTOP_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 
 APP_DIR := $(ROOT_DIR)/app
 APP_ENV ?= .env.development
@@ -64,15 +89,15 @@ define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
-.PHONY: help status install.all test.all tests.all dev.up dev.down dev.logs \
-	api.up api.down api.restart api.reset api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.deps.down \
-	admin.install admin.up admin.down admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup \
-	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils \
+.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs \
+	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
+	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
+	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
-	tests.all \
+	tests.all tests.compose.config tests.tooling tests.perf.check \
 	api-up api-down api-logs api-ps \
 	admin-up admin-down admin-logs \
 	desktop-up desktop-down desktop-logs \
@@ -101,7 +126,7 @@ status: ## 查看各模块状态（api / admin / desktop / h5-app / app / websit
 	@echo "run command: make app.run APP_ENV=$(APP_ENV) FLUTTER_DEVICE=$(FLUTTER_DEVICE)"
 	@echo
 	@echo "[h5-app]"
-	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then echo "screen: running ($(H5_APP_SCREEN))"; else echo "screen: stopped"; fi
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(H5_APP_SCREEN)"; then echo "screen: running ($(H5_APP_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(H5_APP_PORT): listening"; else echo "port $(H5_APP_PORT): stopped"; fi
 	@echo
 	@echo "[website]"
@@ -115,8 +140,10 @@ install.all: ## 安装 admin / desktop / h5-app / website 依赖，并拉取 app
 	@$(MAKE) website.install
 	@$(MAKE) app.install
 
-test.all: ## 运行仓库全量本地测试入口（api + admin + desktop + website）
+test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务）
 	@$(MAKE) api.test
+	@$(MAKE) api.test.smoke
+	@$(MAKE) api.migration.guard
 	@$(MAKE) app.check
 	@$(MAKE) app.test.unit
 	@$(MAKE) app.test.integration.smoke
@@ -127,6 +154,20 @@ test.all: ## 运行仓库全量本地测试入口（api + admin + desktop + webs
 	@$(MAKE) h5-app.check
 	@$(MAKE) h5-app.test.unit
 	@$(MAKE) website.test.unit
+	@$(MAKE) tests.compose.config
+	@$(MAKE) tests.tooling
+	@$(MAKE) tests.perf.check
+
+test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app 真实后端联调 smoke
+	@$(MAKE) api.up
+	@$(MAKE) api.wait
+	@$(MAKE) admin.up
+	@$(MAKE) admin.wait
+	@$(MAKE) app.test.integration.network
+	@$(MAKE) app.test.integration.auth
+	@$(MAKE) admin.test.live
+	@$(MAKE) desktop.test.live
+	@$(MAKE) h5-app.test.live
 
 dev.up: ## 启动常用开发链路（api + admin + h5-app + website）
 	@$(MAKE) api.up
@@ -165,6 +206,18 @@ api.reset: ## 停止 api 开发栈并删除数据卷
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" down -v --remove-orphans
 
+api.wait: ## 等待本机 api dev readyz 就绪
+	@$(call require_cmd,$(CURL))
+	@for i in $$(seq 1 300); do \
+		if $(CURL) -fsS "http://127.0.0.1:$(API_PORT)/readyz" >/dev/null 2>&1; then \
+			echo "[api] ready: http://127.0.0.1:$(API_PORT)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "[api] 等待 readyz 超时: http://127.0.0.1:$(API_PORT)/readyz" >&2; \
+	exit 1
+
 api.logs: ## 跟随查看 api 日志
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" logs -f --tail=200 $(API_SERVICE)
@@ -175,29 +228,174 @@ api.ps: ## 查看 api 开发栈容器状态
 
 api.test: api.test.unit api.test.integration ## 运行 api 默认 Rust 测试集
 
-api.test.unit: ## 运行 api Rust 单元测试（cargo test --lib）
-	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/api" && $(CARGO) test --lib
-
-api.test.integration: ## 运行 api Rust 集成测试（自动拉起 tests/docker-compose.test.yml 的 pg/redis，oneshot 进程内）
-	@$(call require_cmd,$(CARGO))
+api.test.unit: ## 在 Docker Compose 测试容器内运行 api Rust 单元测试（cargo test --lib）
 	@$(call require_cmd,$(DOCKER))
-	@$(DOCKER) compose -f "$(ROOT_DIR)/tests/docker-compose.test.yml" up -d --wait postgres redis
-	@cd "$(ROOT_DIR)/api" && \
-		SQLX_OFFLINE=true \
-		DATABASE_URL="postgres://postgres:123456@localhost:5433/redcode_im" \
-		REDIS_SESSION_URL="redis://:123456@localhost:6380/0" \
-		REDIS_CACHE_URL="redis://:123456@localhost:6380/0" \
-		REDIS_PUBSUB_URL="redis://:123456@localhost:6380/0" \
-		$(CARGO) test --tests -- --test-threads=1
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps rust-tests cargo test --lib
+
+api.test.integration: ## 在 Docker Compose 测试容器内运行 api Rust 集成测试（pg/redis/external-mock 均不映射宿主端口）
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait postgres redis external-mock
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm rust-tests cargo test --tests -- --test-threads=1
 
 api.test.deps.down: ## 停止 api 集成测试依赖栈
 	@$(call require_cmd,$(DOCKER))
-	@$(DOCKER) compose -f "$(ROOT_DIR)/tests/docker-compose.test.yml" down -v --remove-orphans
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" down -v --remove-orphans
 
-api.test.smoke: ## 运行 api Rust smoke 测试
-	@$(call require_cmd,$(CARGO))
-	@cd "$(ROOT_DIR)/api" && $(CARGO) test --test smoke_test -- --test-threads=1
+api.test.smoke: ## 使用 Docker Compose 启动 api 并在 Compose 网络内执行健康检查
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm api-smoke
+
+api.test.build: ## 在 Docker Compose 测试容器内编译 api debug 二进制（供 smoke / perf 复用）
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps rust-tests cargo build --bin redcode-im-api
+
+api.test.build.release: ## 在 Docker Compose 测试容器内编译 api release 二进制（供 release perf 复用）
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps rust-tests cargo build --release --bin redcode-im-api
+
+api.test.images: ## 构建 api 测试栈本地镜像（Dockerfile / external-mock 变更后手动执行）
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" build rust-tests external-mock api
+
+api.perf: api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast ## 顺序执行 api 默认性能基线（Compose 内 api + pg + redis + mock）
+
+api.perf.run: ## 运行单个 api 性能场景（覆盖 PERF_SCENARIO / PERF_DURATION_SECONDS / PERF_CONCURRENCY）
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.smoke: ## 轻量运行 api 性能工具自检（5s / 4 并发）
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=healthz PERF_DURATION_SECONDS=5 PERF_WARMUP_SECONDS=0 PERF_CONCURRENCY=4 PERF_REPORT_NAME=smoke-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.healthz: ## 压测 /healthz API 框架基线
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=healthz PERF_CONCURRENCY=$(PERF_HEALTHZ_CONCURRENCY) PERF_REPORT_NAME=healthz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.readyz: ## 压测 /readyz 依赖就绪基线（DB / Redis）
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=readyz PERF_CONCURRENCY=$(PERF_READYZ_CONCURRENCY) PERF_REQUEST_INTERVAL_MS=$(PERF_READYZ_INTERVAL_MS) PERF_REPORT_NAME=readyz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.auth: ## 压测邮箱注册 + 登录业务链路
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=auth-register-login PERF_CONCURRENCY=$(PERF_AUTH_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_AUTH_TIMEOUT_MS) PERF_REPORT_NAME=auth-register-login-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.ws.connect: ## 压测 WebSocket 连接认证 + ping/pong
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=ws-connect-ping PERF_CONCURRENCY=$(PERF_WS_CONNECT_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=ws-connect-ping-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.ws.join: ## 压测 WebSocket 连接认证 + 房间订阅
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=ws-connect-join PERF_CONCURRENCY=$(PERF_WS_CONNECT_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=ws-connect-join-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.ws.broadcast: ## 压测 WebSocket 房间广播链路（REST 发消息 -> Redis PubSub -> WS 推送）
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
+	@$(API_PERF_ENV) PERF_SCENARIO=ws-room-broadcast PERF_WS_CLIENTS=$(PERF_WS_BROADCAST_CLIENTS) PERF_WS_MESSAGES=$(PERF_WS_BROADCAST_MESSAGES) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=ws-room-broadcast-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release: api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast ## 顺序执行 api release 二进制性能基线
+
+api.perf.release.small: ## 固定小规格 release 基线（API 1C/512M，PG/Redis 给足）
+	@$(MAKE) api.perf.release \
+		API_SERVICE_CPUS=1.0 API_SERVICE_MEMORY=512m \
+		DATABASE_PERF_MAX_CONNECTIONS=40 DATABASE_PERF_MIN_CONNECTIONS=4 \
+		PERF_HEALTHZ_CONCURRENCY=32 PERF_AUTH_CONCURRENCY=2 \
+		PERF_WS_CONNECT_CONCURRENCY=4 PERF_WS_BROADCAST_CLIENTS=8 \
+		API_PERF_REPORT_PREFIX=release-small
+
+api.perf.release.standard: ## 固定标准 release 基线（API 2C/1G，默认对外指标口径）
+	@$(MAKE) api.perf.release \
+		API_SERVICE_CPUS=2.0 API_SERVICE_MEMORY=1g \
+		DATABASE_PERF_MAX_CONNECTIONS=80 DATABASE_PERF_MIN_CONNECTIONS=8 \
+		PERF_HEALTHZ_CONCURRENCY=64 PERF_AUTH_CONCURRENCY=4 \
+		PERF_WS_CONNECT_CONCURRENCY=8 PERF_WS_BROADCAST_CLIENTS=16 \
+		API_PERF_REPORT_PREFIX=release-standard
+
+api.perf.release.large: ## 固定大规格 release 基线（API 4C/2G，PG/Redis 给足）
+	@$(MAKE) api.perf.release \
+		API_SERVICE_CPUS=4.0 API_SERVICE_MEMORY=2g \
+		POSTGRES_PERF_CPUS=6.0 POSTGRES_PERF_MEMORY=6g \
+		REDIS_PERF_CPUS=2.0 REDIS_PERF_MEMORY=1g \
+		DATABASE_PERF_MAX_CONNECTIONS=160 DATABASE_PERF_MIN_CONNECTIONS=16 \
+		PERF_HEALTHZ_CONCURRENCY=128 PERF_AUTH_CONCURRENCY=8 \
+		PERF_WS_CONNECT_CONCURRENCY=16 PERF_WS_BROADCAST_CLIENTS=32 \
+		API_PERF_REPORT_PREFIX=release-large
+
+api.perf.release.healthz: ## 使用 release 二进制压测 /healthz API 框架基线
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=healthz PERF_CONCURRENCY=$(PERF_HEALTHZ_CONCURRENCY) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-healthz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release.readyz: ## 使用 release 二进制低频探测 /readyz
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=readyz PERF_CONCURRENCY=$(PERF_READYZ_CONCURRENCY) PERF_REQUEST_INTERVAL_MS=$(PERF_READYZ_INTERVAL_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-readyz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release.auth: ## 使用 release 二进制压测邮箱注册 + 登录业务链路
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=auth-register-login PERF_CONCURRENCY=$(PERF_AUTH_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_AUTH_TIMEOUT_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-auth-register-login-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release.ws.connect: ## 使用 release 二进制压测 WebSocket 连接认证 + ping/pong
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=ws-connect-ping PERF_CONCURRENCY=$(PERF_WS_CONNECT_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-ws-connect-ping-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release.ws.join: ## 使用 release 二进制压测 WebSocket 连接认证 + 房间订阅
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=ws-connect-join PERF_CONCURRENCY=$(PERF_WS_CONNECT_CONCURRENCY) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-ws-connect-join-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.release.ws.broadcast: ## 使用 release 二进制压测 WebSocket 房间广播链路
+	@$(call require_cmd,$(DOCKER))
+	@$(MAKE) api.test.build.release
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
+	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
+	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=ws-room-broadcast PERF_WS_CLIENTS=$(PERF_WS_BROADCAST_CLIENTS) PERF_WS_MESSAGES=$(PERF_WS_BROADCAST_MESSAGES) PERF_TIMEOUT_MS=$(PERF_WS_TIMEOUT_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-ws-room-broadcast-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
+
+api.perf.down: ## 停止 api 性能测试栈（保留 cargo cache 与报告文件）
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" down --remove-orphans
+
+api.migration.guard: ## 校验 api SQL 迁移只允许新增，禁止修改/重命名/删除已提交迁移
+	@bash "$(ROOT_DIR)/api/scripts/migration-guard.sh"
+
+migration.guard: api.migration.guard ## 兼容旧入口：校验 api SQL 迁移
 
 admin.install: ## 安装 admin 依赖（bun install）
 	@$(call require_cmd,$(BUN))
@@ -225,6 +423,18 @@ admin.down: ## 停止 admin 开发服务
 		lsof -tiTCP:$(ADMIN_PORT) -sTCP:LISTEN | xargs kill -9; \
 	fi
 	@echo "[admin] 已停止"
+
+admin.wait: ## 等待本机 admin dev 就绪
+	@$(call require_cmd,$(CURL))
+	@for i in $$(seq 1 90); do \
+		if $(CURL) -fsS "$(ADMIN_BASE_URL)" >/dev/null 2>&1; then \
+			echo "[admin] ready: $(ADMIN_BASE_URL)"; \
+			exit 0; \
+		fi; \
+		sleep 1; \
+	done; \
+	echo "[admin] 等待 dev server 超时: $(ADMIN_BASE_URL)" >&2; \
+	exit 1
 
 admin.logs: ## 跟随查看 admin 日志
 	@$(call require_cmd,$(TAIL))
@@ -256,6 +466,10 @@ admin.test.routes.default: ## 执行 admin default 路由 smoke
 admin.test.routes.data-cleanup: ## 执行 admin data-cleanup 路由 smoke
 	@$(call require_cmd,$(BUN))
 	@cd "$(ADMIN_DIR)" && $(BUN) run test:e2e:routes:data-cleanup
+
+admin.test.live: ## 执行 admin 真实后端联调 smoke（需 api/admin dev 就绪）
+	@$(call require_cmd,$(BUN))
+	@cd "$(ADMIN_DIR)" && ADMIN_BASE_URL="$(ADMIN_BASE_URL)" ADMIN_API_BASE_URL="$(ADMIN_API_BASE_URL)" $(BUN) run test:e2e:live
 
 desktop.install: ## 安装 desktop 依赖（bun install）
 	@$(call require_cmd,$(BUN))
@@ -314,6 +528,10 @@ desktop.test.store: ## 执行 desktop store 相关测试
 desktop.test.utils: ## 执行 desktop utils 相关测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(DESKTOP_DIR)" && $(BUN) run test -- test/utils
+
+desktop.test.live: ## 执行 desktop 真实后端 smoke（healthz + 邮箱注册/登录 + WS open）
+	@$(call require_cmd,$(BUN))
+	@cd "$(DESKTOP_DIR)" && DESKTOP_LIVE_BACKEND_ENABLED=true DESKTOP_API_BASE_URL="$(DESKTOP_API_BASE_URL)" DESKTOP_WS_URL="$(DESKTOP_WS_URL)" $(BUN) run test -- test/api/live-backend-smoke.test.ts
 
 desktop.package.macos.arm64: ## 打包 macOS Apple Silicon（默认 ad-hoc 签名）
 	@cd "$(DESKTOP_DIR)" && ./scripts/build-macos.sh arm64
@@ -412,7 +630,7 @@ h5-app.install: ## 安装 h5-app 依赖（bun install）
 h5-app.up: ## 启动 h5-app 开发服务（screen: h5-app，port: 8016）
 	@$(call require_cmd,$(SCREEN))
 	@$(call require_cmd,$(BUN))
-	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then \
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(H5_APP_SCREEN)"; then \
 		echo "[h5-app] 停止已有 screen 会话 $(H5_APP_SCREEN)"; \
 		$(SCREEN) -S $(H5_APP_SCREEN) -X quit || true; \
 	fi
@@ -424,7 +642,7 @@ h5-app.up: ## 启动 h5-app 开发服务（screen: h5-app，port: 8016）
 	@$(SCREEN) -dmS $(H5_APP_SCREEN) bash -lc 'cd "$(H5_APP_DIR)" && VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" exec $(BUN) run dev > "$(H5_APP_LOG)" 2>&1'
 
 h5-app.down: ## 停止 h5-app 开发服务
-	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\.$(H5_APP_SCREEN)"; then \
+	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(H5_APP_SCREEN)"; then \
 		$(SCREEN) -S $(H5_APP_SCREEN) -X quit || true; \
 	fi
 	@if lsof -tiTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
@@ -461,7 +679,7 @@ h5-app.test: h5-app.test.unit ## 执行 h5-app 默认 Vitest
 
 h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 	@$(call require_cmd,$(BUN))
-	@cd "$(H5_APP_DIR)" && $(BUN) run test
+	@cd "$(H5_APP_DIR)" && VITE_USE_MOCK_DATA=true $(BUN) run test
 
 h5-app.test.live: ## 执行 h5-app 真实后端邮箱注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
@@ -512,6 +730,18 @@ website.test.unit: ## 执行 website 全量 Vitest
 website.test.download: ## 执行 website 下载逻辑测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(WEBSITE_DIR)" && $(BUN) run test -- test/download-utils.test.ts
+
+tests.compose.config: ## 校验 api 测试栈 docker compose 配置可渲染
+	@$(call require_cmd,$(DOCKER))
+	@$(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" config >/dev/null
+
+tests.tooling: ## 执行仓库级 tooling 守护测试
+	@$(call require_cmd,$(GO))
+	@cd "$(ROOT_DIR)/tests/go" && $(GO) test ./tooling/
+
+tests.perf.check: ## 执行 api 压测工具 Go 自检
+	@$(call require_cmd,$(GO))
+	@cd "$(ROOT_DIR)/tests/perf" && $(GO) test ./...
 
 tests.all: test.all ## 运行仓库全量本地测试入口（别名）
 

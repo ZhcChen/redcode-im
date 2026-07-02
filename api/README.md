@@ -88,9 +88,14 @@ docker compose -f docker/release/docker-compose.yml up -d --build api
 
 - `PORT`：服务端口（默认 `8010`）
 - `DATABASE_URL`：PostgreSQL 连接串
+- `DATABASE_MAX_CONNECTIONS`：PostgreSQL pool 最大连接数（默认 `20`；兼容 `PG_POOL_MAX`）
+- `DATABASE_MIN_CONNECTIONS`：PostgreSQL pool 最小连接数（默认 `0`；兼容 `PG_POOL_MIN`）
+- `DATABASE_ACQUIRE_TIMEOUT_SECONDS`：获取连接超时秒数（默认 `30`；兼容 `PG_POOL_ACQUIRE_TIMEOUT_SECONDS`）
 - `REDIS_SESSION_URL`：Session Redis
 - `REDIS_PUBSUB_URL`：Pub/Sub Redis（可选；默认回退 `REDIS_SESSION_URL`）
 - `REDIS_CACHE_URL`：Cache Redis（可选；默认回退 `REDIS_SESSION_URL`）
+- `WS_OUTBOUND_QUEUE_SIZE`：单条 WebSocket 连接的服务端出站队列上限（默认 `1024`，最大 `65536`）
+- `METRICS_ENABLED` / `METRICS_CHANNEL_CAPACITY` / `METRICS_FLUSH_BATCH_SIZE` / `METRICS_FLUSH_INTERVAL_SECONDS` / `METRICS_SAMPLE_RATE`：API metrics 聚合写 Redis 配置
 - `JWT_SECRET`：JWT 密钥
 - `RUST_LOG`：日志级别
 
@@ -110,16 +115,18 @@ docker compose -f docker/release/docker-compose.yml up -d --build api
 
 ## 运行测试
 
-api Rust 单元 + 集成（集成自动拉起 `tests/docker-compose.test.yml` 的 pg/redis）：
+api Rust 单元 + 集成（均通过 `tests/docker-compose.test.yml` 在 Docker Compose 容器内执行）：
 
 ```bash
 make api.test             # 单元 + 集成
-make api.test.unit        # 仅单元（cargo test --lib）
-make api.test.integration # 仅集成（axum oneshot 进程内）
+make api.test.unit        # 仅单元（rust-tests 容器内 cargo test --lib）
+make api.test.integration # 仅集成（rust-tests 容器内 cargo test --tests，axum oneshot 进程内）
+make api.test.smoke       # 启动 api 容器并在 Compose 网络内健康检查
+make api.test.images      # 首次运行或 Dockerfile 变更后构建测试镜像
 make api.test.deps.down   # 停掉集成依赖栈
 ```
 
-集成测试用 `axum` `oneshot` 进程内打 Router，对单一临时测试库运行（每测试 `CREATE/DROP DATABASE`，`--test-threads=1`）；详见 `docs/reference/testing/README.md`。
+测试栈不映射 PostgreSQL / Redis / external-mock 宿主端口；集成测试用 `axum` `oneshot` 进程内打 Router，对临时测试库运行（每测试 `CREATE/DROP DATABASE`，`--test-threads=1`）；详见 `docs/reference/testing/README.md`。
 
 ---
 

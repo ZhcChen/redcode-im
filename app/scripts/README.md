@@ -41,6 +41,7 @@ USE_MOCK_DATA=false          # Mock 数据
 ```
 
 > 默认验收设备顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，`run.sh`、`run_dev.sh` 与 `test_integration.sh device` 会自动切换到本机 iOS Simulator。真机运行时会重新检测当前本机局域网 IP 并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
+> 设备枚举有超时保护：`flutter devices` 默认 20 秒，`xcrun simctl list devices available` 默认 20 秒；可通过 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若本机 Xcode/CoreSimulator runtime 不匹配导致 Simulator 不可用，可先用默认 `macos` target 完成本机 API/WS/auth integration。
 
 ### 本地覆盖
 
@@ -100,8 +101,12 @@ make app.test.integration.smoke
 # 访问本机 backend，默认 macos + http://127.0.0.1:8010
 make app.test.integration.network
 
+# 真实邮箱注册/登录，默认 macos + http://127.0.0.1:8010
+make app.test.integration.auth
+
 # 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make app.test.integration.device
+make app.test.integration.device.auth
 ```
 
 也可直接调用脚本：
@@ -109,6 +114,7 @@ make app.test.integration.device
 ```bash
 ./scripts/test_integration.sh smoke
 ./scripts/test_integration.sh network --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
+./scripts/test_integration.sh auth --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
 ./scripts/test_integration.sh device --device 3A091FDJG001DN
 ```
 
