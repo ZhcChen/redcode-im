@@ -1,3 +1,4 @@
+export type ChatType = 'private' | 'group' | 'favorite';
 export type MessageType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'system' | 'mixed';
 export type MessageStatus = 'sending' | 'sent' | 'failed' | 'deleted';
 
@@ -37,9 +38,10 @@ export interface ChatSummary {
   lastMessage: string;
   lastMessageTime: number;
   unreadCount: number;
-  type: 'private' | 'group';
+  type: ChatType;
   isPinned: boolean;
   isMuted: boolean;
+  raw?: Record<string, unknown>;
 }
 
 export interface MessageSearchResult {

@@ -174,7 +174,7 @@ flowchart TB
 - API contract 单测覆盖核心 service。
 - `make h5-app.test.live` 扩展到登录后基础数据接口。
 
-- [ ] **Unit 3: Chat list 与 WebSocket 主链路**
+- [x] **Unit 3: Chat list 与 WebSocket 主链路**
 
 **Goal:** H5 首页聊天 tab 从静态 mock 改为真实聊天列表、本地缓存、WebSocket 连接和未读数。
 

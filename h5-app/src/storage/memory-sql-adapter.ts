@@ -18,9 +18,17 @@ export interface MemorySearchRow extends SqlRow {
   timestamp: number;
 }
 
+export interface MemoryChatSummaryRow extends SqlRow {
+  room_id: string;
+  pinned_rank: number;
+  last_message_time: number;
+  payload: string;
+}
+
 export class MemorySqlAdapter implements SqlAdapter {
   readonly messages = new Map<string, MemoryMessageRow>();
   readonly searchRows = new Map<string, MemorySearchRow>();
+  readonly chatRows = new Map<string, MemoryChatSummaryRow>();
 
   async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
     const normalized = normalizeSql(sql);
@@ -74,6 +82,22 @@ export class MemorySqlAdapter implements SqlAdapter {
       }
       return;
     }
+    if (normalized.startsWith('delete from chat_summaries')) {
+      this.chatRows.clear();
+      return;
+    }
+    if (normalized.startsWith('insert or replace into chat_summaries')) {
+      const [roomId, pinnedRank, lastMessageTime, payload] = params;
+      if (typeof roomId === 'string' && typeof payload === 'string') {
+        this.chatRows.set(roomId, {
+          room_id: roomId,
+          pinned_rank: Number(pinnedRank),
+          last_message_time: Number(lastMessageTime),
+          payload,
+        });
+      }
+      return;
+    }
   }
 
   async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
@@ -92,12 +116,18 @@ export class MemorySqlAdapter implements SqlAdapter {
     if (normalized.includes('from message_search')) {
       return this.querySearch<T>(normalized, params);
     }
+    if (normalized.includes('from chat_summaries')) {
+      return [...this.chatRows.values()]
+        .sort((a, b) => a.pinned_rank - b.pinned_rank || b.last_message_time - a.last_message_time)
+        .map((row) => ({ ...row }) as unknown as T);
+    }
     return [];
   }
 
   async transaction<T>(work: () => Promise<T>): Promise<T> {
     const messages = new Map(this.messages);
     const searchRows = new Map(this.searchRows);
+    const chatRows = new Map(this.chatRows);
     try {
       return await work();
     } catch (error) {
@@ -105,6 +135,8 @@ export class MemorySqlAdapter implements SqlAdapter {
       messages.forEach((value, key) => this.messages.set(key, value));
       this.searchRows.clear();
       searchRows.forEach((value, key) => this.searchRows.set(key, value));
+      this.chatRows.clear();
+      chatRows.forEach((value, key) => this.chatRows.set(key, value));
       throw error;
     }
   }
@@ -112,6 +144,7 @@ export class MemorySqlAdapter implements SqlAdapter {
   async close(): Promise<void> {
     this.messages.clear();
     this.searchRows.clear();
+    this.chatRows.clear();
   }
 
   private querySearch<T>(normalized: string, params: readonly SqlValue[]) {

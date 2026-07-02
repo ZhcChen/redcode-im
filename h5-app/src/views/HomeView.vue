@@ -1,18 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useAppShellStore, type AppTab } from '@/stores/app-shell';
 import { useAuthStore } from '@/stores/auth';
-
-interface ChatPreview {
-  id: string;
-  name: string;
-  message: string;
-  time: string;
-  unread?: number;
-  pinned?: boolean;
-}
+import { formatChatDisplayTime, useChatStore } from '@/stores/chat';
 
 interface NavItem {
   key: AppTab;
@@ -24,30 +16,8 @@ interface NavItem {
 
 const router = useRouter();
 const authStore = useAuthStore();
+const chatStore = useChatStore();
 const shellStore = useAppShellStore();
-
-const chats: ChatPreview[] = [
-  {
-    id: 'favorite',
-    name: '收藏',
-    message: '保存的消息和文件会出现在这里',
-    time: '09:30',
-    pinned: true,
-  },
-  {
-    id: 'team',
-    name: 'RedCode IM 项目组',
-    message: 'H5 App 已接入邮箱注册和登录流程',
-    time: '刚刚',
-    unread: 2,
-  },
-  {
-    id: 'design',
-    name: '产品体验',
-    message: '样式基线复用 Flutter 移动端视觉语言',
-    time: '昨天',
-  },
-];
 
 const navItems = computed<NavItem[]>(() => [
   {
@@ -55,7 +25,7 @@ const navItems = computed<NavItem[]>(() => [
     label: '聊天',
     icon: '···',
     activeIcon: '●●●',
-    badge: shellStore.unreadMessages,
+    badge: chatStore.unreadTotal,
   },
   {
     key: 'contacts',
@@ -80,9 +50,24 @@ const title = computed(() => {
 });
 
 const logout = async () => {
+  chatStore.dispose();
   authStore.logout();
   await router.replace({ name: 'login' });
 };
+
+const connectionLabel = computed(() => {
+  if (chatStore.websocketStatus === 'authenticated') return '实时在线';
+  if (chatStore.websocketStatus === 'connecting' || chatStore.websocketStatus === 'connected') {
+    return '连接中';
+  }
+  return '离线模式';
+});
+
+const chats = computed(() => chatStore.filteredChats);
+
+onMounted(() => {
+  void chatStore.initialize();
+});
 </script>
 
 <template>
@@ -93,33 +78,51 @@ const logout = async () => {
           <p>RedCode IM</p>
           <h1>{{ title }}</h1>
         </div>
-        <div class="home-header__avatar" aria-label="当前用户">
-          {{ authStore.currentUser?.nickname?.slice(0, 1).toUpperCase() || 'R' }}
+        <div class="home-header__right">
+          <span v-if="shellStore.activeTab === 'chat'" class="connection-pill">
+            {{ connectionLabel }}
+          </span>
+          <div class="home-header__avatar" aria-label="当前用户">
+            {{ authStore.currentUser?.nickname?.slice(0, 1).toUpperCase() || 'R' }}
+          </div>
         </div>
       </header>
 
       <section v-if="shellStore.activeTab === 'chat'" class="panel panel--chat">
         <label class="search-box">
           <span class="sr-only">搜索</span>
-          <input class="rc-focus-ring" placeholder="搜索" />
+          <input
+            :value="chatStore.searchKeyword"
+            class="rc-focus-ring"
+            placeholder="搜索"
+            @input="chatStore.setSearchKeyword(($event.target as HTMLInputElement).value)"
+          />
         </label>
 
-        <article
+        <p v-if="chatStore.error" class="chat-notice chat-notice--error">{{ chatStore.error }}</p>
+        <p v-else-if="chatStore.isOffline" class="chat-notice">WebSocket 未连接，正在使用本地缓存和 HTTP 刷新。</p>
+        <p v-if="chatStore.refreshing && chats.length === 0" class="chat-empty">正在加载会话...</p>
+        <p v-else-if="chats.length === 0" class="chat-empty">
+          {{ chatStore.searchKeyword ? '没有匹配的会话' : '暂无会话，添加好友或创建群聊后会显示在这里' }}
+        </p>
+
+        <button
           v-for="chat in chats"
           :key="chat.id"
           class="chat-row"
-          :class="{ 'chat-row--pinned': chat.pinned }"
+          :class="{ 'chat-row--pinned': chat.isPinned }"
+          type="button"
         >
           <div class="chat-row__avatar">{{ chat.name.slice(0, 1) }}</div>
           <div class="chat-row__body">
             <div class="chat-row__top">
               <h2>{{ chat.name }}</h2>
-              <time>{{ chat.time }}</time>
+              <time>{{ chat.type === 'favorite' ? '随时可用' : formatChatDisplayTime(chat.lastMessageTime) }}</time>
             </div>
-            <p>{{ chat.message }}</p>
+            <p>{{ chat.lastMessage || (chat.type === 'favorite' ? '保存的消息和文件会出现在这里' : '暂无消息') }}</p>
           </div>
-          <span v-if="chat.unread" class="badge">{{ chat.unread }}</span>
-        </article>
+          <span v-if="chat.unreadCount" class="badge">{{ chat.unreadCount }}</span>
+        </button>
       </section>
 
       <section v-else-if="shellStore.activeTab === 'contacts'" class="panel">
@@ -201,6 +204,12 @@ const logout = async () => {
   padding: 10px 2px 18px;
 }
 
+.home-header__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .home-header p {
   margin: 0 0 4px;
   color: var(--rc-text-secondary);
@@ -229,6 +238,15 @@ const logout = async () => {
 .home-header__avatar {
   width: 42px;
   height: 42px;
+}
+
+.connection-pill {
+  border-radius: 999px;
+  background: var(--rc-primary-soft);
+  color: var(--rc-primary-strong);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 9px;
 }
 
 .panel {
@@ -263,6 +281,17 @@ const logout = async () => {
   position: relative;
   min-height: 72px;
   padding: 12px 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.chat-row:hover {
+  background: var(--rc-surface-muted);
+}
+
+.chat-row:active {
+  transform: scale(0.99);
 }
 
 .chat-row + .chat-row {
@@ -311,6 +340,22 @@ const logout = async () => {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chat-notice,
+.chat-empty {
+  margin: 0;
+  border-radius: 16px;
+  background: var(--rc-surface);
+  color: var(--rc-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 14px;
+}
+
+.chat-notice--error {
+  background: #feeceb;
+  color: var(--rc-danger);
 }
 
 .badge,

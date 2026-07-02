@@ -1,5 +1,5 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { ChatMessage, ChatSummary, MessageSearchResponse, MessageSearchResult, MessageType } from '@/types/chat';
+import type { ChatMessage, ChatSummary, ChatType, MessageSearchResponse, MessageSearchResult, MessageType } from '@/types/chat';
 
 import { requireToken } from './session';
 
@@ -32,14 +32,14 @@ export const messageService = {
   },
 
   async sendTextMessage(roomId: string, content: string, quotedMessageId?: string): Promise<ChatMessage> {
-    const response = await requestJson<Record<string, unknown>>(`/rooms/${roomId}/messages`, {
+    const response = await requestJson<{ message?: Record<string, unknown> } & Record<string, unknown>>(`/rooms/${roomId}/messages`, {
       method: 'POST',
       body: JSON.stringify({
         content: content.trim(),
         ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
       }),
     }, requireToken());
-    return mapMessage(response, roomId);
+    return mapMessage(response.message ?? response, roomId);
   },
 
   async clearRoomMessages(roomId: string): Promise<void> {
@@ -98,19 +98,33 @@ export const messageService = {
   },
 };
 
-const mapChatSummary = (row: Record<string, unknown>): ChatSummary => ({
-  id: String(row.id ?? row.room_id ?? ''),
-  roomId: String(row.room_id ?? row.id ?? ''),
-  name: String(row.name ?? row.room_name ?? ''),
-  avatar: row.avatar_url == null ? null : String(row.avatar_url),
-  avatarObjectKey: row.avatar_object_key == null ? null : String(row.avatar_object_key),
-  lastMessage: String(row.last_message ?? ''),
-  lastMessageTime: parseTimestamp(row.last_message_time ?? row.updated_at),
-  unreadCount: Number(row.unread_count ?? 0),
-  type: String(row.room_type ?? row.type ?? 'private') === 'group' ? 'group' : 'private',
-  isPinned: Boolean(row.is_pinned ?? false),
-  isMuted: Boolean(row.is_muted ?? false),
-});
+export const mapChatSummary = (row: Record<string, unknown>): ChatSummary => {
+  const lastMessage = normalizeObject(row.last_message);
+  const type = normalizeChatType(row.room_type ?? row.type);
+  const preferredPrivateName = row.friend_remark ?? row.friend_nickname ?? row.friend_username;
+  const name = type === 'private'
+    ? String(preferredPrivateName ?? row.name ?? row.room_name ?? '私聊')
+    : String(row.name ?? row.room_name ?? (type === 'favorite' ? '收藏' : '群聊'));
+
+  return {
+    id: String(row.id ?? row.room_id ?? ''),
+    roomId: String(row.room_id ?? row.id ?? ''),
+    name,
+    avatar: row.avatar_url == null ? null : String(row.avatar_url),
+    avatarObjectKey: (row.avatar_object_key ?? row.room_avatar_object_key ?? row.friend_avatar_object_key) == null
+      ? null
+      : String(row.avatar_object_key ?? row.room_avatar_object_key ?? row.friend_avatar_object_key),
+    lastMessage: buildMessagePreview(lastMessage, row.last_message),
+    lastMessageTime: parseTimestamp(
+      lastMessage?.created_at ?? row.last_message_time ?? row.updated_at ?? row.created_at,
+    ),
+    unreadCount: Number(row.unread_count ?? 0),
+    type,
+    isPinned: Boolean(row.is_pinned ?? false),
+    isMuted: Boolean(row.is_muted ?? false),
+    raw: row,
+  };
+};
 
 const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatMessage => ({
   id: String(row.id ?? row.message_id ?? ''),
@@ -143,6 +157,45 @@ const normalizeMessageType = (value: unknown): MessageType => {
     return normalized as MessageType;
   }
   return 'text';
+};
+
+const normalizeChatType = (value: unknown): ChatType => {
+  const normalized = String(value ?? 'private').toLowerCase();
+  if (normalized === 'group' || normalized === 'public') return 'group';
+  if (normalized === 'favorite') return 'favorite';
+  return 'private';
+};
+
+const normalizeObject = (value: unknown): Record<string, unknown> | null => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+};
+
+const buildMessagePreview = (lastMessage: Record<string, unknown> | null, fallback: unknown) => {
+  if (!lastMessage) {
+    return typeof fallback === 'string' ? fallback : '';
+  }
+  const content = String(lastMessage.content ?? '').trim();
+  if (content) return content;
+  switch (normalizeMessageType(lastMessage.message_type ?? lastMessage.type)) {
+    case 'image':
+      return '[图片]';
+    case 'audio':
+      return '[语音]';
+    case 'video':
+      return '[视频]';
+    case 'file':
+      return '[文件]';
+    case 'mixed':
+      return '[多媒体消息]';
+    case 'system':
+      return '[系统消息]';
+    case 'text':
+    default:
+      return '';
+  }
 };
 
 const parseTimestamp = (value: unknown) => {

@@ -52,5 +52,9 @@ make h5-app.test.live
 - API/service parity 底座：
   - `authService` / `friendService` / `roomService` / `messageService` / `settingsService`
   - 请求路径与 payload 优先对齐 Flutter `app/lib/core/services/` 和 `api/src/routes.rs`
+- 聊天列表与 WebSocket 主链路：
+  - `chat` Pinia store 优先读取本地 SQLite 会话摘要，再后台刷新 `/chats`
+  - H5 使用后端 JSON WebSocket 协议，登录后自动认证并订阅当前会话房间
+  - WebSocket `message` / `room_updated` / `message_read` 等事件会更新会话列表、未读数和本地消息缓存
 
-后续可继续补聊天详情、联系人管理、设置页完整功能和 WebSocket 实时链路。
+后续可继续补聊天详情、联系人管理、设置页完整功能和媒体缓存。

@@ -124,6 +124,70 @@ describe('h5 app service contracts', () => {
     expect(messages[0]?.timestamp).toBe(Date.parse('2026-07-02T01:00:00Z'));
   });
 
+  it('maps chat summaries with backend last_message preview', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        mockJson([
+          {
+            room_id: 'r1',
+            name: '项目群',
+            room_type: 'group',
+            unread_count: 2,
+            is_pinned: true,
+            is_muted: false,
+            last_message: {
+              id: 'm1',
+              content: 'latest message',
+              message_type: 'text',
+              created_at: '2026-07-02T01:20:00Z',
+            },
+          },
+        ]),
+      ),
+    );
+
+    const chats = await messageService.fetchChats();
+
+    expect(chats[0]).toMatchObject({
+      roomId: 'r1',
+      name: '项目群',
+      lastMessage: 'latest message',
+      unreadCount: 2,
+      type: 'group',
+      isPinned: true,
+    });
+    expect(chats[0]?.lastMessageTime).toBe(Date.parse('2026-07-02T01:20:00Z'));
+  });
+
+  it('maps wrapped send message responses', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        mockJson({
+          message: {
+            id: 'm2',
+            room_id: 'r1',
+            sender_id: 'u1',
+            sender_nickname: 'U1',
+            content: 'hello wrapped',
+            message_type: 'text',
+            created_at: '2026-07-02T01:10:00Z',
+          },
+        }),
+      ),
+    );
+
+    const sent = await messageService.sendTextMessage('r1', ' hello wrapped ');
+
+    expect(sent).toMatchObject({
+      id: 'm2',
+      roomId: 'r1',
+      senderName: 'U1',
+      content: 'hello wrapped',
+    });
+  });
+
   it('fetches public settings without auth token', async () => {
     let capturedInit: RequestInit | undefined;
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
