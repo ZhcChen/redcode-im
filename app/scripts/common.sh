@@ -7,6 +7,8 @@ DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-3A091FDJG001DN}"
 DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Pixel 8 Pro}"
 FLUTTER_DEVICES_TIMEOUT_SECONDS="${FLUTTER_DEVICES_TIMEOUT_SECONDS:-20}"
 SIMCTL_TIMEOUT_SECONDS="${SIMCTL_TIMEOUT_SECONDS:-20}"
+SIMCTL_BOOT_TIMEOUT_SECONDS="${SIMCTL_BOOT_TIMEOUT_SECONDS:-60}"
+FLUTTER_DEVICE_READY_TIMEOUT_SECONDS="${FLUTTER_DEVICE_READY_TIMEOUT_SECONDS:-60}"
 
 kill_process_tree() {
     local pid="$1"
@@ -147,6 +149,16 @@ find_simctl_device_line() {
             found=1
         }
     '
+}
+
+ios_simulator_state() {
+    local device_id="$1"
+    local device_line
+
+    device_line="$(find_simctl_device_line "$device_id")"
+    [ -n "$device_line" ] || return 1
+
+    printf '%s\n' "$device_line" | sed -E 's/.*\(([^()]*)\)[[:space:]]*$/\1/'
 }
 
 is_flutter_device_available() {
@@ -295,6 +307,56 @@ is_android_emulator_device() {
     [[ "$device_id" == emulator-* ]]
 }
 
+wait_for_flutter_device() {
+    local device_id="$1"
+    local timeout_seconds="${2:-$FLUTTER_DEVICE_READY_TIMEOUT_SECONDS}"
+    local elapsed=0
+
+    while [ "$elapsed" -lt "$timeout_seconds" ]; do
+        if is_flutter_device_available "$device_id"; then
+            return 0
+        fi
+
+        sleep 2
+        elapsed=$((elapsed + 2))
+    done
+
+    return 1
+}
+
+ensure_ios_simulator_ready() {
+    local device_id="$1"
+    local state=""
+    local device_label=""
+
+    if ! is_ios_simulator_device "$device_id"; then
+        return 0
+    fi
+
+    if is_flutter_device_available "$device_id"; then
+        return 0
+    fi
+
+    device_label="$(describe_flutter_device "$device_id")"
+    state="$(ios_simulator_state "$device_id" || true)"
+    echo "本机 iOS Simulator 未在 flutter devices 中出现，尝试启动: ${device_label}" >&2
+
+    if [ "$state" != "Booted" ]; then
+        xcrun simctl boot "$device_id" >/dev/null 2>&1 || true
+        open -a Simulator --args -CurrentDeviceUDID "$device_id" >/dev/null 2>&1 || true
+
+        if ! run_with_timeout "$SIMCTL_BOOT_TIMEOUT_SECONDS" xcrun simctl bootstatus "$device_id" -b >/dev/null; then
+            echo "等待 iOS Simulator 启动超时: ${device_label}" >&2
+            return 1
+        fi
+    fi
+
+    if ! wait_for_flutter_device "$device_id"; then
+        echo "iOS Simulator 已启动，但 flutter devices 未在 ${FLUTTER_DEVICE_READY_TIMEOUT_SECONDS}s 内识别: ${device_label}" >&2
+        return 1
+    fi
+}
+
 build_local_backend_dart_defines() {
     local device_id="$1"
     local lan_ip=""
@@ -365,15 +427,24 @@ show_and_verify_flutter_devices() {
     echo "$devices_output"
 
     if ! printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
+        if is_ios_simulator_device "$device_id"; then
+            echo "" >&2
+            if ensure_ios_simulator_ready "$device_id"; then
+                if devices_output="$(flutter_devices_output)"; then
+                    devices_status=0
+                else
+                    devices_status="$?"
+                fi
+                echo "$devices_output"
+                if printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
+                    return 0
+                fi
+            fi
+        fi
+
         if [ "$devices_status" -ne 0 ] && [ "$device_id" = "macos" ]; then
             echo "" >&2
             echo "flutter devices 未能完成，macOS 本机目标跳过设备枚举验证。" >&2
-            return 0
-        fi
-
-        if [ "$devices_status" -ne 0 ] && is_ios_simulator_device "$device_id"; then
-            echo "" >&2
-            echo "flutter devices 未能完成，已通过 simctl 验证本机 iOS Simulator: $device_label" >&2
             return 0
         fi
 
