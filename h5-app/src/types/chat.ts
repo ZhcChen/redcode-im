@@ -24,8 +24,23 @@ export interface ChatMessage {
   timestamp: number;
   status?: MessageStatus;
   isDeleted?: boolean;
+  isPinned?: boolean;
+  pinnedAt?: number | null;
+  pinnedBy?: string | null;
+  quotedMessage?: ChatMessageQuote | null;
   attachments?: MessageAttachment[];
   raw?: Record<string, unknown>;
+}
+
+export interface ChatMessageQuote {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  type: MessageType;
+  timestamp?: number;
+  isDeleted?: boolean;
 }
 
 export interface ChatSummary {

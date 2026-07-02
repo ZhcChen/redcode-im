@@ -64,15 +64,11 @@ export const useChatStore = defineStore('chat', {
     },
 
     async loadCachedChats() {
-      try {
-        const cached = await chatSummaryStorage.loadChats();
-        if (cached.length > 0) {
-          this.chats = sortChats(cached);
-        }
-        this.cacheLoaded = true;
-      } catch (error) {
-        this.error = error instanceof Error ? error.message : '读取本地会话缓存失败';
+      const cached = await loadCachedChatSummaries();
+      if (cached.length > 0) {
+        this.chats = sortChats(cached);
       }
+      this.cacheLoaded = true;
     },
 
     async refreshChats() {
@@ -82,7 +78,7 @@ export const useChatStore = defineStore('chat', {
       try {
         const chats = await messageService.fetchChats();
         this.chats = sortChats(chats);
-        await chatSummaryStorage.saveChats(this.chats);
+        await persistChatSummaries(this.chats);
         this.syncWebSocketRooms();
       } catch (error) {
         this.error = error instanceof Error ? error.message : '加载会话失败';
@@ -133,12 +129,12 @@ export const useChatStore = defineStore('chat', {
     async deleteChat(roomId: string) {
       const previous = this.chats;
       this.chats = this.chats.filter((chat) => chat.roomId !== roomId);
-      await chatSummaryStorage.saveChats(this.chats);
+      await persistChatSummaries(this.chats);
       try {
         await messageService.deleteChat(roomId);
       } catch (error) {
         this.chats = previous;
-        await chatSummaryStorage.saveChats(this.chats);
+        await persistChatSummaries(this.chats);
         throw error;
       }
     },
@@ -150,12 +146,12 @@ export const useChatStore = defineStore('chat', {
       this.chats = sortChats(
         this.chats.map((chat) => (chat.roomId === roomId ? { ...chat, isPinned: pinned } : chat)),
       );
-      await chatSummaryStorage.saveChats(this.chats);
+      await persistChatSummaries(this.chats);
       try {
         await roomService.pinRoom(roomId, pinned);
       } catch (error) {
         this.chats = previous;
-        await chatSummaryStorage.saveChats(this.chats);
+        await persistChatSummaries(this.chats);
         throw error;
       }
     },
@@ -185,10 +181,10 @@ export const useChatStore = defineStore('chat', {
 
     async applyIncomingMessage(message: ChatMessage) {
       if (!message.roomId || !message.id) return;
-      const cachedMessages = await messageStorage.loadMessages(message.roomId);
+      const cachedMessages = await loadCachedMessages(message.roomId);
       const alreadyCached = cachedMessages.some((item) => item.id === message.id);
       const nextMessages = mergeMessage(cachedMessages, message);
-      await messageStorage.saveMessages(message.roomId, nextMessages);
+      await persistMessages(message.roomId, nextMessages);
 
       const index = this.chats.findIndex((chat) => chat.roomId === message.roomId);
       const isSelf = message.senderId === useAuthStore().currentUser?.id;
@@ -229,7 +225,7 @@ export const useChatStore = defineStore('chat', {
           },
         ]);
       }
-      await chatSummaryStorage.saveChats(this.chats);
+      await persistChatSummaries(this.chats);
       this.syncWebSocketRooms();
     },
 
@@ -249,7 +245,7 @@ export const useChatStore = defineStore('chat', {
           };
         }),
       );
-      await chatSummaryStorage.saveChats(this.chats);
+      await persistChatSummaries(this.chats);
     },
 
     async applyMessageRead(event: WebSocketServerEvent) {
@@ -259,14 +255,18 @@ export const useChatStore = defineStore('chat', {
       this.chats = this.chats.map((chat) => (
         chat.roomId === roomId ? { ...chat, unreadCount: 0 } : chat
       ));
-      await chatSummaryStorage.saveChats(this.chats);
+      await persistChatSummaries(this.chats);
     },
 
     async removeRoom(roomId: string) {
       if (!roomId) return;
       this.chats = this.chats.filter((chat) => chat.roomId !== roomId);
-      await chatSummaryStorage.saveChats(this.chats);
-      await messageStorage.clear(roomId);
+      await persistChatSummaries(this.chats);
+      try {
+        await messageStorage.clear(roomId);
+      } catch (error) {
+        console.warn('[h5-app] 清理本地消息缓存失败，已忽略', error);
+      }
       this.syncWebSocketRooms();
     },
 
@@ -383,6 +383,40 @@ const parseTimestamp = (value: unknown) => {
 };
 
 const pad = (value: number) => value.toString().padStart(2, '0');
+
+const loadCachedChatSummaries = async () => {
+  try {
+    return await chatSummaryStorage.loadChats();
+  } catch (error) {
+    console.warn('[h5-app] 会话摘要本地缓存读取失败，已忽略', error);
+    return [];
+  }
+};
+
+const persistChatSummaries = async (chats: ChatSummary[]) => {
+  try {
+    await chatSummaryStorage.saveChats(chats);
+  } catch (error) {
+    console.warn('[h5-app] 会话摘要本地缓存写入失败，已忽略', error);
+  }
+};
+
+const loadCachedMessages = async (roomId: string) => {
+  try {
+    return await messageStorage.loadMessages(roomId);
+  } catch (error) {
+    console.warn('[h5-app] 消息本地缓存读取失败，已忽略', error);
+    return [];
+  }
+};
+
+const persistMessages = async (roomId: string, messages: ChatMessage[]) => {
+  try {
+    await messageStorage.saveMessages(roomId, messages);
+  } catch (error) {
+    console.warn('[h5-app] 消息本地缓存写入失败，已忽略', error);
+  }
+};
 
 const createMockChats = (): ChatSummary[] => sortChats([
   {

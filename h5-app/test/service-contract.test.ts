@@ -188,6 +188,110 @@ describe('h5 app service contracts', () => {
     });
   });
 
+  it('sends quoted text messages with Flutter-compatible payload', async () => {
+    const fetchMock = vi.fn(async () => mockJson({
+      message: {
+        id: 'm3',
+        room_id: 'r1',
+        sender_id: 'u1',
+        content: 'quoted',
+        message_type: 'text',
+      },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await messageService.sendTextMessage('r1', ' quoted ', 'm1');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8010/rooms/r1/messages',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          content: 'quoted',
+          quoted_message_id: 'm1',
+        }),
+      }),
+    );
+  });
+
+  it('maps quoted and pinned message fields from backend responses', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => mockJson([
+      {
+        id: 'm2',
+        room_id: 'r1',
+        sender_id: 'u1',
+        content: 'reply',
+        message_type: 'text',
+        is_pinned: true,
+        pinned_at: '2026-07-02T01:15:00Z',
+        pinned_by: 'u1',
+        quoted_message: {
+          id: 'm1',
+          room_id: 'r1',
+          sender_id: 'u2',
+          sender_nickname: 'Bear',
+          content: 'source',
+          message_type: 'text',
+          created_at: '2026-07-02T01:00:00Z',
+        },
+      },
+    ])));
+
+    const messages = await messageService.loadMessages('r1');
+
+    expect(messages[0]).toMatchObject({
+      id: 'm2',
+      isPinned: true,
+      pinnedAt: Date.parse('2026-07-02T01:15:00Z'),
+      pinnedBy: 'u1',
+      quotedMessage: expect.objectContaining({
+        id: 'm1',
+        senderName: 'Bear',
+        content: 'source',
+      }),
+    });
+  });
+
+  it('pins, unpins and deletes messages through backend routes', async () => {
+    const fetchMock = vi.fn(async () => mockJson({ success: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await messageService.pinMessage('r1', 'm1', true);
+    await messageService.pinMessage('r1', 'm1', false);
+    await messageService.deleteMessage('r1', 'm1');
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:8010/rooms/r1/messages/m1/pin',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:8010/rooms/r1/messages/m1/pin',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://127.0.0.1:8010/rooms/r1/messages/m1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+
+  it('marks room messages as read with Flutter-compatible payload', async () => {
+    const fetchMock = vi.fn(async () => mockJson({ success: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await messageService.markMessagesAsRead('r1', 'm1');
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8010/rooms/r1/messages/read',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ message_id: 'm1' }),
+      }),
+    );
+  });
+
   it('fetches public settings without auth token', async () => {
     let capturedInit: RequestInit | undefined;
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {

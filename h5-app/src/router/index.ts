@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 
 import LoginView from '@/views/LoginView.vue';
 import HomeView from '@/views/HomeView.vue';
+import ChatDetailView from '@/views/ChatDetailView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -21,6 +22,12 @@ export const router = createRouter({
       path: '/home',
       name: 'home',
       component: HomeView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/chats/:roomId',
+      name: 'chat-detail',
+      component: ChatDetailView,
       meta: { requiresAuth: true },
     },
   ],

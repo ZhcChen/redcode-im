@@ -208,7 +208,7 @@ flowchart TB
 **Verification:**
 - H5 首页聊天列表可在浏览器真实展示并响应基本 WebSocket 事件。
 
-- [ ] **Unit 4: Chat detail、消息发送与本地缓存**
+- [x] **Unit 4: Chat detail、消息发送与本地缓存**
 
 **Goal:** 实现聊天详情页，支持消息加载、发送文本/富文本、引用、重发、删除、置顶、已读状态和本地缓存。
 

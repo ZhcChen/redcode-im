@@ -1,5 +1,13 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { ChatMessage, ChatSummary, ChatType, MessageSearchResponse, MessageSearchResult, MessageType } from '@/types/chat';
+import type {
+  ChatMessage,
+  ChatMessageQuote,
+  ChatSummary,
+  ChatType,
+  MessageSearchResponse,
+  MessageSearchResult,
+  MessageType,
+} from '@/types/chat';
 
 import { requireToken } from './session';
 
@@ -60,6 +68,13 @@ export const messageService = {
       {},
       requireToken(),
     );
+  },
+
+  async markMessagesAsRead(roomId: string, messageId: string): Promise<void> {
+    await requestJson(`/rooms/${roomId}/messages/read`, {
+      method: 'POST',
+      body: JSON.stringify({ message_id: messageId }),
+    }, requireToken());
   },
 
   async searchMessages(params: {
@@ -135,8 +150,29 @@ const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatM
   type: normalizeMessageType(row.message_type ?? row.type),
   timestamp: parseTimestamp(row.created_at ?? row.timestamp),
   isDeleted: Boolean(row.is_deleted ?? false),
+  isPinned: Boolean(row.is_pinned ?? false),
+  pinnedAt: parseOptionalTimestamp(row.pinned_at),
+  pinnedBy: row.pinned_by == null ? null : String(row.pinned_by),
+  quotedMessage: mapQuotedMessage(row.quoted_message),
   raw: row,
 });
+
+const mapQuotedMessage = (value: unknown): ChatMessageQuote | null => {
+  const row = normalizeObject(value);
+  if (!row) return null;
+  const id = String(row.id ?? row.message_id ?? '');
+  if (!id) return null;
+  return {
+    id,
+    roomId: String(row.room_id ?? ''),
+    senderId: String(row.sender_id ?? ''),
+    senderName: String(row.sender_name ?? row.sender_nickname ?? row.sender_username ?? ''),
+    content: String(row.content ?? ''),
+    type: normalizeMessageType(row.message_type ?? row.type),
+    timestamp: parseOptionalTimestamp(row.created_at ?? row.timestamp) ?? undefined,
+    isDeleted: Boolean(row.is_deleted ?? false),
+  };
+};
 
 const mapSearchResult = (row: Record<string, unknown>): MessageSearchResult => ({
   id: String(row.id ?? ''),
@@ -205,4 +241,9 @@ const parseTimestamp = (value: unknown) => {
     return Number.isFinite(parsed) ? parsed : Date.now();
   }
   return Date.now();
+};
+
+const parseOptionalTimestamp = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return null;
+  return parseTimestamp(value);
 };

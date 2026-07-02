@@ -56,5 +56,10 @@ make h5-app.test.live
   - `chat` Pinia store 优先读取本地 SQLite 会话摘要，再后台刷新 `/chats`
   - H5 使用后端 JSON WebSocket 协议，登录后自动认证并订阅当前会话房间
   - WebSocket `message` / `room_updated` / `message_read` 等事件会更新会话列表、未读数和本地消息缓存
+- 聊天详情与文本发送：
+  - `/chats/:roomId` 支持本地缓存优先、后台拉取历史消息和 WebSocket 消息合并
+  - 文本发送支持本地 pending、失败重发、引用消息、服务端回包替换和本地缓存写入
+  - 已读同步、消息删除、消息置顶/取消置顶会走 Flutter 等价后端端点并同步本地状态
+  - wa-sqlite 浏览器运行时缓存异常会降级为静默忽略，不阻断 HTTP/WS 主链路
 
-后续可继续补聊天详情、联系人管理、设置页完整功能和媒体缓存。
+后续可继续补联系人管理、设置页完整功能和媒体缓存。

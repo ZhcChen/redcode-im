@@ -55,6 +55,11 @@ const logout = async () => {
   await router.replace({ name: 'login' });
 };
 
+const openChat = async (roomId: string) => {
+  if (!roomId) return;
+  await router.push({ name: 'chat-detail', params: { roomId } });
+};
+
 const connectionLabel = computed(() => {
   if (chatStore.websocketStatus === 'authenticated') return '实时在线';
   if (chatStore.websocketStatus === 'connecting' || chatStore.websocketStatus === 'connected') {
@@ -112,6 +117,7 @@ onMounted(() => {
           class="chat-row"
           :class="{ 'chat-row--pinned': chat.isPinned }"
           type="button"
+          @click="openChat(chat.roomId)"
         >
           <div class="chat-row__avatar">{{ chat.name.slice(0, 1) }}</div>
           <div class="chat-row__body">

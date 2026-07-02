@@ -58,6 +58,7 @@ describe.skipIf(!enabled)('h5-app live service smoke', () => {
 
     const messages = await messageService.loadMessages(room.id, { limit: 20 });
     expect(messages.some((message) => message.content === 'hello from h5 service')).toBe(true);
+    await messageService.markMessagesAsRead(room.id, sent.id);
 
     const chats = await messageService.fetchChats();
     expect(chats.some((chat) => chat.roomId === room.id)).toBe(true);
