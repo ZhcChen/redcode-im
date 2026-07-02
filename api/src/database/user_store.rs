@@ -2,9 +2,10 @@ use crate::database::models::{
     CreateUserRequest, LoginRequest, UpdateUserRequest, User, UserStatus,
 };
 use crate::database::Database;
-use bcrypt::{hash, verify, DEFAULT_COST};
+use bcrypt::{hash, verify};
 use chrono::Utc;
 use sqlx::{Error, Postgres, QueryBuilder};
+use std::io;
 use uuid::Uuid;
 
 /// PostgreSQL 用户存储实现
@@ -20,8 +21,7 @@ impl UserStore {
 
     /// 创建用户
     pub async fn create_user(&self, request: CreateUserRequest) -> Result<User, Error> {
-        let password_hash = hash(&request.password, DEFAULT_COST)
-            .map_err(|e| sqlx::Error::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        let password_hash = hash_password_blocking(request.password.clone()).await?;
 
         let user_id = crate::id::generate();
         let now = Utc::now();
@@ -139,7 +139,10 @@ impl UserStore {
         };
 
         if let Some(user) = user {
-            if verify(&request.password, &user.password_hash).unwrap_or(false) {
+            if verify_password_blocking(request.password, user.password_hash.clone())
+                .await
+                .unwrap_or(false)
+            {
                 return Ok(Some(user));
             }
         }
@@ -403,6 +406,25 @@ impl UserStore {
 
         Ok(users)
     }
+}
+
+async fn hash_password_blocking(password: String) -> Result<String, Error> {
+    let cost = crate::auth::password_hash_cost();
+    tokio::task::spawn_blocking(move || hash(password, cost))
+        .await
+        .map_err(sqlx_io_error)?
+        .map_err(sqlx_io_error)
+}
+
+async fn verify_password_blocking(password: String, password_hash: String) -> Result<bool, Error> {
+    tokio::task::spawn_blocking(move || verify(password, &password_hash))
+        .await
+        .map_err(sqlx_io_error)?
+        .map_err(sqlx_io_error)
+}
+
+fn sqlx_io_error(error: impl std::fmt::Display) -> Error {
+    Error::Io(io::Error::new(io::ErrorKind::Other, error.to_string()))
 }
 
 fn apply_user_filters(

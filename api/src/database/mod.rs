@@ -1,6 +1,6 @@
 use sha2::{Digest, Sha256};
 use sqlx::{postgres::PgPoolOptions, Acquire, Executor, PgPool, Postgres, Row};
-use std::env;
+use std::{env, time::Duration};
 
 pub mod account_store;
 pub mod admin_rbac_store;
@@ -43,6 +43,10 @@ const MIGRATIONS_TABLE_FQN: &str = "public.db_migrations";
 /// 注意：advisory lock 是“会话级”锁，必须在迁移结束后显式释放，否则连接复用会导致锁长期占用。
 const MIGRATION_ADVISORY_LOCK_KEY: i64 = 0x7265_6463_6f64_65; // "redcode"
 
+const DEFAULT_DATABASE_MAX_CONNECTIONS: u32 = 20;
+const DEFAULT_DATABASE_MIN_CONNECTIONS: u32 = 0;
+const DEFAULT_DATABASE_ACQUIRE_TIMEOUT_SECONDS: u64 = 30;
+
 /// 基础初始化脚本（base.sql）
 const BASE_MIGRATION_NAME: &str = "base.sql";
 const BASE_MIGRATION_SQL: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/sql/base.sql"));
@@ -59,6 +63,66 @@ const MIGRATIONS: &[(&str, &str)] = &[
     (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
 ];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatabasePoolConfig {
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub acquire_timeout: Duration,
+}
+
+impl Default for DatabasePoolConfig {
+    fn default() -> Self {
+        Self {
+            max_connections: DEFAULT_DATABASE_MAX_CONNECTIONS,
+            min_connections: DEFAULT_DATABASE_MIN_CONNECTIONS,
+            acquire_timeout: Duration::from_secs(DEFAULT_DATABASE_ACQUIRE_TIMEOUT_SECONDS),
+        }
+    }
+}
+
+impl DatabasePoolConfig {
+    pub fn from_env() -> Self {
+        let max_connections = read_positive_u32_alias(
+            &[
+                "DATABASE_MAX_CONNECTIONS",
+                "DATABASE_POOL_MAX_CONNECTIONS",
+                "PG_POOL_MAX",
+            ],
+            DEFAULT_DATABASE_MAX_CONNECTIONS,
+        );
+        let min_connections = read_positive_u32_alias(
+            &[
+                "DATABASE_MIN_CONNECTIONS",
+                "DATABASE_POOL_MIN_CONNECTIONS",
+                "PG_POOL_MIN",
+            ],
+            DEFAULT_DATABASE_MIN_CONNECTIONS,
+        )
+        .min(max_connections);
+        let acquire_timeout_seconds = read_positive_u64_alias(
+            &[
+                "DATABASE_ACQUIRE_TIMEOUT_SECONDS",
+                "DATABASE_POOL_ACQUIRE_TIMEOUT_SECONDS",
+                "PG_POOL_ACQUIRE_TIMEOUT_SECONDS",
+            ],
+            DEFAULT_DATABASE_ACQUIRE_TIMEOUT_SECONDS,
+        );
+
+        Self {
+            max_connections,
+            min_connections,
+            acquire_timeout: Duration::from_secs(acquire_timeout_seconds),
+        }
+    }
+
+    fn apply_to(&self, options: PgPoolOptions) -> PgPoolOptions {
+        options
+            .max_connections(self.max_connections)
+            .min_connections(self.min_connections)
+            .acquire_timeout(self.acquire_timeout)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct MigrationRecord {
     checksum: Option<String>,
@@ -70,11 +134,18 @@ impl Database {
         dotenvy::dotenv().ok();
 
         let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+        let pool_config = DatabasePoolConfig::from_env();
 
-        tracing::info!("正在连接数据库: {}", database_url);
+        tracing::info!(
+            "正在连接数据库: {} (pool max={}, min={}, acquire_timeout={}s)",
+            database_url,
+            pool_config.max_connections,
+            pool_config.min_connections,
+            pool_config.acquire_timeout.as_secs()
+        );
 
-        let pool = PgPoolOptions::new()
-            .max_connections(20)
+        let pool = pool_config
+            .apply_to(PgPoolOptions::new())
             .connect(&database_url)
             .await?;
 
@@ -456,6 +527,30 @@ fn migration_protocol_error(message: impl Into<String>) -> sqlx::Error {
     sqlx::Error::Protocol(message.into())
 }
 
+fn read_positive_u32_alias(names: &[&str], default: u32) -> u32 {
+    names
+        .iter()
+        .find_map(|name| {
+            env::var(name)
+                .ok()
+                .and_then(|value| value.trim().parse::<u32>().ok())
+                .filter(|value| *value > 0)
+        })
+        .unwrap_or(default)
+}
+
+fn read_positive_u64_alias(names: &[&str], default: u64) -> u64 {
+    names
+        .iter()
+        .find_map(|name| {
+            env::var(name)
+                .ok()
+                .and_then(|value| value.trim().parse::<u64>().ok())
+                .filter(|value| *value > 0)
+        })
+        .unwrap_or(default)
+}
+
 async fn ensure_database_matches_current_baseline(
     executor: &mut sqlx::PgConnection,
 ) -> Result<(), sqlx::Error> {
@@ -776,6 +871,114 @@ fn strip_leading_sql_comments(stmt: &str) -> &str {
 mod tests {
     use super::*;
     use std::fs;
+    use std::sync::{Mutex, OnceLock};
+
+    const POOL_ENV_NAMES: &[&str] = &[
+        "DATABASE_MAX_CONNECTIONS",
+        "DATABASE_POOL_MAX_CONNECTIONS",
+        "PG_POOL_MAX",
+        "DATABASE_MIN_CONNECTIONS",
+        "DATABASE_POOL_MIN_CONNECTIONS",
+        "PG_POOL_MIN",
+        "DATABASE_ACQUIRE_TIMEOUT_SECONDS",
+        "DATABASE_POOL_ACQUIRE_TIMEOUT_SECONDS",
+        "PG_POOL_ACQUIRE_TIMEOUT_SECONDS",
+    ];
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    struct EnvGuard {
+        saved: Vec<(&'static str, Option<String>)>,
+    }
+
+    impl EnvGuard {
+        fn apply(entries: &[(&'static str, Option<&str>)]) -> Self {
+            let mut saved = Vec::with_capacity(POOL_ENV_NAMES.len());
+            for name in POOL_ENV_NAMES {
+                saved.push((*name, env::var(name).ok()));
+                env::remove_var(name);
+            }
+
+            for (name, value) in entries {
+                match value {
+                    Some(value) => env::set_var(name, value),
+                    None => env::remove_var(name),
+                }
+            }
+
+            Self { saved }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (name, value) in &self.saved {
+                match value {
+                    Some(value) => env::set_var(name, value),
+                    None => env::remove_var(name),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn database_pool_config_uses_safe_defaults() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let _guard = EnvGuard::apply(&[]);
+
+        assert_eq!(
+            DatabasePoolConfig::from_env(),
+            DatabasePoolConfig::default()
+        );
+    }
+
+    #[test]
+    fn database_pool_config_reads_primary_env_names() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let _guard = EnvGuard::apply(&[
+            ("DATABASE_MAX_CONNECTIONS", Some("80")),
+            ("DATABASE_MIN_CONNECTIONS", Some("8")),
+            ("DATABASE_ACQUIRE_TIMEOUT_SECONDS", Some("5")),
+        ]);
+
+        let config = DatabasePoolConfig::from_env();
+        assert_eq!(config.max_connections, 80);
+        assert_eq!(config.min_connections, 8);
+        assert_eq!(config.acquire_timeout, Duration::from_secs(5));
+    }
+
+    #[test]
+    fn database_pool_config_supports_aliases_and_clamps_min_to_max() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let _guard = EnvGuard::apply(&[
+            ("PG_POOL_MAX", Some("16")),
+            ("PG_POOL_MIN", Some("32")),
+            ("PG_POOL_ACQUIRE_TIMEOUT_SECONDS", Some("9")),
+        ]);
+
+        let config = DatabasePoolConfig::from_env();
+        assert_eq!(config.max_connections, 16);
+        assert_eq!(config.min_connections, 16);
+        assert_eq!(config.acquire_timeout, Duration::from_secs(9));
+    }
+
+    #[test]
+    fn database_pool_config_ignores_invalid_values() {
+        let _lock = env_lock().lock().expect("env lock poisoned");
+        let _guard = EnvGuard::apply(&[
+            ("DATABASE_MAX_CONNECTIONS", Some("0")),
+            ("DATABASE_MIN_CONNECTIONS", Some("not-a-number")),
+            ("DATABASE_ACQUIRE_TIMEOUT_SECONDS", Some("-1")),
+        ]);
+
+        assert_eq!(
+            DatabasePoolConfig::from_env(),
+            DatabasePoolConfig::default()
+        );
+    }
 
     #[test]
     fn split_sql_statements_keeps_dollar_quoted_function_body_intact() {

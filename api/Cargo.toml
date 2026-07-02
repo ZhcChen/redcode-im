@@ -83,3 +83,4 @@ quick-xml = { version = "0.37", features = ["serialize"] }
 # 集成测试：axum oneshot 进程内请求
 tower = "0.5"
 http-body-util = "0.1"
+tokio-tungstenite = "0.28"

@@ -1,5 +1,5 @@
 use chrono::Utc;
-use redis::{AsyncCommands, Client, RedisResult};
+use redis::{aio::MultiplexedConnection, AsyncCommands, RedisResult};
 use serde_json;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
@@ -9,16 +9,25 @@ use crate::redis::models::{CacheKeys, NodeHeartbeat, SessionInfo};
 
 /// Redis 会话管理器
 pub struct SessionManager {
-    client: Client,
+    connection: MultiplexedConnection,
     node_id: String,
     session_ttl: u64, // 会话过期时间（秒）
 }
 
+#[derive(Debug, Clone)]
+pub struct ApiMetricAggregate {
+    pub method: String,
+    pub path: String,
+    pub count: u64,
+    pub total_duration_ms: u64,
+    pub max_duration_ms: u64,
+}
+
 impl SessionManager {
     /// 创建新的会话管理器
-    pub fn new(client: Client, node_id: String) -> Self {
+    pub fn new(connection: MultiplexedConnection, node_id: String) -> Self {
         Self {
-            client,
+            connection,
             node_id,
             session_ttl: 86400, // 默认24小时过期
         }
@@ -32,7 +41,7 @@ impl SessionManager {
         client_ip: std::net::IpAddr,
         rooms: Vec<Uuid>,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
 
         let session_info = SessionInfo {
             user_id,
@@ -69,7 +78,7 @@ impl SessionManager {
 
     /// 获取用户会话信息
     pub async fn get_user_session(&self, user_id: &Uuid) -> RedisResult<Option<SessionInfo>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
         let session_key = CacheKeys::user_session(user_id);
 
         let session_json: Option<String> = conn.get(&session_key).await?;
@@ -101,7 +110,7 @@ impl SessionManager {
         user_id: &Uuid,
         client_ip: std::net::IpAddr,
     ) -> RedisResult<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
         let session_key = CacheKeys::user_session(user_id);
 
         // 获取现有会话信息
@@ -129,7 +138,7 @@ impl SessionManager {
 
     /// 删除用户会话
     pub async fn delete_user_session(&self, user_id: &Uuid) -> RedisResult<bool> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
 
         // 获取会话信息（用于确定节点ID）
         let session_info = self.get_user_session(user_id).await?;
@@ -156,7 +165,7 @@ impl SessionManager {
 
     /// 获取节点的所有会话
     pub async fn get_node_sessions(&self, node_id: &str) -> RedisResult<Vec<Uuid>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
         let node_sessions_key = CacheKeys::node_sessions(node_id);
 
         let user_ids: Vec<String> = conn.smembers(&node_sessions_key).await?;
@@ -230,7 +239,7 @@ impl SessionManager {
         cpu_count: u32,
         total_memory: u64,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
 
         let heartbeat = NodeHeartbeat {
             node_id: self.node_id.clone(),
@@ -270,7 +279,7 @@ impl SessionManager {
 
     /// 获取所有活跃节点。
     pub async fn get_active_nodes(&self) -> RedisResult<Vec<NodeHeartbeat>> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
         let active_nodes_key = CacheKeys::active_nodes();
 
         let node_ids: Vec<String> = conn.smembers(&active_nodes_key).await?;
@@ -299,23 +308,43 @@ impl SessionManager {
         duration_ms: u64,
         _status: u16,
     ) -> RedisResult<()> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
-        let field = format!("{}:{}", method, path);
+        let metric = ApiMetricAggregate {
+            method: method.to_string(),
+            path: path.to_string(),
+            count: 1,
+            total_duration_ms: duration_ms,
+            max_duration_ms: duration_ms,
+        };
+        self.record_api_metrics_batch(std::slice::from_ref(&metric))
+            .await
+    }
 
-        // 1. 增加命中次数
+    /// 批量记录 API 性能指标，供 metrics middleware 后台聚合 flush 使用。
+    pub async fn record_api_metrics_batch(
+        &self,
+        metrics: &[ApiMetricAggregate],
+    ) -> RedisResult<()> {
+        if metrics.is_empty() {
+            return Ok(());
+        }
+
+        let mut conn = self.connection.clone();
         let hits_key = CacheKeys::api_metrics_hits();
-        redis::pipe()
-            .hincr(&hits_key, &field, 1)
-            // 2. 增加总耗时
-            .hincr(&CacheKeys::api_metrics_duration(), &field, duration_ms)
-            // 3. 更新慢日志排行 (ZSet 记录最大耗时)
-            .zadd(&CacheKeys::api_metrics_slow_log(), &field, duration_ms)
-            .query_async::<()>(&mut conn)
-            .await?;
+        let duration_key = CacheKeys::api_metrics_duration();
+        let slow_key = CacheKeys::api_metrics_slow_log();
+
+        let mut pipe = redis::pipe();
+        for metric in metrics {
+            let field = format!("{}:{}", metric.method, metric.path);
+            pipe.hincr(&hits_key, &field, metric.count)
+                .hincr(&duration_key, &field, metric.total_duration_ms)
+                .zadd(&slow_key, &field, metric.max_duration_ms);
+        }
+
+        pipe.query_async::<()>(&mut conn).await?;
 
         // 限制慢日志数量为 Top 100
-        conn.zremrangebyrank::<_, ()>(&CacheKeys::api_metrics_slow_log(), 0, -101)
-            .await?;
+        conn.zremrangebyrank::<_, ()>(&slow_key, 0, -101).await?;
 
         Ok(())
     }
@@ -326,7 +355,7 @@ impl SessionManager {
         page: usize,
         page_size: usize,
     ) -> RedisResult<(Vec<serde_json::Value>, usize)> {
-        let mut conn = self.client.get_multiplexed_async_connection().await?;
+        let mut conn = self.connection.clone();
 
         let hits_key = CacheKeys::api_metrics_hits();
         let duration_key = CacheKeys::api_metrics_duration();

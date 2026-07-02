@@ -1292,15 +1292,7 @@ async fn filter_targets_skip_online(state: &AppState, targets: Vec<Uuid>) -> Vec
         return Vec::new();
     }
 
-    let Ok(mut conn) = state
-        .redis
-        .get_session_client()
-        .get_multiplexed_async_connection()
-        .await
-    else {
-        // Redis 不可用时，保持原行为：不做跨节点在线跳过（认为离线）
-        return candidates;
-    };
+    let mut conn = state.redis.get_session_connection();
 
     let keys: Vec<String> = candidates
         .iter()

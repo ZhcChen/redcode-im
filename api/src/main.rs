@@ -82,8 +82,12 @@ async fn main() {
         eprintln!("[STARTUP] 同步对象存储默认 provider 失败: {err}");
     }
 
-    // 初始化 WebSocket 连接管理器
+    // 初始化 WebSocket 连接管理器与节点级 Redis Pub/Sub 订阅器
     let connection_manager = std::sync::Arc::new(websocket::ConnectionManager::new());
+    let pubsub_hub = websocket::PubSubHub::spawn(
+        redis_manager.get_pubsub_client().clone(),
+        connection_manager.clone(),
+    );
 
     // 启动后台任务
     start_background_tasks(
@@ -99,13 +103,16 @@ async fn main() {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let state = AppState {
+    let mut state = AppState {
         database: database.clone(),
         redis: redis_manager,
         node_id: node_id.clone(),
         log_store,
         connection_manager,
+        pubsub_hub,
+        metrics_recorder: None,
     };
+    state.metrics_recorder = middleware::metrics::spawn_metrics_recorder(&state);
 
     // 启动 Push 后台发送队列（避免业务接口直接 spawn 大量 push 任务）
     services::push::init_push_dispatcher(state.clone());
@@ -265,7 +272,7 @@ async fn register_node_heartbeat(
     connection_manager: &websocket::ConnectionManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let session_manager = redis::session::SessionManager::new(
-        redis_manager.get_session_client().clone(),
+        redis_manager.get_session_connection(),
         node_id.to_string(),
     );
 
@@ -315,7 +322,7 @@ async fn cleanup_expired_sessions(
     node_id: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let session_manager = redis::session::SessionManager::new(
-        redis_manager.get_session_client().clone(),
+        redis_manager.get_session_connection(),
         node_id.to_string(),
     );
 

@@ -8,12 +8,7 @@ use support::{body_json, spawn_test_app};
 async fn bootstrap_status_required_on_fresh_db() {
     let app = spawn_test_app().await;
     let (status, body) = app.get("/api/admin/bootstrap/status").await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "{}",
-        String::from_utf8_lossy(&body)
-    );
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
     let v = body_json(&body);
     // 兼容 snake_case / camelCase 序列化。
     let required = v["bootstrap_required"]

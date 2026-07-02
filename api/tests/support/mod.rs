@@ -186,16 +186,23 @@ pub async fn spawn_test_app() -> TestApp {
 
     let log_store: Arc<dyn LogStore> = Arc::new(PostgresLogStore::new(database.pool().clone()));
     let connection_manager = Arc::new(websocket::ConnectionManager::new());
+    let pubsub_hub = websocket::PubSubHub::spawn(
+        redis.get_pubsub_client().clone(),
+        connection_manager.clone(),
+    );
 
     let pool = database.pool().clone();
 
-    let state = AppState {
+    let mut state = AppState {
         database,
         redis,
         node_id: "test-node".to_string(),
         log_store,
         connection_manager,
+        pubsub_hub,
+        metrics_recorder: None,
     };
+    state.metrics_recorder = redcode_im_api::middleware::metrics::spawn_metrics_recorder(&state);
 
     let router = create_routes().with_state(state);
 

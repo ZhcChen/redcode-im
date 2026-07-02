@@ -649,7 +649,7 @@ pub async fn deactivate_me(
     }
 
     let session_manager = crate::redis::session::SessionManager::new(
-        state.redis.get_session_client().clone(),
+        state.redis.get_session_connection(),
         state.node_id.clone(),
     );
 

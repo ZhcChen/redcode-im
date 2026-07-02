@@ -16,7 +16,11 @@ RUN apk add --no-cache \
     protobuf-dev \
     tzdata \
     curl \
-    git
+    git \
+    rustfmt
+
+# rust:alpine 的 cargo-fmt 默认指向 rustup；Alpine rustfmt 包提供 /usr/bin/cargo-fmt。
+RUN ln -sf /usr/bin/cargo-fmt /usr/local/cargo/bin/cargo-fmt
 
 # 默认将编译产物放在容器卷里，避免污染宿主机
 ENV CARGO_TARGET_DIR=/app/target

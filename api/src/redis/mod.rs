@@ -1,4 +1,4 @@
-use redis::Client;
+use redis::{aio::MultiplexedConnection, Client};
 use tracing::info;
 
 pub mod cache;
@@ -25,26 +25,35 @@ pub struct RedisManager {
     pub pubsub_client: Client,
     pub cache_client: Client,
     pub session_client: Client,
+    pub pubsub_connection: MultiplexedConnection,
+    pub cache_connection: MultiplexedConnection,
+    pub session_connection: MultiplexedConnection,
 }
 
 impl RedisManager {
     /// 创建 Redis 管理器
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
         dotenvy::dotenv().ok();
-        Self::from_config(RedisConfig::from_env())
+        Self::from_config(RedisConfig::from_env()).await
     }
 
     /// 基于解析后的 Redis 配置创建管理器。
-    pub fn from_config(config: RedisConfig) -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn from_config(config: RedisConfig) -> Result<Self, Box<dyn std::error::Error>> {
         let pubsub_client = Self::open_client("Pub/Sub", config.pubsub_url())?;
         let cache_client = Self::open_client("Cache", config.cache_url())?;
         let session_client = Self::open_client("Session", config.session_url())?;
+        let pubsub_connection = pubsub_client.get_multiplexed_async_connection().await?;
+        let cache_connection = cache_client.get_multiplexed_async_connection().await?;
+        let session_connection = session_client.get_multiplexed_async_connection().await?;
 
         Ok(Self {
             config,
             pubsub_client,
             cache_client,
             session_client,
+            pubsub_connection,
+            cache_connection,
+            session_connection,
         })
     }
 
@@ -93,8 +102,20 @@ impl RedisManager {
         &self.session_client
     }
 
+    pub fn get_pubsub_connection(&self) -> MultiplexedConnection {
+        self.pubsub_connection.clone()
+    }
+
+    pub fn get_cache_connection(&self) -> MultiplexedConnection {
+        self.cache_connection.clone()
+    }
+
+    pub fn get_session_connection(&self) -> MultiplexedConnection {
+        self.session_connection.clone()
+    }
+
     /// 获取会话管理器
     pub fn get_session_manager(&self, node_id: String) -> session::SessionManager {
-        session::SessionManager::new(self.session_client.clone(), node_id)
+        session::SessionManager::new(self.session_connection.clone(), node_id)
     }
 }

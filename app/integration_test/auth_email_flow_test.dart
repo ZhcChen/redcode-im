@@ -27,14 +27,16 @@ void main() {
         password: password,
       );
       expect(registered.email, email);
-      expect(registered.username, email);
+      expect(registered.username, isNot(email));
+      expect(registered.username, startsWith('u_'));
+      expect(registered.username.length, lessThanOrEqualTo(50));
       expect(registered.status, 'active');
 
       final session = await repository.login(email: email, password: password);
       expect(session.token, isNotEmpty);
       expect(session.refreshToken, isNotEmpty);
       expect(session.user.email, email);
-      expect(session.user.username, email);
+      expect(session.user.username, registered.username);
 
       final savedSession = await storage.readSession();
       expect(savedSession, isNotNull);
@@ -45,6 +47,7 @@ void main() {
       final refreshed = await repository.refreshCurrentUser();
       expect(refreshed, isNotNull);
       expect(refreshed!.email, email);
+      expect(refreshed.username, registered.username);
 
       await repository.logout();
       expect(await storage.readSession(), isNull);

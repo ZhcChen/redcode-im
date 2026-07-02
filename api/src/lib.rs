@@ -38,6 +38,8 @@ pub struct AppState {
     pub node_id: String,
     pub log_store: Arc<dyn LogStore>,
     pub connection_manager: std::sync::Arc<websocket::ConnectionManager>,
+    pub pubsub_hub: std::sync::Arc<websocket::PubSubHub>,
+    pub metrics_recorder: Option<middleware::metrics::MetricsRecorder>,
 }
 
 /// 创建应用路由

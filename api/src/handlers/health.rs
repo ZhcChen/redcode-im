@@ -111,11 +111,7 @@ async fn check_redis_session(state: &AppState) -> ComponentCheck {
     let start = Instant::now();
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        let mut conn = state
-            .redis
-            .get_session_client()
-            .get_multiplexed_async_connection()
-            .await?;
+        let mut conn = state.redis.get_session_connection();
         redis::cmd("PING").query_async::<String>(&mut conn).await
     })
     .await
@@ -132,11 +128,7 @@ async fn check_redis_cache(state: &AppState) -> ComponentCheck {
     let start = Instant::now();
 
     match tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        let mut conn = state
-            .redis
-            .get_cache_client()
-            .get_multiplexed_async_connection()
-            .await?;
+        let mut conn = state.redis.get_cache_connection();
         redis::cmd("PING").query_async::<String>(&mut conn).await
     })
     .await

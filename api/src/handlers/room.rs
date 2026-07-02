@@ -713,15 +713,9 @@ pub async fn update_room(
     let payload = PubSubPayload::RoomUpdate { data: room_update };
     let channel = CacheKeys::pubsub_channel(&room_id);
 
-    if let Ok(mut conn) = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await
-    {
-        let encoded = payload.encode_protobuf();
-        let _: Result<i64, _> = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await;
-    }
+    let mut conn = state.redis.get_pubsub_connection();
+    let encoded = payload.encode_protobuf();
+    let _: Result<i64, _> = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await;
 
     Ok(Json(UpdateRoomResponse {
         success: true,
@@ -1025,23 +1019,12 @@ pub async fn commit_room_avatar_upload(
 
     let payload = PubSubPayload::RoomUpdate { data: room_update };
     let channel = CacheKeys::pubsub_channel(&room_id);
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await;
+    let mut conn = state.redis.get_pubsub_connection();
 
-    match conn {
-        Ok(ref mut c) => {
-            let encoded = payload.encode_protobuf();
-            let publish_result: redis::RedisResult<i32> = c.publish(&channel, encoded).await;
-            if let Err(err) = publish_result {
-                tracing::error!("广播房间头像更新失败: {:?}", err);
-            }
-        }
-        Err(err) => {
-            tracing::error!("获取Redis连接失败，无法广播房间更新: {:?}", err);
-        }
+    let encoded = payload.encode_protobuf();
+    let publish_result: redis::RedisResult<i32> = conn.publish(&channel, encoded).await;
+    if let Err(err) = publish_result {
+        tracing::error!("广播房间头像更新失败: {:?}", err);
     }
 
     // 标记文件上传完成（如果之前通过直传签名创建了记录）

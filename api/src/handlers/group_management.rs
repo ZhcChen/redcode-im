@@ -1156,11 +1156,7 @@ pub async fn broadcast_group_settings_update(
     let channel = CacheKeys::pubsub_channel(&settings.room_id);
     let encoded = PubSubPayload::GroupSettingsUpdate { data: payload }.encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
 
     let subscriber_count: i64 = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await?;
 
@@ -1196,11 +1192,7 @@ pub async fn broadcast_group_member_changed(
     let channel = CacheKeys::pubsub_channel(&room_id);
     let encoded = PubSubPayload::GroupMemberChanged { data: payload }.encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
 
     let subscriber_count: i64 = redis::AsyncCommands::publish(&mut conn, &channel, encoded).await?;
 

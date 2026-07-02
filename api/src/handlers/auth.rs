@@ -86,12 +86,7 @@ async fn generate_and_store_refresh_token(
     let value = serde_json::to_string(&payload)
         .map_err(|_| AppError::InternalError("刷新令牌序列化失败".to_string()))?;
 
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     // 设置 30 天 TTL，实现“30 天未使用自动过期”
     conn.set_ex::<_, _, ()>(&key, value, REFRESH_TOKEN_TTL_SECONDS as u64)
@@ -131,21 +126,21 @@ pub async fn register(
     let settings_store = SettingsStore::new(state.database.clone());
     let account_limit = settings_store.get_user_account_limit_setting().await?;
 
-    // 邮箱注册后，用户名默认等于邮箱；显式 username 仅用于兼容旧客户端。
-    let account_name = if requested_username.is_empty() {
-        email.as_str()
+    // 邮箱注册后自动生成短 username；显式 username 仅用于兼容旧客户端。
+    // 不能直接使用 email 作为 username：数据库 username 长度限制为 50，长邮箱会导致 500。
+    let uses_auto_username = requested_username.is_empty() || requested_username == email;
+    let mut account_name = if uses_auto_username {
+        build_email_registration_username()
     } else {
-        requested_username.as_str()
+        requested_username.clone()
     };
-
-    let username_is_same_as_email = !requested_username.is_empty() && requested_username == email;
 
     // 旧客户端显式传非邮箱 username 时，保留原有“账号限制”校验。
     // 新邮箱注册链路只校验 email，避免默认手机号规则阻断邮箱注册。
-    if !requested_username.is_empty() && !username_is_same_as_email {
+    if !uses_auto_username {
         if account_limit.enable_phone_validation {
             let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
-            if !phone_regex.is_match(account_name) {
+            if !phone_regex.is_match(&account_name) {
                 return Err(AppError::ValidationError(
                     "用户名必须符合手机号格式（以1开头的11位数字）".to_string(),
                 ));
@@ -153,7 +148,7 @@ pub async fn register(
         }
 
         if account_limit.enable_email_validation {
-            if !validate_email_format(account_name) {
+            if !validate_email_format(&account_name) {
                 return Err(AppError::ValidationError(
                     "用户名必须符合邮箱格式".to_string(),
                 ));
@@ -187,13 +182,22 @@ pub async fn register(
         return Err(AppError::AlreadyExists("邮箱已被使用".to_string()));
     }
 
-    if store.username_exists(account_name).await? {
+    if uses_auto_username {
+        for _ in 0..3 {
+            if !store.username_exists(&account_name).await? {
+                break;
+            }
+            account_name = build_email_registration_username();
+        }
+    }
+
+    if store.username_exists(&account_name).await? {
         return Err(AppError::AlreadyExists("用户名已被使用".to_string()));
     }
 
     // 转换为数据库层请求
     let create_request = CreateUserRequest {
-        username: account_name.to_string(),
+        username: account_name,
         email: email.clone(),
         password: password.to_string(),
         nickname: payload.nickname.clone(),
@@ -296,12 +300,7 @@ pub async fn refresh_token(
 
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
 
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     let stored: Option<String> = conn
         .get(&key)
@@ -415,12 +414,7 @@ pub async fn send_login_sms(
     let code: u32 = thread_rng().gen_range(100000..=999999);
     let key = format!("auth:sms:{}", phone);
 
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     conn.set_ex::<_, _, ()>(&key, code.to_string(), 300)
         .await
@@ -460,12 +454,7 @@ pub async fn login_with_sms(
     }
 
     let key = format!("auth:sms:{}", phone);
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     let stored: Option<String> = conn
         .get(&key)
@@ -603,12 +592,7 @@ pub async fn reset_password_with_sms(
     }
 
     let key = format!("auth:sms:{}", phone);
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     let stored: Option<String> = conn
         .get(&key)
@@ -1092,12 +1076,7 @@ pub async fn admin_refresh_token(
 
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, token);
 
-    let mut conn = state
-        .redis
-        .get_cache_client()
-        .get_multiplexed_async_connection()
-        .await
-        .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+    let mut conn = state.redis.get_cache_connection();
 
     let stored: Option<String> = conn
         .get(&key)
@@ -1332,6 +1311,10 @@ pub fn validate_alphanumeric(username: &str) -> bool {
     has_letter && has_digit
 }
 
+fn build_email_registration_username() -> String {
+    format!("u_{}", uuid::Uuid::new_v4().simple())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1479,6 +1462,13 @@ mod tests {
     #[test]
     fn test_validate_alphanumeric_empty() {
         assert!(!validate_alphanumeric(""));
+    }
+
+    #[test]
+    fn test_build_email_registration_username_is_short_and_prefixed() {
+        let username = build_email_registration_username();
+        assert!(username.starts_with("u_"));
+        assert!(username.len() <= 50);
     }
 
     // ========================================================================

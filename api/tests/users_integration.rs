@@ -6,14 +6,16 @@ use support::{body_json, spawn_test_app, unique_email, TestApp};
 async fn register_and_login(app: &TestApp, email: &str) -> String {
     let reg = format!(r#"{{"email":"{email}","password":"pass123456","nickname":"{email}"}}"#);
     let (s, b) = app.post_json("/auth/register", &reg).await;
-    assert_eq!(s, StatusCode::OK, "register: {}", String::from_utf8_lossy(&b));
+    assert_eq!(
+        s,
+        StatusCode::OK,
+        "register: {}",
+        String::from_utf8_lossy(&b)
+    );
     let login = format!(r#"{{"email":"{email}","password":"pass123456"}}"#);
     let (s, b) = app.post_json("/auth/login", &login).await;
     assert_eq!(s, StatusCode::OK, "login: {}", String::from_utf8_lossy(&b));
-    body_json(&b)["token"]
-        .as_str()
-        .expect("token")
-        .to_string()
+    body_json(&b)["token"].as_str().expect("token").to_string()
 }
 
 /// 用户搜索需要鉴权。
@@ -31,12 +33,7 @@ async fn user_search_with_token_returns_ok() {
     let email = unique_email("usr");
     let token = register_and_login(&app, &email).await;
     let (status, body) = app.get_authed("/users/search?keyword=usr", &token).await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "{}",
-        String::from_utf8_lossy(&body)
-    );
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
     assert!(body_json(&body).is_array(), "搜索结果应为数组");
 }
 

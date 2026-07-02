@@ -757,12 +757,7 @@ pub async fn send_message(
 
     // 简单速率限制：用户在房间内每10秒最多发送30条
     {
-        let mut conn = state
-            .redis
-            .get_session_client()
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        let mut conn = state.redis.get_session_connection();
 
         let key = format!("rl:send:{}:{}", sender_id, room_id);
         let count: i64 = redis::cmd("INCR")
@@ -1101,12 +1096,7 @@ pub async fn send_encrypted_message(
 
     // 简单速率限制：用户在房间内每10秒最多发送30条
     {
-        let mut conn = state
-            .redis
-            .get_session_client()
-            .get_multiplexed_async_connection()
-            .await
-            .map_err(|_| AppError::CacheError("Redis 连接失败".to_string()))?;
+        let mut conn = state.redis.get_session_connection();
 
         let key = format!("rl:send:{}:{}", sender_id, room_id);
         let count: i64 = redis::cmd("INCR")
@@ -2796,11 +2786,7 @@ pub async fn broadcast_message_to_room(
     let channel = CacheKeys::pubsub_channel(&message.room_id);
 
     // 发布到Redis
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
     let subscriber_count: i64 = conn.publish(&channel, encoded).await?;
 
     info!(
@@ -2818,11 +2804,7 @@ pub async fn broadcast_message_update(
     let channel = CacheKeys::pubsub_channel(&payload.room_id);
     let encoded = PubSubPayload::MessageUpdate { data: payload }.encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 
     info!(
@@ -2840,11 +2822,7 @@ pub async fn broadcast_reaction_update(
     let channel = CacheKeys::pubsub_channel(&payload.room_id);
     let encoded = PubSubPayload::ReactionUpdate { data: payload }.encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 
     info!(
@@ -2862,11 +2840,7 @@ pub async fn broadcast_pin_update(
     let channel = CacheKeys::pubsub_channel(&payload.room_id);
     let encoded = PubSubPayload::PinUpdate { data: payload }.encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 
     info!(
@@ -2887,11 +2861,7 @@ pub async fn broadcast_room_history_cleared(
     }
     .encode_protobuf();
 
-    let mut conn = state
-        .redis
-        .get_pubsub_client()
-        .get_multiplexed_async_connection()
-        .await?;
+    let mut conn = state.redis.get_pubsub_connection();
     let subscriber_count: i64 = conn.publish(&channel, &encoded).await?;
 
     info!(
