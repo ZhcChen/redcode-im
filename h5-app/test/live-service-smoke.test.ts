@@ -39,6 +39,10 @@ describe.skipIf(!enabled)('h5-app live service smoke', () => {
 
     const me = await authService.me();
     expect(me?.email).toBe(owner.email);
+    const updatedMe = await authService.updateProfile({ nickname: `H5 ${Date.now()}` });
+    expect(updatedMe.email).toBe(owner.email);
+    const refreshedMe = await authService.me();
+    expect(refreshedMe?.nickname).toBe(updatedMe.nickname);
 
     const settings = await settingsService.fetchGeneralSettings();
     expect(settings.messageRuntime.serverStorageMode).toBeTruthy();

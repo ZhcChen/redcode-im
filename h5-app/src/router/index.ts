@@ -4,6 +4,11 @@ import LoginView from '@/views/LoginView.vue';
 import HomeView from '@/views/HomeView.vue';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
+import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
+import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
+import DocumentView from '@/views/settings/DocumentView.vue';
+import AboutView from '@/views/settings/AboutView.vue';
+import FeedbackView from '@/views/settings/FeedbackView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -35,6 +40,42 @@ export const router = createRouter({
       path: '/groups/:roomId/settings',
       name: 'group-settings',
       component: GroupSettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/profile',
+      name: 'profile-settings',
+      component: ProfileSettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/security',
+      name: 'account-security',
+      component: AccountSecurityView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/privacy',
+      name: 'privacy-policy',
+      component: DocumentView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/agreement',
+      name: 'user-agreement',
+      component: DocumentView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/about',
+      name: 'about',
+      component: AboutView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/feedback',
+      name: 'feedback',
+      component: FeedbackView,
       meta: { requiresAuth: true },
     },
   ],

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { authService } from '@/services/auth-service';
 import { friendService } from '@/services/friend-service';
 import { messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
@@ -396,6 +397,74 @@ describe('h5 app service contracts', () => {
     expect(settings.appName).toBe('RedCode IM');
     const headers = capturedInit?.headers as Headers;
     expect(headers.get('Authorization')).toBeNull();
+  });
+
+  it('updates profile and changes password through user routes', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/password')) {
+        return mockJson({ success: true });
+      }
+      return mockJson({
+        id: 'u1',
+        username: 'u1@example.com',
+        email: 'u1@example.com',
+        nickname: 'New Name',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const updated = await authService.updateProfile({ nickname: ' New Name ' });
+    await authService.changePassword('old-pass', 'new-pass');
+
+    expect(updated.nickname).toBe('New Name');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:8010/users/me',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ nickname: 'New Name' }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:8010/users/me/password',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ old_password: 'old-pass', new_password: 'new-pass' }),
+      }),
+    );
+  });
+
+  it('loads documents and submits feedback through settings routes', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/feedbacks')) {
+        return mockJson({ success: true, message: '反馈提交成功' });
+      }
+      return mockJson({
+        title: url.includes('privacy') ? '隐私协议' : '用户协议',
+        content: '<p>content</p>',
+        updated_at: '2026-07-02T00:00:00Z',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const privacy = await settingsService.fetchPrivacyPolicy();
+    const agreement = await settingsService.fetchUserAgreement();
+    const feedback = await settingsService.submitFeedback({ content: ' hi ', contact: ' h5@example.com ' });
+
+    expect(privacy.title).toBe('隐私协议');
+    expect(agreement.title).toBe('用户协议');
+    expect(feedback).toBe('反馈提交成功');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      'http://127.0.0.1:8010/feedbacks',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ content: 'hi', contact: 'h5@example.com' }),
+      }),
+    );
   });
 
   it('raises backend error messages as ApiError', async () => {

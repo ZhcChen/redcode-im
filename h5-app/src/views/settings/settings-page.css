@@ -1,0 +1,108 @@
+.settings-page {
+  min-height: 100dvh;
+  background: var(--rc-background);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(var(--rc-safe-top) + 10px) 16px 14px;
+  background: var(--rc-surface);
+  box-shadow: 0 1px 0 var(--rc-divider);
+}
+
+.settings-back {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--rc-text-primary);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.settings-header p,
+.settings-muted {
+  margin: 0;
+  color: var(--rc-text-tertiary);
+  font-size: 12px;
+}
+
+.settings-header h1 {
+  margin: 3px 0 0;
+  color: var(--rc-text-primary);
+  font-size: 19px;
+}
+
+.settings-content {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.settings-card {
+  display: grid;
+  gap: 14px;
+  border-radius: 20px;
+  background: var(--rc-surface);
+  padding: 16px;
+}
+
+.settings-field {
+  display: grid;
+  gap: 8px;
+  color: var(--rc-text-secondary);
+  font-size: 13px;
+}
+
+.settings-field input,
+.settings-field textarea {
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: var(--rc-surface-muted);
+  color: var(--rc-text-primary);
+  padding: 0 12px;
+}
+
+.settings-field input {
+  height: 42px;
+}
+
+.settings-field textarea {
+  min-height: 126px;
+  padding-top: 12px;
+  resize: vertical;
+}
+
+.settings-primary {
+  height: 42px;
+  border-radius: 14px;
+  cursor: pointer;
+  background: var(--rc-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.settings-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.settings-notice {
+  margin: 0;
+  border-radius: 14px;
+  background: var(--rc-surface);
+  color: var(--rc-text-secondary);
+  font-size: 13px;
+  padding: 12px;
+}
+
+.settings-notice--error {
+  background: #feeceb;
+  color: var(--rc-danger);
+}

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
 import { loginWithEmail, registerWithEmail } from '@/api/auth';
-import type { AuthSession } from '@/types/auth';
+import type { AuthSession, AuthUser } from '@/types/auth';
 
 const STORAGE_KEY = 'redcode-h5-session';
 
@@ -67,6 +67,11 @@ export const useAuthStore = defineStore('auth', {
       this.session = null;
       this.error = '';
       writeStoredSession(null);
+    },
+    updateCurrentUser(user: AuthUser) {
+      if (!this.session) return;
+      this.session = { ...this.session, user };
+      writeStoredSession(this.session);
     },
   },
 });

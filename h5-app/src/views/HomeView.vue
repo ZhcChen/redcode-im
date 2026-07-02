@@ -6,6 +6,7 @@ import { useAppShellStore, type AppTab } from '@/stores/app-shell';
 import { useAuthStore } from '@/stores/auth';
 import { formatChatDisplayTime, useChatStore } from '@/stores/chat';
 import { useContactsStore } from '@/stores/contacts';
+import { useSettingsStore } from '@/stores/settings';
 import type { AuthUser } from '@/types/auth';
 import type { FriendInfo, FriendRequestInfo } from '@/types/friend';
 
@@ -21,6 +22,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const chatStore = useChatStore();
 const contactsStore = useContactsStore();
+const settingsStore = useSettingsStore();
 const shellStore = useAppShellStore();
 
 const navItems = computed<NavItem[]>(() => [
@@ -55,6 +57,10 @@ const title = computed(() => {
 
 const logout = async () => {
   chatStore.dispose();
+  chatStore.$reset();
+  contactsStore.dispose();
+  contactsStore.$reset();
+  settingsStore.$reset();
   authStore.logout();
   await router.replace({ name: 'login' });
 };
@@ -299,7 +305,7 @@ onMounted(() => {
       </section>
 
       <section v-else class="panel">
-        <article class="profile-card">
+        <button class="profile-card rc-focus-ring" type="button" @click="router.push({ name: 'profile-settings' })">
           <div class="profile-card__avatar">
             {{ authStore.currentUser?.nickname?.slice(0, 1).toUpperCase() || 'R' }}
           </div>
@@ -307,14 +313,22 @@ onMounted(() => {
             <h2>{{ authStore.currentUser?.nickname || 'RedCode 用户' }}</h2>
             <p>{{ authStore.currentUser?.email }}</p>
           </div>
-        </article>
+        </button>
 
-        <button class="settings-row rc-focus-ring" type="button">
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'account-security' })">
           <span>账号安全</span>
           <strong>›</strong>
         </button>
-        <button class="settings-row rc-focus-ring" type="button">
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'privacy-policy' })">
           <span>隐私协议</span>
+          <strong>›</strong>
+        </button>
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'user-agreement' })">
+          <span>用户协议</span>
+          <strong>›</strong>
+        </button>
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'about' })">
+          <span>关于 RedCode IM</span>
           <strong>›</strong>
         </button>
         <button class="settings-row settings-row--danger rc-focus-ring" type="button" @click="logout">

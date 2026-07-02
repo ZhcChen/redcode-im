@@ -1,6 +1,8 @@
 import { requestJson } from '@/api/http';
 import type { DocumentContent, GeneralSettings, MessageRuntimeSettings } from '@/types/settings';
 
+import { requireToken } from './session';
+
 export const settingsService = {
   async fetchGeneralSettings(): Promise<GeneralSettings> {
     const response = await requestJson<Record<string, unknown>>('/settings/general');
@@ -21,6 +23,17 @@ export const settingsService = {
 
   async fetchUserAgreement(): Promise<DocumentContent> {
     return mapDocument(await requestJson<Record<string, unknown>>('/settings/user-agreement'));
+  },
+
+  async submitFeedback(params: { content: string; contact?: string }): Promise<string> {
+    const response = await requestJson<Record<string, unknown>>('/feedbacks', {
+      method: 'POST',
+      body: JSON.stringify({
+        content: params.content.trim(),
+        ...(params.contact?.trim() ? { contact: params.contact.trim() } : {}),
+      }),
+    }, requireToken());
+    return String(response.message ?? '反馈提交成功');
   },
 };
 
