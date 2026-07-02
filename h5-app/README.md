@@ -10,6 +10,7 @@
 - Pinia 3
 - TypeScript
 - Vitest
+- wa-sqlite（SQLite WASM，本地消息/搜索缓存底座）
 
 说明：当前 `vue-router@5` npm latest 是新一代插件形态，依赖 Pinia Colada，不适合本项目普通 SPA 路由；本模块使用 Vue Router 4 稳定线。
 
@@ -44,5 +45,9 @@ make h5-app.test.live
 - 邮箱注册后自动登录
 - 登录后 App Shell（三栏：聊天、联系人、设置）
 - Flutter 移动端视觉 token 的 H5 复刻基线
+- 本地存储底座：
+  - `MessageStorage` 对齐 Flutter `MessageStorage` 的 room 消息缓存语义，单房间保留最近 200 条
+  - `MessageSearchStorage` 预留 SQLite FTS5 搜索语义
+  - 测试环境使用内存 adapter，浏览器环境使用 wa-sqlite + IndexedDB VFS
 
 后续可继续补聊天详情、联系人管理、设置页完整功能和 WebSocket 实时链路。
