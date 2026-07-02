@@ -49,5 +49,8 @@ make h5-app.test.live
   - `MessageStorage` 对齐 Flutter `MessageStorage` 的 room 消息缓存语义，单房间保留最近 200 条
   - `MessageSearchStorage` 预留 SQLite FTS5 搜索语义
   - 测试环境使用内存 adapter，浏览器环境使用 wa-sqlite + IndexedDB VFS
+- API/service parity 底座：
+  - `authService` / `friendService` / `roomService` / `messageService` / `settingsService`
+  - 请求路径与 payload 优先对齐 Flutter `app/lib/core/services/` 和 `api/src/routes.rs`
 
 后续可继续补聊天详情、联系人管理、设置页完整功能和 WebSocket 实时链路。

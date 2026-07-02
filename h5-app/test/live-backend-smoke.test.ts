@@ -26,5 +26,10 @@ describe.skipIf(!enabled)('h5-app live backend smoke', () => {
     const payload = (await loginResponse.json()) as { token?: string; user?: { email?: string } };
     expect(payload.token).toBeTruthy();
     expect(payload.user?.email).toBe(email);
+
+    const meResponse = await fetch(`${apiBaseUrl}/auth/me`, {
+      headers: { Authorization: `Bearer ${payload.token}` },
+    });
+    expect(meResponse.ok).toBe(true);
   });
 });

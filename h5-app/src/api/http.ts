@@ -54,3 +54,13 @@ export async function requestJson<T>(
 
   return payload as T;
 }
+
+export const withQuery = (path: string, query: Record<string, string | number | boolean | null | undefined>) => {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    params.set(key, String(value));
+  });
+  const serialized = params.toString();
+  return serialized ? `${path}?${serialized}` : path;
+};

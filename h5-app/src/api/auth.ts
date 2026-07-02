@@ -10,6 +10,8 @@ const mapUser = (user: BackendUser): AuthUser => {
     nickname: user.nickname || email || 'RedCode 用户',
     email,
     status: user.status ?? 'active',
+    avatarUrl: user.avatar_url ?? null,
+    avatarObjectKey: user.avatar_object_key ?? null,
   };
 };
 

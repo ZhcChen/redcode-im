@@ -139,7 +139,7 @@ flowchart TB
 - H5 类型检查和 storage 单测通过。
 - 浏览器构建不因 WASM 依赖失败。
 
-- [ ] **Unit 2: H5 API/service parity 层**
+- [x] **Unit 2: H5 API/service parity 层**
 
 **Goal:** 把 Flutter 的 Auth/Friend/Room/Message/User/Settings 服务迁移为 H5 TypeScript service 层。
 
