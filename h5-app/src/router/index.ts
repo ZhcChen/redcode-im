@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '@/views/LoginView.vue';
 import HomeView from '@/views/HomeView.vue';
 import ChatDetailView from '@/views/ChatDetailView.vue';
+import GroupSettingsView from '@/views/GroupSettingsView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -28,6 +29,12 @@ export const router = createRouter({
       path: '/chats/:roomId',
       name: 'chat-detail',
       component: ChatDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:roomId/settings',
+      name: 'group-settings',
+      component: GroupSettingsView,
       meta: { requiresAuth: true },
     },
   ],

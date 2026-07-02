@@ -91,6 +91,91 @@ describe('h5 app service contracts', () => {
     );
   });
 
+  it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/respond')) {
+        return mockJson({
+          id: 'req1',
+          requester_id: 'u2',
+          target_user_id: 'u1',
+          status: 'accepted',
+        });
+      }
+      return mockJson([
+        {
+          id: 'req1',
+          requester_id: 'u2',
+          target_user_id: 'u1',
+          status: 'pending',
+          requester: {
+            id: 'u2',
+            username: 'bear@example.com',
+            email: 'bear@example.com',
+            nickname: 'Bear',
+          },
+        },
+      ]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const requests = await friendService.fetchFriendRequests({ direction: 'incoming', status: 'pending' });
+    const accepted = await friendService.respondFriendRequest('req1', 'accept');
+
+    expect(requests[0]).toMatchObject({
+      id: 'req1',
+      requesterId: 'u2',
+      requester: expect.objectContaining({ nickname: 'Bear' }),
+    });
+    expect(accepted.status).toBe('accepted');
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://127.0.0.1:8010/friends/requests?direction=incoming&status=pending',
+      expect.any(Object),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:8010/friends/requests/req1/respond',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'accept' }),
+      }),
+    );
+  });
+
+  it('loads friends and ensures private chats through friend routes', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/chat')) {
+        return mockJson({ room_id: 'r1', room_type: 'private', created: true });
+      }
+      return mockJson([
+        {
+          id: 'f1',
+          user: {
+            id: 'u2',
+            username: 'bear@example.com',
+            email: 'bear@example.com',
+            nickname: 'Bear',
+          },
+          created_at: '2026-07-02T00:00:00Z',
+        },
+      ]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const friends = await friendService.fetchFriends();
+    const chat = await friendService.ensurePrivateChat('u2');
+
+    expect(friends[0]?.user.nickname).toBe('Bear');
+    expect(chat).toMatchObject({ roomId: 'r1', roomType: 'private', created: true });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://127.0.0.1:8010/friends/u2/chat',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
   it('loads messages with pagination params and maps timestamps', async () => {
     vi.stubGlobal(
       'fetch',

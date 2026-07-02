@@ -36,6 +36,11 @@ const goBack = async () => {
   await router.push({ name: 'home' });
 };
 
+const openGroupSettings = async () => {
+  if (!roomId.value) return;
+  await router.push({ name: 'group-settings', params: { roomId: roomId.value } });
+};
+
 const isSelf = (message: ChatMessage) => message.senderId === currentUserId.value;
 
 const messageStatusLabel = (message: ChatMessage) => {
@@ -85,6 +90,15 @@ watch(() => detailStore.messages.length, () => {
         <h1>{{ detailStore.title }}</h1>
         <p>{{ detailStore.loading ? '同步中' : `${detailStore.messages.length} 条消息` }}</p>
       </div>
+      <button
+        v-if="detailStore.chat?.type === 'group'"
+        class="chat-detail__settings rc-focus-ring"
+        type="button"
+        aria-label="群设置"
+        @click="openGroupSettings"
+      >
+        ⋯
+      </button>
     </header>
 
     <section ref="listEl" class="message-list" aria-label="聊天消息">
@@ -201,6 +215,19 @@ watch(() => detailStore.messages.length, () => {
   background: transparent;
   color: var(--rc-text-primary);
   font-size: 34px;
+  line-height: 1;
+}
+
+.chat-detail__settings {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--rc-text-primary);
+  font-size: 24px;
   line-height: 1;
 }
 

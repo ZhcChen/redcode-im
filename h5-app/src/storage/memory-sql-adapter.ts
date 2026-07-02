@@ -25,10 +25,17 @@ export interface MemoryChatSummaryRow extends SqlRow {
   payload: string;
 }
 
+export interface MemoryContactRow extends SqlRow {
+  friend_user_id: string;
+  display_name: string;
+  payload: string;
+}
+
 export class MemorySqlAdapter implements SqlAdapter {
   readonly messages = new Map<string, MemoryMessageRow>();
   readonly searchRows = new Map<string, MemorySearchRow>();
   readonly chatRows = new Map<string, MemoryChatSummaryRow>();
+  readonly contactRows = new Map<string, MemoryContactRow>();
 
   async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
     const normalized = normalizeSql(sql);
@@ -98,6 +105,21 @@ export class MemorySqlAdapter implements SqlAdapter {
       }
       return;
     }
+    if (normalized.startsWith('delete from contacts')) {
+      this.contactRows.clear();
+      return;
+    }
+    if (normalized.startsWith('insert or replace into contacts')) {
+      const [friendUserId, displayName, payload] = params;
+      if (typeof friendUserId === 'string' && typeof payload === 'string') {
+        this.contactRows.set(friendUserId, {
+          friend_user_id: friendUserId,
+          display_name: String(displayName ?? ''),
+          payload,
+        });
+      }
+      return;
+    }
   }
 
   async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
@@ -121,6 +143,11 @@ export class MemorySqlAdapter implements SqlAdapter {
         .sort((a, b) => a.pinned_rank - b.pinned_rank || b.last_message_time - a.last_message_time)
         .map((row) => ({ ...row }) as unknown as T);
     }
+    if (normalized.includes('from contacts')) {
+      return [...this.contactRows.values()]
+        .sort((a, b) => a.display_name.localeCompare(b.display_name, 'zh-Hans-CN'))
+        .map((row) => ({ ...row }) as unknown as T);
+    }
     return [];
   }
 
@@ -128,6 +155,7 @@ export class MemorySqlAdapter implements SqlAdapter {
     const messages = new Map(this.messages);
     const searchRows = new Map(this.searchRows);
     const chatRows = new Map(this.chatRows);
+    const contactRows = new Map(this.contactRows);
     try {
       return await work();
     } catch (error) {
@@ -137,6 +165,8 @@ export class MemorySqlAdapter implements SqlAdapter {
       searchRows.forEach((value, key) => this.searchRows.set(key, value));
       this.chatRows.clear();
       chatRows.forEach((value, key) => this.chatRows.set(key, value));
+      this.contactRows.clear();
+      contactRows.forEach((value, key) => this.contactRows.set(key, value));
       throw error;
     }
   }
@@ -145,6 +175,7 @@ export class MemorySqlAdapter implements SqlAdapter {
     this.messages.clear();
     this.searchRows.clear();
     this.chatRows.clear();
+    this.contactRows.clear();
   }
 
   private querySearch<T>(normalized: string, params: readonly SqlValue[]) {

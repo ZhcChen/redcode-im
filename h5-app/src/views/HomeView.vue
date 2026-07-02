@@ -5,6 +5,9 @@ import { useRouter } from 'vue-router';
 import { useAppShellStore, type AppTab } from '@/stores/app-shell';
 import { useAuthStore } from '@/stores/auth';
 import { formatChatDisplayTime, useChatStore } from '@/stores/chat';
+import { useContactsStore } from '@/stores/contacts';
+import type { AuthUser } from '@/types/auth';
+import type { FriendInfo, FriendRequestInfo } from '@/types/friend';
 
 interface NavItem {
   key: AppTab;
@@ -17,6 +20,7 @@ interface NavItem {
 const router = useRouter();
 const authStore = useAuthStore();
 const chatStore = useChatStore();
+const contactsStore = useContactsStore();
 const shellStore = useAppShellStore();
 
 const navItems = computed<NavItem[]>(() => [
@@ -69,9 +73,40 @@ const connectionLabel = computed(() => {
 });
 
 const chats = computed(() => chatStore.filteredChats);
+const groups = computed(() => chatStore.chats.filter((chat) => chat.type === 'group'));
+
+const displayFriendName = (friend: FriendInfo) =>
+  friend.remark?.trim() || friend.user.nickname || friend.user.email || friend.user.username || 'RedCode 用户';
+
+const displayRequestUser = (request: FriendRequestInfo) =>
+  request.requester?.nickname || request.requester?.email || request.requesterId || 'RedCode 用户';
+
+const displayUserName = (user: AuthUser) =>
+  user.nickname || user.email || user.username || 'RedCode 用户';
+
+const initialOf = (value: string) => value.trim().slice(0, 1).toUpperCase() || 'R';
+
+const openPrivateChat = async (friendUserId: string) => {
+  const roomId = await contactsStore.openPrivateChat(friendUserId);
+  if (roomId) {
+    await router.push({ name: 'chat-detail', params: { roomId } });
+  }
+};
+
+const createGroup = async () => {
+  const roomId = await contactsStore.createGroup();
+  if (roomId) {
+    await router.push({ name: 'chat-detail', params: { roomId } });
+  }
+};
+
+const openGroupSettings = async (roomId: string) => {
+  await router.push({ name: 'group-settings', params: { roomId } });
+};
 
 onMounted(() => {
   void chatStore.initialize();
+  void contactsStore.initialize();
 });
 </script>
 
@@ -132,20 +167,135 @@ onMounted(() => {
       </section>
 
       <section v-else-if="shellStore.activeTab === 'contacts'" class="panel">
-        <article class="work-card">
-          <div class="work-card__icon">+</div>
-          <div>
+        <form class="search-box search-box--with-action" @submit.prevent="contactsStore.searchUsers()">
+          <label>
+            <span class="sr-only">搜索用户或联系人</span>
+            <input
+              :value="contactsStore.searchKeyword"
+              class="rc-focus-ring"
+              placeholder="搜索邮箱 / 昵称"
+              @input="contactsStore.setSearchKeyword(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <button class="inline-action rc-focus-ring" type="submit" :disabled="contactsStore.searching">
+            搜索
+          </button>
+        </form>
+
+        <p v-if="contactsStore.error" class="chat-notice chat-notice--error">{{ contactsStore.error }}</p>
+
+        <section v-if="contactsStore.searchResults.length" class="contact-section">
+          <div class="section-title">
+            <h2>搜索结果</h2>
+            <span>{{ contactsStore.searchResults.length }} 个用户</span>
+          </div>
+          <article v-for="user in contactsStore.searchResults" :key="user.id" class="contact-row">
+            <div class="contact-row__avatar">{{ initialOf(displayUserName(user)) }}</div>
+            <div class="contact-row__body">
+              <h3>{{ displayUserName(user) }}</h3>
+              <p>{{ user.email || user.username }}</p>
+            </div>
+            <button class="mini-action rc-focus-ring" type="button" @click="contactsStore.sendFriendRequest(user.id)">
+              添加
+            </button>
+          </article>
+        </section>
+
+        <section class="contact-section">
+          <div class="section-title">
             <h2>新的朋友</h2>
-            <p>{{ shellStore.pendingFriends }} 条待处理好友请求</p>
+            <span>{{ contactsStore.pendingIncomingCount }} 条待处理</span>
           </div>
-        </article>
-        <article class="work-card">
-          <div class="work-card__icon">群</div>
-          <div>
+          <p v-if="contactsStore.incomingRequests.length === 0" class="chat-empty">暂无好友请求。</p>
+          <article
+            v-for="request in contactsStore.incomingRequests"
+            :key="request.id"
+            class="contact-row contact-row--request"
+          >
+            <div class="contact-row__avatar">{{ initialOf(displayRequestUser(request)) }}</div>
+            <div class="contact-row__body">
+              <h3>{{ displayRequestUser(request) }}</h3>
+              <p>{{ request.message || '请求添加你为好友' }}</p>
+            </div>
+            <div v-if="request.status === 'pending'" class="contact-row__actions">
+              <button class="mini-action rc-focus-ring" type="button" @click="contactsStore.respondRequest(request.id, 'accept')">
+                同意
+              </button>
+              <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="contactsStore.respondRequest(request.id, 'reject')">
+                拒绝
+              </button>
+            </div>
+            <span v-else class="status-pill">{{ request.status }}</span>
+          </article>
+        </section>
+
+        <section class="contact-section">
+          <div class="section-title">
+            <h2>联系人</h2>
+            <span>{{ contactsStore.filteredFriends.length }} 人</span>
+          </div>
+          <p v-if="contactsStore.refreshing && contactsStore.friends.length === 0" class="chat-empty">正在加载联系人...</p>
+          <p v-else-if="contactsStore.filteredFriends.length === 0" class="chat-empty">暂无联系人，搜索邮箱添加好友。</p>
+          <article v-for="friend in contactsStore.filteredFriends" :key="friend.user.id" class="contact-row">
+            <div class="contact-row__avatar">{{ initialOf(displayFriendName(friend)) }}</div>
+            <div class="contact-row__body">
+              <h3>{{ displayFriendName(friend) }}</h3>
+              <p>{{ friend.user.email || friend.user.username }}</p>
+            </div>
+            <button class="mini-action rc-focus-ring" type="button" @click="openPrivateChat(friend.user.id)">
+              私聊
+            </button>
+          </article>
+        </section>
+
+        <section class="contact-section">
+          <div class="section-title">
+            <h2>新建群聊</h2>
+            <span>{{ contactsStore.selectedFriendIds.length }} 人已选</span>
+          </div>
+          <input
+            v-model="contactsStore.groupName"
+            class="group-input rc-focus-ring"
+            placeholder="群名称"
+          />
+          <div class="group-picker">
+            <button
+              v-for="friend in contactsStore.friends"
+              :key="friend.user.id"
+              class="group-chip rc-focus-ring"
+              :class="{ 'group-chip--active': contactsStore.selectedFriendIds.includes(friend.user.id) }"
+              type="button"
+              @click="contactsStore.toggleGroupMember(friend.user.id)"
+            >
+              {{ displayFriendName(friend) }}
+            </button>
+          </div>
+          <button
+            class="primary-action rc-focus-ring"
+            type="button"
+            :disabled="contactsStore.submitting || !contactsStore.groupName.trim() || contactsStore.selectedFriendIds.length === 0"
+            @click="createGroup"
+          >
+            创建群聊
+          </button>
+        </section>
+
+        <section v-if="groups.length" class="contact-section">
+          <div class="section-title">
             <h2>群聊</h2>
-            <p>查看已加入的群组和成员</p>
+            <span>{{ groups.length }} 个</span>
           </div>
-        </article>
+          <article v-for="group in groups" :key="group.roomId" class="contact-row">
+            <div class="contact-row__avatar">群</div>
+            <div class="contact-row__body">
+              <h3>{{ group.name }}</h3>
+              <p>{{ group.lastMessage || '暂无消息' }}</p>
+            </div>
+            <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="openGroupSettings(group.roomId)">
+              设置
+            </button>
+          </article>
+        </section>
       </section>
 
       <section v-else class="panel">
@@ -196,6 +346,7 @@ onMounted(() => {
 .home-page {
   position: relative;
   min-height: 100dvh;
+  overflow-x: hidden;
   padding-bottom: calc(76px + var(--rc-safe-bottom));
 }
 
@@ -260,6 +411,10 @@ onMounted(() => {
   gap: 12px;
 }
 
+.panel > * {
+  min-width: 0;
+}
+
 .search-box input {
   width: 100%;
   height: 44px;
@@ -268,6 +423,38 @@ onMounted(() => {
   background: var(--rc-surface-muted);
   color: var(--rc-text-primary);
   padding: 0 18px;
+}
+
+.search-box--with-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.search-box--with-action label {
+  min-width: 0;
+}
+
+.inline-action,
+.mini-action,
+.primary-action {
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.inline-action {
+  min-width: 62px;
+  background: var(--rc-primary);
+  color: #fff;
+}
+
+.inline-action:disabled,
+.primary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .chat-row,
@@ -362,6 +549,144 @@ onMounted(() => {
 .chat-notice--error {
   background: #feeceb;
   color: var(--rc-danger);
+}
+
+.contact-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  border-radius: 20px;
+  background: var(--rc-surface);
+  padding: 14px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title h2 {
+  margin: 0;
+  color: var(--rc-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.section-title span {
+  color: var(--rc-text-tertiary);
+  font-size: 12px;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 58px;
+  padding: 6px 0;
+}
+
+.contact-row + .contact-row {
+  border-top: 1px solid var(--rc-divider);
+}
+
+.contact-row__avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--rc-primary-soft);
+  color: var(--rc-primary-strong);
+  font-weight: 700;
+}
+
+.contact-row__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.contact-row__body h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--rc-text-primary);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-row__body p {
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: var(--rc-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contact-row__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.mini-action {
+  min-width: 48px;
+  height: 32px;
+  background: var(--rc-primary);
+  color: #fff;
+  font-size: 12px;
+}
+
+.mini-action--ghost {
+  background: var(--rc-surface-muted);
+  color: var(--rc-text-secondary);
+}
+
+.status-pill {
+  border-radius: 999px;
+  background: var(--rc-surface-muted);
+  color: var(--rc-text-tertiary);
+  font-size: 12px;
+  padding: 5px 9px;
+}
+
+.group-input {
+  width: 100%;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--rc-surface-muted);
+  color: var(--rc-text-primary);
+  padding: 0 12px;
+}
+
+.group-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.group-chip {
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--rc-surface-muted);
+  color: var(--rc-text-secondary);
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+.group-chip--active {
+  background: var(--rc-primary-soft);
+  color: var(--rc-primary-strong);
+  font-weight: 700;
+}
+
+.primary-action {
+  height: 42px;
+  background: var(--rc-primary);
+  color: #fff;
 }
 
 .badge,

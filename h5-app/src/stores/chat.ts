@@ -148,12 +148,24 @@ export const useChatStore = defineStore('chat', {
       );
       await persistChatSummaries(this.chats);
       try {
-        await roomService.pinRoom(roomId, pinned);
+        if (!appEnv.useMockData) {
+          await roomService.pinRoom(roomId, pinned);
+        }
       } catch (error) {
         this.chats = previous;
         await persistChatSummaries(this.chats);
         throw error;
       }
+    },
+
+    async upsertChatSummary(chat: ChatSummary) {
+      if (!chat.roomId) return;
+      this.chats = sortChats([
+        ...this.chats.filter((item) => item.roomId !== chat.roomId),
+        chat,
+      ]);
+      await persistChatSummaries(this.chats);
+      this.syncWebSocketRooms();
     },
 
     async handleWebSocketEvent(event: WebSocketServerEvent) {

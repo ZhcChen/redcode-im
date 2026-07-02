@@ -242,7 +242,7 @@ flowchart TB
 **Verification:**
 - H5 可完成真实后端单聊/群聊基础收发。
 
-- [ ] **Unit 5: Contacts、好友申请与群聊设置**
+- [x] **Unit 5: Contacts、好友申请与群聊设置**
 
 **Goal:** 迁移联系人、好友申请、新建群聊、群设置和群管理流程。
 
