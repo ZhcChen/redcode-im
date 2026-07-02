@@ -310,7 +310,7 @@ flowchart TB
 **Verification:**
 - H5 设置核心流程对齐 Flutter。
 
-- [ ] **Unit 7: 媒体、头像、附件和表情缓存**
+- [x] **Unit 7: 媒体、头像、附件和表情缓存**
 
 **Goal:** 把 Flutter 文件路径缓存迁移为浏览器 cacheKey/blobUrl/objectUrl 模型。
 
@@ -322,6 +322,7 @@ flowchart TB
 - Create: `h5-app/src/storage/blob-cache.ts`
 - Create: `h5-app/src/services/avatar-cache.ts`
 - Create: `h5-app/src/services/attachment-cache.ts`
+- Create: `h5-app/src/services/emoji-cache.ts`
 - Test: `h5-app/test/blob-cache.test.ts`
 
 **Approach:**

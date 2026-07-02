@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import CachedAttachment from '@/components/CachedAttachment.vue';
+import CachedAvatar from '@/components/CachedAvatar.vue';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import { useChatDetailStore } from '@/stores/chat-detail';
@@ -118,9 +120,15 @@ watch(() => detailStore.messages.length, () => {
         class="message-row"
         :class="{ 'message-row--self': isSelf(message) }"
       >
-        <div v-if="!isSelf(message)" class="message-row__avatar">
-          {{ (message.senderName || 'R').slice(0, 1).toUpperCase() }}
-        </div>
+        <CachedAvatar
+          v-if="!isSelf(message)"
+          class="message-row__avatar"
+          kind="user"
+          :entity-id="message.senderId"
+          :object-key="message.raw?.sender_avatar_object_key ? String(message.raw.sender_avatar_object_key) : null"
+          :label="message.senderName || 'RedCode 用户'"
+          :size="34"
+        />
         <div class="message-row__body">
           <p v-if="!isSelf(message)" class="message-row__sender">{{ message.senderName || 'RedCode 用户' }}</p>
           <div class="message-bubble">
@@ -134,6 +142,12 @@ watch(() => detailStore.messages.length, () => {
               {{ quotePreview(message) }}
             </button>
             {{ message.isDeleted ? '[消息已删除]' : message.content }}
+            <CachedAttachment
+              v-for="attachment in message.attachments ?? []"
+              :key="attachment.key"
+              :room-id="message.roomId"
+              :attachment="attachment"
+            />
           </div>
           <div v-if="!message.isDeleted" class="message-row__actions">
             <button class="rc-focus-ring" type="button" @click="detailStore.quoteMessage(message.id)">引用</button>

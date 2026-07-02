@@ -4,6 +4,7 @@ import type {
   ChatMessageQuote,
   ChatSummary,
   ChatType,
+  MessageAttachment,
   MessageSearchResponse,
   MessageSearchResult,
   MessageType,
@@ -154,6 +155,7 @@ const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatM
   pinnedAt: parseOptionalTimestamp(row.pinned_at),
   pinnedBy: row.pinned_by == null ? null : String(row.pinned_by),
   quotedMessage: mapQuotedMessage(row.quoted_message),
+  attachments: mapMessageAttachments(row.parts ?? row.attachments),
   raw: row,
 });
 
@@ -186,6 +188,34 @@ const mapSearchResult = (row: Record<string, unknown>): MessageSearchResult => (
   relevanceScore: Number(row.relevance_score ?? 0),
   matchedText: row.matched_text == null ? undefined : String(row.matched_text),
 });
+
+export const mapMessageAttachments = (value: unknown): MessageAttachment[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const row = item as Record<string, unknown>;
+    const attachment = normalizeObject(row.attachment);
+    const key = attachment?.key ?? row.attachment_key ?? row.object_key ?? row.key ?? row.thumbnail_key;
+    if (typeof key !== 'string' || !key) return [];
+    return [{
+      key,
+      name: stringOrUndefined(attachment?.name ?? row.file_name ?? row.name),
+      mimeType: stringOrUndefined(attachment?.mime ?? row.attachment_mime ?? row.mime),
+      size: numberOrUndefined(attachment?.size ?? row.attachment_size ?? row.size),
+      cacheKey: `message:${key}`,
+    }];
+  });
+};
+
+const stringOrUndefined = (value: unknown) => (
+  value === null || value === undefined || value === '' ? undefined : String(value)
+);
+
+const numberOrUndefined = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return undefined;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+};
 
 const normalizeMessageType = (value: unknown): MessageType => {
   const normalized = String(value ?? 'text');

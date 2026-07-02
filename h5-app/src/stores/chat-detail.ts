@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { messageService } from '@/services/message-service';
+import { mapMessageAttachments, messageService } from '@/services/message-service';
 import { webSocketService, type WebSocketServerEvent } from '@/services/websocket-service';
 import { MessageStorage } from '@/storage/message-storage';
 import type { ChatMessage, ChatMessageQuote, ChatSummary, MessageType } from '@/types/chat';
@@ -335,6 +335,7 @@ const messageFromEvent = (event: WebSocketServerEvent): ChatMessage => ({
   pinnedAt: parseOptionalTimestamp(event.pinned_at),
   pinnedBy: event.pinned_by == null ? null : String(event.pinned_by),
   quotedMessage: quotedMessageFromEvent(event.quoted_message),
+  attachments: mapMessageAttachments(event.parts ?? event.attachments),
   raw: event,
 });
 

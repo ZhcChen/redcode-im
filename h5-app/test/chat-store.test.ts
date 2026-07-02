@@ -99,6 +99,42 @@ describe('chat store', () => {
     expect(store.chats[0]?.unreadCount).toBe(3);
   });
 
+  it('persists websocket message attachments in the local message cache', async () => {
+    const store = useChatStore();
+    store.chats = [chat('r1')];
+
+    await store.handleWebSocketEvent({
+      type: 'message',
+      id: 'm-file',
+      room_id: 'r1',
+      sender_id: 'u2',
+      sender_nickname: 'Bear',
+      content: '',
+      message_type: 'file',
+      timestamp: '2026-07-02T01:00:00Z',
+      parts: [{
+        part_type: 'file',
+        attachment: {
+          key: 'messages/r1/files/a.pdf',
+          name: 'a.pdf',
+          mime: 'application/pdf',
+          size: 456,
+        },
+      }],
+    });
+
+    const messages = await new MessageStorage(async () => adapter).loadMessages('r1');
+    expect(messages[0]?.attachments).toEqual([
+      {
+        key: 'messages/r1/files/a.pdf',
+        name: 'a.pdf',
+        mimeType: 'application/pdf',
+        size: 456,
+        cacheKey: 'message:messages/r1/files/a.pdf',
+      },
+    ]);
+  });
+
   it('formats chat display time like Flutter chat model', () => {
     const now = new Date('2026-07-02T10:30:00+08:00');
 

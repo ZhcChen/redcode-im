@@ -69,5 +69,9 @@ make h5-app.test.live
   - 设置 tab 连接个人资料、账号安全、隐私协议、用户协议、关于和反馈页面
   - 个人资料支持昵称更新并同步 localStorage session；账号安全支持修改密码
   - 隐私协议/用户协议复用后端公开 settings 文档，反馈提交走 `/feedbacks`
+- 媒体缓存：
+  - `BlobCache` 用 Cache API + localStorage metadata 保存头像、附件、表情资源，测试环境降级为内存 Blob
+  - 用户头像、群头像、消息附件和表情图片统一用 `objectKey -> objectUrl`，不依赖手机本机路径
+  - 消息 `parts` 会映射为 H5 `attachments`，HTTP 历史消息和 WebSocket 实时消息都能渲染附件预览
 
-后续可继续补媒体缓存、本地消息搜索页面和头像上传浏览器能力。
+后续可继续补本地消息搜索页面和头像上传浏览器能力。

@@ -210,6 +210,49 @@ describe('h5 app service contracts', () => {
     expect(messages[0]?.timestamp).toBe(Date.parse('2026-07-02T01:00:00Z'));
   });
 
+  it('maps backend message parts to H5 attachments', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        mockJson([
+          {
+            id: 'm1',
+            room_id: 'r1',
+            sender_id: 'u2',
+            sender_name: 'Bear',
+            content: '',
+            message_type: 'image',
+            created_at: '2026-07-02T01:00:00Z',
+            parts: [
+              {
+                position: 0,
+                part_type: 'image',
+                attachment: {
+                  key: 'messages/r1/images/a.png',
+                  name: 'a.png',
+                  mime: 'image/png',
+                  size: 123,
+                },
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const messages = await messageService.loadMessages('r1');
+
+    expect(messages[0]?.attachments).toEqual([
+      {
+        key: 'messages/r1/images/a.png',
+        name: 'a.png',
+        mimeType: 'image/png',
+        size: 123,
+        cacheKey: 'message:messages/r1/images/a.png',
+      },
+    ]);
+  });
+
   it('maps chat summaries with backend last_message preview', async () => {
     vi.stubGlobal(
       'fetch',

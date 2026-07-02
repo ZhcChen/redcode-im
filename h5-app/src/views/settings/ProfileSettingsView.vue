@@ -2,6 +2,7 @@
 import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
+import CachedAvatar from '@/components/CachedAvatar.vue';
 import { useSettingsStore } from '@/stores/settings';
 
 const router = useRouter();
@@ -31,7 +32,15 @@ onMounted(() => {
       <p v-if="store.notice" class="settings-notice">{{ store.notice }}</p>
 
       <section class="settings-card settings-card--center">
-        <div class="profile-avatar">{{ store.avatarInitial }}</div>
+        <CachedAvatar
+          v-if="store.user"
+          class="profile-avatar"
+          kind="user"
+          :entity-id="store.user.id"
+          :object-key="store.user.avatarObjectKey"
+          :label="store.displayName"
+          :size="92"
+        />
         <p class="settings-muted">头像上传将在媒体缓存单元接入浏览器文件能力。</p>
       </section>
 

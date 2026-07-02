@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
+import CachedAvatar from '@/components/CachedAvatar.vue';
 import { useGroupSettingsStore } from '@/stores/group-settings';
 
 const route = useRoute();
@@ -62,7 +63,13 @@ onMounted(() => {
         </div>
         <div class="member-grid">
           <article v-for="member in store.members" :key="member.userId" class="member-card">
-            <div class="member-card__avatar">{{ (member.nickname || member.username || 'R').slice(0, 1).toUpperCase() }}</div>
+            <CachedAvatar
+              class="member-card__avatar"
+              kind="user"
+              :entity-id="member.userId"
+              :label="member.nickname || member.username || 'RedCode 用户'"
+              :size="38"
+            />
             <div>
               <h3>{{ member.nickname || member.username || 'RedCode 用户' }}</h3>
               <p>{{ member.role || 'member' }}</p>

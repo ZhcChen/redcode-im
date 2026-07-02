@@ -162,6 +162,41 @@ describe('chat detail store', () => {
     });
   });
 
+  it('maps websocket message parts into local attachments', async () => {
+    const store = useChatDetailStore();
+    await store.enterRoom('r1');
+
+    await store.handleWebSocketEvent({
+      type: 'message',
+      id: 'm-attachment',
+      room_id: 'r1',
+      sender_id: 'u2',
+      sender_nickname: 'Bear',
+      content: '',
+      message_type: 'image',
+      timestamp: '2026-07-02T01:00:00Z',
+      parts: [{
+        part_type: 'image',
+        attachment: {
+          key: 'messages/r1/images/a.png',
+          name: 'a.png',
+          mime: 'image/png',
+          size: 123,
+        },
+      }],
+    });
+
+    expect(store.messages.find((item) => item.id === 'm-attachment')?.attachments).toEqual([
+      {
+        key: 'messages/r1/images/a.png',
+        name: 'a.png',
+        mimeType: 'image/png',
+        size: 123,
+        cacheKey: 'message:messages/r1/images/a.png',
+      },
+    ]);
+  });
+
   it('deduplicates websocket and local messages by id', () => {
     const merged = mergeMessages(
       [message('m1', { content: 'old', timestamp: 1 })],

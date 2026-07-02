@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
+import CachedAvatar from '@/components/CachedAvatar.vue';
 import { useAppShellStore, type AppTab } from '@/stores/app-shell';
 import { useAuthStore } from '@/stores/auth';
 import { formatChatDisplayTime, useChatStore } from '@/stores/chat';
@@ -90,8 +91,6 @@ const displayRequestUser = (request: FriendRequestInfo) =>
 const displayUserName = (user: AuthUser) =>
   user.nickname || user.email || user.username || 'RedCode 用户';
 
-const initialOf = (value: string) => value.trim().slice(0, 1).toUpperCase() || 'R';
-
 const openPrivateChat = async (friendUserId: string) => {
   const roomId = await contactsStore.openPrivateChat(friendUserId);
   if (roomId) {
@@ -129,7 +128,14 @@ onMounted(() => {
             {{ connectionLabel }}
           </span>
           <div class="home-header__avatar" aria-label="当前用户">
-            {{ authStore.currentUser?.nickname?.slice(0, 1).toUpperCase() || 'R' }}
+            <CachedAvatar
+              v-if="authStore.currentUser"
+              kind="user"
+              :entity-id="authStore.currentUser.id"
+              :object-key="authStore.currentUser.avatarObjectKey"
+              :label="authStore.currentUser.nickname || authStore.currentUser.email"
+              :size="42"
+            />
           </div>
         </div>
       </header>
@@ -160,7 +166,14 @@ onMounted(() => {
           type="button"
           @click="openChat(chat.roomId)"
         >
-          <div class="chat-row__avatar">{{ chat.name.slice(0, 1) }}</div>
+          <CachedAvatar
+            class="chat-row__avatar"
+            :kind="chat.type === 'group' ? 'room' : 'user'"
+            :entity-id="chat.type === 'group' ? chat.roomId : String(chat.raw?.friend_user_id ?? chat.roomId)"
+            :object-key="chat.type === 'group' ? chat.avatarObjectKey : String(chat.raw?.friend_avatar_object_key ?? chat.avatarObjectKey ?? '')"
+            :label="chat.name"
+            :size="48"
+          />
           <div class="chat-row__body">
             <div class="chat-row__top">
               <h2>{{ chat.name }}</h2>
@@ -196,7 +209,7 @@ onMounted(() => {
             <span>{{ contactsStore.searchResults.length }} 个用户</span>
           </div>
           <article v-for="user in contactsStore.searchResults" :key="user.id" class="contact-row">
-            <div class="contact-row__avatar">{{ initialOf(displayUserName(user)) }}</div>
+            <CachedAvatar class="contact-row__avatar" kind="user" :entity-id="user.id" :object-key="user.avatarObjectKey" :label="displayUserName(user)" />
             <div class="contact-row__body">
               <h3>{{ displayUserName(user) }}</h3>
               <p>{{ user.email || user.username }}</p>
@@ -218,7 +231,13 @@ onMounted(() => {
             :key="request.id"
             class="contact-row contact-row--request"
           >
-            <div class="contact-row__avatar">{{ initialOf(displayRequestUser(request)) }}</div>
+            <CachedAvatar
+              class="contact-row__avatar"
+              kind="user"
+              :entity-id="request.requesterId"
+              :object-key="request.requester?.avatarObjectKey"
+              :label="displayRequestUser(request)"
+            />
             <div class="contact-row__body">
               <h3>{{ displayRequestUser(request) }}</h3>
               <p>{{ request.message || '请求添加你为好友' }}</p>
@@ -243,7 +262,7 @@ onMounted(() => {
           <p v-if="contactsStore.refreshing && contactsStore.friends.length === 0" class="chat-empty">正在加载联系人...</p>
           <p v-else-if="contactsStore.filteredFriends.length === 0" class="chat-empty">暂无联系人，搜索邮箱添加好友。</p>
           <article v-for="friend in contactsStore.filteredFriends" :key="friend.user.id" class="contact-row">
-            <div class="contact-row__avatar">{{ initialOf(displayFriendName(friend)) }}</div>
+            <CachedAvatar class="contact-row__avatar" kind="user" :entity-id="friend.user.id" :object-key="friend.user.avatarObjectKey" :label="displayFriendName(friend)" />
             <div class="contact-row__body">
               <h3>{{ displayFriendName(friend) }}</h3>
               <p>{{ friend.user.email || friend.user.username }}</p>
@@ -292,7 +311,7 @@ onMounted(() => {
             <span>{{ groups.length }} 个</span>
           </div>
           <article v-for="group in groups" :key="group.roomId" class="contact-row">
-            <div class="contact-row__avatar">群</div>
+            <CachedAvatar class="contact-row__avatar" kind="room" :entity-id="group.roomId" :object-key="group.avatarObjectKey" :label="group.name" />
             <div class="contact-row__body">
               <h3>{{ group.name }}</h3>
               <p>{{ group.lastMessage || '暂无消息' }}</p>
@@ -307,7 +326,14 @@ onMounted(() => {
       <section v-else class="panel">
         <button class="profile-card rc-focus-ring" type="button" @click="router.push({ name: 'profile-settings' })">
           <div class="profile-card__avatar">
-            {{ authStore.currentUser?.nickname?.slice(0, 1).toUpperCase() || 'R' }}
+            <CachedAvatar
+              v-if="authStore.currentUser"
+              kind="user"
+              :entity-id="authStore.currentUser.id"
+              :object-key="authStore.currentUser.avatarObjectKey"
+              :label="authStore.currentUser.nickname || authStore.currentUser.email"
+              :size="48"
+            />
           </div>
           <div>
             <h2>{{ authStore.currentUser?.nickname || 'RedCode 用户' }}</h2>
