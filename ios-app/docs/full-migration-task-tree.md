@@ -128,11 +128,11 @@ IOS
 - [x] IOS-03.05 实现 WebSocket client。
 - [x] IOS-03.06 实现 WS 认证、订阅、取消订阅。
 - [x] IOS-03.07 实现 WS 重连、订阅恢复和事件去重。
-- [ ] IOS-03.08 建立 SwiftData schema：会话、消息、联系人、群、配置。
+- [x] IOS-03.08 建立 SwiftData schema：会话、消息、联系人、群、配置。
 - [ ] IOS-03.09 实现 FileManager Caches：附件、头像、表情。
 - [ ] IOS-03.10 设计消息搜索索引：SwiftData 优先，必要时 SQLite FTS5/GRDB。
 - [x] IOS-03.11 增加 Networking 单测与 mock transport。
-- [ ] IOS-03.12 增加 Storage 单测。
+- [x] IOS-03.12 增加 Storage 单测。
 - [x] IOS-03.13 增加 API Compose smoke。
 
 参考：
@@ -153,8 +153,10 @@ IOS
 - HTTP 基础 client、认证 API client、bearer token 注入、后端错误 message 解析和 mock transport 单测已完成。
 - WebSocket JSON client 已完成基础接入：`format=json` 握手、连接后 `auth`、房间 `join`/`leave`、typing、断线自动重连、desired room 订阅恢复、消息/read/update/pin/reaction 事件去重和 AsyncStream 事件分发。
 - WebSocket 已补 mock transport 单测，并新增 `RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 对本机 Compose API 做真实连接和认证 smoke。
+- SwiftData schema 已覆盖会话、消息、联系人、群、配置，并补 `SwiftDataMessageCacheStore` 对齐 Flutter/H5 每 room 最近 200 条消息缓存语义。
+- Storage 单测已覆盖 SwiftData in-memory container、核心缓存模型存取、消息缓存保留策略、房间清理和 Keychain key-value store。
 - IOS-03.02/03.04 仍需在聊天、联系人、群和设置接口扩展时统一 DTO mapping 与 UI 可恢复错误模型。
-- SwiftData schema、FileManager cache 和 Storage 单测尚未开始。
+- FileManager cache 尚未开始。
 - 当前 WebSocket live smoke 覆盖真实后端连接与认证；真实房间订阅/消息收发会在 IOS-04 iOS/H5 同后端互发 smoke 中继续扩展。
 
 ## IOS-04 聊天核心全量
