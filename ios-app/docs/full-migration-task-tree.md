@@ -65,20 +65,20 @@ IOS
 - [x] IOS-01.10 建立 App tab、route、session state 基础类型。
 - [x] IOS-01.11 建立 SwiftUI App shell 源码草案。
 - [x] IOS-01.12 增加 `make ios-app.check` / `make ios-app.test` 入口。
-- [ ] IOS-01.13 创建可由 Xcode 打开的 iOS App 工程。
-- [ ] IOS-01.14 将 `ios-app/App/` 接入 Xcode App target。
-- [ ] IOS-01.15 在本机 iOS Simulator 启动空壳 App。
+- [x] IOS-01.13 创建可由 Xcode 打开的 iOS App 工程。
+- [x] IOS-01.14 将 `ios-app/App/` 接入 Xcode App target。
+- [x] IOS-01.15 在本机 iOS Simulator 启动空壳 App。
 
 当前说明：
 
-- XcodeGen/Tuist 当前未安装；本阶段先采用 Apple 官方 SwiftPM 结构建立模块和测试基座。
-- 不手写 `.xcodeproj`。后续用 Xcode 创建标准工程，或明确引入 XcodeGen/Tuist 后生成工程。
+- XcodeGen/Tuist 当前未安装；本阶段采用 SwiftPM + Xcode App project 的方式建立模块和可运行空壳。
+- Xcode project 由本地 `xcodeproj` 工具生成，后续可通过 Xcode 维护；如后续引入 XcodeGen/Tuist，再迁移为生成式工程。
 
 验收：
 
 - `make ios-app.check` 通过。
 - SwiftPM 模块可独立测试。
-- Xcode 工程接入后，Simulator 可启动空壳 App。
+- 本机 iOS Simulator 可启动空壳 App。
 
 ## IOS-02 启动、认证与会话安全
 

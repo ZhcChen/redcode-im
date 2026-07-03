@@ -14,6 +14,7 @@ UIKit 不作为主 UI 框架，仅在 SwiftUI 无法直接满足的系统能力�
 - XCTest/XCUITest 做单元、集成和 UI 验收。
 - Human Interface Guidelines 作为 UI 和交互规范基线。
 - 新业务代码只写 Swift；不写 Objective-C。
+- Xcode App 工程：`ios-app/RedCodeIM.xcodeproj`。
 
 ## 模块分层
 
@@ -30,6 +31,7 @@ SwiftUI App Shell
 - 放置 SwiftUI `App` 入口、环境注入、根导航和登录态切换。
 - 使用 `NavigationStack` 管理页面导航。
 - 负责连接 Auth、Chat、Contacts、Settings 等 feature。
+- 当前 App target 已接入 `ios-app/App/RedCodeIOSApp.swift` 和 `ios-app/App/AppRootView.swift`。
 
 ### RedCodeCore
 

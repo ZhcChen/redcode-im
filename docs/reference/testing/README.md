@@ -92,12 +92,15 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 ```bash
 make ios-app.check
 make ios-app.test
+make ios-app.build.simulator
+make ios-app.smoke.simulator
 ```
 
 说明：
 - `ios-app` 默认使用本机 iOS Simulator 做开发、smoke、UI test 与 H5/API 联调验收。
 - Simulator 联调 API/WS 使用 `127.0.0.1`。
-- 当前 `ios-app.check` 先验证 SwiftPM local packages；Xcode App 工程接入后再补 Simulator 启动和 UI test 入口。
+- `ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
+- `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
 
 ### Admin 自测

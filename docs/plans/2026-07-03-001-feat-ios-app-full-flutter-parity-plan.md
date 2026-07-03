@@ -350,6 +350,7 @@ External runtime
 - `ios-app/docs/flutter-parity-scope.md` 是完整迁移范围源。
 - `ios-app/docs/full-migration-task-tree.md` 是执行任务索引树。
 - `ios-app/docs/architecture.md` 记录 iOS 原生架构原则。
+- `ios-app/RedCodeIM.xcodeproj` 是当前 iOS App Xcode 工程。
 - 后续实现阶段需要更新 `docs/reference/testing/README.md`，加入 `ios-app` 构建、单测、Simulator smoke、H5/API 联调入口。
 - 每完成一个阶段，应沉淀实现经验到 `docs/solutions/`。
 

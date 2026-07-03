@@ -20,6 +20,9 @@ CARGO := cargo
 GO := go
 PATROL := patrol
 SWIFT := swift
+XCODEBUILD := xcodebuild
+XCRUN := xcrun
+RUBY := ruby
 
 API_COMPOSE_FILE := $(ROOT_DIR)/api/docker/dev/docker-compose.yml
 API_TEST_COMPOSE_FILE := $(ROOT_DIR)/tests/docker-compose.test.yml
@@ -87,6 +90,13 @@ H5_APP_BASE_URL ?= http://localhost:$(H5_APP_PORT)
 H5_APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 
 IOS_APP_DIR := $(ROOT_DIR)/ios-app
+IOS_APP_PROJECT := $(IOS_APP_DIR)/RedCodeIM.xcodeproj
+IOS_APP_SCHEME := RedCodeIM
+IOS_APP_TARGET := RedCodeIM
+IOS_APP_DERIVED_DATA := $(IOS_APP_DIR)/DerivedData
+IOS_APP_BUNDLE_ID := com.redcode.im.iosapp
+IOS_APP_SIMULATOR_NAME ?= iPhone 17 Pro
+IOS_APP_SIMULATOR_ID ?=
 
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
@@ -97,7 +107,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
-	ios-app.describe ios-app.check ios-app.test \
+	ios-app.describe ios-app.check ios-app.test ios-app.build.simulator ios-app.smoke.simulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -698,7 +708,25 @@ ios-app.test: ## 运行 ios-app SwiftPM 单元测试
 	@$(call require_cmd,$(SWIFT))
 	@cd "$(IOS_APP_DIR)" && $(SWIFT) test
 
-ios-app.check: ios-app.test ## 运行 ios-app 当前可用检查
+ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
+	@$(call require_cmd,$(XCODEBUILD))
+	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -target "$(IOS_APP_TARGET)" -configuration Debug -sdk iphonesimulator SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" build
+
+ios-app.smoke.simulator: ios-app.build.simulator ## 安装并启动 ios-app 到本机 iOS Simulator
+	@$(call require_cmd,$(XCRUN))
+	@$(call require_cmd,$(RUBY))
+	@DEVICE_ID="$(IOS_APP_SIMULATOR_ID)"; \
+	if [ -z "$$DEVICE_ID" ]; then \
+		DEVICE_ID="$$( $(XCRUN) simctl list devices available -j | $(RUBY) -rjson -e 'data = JSON.parse(STDIN.read); preferred = ARGV.fetch(0); devices = data.fetch("devices").values.flatten.select { |device| device["isAvailable"] }; selected = devices.find { |device| device["name"] == preferred } || devices.find { |device| device["name"].start_with?("iPhone") }; abort("[ios-app] 未找到可用 iOS Simulator") unless selected; puts selected["udid"]' "$(IOS_APP_SIMULATOR_NAME)")"; \
+	fi; \
+	echo "[ios-app] simulator: $$DEVICE_ID"; \
+	$(XCRUN) simctl boot "$$DEVICE_ID" 2>/dev/null || true; \
+	$(XCRUN) simctl bootstatus "$$DEVICE_ID" -b; \
+	$(XCRUN) simctl install "$$DEVICE_ID" "$(IOS_APP_DERIVED_DATA)/Build/Products/Debug-iphonesimulator/$(IOS_APP_SCHEME).app"; \
+	$(XCRUN) simctl launch "$$DEVICE_ID" "$(IOS_APP_BUNDLE_ID)"; \
+	$(XCRUN) simctl get_app_container "$$DEVICE_ID" "$(IOS_APP_BUNDLE_ID)" app
+
+ios-app.check: ios-app.test ios-app.build.simulator ## 运行 ios-app 当前可用检查
 
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))
