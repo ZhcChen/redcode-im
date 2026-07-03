@@ -67,8 +67,11 @@ final class APIClientTests: XCTestCase {
         do {
             _ = try await client.get(AuthAPIEndpoint.me, as: AuthUser.self)
             XCTFail("Expected request to throw")
-        } catch let error as RedCodeError {
-            XCTAssertEqual(error, .network("账号或密码错误"))
+        } catch let error as NetworkFailure {
+            XCTAssertEqual(error.kind, .unauthorized)
+            XCTAssertEqual(error.statusCode, 401)
+            XCTAssertEqual(error.message, "账号或密码错误")
+            XCTAssertFalse(error.isUserRecoverable)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -81,8 +84,9 @@ final class APIClientTests: XCTestCase {
         do {
             _ = try await client.get(AuthAPIEndpoint.me, as: AuthUser.self)
             XCTFail("Expected decode failure")
-        } catch let error as RedCodeError {
-            XCTAssertEqual(error, .network("响应解析失败"))
+        } catch let error as NetworkFailure {
+            XCTAssertEqual(error, NetworkFailure(kind: .decoding, message: "响应解析失败"))
+            XCTAssertFalse(error.isUserRecoverable)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -95,11 +99,31 @@ final class APIClientTests: XCTestCase {
         do {
             _ = try await client.get(AuthAPIEndpoint.me, as: AuthUser.self)
             XCTFail("Expected transport failure")
-        } catch let error as RedCodeError {
-            guard case .network(let message) = error else {
-                return XCTFail("Expected network error, got \(error)")
-            }
-            XCTAssertFalse(message.isEmpty)
+        } catch let error as NetworkFailure {
+            XCTAssertEqual(error.kind, .offline)
+            XCTAssertTrue(error.isUserRecoverable)
+            XCTAssertEqual(error.recoverySuggestion, "检查网络连接后重试")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testServerErrorsAreUserRecoverable() async throws {
+        let transport = MockHTTPTransport(
+            data: Data(#"{"detail":"服务繁忙"}"#.utf8),
+            statusCode: 503
+        )
+        let client = APIClient(environment: .simulatorDevelopment(), transport: transport)
+
+        do {
+            _ = try await client.get(AuthAPIEndpoint.me, as: AuthUser.self)
+            XCTFail("Expected server failure")
+        } catch let error as NetworkFailure {
+            XCTAssertEqual(error.kind, .server)
+            XCTAssertEqual(error.statusCode, 503)
+            XCTAssertEqual(error.message, "服务繁忙")
+            XCTAssertTrue(error.isUserRecoverable)
+            XCTAssertEqual(error.recoverySuggestion, "服务暂时不可用，请稍后重试")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

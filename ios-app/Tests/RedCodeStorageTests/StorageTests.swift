@@ -31,6 +31,18 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(retained.map(\.id), ["m3", "m4"])
     }
 
+    func testMessageSearchIndexStrategyPrefersSwiftDataUntilThreshold() {
+        let strategy = MessageSearchIndexStrategy(sqliteFTS5Threshold: 100)
+
+        XCTAssertEqual(strategy.backendForIndexedMessageCount(99), .swiftData)
+        XCTAssertEqual(strategy.backendForIndexedMessageCount(100), .sqliteFTS5)
+        XCTAssertEqual(
+            MessageSearchIndexStrategy(preferredBackend: .sqliteFTS5)
+                .backendForIndexedMessageCount(1),
+            .sqliteFTS5
+        )
+    }
+
     @MainActor
     func testSwiftDataSchemaStoresCoreCacheRecords() throws {
         let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)

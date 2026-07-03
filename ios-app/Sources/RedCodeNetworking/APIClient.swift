@@ -15,7 +15,7 @@ public struct URLSessionHTTPTransport: HTTPTransport {
     public func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw RedCodeError.network("响应不是 HTTPURLResponse")
+            throw NetworkFailure(kind: .invalidResponse, message: "响应不是 HTTPURLResponse")
         }
         return (data, httpResponse)
     }
@@ -76,7 +76,7 @@ public actor APIClient {
         do {
             return try decoder.decode(responseType, from: data)
         } catch {
-            throw RedCodeError.network("响应解析失败")
+            throw NetworkFailure(kind: .decoding, message: "响应解析失败")
         }
     }
 
@@ -108,14 +108,17 @@ public actor APIClient {
         let dataAndResponse: (Data, HTTPURLResponse)
         do {
             dataAndResponse = try await transport.data(for: request)
-        } catch let error as RedCodeError {
+        } catch let error as NetworkFailure {
             throw error
         } catch {
-            throw RedCodeError.network(error.localizedDescription)
+            throw NetworkFailure.transport(error)
         }
         let (data, response) = dataAndResponse
         guard (200...299).contains(response.statusCode) else {
-            throw RedCodeError.network(errorMessage(from: data) ?? "HTTP \(response.statusCode)")
+            throw NetworkFailure.http(
+                statusCode: response.statusCode,
+                message: errorMessage(from: data) ?? "HTTP \(response.statusCode)"
+            )
         }
         return data
     }
@@ -124,9 +127,12 @@ public actor APIClient {
         guard !data.isEmpty else {
             return nil
         }
-        guard
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
+        if let errorResponse = try? decoder.decode(BackendErrorResponse.self, from: data),
+           let message = errorResponse.preferredMessage {
+            return message
+        }
+
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return String(data: data, encoding: .utf8)
         }
         return object["message"] as? String
