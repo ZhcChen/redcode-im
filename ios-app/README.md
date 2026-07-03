@@ -63,16 +63,18 @@ ios-app/
 
 ```bash
 make ios-app.check
+make ios-app.test.live
 make ios-app.smoke.simulator
 ```
 
 说明：
 
 - `make ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
+- `make ios-app.test.live` 会在本机 Compose API 上顺序运行 iOS 认证、WebSocket 和聊天互发 live smoke。
 - `make ios-app.smoke.simulator` 会构建、安装并启动到本机 iOS Simulator。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证 iOS 认证客户端对真实 API 的注册、登录和 `/auth/me` 链路。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 iOS WebSocket 客户端对真实 API 的连接和认证链路。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证 iOS 聊天客户端对真实 `/chats` 链路的解码。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证 iOS 聊天客户端对真实 `/chats`、建群、文本收发、已读链路。
 
 ## 计划文档
 

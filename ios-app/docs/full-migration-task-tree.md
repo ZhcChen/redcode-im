@@ -180,7 +180,7 @@ IOS
 - [x] IOS-04.15 实现房间订阅管理。
 - [x] IOS-04.16 增加聊天 ViewModel 单测。
 - [ ] IOS-04.17 增加聊天 UI test。
-- [ ] IOS-04.18 与 H5 做同后端互发 smoke。
+- [x] IOS-04.18 与 H5 做同后端互发 smoke。
 
 参考：
 
@@ -207,7 +207,9 @@ IOS
 - 已补 reaction 基础链路：`MessageReactionSummary` 模型、reaction add/remove/get API、详情页 reaction 标签展示和点击切换、`reaction_update` 后 active detail 刷新 summaries。
 - 已新增 `RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests`，对本机 Compose API 的 `/chats` 解码做 live smoke。
 - 已新增 `RedCodeIMUITests` XCUITest target、Debug-only 聊天 UI fixture 和 `make ios-app.ui-test` 入口；当前本机 Xcode 26.6 只有 iOS 26.5 SDK，但 Simulator runtime 只有 iOS 26.3/26.4，`xcodebuild test` 无法解析 simulator destination，待安装 iOS 26.5 runtime 后执行 UI test。
-- 下一步进入 IOS-04.17/04.18：聊天 UI test、iOS 与 H5 同后端互发 smoke。
+- 已补 `RoomAPIClient` 和 `make ios-app.test.live`，覆盖 iOS 认证、WebSocket、建群、文本互发和已读 live smoke。
+- 已补 H5 `ios-h5-chat-interop-smoke`，通过 H5 service 与 iOS-compatible HTTP contract 在同一 Compose API 上验证双向文本可见。
+- IOS-04.17 聊天 UI test 代码已接入但运行仍受本机 Simulator runtime 不匹配阻塞；IOS-04.18 已通过 `make h5-app.test.live` 和 `make ios-app.test.live`。
 
 ## IOS-05 联系人、好友与私聊
 

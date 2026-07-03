@@ -107,7 +107,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
-	ios-app.describe ios-app.check ios-app.test ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator \
+	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -173,7 +173,7 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) tests.tooling
 	@$(MAKE) tests.perf.check
 
-test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app 真实后端联调 smoke
+test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app/ios-app 真实后端联调 smoke
 	@$(MAKE) api.up
 	@$(MAKE) api.wait
 	@$(MAKE) admin.up
@@ -183,6 +183,7 @@ test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app 真实后�
 	@$(MAKE) admin.test.live
 	@$(MAKE) desktop.test.live
 	@$(MAKE) h5-app.test.live
+	@$(MAKE) ios-app.test.live
 
 dev.up: ## 启动常用开发链路（api + admin + h5-app + website）
 	@$(MAKE) api.up
@@ -698,7 +699,7 @@ h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 
 h5-app.test.live: ## 执行 h5-app 真实后端普通账号注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
-	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
+	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
 
 ios-app.describe: ## 查看 ios-app SwiftPM package 描述
 	@$(call require_cmd,$(SWIFT))
@@ -707,6 +708,12 @@ ios-app.describe: ## 查看 ios-app SwiftPM package 描述
 ios-app.test: ## 运行 ios-app SwiftPM 单元测试
 	@$(call require_cmd,$(SWIFT))
 	@cd "$(IOS_APP_DIR)" && $(SWIFT) test
+
+ios-app.test.live: ## 执行 ios-app 真实后端 smoke（认证 + WS + 聊天互发，需 api dev 就绪）
+	@$(call require_cmd,$(SWIFT))
+	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_API_SMOKE=1 $(SWIFT) test --filter AuthAPIClientLiveTests
+	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_WS_SMOKE=1 $(SWIFT) test --filter WebSocketClientLiveTests
+	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 $(SWIFT) test --filter ChatAPIClientLiveTests
 
 ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
 	@$(call require_cmd,$(XCODEBUILD))

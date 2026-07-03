@@ -31,7 +31,7 @@ make h5-app.check
 make h5-app.test.unit
 ```
 
-真实后端普通账号注册/登录 smoke：
+真实后端普通账号注册/登录、服务层和 H5/iOS 聊天互发 smoke：
 
 ```bash
 make api.up
