@@ -1,6 +1,6 @@
 # ios-app
 
-`ios-app` 是 RedCode IM 的原生 iOS 客户端模块，目标是逐步替代 Flutter `app/` 的 iOS 侧能力。
+`ios-app` 是 RedCode IM 的原生 iOS 客户端模块，目标是把 Flutter `app/` 的完整功能逻辑逐步迁移为原生 iOS 实现。
 
 当前阶段只建立模块边界、架构方案和目录骨架；暂不手写 `.xcodeproj`。正式工程建议通过 Xcode 创建后接入本目录，或在后续明确选型后使用 XcodeGen/Tuist 生成。
 
@@ -8,7 +8,7 @@
 
 - 先做 iOS 原生，不影响现有 Flutter `app/`、H5 `h5-app/` 和后端 API。
 - H5 继续作为端到端功能验收基准。
-- iOS 原生优先实现邮箱注册/登录、会话列表、聊天详情、联系人、群聊、设置等核心流程。
+- iOS 原生目标是完整覆盖 Flutter 当前功能逻辑；实现方式遵循 iOS 原生开发习惯，不逐行翻译 Dart/Flutter 写法。
 - 暂不恢复 Google/Apple 登录；认证主线使用邮箱注册和登录。
 
 ## 推荐技术栈
@@ -32,7 +32,8 @@ ios-app/
 │   └── RedCodeFeatures/         # Auth、Chat、Contacts、Settings 等 feature
 ├── Tests/                       # XCTest 单元测试与集成测试
 └── docs/
-    └── architecture.md          # 原生 iOS 架构方案
+    ├── architecture.md          # 原生 iOS 架构方案
+    └── flutter-parity-scope.md  # Flutter 完整功能迁移范围
 ```
 
 ## 设计原则
@@ -46,4 +47,5 @@ ios-app/
 
 详细实施方案见：
 
-- `docs/plans/2026-07-02-002-feat-ios-app-native-migration-plan.md`
+- `docs/plans/2026-07-03-001-feat-ios-app-full-flutter-parity-plan.md`
+- `ios-app/docs/flutter-parity-scope.md`

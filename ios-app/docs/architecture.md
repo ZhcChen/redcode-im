@@ -2,7 +2,9 @@
 
 ## 总体方向
 
-`ios-app` 采用 SwiftUI-first 的原生 iOS 架构。UIKit 不作为主 UI 框架，仅在 SwiftUI 无法直接满足的系统能力处桥接使用。
+`ios-app` 采用 SwiftUI-first 的原生 iOS 架构。迁移目标是完整覆盖 Flutter `app/` 的功能逻辑，但实现方式以 iOS 原生开发习惯为准：不逐行翻译 Dart，不照搬 Flutter Provider/Widget 结构，不为了“看起来一样”牺牲原生导航、生命周期、系统权限和本地存储模型。
+
+UIKit 不作为主 UI 框架，仅在 SwiftUI 无法直接满足的系统能力处桥接使用。
 
 ## 模块分层
 
@@ -34,6 +36,7 @@ SwiftUI App Shell
 
 - Token 使用 Keychain，不放入普通 UserDefaults。
 - 消息、会话、联系人缓存优先使用 SwiftData。
+- 消息全文搜索如 SwiftData 无法满足性能与查询能力，使用 SQLite FTS5/GRDB 作为搜索索引侧车，不替代主缓存模型。
 - 本地缓存语义对齐 Flutter `MessageStorage`：按 room 缓存，默认每房间保留最近 200 条。
 
 ### RedCodeFeatures
@@ -74,3 +77,10 @@ SwiftUI App Shell
 - 不恢复 Google/Apple 登录。
 - 不在首版接入 APNs/FCM；Push 后置到核心聊天链路稳定后。
 - 不在没有明确选型前手写或生成复杂 Xcode 工程配置。
+
+## Flutter 逻辑迁移原则
+
+- 迁移的是用户可见功能、数据流、协议语义和缓存语义，不迁移 Flutter 框架写法。
+- Flutter 的 service、storage、model、test 是行为参考；iOS 端落地为 Swift package、ViewModel、Repository、Actor/Service、SwiftData/Keychain/FileManager。
+- Flutter 热更新能力不按原样迁移到 iOS；iOS 侧只保留远程配置、版本检查、更新提示和必要的资源配置能力。
+- Firebase Messaging 不是默认 iOS 依赖；Push 阶段优先评估 APNs 直连后端。如后端当前只支持 FCM，再单独评估兼容桥接。
