@@ -84,14 +84,14 @@ IOS
 
 - [x] IOS-02.01 梳理 Flutter/H5/API 认证接口和 payload。
 - [ ] IOS-02.02 实现 Splash 和启动恢复状态机。
-- [ ] IOS-02.03 实现普通账号密码注册。
-- [ ] IOS-02.04 实现普通账号密码登录。
+- [x] IOS-02.03 实现普通账号密码注册。
+- [x] IOS-02.04 实现普通账号密码登录。
 - [ ] IOS-02.05 实现重置密码。
 - [ ] IOS-02.06 实现用户协议/隐私协议提示。
-- [ ] IOS-02.07 实现 Token Keychain 存取。
-- [ ] IOS-02.08 实现登录态校验和 session 恢复。
+- [x] IOS-02.07 实现 Token Keychain 存取。
+- [x] IOS-02.08 实现登录态校验和 session 恢复。
 - [ ] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
-- [ ] IOS-02.10 增加认证 ViewModel 单测。
+- [x] IOS-02.10 增加认证 ViewModel 单测。
 - [ ] IOS-02.11 增加认证 UI test。
 - [ ] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
 
@@ -100,7 +100,9 @@ IOS
 - 当前默认关闭邮箱注册/登录主线；不做 Google/Apple 登录，不做邮箱验证码二次验证。
 - 邮箱注册/登录作为后台配置能力保留；当前开发测试跳过真实邮箱资源依赖。
 - 已建立账号规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
-- `KeyValueAuthSessionStore` 当前用于 SwiftPM 可测基础；正式 iOS App target 接入时再落 Keychain-backed 实现。
+- 已建立 `APIClient`、`AuthAPIClient`、`AuthController`、`KeychainKeyValueStore`，并补充 SwiftPM 单测。
+- `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；正式 SwiftUI App target 接入后，还需要做 Simulator UI 和真实 API smoke。
+- IOS-02.09 当前只完成认证 session 清理基础；WS 断开和本地敏感缓存清理需等待 IOS-03/IOS-04 底座完成后收口。
 
 参考：
 
@@ -117,9 +119,9 @@ IOS
 
 ## IOS-03 网络、WebSocket、本地数据和缓存底座
 
-- [ ] IOS-03.01 实现 HTTP API client。
+- [x] IOS-03.01 实现 HTTP API client。
 - [ ] IOS-03.02 实现统一 request/response DTO mapping。
-- [ ] IOS-03.03 实现认证 header 注入。
+- [x] IOS-03.03 实现认证 header 注入。
 - [ ] IOS-03.04 实现网络错误分类和 UI 可恢复错误。
 - [ ] IOS-03.05 实现 WebSocket client。
 - [ ] IOS-03.06 实现 WS 认证、订阅、取消订阅。
@@ -127,7 +129,7 @@ IOS
 - [ ] IOS-03.08 建立 SwiftData schema：会话、消息、联系人、群、配置。
 - [ ] IOS-03.09 实现 FileManager Caches：附件、头像、表情。
 - [ ] IOS-03.10 设计消息搜索索引：SwiftData 优先，必要时 SQLite FTS5/GRDB。
-- [ ] IOS-03.11 增加 Networking 单测与 mock transport。
+- [x] IOS-03.11 增加 Networking 单测与 mock transport。
 - [ ] IOS-03.12 增加 Storage 单测。
 - [ ] IOS-03.13 增加 API Compose smoke。
 
@@ -143,6 +145,12 @@ IOS
 - HTTP 和 WS 可对真实后端工作。
 - 本地缓存优先展示，后台刷新。
 - HTTP/WS 双路径不会重复插入同一消息。
+
+当前说明：
+
+- HTTP 基础 client、认证 API client、bearer token 注入、后端错误 message 解析和 mock transport 单测已完成。
+- IOS-03.02/03.04 仍需在聊天、联系人、群和设置接口扩展时统一 DTO mapping 与 UI 可恢复错误模型。
+- WebSocket、SwiftData schema、FileManager cache 和 Compose smoke 尚未开始。
 
 ## IOS-04 聊天核心全量
 

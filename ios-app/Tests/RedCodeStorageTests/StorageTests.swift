@@ -29,4 +29,20 @@ final class StorageTests: XCTestCase {
 
         XCTAssertEqual(retained.map(\.id), ["m3", "m4"])
     }
+
+    #if canImport(Security)
+    func testKeychainKeyValueStoreStoresAndRemovesValues() async throws {
+        let store = KeychainKeyValueStore(
+            service: "com.redcode.im.iosapp.tests.\(UUID().uuidString)"
+        )
+
+        try await store.setString("access-token", forKey: "auth_token")
+        let stored = try await store.string(forKey: "auth_token")
+        try await store.removeValue(forKey: "auth_token")
+        let removed = try await store.string(forKey: "auth_token")
+
+        XCTAssertEqual(stored, "access-token")
+        XCTAssertNil(removed)
+    }
+    #endif
 }
