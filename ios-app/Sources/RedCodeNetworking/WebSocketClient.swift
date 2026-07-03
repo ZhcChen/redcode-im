@@ -9,6 +9,24 @@ public struct WebSocketClientSnapshot: Equatable, Sendable {
     public let subscribedRooms: Set<String>
     public let pendingRooms: Set<String>
     public let reconnectAttempts: Int
+
+    public init(
+        status: WebSocketConnectionStatus,
+        connectionID: String? = nil,
+        lastError: String = "",
+        desiredRooms: Set<String> = [],
+        subscribedRooms: Set<String> = [],
+        pendingRooms: Set<String> = [],
+        reconnectAttempts: Int = 0
+    ) {
+        self.status = status
+        self.connectionID = connectionID
+        self.lastError = lastError
+        self.desiredRooms = desiredRooms
+        self.subscribedRooms = subscribedRooms
+        self.pendingRooms = pendingRooms
+        self.reconnectAttempts = reconnectAttempts
+    }
 }
 
 public actor WebSocketClient {

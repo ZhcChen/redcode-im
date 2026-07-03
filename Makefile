@@ -107,7 +107,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
-	ios-app.describe ios-app.check ios-app.test ios-app.build.simulator ios-app.smoke.simulator \
+	ios-app.describe ios-app.check ios-app.test ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -711,6 +711,27 @@ ios-app.test: ## 运行 ios-app SwiftPM 单元测试
 ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
 	@$(call require_cmd,$(XCODEBUILD))
 	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -target "$(IOS_APP_TARGET)" -configuration Debug -sdk iphonesimulator SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" build
+
+ios-app.ui-test: ## 运行 ios-app 本机 iOS Simulator XCUITest
+	@$(call require_cmd,$(XCODEBUILD))
+	@$(call require_cmd,$(XCRUN))
+	@$(call require_cmd,$(RUBY))
+	@DEVICE_ID="$(IOS_APP_SIMULATOR_ID)"; \
+	if [ -z "$$DEVICE_ID" ]; then \
+		DEVICE_ID="$$( $(XCRUN) simctl list devices available -j | $(RUBY) -rjson -e 'data = JSON.parse(STDIN.read); preferred = ARGV.fetch(0); devices = data.fetch("devices").values.flatten.select { |device| device["isAvailable"] }; selected = devices.find { |device| device["name"] == preferred } || devices.find { |device| device["name"].start_with?("iPhone") }; abort("[ios-app] 未找到可用 iOS Simulator") unless selected; puts selected["udid"]' "$(IOS_APP_SIMULATOR_NAME)")"; \
+	fi; \
+	echo "[ios-app] ui-test simulator: $$DEVICE_ID"; \
+	$(XCRUN) simctl boot "$$DEVICE_ID" 2>/dev/null || true; \
+	$(XCRUN) simctl bootstatus "$$DEVICE_ID" -b; \
+	DESTINATION="platform=iOS Simulator,id=$$DEVICE_ID"; \
+	DESTINATION_STATUS="$$( $(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -scheme "$(IOS_APP_SCHEME)" -configuration Debug -destination "$$DESTINATION" -showdestinations 2>&1 || true )"; \
+	if ! printf "%s\n" "$$DESTINATION_STATUS" | grep -q "Available destinations"; then \
+		echo "[ios-app] xcodebuild 当前无法使用该 Simulator 运行 XCUITest。"; \
+		echo "[ios-app] 常见原因：Xcode SDK 与已安装 Simulator runtime 不匹配；请在 Xcode > Settings > Components 安装匹配 runtime。"; \
+		printf "%s\n" "$$DESTINATION_STATUS"; \
+		exit 70; \
+	fi; \
+	$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -scheme "$(IOS_APP_SCHEME)" -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,id=$$DEVICE_ID" SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" test
 
 ios-app.smoke.simulator: ios-app.build.simulator ## 安装并启动 ios-app 到本机 iOS Simulator
 	@$(call require_cmd,$(XCRUN))

@@ -37,6 +37,16 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "3385A88FFE664E8F4D34EA6D"
+               BuildableName = "RedCodeIMUITests.xctest"
+               BlueprintName = "RedCodeIMUITests"
+               ReferencedContainer = "container:RedCodeIM.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

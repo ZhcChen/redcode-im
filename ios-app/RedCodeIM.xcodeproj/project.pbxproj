@@ -8,16 +8,33 @@
 
 /* Begin PBXBuildFile section */
 		64F15479CBC8EE1E88D65F68 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 75DB67E7E23C7909C07D679B /* Foundation.framework */; };
+		6546475D6CA7A14854E8E5BB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2D193C4E0A11A336D956C468 /* Foundation.framework */; };
+		8E9EF47F69220DF8598C2B14 /* RedCodeIMUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3772CA52C03A2BBF7640C7E /* RedCodeIMUITests.swift */; };
 		ABA4236E08482A2A35BFD13A /* RedCodeFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = BBC0D565535AB249E627786B /* RedCodeFeatures */; };
 		D4DC04C93526A28F9FB6F47A /* RedCodeIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FD95CBE729781926EED3D7 /* RedCodeIOSApp.swift */; };
 		E40C27D4521C93AEDA64D890 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A9F9520132D7352E4AC28F /* AppRootView.swift */; };
+		FD38BCD8AFDE76856BB87E11 /* UITestingDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA441D0062A84E3CF1FFC11 /* UITestingDependencies.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		22819DD59F113B0AC4537223 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 704407A9F7CE81C767F044AF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B37CBAEC67BFE3B7163EF1AA;
+			remoteInfo = RedCodeIM;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		28C03BC930FABD480EB72764 /* RedCodeIM.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RedCodeIM.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2D193C4E0A11A336D956C468 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		6AF564C59E6A38F4672F775D /* RedCodeIMUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RedCodeIMUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		75DB67E7E23C7909C07D679B /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		96FD95CBE729781926EED3D7 /* RedCodeIOSApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RedCodeIOSApp.swift; sourceTree = "<group>"; };
+		B3772CA52C03A2BBF7640C7E /* RedCodeIMUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RedCodeIMUITests.swift; sourceTree = "<group>"; };
 		E2A9F9520132D7352E4AC28F /* AppRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		EAA441D0062A84E3CF1FFC11 /* UITestingDependencies.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UITestingDependencies.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -30,6 +47,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CF306D3C4A509AC2DCEBB8EC /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6546475D6CA7A14854E8E5BB /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -39,6 +64,7 @@
 				20C4CB30ABC11180B6AECD89 /* Products */,
 				9668B652910B4557E1D06A4E /* Frameworks */,
 				6B3D030E2E868AC9DD3BF58C /* App */,
+				34DA9B1696265A78645617F0 /* UITests */,
 			);
 			sourceTree = "<group>";
 		};
@@ -46,8 +72,18 @@
 			isa = PBXGroup;
 			children = (
 				28C03BC930FABD480EB72764 /* RedCodeIM.app */,
+				6AF564C59E6A38F4672F775D /* RedCodeIMUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		34DA9B1696265A78645617F0 /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				B3772CA52C03A2BBF7640C7E /* RedCodeIMUITests.swift */,
+			);
+			name = UITests;
+			path = UITests;
 			sourceTree = "<group>";
 		};
 		6B3D030E2E868AC9DD3BF58C /* App */ = {
@@ -55,6 +91,7 @@
 			children = (
 				E2A9F9520132D7352E4AC28F /* AppRootView.swift */,
 				96FD95CBE729781926EED3D7 /* RedCodeIOSApp.swift */,
+				EAA441D0062A84E3CF1FFC11 /* UITestingDependencies.swift */,
 			);
 			name = App;
 			path = App;
@@ -72,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				75DB67E7E23C7909C07D679B /* Foundation.framework */,
+				2D193C4E0A11A336D956C468 /* Foundation.framework */,
 			);
 			name = iOS;
 			sourceTree = "<group>";
@@ -79,6 +117,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		3385A88FFE664E8F4D34EA6D /* RedCodeIMUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58DC28D71996B0AC7CCCC2BA /* Build configuration list for PBXNativeTarget "RedCodeIMUITests" */;
+			buildPhases = (
+				563436684651019AF143834A /* Sources */,
+				CF306D3C4A509AC2DCEBB8EC /* Frameworks */,
+				76EE2E081C99BA107E0AE7EC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5BA7EAA002C6B2A762A58AA6 /* PBXTargetDependency */,
+			);
+			name = RedCodeIMUITests;
+			productName = RedCodeIMUITests;
+			productReference = 6AF564C59E6A38F4672F775D /* RedCodeIMUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		B37CBAEC67BFE3B7163EF1AA /* RedCodeIM */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1D3330D4E164013AF4BB56B6 /* Build configuration list for PBXNativeTarget "RedCodeIM" */;
@@ -109,6 +165,9 @@
 				LastUpgradeCheck = 2660;
 				ORGANIZATIONNAME = "RedCode IM";
 				TargetAttributes = {
+					3385A88FFE664E8F4D34EA6D = {
+						CreatedOnToolsVersion = 26.6;
+					};
 					B37CBAEC67BFE3B7163EF1AA = {
 						CreatedOnToolsVersion = 26.6;
 					};
@@ -133,6 +192,7 @@
 			projectRoot = "";
 			targets = (
 				B37CBAEC67BFE3B7163EF1AA /* RedCodeIM */,
+				3385A88FFE664E8F4D34EA6D /* RedCodeIMUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -145,19 +205,44 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		76EE2E081C99BA107E0AE7EC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		563436684651019AF143834A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E9EF47F69220DF8598C2B14 /* RedCodeIMUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5AA8F1F5330B696AC764DC1A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				E40C27D4521C93AEDA64D890 /* AppRootView.swift in Sources */,
 				D4DC04C93526A28F9FB6F47A /* RedCodeIOSApp.swift in Sources */,
+				FD38BCD8AFDE76856BB87E11 /* UITestingDependencies.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5BA7EAA002C6B2A762A58AA6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = RedCodeIM;
+			target = B37CBAEC67BFE3B7163EF1AA /* RedCodeIM */;
+			targetProxy = 22819DD59F113B0AC4537223 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		1E12863FD6AC87904528BF46 /* Debug */ = {
@@ -314,6 +399,45 @@
 			};
 			name = Debug;
 		};
+		7E2C689F7594C3021A1F4727 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.redcode.im.iosapp.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = RedCodeIM;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A54053C9F57DB3BFCB2BF38B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = com.redcode.im.iosapp.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = RedCodeIM;
+			};
+			name = Debug;
+		};
 		D6B99798199AD6F7D2C72CEE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -354,6 +478,15 @@
 			buildConfigurations = (
 				D6B99798199AD6F7D2C72CEE /* Release */,
 				1E12863FD6AC87904528BF46 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		58DC28D71996B0AC7CCCC2BA /* Build configuration list for PBXNativeTarget "RedCodeIMUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E2C689F7594C3021A1F4727 /* Release */,
+				A54053C9F57DB3BFCB2BF38B /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -13,25 +13,47 @@ final class AppDependencies {
 
     private let environment: RedCodeEnvironment
     private let modelContainer: ModelContainer
+    private let chatAPIService: any ChatAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
 
-    init(
+    convenience init(
         environment: RedCodeEnvironment = .simulatorDevelopment(),
         modelContainer: ModelContainer
     ) {
-        self.environment = environment
-        self.modelContainer = modelContainer
-        self.authController = AuthController(
+        let authController = AuthController(
             api: AuthAPIClient(environment: environment),
             sessionStore: KeyValueAuthSessionStore(keyValueStore: KeychainKeyValueStore())
         )
-        self.chatListController = ChatListController(
-            api: ChatAPIClient(environment: environment),
+        let chatAPIService = ChatAPIClient(environment: environment)
+        self.init(
+            environment: environment,
+            modelContainer: modelContainer,
+            authController: authController,
+            chatAPIService: chatAPIService,
+            webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
+        )
+    }
+
+    init(
+        environment: RedCodeEnvironment = .simulatorDevelopment(),
+        modelContainer: ModelContainer,
+        authController: AuthController,
+        chatAPIService: any ChatAPIService,
+        webSocketService: any ChatWebSocketService
+    ) {
+        self.environment = environment
+        self.modelContainer = modelContainer
+        self.authController = authController
+        self.chatAPIService = chatAPIService
+        let chatListController = ChatListController(
+            api: chatAPIService,
             cacheStore: SwiftDataChatSummaryCacheStore(container: modelContainer)
         )
-        self.messageCacheStore = SwiftDataMessageCacheStore(container: modelContainer)
+        let messageCacheStore = SwiftDataMessageCacheStore(container: modelContainer)
+        self.chatListController = chatListController
+        self.messageCacheStore = messageCacheStore
         self.chatRealtimeController = ChatRealtimeController(
-            webSocket: WebSocketClient(configuration: WebSocketConfiguration(environment: environment)),
+            webSocket: webSocketService,
             listController: chatListController,
             messageCacheStore: messageCacheStore
         )
@@ -45,9 +67,18 @@ final class AppDependencies {
         }
     }
 
+    static func current() -> AppDependencies {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--redcode-ui-testing-chat-fixture") {
+            return uiTestingChatFixture()
+        }
+        #endif
+        return simulatorDevelopment()
+    }
+
     func makeChatDetailController() -> ChatDetailController {
         ChatDetailController(
-            api: ChatAPIClient(environment: environment),
+            api: chatAPIService,
             messageCacheStore: messageCacheStore
         )
     }
@@ -56,7 +87,7 @@ final class AppDependencies {
 @MainActor
 @main
 struct RedCodeIOSApp: App {
-    @State private var dependencies = AppDependencies.simulatorDevelopment()
+    @State private var dependencies = AppDependencies.current()
 
     var body: some Scene {
         WindowGroup {

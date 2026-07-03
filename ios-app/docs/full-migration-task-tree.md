@@ -206,6 +206,7 @@ IOS
 - 已补 `ChatRealtimeControllerTests` 和 WebSocket message event 解码测试，覆盖入站消息同步、active detail 自动已读、read/pin 事件同步到详情和缓存。
 - 已补 reaction 基础链路：`MessageReactionSummary` 模型、reaction add/remove/get API、详情页 reaction 标签展示和点击切换、`reaction_update` 后 active detail 刷新 summaries。
 - 已新增 `RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests`，对本机 Compose API 的 `/chats` 解码做 live smoke。
+- 已新增 `RedCodeIMUITests` XCUITest target、Debug-only 聊天 UI fixture 和 `make ios-app.ui-test` 入口；当前本机 Xcode 26.6 只有 iOS 26.5 SDK，但 Simulator runtime 只有 iOS 26.3/26.4，`xcodebuild test` 无法解析 simulator destination，待安装 iOS 26.5 runtime 后执行 UI test。
 - 下一步进入 IOS-04.17/04.18：聊天 UI test、iOS 与 H5 同后端互发 smoke。
 
 ## IOS-05 联系人、好友与私聊

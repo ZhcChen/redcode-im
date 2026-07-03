@@ -45,6 +45,7 @@ public struct ChatHomeView: View {
                         } label: {
                             ChatSummaryRow(chat: chat)
                         }
+                        .accessibilityIdentifier("chat.row.\(chat.roomID)")
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
                                 delete(chat)
@@ -55,6 +56,7 @@ public struct ChatHomeView: View {
                     }
                 }
                 .listStyle(.plain)
+                .accessibilityIdentifier("chat.home.list")
                 .refreshable {
                     await refresh()
                 }
@@ -206,6 +208,7 @@ private struct ChatDetailView: View {
             Divider()
             composer
         }
+        .accessibilityIdentifier("chat.detail")
         .navigationTitle(chat.displayName)
         .overlay {
             if controller.isLoading && controller.messages.isEmpty {
@@ -246,6 +249,7 @@ private struct ChatDetailView: View {
                                     toggleReaction(message, reactionKey: reactionKey)
                                 }
                             )
+                            .accessibilityIdentifier("chat.message.\(message.id)")
                             .id(message.id)
                             .listRowSeparator(.hidden)
                             .contextMenu {
@@ -327,6 +331,7 @@ private struct ChatDetailView: View {
                 TextField("输入消息", text: $draftText, axis: .vertical)
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("chat.composer.input")
                     .onSubmit {
                         send()
                     }
@@ -341,6 +346,7 @@ private struct ChatDetailView: View {
                             .fontWeight(.semibold)
                     }
                 }
+                .accessibilityIdentifier("chat.composer.send")
                 .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || controller.isSending)
             }
         }
