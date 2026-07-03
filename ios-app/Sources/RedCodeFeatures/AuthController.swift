@@ -1,9 +1,11 @@
 import Foundation
+import Observation
 import RedCodeCore
 import RedCodeNetworking
 import RedCodeStorage
 
 @MainActor
+@Observable
 public final class AuthController {
     public private(set) var session: AuthSession?
     public private(set) var state: AppSessionState = .unauthenticated
@@ -19,6 +21,13 @@ public final class AuthController {
     ) {
         self.api = api
         self.sessionStore = sessionStore
+    }
+
+    public static func simulatorDevelopment() -> AuthController {
+        AuthController(
+            api: AuthAPIClient(environment: .simulatorDevelopment()),
+            sessionStore: KeyValueAuthSessionStore(keyValueStore: KeychainKeyValueStore())
+        )
     }
 
     public func restoreSession() async {

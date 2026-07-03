@@ -70,6 +70,7 @@ make ios-app.smoke.simulator
 
 - `make ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
 - `make ios-app.smoke.simulator` 会构建、安装并启动到本机 iOS Simulator。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证 iOS 认证客户端对真实 API 的注册、登录和 `/auth/me` 链路。
 
 ## 计划文档
 

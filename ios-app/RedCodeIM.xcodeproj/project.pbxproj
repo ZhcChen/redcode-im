@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		64F15479CBC8EE1E88D65F68 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 75DB67E7E23C7909C07D679B /* Foundation.framework */; };
+		ABA4236E08482A2A35BFD13A /* RedCodeFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = BBC0D565535AB249E627786B /* RedCodeFeatures */; };
 		D4DC04C93526A28F9FB6F47A /* RedCodeIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96FD95CBE729781926EED3D7 /* RedCodeIOSApp.swift */; };
 		E40C27D4521C93AEDA64D890 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A9F9520132D7352E4AC28F /* AppRootView.swift */; };
 /* End PBXBuildFile section */
@@ -25,6 +26,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				64F15479CBC8EE1E88D65F68 /* Foundation.framework in Frameworks */,
+				ABA4236E08482A2A35BFD13A /* RedCodeFeatures in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,9 @@
 			dependencies = (
 			);
 			name = RedCodeIM;
+			packageProductDependencies = (
+				BBC0D565535AB249E627786B /* RedCodeFeatures */,
+			);
 			productName = RedCodeIM;
 			productReference = 28C03BC930FABD480EB72764 /* RedCodeIM.app */;
 			productType = "com.apple.product-type.application";
@@ -119,6 +124,9 @@
 			);
 			mainGroup = 18D4816871AD580590BA05A1;
 			minimizedProjectReferenceProxies = 0;
+			packageReferences = (
+				81774135D7F6FABB0C697A5B /* XCLocalSwiftPackageReference "." */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 20C4CB30ABC11180B6AECD89 /* Products */;
 			projectDirPath = "";
@@ -360,6 +368,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		81774135D7F6FABB0C697A5B /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BBC0D565535AB249E627786B /* RedCodeFeatures */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 81774135D7F6FABB0C697A5B /* XCLocalSwiftPackageReference "." */;
+			productName = RedCodeFeatures;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 704407A9F7CE81C767F044AF /* Project object */;
 }

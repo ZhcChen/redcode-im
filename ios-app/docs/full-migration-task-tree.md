@@ -83,7 +83,7 @@ IOS
 ## IOS-02 启动、认证与会话安全
 
 - [x] IOS-02.01 梳理 Flutter/H5/API 认证接口和 payload。
-- [ ] IOS-02.02 实现 Splash 和启动恢复状态机。
+- [x] IOS-02.02 实现 Splash 和启动恢复状态机。
 - [x] IOS-02.03 实现普通账号密码注册。
 - [x] IOS-02.04 实现普通账号密码登录。
 - [ ] IOS-02.05 实现重置密码。
@@ -93,7 +93,7 @@ IOS
 - [ ] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
 - [x] IOS-02.10 增加认证 ViewModel 单测。
 - [ ] IOS-02.11 增加认证 UI test。
-- [ ] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
+- [x] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
 
 当前说明：
 
@@ -101,8 +101,10 @@ IOS
 - 邮箱注册/登录作为后台配置能力保留；当前开发测试跳过真实邮箱资源依赖。
 - 已建立账号规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
 - 已建立 `APIClient`、`AuthAPIClient`、`AuthController`、`KeychainKeyValueStore`，并补充 SwiftPM 单测。
-- `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；正式 SwiftUI App target 接入后，还需要做 Simulator UI 和真实 API smoke。
+- `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；SwiftUI App target 已接入 SwiftPM 本地模块、Keychain-backed session store 和认证 UI。
 - IOS-02.09 当前只完成认证 session 清理基础；WS 断开和本地敏感缓存清理需等待 IOS-03/IOS-04 底座完成后收口。
+- 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；UI test 尚未完成。
+- 已通过 `RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 对本机 Compose API 完成注册、登录、`/auth/me` live smoke。
 
 参考：
 
