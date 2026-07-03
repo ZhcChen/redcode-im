@@ -2,15 +2,19 @@ import SwiftUI
 import RedCodeFeatures
 
 struct AppRootView: View {
-    let authController: AuthController
+    let dependencies: AppDependencies
     @State private var didRestoreSession = false
+
+    private var authController: AuthController {
+        dependencies.authController
+    }
 
     var body: some View {
         Group {
             if !didRestoreSession && authController.isLoading {
                 RestoreSessionView()
             } else if authController.state.isAuthenticated {
-                MainTabView(authController: authController)
+                MainTabView(dependencies: dependencies)
             } else {
                 AuthEntryView(authController: authController)
             }
@@ -37,13 +41,20 @@ private struct RestoreSessionView: View {
 }
 
 private struct MainTabView: View {
-    let authController: AuthController
+    let dependencies: AppDependencies
+
+    private var authController: AuthController {
+        dependencies.authController
+    }
 
     var body: some View {
         TabView {
             NavigationStack {
-                ContentUnavailableView("聊天", systemImage: "message", description: Text("聊天主链路将在下一阶段接入"))
-                    .navigationTitle("聊天")
+                ChatHomeView(
+                    authController: authController,
+                    listController: dependencies.chatListController,
+                    makeDetailController: dependencies.makeChatDetailController
+                )
             }
             .tabItem {
                 Label("聊天", systemImage: "message")
