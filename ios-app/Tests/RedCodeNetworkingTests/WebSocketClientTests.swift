@@ -189,6 +189,39 @@ final class WebSocketClientTests: XCTestCase {
         XCTAssertTrue(deduplicator.shouldAccept(thirdMessage))
         XCTAssertTrue(deduplicator.shouldAccept(firstMessage))
     }
+
+    func testChatMessageDecodesFromWebSocketMessageEvent() throws {
+        let event = WebSocketServerEvent(
+            type: "message",
+            fields: [
+                "message_id": .string("m1"),
+                "room_id": .string("r1"),
+                "sender_id": .string("u1"),
+                "sender_username": .string("alice"),
+                "sender_nickname": .string("Alice"),
+                "content": .string("hello"),
+                "message_type": .string("text"),
+                "timestamp": .string("2026-07-03T12:00:00Z"),
+                "quoted_message": .object([
+                    "message_id": .string("q1"),
+                    "room_id": .string("r1"),
+                    "sender_id": .string("u2"),
+                    "sender_username": .string("bob"),
+                    "content": .string("quoted"),
+                ]),
+            ]
+        )
+
+        let message = try ChatMessage(webSocketEvent: event, currentUserID: "u1")
+
+        XCTAssertEqual(message.id, "m1")
+        XCTAssertEqual(message.roomID, "r1")
+        XCTAssertEqual(message.senderName, "Alice")
+        XCTAssertEqual(message.content, "hello")
+        XCTAssertEqual(message.status, .sent)
+        XCTAssertEqual(message.quotedMessage?.id, "q1")
+        XCTAssertEqual(message.quotedMessage?.content, "quoted")
+    }
 }
 
 private actor MockWebSocketTransport: WebSocketTransport {

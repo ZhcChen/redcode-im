@@ -9,9 +9,11 @@ import SwiftData
 final class AppDependencies {
     let authController: AuthController
     let chatListController: ChatListController
+    let chatRealtimeController: ChatRealtimeController
 
     private let environment: RedCodeEnvironment
     private let modelContainer: ModelContainer
+    private let messageCacheStore: SwiftDataMessageCacheStore
 
     init(
         environment: RedCodeEnvironment = .simulatorDevelopment(),
@@ -27,6 +29,12 @@ final class AppDependencies {
             api: ChatAPIClient(environment: environment),
             cacheStore: SwiftDataChatSummaryCacheStore(container: modelContainer)
         )
+        self.messageCacheStore = SwiftDataMessageCacheStore(container: modelContainer)
+        self.chatRealtimeController = ChatRealtimeController(
+            webSocket: WebSocketClient(configuration: WebSocketConfiguration(environment: environment)),
+            listController: chatListController,
+            messageCacheStore: messageCacheStore
+        )
     }
 
     static func simulatorDevelopment() -> AppDependencies {
@@ -40,7 +48,7 @@ final class AppDependencies {
     func makeChatDetailController() -> ChatDetailController {
         ChatDetailController(
             api: ChatAPIClient(environment: environment),
-            messageCacheStore: SwiftDataMessageCacheStore(container: modelContainer)
+            messageCacheStore: messageCacheStore
         )
     }
 }

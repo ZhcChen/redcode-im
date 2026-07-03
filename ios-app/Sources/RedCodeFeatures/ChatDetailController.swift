@@ -136,6 +136,52 @@ public final class ChatDetailController {
         try persist()
     }
 
+    public func applyMessageRead(messageID: String, readerID: String, currentUserID: String?) throws {
+        guard !roomID.isEmpty, !messageID.isEmpty, readerID != currentUserID else {
+            return
+        }
+        guard let readMessage = messages.first(where: { $0.id == messageID }) else {
+            return
+        }
+
+        messages = messages.map { message in
+            if message.senderID == currentUserID,
+               !message.isDeleted,
+               message.timestamp <= readMessage.timestamp {
+                return message.replacingStatus(.read)
+            }
+            return message
+        }
+        try persist()
+    }
+
+    public func applyMessageUpdate(messageID: String, isDeleted: Bool) throws {
+        guard !roomID.isEmpty, !messageID.isEmpty else {
+            return
+        }
+        messages = messages.map { message in
+            message.id == messageID && isDeleted ? message.replacingDeleted() : message
+        }
+        try persist()
+    }
+
+    public func applyPinUpdate(
+        messageID: String,
+        isPinned: Bool,
+        pinnedAt: Date?,
+        pinnedBy: String?
+    ) throws {
+        guard !roomID.isEmpty, !messageID.isEmpty else {
+            return
+        }
+        messages = messages.map { message in
+            message.id == messageID
+                ? message.replacingPinned(isPinned, pinnedAt: pinnedAt, pinnedBy: pinnedBy)
+                : message
+        }
+        try persist()
+    }
+
     public func deleteMessage(messageID: String, token: String) async throws {
         guard !roomID.isEmpty, !messageID.isEmpty else {
             return
@@ -178,6 +224,10 @@ public final class ChatDetailController {
             errorMessage = error.localizedDescription
             throw error
         }
+    }
+
+    public func markLatestIncomingRead(token: String, currentUserID: String?) async throws {
+        try await syncReadState(token: token, currentUserID: currentUserID)
     }
 
     private func flushPendingMessage(
@@ -253,7 +303,7 @@ public final class ChatDetailController {
     }
 }
 
-private extension ChatMessage {
+extension ChatMessage {
     init(cacheDraft draft: RedCodeMessageDraft) {
         self.init(
             id: draft.id,
@@ -368,6 +418,14 @@ private extension ChatMessage {
     }
 
     func replacingPinned(_ pinned: Bool) -> ChatMessage {
+        replacingPinned(
+            pinned,
+            pinnedAt: pinned ? Date() : nil,
+            pinnedBy: pinned ? senderID : nil
+        )
+    }
+
+    func replacingPinned(_ pinned: Bool, pinnedAt: Date?, pinnedBy: String?) -> ChatMessage {
         ChatMessage(
             id: id,
             roomID: roomID,
@@ -379,8 +437,8 @@ private extension ChatMessage {
             timestamp: timestamp,
             isDeleted: isDeleted,
             isPinned: pinned,
-            pinnedAt: pinned ? Date() : nil,
-            pinnedBy: pinned ? senderID : nil,
+            pinnedAt: pinned ? pinnedAt : nil,
+            pinnedBy: pinned ? pinnedBy : nil,
             quotedMessage: quotedMessage,
             parts: parts,
             attachments: attachments

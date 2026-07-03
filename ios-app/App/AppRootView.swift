@@ -26,6 +26,13 @@ struct AppRootView: View {
             await authController.restoreSession()
             didRestoreSession = true
         }
+        .onChange(of: authController.state.isAuthenticated) { _, isAuthenticated in
+            if !isAuthenticated {
+                Task {
+                    await dependencies.chatRealtimeController.stop()
+                }
+            }
+        }
     }
 }
 
@@ -53,6 +60,7 @@ private struct MainTabView: View {
                 ChatHomeView(
                     authController: authController,
                     listController: dependencies.chatListController,
+                    realtimeController: dependencies.chatRealtimeController,
                     makeDetailController: dependencies.makeChatDetailController
                 )
             }

@@ -3,6 +3,7 @@ import RedCodeNetworking
 
 public struct ChatHomeView: View {
     private let authController: AuthController
+    private let realtimeController: ChatRealtimeController
     private let makeDetailController: @MainActor () -> ChatDetailController
 
     @State private var listController: ChatListController
@@ -10,9 +11,11 @@ public struct ChatHomeView: View {
     public init(
         authController: AuthController,
         listController: ChatListController,
+        realtimeController: ChatRealtimeController,
         makeDetailController: @escaping @MainActor () -> ChatDetailController
     ) {
         self.authController = authController
+        self.realtimeController = realtimeController
         self.makeDetailController = makeDetailController
         _listController = State(initialValue: listController)
     }
@@ -34,6 +37,7 @@ public struct ChatHomeView: View {
                             ChatDetailView(
                                 authController: authController,
                                 chat: chat,
+                                realtimeController: realtimeController,
                                 controller: makeDetailController()
                             )
                         } label: {
@@ -84,6 +88,7 @@ public struct ChatHomeView: View {
             // 缓存读取失败不阻塞远端刷新。
         }
         await refresh()
+        await startRealtime()
     }
 
     private func refresh() async {
@@ -92,9 +97,18 @@ public struct ChatHomeView: View {
         }
         do {
             try await listController.refreshChats(token: token)
+            await realtimeController.syncRooms(listController.chats.map(\.roomID), pruneMissing: true)
         } catch {
             // 控制器已记录 errorMessage，UI 在底部展示。
         }
+    }
+
+    private func startRealtime() async {
+        guard let session = authController.session else {
+            return
+        }
+        await realtimeController.start(token: session.token, currentUserID: session.user.id)
+        await realtimeController.syncRooms(listController.chats.map(\.roomID), pruneMissing: true)
     }
 
     private func delete(_ chat: ChatSummary) {
@@ -102,7 +116,12 @@ public struct ChatHomeView: View {
             return
         }
         Task {
-            try? await listController.deleteChat(roomID: chat.roomID, token: token)
+            do {
+                try await listController.deleteChat(roomID: chat.roomID, token: token)
+                await realtimeController.syncRooms(listController.chats.map(\.roomID), pruneMissing: true)
+            } catch {
+                // 控制器已回滚并记录错误。
+            }
         }
     }
 }
@@ -162,6 +181,7 @@ private struct ChatSummaryRow: View {
 private struct ChatDetailView: View {
     private let authController: AuthController
     private let chat: ChatSummary
+    private let realtimeController: ChatRealtimeController
 
     @State private var controller: ChatDetailController
     @State private var draftText = ""
@@ -169,10 +189,12 @@ private struct ChatDetailView: View {
     init(
         authController: AuthController,
         chat: ChatSummary,
+        realtimeController: ChatRealtimeController,
         controller: ChatDetailController
     ) {
         self.authController = authController
         self.chat = chat
+        self.realtimeController = realtimeController
         _controller = State(initialValue: controller)
     }
 
@@ -198,6 +220,7 @@ private struct ChatDetailView: View {
             await enterRoom()
         }
         .onDisappear {
+            realtimeController.detachDetailController(controller)
             controller.leaveRoom()
         }
     }
@@ -322,6 +345,7 @@ private struct ChatDetailView: View {
                 token: session.token,
                 currentUserID: session.user.id
             )
+            await realtimeController.attachDetailController(controller, roomID: chat.roomID)
         } catch {
             // 控制器已记录 errorMessage。
         }
