@@ -73,6 +73,8 @@ Flutter `app/` 已经包含认证、聊天、联系人、群管理、媒体、�
 ## Key Technical Decisions
 
 - **完整 parity，而不是 MVP parity。** 实施顺序可以分阶段，但目标清单必须覆盖 Flutter 当前功能逻辑。
+- **Apple 官方工程规范优先。** Swift、SwiftUI、Swift Package Manager、SwiftData、XCTest/XCUITest 和 Human Interface Guidelines 作为工程与交互基线。
+- **Swift only。** 新业务代码使用 Swift 6 language mode，不使用 Objective-C；只有无法避免的系统/第三方桥接才允许单独说明。
 - **SwiftUI-first。** App Shell、页面、列表、表单、弹窗、sheet、导航优先用 SwiftUI；UIKit 只在 SwiftUI 不足时桥接。
 - **MVVM + Repository + Service/Actor。** Flutter Provider 和 service 只作为行为参考；iOS 用 ViewModel 承接 UI 状态，用 Repository/Service/Actor 承接异步、缓存和协议。
 - **SPM local packages。** 建议拆为 `RedCodeCore`、`RedCodeNetworking`、`RedCodeStorage`、`RedCodeFeatures`，避免 App target 膨胀。
@@ -134,6 +136,7 @@ External runtime
 - SwiftUI App 入口、TabView、NavigationStack。
 - 环境配置、日志、错误模型、依赖组装。
 - XCTest/XCUITest 基础入口。
+- 阶段任务索引树。
 
 **Reference:** `app/lib/main.dart`、`app/lib/app.dart`、`app/lib/core/config/environment.dart`
 
@@ -141,6 +144,7 @@ External runtime
 - iOS Simulator 可启动空壳 App。
 - 可切换开发/测试 API 和 WS 地址。
 - package 单元测试可运行。
+- `ios-app/docs/full-migration-task-tree.md` 能作为后续执行索引。
 
 ### Phase 2：启动、认证与会话安全
 
@@ -344,6 +348,7 @@ External runtime
 ## Documentation / Operational Notes
 
 - `ios-app/docs/flutter-parity-scope.md` 是完整迁移范围源。
+- `ios-app/docs/full-migration-task-tree.md` 是执行任务索引树。
 - `ios-app/docs/architecture.md` 记录 iOS 原生架构原则。
 - 后续实现阶段需要更新 `docs/reference/testing/README.md`，加入 `ios-app` 构建、单测、Simulator smoke、H5/API 联调入口。
 - 每完成一个阶段，应沉淀实现经验到 `docs/solutions/`。

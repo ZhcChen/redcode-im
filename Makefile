@@ -19,6 +19,7 @@ FLUTTER := flutter
 CARGO := cargo
 GO := go
 PATROL := patrol
+SWIFT := swift
 
 API_COMPOSE_FILE := $(ROOT_DIR)/api/docker/dev/docker-compose.yml
 API_TEST_COMPOSE_FILE := $(ROOT_DIR)/tests/docker-compose.test.yml
@@ -85,6 +86,8 @@ H5_APP_LOG := /tmp/redcode-h5-app.log
 H5_APP_BASE_URL ?= http://localhost:$(H5_APP_PORT)
 H5_APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 
+IOS_APP_DIR := $(ROOT_DIR)/ios-app
+
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
@@ -94,6 +97,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
+	ios-app.describe ios-app.check ios-app.test \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -153,6 +157,7 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) desktop.test.unit
 	@$(MAKE) h5-app.check
 	@$(MAKE) h5-app.test.unit
+	@$(MAKE) ios-app.check
 	@$(MAKE) website.test.unit
 	@$(MAKE) tests.compose.config
 	@$(MAKE) tests.tooling
@@ -684,6 +689,16 @@ h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 h5-app.test.live: ## 执行 h5-app 真实后端邮箱注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
+
+ios-app.describe: ## 查看 ios-app SwiftPM package 描述
+	@$(call require_cmd,$(SWIFT))
+	@cd "$(IOS_APP_DIR)" && $(SWIFT) package describe
+
+ios-app.test: ## 运行 ios-app SwiftPM 单元测试
+	@$(call require_cmd,$(SWIFT))
+	@cd "$(IOS_APP_DIR)" && $(SWIFT) test
+
+ios-app.check: ios-app.test ## 运行 ios-app 当前可用检查
 
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))

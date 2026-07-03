@@ -2,9 +2,18 @@
 
 ## 总体方向
 
-`ios-app` 采用 SwiftUI-first 的原生 iOS 架构。迁移目标是完整覆盖 Flutter `app/` 的功能逻辑，但实现方式以 iOS 原生开发习惯为准：不逐行翻译 Dart，不照搬 Flutter Provider/Widget 结构，不为了“看起来一样”牺牲原生导航、生命周期、系统权限和本地存储模型。
+`ios-app` 采用 SwiftUI-first 的原生 iOS 架构。迁移目标是完整覆盖 Flutter `app/` 的功能逻辑，但实现方式以 Apple 官方工程规范和 iOS 原生开发习惯为准：不逐行翻译 Dart，不照搬 Flutter Provider/Widget 结构，不为了“看起来一样”牺牲原生导航、生命周期、系统权限和本地存储模型。
 
 UIKit 不作为主 UI 框架，仅在 SwiftUI 无法直接满足的系统能力处桥接使用。
+
+## 工程规范基线
+
+- Swift 6 language mode。
+- SwiftUI-first，UIKit 仅用于必要桥接。
+- Swift Package Manager 管理本地模块和依赖。
+- XCTest/XCUITest 做单元、集成和 UI 验收。
+- Human Interface Guidelines 作为 UI 和交互规范基线。
+- 新业务代码只写 Swift；不写 Objective-C。
 
 ## 模块分层
 
@@ -26,11 +35,13 @@ SwiftUI App Shell
 
 - 放置跨模块领域模型、错误类型、环境配置、常量和协议定义。
 - 避免依赖 UI，便于单元测试。
+- 当前包含环境配置、错误模型和平台策略基线。
 
 ### RedCodeNetworking
 
 - 放置 HTTP API client、认证请求、WebSocket client 和重试/超时策略。
 - HTTP 与 WebSocket 的数据结构优先对齐 `app/lib/core/services/`、`h5-app/src/services/` 和后端接口。
+- 当前包含 endpoint URL 构造和 WebSocket 配置基线。
 
 ### RedCodeStorage
 
@@ -38,12 +49,14 @@ SwiftUI App Shell
 - 消息、会话、联系人缓存优先使用 SwiftData。
 - 消息全文搜索如 SwiftData 无法满足性能与查询能力，使用 SQLite FTS5/GRDB 作为搜索索引侧车，不替代主缓存模型。
 - 本地缓存语义对齐 Flutter `MessageStorage`：按 room 缓存，默认每房间保留最近 200 条。
+- 当前包含 key-value store 协议和消息缓存策略基线。
 
 ### RedCodeFeatures
 
 - 按业务能力拆分：Auth、Chat、Contacts、Groups、Settings。
 - 每个 feature 保持 View、ViewModel、Service/Repository 边界清晰。
 - View 只负责展示和交互，业务状态与异步流程进入 ViewModel。
+- 当前包含 App tab、route、session state 基线。
 
 ## 状态与并发
 

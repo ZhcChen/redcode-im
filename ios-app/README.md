@@ -13,12 +13,19 @@
 
 ## 推荐技术栈
 
-- 语言与 UI：Swift + SwiftUI
+- 语言与 UI：Swift 6 + SwiftUI
 - 架构：MVVM + feature modules
 - 并发与网络：Swift Concurrency (`async/await`) + `URLSession`
 - 本地缓存：SwiftData 优先；如后续需要更强 SQL/全文搜索能力，再评估 SQLite/GRDB
 - 依赖管理：Swift Package Manager
 - 测试：XCTest + XCUITest
+
+## 工程规范
+
+- Apple 官方规范优先：Swift、SwiftUI、Swift Package Manager、SwiftData、XCTest/XCUITest、Human Interface Guidelines。
+- 新业务代码只使用 Swift，不使用 Objective-C。
+- UI 遵循 iOS 原生交互、导航、权限、可访问性与系统控件习惯；Flutter/H5 只作为功能和视觉语言参考。
+- 当前本机工具链已确认：Xcode 26.6，Apple Swift 6.3.3。
 
 ## 目录说明
 
@@ -56,3 +63,4 @@ ios-app/
 
 - `docs/plans/2026-07-03-001-feat-ios-app-full-flutter-parity-plan.md`
 - `ios-app/docs/flutter-parity-scope.md`
+- `ios-app/docs/full-migration-task-tree.md`
