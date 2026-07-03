@@ -274,7 +274,14 @@
 ### Phase 11：全量 parity 验收与切换准备
 
 - 与 Flutter/H5/API 做功能对照验收。
-- iOS Simulator smoke。
+- 本机 iOS Simulator smoke、UI test 与 H5/API 联调验收。
 - 后端 Compose 环境联调。
 - 形成缺口清单。
 - 满足全量 parity 后，再讨论是否下线 Flutter iOS。
+
+## 测试设备策略
+
+- 默认测试设备：本机 iOS Simulator。
+- 默认联调网络：Simulator 使用 `127.0.0.1` 访问本机 Compose API/WS。
+- 不默认使用 iPhone 真机；真机只用于 APNs、相机、麦克风、后台通知、签名发布等 Simulator 无法完整验证的能力。
+- 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。

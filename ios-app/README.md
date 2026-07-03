@@ -43,6 +43,13 @@ ios-app/
 - 本地消息缓存语义对齐 Flutter：单房间默认保留最近 200 条消息。
 - 原生 iOS 与 Flutter 并行存在，直到功能验收完全通过后再讨论替换和删除策略。
 
+## 测试设备策略
+
+- `ios-app` 默认使用本机 iOS Simulator 做开发、smoke、UI test 与 H5/API 联调验收。
+- Simulator 联调时 API/WS 使用 `127.0.0.1` 指向本机 Compose API。
+- 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则；Pixel 8 Pro 只用于 Android/Flutter 侧验收。
+- 只有 APNs、相机、麦克风、后台通知、签名发布等 Simulator 无法完整覆盖的能力，才单独安排 iPhone 真机验证。
+
 ## 计划文档
 
 详细实施方案见：

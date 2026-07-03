@@ -29,6 +29,7 @@ Flutter `app/` 已经包含认证、聊天、联系人、群管理、媒体、�
 - R8. Push 与本地通知作为后期阶段迁移，iOS 优先 APNs；Firebase Messaging 不作为默认 iOS 依赖。
 - R9. H5 继续作为 API 联调和功能流程基准；Flutter 作为完整功能 parity 清单来源。
 - R10. 完整 parity 通过前，不删除 Flutter `app/`。
+- R11. `ios-app` 默认使用本机 iOS Simulator 验收，不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
 
 ## Scope Boundaries
 
@@ -38,6 +39,7 @@ Flutter `app/` 已经包含认证、聊天、联系人、群管理、媒体、�
 - 不改变后端 HTTP/WS 协议作为迁移前提；如发现接口缺口，单独列后端任务。
 - 不把 Flutter 热更新按原样搬到 iOS；iOS 侧只做远程配置、版本检查和更新提示。
 - 不为了“代码结构相似”牺牲 iOS 原生生命周期、权限、导航、本地存储和安全模型。
+- 不默认安排 iPhone 真机测试；真机只用于 APNs、相机、麦克风、后台通知、签名发布等 Simulator 无法完整覆盖的能力。
 
 ## Context & Research
 
@@ -81,6 +83,7 @@ Flutter `app/` 已经包含认证、聊天、联系人、群管理、媒体、�
 - **上传与媒体用 iOS 原生框架。** 图片/视频选择用 PhotosUI/DocumentPicker，语音用 AVFoundation，通知用 UserNotifications。
 - **Push 优先 APNs。** Flutter 当前依赖 Firebase Messaging，但 iOS 原生不默认引入 Firebase；如果后端只支持 FCM，再单独评估桥接。
 - **热更新原生化替代。** Flutter 热更新模块在 iOS 侧改为远程配置、版本检查、更新提示和资源配置，不迁移动态代码执行。
+- **测试设备默认本机 iOS Simulator。** `ios-app` 的开发、smoke、UI test 与 H5/API 联调默认在本机 iOS Simulator 执行，Simulator 使用 `127.0.0.1` 访问本机 Compose API/WS。
 
 ## High-Level Technical Design
 
@@ -310,7 +313,7 @@ External runtime
 **Scope:**
 - Flutter vs iOS 功能清单逐项验收。
 - H5/API/iOS 联调。
-- iOS Simulator smoke。
+- 本机 iOS Simulator smoke、UI test 与 H5/API 联调。
 - 真机签名和发布前检查。
 - 缺口清单和切换策略。
 
@@ -323,9 +326,10 @@ External runtime
 
 - 单元测试：Core、Networking、Storage、Feature ViewModel。
 - UI 测试：认证、聊天、联系人、群、设置主流程。
-- 集成测试：iOS Simulator + API Compose + H5 对照。
+- 集成测试：本机 iOS Simulator + API Compose + H5 对照。
 - 媒体测试：对象存储 mock，避免真实对象存储浪费。
 - 回归基准：先 H5，后 iOS；Flutter 作为完整功能清单和视觉/行为参考。
+- 设备策略：默认只用本机 iOS Simulator；APNs、相机、麦克风、后台通知、签名发布等能力再单独用 iPhone 真机补验。
 
 ## Risks & Dependencies
 
