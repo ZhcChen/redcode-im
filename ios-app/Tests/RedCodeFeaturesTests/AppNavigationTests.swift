@@ -1,4 +1,5 @@
 import XCTest
+@testable import RedCodeCore
 @testable import RedCodeFeatures
 
 final class AppNavigationTests: XCTestCase {
@@ -10,6 +11,20 @@ final class AppNavigationTests: XCTestCase {
     func testSessionStateReportsAuthentication() {
         XCTAssertFalse(AppSessionState.unauthenticated.isAuthenticated)
         XCTAssertTrue(AppSessionState.authenticated(userID: "u1").isAuthenticated)
+    }
+
+    func testSessionStateRestoresFromAuthSession() {
+        let user = AuthUser(id: "u1", username: "user1")
+
+        XCTAssertEqual(
+            AppSessionState.from(session: AuthSession(token: "token", user: user)),
+            .authenticated(userID: "u1")
+        )
+        XCTAssertEqual(
+            AppSessionState.from(session: AuthSession(token: "", user: user)),
+            .unauthenticated
+        )
+        XCTAssertEqual(AppSessionState.from(session: nil), .unauthenticated)
     }
 
     func testRoutesAreHashableForNavigationStackPath() {
