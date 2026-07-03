@@ -166,12 +166,12 @@ IOS
 - [x] IOS-04.01 实现会话列表数据源。
 - [ ] IOS-04.02 实现会话列表 UI。
 - [ ] IOS-04.03 实现未读数、置顶、免打扰展示。
-- [ ] IOS-04.04 实现聊天详情数据源。
+- [x] IOS-04.04 实现聊天详情数据源。
 - [ ] IOS-04.05 实现聊天详情 UI。
-- [ ] IOS-04.06 实现历史消息加载和本地缓存合并。
-- [ ] IOS-04.07 实现每 room 最近 200 条消息保留策略。
-- [ ] IOS-04.08 实现文本消息发送。
-- [ ] IOS-04.09 实现 pending、失败重试、服务端回包替换。
+- [x] IOS-04.06 实现历史消息加载和本地缓存合并。
+- [x] IOS-04.07 实现每 room 最近 200 条消息保留策略。
+- [x] IOS-04.08 实现文本消息发送。
+- [x] IOS-04.09 实现 pending、失败重试、服务端回包替换。
 - [ ] IOS-04.10 实现引用消息。
 - [ ] IOS-04.11 实现已读。
 - [ ] IOS-04.12 实现消息删除。
@@ -199,8 +199,9 @@ IOS
 
 - 聊天网络层已补 `ChatAPIClient`、`ChatAPIEndpoint` 和 HTTP DTO，覆盖 `/chats`、`/rooms/{roomId}/messages`、文本发送、已读、删除会话、删除消息、置顶/取消置顶基础调用。
 - 会话列表数据源已补 `SwiftDataChatSummaryCacheStore` 和 `ChatListController`，实现缓存优先刷新、远端刷新后落 SwiftData、乐观删除失败回滚、WebSocket 入站消息更新 last message/unread、当前用户已读清零。
+- 聊天详情数据源已补 `ChatDetailController`，实现缓存优先进入房间、远端历史消息合并、每 room 最近 200 条持久化策略复用、文本 pending/failed/retry、服务端回包替换和进入房间后的已读同步。
 - 已新增 `RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests`，对本机 Compose API 的 `/chats` 解码做 live smoke。
-- 下一步进入 IOS-04.02/04.04/04.05/04.08：会话列表 UI、聊天详情数据源/UI、文本消息 pending/failed/retry。
+- 下一步进入 IOS-04.02/04.05/04.10/04.12/04.13：会话列表 UI、聊天详情 UI、引用消息 UI、消息删除和置顶交互补齐。
 
 ## IOS-05 联系人、好友与私聊
 

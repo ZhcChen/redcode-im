@@ -2,7 +2,16 @@ import Foundation
 import SwiftData
 
 @MainActor
-public final class SwiftDataMessageCacheStore {
+public protocol MessageCacheStore: AnyObject {
+    func listRoomIDs() throws -> [String]
+    func loadMessages(roomID: String) throws -> [RedCodeMessageDraft]
+    func saveMessages(roomID: String, messages: [RedCodeMessageDraft]) throws
+    func clear(roomID: String) throws
+    func clearAll() throws
+}
+
+@MainActor
+public final class SwiftDataMessageCacheStore: MessageCacheStore {
     private let container: ModelContainer
     private let policy: MessageCachePolicy
 
