@@ -66,6 +66,28 @@ public actor APIClient {
         try await sendNoResponse(endpoint, bearerToken: bearerToken, bodyData: data)
     }
 
+    public func postNoResponse(
+        _ endpoint: APIEndpoint,
+        bearerToken: String? = nil
+    ) async throws {
+        try await sendNoResponse(endpoint, bearerToken: bearerToken, bodyData: nil)
+    }
+
+    public func delete<Response: Decodable & Sendable>(
+        _ endpoint: APIEndpoint,
+        bearerToken: String? = nil,
+        as responseType: Response.Type = Response.self
+    ) async throws -> Response {
+        try await send(endpoint, bearerToken: bearerToken, bodyData: nil, as: responseType)
+    }
+
+    public func deleteNoResponse(
+        _ endpoint: APIEndpoint,
+        bearerToken: String? = nil
+    ) async throws {
+        try await sendNoResponse(endpoint, bearerToken: bearerToken, bodyData: nil)
+    }
+
     private func send<Response: Decodable & Sendable>(
         _ endpoint: APIEndpoint,
         bearerToken: String?,

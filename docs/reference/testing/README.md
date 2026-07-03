@@ -102,6 +102,9 @@ make ios-app.smoke.simulator
 - `ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
 - `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证聊天 `/chats` live smoke。
 
 ### Admin 自测
 ```bash

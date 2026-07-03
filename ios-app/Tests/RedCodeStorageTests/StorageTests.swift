@@ -44,6 +44,55 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testSwiftDataChatSummaryCacheStoresSortsAndRemovesChats() throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let store = SwiftDataChatSummaryCacheStore(container: container)
+        let oldDate = Date(timeIntervalSince1970: 100)
+        let newDate = Date(timeIntervalSince1970: 200)
+
+        try store.saveChats([
+            RedCodeChatSummaryDraft(
+                roomID: "r1",
+                roomType: "private",
+                displayName: "Alice",
+                lastMessageID: "m1",
+                lastMessagePreview: "old",
+                lastMessageAt: oldDate
+            ),
+            RedCodeChatSummaryDraft(
+                roomID: "r2",
+                roomType: "group",
+                displayName: "Team",
+                lastMessageID: "m2",
+                lastMessagePreview: "new",
+                lastMessageAt: newDate,
+                isPinned: true
+            ),
+        ])
+
+        XCTAssertEqual(try store.loadChats().map(\.roomID), ["r2", "r1"])
+
+        try store.upsert(
+            RedCodeChatSummaryDraft(
+                roomID: "r1",
+                roomType: "private",
+                displayName: "Alice Updated",
+                lastMessageID: "m3",
+                lastMessagePreview: "updated",
+                lastMessageAt: Date(timeIntervalSince1970: 300),
+                unreadCount: 2
+            )
+        )
+        let updated = try XCTUnwrap(try store.loadChats().first { $0.roomID == "r1" })
+        XCTAssertEqual(updated.displayName, "Alice Updated")
+        XCTAssertEqual(updated.lastMessageID, "m3")
+        XCTAssertEqual(updated.unreadCount, 2)
+
+        try store.remove(roomID: "r2")
+        XCTAssertEqual(try store.loadChats().map(\.roomID), ["r1"])
+    }
+
+    @MainActor
     func testSwiftDataSchemaStoresCoreCacheRecords() throws {
         let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
         let context = ModelContext(container)

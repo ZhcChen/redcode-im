@@ -163,7 +163,7 @@ IOS
 
 ## IOS-04 聊天核心全量
 
-- [ ] IOS-04.01 实现会话列表数据源。
+- [x] IOS-04.01 实现会话列表数据源。
 - [ ] IOS-04.02 实现会话列表 UI。
 - [ ] IOS-04.03 实现未读数、置顶、免打扰展示。
 - [ ] IOS-04.04 实现聊天详情数据源。
@@ -194,6 +194,13 @@ IOS
 - iOS 与 H5 可互发文本消息。
 - 断网、重连、失败重试符合 Flutter/H5 语义。
 - 重启后消息缓存和未读数一致。
+
+当前说明：
+
+- 聊天网络层已补 `ChatAPIClient`、`ChatAPIEndpoint` 和 HTTP DTO，覆盖 `/chats`、`/rooms/{roomId}/messages`、文本发送、已读、删除会话、删除消息、置顶/取消置顶基础调用。
+- 会话列表数据源已补 `SwiftDataChatSummaryCacheStore` 和 `ChatListController`，实现缓存优先刷新、远端刷新后落 SwiftData、乐观删除失败回滚、WebSocket 入站消息更新 last message/unread、当前用户已读清零。
+- 已新增 `RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests`，对本机 Compose API 的 `/chats` 解码做 live smoke。
+- 下一步进入 IOS-04.02/04.04/04.05/04.08：会话列表 UI、聊天详情数据源/UI、文本消息 pending/failed/retry。
 
 ## IOS-05 联系人、好友与私聊
 
