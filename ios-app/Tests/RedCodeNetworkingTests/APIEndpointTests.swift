@@ -35,6 +35,7 @@ final class APIEndpointTests: XCTestCase {
         )
 
         XCTAssertEqual(configuration.url.absoluteString, "ws://127.0.0.1:8010/ws")
+        XCTAssertEqual(configuration.jsonHandshakeURL.absoluteString, "ws://127.0.0.1:8010/ws?format=json")
         XCTAssertEqual(configuration.accessToken, "token")
         XCTAssertTrue(configuration.reconnectsAutomatically)
     }
