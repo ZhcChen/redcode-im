@@ -131,6 +131,86 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(try store.listRoomIDs().isEmpty)
     }
 
+    func testAttachmentFileCacheSavesResolvesAndRemovesData() async throws {
+        let rootURL = try makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let cache = AttachmentFileCache(rootURL: rootURL)
+        let objectKey = "rooms/room-1/hello.txt"
+
+        let saved = try await cache.save(
+            objectKey: objectKey,
+            data: Data("hello".utf8),
+            mimeType: "text/plain"
+        )
+        let resolved = try await cache.resolve(objectKey: objectKey)
+        let existsAfterSave = FileManager.default.fileExists(atPath: saved.fileURL.path)
+        try await cache.remove(objectKey: objectKey)
+        let removed = try await cache.resolve(objectKey: objectKey)
+
+        XCTAssertTrue(existsAfterSave)
+        XCTAssertEqual(resolved?.objectKey, objectKey)
+        XCTAssertEqual(resolved?.mimeType, "text/plain")
+        XCTAssertEqual(resolved?.size, 5)
+        XCTAssertNil(removed)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: saved.fileURL.path))
+    }
+
+    func testAvatarFileCacheRejectsObjectKeyMismatchAndExpiresEntries() async throws {
+        let rootURL = try makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let avatarCache = AvatarFileCache(rootURL: rootURL)
+
+        let saved = try await avatarCache.saveUserAvatar(
+            userID: "user-1",
+            objectKey: "avatars/user-1-a.png",
+            data: Data([1, 2, 3]),
+            mimeType: "image/png"
+        )
+        let mismatch = try await avatarCache.resolveUserAvatar(
+            userID: "user-1",
+            objectKey: "avatars/user-1-b.png"
+        )
+
+        XCTAssertNil(mismatch)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: saved.fileURL.path))
+
+        let expiringCache = AvatarFileCache(rootURL: rootURL, ttl: -1)
+        let expired = try await expiringCache.saveRoomAvatar(
+            roomID: "room-1",
+            objectKey: "avatars/room-1.png",
+            data: Data([4, 5, 6]),
+            mimeType: "image/png"
+        )
+        let resolvedExpired = try await expiringCache.resolveRoomAvatar(
+            roomID: "room-1",
+            objectKey: "avatars/room-1.png"
+        )
+
+        XCTAssertNil(resolvedExpired)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: expired.fileURL.path))
+    }
+
+    func testEmojiFileCacheUsesObjectKeyExtensionAndClearAll() async throws {
+        let rootURL = try makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let cache = EmojiFileCache(rootURL: rootURL)
+        let objectKey = "https://cdn.example.test/emojis/redcode.gif"
+
+        let saved = try await cache.save(
+            objectKey: objectKey,
+            data: Data([7, 8, 9]),
+            mimeType: "image/gif"
+        )
+        let resolved = try await cache.resolve(objectKey: objectKey)
+        try await cache.clearAll()
+        let cleared = try await cache.resolve(objectKey: objectKey)
+
+        XCTAssertEqual(saved.fileURL.pathExtension, "gif")
+        XCTAssertEqual(resolved?.mimeType, "image/gif")
+        XCTAssertNil(cleared)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: saved.fileURL.path))
+    }
+
     #if canImport(Security)
     func testKeychainKeyValueStoreStoresAndRemovesValues() async throws {
         let store = KeychainKeyValueStore(
@@ -146,4 +226,11 @@ final class StorageTests: XCTestCase {
         XCTAssertNil(removed)
     }
     #endif
+
+    private func makeTemporaryCacheRoot() throws -> URL {
+        let rootURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("redcode-ios-cache-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        return rootURL
+    }
 }
