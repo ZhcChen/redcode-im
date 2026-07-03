@@ -114,6 +114,13 @@ final class ChatAPIClientTests: XCTestCase {
                           "thumbnail_key": "messages/r1/thumb.png"
                         }
                       }
+                    ],
+                    "reactions": [
+                      {
+                        "reaction_key": "👍",
+                        "count": 2,
+                        "has_self": true
+                      }
                     ]
                   }
                 ]
@@ -148,6 +155,9 @@ final class ChatAPIClientTests: XCTestCase {
         XCTAssertEqual(messages[0].attachments.first?.key, "messages/r1/image.png")
         XCTAssertEqual(messages[0].attachments.first?.mimeType, "image/png")
         XCTAssertEqual(messages[0].attachments.first?.thumbnailKey, "messages/r1/thumb.png")
+        XCTAssertEqual(messages[0].reactions.first?.reactionKey, "👍")
+        XCTAssertEqual(messages[0].reactions.first?.count, 2)
+        XCTAssertEqual(messages[0].reactions.first?.hasSelf, true)
         XCTAssertEqual(messages[1].senderName, "Alice")
     }
 
@@ -247,6 +257,86 @@ final class ChatAPIClientTests: XCTestCase {
         XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8010/rooms/r1/messages/m1/pin")
         XCTAssertEqual(request.httpMethod, "POST")
         XCTAssertNil(request.httpBody)
+    }
+
+    func testReactionOperationsUseBackendRoutesAndDecodeSummaries() async throws {
+        let addTransport = MockChatHTTPTransport(
+            data: Data(
+                """
+                {
+                  "success": true,
+                  "message": "ok",
+                  "summaries": [
+                    {"reaction_key": "👍", "count": 3, "has_self": true}
+                  ]
+                }
+                """.utf8
+            ),
+            statusCode: 200
+        )
+        let addClient = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: addTransport)
+        )
+
+        let added = try await addClient.addMessageReaction(
+            roomID: "r1",
+            messageID: "m1",
+            reactionKey: "👍",
+            token: "access-token"
+        )
+
+        var recordedRequest = await addTransport.recordedLastRequest()
+        var request = try XCTUnwrap(recordedRequest)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8010/rooms/r1/messages/m1/reactions")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(json["reaction_key"], "👍")
+        XCTAssertEqual(added, [MessageReactionSummary(reactionKey: "👍", count: 3, hasSelf: true)])
+
+        let removeTransport = MockChatHTTPTransport(
+            data: Data(#"{"success":true,"summaries":[]}"#.utf8),
+            statusCode: 200
+        )
+        let removeClient = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: removeTransport)
+        )
+
+        let removed = try await removeClient.removeMessageReaction(
+            roomID: "r1",
+            messageID: "m1",
+            reactionKey: "❤️",
+            token: "access-token"
+        )
+
+        recordedRequest = await removeTransport.recordedLastRequest()
+        request = try XCTUnwrap(recordedRequest)
+        XCTAssertEqual(
+            request.url?.absoluteString,
+            "http://127.0.0.1:8010/rooms/r1/messages/m1/reactions?reaction_key=%E2%9D%A4%EF%B8%8F"
+        )
+        XCTAssertEqual(request.httpMethod, "DELETE")
+        XCTAssertTrue(removed.isEmpty)
+
+        let fetchTransport = MockChatHTTPTransport(
+            data: Data(#"{"success":true,"summaries":[{"reaction_key":"😂","count":1,"has_self":false}]}"#.utf8),
+            statusCode: 200
+        )
+        let fetchClient = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: fetchTransport)
+        )
+
+        let fetched = try await fetchClient.fetchMessageReactions(
+            roomID: "r1",
+            messageID: "m1",
+            token: "access-token"
+        )
+
+        recordedRequest = await fetchTransport.recordedLastRequest()
+        request = try XCTUnwrap(recordedRequest)
+        XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:8010/rooms/r1/messages/m1/reactions")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(fetched, [MessageReactionSummary(reactionKey: "😂", count: 1, hasSelf: false)])
     }
 }
 

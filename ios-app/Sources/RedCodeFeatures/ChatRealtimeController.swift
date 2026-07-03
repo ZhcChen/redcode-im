@@ -118,6 +118,8 @@ public final class ChatRealtimeController {
             handleMessageUpdateEvent(event)
         case "pin_update":
             handlePinUpdateEvent(event)
+        case "reaction_update":
+            await handleReactionUpdateEvent(event)
         case "room_created":
             await refreshChatsFromServer()
         case "room_history_cleared", "group_dissolved":
@@ -217,6 +219,19 @@ public final class ChatRealtimeController {
                         : message
                 }
             }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleReactionUpdateEvent(_ event: WebSocketServerEvent) async {
+        let roomID = event.stringValue(for: "room_id") ?? ""
+        let messageID = event.stringValue(for: "message_id") ?? ""
+        guard activeRoomID == roomID, let activeDetailController, let token else {
+            return
+        }
+        do {
+            try await activeDetailController.refreshReactions(messageID: messageID, token: token)
         } catch {
             errorMessage = error.localizedDescription
         }

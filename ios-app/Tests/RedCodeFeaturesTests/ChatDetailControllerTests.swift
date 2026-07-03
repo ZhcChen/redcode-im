@@ -121,12 +121,52 @@ final class ChatDetailControllerTests: XCTestCase {
         XCTAssertEqual(controller.messages.map(\.id), ["server"])
         XCTAssertEqual(controller.messages.first?.status, .sent)
     }
+
+    func testToggleReactionUsesAddOrRemoveAndUpdatesMessage() async throws {
+        let cache = SwiftDataMessageCacheStore(
+            container: try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        )
+        let api = MockChatDetailAPIService(
+            messages: [
+                ChatMessage(
+                    id: "m1",
+                    roomID: "r1",
+                    senderID: "u2",
+                    senderName: "Alice",
+                    content: "hello",
+                    timestamp: Date(timeIntervalSince1970: 100)
+                ),
+            ],
+            addReactionSummaries: [
+                MessageReactionSummary(reactionKey: "👍", count: 1, hasSelf: true),
+            ],
+            removeReactionSummaries: []
+        )
+        let controller = ChatDetailController(api: api, messageCacheStore: cache)
+        try await controller.enterRoom(roomID: "r1", token: "access-token", currentUserID: "u1")
+
+        try await controller.toggleReaction(messageID: "m1", reactionKey: "👍", token: "access-token")
+
+        XCTAssertEqual(controller.messages.first?.reactions, [
+            MessageReactionSummary(reactionKey: "👍", count: 1, hasSelf: true),
+        ])
+
+        try await controller.toggleReaction(messageID: "m1", reactionKey: "👍", token: "access-token")
+
+        XCTAssertEqual(controller.messages.first?.reactions, [])
+        let calls = await api.calls
+        XCTAssertTrue(calls.contains(.addReaction(roomID: "r1", messageID: "m1", reactionKey: "👍", token: "access-token")))
+        XCTAssertTrue(calls.contains(.removeReaction(roomID: "r1", messageID: "m1", reactionKey: "👍", token: "access-token")))
+    }
 }
 
 private enum ChatDetailCall: Equatable, Sendable {
     case loadMessages(roomID: String, token: String, limit: Int)
     case sendText(roomID: String, content: String, quotedMessageID: String?, token: String)
     case markRead(roomID: String, messageID: String, token: String)
+    case addReaction(roomID: String, messageID: String, reactionKey: String, token: String)
+    case removeReaction(roomID: String, messageID: String, reactionKey: String, token: String)
+    case fetchReactions(roomID: String, messageID: String, token: String)
 }
 
 private enum ChatDetailFailure: Error, Sendable {
@@ -143,10 +183,22 @@ private actor MockChatDetailAPIService: ChatAPIService {
 
     private let messages: [ChatMessage]
     private var sendOutcomes: [SendOutcome]
+    private let addReactionSummaries: [MessageReactionSummary]
+    private let removeReactionSummaries: [MessageReactionSummary]
+    private let fetchedReactionSummaries: [MessageReactionSummary]
 
-    init(messages: [ChatMessage] = [], sendOutcomes: [SendOutcome] = []) {
+    init(
+        messages: [ChatMessage] = [],
+        sendOutcomes: [SendOutcome] = [],
+        addReactionSummaries: [MessageReactionSummary] = [],
+        removeReactionSummaries: [MessageReactionSummary] = [],
+        fetchedReactionSummaries: [MessageReactionSummary] = []
+    ) {
         self.messages = messages
         self.sendOutcomes = sendOutcomes
+        self.addReactionSummaries = addReactionSummaries
+        self.removeReactionSummaries = removeReactionSummaries
+        self.fetchedReactionSummaries = fetchedReactionSummaries
     }
 
     func fetchChats(token: String) async throws -> [ChatSummary] {
@@ -199,4 +251,29 @@ private actor MockChatDetailAPIService: ChatAPIService {
     }
 
     func setMessagePinned(roomID: String, messageID: String, pinned: Bool, token: String) async throws {}
+
+    func addMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        calls.append(.addReaction(roomID: roomID, messageID: messageID, reactionKey: reactionKey, token: token))
+        return addReactionSummaries
+    }
+
+    func removeMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        calls.append(.removeReaction(roomID: roomID, messageID: messageID, reactionKey: reactionKey, token: token))
+        return removeReactionSummaries
+    }
+
+    func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary] {
+        calls.append(.fetchReactions(roomID: roomID, messageID: messageID, token: token))
+        return fetchedReactionSummaries
+    }
 }

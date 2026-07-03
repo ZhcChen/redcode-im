@@ -36,7 +36,8 @@ public extension ChatMessage {
             pinnedBy: pinnedBy,
             quotedMessage: quotedMessage,
             parts: parts,
-            attachments: attachments
+            attachments: attachments,
+            reactions: reactions
         )
     }
 }

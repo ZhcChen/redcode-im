@@ -20,6 +20,19 @@ public protocol ChatAPIService: Sendable {
     func deleteChat(roomID: String, token: String) async throws
     func deleteMessage(roomID: String, messageID: String, token: String) async throws -> ChatMessage
     func setMessagePinned(roomID: String, messageID: String, pinned: Bool, token: String) async throws
+    func addMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary]
+    func removeMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary]
+    func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary]
 }
 
 public struct ChatAPIClient: ChatAPIService {
@@ -115,6 +128,52 @@ public struct ChatAPIClient: ChatAPIService {
             )
         }
     }
+
+    public func addMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        let response = try await apiClient.post(
+            ChatAPIEndpoint.addMessageReaction(roomID: roomID, messageID: messageID),
+            body: MessageReactionRequest(reactionKey: reactionKey),
+            bearerToken: token,
+            as: MessageReactionResponse.self
+        )
+        return response.summaries
+    }
+
+    public func removeMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        let response = try await apiClient.delete(
+            ChatAPIEndpoint.removeMessageReaction(
+                roomID: roomID,
+                messageID: messageID,
+                reactionKey: reactionKey
+            ),
+            bearerToken: token,
+            as: MessageReactionResponse.self
+        )
+        return response.summaries
+    }
+
+    public func fetchMessageReactions(
+        roomID: String,
+        messageID: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        let response = try await apiClient.get(
+            ChatAPIEndpoint.messageReactions(roomID: roomID, messageID: messageID),
+            bearerToken: token,
+            as: MessageReactionResponse.self
+        )
+        return response.summaries
+    }
 }
 
 public struct SendTextMessageRequest: Encodable, Equatable, Sendable {
@@ -144,8 +203,24 @@ public struct MarkMessageReadRequest: Encodable, Equatable, Sendable {
     }
 }
 
+public struct MessageReactionRequest: Encodable, Equatable, Sendable {
+    public let reactionKey: String
+
+    public init(reactionKey: String) {
+        self.reactionKey = reactionKey
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case reactionKey = "reaction_key"
+    }
+}
+
 private struct SendMessageResponse: Decodable, Sendable {
     let message: ChatMessage
+}
+
+private struct MessageReactionResponse: Decodable, Sendable {
+    let summaries: [MessageReactionSummary]
 }
 
 private extension Array where Element == ChatSummary {

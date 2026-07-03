@@ -168,4 +168,26 @@ private actor MockChatAPIService: ChatAPIService {
     }
 
     func setMessagePinned(roomID: String, messageID: String, pinned: Bool, token: String) async throws {}
+
+    func addMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        []
+    }
+
+    func removeMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        []
+    }
+
+    func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary] {
+        []
+    }
 }

@@ -48,4 +48,22 @@ public enum ChatAPIEndpoint: Sendable {
     public static func unpinMessage(roomID: String, messageID: String) -> APIEndpoint {
         APIEndpoint(method: .delete, path: "/rooms/\(roomID)/messages/\(messageID)/pin")
     }
+
+    public static func messageReactions(roomID: String, messageID: String) -> APIEndpoint {
+        APIEndpoint(method: .get, path: "/rooms/\(roomID)/messages/\(messageID)/reactions")
+    }
+
+    public static func addMessageReaction(roomID: String, messageID: String) -> APIEndpoint {
+        APIEndpoint(method: .post, path: "/rooms/\(roomID)/messages/\(messageID)/reactions")
+    }
+
+    public static func removeMessageReaction(roomID: String, messageID: String, reactionKey: String) -> APIEndpoint {
+        APIEndpoint(
+            method: .delete,
+            path: "/rooms/\(roomID)/messages/\(messageID)/reactions",
+            queryItems: [
+                URLQueryItem(name: "reaction_key", value: reactionKey),
+            ]
+        )
+    }
 }

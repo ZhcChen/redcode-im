@@ -135,6 +135,56 @@ final class ChatRealtimeControllerTests: XCTestCase {
         XCTAssertEqual(cached.first(where: { $0.id == "m1" })?.status, "read")
         XCTAssertEqual(cached.first(where: { $0.id == "m2" })?.isPinned, true)
     }
+
+    func testReactionUpdateRefreshesActiveDetailReactions() async throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let chatCache = SwiftDataChatSummaryCacheStore(container: container)
+        let messageCache = SwiftDataMessageCacheStore(container: container)
+        let listController = ChatListController(api: RealtimeMockChatAPIService(), cacheStore: chatCache)
+        let detailAPI = RealtimeMockChatAPIService(
+            fetchedReactionSummaries: [
+                MessageReactionSummary(reactionKey: "👍", count: 2, hasSelf: true),
+            ]
+        )
+        let detailController = ChatDetailController(api: detailAPI, messageCacheStore: messageCache)
+        try await detailController.enterRoom(roomID: "r1", token: "access-token", currentUserID: "u1")
+        try detailController.applyIncomingMessage(
+            ChatMessage(
+                id: "m1",
+                roomID: "r1",
+                senderID: "u2",
+                senderName: "Alice",
+                content: "hello",
+                timestamp: Date(timeIntervalSince1970: 100)
+            )
+        )
+        let webSocket = MockChatWebSocketService()
+        let realtimeController = ChatRealtimeController(
+            webSocket: webSocket,
+            listController: listController,
+            messageCacheStore: messageCache
+        )
+
+        await realtimeController.start(token: "access-token", currentUserID: "u1")
+        await realtimeController.attachDetailController(detailController, roomID: "r1")
+        await webSocket.emit(WebSocketServerEvent(
+            type: "reaction_update",
+            fields: [
+                "room_id": .string("r1"),
+                "message_id": .string("m1"),
+                "reaction_key": .string("👍"),
+                "user_id": .string("u2"),
+                "action": .string("add"),
+            ]
+        ))
+
+        try await waitUntil {
+            detailController.messages.first?.reactions.first?.count == 2
+        }
+
+        let calls = await detailAPI.recordedCalls()
+        XCTAssertTrue(calls.contains(.fetchReactions(roomID: "r1", messageID: "m1", token: "access-token")))
+    }
 }
 
 private enum RealtimeWebSocketCall: Equatable, Sendable {
@@ -197,10 +247,16 @@ private actor MockChatWebSocketService: ChatWebSocketService {
 private enum RealtimeChatCall: Equatable, Sendable {
     case fetchChats(token: String)
     case markRead(roomID: String, messageID: String, token: String)
+    case fetchReactions(roomID: String, messageID: String, token: String)
 }
 
 private actor RealtimeMockChatAPIService: ChatAPIService {
     private var calls: [RealtimeChatCall] = []
+    private let fetchedReactionSummaries: [MessageReactionSummary]
+
+    init(fetchedReactionSummaries: [MessageReactionSummary] = []) {
+        self.fetchedReactionSummaries = fetchedReactionSummaries
+    }
 
     func fetchChats(token: String) async throws -> [ChatSummary] {
         calls.append(.fetchChats(token: token))
@@ -252,6 +308,29 @@ private actor RealtimeMockChatAPIService: ChatAPIService {
     }
 
     func setMessagePinned(roomID: String, messageID: String, pinned: Bool, token: String) async throws {}
+
+    func addMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        []
+    }
+
+    func removeMessageReaction(
+        roomID: String,
+        messageID: String,
+        reactionKey: String,
+        token: String
+    ) async throws -> [MessageReactionSummary] {
+        []
+    }
+
+    func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary] {
+        calls.append(.fetchReactions(roomID: roomID, messageID: messageID, token: token))
+        return fetchedReactionSummaries
+    }
 
     func recordedCalls() -> [RealtimeChatCall] {
         calls

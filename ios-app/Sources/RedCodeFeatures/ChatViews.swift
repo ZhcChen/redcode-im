@@ -1,6 +1,8 @@
 import SwiftUI
 import RedCodeNetworking
 
+private let defaultReactionKeys = ["👍", "❤️", "😂", "🎉", "😮", "😢"]
+
 public struct ChatHomeView: View {
     private let authController: AuthController
     private let realtimeController: ChatRealtimeController
@@ -239,7 +241,10 @@ private struct ChatDetailView: View {
                         ForEach(controller.messages) { message in
                             MessageBubble(
                                 message: message,
-                                isSelf: message.senderID == authController.session?.user.id
+                                isSelf: message.senderID == authController.session?.user.id,
+                                onReactionTap: { reactionKey in
+                                    toggleReaction(message, reactionKey: reactionKey)
+                                }
                             )
                             .id(message.id)
                             .listRowSeparator(.hidden)
@@ -262,6 +267,14 @@ private struct ChatDetailView: View {
                                     pin(message, pinned: !message.isPinned)
                                 } label: {
                                     Label(message.isPinned ? "取消置顶" : "置顶", systemImage: "pin")
+                                }
+
+                                ForEach(defaultReactionKeys, id: \.self) { reactionKey in
+                                    Button {
+                                        toggleReaction(message, reactionKey: reactionKey)
+                                    } label: {
+                                        Label(reactionKey, systemImage: "face.smiling")
+                                    }
                                 }
 
                                 if message.senderID == authController.session?.user.id && !message.id.hasPrefix("local-") {
@@ -398,6 +411,15 @@ private struct ChatDetailView: View {
         }
     }
 
+    private func toggleReaction(_ message: ChatMessage, reactionKey: String) {
+        guard let token = authController.session?.token else {
+            return
+        }
+        Task {
+            try? await controller.toggleReaction(messageID: message.id, reactionKey: reactionKey, token: token)
+        }
+    }
+
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         guard let lastID = controller.messages.last?.id else {
             return
@@ -413,6 +435,7 @@ private struct ChatDetailView: View {
 private struct MessageBubble: View {
     let message: ChatMessage
     let isSelf: Bool
+    let onReactionTap: ((String) -> Void)?
 
     var body: some View {
         HStack {
@@ -458,6 +481,26 @@ private struct MessageBubble: View {
                 }
                 .padding(10)
                 .background(isSelf ? Color.accentColor : Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+
+                if !visibleReactions.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(visibleReactions) { reaction in
+                            Button {
+                                onReactionTap?(reaction.reactionKey)
+                            } label: {
+                                Text("\(reaction.reactionKey) \(reaction.count)")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        reaction.hasSelf ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12),
+                                        in: Capsule()
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
 
             if !isSelf {
@@ -506,6 +549,10 @@ private struct MessageBubble: View {
         case .sent, .none:
             return nil
         }
+    }
+
+    private var visibleReactions: [MessageReactionSummary] {
+        message.reactions.filter { !$0.reactionKey.isEmpty && $0.count > 0 }
     }
 }
 

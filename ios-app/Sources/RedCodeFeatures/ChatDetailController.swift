@@ -182,6 +182,16 @@ public final class ChatDetailController {
         try persist()
     }
 
+    public func applyReactionSummaries(messageID: String, reactions: [MessageReactionSummary]) throws {
+        guard !roomID.isEmpty, !messageID.isEmpty else {
+            return
+        }
+        messages = messages.map { message in
+            message.id == messageID ? message.replacingReactions(reactions.visibleReactions()) : message
+        }
+        try persist()
+    }
+
     public func deleteMessage(messageID: String, token: String) async throws {
         guard !roomID.isEmpty, !messageID.isEmpty else {
             return
@@ -228,6 +238,42 @@ public final class ChatDetailController {
 
     public func markLatestIncomingRead(token: String, currentUserID: String?) async throws {
         try await syncReadState(token: token, currentUserID: currentUserID)
+    }
+
+    public func toggleReaction(messageID: String, reactionKey: String, token: String) async throws {
+        let reactionKey = reactionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !roomID.isEmpty, !messageID.isEmpty, !reactionKey.isEmpty else {
+            return
+        }
+        let hasSelf = messages.first(where: { $0.id == messageID })?
+            .reactions
+            .first(where: { $0.reactionKey == reactionKey })?
+            .hasSelf == true
+        let summaries: [MessageReactionSummary]
+        if hasSelf {
+            summaries = try await api.removeMessageReaction(
+                roomID: roomID,
+                messageID: messageID,
+                reactionKey: reactionKey,
+                token: token
+            )
+        } else {
+            summaries = try await api.addMessageReaction(
+                roomID: roomID,
+                messageID: messageID,
+                reactionKey: reactionKey,
+                token: token
+            )
+        }
+        try applyReactionSummaries(messageID: messageID, reactions: summaries)
+    }
+
+    public func refreshReactions(messageID: String, token: String) async throws {
+        guard !roomID.isEmpty, !messageID.isEmpty else {
+            return
+        }
+        let summaries = try await api.fetchMessageReactions(roomID: roomID, messageID: messageID, token: token)
+        try applyReactionSummaries(messageID: messageID, reactions: summaries)
     }
 
     private func flushPendingMessage(
@@ -324,7 +370,8 @@ extension ChatMessage {
                     senderName: "",
                     content: ""
                 )
-            }
+            },
+            reactions: draft.cachedExtras.reactions
         )
     }
 
@@ -361,7 +408,7 @@ extension ChatMessage {
             isDeleted: isDeleted,
             isPinned: isPinned,
             quotedMessageID: quotedMessage?.id,
-            rawPayloadJSON: nil
+            rawPayloadJSON: cacheExtrasJSON
         )
     }
 
@@ -395,7 +442,29 @@ extension ChatMessage {
             pinnedBy: pinnedBy,
             quotedMessage: quotedMessage,
             parts: parts,
-            attachments: attachments
+            attachments: attachments,
+            reactions: reactions
+        )
+    }
+
+    func replacingReactions(_ reactions: [MessageReactionSummary]) -> ChatMessage {
+        ChatMessage(
+            id: id,
+            roomID: roomID,
+            senderID: senderID,
+            senderName: senderName,
+            content: content,
+            messageType: messageType,
+            status: status,
+            timestamp: timestamp,
+            isDeleted: isDeleted,
+            isPinned: isPinned,
+            pinnedAt: pinnedAt,
+            pinnedBy: pinnedBy,
+            quotedMessage: quotedMessage,
+            parts: parts,
+            attachments: attachments,
+            reactions: reactions
         )
     }
 
@@ -413,7 +482,8 @@ extension ChatMessage {
             isPinned: false,
             quotedMessage: quotedMessage,
             parts: parts,
-            attachments: attachments
+            attachments: attachments,
+            reactions: reactions
         )
     }
 
@@ -441,7 +511,8 @@ extension ChatMessage {
             pinnedBy: pinned ? pinnedBy : nil,
             quotedMessage: quotedMessage,
             parts: parts,
-            attachments: attachments
+            attachments: attachments,
+            reactions: reactions
         )
     }
 
@@ -461,7 +532,8 @@ extension ChatMessage {
             pinnedBy: incoming.pinnedBy ?? pinnedBy,
             quotedMessage: incoming.quotedMessage ?? quotedMessage,
             parts: incoming.parts.isEmpty ? parts : incoming.parts,
-            attachments: incoming.attachments.isEmpty ? attachments : incoming.attachments
+            attachments: incoming.attachments.isEmpty ? attachments : incoming.attachments,
+            reactions: incoming.reactions.isEmpty ? reactions : incoming.reactions
         )
     }
 
@@ -474,8 +546,51 @@ extension ChatMessage {
     }
 }
 
+private struct CachedMessageExtras: Codable {
+    let reactions: [MessageReactionSummary]
+
+    static let empty = CachedMessageExtras(reactions: [])
+}
+
+private extension RedCodeMessageDraft {
+    var cachedExtras: CachedMessageExtras {
+        guard let rawPayloadJSON,
+              let data = rawPayloadJSON.data(using: .utf8),
+              let extras = try? JSONDecoder().decode(CachedMessageExtras.self, from: data) else {
+            return .empty
+        }
+        return extras
+    }
+}
+
+private extension ChatMessage {
+    var cacheExtrasJSON: String? {
+        let extras = CachedMessageExtras(reactions: reactions)
+        guard !extras.reactions.isEmpty,
+              let data = try? JSONEncoder().encode(extras) else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
 private extension Array where Element == ChatMessage {
     func sortedByTimestamp() -> [ChatMessage] {
         sorted { $0.timestamp < $1.timestamp }
+    }
+}
+
+private extension Array where Element == MessageReactionSummary {
+    func visibleReactions() -> [MessageReactionSummary] {
+        filter { !$0.reactionKey.isEmpty && $0.count > 0 }
+            .sorted { lhs, rhs in
+                if lhs.hasSelf != rhs.hasSelf {
+                    return lhs.hasSelf && !rhs.hasSelf
+                }
+                if lhs.count != rhs.count {
+                    return lhs.count > rhs.count
+                }
+                return lhs.reactionKey < rhs.reactionKey
+            }
     }
 }

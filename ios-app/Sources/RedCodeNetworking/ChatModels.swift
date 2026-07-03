@@ -117,6 +117,26 @@ public struct ChatMessagePart: Codable, Equatable, Sendable {
     }
 }
 
+public struct MessageReactionSummary: Codable, Equatable, Identifiable, Sendable {
+    public var id: String { reactionKey }
+
+    public let reactionKey: String
+    public let count: Int
+    public let hasSelf: Bool
+
+    public init(reactionKey: String, count: Int, hasSelf: Bool) {
+        self.reactionKey = reactionKey
+        self.count = count
+        self.hasSelf = hasSelf
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case reactionKey = "reaction_key"
+        case count
+        case hasSelf = "has_self"
+    }
+}
+
 public struct ChatMessageQuote: Decodable, Equatable, Sendable {
     public let id: String
     public let roomID: String
@@ -197,6 +217,7 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
     public let quotedMessage: ChatMessageQuote?
     public let parts: [ChatMessagePart]
     public let attachments: [ChatMessageAttachment]
+    public let reactions: [MessageReactionSummary]
 
     public init(
         id: String,
@@ -213,7 +234,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         pinnedBy: String? = nil,
         quotedMessage: ChatMessageQuote? = nil,
         parts: [ChatMessagePart] = [],
-        attachments: [ChatMessageAttachment] = []
+        attachments: [ChatMessageAttachment] = [],
+        reactions: [MessageReactionSummary] = []
     ) {
         self.id = id
         self.roomID = roomID
@@ -230,6 +252,7 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         self.quotedMessage = quotedMessage
         self.parts = parts
         self.attachments = attachments
+        self.reactions = reactions
     }
 
     public init(from decoder: Decoder) throws {
@@ -252,6 +275,7 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         quotedMessage = try container.decodeIfPresent(ChatMessageQuote.self, forKey: .quotedMessage)
         parts = try container.decodeIfPresent([ChatMessagePart].self, forKey: .parts) ?? []
         attachments = parts.compactMap(\.attachment)
+        reactions = try container.decodeIfPresent([MessageReactionSummary].self, forKey: .reactions) ?? []
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -272,6 +296,7 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         case pinnedBy = "pinned_by"
         case quotedMessage = "quoted_message"
         case parts
+        case reactions
     }
 }
 
