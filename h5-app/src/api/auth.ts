@@ -15,30 +15,32 @@ const mapUser = (user: BackendUser): AuthUser => {
   };
 };
 
-const mockUser = (email: string): AuthUser => ({
-  id: `mock-user-${email || 'bear'}`,
-  username: email || 'bear@example.com',
-  nickname: email ? email.split('@')[0] : '熊小熊',
-  email: email || 'bear@example.com',
+const normalizeAccount = (account: string) => account.trim().toLowerCase();
+
+const mockUser = (account: string): AuthUser => ({
+  id: `mock-user-${account || 'bear'}`,
+  username: account || 'bear',
+  nickname: account || '熊小熊',
+  email: `${account || 'bear'}@account.redcode.local`,
   status: 'active',
 });
 
 const delay = (ms = 180) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-export async function loginWithEmail(email: string, password: string, useMockData = false): Promise<AuthSession> {
-  const normalizedEmail = email.trim().toLowerCase();
+export async function loginWithAccount(account: string, password: string, useMockData = false): Promise<AuthSession> {
+  const username = normalizeAccount(account);
   if (useMockData) {
     await delay();
     return {
       token: 'mock-token',
       refreshToken: null,
-      user: mockUser(normalizedEmail),
+      user: mockUser(username),
     };
   }
 
   const response = await requestJson<BackendLoginResponse>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: normalizedEmail, password }),
+    body: JSON.stringify({ username, password }),
   });
 
   return {
@@ -48,19 +50,19 @@ export async function loginWithEmail(email: string, password: string, useMockDat
   };
 }
 
-export async function registerWithEmail(email: string, password: string, useMockData = false): Promise<AuthUser> {
-  const normalizedEmail = email.trim().toLowerCase();
+export async function registerWithAccount(account: string, password: string, useMockData = false): Promise<AuthUser> {
+  const username = normalizeAccount(account);
   if (useMockData) {
     await delay();
-    return mockUser(normalizedEmail);
+    return mockUser(username);
   }
 
   const response = await requestJson<BackendUser>('/auth/register', {
     method: 'POST',
     body: JSON.stringify({
-      email: normalizedEmail,
+      username,
       password,
-      nickname: normalizedEmail,
+      nickname: username,
     }),
   });
 

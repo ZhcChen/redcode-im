@@ -2,7 +2,7 @@ feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance
 BE-AUTH-001,api,auth,用户注册,/auth/register,"unit+integration+e2e",TC-BE-AUTH-001,AC-BE-AUTH-001,done,go auth 集成用例已覆盖
 BE-AUTH-002,api,auth,密码登录,/auth/login,"unit+integration+e2e",TC-BE-AUTH-002,AC-BE-AUTH-002,done,go auth 集成用例已覆盖
 BE-AUTH-003,api,auth,短信登录,/auth/login/sms,"integration+e2e",TC-BE-AUTH-003,AC-BE-AUTH-003,done,go sms_login_test 覆盖验证码错误与通用验证码成功登录（含自动注册）链路
-BE-AUTH-004,api,auth,邮箱注册登录,/auth/register + /auth/login,"integration+e2e",TC-BE-AUTH-004,AC-BE-AUTH-004,done,go auth 集成用例覆盖邮箱格式、重复邮箱、错误密码与旧 username 兼容
+BE-AUTH-004,api,auth,普通账号注册登录,/auth/register + /auth/login,"integration+e2e",TC-BE-AUTH-004,AC-BE-AUTH-004,done,go auth 集成用例覆盖账号密码注册登录、默认关闭邮箱注册/登录、后台开启后的邮箱兼容链路与错误密码
 BE-AUTH-005,api,auth,Token 刷新,/auth/refresh,"unit+integration",TC-BE-AUTH-005,AC-BE-AUTH-005,done,go auth 集成用例已覆盖
 BE-USER-001,api,user,获取当前用户,/auth/me,"integration",TC-BE-USER-001,AC-BE-USER-001,done,go auth 集成用例已覆盖
 BE-USER-002,api,user,更新个人资料,/users/me,"integration+e2e",TC-BE-USER-002,AC-BE-USER-002,done,go users 集成用例已覆盖

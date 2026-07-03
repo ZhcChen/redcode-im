@@ -2,8 +2,8 @@ feature_id,module,domain,function,entrypoint,test_layers,test_case_id,acceptance
 FE-ST-001,app,startup,启动初始化,features/startup,"unit+integration",TC-FE-ST-001,AC-FE-ST-001,done,test/smoke_test.dart + integration_test/smoke_test.dart
 FE-ST-002,app,startup,版本检查,core/update + startup,"unit+integration+e2e",TC-FE-ST-002,AC-FE-ST-002,done,test/core/hot_update_models_test.dart + test/core/version_service_test.dart
 FE-NET-001,app,startup,设备网络连通性（API/WS）,core/config + integration_test,"integration+e2e",TC-FE-NET-001,AC-FE-NET-001,done,integration_test/network_connectivity_test.dart（优先 Pixel 8 Pro + LAN；未连接则 iOS Simulator + 127.0.0.1；ENABLE_REAL_NETWORK_INTEGRATION=true）
-FE-AUTH-001,app,auth,账号登录,features/auth,"unit+integration+e2e",TC-FE-AUTH-001,AC-FE-AUTH-001,done,integration_test/smoke_test.dart 认证事件总线链路 + integration_test/auth_email_flow_test.dart 真实邮箱注册登录
-FE-AUTH-002,app,auth,会话恢复与登出,core/auth + features/auth,"unit+integration",TC-FE-AUTH-002,AC-FE-AUTH-002,done,integration_test/smoke_test.dart AuthStateBus + integration_test/auth_email_flow_test.dart session 保存/refresh/logout
+FE-AUTH-001,app,auth,账号登录,features/auth,"unit+integration+e2e",TC-FE-AUTH-001,AC-FE-AUTH-001,done,integration_test/smoke_test.dart 认证事件总线链路 + 账号密码注册登录 smoke
+FE-AUTH-002,app,auth,会话恢复与登出,core/auth + features/auth,"unit+integration",TC-FE-AUTH-002,AC-FE-AUTH-002,done,integration_test/smoke_test.dart AuthStateBus + integration_test/auth_account_flow_test.dart session 保存/refresh/logout
 FE-AUTH-003,app,auth,会话存储一致性与损坏数据回收,core/storage/token_storage,"unit",TC-FE-AUTH-003,AC-FE-AUTH-003,done,test/core/token_storage_test.dart（token/user/refresh_token 回收）
 FE-AUTH-004,app,auth,认证用户模型映射与拷贝,features/auth/models,"unit",TC-FE-AUTH-004,AC-FE-AUTH-004,done,test/features/auth_models_test.dart
 FE-HOME-001,app,home,首页导航切换,features/home,"unit+integration+e2e",TC-FE-HOME-001,AC-FE-HOME-001,done,通过启动/认证集成烟测保障首页入口可达 + patrol_test/login_smoke_test.dart mock 登录后切换设置页

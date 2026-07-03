@@ -23,25 +23,24 @@ async function postJson<T>(path: string, body: Record<string, unknown>): Promise
 }
 
 describe('desktop live backend smoke', () => {
-  liveIt('reaches healthz, performs email auth, and opens websocket', async () => {
+  liveIt('reaches healthz, performs account auth, and opens websocket', async () => {
     const healthResponse = await fetch(`${apiBaseUrl}/healthz`)
     expect(healthResponse.status).toBe(200)
     expect((await healthResponse.text()).trim()).toBe('ok')
 
-    const email = `desktop-live-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`
+    const username = `desk${Date.now()}${Math.random().toString(16).slice(2)}`.slice(0, 20)
     const password = 'pass123456'
 
     const registered = await postJson<{ email: string; username: string; status: string }>(
       '/auth/register',
       {
-        email,
+        username,
         password,
         nickname: 'Desktop Live'
       }
     )
-    expect(registered.email).toBe(email)
-    expect(registered.username).toMatch(/^u_/)
-    expect(registered.username.length).toBeLessThanOrEqual(50)
+    expect(registered.email).toMatch(/@account\.redcode\.local$/)
+    expect(registered.username).toBe(username)
     expect(registered.status).toBe('active')
 
     const login = await postJson<{
@@ -49,13 +48,13 @@ describe('desktop live backend smoke', () => {
       refresh_token: string
       user: { email: string; username: string }
     }>('/auth/login', {
-      email,
+      username,
       password
     })
     expect(login.token).toBeTruthy()
     expect(login.refresh_token).toBeTruthy()
-    expect(login.user.email).toBe(email)
-    expect(login.user.username).toBe(registered.username)
+    expect(login.user.email).toBe(registered.email)
+    expect(login.user.username).toBe(username)
 
     const socket = new WebSocket(wsUrl)
     await new Promise<void>((resolve, reject) => {

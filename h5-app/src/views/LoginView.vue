@@ -10,7 +10,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 const mode = ref<LoginMode>('login');
-const email = ref('');
+const account = ref('');
 const password = ref('');
 const agreed = ref(window.localStorage.getItem('redcode-h5-agreed') === 'true');
 const message = ref('');
@@ -18,7 +18,7 @@ const message = ref('');
 const isRegister = computed(() => mode.value === 'register');
 const submitText = computed(() => (isRegister.value ? '注册账号' : '登录账号'));
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const accountPattern = /^[a-zA-Z0-9._-]{3,20}$/;
 
 const toggleAgreement = () => {
   agreed.value = !agreed.value;
@@ -31,27 +31,27 @@ const switchMode = () => {
 };
 
 const submit = async () => {
-  const normalizedEmail = email.value.trim().toLowerCase();
+  const normalizedAccount = account.value.trim().toLowerCase();
   message.value = '';
 
   if (!agreed.value) {
     message.value = '请勾选并阅读《用户协议》和《隐私协议》';
     return;
   }
-  if (!normalizedEmail || !password.value) {
-    message.value = isRegister.value ? '请填写完整的注册信息' : '请输入完整的邮箱和密码';
+  if (!normalizedAccount || !password.value) {
+    message.value = isRegister.value ? '请填写完整的注册信息' : '请输入完整的账号和密码';
     return;
   }
-  if (!emailPattern.test(normalizedEmail)) {
-    message.value = '请输入正确的邮箱地址';
+  if (!accountPattern.test(normalizedAccount)) {
+    message.value = '账号需为 3-20 位字母、数字、点、下划线或短横线';
     return;
   }
 
   try {
     if (isRegister.value) {
-      await authStore.registerAndLogin(normalizedEmail, password.value);
+      await authStore.registerAndLogin(normalizedAccount, password.value);
     } else {
-      await authStore.login(normalizedEmail, password.value);
+      await authStore.login(normalizedAccount, password.value);
     }
     await router.replace({ name: 'home' });
   } catch (error) {
@@ -103,14 +103,14 @@ const submit = async () => {
 
           <div class="login-card__body">
             <label class="login-field">
-              <span>邮箱</span>
+              <span>账号</span>
               <input
-                v-model="email"
+                v-model="account"
                 class="rc-focus-ring"
-                autocomplete="email"
-                inputmode="email"
-                type="email"
-                placeholder="请输入邮箱"
+                autocomplete="username"
+                inputmode="text"
+                type="text"
+                placeholder="请输入账号"
                 :disabled="authStore.loading"
               />
             </label>

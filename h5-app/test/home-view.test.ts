@@ -54,7 +54,7 @@ describe('HomeView chat tab', () => {
     expect(wrapper.text()).toContain('真实项目群');
     expect(wrapper.text()).toContain('来自后端会话列表');
     expect(wrapper.text()).toContain('4');
-    expect(wrapper.text()).not.toContain('H5 App 已接入邮箱注册和登录流程');
+    expect(wrapper.text()).not.toContain('H5 App 已接入旧登录流程');
   });
 
   it('renders contacts, requests and group creation controls', async () => {

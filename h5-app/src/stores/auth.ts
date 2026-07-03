@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { loginWithEmail, registerWithEmail } from '@/api/auth';
+import { loginWithAccount, registerWithAccount } from '@/api/auth';
 import type { AuthSession, AuthUser } from '@/types/auth';
 
 const STORAGE_KEY = 'redcode-h5-session';
@@ -34,11 +34,11 @@ export const useAuthStore = defineStore('auth', {
     currentUser: (state) => state.session?.user ?? null,
   },
   actions: {
-    async login(email: string, password: string) {
+    async login(account: string, password: string) {
       this.loading = true;
       this.error = '';
       try {
-        const session = await loginWithEmail(email, password, appEnv.useMockData);
+        const session = await loginWithAccount(account, password, appEnv.useMockData);
         this.session = session;
         writeStoredSession(session);
       } catch (error) {
@@ -48,12 +48,12 @@ export const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
-    async registerAndLogin(email: string, password: string) {
+    async registerAndLogin(account: string, password: string) {
       this.loading = true;
       this.error = '';
       try {
-        await registerWithEmail(email, password, appEnv.useMockData);
-        const session = await loginWithEmail(email, password, appEnv.useMockData);
+        await registerWithAccount(account, password, appEnv.useMockData);
+        const session = await loginWithAccount(account, password, appEnv.useMockData);
         this.session = session;
         writeStoredSession(session);
       } catch (error) {

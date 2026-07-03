@@ -61,6 +61,13 @@ const MIGRATION_ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
 const MIGRATIONS: &[(&str, &str)] = &[
     // 基础初始化脚本（已整合历史增量）
     (BASE_MIGRATION_NAME, BASE_MIGRATION_SQL),
+    (
+        "20260703172000_auth_account_default.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260703172000_auth_account_default.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

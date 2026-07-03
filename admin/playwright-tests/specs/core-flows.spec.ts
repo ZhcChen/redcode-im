@@ -57,6 +57,17 @@ async function mockAuth(
 ) {
   let meCalls = 0;
 
+  await page.route(
+    /\/api\/admin\/bootstrap\/status(?:\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bootstrap_required: false }),
+      });
+    }
+  );
+
   await page.route(/\/auth\/admin\/login(?:\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -232,6 +243,7 @@ test.describe('admin core flows', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
+            enable_email_auth: false,
             enable_phone_validation: true,
             enable_email_validation: false,
             enable_length_validation: true,

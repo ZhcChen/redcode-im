@@ -3,7 +3,7 @@
 # Flutter integration 测试入口。
 # - smoke: 不访问真实 backend，适合日常快速验证。
 # - network: 访问本机 backend，默认使用 127.0.0.1。
-# - auth: 访问真实 backend，验证邮箱注册/登录链路。
+# - auth: 访问真实 backend，验证普通账号注册/登录链路。
 # - device: 优先真机；默认真机未连接时切换本机 iOS Simulator。
 # - device-reverse: Android USB 真机通过 adb reverse 访问本机 backend。
 
@@ -119,7 +119,7 @@ case "$MODE" in
             --dart-define=WS_URL="$WS_URL"
         ;;
     auth)
-        TARGET="${TARGET:-integration_test/auth_email_flow_test.dart}"
+        TARGET="${TARGET:-integration_test/auth_account_flow_test.dart}"
         DEVICE_ID="${DEVICE_ID:-${FRONTEND_TEST_DEVICE:-macos}}"
         show_and_verify_flutter_devices "$DEVICE_ID"
         flutter test -d "$DEVICE_ID" "$TARGET" \

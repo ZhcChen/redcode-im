@@ -11,16 +11,16 @@ describe('auth store', () => {
   it('persists mock login session', async () => {
     const store = useAuthStore();
 
-    await store.login('h5@example.com', 'password');
+    await store.login('h5_user', 'password');
 
     expect(store.isAuthenticated).toBe(true);
-    expect(store.currentUser?.email).toBe('h5@example.com');
-    expect(window.localStorage.getItem('redcode-h5-session')).toContain('h5@example.com');
+    expect(store.currentUser?.username).toBe('h5_user');
+    expect(window.localStorage.getItem('redcode-h5-session')).toContain('h5_user');
   });
 
   it('clears session on logout', async () => {
     const store = useAuthStore();
-    await store.login('h5@example.com', 'password');
+    await store.login('h5_user', 'password');
 
     store.logout();
 

@@ -64,7 +64,7 @@ make api.perf.down
 
 - `healthz`：纯 HTTP liveness 基线，用于观察 API 网络与框架开销。
 - `readyz`：readiness 基线，会触达数据库 / Redis。
-- `auth-register-login`：邮箱注册 + 登录业务链路，每个操作包含 2 个 HTTP 请求。
+- `auth-register-login`：账号密码注册 + 登录业务链路，每个操作包含 2 个 HTTP 请求。
 - `ws-connect-ping`：预创建账号后，正式窗口只测 WebSocket 连接、认证、ping/pong。
 - `ws-connect-join`：预创建账号和房间后，正式窗口只测 WebSocket 连接、认证、订阅房间。
 - `ws-room-broadcast`：预创建账号、房间和订阅连接后，正式窗口测 REST 发消息 → Redis PubSub → WebSocket 推送到房间订阅者。

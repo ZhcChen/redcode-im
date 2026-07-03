@@ -26,6 +26,7 @@ export interface UpdateAppNamePayload {
 }
 
 export interface UserAccountLimitResponse {
+  enable_email_auth: boolean;
   enable_phone_validation: boolean;
   enable_email_validation: boolean;
   enable_length_validation: boolean;
@@ -35,6 +36,7 @@ export interface UserAccountLimitResponse {
 }
 
 export interface UpdateUserAccountLimitPayload {
+  enable_email_auth: boolean;
   enable_phone_validation: boolean;
   enable_email_validation: boolean;
   enable_length_validation: boolean;

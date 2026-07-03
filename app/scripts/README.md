@@ -101,7 +101,7 @@ make app.test.integration.smoke
 # 访问本机 backend，默认 macos + http://127.0.0.1:8010
 make app.test.integration.network
 
-# 真实邮箱注册/登录，默认 macos + http://127.0.0.1:8010
+# 真实普通账号注册/登录，默认 macos + http://127.0.0.1:8010
 make app.test.integration.auth
 
 # 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator

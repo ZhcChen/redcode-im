@@ -799,6 +799,7 @@ function buildSuccessBody(pathname: string, method: string, url: URL) {
     method === 'GET'
   ) {
     return {
+      enable_email_auth: false,
       enable_phone_validation: true,
       enable_email_validation: false,
       enable_length_validation: true,
@@ -813,6 +814,7 @@ function buildSuccessBody(pathname: string, method: string, url: URL) {
     method === 'PUT'
   ) {
     return {
+      enable_email_auth: false,
       enable_phone_validation: true,
       enable_email_validation: false,
       enable_length_validation: true,

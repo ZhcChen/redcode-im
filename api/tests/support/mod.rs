@@ -148,6 +148,14 @@ pub fn unique_email(prefix: &str) -> String {
     format!("{prefix}_{}@example.test", Uuid::new_v4().simple())
 }
 
+/// 生成唯一普通账号，避免持久库跨轮次冲突。
+pub fn unique_username(prefix: &str) -> String {
+    format!("{prefix}_{}", Uuid::new_v4().simple())
+        .chars()
+        .take(20)
+        .collect()
+}
+
 impl Drop for TestApp {
     fn drop(&mut self) {
         // 同步上下文中触发异步清理：临时库用 DROP ... WITH (FORCE) 兜底。

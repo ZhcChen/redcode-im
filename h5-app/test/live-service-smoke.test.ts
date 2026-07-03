@@ -11,23 +11,23 @@ const apiBaseUrl = process.env.H5_APP_API_BASE_URL || 'http://127.0.0.1:8010';
 
 const registerAndLogin = async (prefix: string) => {
   const stamp = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const email = `${prefix}-${stamp}@example.com`;
+  const username = `${prefix}_${stamp}`.replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 20);
   const password = `H5pass-${stamp}`;
   const registerResponse = await fetch(`${apiBaseUrl}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, nickname: email }),
+    body: JSON.stringify({ username, password, nickname: username }),
   });
   expect(registerResponse.ok).toBe(true);
   const loginResponse = await fetch(`${apiBaseUrl}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username, password }),
   });
   expect(loginResponse.ok).toBe(true);
   const session = await loginResponse.json();
   window.localStorage.setItem('redcode-h5-session', JSON.stringify(session));
-  return { email, password, session };
+  return { username, password, session };
 };
 
 describe.skipIf(!enabled)('h5-app live service smoke', () => {
@@ -38,17 +38,17 @@ describe.skipIf(!enabled)('h5-app live service smoke', () => {
     window.localStorage.setItem('redcode-h5-session', JSON.stringify(owner.session));
 
     const me = await authService.me();
-    expect(me?.email).toBe(owner.email);
+    expect(me?.username).toBe(owner.username);
     const updatedMe = await authService.updateProfile({ nickname: `H5 ${Date.now()}` });
-    expect(updatedMe.email).toBe(owner.email);
+    expect(updatedMe.username).toBe(owner.username);
     const refreshedMe = await authService.me();
     expect(refreshedMe?.nickname).toBe(updatedMe.nickname);
 
     const settings = await settingsService.fetchGeneralSettings();
     expect(settings.messageRuntime.serverStorageMode).toBeTruthy();
 
-    const users = await friendService.searchUsers(member.email, 5);
-    expect(users.some((user) => user.email === member.email)).toBe(true);
+    const users = await friendService.searchUsers(member.username, 5);
+    expect(users.some((user) => user.username === member.username)).toBe(true);
 
     const room = await roomService.createGroup({
       name: 'h5 service smoke',

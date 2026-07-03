@@ -9,27 +9,27 @@ public enum AuthAPIEndpoint: Sendable {
     public static let changePassword = APIEndpoint(method: .post, path: "/users/me/password")
 }
 
-public struct EmailLoginRequest: Codable, Equatable, Sendable {
-    public let email: String
+public struct AccountLoginRequest: Codable, Equatable, Sendable {
+    public let username: String
     public let password: String
 
-    public init(email: String, password: String) throws {
-        self.email = try EmailAddress.normalize(email)
+    public init(username: String, password: String) throws {
+        self.username = try AccountName.normalize(username)
         self.password = password
     }
 }
 
-public struct EmailRegistrationRequest: Codable, Equatable, Sendable {
-    public let email: String
+public struct AccountRegistrationRequest: Codable, Equatable, Sendable {
+    public let username: String
     public let password: String
     public let nickname: String?
 
-    public init(email: String, password: String, nickname: String? = nil) throws {
-        let normalizedEmail = try EmailAddress.normalize(email)
-        self.email = normalizedEmail
+    public init(username: String, password: String, nickname: String? = nil) throws {
+        let normalizedUsername = try AccountName.normalize(username)
+        self.username = normalizedUsername
         self.password = password
         self.nickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-            ?? normalizedEmail
+            ?? normalizedUsername
     }
 }
 

@@ -16,13 +16,13 @@ describe('system auth api', () => {
     postMock.mockReset()
   })
 
-  it('register posts email/password without captcha code', async () => {
+  it('register posts username/password without captcha code', async () => {
     postMock.mockResolvedValue({
       success: true,
       data: {
         id: 'user-1',
-        username: 'alice@example.test',
-        email: 'alice@example.test',
+        username: 'alice',
+        email: 'alice@account.redcode.local',
         nickname: 'Alice',
         avatar_url: null,
         avatar_object_key: null,
@@ -31,13 +31,13 @@ describe('system auth api', () => {
     })
 
     await SystemApi.register({
-      email: 'alice@example.test',
+      username: 'alice',
       password: 'pass123456',
       nickname: 'Alice'
     })
 
     expect(postMock).toHaveBeenCalledWith('/auth/register', {
-      email: 'alice@example.test',
+      username: 'alice',
       password: 'pass123456',
       nickname: 'Alice'
     })

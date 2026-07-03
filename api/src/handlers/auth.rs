@@ -1,6 +1,6 @@
 use crate::auth::{generate_token, hash_password};
 use crate::database::admin_rbac_store::AdminRbacStore;
-use crate::database::models::{AdminUser, AdminUserStatus};
+use crate::database::models::{AdminUser, AdminUserStatus, UserAccountLimitRecord};
 use crate::database::settings_store::SettingsStore;
 use crate::database::user_store::UserStore;
 use crate::error::AppError;
@@ -106,15 +106,12 @@ pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<CreateUserRequest>,
 ) -> Result<Json<UserInfo>, AppError> {
-    let email = payload.email.trim().to_ascii_lowercase();
+    let provided_email = payload.email.trim().to_ascii_lowercase();
     let password = payload.password.trim();
     let requested_username = payload.username.trim().to_ascii_lowercase();
 
-    if email.is_empty() || password.is_empty() {
-        return Err(AppError::ValidationError("邮箱和密码不能为空".to_string()));
-    }
-    if !validate_email_format(&email) {
-        return Err(AppError::ValidationError("邮箱格式不正确".to_string()));
+    if password.is_empty() || (requested_username.is_empty() && provided_email.is_empty()) {
+        return Err(AppError::ValidationError("账号和密码不能为空".to_string()));
     }
     if password.len() < 6 {
         return Err(AppError::ValidationError(
@@ -125,55 +122,39 @@ pub async fn register(
     // 获取用户账号限制设置
     let settings_store = SettingsStore::new(state.database.clone());
     let account_limit = settings_store.get_user_account_limit_setting().await?;
+    let email_auth_enabled = settings_store.is_email_auth_enabled().await?;
 
-    // 邮箱注册后自动生成短 username；显式 username 仅用于兼容旧客户端。
+    // 旧邮箱注册兼容：只传 email 时自动生成短 username。
     // 不能直接使用 email 作为 username：数据库 username 长度限制为 50，长邮箱会导致 500。
-    let uses_auto_username = requested_username.is_empty() || requested_username == email;
-    let mut account_name = if uses_auto_username {
+    let uses_email_registration = requested_username.is_empty();
+    if uses_email_registration && !email_auth_enabled {
+        return Err(AppError::ValidationError(
+            "邮箱注册功能已关闭，请使用账号注册".to_string(),
+        ));
+    }
+    let mut account_name = if uses_email_registration {
         build_email_registration_username()
     } else {
         requested_username.clone()
     };
 
-    // 旧客户端显式传非邮箱 username 时，保留原有“账号限制”校验。
-    // 新邮箱注册链路只校验 email，避免默认手机号规则阻断邮箱注册。
-    if !uses_auto_username {
-        if account_limit.enable_phone_validation {
-            let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
-            if !phone_regex.is_match(&account_name) {
-                return Err(AppError::ValidationError(
-                    "用户名必须符合手机号格式（以1开头的11位数字）".to_string(),
-                ));
-            }
+    let email = if uses_email_registration {
+        if !validate_email_format(&provided_email) {
+            return Err(AppError::ValidationError("邮箱格式不正确".to_string()));
         }
+        provided_email
+    } else if provided_email.is_empty() {
+        build_account_registration_email(&account_name)
+    } else {
+        if !validate_email_format(&provided_email) {
+            return Err(AppError::ValidationError("邮箱格式不正确".to_string()));
+        }
+        provided_email
+    };
 
-        if account_limit.enable_email_validation {
-            if !validate_email_format(&account_name) {
-                return Err(AppError::ValidationError(
-                    "用户名必须符合邮箱格式".to_string(),
-                ));
-            }
-        }
-
-        if account_limit.enable_length_validation {
-            let len = account_name.len() as i32;
-            if len < account_limit.min_length || len > account_limit.max_length {
-                return Err(AppError::ValidationError(format!(
-                    "用户名长度必须在 {} 到 {} 个字符之间",
-                    account_limit.min_length, account_limit.max_length
-                )));
-            }
-        }
-
-        if account_limit.enable_alphanumeric_validation {
-            let has_letter = account_name.chars().any(|c| c.is_ascii_alphabetic());
-            let has_digit = account_name.chars().any(|c| c.is_ascii_digit());
-            if !has_letter || !has_digit {
-                return Err(AppError::ValidationError(
-                    "用户名必须同时包含字母和数字".to_string(),
-                ));
-            }
-        }
+    // 普通账号注册走后台“用户账号限制”设置；邮箱注册兼容链路只校验 email。
+    if !uses_email_registration {
+        validate_account_name(&account_name, &account_limit)?;
     }
 
     let store = UserStore::new(state.database.clone());
@@ -182,7 +163,7 @@ pub async fn register(
         return Err(AppError::AlreadyExists("邮箱已被使用".to_string()));
     }
 
-    if uses_auto_username {
+    if uses_email_registration {
         for _ in 0..3 {
             if !store.username_exists(&account_name).await? {
                 break;
@@ -197,7 +178,7 @@ pub async fn register(
 
     // 转换为数据库层请求
     let create_request = CreateUserRequest {
-        username: account_name,
+        username: account_name.clone(),
         email: email.clone(),
         password: password.to_string(),
         nickname: payload.nickname.clone(),
@@ -209,7 +190,7 @@ pub async fn register(
         .map(|n| n.trim().is_empty())
         .unwrap_or(true)
     {
-        db_req.nickname = Some(email.clone());
+        db_req.nickname = Some(account_name.clone());
     }
     let db_user = store.create_user(db_req).await?;
 
@@ -227,9 +208,18 @@ pub async fn login(
     let email = payload.email.trim().to_ascii_lowercase();
     let username = payload.username.trim().to_ascii_lowercase();
     if email.is_empty() && username.is_empty() {
-        return Err(AppError::ValidationError("邮箱不能为空".to_string()));
+        return Err(AppError::ValidationError("账号不能为空".to_string()));
     }
-    if !email.is_empty() && !validate_email_format(&email) {
+    let uses_email_login = username.is_empty() && !email.is_empty();
+    if uses_email_login {
+        let settings_store = SettingsStore::new(state.database.clone());
+        if !settings_store.is_email_auth_enabled().await? {
+            return Err(AppError::ValidationError(
+                "邮箱登录功能已关闭，请使用账号登录".to_string(),
+            ));
+        }
+    }
+    if uses_email_login && !validate_email_format(&email) {
         return Err(AppError::ValidationError("邮箱格式不正确".to_string()));
     }
 
@@ -238,7 +228,11 @@ pub async fn login(
     // 转换为数据库层请求
     let normalized_payload = LoginRequest {
         username,
-        email,
+        email: if uses_email_login {
+            email
+        } else {
+            String::new()
+        },
         password: payload.password,
     };
     let db_req = api_login_to_db(&normalized_payload);
@@ -399,7 +393,7 @@ pub async fn send_login_sms(
         return Err(AppError::ValidationError("手机号不能为空".to_string()));
     }
 
-    // 检查是否开启验证码登录；邮箱注册不需要验证码。
+    // 检查是否开启验证码登录；普通账号注册不需要验证码。
     let settings_store = SettingsStore::new(state.database.clone());
     let require_captcha = settings_store
         .require_captcha_for_login()
@@ -441,7 +435,7 @@ pub async fn login_with_sms(
         ));
     }
 
-    // 检查是否开启验证码登录；邮箱注册不需要验证码。
+    // 检查是否开启验证码登录；普通账号注册不需要验证码。
     let settings_store = SettingsStore::new(state.database.clone());
     let require_captcha = settings_store
         .require_captcha_for_login()
@@ -1315,6 +1309,67 @@ fn build_email_registration_username() -> String {
     format!("u_{}", uuid::Uuid::new_v4().simple())
 }
 
+fn build_account_registration_email(username: &str) -> String {
+    let prefix: String = username
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '%' | '+' | '-'))
+        .take(24)
+        .collect();
+    let prefix = if prefix.is_empty() {
+        "user".to_string()
+    } else {
+        prefix
+    };
+    let local_part = format!("{prefix}-{}", uuid::Uuid::new_v4().simple());
+    format!("{local_part}@account.redcode.local")
+}
+
+fn validate_account_name(
+    account_name: &str,
+    account_limit: &UserAccountLimitRecord,
+) -> Result<(), AppError> {
+    if account_name.is_empty() {
+        return Err(AppError::ValidationError("账号不能为空".to_string()));
+    }
+
+    if account_limit.enable_phone_validation {
+        let phone_regex = regex::Regex::new(r"^1[3-9]\d{9}$").unwrap();
+        if !phone_regex.is_match(account_name) {
+            return Err(AppError::ValidationError(
+                "账号必须符合手机号格式（以1开头的11位数字）".to_string(),
+            ));
+        }
+    }
+
+    if account_limit.enable_email_validation && !validate_email_format(account_name) {
+        return Err(AppError::ValidationError(
+            "账号必须符合邮箱格式".to_string(),
+        ));
+    }
+
+    if account_limit.enable_length_validation {
+        let len = account_name.len() as i32;
+        if len < account_limit.min_length || len > account_limit.max_length {
+            return Err(AppError::ValidationError(format!(
+                "账号长度必须在 {} 到 {} 个字符之间",
+                account_limit.min_length, account_limit.max_length
+            )));
+        }
+    }
+
+    if account_limit.enable_alphanumeric_validation {
+        let has_letter = account_name.chars().any(|c| c.is_ascii_alphabetic());
+        let has_digit = account_name.chars().any(|c| c.is_ascii_digit());
+        if !has_letter || !has_digit {
+            return Err(AppError::ValidationError(
+                "账号必须同时包含字母和数字".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1469,6 +1524,32 @@ mod tests {
         let username = build_email_registration_username();
         assert!(username.starts_with("u_"));
         assert!(username.len() <= 50);
+    }
+
+    #[test]
+    fn test_build_account_registration_email_uses_internal_domain() {
+        let email = build_account_registration_email("normal_user");
+        assert!(email.starts_with("normal_user-"));
+        assert!(email.ends_with("@account.redcode.local"));
+        assert!(validate_email_format(&email));
+    }
+
+    #[test]
+    fn test_validate_account_name_uses_length_rule() {
+        let setting = UserAccountLimitRecord {
+            id: 1,
+            enable_phone_validation: false,
+            enable_email_validation: false,
+            enable_length_validation: true,
+            min_length: 3,
+            max_length: 20,
+            enable_alphanumeric_validation: false,
+            updated_at: chrono::Utc::now(),
+            updated_by: None,
+        };
+
+        assert!(validate_account_name("normal_user", &setting).is_ok());
+        assert!(validate_account_name("ab", &setting).is_err());
     }
 
     // ========================================================================

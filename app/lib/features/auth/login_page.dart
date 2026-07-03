@@ -18,8 +18,8 @@ import 'data/auth_repository.dart';
 
 enum LoginType { password, sms, register }
 
-bool _isValidEmail(String email) {
-  return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+bool _isValidAccount(String account) {
+  return RegExp(r'^[a-z0-9._-]{3,20}$').hasMatch(account);
 }
 
 class LoginPage extends StatefulWidget {
@@ -46,7 +46,7 @@ class _LoginPageState extends State<LoginPage> {
   final SettingsService _settingsService = SettingsService();
   final AppConfigService _appConfigService = AppConfigService.instance;
 
-  final TextEditingController _emailCtrl = TextEditingController();
+  final TextEditingController _accountCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _smsCtrl = TextEditingController();
 
@@ -123,7 +123,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void dispose() {
     _smsTimer?.cancel();
-    _emailCtrl.dispose();
+    _accountCtrl.dispose();
     _passwordCtrl.dispose();
     _smsCtrl.dispose();
     // 恢复默认状态栏样式
@@ -246,14 +246,14 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildLabel(_type == LoginType.sms ? '手机号' : '邮箱'),
+                _buildLabel(_type == LoginType.sms ? '手机号' : '账号'),
                 SizedBox(height: 12.h),
                 _buildField(
-                  controller: _emailCtrl,
-                  hint: _type == LoginType.sms ? '请输入手机号' : '请输入邮箱',
+                  controller: _accountCtrl,
+                  hint: _type == LoginType.sms ? '请输入手机号' : '请输入账号',
                   keyboardType: _type == LoginType.sms
                       ? TextInputType.phone
-                      : TextInputType.emailAddress,
+                      : TextInputType.text,
                   enabled: !_loading,
                 ),
                 if (_type == LoginType.password) ...[
@@ -267,7 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                     enabled: !_loading,
                   ),
                 ],
-                // 邮箱注册不需要验证码；验证码输入只服务登录相关流程。
+                // 普通账号注册不需要验证码；验证码输入只服务登录相关流程。
                 if ((_type == LoginType.password && _requireCaptchaForLogin) ||
                     _type == LoginType.sms) ...[
                   SizedBox(height: 24.h),
@@ -445,7 +445,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _requestSmsCode() async {
-    final phone = _emailCtrl.text.trim();
+    final phone = _accountCtrl.text.trim();
     if (phone.isEmpty) {
       _showMessage('请输入手机号');
       return;
@@ -622,13 +622,12 @@ class _LoginPageState extends State<LoginPage> {
     FocusScope.of(context).unfocus();
 
     if (AppConfig.useMockData) {
-      final account = _emailCtrl.text.trim().isEmpty
+      final account = _accountCtrl.text.trim().isEmpty
           ? '13800138000'
-          : _emailCtrl.text.trim();
+          : _accountCtrl.text.trim();
       final password = _passwordCtrl.text.isEmpty
           ? 'mock-pass'
           : _passwordCtrl.text;
-      final email = account.contains('@') ? account : '$account@example.com';
       final code = _smsCtrl.text.trim().isEmpty
           ? '123456'
           : _smsCtrl.text.trim();
@@ -637,12 +636,12 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _loading = true);
       try {
         if (_type == LoginType.register) {
-          await _authRepository.register(email: email, password: password);
-          await _authRepository.login(email: email, password: password);
+          await _authRepository.register(account: account, password: password);
+          await _authRepository.login(account: account, password: password);
         } else if (_type == LoginType.sms) {
           await _authRepository.loginWithSms(phone: account, code: code);
         } else {
-          await _authRepository.login(email: email, password: password);
+          await _authRepository.login(account: account, password: password);
         }
         if (!mounted) {
           return;
@@ -702,15 +701,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleRegister() async {
-    final email = _emailCtrl.text.trim().toLowerCase();
+    final account = _accountCtrl.text.trim().toLowerCase();
     final password = _passwordCtrl.text;
 
-    if (email.isEmpty || password.isEmpty) {
+    if (account.isEmpty || password.isEmpty) {
       _showMessage('请填写完整的注册信息');
       return;
     }
-    if (!_isValidEmail(email)) {
-      _showMessage('请输入正确的邮箱地址');
+    if (!_isValidAccount(account)) {
+      _showMessage('账号需为 3-20 位字母、数字、点、下划线或短横线');
       return;
     }
 
@@ -718,8 +717,8 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = true);
 
     try {
-      await _authRepository.register(email: email, password: password);
-      await _authRepository.login(email: email, password: password);
+      await _authRepository.register(account: account, password: password);
+      await _authRepository.login(account: account, password: password);
       if (!mounted) {
         return;
       }
@@ -742,7 +741,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handleSmsLogin() async {
-    final phone = _emailCtrl.text.trim();
+    final phone = _accountCtrl.text.trim();
     final code = _smsCtrl.text.trim();
 
     if (phone.isEmpty || code.isEmpty) {
@@ -796,12 +795,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<bool> _autoRegisterAndLogin(String phone, String code) async {
-    // 邮箱自动生成：手机号 + @example.com
-    final email = '$phone@example.com';
     final password = _buildAutoRegisterPassword(phone);
 
     try {
-      await _authRepository.register(email: email, password: password);
+      await _authRepository.register(account: phone, password: password);
     } on AuthException catch (error) {
       if (_isUserAlreadyExistsError(error.message)) {
         // 忽略该错误，后续直接重试登录
@@ -851,15 +848,15 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _handlePasswordLogin() async {
-    final email = _emailCtrl.text.trim().toLowerCase();
+    final account = _accountCtrl.text.trim().toLowerCase();
     final password = _passwordCtrl.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showMessage('请输入完整的邮箱和密码');
+    if (account.isEmpty || password.isEmpty) {
+      _showMessage('请输入完整的账号和密码');
       return;
     }
-    if (!_isValidEmail(email)) {
-      _showMessage('请输入正确的邮箱地址');
+    if (!_isValidAccount(account)) {
+      _showMessage('账号需为 3-20 位字母、数字、点、下划线或短横线');
       return;
     }
 
@@ -867,7 +864,7 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loading = true);
 
     try {
-      await _authRepository.login(email: email, password: password);
+      await _authRepository.login(account: account, password: password);
       if (!mounted) {
         return;
       }

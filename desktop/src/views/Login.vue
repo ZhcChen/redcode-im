@@ -349,14 +349,13 @@ async function handleRegister() {
   isLoading.value = true;
 
   try {
-    const email = loginForm.value.phone.trim().toLowerCase();
+    const account = loginForm.value.phone.trim().toLowerCase();
 
     // 调用注册接口
     const registerResponse = await SystemApi.register({
-      username: email,
-      email: email,
+      username: account,
       password: loginForm.value.password,
-      nickname: email,
+      nickname: account,
     });
 
     if (registerResponse.success && registerResponse.data) {
@@ -369,7 +368,7 @@ async function handleRegister() {
 
       // 使用密码登录
       const loginResponse = await SystemApi.login({
-        username: email,
+        username: account,
         password: loginForm.value.password,
         userDeviceId: Date.now(),
       });
@@ -378,7 +377,7 @@ async function handleRegister() {
         setLoginTime();
 
         // 保存本次登录的账号
-        saveLastLoginAccount(email);
+        saveLastLoginAccount(account);
 
         const userInfo = loginResponse.data.userInfo;
         const mappedUserInfo = {
@@ -798,11 +797,11 @@ let countdownTimer: NodeJS.Timeout | null = null;
 
 // 表单验证
 const primaryFieldLabel = computed(() => {
-  if (loginType.value === "register") return "邮箱";
+  if (loginType.value === "register") return "账号";
   return loginType.value === "captcha" ? "账号" : "账号 / 手机号";
 });
 const primaryFieldPlaceholder = computed(() => {
-  if (loginType.value === "register") return "请输入邮箱";
+  if (loginType.value === "register") return "请输入账号";
   return loginType.value === "captcha" ? "请输入账号" : "请输入账号或手机号";
 });
 
@@ -852,7 +851,7 @@ function validateForm(): boolean {
   const isCaptchaMode = loginType.value === "captcha";
 
   if (!account) {
-    toast.error(isCaptchaMode ? "请输入账号" : "请输入手机号");
+    toast.error(isCaptchaMode ? "请输入账号" : "请输入账号或手机号");
     return false;
   }
 
@@ -916,12 +915,12 @@ function validateRegisterForm(): boolean {
   const account = loginForm.value.phone.trim();
 
   if (!account) {
-    toast.error("请输入邮箱");
+    toast.error("请输入账号");
     return false;
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account)) {
-    toast.error("请输入正确的邮箱地址");
+  if (!/^[a-zA-Z0-9._-]{3,20}$/.test(account)) {
+    toast.error("账号需为 3-20 位字母、数字、点、下划线或短横线");
     return false;
   }
 

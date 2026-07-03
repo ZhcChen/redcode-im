@@ -244,7 +244,7 @@ pub struct CaptchaSettingPublicResponse {
     pub require_captcha_for_login: bool,
 }
 
-/// 获取是否开启验证码登录（公开 API，无需 token）；邮箱注册不需要验证码。
+/// 获取是否开启验证码登录（公开 API，无需 token）；普通账号注册不需要验证码。
 pub async fn get_captcha_setting_public(
     State(state): State<AppState>,
 ) -> Result<Json<CaptchaSettingPublicResponse>, AppError> {
@@ -259,6 +259,7 @@ pub async fn get_captcha_setting_public(
 
 #[derive(Serialize)]
 pub struct UserAccountLimitResponse {
+    pub enable_email_auth: bool,
     pub enable_phone_validation: bool,
     pub enable_email_validation: bool,
     pub enable_length_validation: bool,
@@ -269,6 +270,8 @@ pub struct UserAccountLimitResponse {
 
 #[derive(Deserialize)]
 pub struct UpdateUserAccountLimitRequest {
+    #[serde(default)]
+    pub enable_email_auth: Option<bool>,
     pub enable_phone_validation: bool,
     pub enable_email_validation: bool,
     pub enable_length_validation: bool,
@@ -283,7 +286,9 @@ pub async fn get_user_account_limit(
 ) -> Result<Json<UserAccountLimitResponse>, AppError> {
     let store = SettingsStore::new(state.database.clone());
     let setting = store.get_user_account_limit_setting().await?;
+    let enable_email_auth = store.is_email_auth_enabled().await?;
     Ok(Json(UserAccountLimitResponse {
+        enable_email_auth,
         enable_phone_validation: setting.enable_phone_validation,
         enable_email_validation: setting.enable_email_validation,
         enable_length_validation: setting.enable_length_validation,
@@ -326,6 +331,13 @@ pub async fn update_user_account_limit(
 
     let editor_id = string_to_uuid(&claims.sub)?;
     let store = SettingsStore::new(state.database.clone());
+    let current_email_auth = store.is_email_auth_enabled().await?;
+    let enable_email_auth = payload.enable_email_auth.unwrap_or(current_email_auth);
+    if let Some(next_email_auth) = payload.enable_email_auth {
+        store
+            .set_email_auth_enabled(next_email_auth, Some(editor_id))
+            .await?;
+    }
     let updated_setting = store
         .update_user_account_limit_setting(
             payload.enable_phone_validation,
@@ -339,6 +351,7 @@ pub async fn update_user_account_limit(
         .await?;
 
     Ok(Json(UserAccountLimitResponse {
+        enable_email_auth,
         enable_phone_validation: updated_setting.enable_phone_validation,
         enable_email_validation: updated_setting.enable_email_validation,
         enable_length_validation: updated_setting.enable_length_validation,

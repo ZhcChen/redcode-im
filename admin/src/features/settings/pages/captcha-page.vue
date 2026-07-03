@@ -42,7 +42,7 @@
             :unchecked-value="false"
           />
           <template #help>
-            开启后，用户可以使用短信验证码登录；邮箱注册始终不需要验证码。
+            开启后，用户可以使用短信验证码登录；普通账号注册不需要验证码。
           </template>
         </a-form-item>
 

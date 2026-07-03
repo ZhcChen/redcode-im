@@ -57,7 +57,7 @@ make app.test.integration.smoke
 # 本机 api 联通性验证（默认 macos + http://127.0.0.1:8010）
 make app.test.integration.network
 
-# 真实邮箱注册/登录验证（默认 macos + http://127.0.0.1:8010）
+# 真实账号密码注册/登录验证（默认 macos + http://127.0.0.1:8010）
 make app.test.integration.auth
 
 # 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
@@ -128,7 +128,7 @@ DESKTOP_WS_URL=ws://127.0.0.1:8010/ws \
 bun run test -- test/api/live-backend-smoke.test.ts
 ```
 
-该 smoke 覆盖 `/healthz`、邮箱注册/登录、短 username 规则和 WebSocket open。
+该 smoke 覆盖 `/healthz`、账号密码注册/登录、内部邮箱占位和 WebSocket open。
 
 ### API 集成测试（Rust 原生，Compose 容器内执行）
 ```bash
@@ -209,7 +209,7 @@ make api.perf.down
 - 当前内置场景：
   - `healthz`：API 框架 / 网络基线。
   - `readyz`：DB / Redis readiness 低频探测，不作为高并发吞吐指标。
-  - `auth-register-login`：邮箱注册 + 登录业务链路，每个操作包含 2 个 HTTP 请求。
+  - `auth-register-login`：账号密码注册 + 登录业务链路，每个操作包含 2 个 HTTP 请求。
   - `ws-connect-ping`：预创建账号后，只测 WebSocket 连接、认证、ping/pong。
   - `ws-connect-join`：预创建账号和房间后，只测 WebSocket 连接、认证、订阅房间。
   - `ws-room-broadcast`：预创建账号、房间和订阅连接后，测 REST 发消息 → Redis PubSub → WebSocket 推送到房间订阅者。
@@ -252,8 +252,9 @@ API_SERVICE_CPUS=1.0 API_SERVICE_MEMORY=512m PERF_HEALTHZ_CONCURRENCY=32 make ap
 ```
 
 ### 账号注册约定
-- 邮箱注册直接提交邮箱和密码，不需要邮箱验证码二次验证。
-- `require_captcha_for_login` 只控制短信验证码登录能力；不应阻断邮箱注册。
+- 当前测试默认使用普通账号密码注册/登录，不依赖真实邮箱资源。
+- 邮箱注册/登录作为后台配置能力保留，默认 `auth_email_enabled=0`，不需要邮箱验证码二次验证。
+- `require_captcha_for_login` 只控制短信验证码登录能力；不应阻断普通账号注册。
 
 ### Makefile 入口
 ```bash

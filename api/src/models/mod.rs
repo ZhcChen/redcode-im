@@ -37,6 +37,7 @@ pub struct UserInfo {
 pub struct CreateUserRequest {
     #[serde(default)]
     pub username: String,
+    #[serde(default)]
     pub email: String,
     pub password: String,
     pub nickname: Option<String>,

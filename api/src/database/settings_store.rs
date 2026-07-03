@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 const CAPTCHA_SETTING_KEY: &str = "default";
 const APP_NAME_KEY: &str = "app_name";
+const AUTH_EMAIL_ENABLED_KEY: &str = "auth_email_enabled";
 const USER_ACCOUNT_LIMIT_ID: i32 = 1;
 
 #[derive(Clone)]
@@ -95,7 +96,7 @@ impl SettingsStore {
         Ok(record)
     }
 
-    /// 检查是否开启验证码登录；邮箱注册不需要验证码。
+    /// 检查是否开启验证码登录；普通账号注册不需要验证码。
     pub async fn require_captcha_for_login(&self) -> Result<bool, Error> {
         let setting = self.get_captcha_setting().await?;
         Ok(setting.require_captcha_for_login)
@@ -153,6 +154,29 @@ impl SettingsStore {
         .await?;
 
         Ok(record)
+    }
+
+    pub async fn is_email_auth_enabled(&self) -> Result<bool, Error> {
+        let record = self.get_general_setting(AUTH_EMAIL_ENABLED_KEY).await?;
+        Ok(record
+            .map(|r| parse_bool_setting(&r.value))
+            .unwrap_or(false))
+    }
+
+    pub async fn set_email_auth_enabled(
+        &self,
+        enabled: bool,
+        updated_by: Option<Uuid>,
+    ) -> Result<(), Error> {
+        let value = if enabled { "1" } else { "0" };
+        self.upsert_general_setting(
+            AUTH_EMAIL_ENABLED_KEY,
+            value,
+            "是否启用邮箱注册/登录兼容能力（0=关闭，1=开启）",
+            updated_by,
+        )
+        .await?;
+        Ok(())
     }
 
     // ===== 用户账号限制设置相关方法 =====
@@ -227,7 +251,7 @@ impl SettingsStore {
             INSERT INTO user_account_limit_settings (id, enable_phone_validation, enable_email_validation,
                                                     enable_length_validation, min_length, max_length,
                                                     enable_alphanumeric_validation, updated_at)
-            VALUES ($1, TRUE, FALSE, FALSE, 3, 20, FALSE, NOW())
+            VALUES ($1, FALSE, FALSE, TRUE, 3, 20, FALSE, NOW())
             RETURNING id, enable_phone_validation, enable_email_validation, enable_length_validation,
                       min_length, max_length, enable_alphanumeric_validation, updated_at, updated_by
             "#,
@@ -238,4 +262,11 @@ impl SettingsStore {
 
         Ok(record)
     }
+}
+
+fn parse_bool_setting(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }

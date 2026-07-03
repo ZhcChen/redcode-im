@@ -2,23 +2,21 @@ import XCTest
 @testable import RedCodeCore
 
 final class AuthCoreTests: XCTestCase {
-    func testEmailAddressNormalizesBeforeAuthRequests() throws {
-        let email = try EmailAddress("  USER@Example.COM  ")
+    func testAccountNameNormalizesBeforeAuthRequests() throws {
+        let account = try AccountName("  Red_User-01  ")
 
-        XCTAssertEqual(email.value, "user@example.com")
-        XCTAssertEqual(try EmailAddress.normalize("USER@Example.COM"), "user@example.com")
-        XCTAssertEqual(try EmailAddress.normalize("user+tag@example.co.uk"), "user+tag@example.co.uk")
+        XCTAssertEqual(account.value, "red_user-01")
+        XCTAssertEqual(try AccountName.normalize("Red.User_02"), "red.user_02")
     }
 
-    func testEmailAddressRejectsInvalidInput() {
-        XCTAssertThrowsError(try EmailAddress("not-an-email"))
-        XCTAssertThrowsError(try EmailAddress("user@example"))
-        XCTAssertThrowsError(try EmailAddress("user @example.com"))
-        XCTAssertThrowsError(try EmailAddress("user@.com"))
-        XCTAssertThrowsError(try EmailAddress("user@domain.c"))
+    func testAccountNameRejectsInvalidInput() {
+        XCTAssertThrowsError(try AccountName("ab"))
+        XCTAssertThrowsError(try AccountName("user@example.com"))
+        XCTAssertThrowsError(try AccountName("user name"))
+        XCTAssertThrowsError(try AccountName("123456789012345678901"))
     }
 
-    func testAuthUserDisplayNameMatchesFlutterFallbackOrder() {
+    func testAuthUserDisplayNameMatchesAccountFallbackOrder() {
         let nicknameUser = AuthUser(
             id: "u1",
             username: "user1",

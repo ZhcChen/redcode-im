@@ -84,8 +84,8 @@ IOS
 
 - [x] IOS-02.01 梳理 Flutter/H5/API 认证接口和 payload。
 - [ ] IOS-02.02 实现 Splash 和启动恢复状态机。
-- [ ] IOS-02.03 实现邮箱注册。
-- [ ] IOS-02.04 实现邮箱登录。
+- [ ] IOS-02.03 实现普通账号密码注册。
+- [ ] IOS-02.04 实现普通账号密码登录。
 - [ ] IOS-02.05 实现重置密码。
 - [ ] IOS-02.06 实现用户协议/隐私协议提示。
 - [ ] IOS-02.07 实现 Token Keychain 存取。
@@ -93,12 +93,13 @@ IOS
 - [ ] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
 - [ ] IOS-02.10 增加认证 ViewModel 单测。
 - [ ] IOS-02.11 增加认证 UI test。
-- [ ] IOS-02.12 与 API Compose 做邮箱注册/登录 smoke。
+- [ ] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
 
 当前说明：
 
-- 当前只保留邮箱注册/登录方向；不做 Google/Apple 登录，不做邮箱验证码二次验证。
-- 已建立邮箱规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
+- 当前默认关闭邮箱注册/登录主线；不做 Google/Apple 登录，不做邮箱验证码二次验证。
+- 邮箱注册/登录作为后台配置能力保留；当前开发测试跳过真实邮箱资源依赖。
+- 已建立账号规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
 - `KeyValueAuthSessionStore` 当前用于 SwiftPM 可测基础；正式 iOS App target 接入时再落 Keychain-backed 实现。
 
 参考：

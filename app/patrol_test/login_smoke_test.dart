@@ -37,7 +37,7 @@ void main() {
 
       expect($('你好！'), findsOneWidget);
       expect($('登录账号'), findsOneWidget);
-      expect($('邮箱'), findsOneWidget);
+      expect($('账号'), findsOneWidget);
       expect($('密码'), findsOneWidget);
       expect($('Google 登录'), findsNothing);
       expect($('Apple 登录'), findsNothing);

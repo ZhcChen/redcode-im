@@ -21,7 +21,7 @@ deepened: 2026-07-02
 - R1. 创建 `ios-app/` 模块目录，形成独立原生 iOS 工作区边界。
 - R2. 明确 iOS 原生技术栈和架构规范，降低团队学习成本。
 - R3. 迁移目标以 Flutter `app/` 和 H5 `h5-app/` 的现有流程为 parity 基准。
-- R4. 认证主线使用邮箱注册/登录，不做 Google/Apple 登录。
+- R4. 认证主线使用普通账号密码注册/登录，不做 Google/Apple 登录；邮箱注册/登录仅作为后台开关启用的兼容能力。
 - R5. 本地消息缓存语义对齐现有 Flutter：按 room 缓存，默认每房间保留最近 200 条。
 - R6. 第一阶段不影响现有 Flutter/H5/API 联调与测试入口。
 
@@ -39,7 +39,7 @@ deepened: 2026-07-02
 ### Relevant Code and Patterns
 
 - `app/lib/core/config/environment.dart`：Flutter 端 API/WS 环境配置入口。
-- `app/lib/features/auth/login_page.dart`、`app/lib/features/auth/data/auth_repository.dart`：邮箱认证流程参考。
+- `app/lib/features/auth/login_page.dart`、`app/lib/features/auth/data/auth_repository.dart`：账号密码认证流程参考。
 - `app/lib/core/storage/token_storage.dart`：Token 存储语义参考，iOS 原生应落到 Keychain。
 - `app/lib/core/services/websocket_service.dart`：Flutter WebSocket 主链路参考。
 - `app/lib/core/services/message_service.dart`、`app/lib/core/services/friend_service.dart`、`app/lib/core/services/room_service.dart`、`app/lib/core/services/settings_service.dart`：HTTP service parity 参考。
@@ -74,7 +74,7 @@ deepened: 2026-07-02
 ### Resolved During Planning
 
 - 是否立刻替换 Flutter iOS：不替换，先并行开发和验收。
-- 是否继续 Google/Apple 登录：不继续，邮箱注册/登录为主。
+- 是否继续 Google/Apple 登录：不继续，普通账号密码注册/登录为主。
 - 本地消息存储选 SwiftData 还是 SQLite：首期 SwiftData，SQLite/GRDB 作为二期备选。
 - 是否立即生成 Xcode 工程：不立即生成，先保留标准模块目录和方案；工程创建/生成在实现阶段明确工具后处理。
 
@@ -176,7 +176,7 @@ ios-app/App
 
 - [ ] **Unit 3: Auth 与 App Shell**
 
-**Goal:** 实现邮箱注册、邮箱登录、Token 存储、启动态恢复和登出。
+**Goal:** 实现账号注册、账号密码登录、Token 存储、启动态恢复和登出。
 
 **Requirements:** R3, R4, R6
 
@@ -192,20 +192,20 @@ ios-app/App
 - UI Test: `ios-app/Tests/RedCodeAppUITests/`
 
 **Approach:**
-- 请求路径和 payload 对齐 Flutter/H5 当前邮箱登录注册实现。
+- 请求路径和 payload 对齐 Flutter/H5 当前账号登录注册实现。
 - Token 存入 Keychain；启动时读取 Token 并校验/恢复 session。
 - App Shell 根据认证态切换 Auth flow 与主界面。
 
 **Patterns to follow:**
 - `app/lib/features/auth/data/auth_repository.dart`
 - `app/lib/core/storage/token_storage.dart`
-- `h5-app/README.md` 中邮箱注册后自动登录语义。
+- `h5-app/README.md` 中普通账号注册后自动登录语义。
 
 **Test scenarios:**
-- Happy path: 输入合法邮箱和密码注册成功后自动进入主界面。
-- Happy path: 输入已注册邮箱和密码登录成功后 Token 写入 Keychain。
+- Happy path: 输入合法账号和密码注册成功后自动进入主界面。
+- Happy path: 输入已注册账号和密码登录成功后 Token 写入 Keychain。
 - Happy path: App 重启后可从 Keychain 恢复登录态。
-- Edge case: 邮箱为空、密码为空或格式错误时，按钮不可提交或显示本地校验错误。
+- Edge case: 账号为空、密码为空或格式错误时，按钮不可提交或显示本地校验错误。
 - Error path: 后端返回账号/密码错误时，显示错误并保持在登录页。
 - Error path: Keychain 读取失败时，清理本地 session 并回到登录页。
 - Integration: 登出后清理 Token，并断开 WebSocket/清空内存态。
@@ -334,7 +334,7 @@ ios-app/App
 - **Interaction graph:** `ios-app` 新增独立客户端，不改变 `api/`、`app/`、`h5-app/` 的接口；联调会复用 API Compose 环境。
 - **Error propagation:** Networking 层负责把 HTTP/WS/超时错误转换为领域错误，Feature ViewModel 决定 UI 展示和重试策略。
 - **State lifecycle risks:** Token、WebSocket session、SwiftData cache 和内存 store 需要在登录、登出、重连、App 冷启动之间保持一致。
-- **API surface parity:** 邮箱 Auth、Chats、Messages、Friends、Rooms、Settings 接口需要与 Flutter/H5 保持一致。
+- **API surface parity:** 账号 Auth、Chats、Messages、Friends、Rooms、Settings 接口需要与 Flutter/H5 保持一致。
 - **Integration coverage:** 单元测试不足以证明 parity；必须用 iOS Simulator + H5 + API Compose 做真实后端联调。
 - **Unchanged invariants:** 后端接口、H5 验收入口、Flutter 现有 app 流程在迁移初期保持不变。
 

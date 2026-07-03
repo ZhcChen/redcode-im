@@ -21,7 +21,7 @@ Flutter `app/` 已经包含认证、聊天、联系人、群管理、媒体、�
 
 - R1. `ios-app` 最终完整覆盖 Flutter `app/` 当前用户可见功能和核心数据流。
 - R2. iOS 实现必须采用原生 Swift/SwiftUI、Keychain、SwiftData/FileManager/UserNotifications/AVFoundation 等 iOS 习惯，不机械翻译 Flutter 写法。
-- R3. 认证主线只做邮箱注册、邮箱登录、重置密码、登出和启动态恢复，不做 Google/Apple 登录。
+- R3. 认证主线只做普通账号密码注册/登录、重置密码、登出和启动态恢复，不做 Google/Apple 登录；邮箱注册/登录作为后台配置能力保留。
 - R4. 聊天功能完整覆盖会话列表、聊天详情、WebSocket、文本、pending、失败重试、已读、删除、置顶、引用、reaction、未读数和搜索。
 - R5. 联系人、好友、私聊、群聊和群管理完整覆盖 Flutter 当前页面能力。
 - R6. 媒体、附件、头像、语音、视频预览、表情包、贴纸和缓存语义完整迁移。
@@ -148,11 +148,11 @@ External runtime
 
 ### Phase 2：启动、认证与会话安全
 
-**Goal:** 完成邮箱认证闭环和启动态恢复。
+**Goal:** 完成账号密码认证闭环和启动态恢复。
 
 **Scope:**
 - Splash。
-- 邮箱注册、邮箱登录、重置密码。
+- 普通账号密码注册、普通账号密码登录、重置密码。
 - 用户协议/隐私协议提示。
 - Token Keychain。
 - 启动恢复和登出清理。

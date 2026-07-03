@@ -13,7 +13,7 @@ date: 2026-07-02
 
 ## Problem Frame
 
-后续前端联调希望优先使用 `h5-app`，但当前 H5 只覆盖邮箱登录、注册和静态首页，无法承担完整聊天、联系人、群聊、设置、WebSocket、附件和本地搜索验收。Flutter App 已经沉淀了完整功能和本地 SQLite 存储模式，H5 App 需要按其行为迁移，而不是另起一套简化实现。
+后续前端联调希望优先使用 `h5-app`，但当前 H5 只覆盖账号登录、注册和静态首页，无法承担完整聊天、联系人、群聊、设置、WebSocket、附件和本地搜索验收。Flutter App 已经沉淀了完整功能和本地 SQLite 存储模式，H5 App 需要按其行为迁移，而不是另起一套简化实现。
 
 ## Requirements Trace
 
@@ -21,7 +21,7 @@ date: 2026-07-02
 - R2. 样式复用 Flutter 视觉语言，继续以 `app/lib/core/constants/app_colors.dart` 和 `app/lib/core/theme/app_theme.dart` 为基线维护 H5 token。
 - R3. H5 本地消息、联系人和配置缓存使用浏览器数据库，不使用手机文件路径；Flutter 的 SQLite 语义迁移为 SQLite WASM。
 - R4. H5 优先作为 backend + frontend 联调入口，真实后端 smoke 和浏览器验收要覆盖关键用户流。
-- R5. 邮箱注册/登录为主流程，不引入 Google/Apple 登录，不要求邮箱验证码二次验证。
+- R5. 普通账号密码注册/登录为主流程，不引入 Google/Apple 登录；邮箱注册/登录仅作为后台开关启用的兼容能力。
 - R6. 不改变 backend API 契约，除非迁移中发现 Flutter 当前依赖的端点缺失或 contract 不一致，再单独提出后端修复计划。
 
 ## Scope Boundaries
@@ -156,7 +156,7 @@ flowchart TB
 **Approach:**
 - 以 Flutter service 文件为清单，逐个映射 backend REST 端点。
 - 保持 `requestJson` 统一处理 token、错误消息和 JSON parsing。
-- 只迁移邮箱登录/注册；Google/Apple/SMS 只作为明确非目标保留空缺。
+- 只迁移普通账号密码登录/注册；Google/Apple/SMS 只作为明确非目标保留空缺。
 
 **Patterns to follow:**
 - `app/lib/features/auth/data/auth_repository.dart`
@@ -168,7 +168,7 @@ flowchart TB
 **Test scenarios:**
 - Happy path: service 对正确输入发出 Flutter 等价端点请求并映射响应。
 - Error path: backend 返回 `{error}` 或 `{message}` 时 UI store 能拿到可展示错误。
-- Integration: 真实后端 smoke 覆盖邮箱注册、登录、获取 `/auth/me`、拉取聊天列表。
+- Integration: 真实后端 smoke 覆盖普通账号注册、登录、获取 `/auth/me`、拉取聊天列表。
 
 **Verification:**
 - API contract 单测覆盖核心 service。
@@ -302,7 +302,7 @@ flowchart TB
 - `app/lib/features/settings/privacy_policy_page.dart`
 
 **Test scenarios:**
-- Happy path: 设置页显示当前用户昵称、邮箱和头像缓存。
+- Happy path: 设置页显示当前用户昵称、账号资料和头像缓存。
 - Happy path: 登出清理 session 并回到登录页。
 - Error path: 用户资料更新失败时不覆盖本地旧用户。
 - Integration: 真实后端更新昵称后 `/auth/me` 返回新信息。

@@ -24,7 +24,7 @@ describe('LoginView', () => {
       global: { stubs: ['RouterLink'] },
     });
 
-    await pushText(wrapper, 'input[type="email"]', 'h5@example.com');
+    await pushText(wrapper, 'input[autocomplete="username"]', 'h5_user');
     await pushText(wrapper, 'input[type="password"]', 'password');
     await wrapper.find('form').trigger('submit');
 

@@ -28,22 +28,34 @@ final class AuthAPIEndpointTests: XCTestCase {
         )
     }
 
-    func testEmailLoginRequestNormalizesEmail() throws {
-        let request = try EmailLoginRequest(email: " USER@Example.COM ", password: "secret")
+    func testAccountLoginRequestNormalizesUsername() throws {
+        let request = try AccountLoginRequest(username: " Red_User-01 ", password: "secret")
 
-        XCTAssertEqual(request.email, "user@example.com")
+        XCTAssertEqual(request.username, "red_user-01")
         XCTAssertEqual(request.password, "secret")
     }
 
-    func testEmailRegistrationRequestDefaultsNicknameToEmail() throws {
-        let request = try EmailRegistrationRequest(
-            email: " USER@Example.COM ",
+    func testAccountRegistrationRequestDefaultsNicknameToUsername() throws {
+        let request = try AccountRegistrationRequest(
+            username: " Red_User-01 ",
             password: "secret",
             nickname: " "
         )
 
-        XCTAssertEqual(request.email, "user@example.com")
-        XCTAssertEqual(request.nickname, "user@example.com")
+        XCTAssertEqual(request.username, "red_user-01")
+        XCTAssertEqual(request.nickname, "red_user-01")
+    }
+
+    func testAccountRegistrationPayloadDoesNotRequireEmail() throws {
+        let request = try AccountRegistrationRequest(username: "red_user", password: "secret")
+        let data = try JSONEncoder().encode(request)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: String]
+        )
+
+        XCTAssertEqual(json["username"], "red_user")
+        XCTAssertEqual(json["password"], "secret")
+        XCTAssertNil(json["email"])
     }
 
     func testRefreshTokenPayloadUsesBackendSnakeCase() throws {

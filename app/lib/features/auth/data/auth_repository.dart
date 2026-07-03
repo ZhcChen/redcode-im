@@ -42,20 +42,19 @@ class AuthRepository {
   }
 
   Future<AuthSession> login({
-    required String email,
+    required String account,
     required String password,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedAccount = account.trim().toLowerCase();
 
     if (AppConfig.useMockData) {
       await Future<void>.delayed(AppConfig.mockLatency);
       final user = AuthUser(
         id: 'mock-user-id',
-        username: normalizedEmail.isEmpty
-            ? 'bear@example.com'
-            : normalizedEmail,
+        username: normalizedAccount.isEmpty ? 'bear' : normalizedAccount,
         nickname: '熊小熊',
-        email: normalizedEmail.isEmpty ? 'bear@example.com' : normalizedEmail,
+        email:
+            '${normalizedAccount.isEmpty ? 'bear' : normalizedAccount}@account.redcode.local',
         status: 'active',
       );
       final session = AuthSession(token: 'mock-token', user: user);
@@ -67,13 +66,13 @@ class AuthRepository {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/auth/login');
     if (kDebugMode) {
       debugPrint('[Auth] 登录请求 - API Base URL: ${AppConfig.apiBaseUrl}');
-      debugPrint('[Auth] 登录请求 - Email: $normalizedEmail');
+      debugPrint('[Auth] 登录请求 - Account: $normalizedAccount');
     }
     final response = await _makeRequest(
       () => http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': normalizedEmail, 'password': password}),
+        body: jsonEncode({'username': normalizedAccount, 'password': password}),
       ),
       uri: uri,
     );
@@ -166,30 +165,29 @@ class AuthRepository {
 
     final message = _extractErrorMessage(response.body);
     if (response.statusCode == 401) {
-      throw AuthException(message ?? '邮箱或密码错误');
+      throw AuthException(message ?? '账号或密码错误');
     }
 
     throw AuthException(message ?? '登录失败，请稍后重试');
   }
 
   Future<AuthUser> register({
-    required String email,
+    required String account,
     required String password,
     String? nickname,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedAccount = account.trim().toLowerCase();
     final effectiveNickname = (nickname != null && nickname.trim().isNotEmpty)
         ? nickname.trim()
-        : normalizedEmail;
+        : normalizedAccount;
 
     if (AppConfig.useMockData) {
       await Future<void>.delayed(AppConfig.mockLatency);
       return AuthUser(
-        id: 'mock-user-${normalizedEmail.isEmpty ? 'new' : normalizedEmail}',
-        username: normalizedEmail.isEmpty
-            ? 'mock@example.com'
-            : normalizedEmail,
-        email: normalizedEmail,
+        id: 'mock-user-${normalizedAccount.isEmpty ? 'new' : normalizedAccount}',
+        username: normalizedAccount.isEmpty ? 'mock' : normalizedAccount,
+        email:
+            '${normalizedAccount.isEmpty ? 'mock' : normalizedAccount}@account.redcode.local',
         nickname: effectiveNickname,
         status: 'active',
       );
@@ -201,7 +199,7 @@ class AuthRepository {
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'email': normalizedEmail,
+          'username': normalizedAccount,
           'password': password,
           'nickname': effectiveNickname,
         }),
@@ -258,7 +256,7 @@ class AuthRepository {
         id: 'mock-user-sms',
         username: phone.trim(),
         nickname: '验证码用户',
-        email: 'mock@example.com',
+        email: '${phone.trim()}@account.redcode.local',
         status: 'active',
       );
       final session = AuthSession(token: 'mock-token', user: user);

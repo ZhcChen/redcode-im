@@ -31,7 +31,7 @@ make h5-app.check
 make h5-app.test.unit
 ```
 
-真实后端邮箱注册/登录 smoke：
+真实后端普通账号注册/登录 smoke：
 
 ```bash
 make api.up
@@ -41,8 +41,8 @@ make h5-app.test.live
 
 ## 当前范围
 
-- 邮箱登录
-- 邮箱注册后自动登录
+- 普通账号密码登录
+- 普通账号注册后自动登录
 - 登录后 App Shell（三栏：聊天、联系人、设置）
 - Flutter 移动端视觉 token 的 H5 复刻基线
 - 本地存储底座：

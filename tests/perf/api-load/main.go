@@ -65,9 +65,9 @@ type wsConn struct {
 }
 
 type perfUser struct {
-	ID    string
-	Email string
-	Token string
+	ID       string
+	Username string
+	Token    string
 }
 
 type wsJoinTarget struct {
@@ -388,8 +388,8 @@ func executeScenario(client *http.Client, cfg config, workerID int, wsConnectTok
 
 func executeAuthRegisterLogin(client *http.Client, cfg config, workerID int) (int, int64, int64, error) {
 	seq := atomic.AddUint64(&globalSeq, 1)
-	email := fmt.Sprintf("perf_%s_%d_%d@example.test", cfg.RunID, workerID, seq)
-	registerBody := fmt.Sprintf(`{"email":%q,"password":%q,"nickname":"perf"}`, email, cfg.Password)
+	username := buildPerfUsername("p", cfg.RunID, workerID, seq)
+	registerBody := fmt.Sprintf(`{"username":%q,"password":%q,"nickname":"perf"}`, username, cfg.Password)
 	status, bytesRead, err := doRequest(client, http.MethodPost, cfg.BaseURL+"/auth/register", []byte(registerBody))
 	if err != nil || status < 200 || status >= 300 {
 		if err == nil {
@@ -398,7 +398,7 @@ func executeAuthRegisterLogin(client *http.Client, cfg config, workerID int) (in
 		return status, bytesRead, 1, err
 	}
 
-	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, cfg.Password)
+	loginBody := fmt.Sprintf(`{"username":%q,"password":%q}`, username, cfg.Password)
 	loginStatus, loginBytes, loginErr := doRequest(client, http.MethodPost, cfg.BaseURL+"/auth/login", []byte(loginBody))
 	bytesRead += loginBytes
 	if loginErr != nil {
@@ -463,8 +463,8 @@ func executeWSConnectJoin(cfg config, workerID int, targets []wsJoinTarget) (int
 
 func createPerfUser(client *http.Client, cfg config, workerID int) (perfUser, int64, int64, error) {
 	seq := atomic.AddUint64(&globalSeq, 1)
-	email := fmt.Sprintf("perf_ws_%s_%d_%d@example.test", cfg.RunID, workerID, seq)
-	registerBody := fmt.Sprintf(`{"email":%q,"password":%q,"nickname":"perf-ws"}`, email, cfg.Password)
+	username := buildPerfUsername("w", cfg.RunID, workerID, seq)
+	registerBody := fmt.Sprintf(`{"username":%q,"password":%q,"nickname":"perf-ws"}`, username, cfg.Password)
 	status, bytesRead, err := doRequest(client, http.MethodPost, cfg.BaseURL+"/auth/register", []byte(registerBody))
 	if err != nil || status < 200 || status >= 300 {
 		if err == nil {
@@ -473,7 +473,7 @@ func createPerfUser(client *http.Client, cfg config, workerID int) (perfUser, in
 		return perfUser{}, bytesRead, 1, err
 	}
 
-	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, cfg.Password)
+	loginBody := fmt.Sprintf(`{"username":%q,"password":%q}`, username, cfg.Password)
 	loginStatus, loginBytes, loginResp, loginErr := doJSONRequest(client, http.MethodPost, cfg.BaseURL+"/auth/login", "", []byte(loginBody))
 	bytesRead += loginBytes
 	if loginErr != nil {
@@ -490,7 +490,12 @@ func createPerfUser(client *http.Client, cfg config, workerID int) (perfUser, in
 		return perfUser{}, bytesRead, 2, fmt.Errorf("login response missing token or user.id")
 	}
 
-	return perfUser{ID: userID, Email: email, Token: token}, bytesRead, 2, nil
+	return perfUser{ID: userID, Username: username, Token: token}, bytesRead, 2, nil
+}
+
+func buildPerfUsername(prefix string, runID string, workerID int, seq uint64) string {
+	sum := sha1.Sum([]byte(runID))
+	return fmt.Sprintf("%s%x%02d%06x", prefix, sum[:3], workerID%100, seq&0xffffff)
 }
 
 func createPerfRoom(client *http.Client, cfg config, token string, memberIDs []string) (string, int64, int64, error) {

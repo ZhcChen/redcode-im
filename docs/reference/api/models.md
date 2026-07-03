@@ -93,8 +93,8 @@ interface UserInfo {
 ### CreateUserRequest - 创建用户请求
 ```typescript
 interface CreateUserRequest {
-  username: string;              // 用户名，至少3个字符
-  email: string;                 // 有效的邮箱地址
+  username: string;              // 登录账号，当前主流程必填，至少3个字符
+  email?: string;                // 可选邮箱资料；未传时后端生成内部占位邮箱
   password: string;              // 密码，至少6个字符
   nickname?: string;             // 昵称（可选）
 }
@@ -103,7 +103,8 @@ interface CreateUserRequest {
 ### LoginRequest - 登录请求
 ```typescript
 interface LoginRequest {
-  username: string;              // 用户名
+  username: string;              // 登录账号；邮箱登录兼容开关开启时也可传 email
+  email?: string;                // 默认关闭，仅兼容旧邮箱登录客户端
   password: string;              // 密码
 }
 ```

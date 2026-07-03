@@ -57,13 +57,13 @@ Authorization: Bearer <your-jwt-token>
 #### 1. 用户注册
 - **接口**: `POST /auth/register`
 - **权限**: 公开
-- **功能**: 使用邮箱和密码创建新用户账户
+- **功能**: 使用普通账号和密码创建新用户账户；邮箱注册默认关闭，可由后台开关启用兼容
 - **Handler**: `auth::register`
 
 #### 2. 用户登录
 - **接口**: `POST /auth/login`
 - **权限**: 公开
-- **功能**: 邮箱/密码登录（兼容旧 username 字段）
+- **功能**: 普通账号/密码登录；邮箱登录默认关闭，可由后台开关启用兼容
 - **Handler**: `auth::login`
 
 #### 3. 短信登录
@@ -1523,13 +1523,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 #### 13. 获取用户账户限制
 - **接口**: `GET /api/admin/settings/user-account-limit`
 - **权限**: 管理员
-- **功能**: 获取用户账户相关限制配置
+- **功能**: 获取用户账户相关限制配置和邮箱注册/登录兼容开关
 - **Handler**: `settings::get_user_account_limit`
 
 #### 14. 更新用户账户限制
 - **接口**: `PUT /api/admin/settings/user-account-limit`
 - **权限**: 管理员
-- **功能**: 更新用户账户限制配置
+- **功能**: 更新用户账户限制配置和邮箱注册/登录兼容开关
 - **Handler**: `settings::update_user_account_limit`
 
 ### 上传策略配置

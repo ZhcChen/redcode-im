@@ -23,7 +23,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'user_agreed_to_terms': true});
   });
 
-  testWidgets('邮箱注册不显示验证码输入，即使开启验证码登录', (tester) async {
+  testWidgets('账号注册不显示验证码输入，即使开启验证码登录', (tester) async {
     tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {

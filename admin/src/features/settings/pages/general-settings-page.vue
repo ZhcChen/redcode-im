@@ -78,6 +78,14 @@
             class="settings-form"
             @submit="handleAccountLimitSubmit"
           >
+            <a-form-item field="enable_email_auth" label="启用邮箱注册/登录">
+              <a-switch v-model="accountLimitForm.enable_email_auth" />
+              <template #help>
+                默认关闭。开启后，旧客户端可继续使用邮箱字段注册和登录；当前
+                H5/iOS 主流程使用普通账号密码。
+              </template>
+            </a-form-item>
+
             <a-form-item field="enable_phone_validation" label="启用手机号校验">
               <a-switch v-model="accountLimitForm.enable_phone_validation" />
               <template #help>
@@ -430,6 +438,7 @@
   });
 
   const accountLimitForm = reactive({
+    enable_email_auth: false,
     enable_phone_validation: false,
     enable_email_validation: false,
     enable_length_validation: false,

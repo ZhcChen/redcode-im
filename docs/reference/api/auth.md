@@ -3,7 +3,8 @@
 ## 概述
 
 本系统采用 JWT (JSON Web Token) 进行身份认证，支持以下认证方式：
-- 邮箱密码登录
+- 普通账号密码登录（当前默认主线）
+- 邮箱密码登录（后台 `auth_email_enabled` 开关启用后兼容旧客户端）
 - 手机号验证码登录
 - 管理员登录（独立的 Token 体系）
 
@@ -17,7 +18,9 @@
 
 ### POST /auth/register — 用户注册
 
-创建新的用户账户，邮箱和密码为必填；用户名默认等于邮箱。
+创建新的用户账户。当前默认使用 `username + password` 注册，`email` 为可选资料字段；未传 `email` 时后端生成内部占位邮箱，不依赖真实邮箱资源。
+
+兼容旧客户端的邮箱注册链路（只传 `email + password`）默认关闭，需管理员在后台开启 `auth_email_enabled` 后才可使用。
 
 - 需要认证：否
 - 标识：register
@@ -28,18 +31,18 @@
 ```json
 {
   "type": "object",
-  "required": ["email", "password"],
+  "required": ["username", "password"],
   "properties": {
     "username": {
       "type": "string",
-      "description": "兼容旧客户端的用户名（可选）；未传时默认等于邮箱",
+      "description": "登录账号，当前主流程必填",
       "minLength": 3,
       "example": "testuser"
     },
     "email": {
       "type": "string",
       "format": "email",
-      "description": "有效的邮箱地址",
+      "description": "可选邮箱资料；邮箱注册兼容链路开启时可作为注册标识",
       "example": "user@example.com"
     },
     "password": {
@@ -59,7 +62,7 @@
 - 示例：
 ```json
 {
-  "email": "test@example.com",
+  "username": "testuser",
   "password": "password123",
   "nickname": "测试用户"
 }
@@ -71,8 +74,8 @@
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "test@example.com",
-  "email": "test@example.com",
+  "username": "testuser",
+  "email": "testuser-2d5c9e4b9d184f7f9b4d7b2b932aa111@account.redcode.local",
   "nickname": "测试用户",
   "avatar_url": null,
   "status": "active"
@@ -99,7 +102,7 @@
 
 ### POST /auth/login — 用户登录
 
-使用邮箱和密码进行身份验证，成功后返回 JWT token。旧客户端仍可传 `username`。
+使用普通账号和密码进行身份验证，成功后返回 JWT token。邮箱登录默认关闭，需管理员开启 `auth_email_enabled` 后才兼容只传 `email + password` 的旧客户端。
 
 - 需要认证：否
 - 标识：login
@@ -108,7 +111,7 @@
 - Content-Type：application/json
 ```json
 {
-  "email": "test@example.com",
+  "username": "testuser",
   "password": "password123"
 }
 ```
@@ -122,8 +125,8 @@
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "username": "test@example.com",
-    "email": "test@example.com",
+    "username": "testuser",
+    "email": "testuser-2d5c9e4b9d184f7f9b4d7b2b932aa111@account.redcode.local",
     "nickname": "测试用户",
     "avatar_url": null,
     "status": "active"
@@ -132,7 +135,7 @@
 ```
 
 ##### HTTP 401
-邮箱或密码错误
+账号或密码错误
 ```json
 {
   "error": "Invalid username or password"

@@ -192,7 +192,7 @@ onMounted(() => {
             <input
               :value="contactsStore.searchKeyword"
               class="rc-focus-ring"
-              placeholder="搜索邮箱 / 昵称"
+              placeholder="搜索账号 / 昵称"
               @input="contactsStore.setSearchKeyword(($event.target as HTMLInputElement).value)"
             />
           </label>
@@ -260,7 +260,7 @@ onMounted(() => {
             <span>{{ contactsStore.filteredFriends.length }} 人</span>
           </div>
           <p v-if="contactsStore.refreshing && contactsStore.friends.length === 0" class="chat-empty">正在加载联系人...</p>
-          <p v-else-if="contactsStore.filteredFriends.length === 0" class="chat-empty">暂无联系人，搜索邮箱添加好友。</p>
+          <p v-else-if="contactsStore.filteredFriends.length === 0" class="chat-empty">暂无联系人，搜索账号添加好友。</p>
           <article v-for="friend in contactsStore.filteredFriends" :key="friend.user.id" class="contact-row">
             <CachedAvatar class="contact-row__avatar" kind="user" :entity-id="friend.user.id" :object-key="friend.user.avatarObjectKey" :label="displayFriendName(friend)" />
             <div class="contact-row__body">

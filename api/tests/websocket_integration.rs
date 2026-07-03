@@ -3,7 +3,7 @@ mod support;
 use axum::http::StatusCode;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
-use support::{body_json, spawn_test_app, unique_email, TestApp};
+use support::{body_json, spawn_test_app, unique_username, TestApp};
 use tokio::net::TcpListener;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
@@ -13,8 +13,9 @@ struct TestUser {
 }
 
 async fn register_and_login(app: &TestApp, prefix: &str) -> TestUser {
-    let email = unique_email(prefix);
-    let body = format!(r#"{{"email":"{email}","password":"pass123456","nickname":"{email}"}}"#);
+    let username = unique_username(prefix);
+    let body =
+        format!(r#"{{"username":"{username}","password":"pass123456","nickname":"{username}"}}"#);
     let (status, resp) = app.post_json("/auth/register", &body).await;
     assert_eq!(
         status,
@@ -23,7 +24,7 @@ async fn register_and_login(app: &TestApp, prefix: &str) -> TestUser {
         String::from_utf8_lossy(&resp)
     );
 
-    let login = format!(r#"{{"email":"{email}","password":"pass123456"}}"#);
+    let login = format!(r#"{{"username":"{username}","password":"pass123456"}}"#);
     let (status, resp) = app.post_json("/auth/login", &login).await;
     assert_eq!(
         status,

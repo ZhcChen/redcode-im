@@ -12,42 +12,43 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'frontend integration auth: email register and password login',
+    'frontend integration auth: account register and password login',
     (tester) async {
       final storage = TokenStorage();
       await storage.clear();
 
       final repository = AuthRepository(storage: storage);
       final timestamp = DateTime.now().microsecondsSinceEpoch;
-      final email = 'frontend-auth-$timestamp@example.test';
+      final account = 'frontend$timestamp'.substring(0, 20);
       const password = 'pass123456';
 
       final registered = await repository.register(
-        email: email,
+        account: account,
         password: password,
       );
-      expect(registered.email, email);
-      expect(registered.username, isNot(email));
-      expect(registered.username, startsWith('u_'));
-      expect(registered.username.length, lessThanOrEqualTo(50));
+      expect(registered.email, endsWith('@account.redcode.local'));
+      expect(registered.username, account);
       expect(registered.status, 'active');
 
-      final session = await repository.login(email: email, password: password);
+      final session = await repository.login(
+        account: account,
+        password: password,
+      );
       expect(session.token, isNotEmpty);
       expect(session.refreshToken, isNotEmpty);
-      expect(session.user.email, email);
-      expect(session.user.username, registered.username);
+      expect(session.user.email, registered.email);
+      expect(session.user.username, account);
 
       final savedSession = await storage.readSession();
       expect(savedSession, isNotNull);
       expect(savedSession!.token, session.token);
       expect(savedSession.refreshToken, session.refreshToken);
-      expect(savedSession.user.email, email);
+      expect(savedSession.user.email, registered.email);
 
       final refreshed = await repository.refreshCurrentUser();
       expect(refreshed, isNotNull);
-      expect(refreshed!.email, email);
-      expect(refreshed.username, registered.username);
+      expect(refreshed!.email, registered.email);
+      expect(refreshed.username, account);
 
       await repository.logout();
       expect(await storage.readSession(), isNull);

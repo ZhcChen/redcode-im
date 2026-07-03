@@ -305,7 +305,7 @@ api.perf.readyz: ## 压测 /readyz 依赖就绪基线（DB / Redis）
 	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api
 	@$(API_PERF_ENV) PERF_SCENARIO=readyz PERF_CONCURRENCY=$(PERF_READYZ_CONCURRENCY) PERF_REQUEST_INTERVAL_MS=$(PERF_READYZ_INTERVAL_MS) PERF_REPORT_NAME=readyz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
 
-api.perf.auth: ## 压测邮箱注册 + 登录业务链路
+api.perf.auth: ## 压测普通账号注册 + 登录业务链路
 	@$(call require_cmd,$(DOCKER))
 	@$(MAKE) api.test.build
 	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api-release-local >/dev/null 2>&1 || true
@@ -375,7 +375,7 @@ api.perf.release.readyz: ## 使用 release 二进制低频探测 /readyz
 	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" up -d --wait --force-recreate api-release-local
 	@$(API_PERF_ENV) API_RUNTIME=release API_BASE_URL=http://api-release-local:8010 PERF_SCENARIO=readyz PERF_CONCURRENCY=$(PERF_READYZ_CONCURRENCY) PERF_REQUEST_INTERVAL_MS=$(PERF_READYZ_INTERVAL_MS) PERF_REPORT_NAME=$(API_PERF_REPORT_PREFIX)-readyz-$$(date +%Y%m%d-%H%M%S).json $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" run --rm --no-deps api-perf
 
-api.perf.release.auth: ## 使用 release 二进制压测邮箱注册 + 登录业务链路
+api.perf.release.auth: ## 使用 release 二进制压测普通账号注册 + 登录业务链路
 	@$(call require_cmd,$(DOCKER))
 	@$(MAKE) api.test.build.release
 	@$(API_PERF_ENV) $(DOCKER) compose -f "$(API_TEST_COMPOSE_FILE)" rm -sf api >/dev/null 2>&1 || true
@@ -544,7 +544,7 @@ desktop.test.utils: ## 执行 desktop utils 相关测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(DESKTOP_DIR)" && $(BUN) run test -- test/utils
 
-desktop.test.live: ## 执行 desktop 真实后端 smoke（healthz + 邮箱注册/登录 + WS open）
+desktop.test.live: ## 执行 desktop 真实后端 smoke（healthz + 普通账号注册/登录 + WS open）
 	@$(call require_cmd,$(BUN))
 	@cd "$(DESKTOP_DIR)" && DESKTOP_LIVE_BACKEND_ENABLED=true DESKTOP_API_BASE_URL="$(DESKTOP_API_BASE_URL)" DESKTOP_WS_URL="$(DESKTOP_WS_URL)" $(BUN) run test -- test/api/live-backend-smoke.test.ts
 
@@ -599,7 +599,7 @@ app.test.integration.network: ## 执行 app network integration（默认 macos +
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh network --device "$(APP_TEST_DEVICE)"
 
-app.test.integration.auth: ## 执行 app 真实邮箱注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
+app.test.integration.auth: ## 执行 app 真实普通账号注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth --device "$(APP_TEST_DEVICE)"
 
@@ -607,17 +607,17 @@ app.test.integration.device: ## 执行 app 设备 network integration（默认 P
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
 
-app.test.integration.device.auth: ## 执行 app 设备真实邮箱注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_email_flow_test.dart; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart; fi
 
 app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
 
-app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实邮箱注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
+app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普通账号注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_email_flow_test.dart; fi
+	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart; fi
 
 app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
@@ -696,7 +696,7 @@ h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && VITE_USE_MOCK_DATA=true $(BUN) run test
 
-h5-app.test.live: ## 执行 h5-app 真实后端邮箱注册/登录 smoke（需 api dev 就绪）
+h5-app.test.live: ## 执行 h5-app 真实后端普通账号注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
 
