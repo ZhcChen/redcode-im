@@ -47,6 +47,7 @@ make ios-app.ui-test
 已补自动化前置：
 
 - API 已支持 APNs provider 配置、APNs token 投递、Push 日志和 `external-mock` APNs 投递自测；本地/CI 测试不访问 Apple 或 Firebase 线上推送服务。
+- iOS App 已支持从 Info.plist / 启动环境读取真机可访问的 API/WS 地址，并新增 `make ios-app.apns.preflight` 作为真机通知补验预检入口。
 
 仍需真机补验：
 
@@ -88,4 +89,8 @@ make ios-app.ui-test
 ```bash
 # iPhone 真机和推送凭据就绪后执行真机通知补验
 # API mock 链路已纳入 make api.test；真机补验需连接 iPhone 并配置真实 APNs 凭据后记录到本报告或后续报告。
+IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 \
+IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws \
+IOS_APNS_PROVIDER_CONFIGURED=1 \
+make ios-app.apns.preflight
 ```

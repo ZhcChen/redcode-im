@@ -97,6 +97,8 @@ IOS_APP_DERIVED_DATA := $(IOS_APP_DIR)/DerivedData
 IOS_APP_BUNDLE_ID := com.redcode.im.iosapp
 IOS_APP_SIMULATOR_NAME ?= iPhone 17 Pro
 IOS_APP_SIMULATOR_ID ?=
+IOS_APP_API_BASE_URL ?=
+IOS_APP_WS_URL ?=
 
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
@@ -107,7 +109,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
-	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator \
+	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -721,9 +723,13 @@ ios-app.test.live: ## 执行 ios-app 真实后端 smoke（认证 + WS + 聊天�
 
 ios-app.test.interop: h5-app.test.live ios-app.test.live ## 执行 H5/API/iOS 联调 smoke（需 api dev 就绪）
 
+ios-app.apns.preflight: ## 检查 iPhone 真机/APNs 验收前置条件
+	@$(call require_cmd,$(XCRUN))
+	@IOS_APP_API_BASE_URL="$(IOS_APP_API_BASE_URL)" IOS_APP_WS_URL="$(IOS_APP_WS_URL)" "$(IOS_APP_DIR)/scripts/apns_real_device_preflight.sh"
+
 ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
 	@$(call require_cmd,$(XCODEBUILD))
-	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -target "$(IOS_APP_TARGET)" -configuration Debug -sdk iphonesimulator SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" build
+	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -target "$(IOS_APP_TARGET)" -configuration Debug -sdk iphonesimulator SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" REDCODE_API_BASE_URL="$(IOS_APP_API_BASE_URL)" REDCODE_WS_URL="$(IOS_APP_WS_URL)" build
 
 ios-app.ui-test: ## 运行 ios-app 本机 iOS Simulator XCUITest
 	@$(call require_cmd,$(XCODEBUILD))

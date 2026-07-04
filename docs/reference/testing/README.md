@@ -101,6 +101,7 @@ make ios-app.test.live
 make ios-app.test.interop
 make ios-app.build.simulator
 make ios-app.smoke.simulator
+make ios-app.apns.preflight
 ```
 
 说明：
@@ -111,7 +112,9 @@ make ios-app.smoke.simulator
 - `ios-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `ios-app.test.live`，作为 H5/API/iOS 联调总入口。
 - `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
 - `ios-app.ui-test` 运行 XCUITest；当前本机已通过，覆盖认证协议门禁/登录和聊天详情发送 smoke。若 Xcode SDK 与已安装 Simulator runtime 不匹配，会失败并提示在 Xcode > Settings > Components 安装匹配 runtime。
+- `ios-app.apns.preflight` 是 APNs 真机补验入口，检查 iPhone 真机连接、`IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 非 loopback、Admin 真实 APNs provider 已配置确认以及 API `/healthz` 可达。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
+- `ios-app` 真机调试构建可通过 `IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 写入 App Info.plist；App 运行时也支持从 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL` 或兼容的 `API_BASE_URL` / `WS_URL` 读取覆盖。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证聊天 `/chats`、建群、文本互发和已读 live smoke。

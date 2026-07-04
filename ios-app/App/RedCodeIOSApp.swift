@@ -115,9 +115,12 @@ final class AppDependencies {
         )
     }
 
-    static func simulatorDevelopment() -> AppDependencies {
+    static func simulatorDevelopment(environment: RedCodeEnvironment = .simulatorDevelopment()) -> AppDependencies {
         do {
-            return AppDependencies(modelContainer: try RedCodeStorageSchema.makeModelContainer())
+            return AppDependencies(
+                environment: environment,
+                modelContainer: try RedCodeStorageSchema.makeModelContainer()
+            )
         } catch {
             fatalError("初始化 iOS 本地数据容器失败: \(error)")
         }
@@ -132,7 +135,11 @@ final class AppDependencies {
             return uiTestingChatFixture()
         }
         #endif
-        return simulatorDevelopment()
+        do {
+            return simulatorDevelopment(environment: try RedCodeEnvironment.configuredDevelopment())
+        } catch {
+            fatalError("读取 iOS 运行环境配置失败: \(error)")
+        }
     }
 
     func makeChatDetailController() -> ChatDetailController {
