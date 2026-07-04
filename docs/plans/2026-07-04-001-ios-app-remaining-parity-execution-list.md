@@ -245,7 +245,8 @@
 - 已新增 `PushController`、`LocalNotificationScheduler`、`NotificationNavigationController` 与通知 payload/destination 映射。
 - WebSocket 新消息在 App 非前台且非自己消息时触发本地通知兜底；前台保持静默。
 - SwiftUI App 已接入通知权限、APNs token 注册回调、remote notification payload 处理、Tab 导航切换、聊天通知深链与登出通知态清理。
-- 后端当前离线发送主链路仍是 FCM；iOS 原生保留 APNs token 注册底座，同时默认按既有 `/push/devices` 合约支持 `fcm/apns` channel，真机 FCM/APNs 投递补验放入 IOS-10-C1 / IOS-11-A6。
+- 后端已补 APNs provider 配置、APNs token 投递、Push 日志和 `external-mock` APNs 测试链路；iOS 原生 APNs token 会按 `/push/devices` 的 `apns` channel 注册，服务端离线通知会按设备 channel 分发到 FCM/APNs。
+- 真机 APNs token 获取、Apple 平台真实投递和点击系统通知唤醒仍放入 IOS-10-C1 / IOS-11-A6；当前 `xcrun devicectl list devices` 未检测到 iPhone 真机。
 - 已补 `PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 覆盖。
 - 已通过 `swift test`。
 
@@ -271,7 +272,7 @@
 - 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke。
 - 已新增 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`，记录 Flutter vs iOS 对照、P0/P1 缺口、下线条件和回滚策略。
 - 当前本机已具备可运行 XCUITest 的 Simulator runtime；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
-- IOS-11-A6 仍需要 iPhone 真机与 APNs/FCM 平台凭据；Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
+- IOS-11-A6 仍需要 iPhone 真机与 Apple APNs 平台凭据；API mock 已覆盖 APNs/FCM 投递，Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 ## 横向收尾任务
 

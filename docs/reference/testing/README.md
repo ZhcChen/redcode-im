@@ -25,7 +25,7 @@ RedCode IM 的测试策略调整为：
 ### `tests/` 目录
 - `tests/docker-compose.test.yml`：api Compose 测试栈（pg / redis / external-mock / rust-tests / api-smoke；PG/Redis/external-mock 不映射宿主端口）
 - `tests/go/tooling/`：仓库级 Makefile / 脚本守护测试
-- `tests/mocks/external/`：第三方依赖（B2 / IPInfo / FCM）mock
+- `tests/mocks/external/`：第三方依赖（B2 / IPInfo / FCM / APNs）mock
 
 ---
 
@@ -37,6 +37,11 @@ make api.test
 ```
 
 API 单元、集成、smoke 均通过 `tests/docker-compose.test.yml` 在 Docker Compose 内执行。不要把宿主机 `cargo test` 作为默认验收路径。
+外部依赖 mock 服务自测可单独运行：
+
+```bash
+make tests.mocks.external
+```
 
 ### App 自测
 ```bash
@@ -114,10 +119,10 @@ make ios-app.smoke.simulator
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证群管理 live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests` 验证对象存储 mock 上传、commit、富媒体发送和下载 smoke。
 - `h5-app.test.live` 已覆盖 H5 富媒体发送互通：H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
-- `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock B2，不访问线上对象存储；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
+- `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock B2，不访问线上对象存储；FCM/APNs 测试发送默认走 mock Push，不访问线上推送服务；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
 - 表情、贴纸、消息搜索和聊天扩展当前由 SwiftPM 单测覆盖：`EmojiAPIClientTests`、`ChatAPIClientTests` 搜索用例、`StorageTests` 搜索/偏好用例、`ChatExtensionControllerTests`。贴纸发送在 iOS 侧先下载/缓存表情图，再复用消息图片上传链路，不直接写入 `emoji-items/*` 附件 key。
 - 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。
-- Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。Simulator 可验证本地通知调度条件、payload 导航和登出清理；APNs/FCM token 获取与离线系统通知投递需 iPhone 真机和平台凭据补验。
+- Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒仍需 iPhone 真机与 Apple 平台凭据补验。
 
 ### Admin 自测
 ```bash
@@ -174,7 +179,7 @@ make api.test.deps.down
 - 集成测试用 `axum` `oneshot` 进程内打 Router，对 `tests/docker-compose.test.yml` 起的依赖运行；每测试 `CREATE/DROP DATABASE` 独立临时库，`--test-threads=1` 串行。
 - `tests/docker-compose.test.yml` 不映射 PostgreSQL / Redis / external-mock 宿主端口；测试容器通过 Compose 服务名访问 `postgres`、`redis`、`external-mock`。
 - 测试栈只启动 1 个 Redis；`REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 均指向该 Redis。
-- 涉及对象存储 / 推送 / 地理的用例走 `tests/mocks/external` 的 `external-mock`；测试环境禁止使用线上 Backblaze B2 endpoint。
+- 涉及对象存储 / 推送 / 地理的用例走 `tests/mocks/external` 的 `external-mock`；测试环境禁止使用线上 Backblaze B2、FCM 或 APNs endpoint。
 - `api.test.smoke` 与 `api.perf.*` 会先通过 `api.test.build` 在 `rust-tests` 容器内完成编译，再让受限 `api` 容器直接运行 `/app/target/debug/redcode-im-api`；因此 `API_SERVICE_CPUS` / `API_SERVICE_MEMORY` 表示 API 运行时资源，不混入 Rust 编译开销。
 - 迁移一致性校验保留在 `api/tests/database_migration_smoke.rs`。
 

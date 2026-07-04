@@ -8,7 +8,7 @@
 
 当前不建议删除 Flutter `app/`。删除/下线 Flutter iOS 前仍需补齐一个非代码条件：
 
-- 使用 iPhone 真机和平台凭据补验 APNs/FCM token 获取、离线系统通知投递与点击深链。
+- 使用 iPhone 真机和 Apple APNs 平台凭据补验 APNs token 获取、离线系统通知投递与点击深链。
 
 ## 已验证命令
 
@@ -44,9 +44,13 @@ make ios-app.ui-test
 - 设置与配置：个人资料、昵称更新、账号安全、修改密码、用户协议、隐私协议、关于、反馈、通用配置缓存、版本检查、iOS 原生更新提示。
 - 通知：本地通知权限、后台 WebSocket 新消息本地通知兜底、APNs token 注册底座、push device 上报/注销、通知点击导航、冷启动 pending payload、登出通知态清理。
 
+已补自动化前置：
+
+- API 已支持 APNs provider 配置、APNs token 投递、Push 日志和 `external-mock` APNs 投递自测；本地/CI 测试不访问 Apple 或 Firebase 线上推送服务。
+
 仍需真机补验：
 
-- 离线系统通知：需要 iPhone 真机与 APNs/FCM 平台凭据，Simulator/单测只能覆盖本地通知调度与 payload 导航。
+- 离线系统通知：需要 iPhone 真机与 Apple APNs 平台凭据，Simulator/单测只能覆盖本地通知调度与 payload 导航。
 
 ## P0/P1 缺口清单
 
@@ -54,7 +58,7 @@ make ios-app.ui-test
 
 非 P0/P1 待办：
 
-- 准备 iPhone 真机和平台凭据后补跑通知投递验收。
+- 准备 iPhone 真机和 Apple APNs 平台凭据后补跑通知投递验收。
 
 补充说明：
 
@@ -68,7 +72,7 @@ make ios-app.ui-test
 2. `make ios-app.test.interop` 通过。
 3. `make ios-app.smoke.simulator` 通过。
 4. `make ios-app.ui-test` 通过。
-5. iPhone 真机通知补验通过，至少覆盖 token 获取、后端设备上报、离线推送、点击进入会话/联系人请求。
+5. iPhone 真机通知补验通过，至少覆盖 APNs token 获取、后端设备上报、离线推送、点击进入会话/联系人请求。
 6. `app/` Flutter iOS 无独有 P0/P1 功能仍未迁移。
 7. 发布说明中明确 iOS 原生包切换版本、回滚版本和数据兼容策略。
 
@@ -77,11 +81,11 @@ make ios-app.ui-test
 - 代码回滚：保留 Flutter `app/`，直到原生 iOS 切换完成且稳定；若原生 iOS 发布异常，移动端 iOS 发布渠道回滚到上一个 Flutter iOS 包。
 - 服务端回滚：本次 iOS parity 不引入破坏性后端接口迁移；若发现接口兼容问题，优先回滚客户端调用或通过后端兼容字段修复。
 - 数据回滚：iOS 本地缓存使用 SwiftData/FileManager/Keychain，不改变服务端数据结构；客户端异常时可清理本地缓存和重新登录恢复。
-- 通知回滚：APNs/FCM 真机投递未完成前，不把离线系统通知作为切换强依赖；保留 WebSocket 在线收消息与本地通知兜底。
+- 通知回滚：APNs 真机投递未完成前，不把离线系统通知作为切换强依赖；保留 WebSocket 在线收消息与本地通知兜底。
 
 ## 后续补验入口
 
 ```bash
 # iPhone 真机和推送凭据就绪后执行真机通知补验
-# 目前没有自动化入口，按 PushController/APNs/FCM 真实链路手工验收并记录到本报告或后续报告。
+# API mock 链路已纳入 make api.test；真机补验需连接 iPhone 并配置真实 APNs 凭据后记录到本报告或后续报告。
 ```

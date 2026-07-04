@@ -4,8 +4,13 @@
 
 ## 覆盖范围
 - FCM Push
+- APNs Push
 - B2 / S3 兼容对象存储
 - IPInfo
+
+## Push 模拟接口
+- `POST /fcm/v1/projects/<project>/messages:send`：模拟 FCM 发送，token 包含 `invalid` 返回 400，包含 `unregistered` 返回 404。
+- `POST /apns/3/device/<device_token>`：模拟 APNs 发送，token 包含 `invalid` 返回 `BadDeviceToken`，包含 `unregistered` 返回 `Unregistered`。
 
 ## B2 / S3 兼容接口
 测试栈通过同一个 mock 服务模拟 B2 authorize 与 S3 path-style 对象接口：

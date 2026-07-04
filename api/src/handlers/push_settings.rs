@@ -122,14 +122,26 @@ pub async fn update_push_settings_admin(
         )
         .await?;
 
+    crate::services::push::invalidate_push_runtime_cache().await;
+
     get_push_settings_admin(State(state)).await
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpsertFcmConfigRequest {
+pub struct UpsertPushProviderConfigRequest {
     pub enabled: bool,
     /// FCM service account JSON（明文）；服务端会加密落库
     pub service_account_json: Option<String>,
+    /// APNs Team ID
+    pub team_id: Option<String>,
+    /// APNs Auth Key ID
+    pub key_id: Option<String>,
+    /// iOS App Bundle ID
+    pub bundle_id: Option<String>,
+    /// APNs environment: sandbox / production
+    pub environment: Option<String>,
+    /// APNs .p8 私钥（明文）；服务端会加密落库
+    pub private_key_p8: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -145,10 +157,10 @@ pub async fn upsert_push_provider_admin(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(provider): Path<String>,
-    Json(payload): Json<UpsertFcmConfigRequest>,
+    Json(payload): Json<UpsertPushProviderConfigRequest>,
 ) -> Result<Json<PushProviderConfigView>, AppError> {
     let provider = provider.trim().to_lowercase();
-    if provider != "fcm" {
+    if provider != "fcm" && provider != "apns" {
         return Err(AppError::ValidationError(format!(
             "暂不支持的 provider: {}",
             provider
@@ -157,8 +169,9 @@ pub async fn upsert_push_provider_admin(
 
     let editor_id = string_to_uuid(&claims.sub)?;
     let store = PushProviderConfigStore::new(state.database.pool());
+    let platform = if provider == "apns" { "ios" } else { "all" };
 
-    let existing = store.get_config(&provider, "all").await?;
+    let existing = store.get_config(&provider, platform).await?;
     let mut config_public = existing
         .as_ref()
         .map(|v| v.config_public.clone())
@@ -167,7 +180,27 @@ pub async fn upsert_push_provider_admin(
     let mut secret_ciphertext: Option<String> = None;
     let mut secret_fingerprint: Option<String> = None;
 
-    if let Some(raw) = payload.service_account_json.as_ref() {
+    if provider == "fcm"
+        && payload.enabled
+        && existing
+            .as_ref()
+            .and_then(|v| v.secret_ciphertext.as_ref())
+            .is_none()
+    {
+        let has_new_secret = payload
+            .service_account_json
+            .as_ref()
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
+        if !has_new_secret {
+            return Err(AppError::ValidationError(
+                "启用 FCM 需要 service_account_json".to_string(),
+            ));
+        }
+    }
+
+    if provider == "fcm" && payload.service_account_json.is_some() {
+        let raw = payload.service_account_json.as_ref().unwrap();
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             return Err(AppError::ValidationError(
@@ -203,10 +236,129 @@ pub async fn upsert_push_provider_admin(
         secret_fingerprint = Some(SecretCrypto::sha256_hex(trimmed));
     }
 
+    if provider == "apns" {
+        let mut team_id = config_public
+            .get("team_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let mut key_id = config_public
+            .get("key_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let mut bundle_id = config_public
+            .get("bundle_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let mut environment = config_public
+            .get("environment")
+            .and_then(|v| v.as_str())
+            .unwrap_or("production")
+            .trim()
+            .to_lowercase();
+
+        if let Some(v) = payload
+            .team_id
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+        {
+            team_id = v.to_string();
+        }
+        if let Some(v) = payload
+            .key_id
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+        {
+            key_id = v.to_string();
+        }
+        if let Some(v) = payload
+            .bundle_id
+            .as_ref()
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+        {
+            bundle_id = v.to_string();
+        }
+        if let Some(v) = payload
+            .environment
+            .as_ref()
+            .map(|v| v.trim().to_lowercase())
+            .filter(|v| !v.is_empty())
+        {
+            environment = match v.as_str() {
+                "production" | "prod" => "production".to_string(),
+                "sandbox" | "development" | "dev" => "sandbox".to_string(),
+                _ => {
+                    return Err(AppError::ValidationError(
+                        "environment 仅支持 sandbox 或 production".to_string(),
+                    ))
+                }
+            };
+        }
+
+        if payload.enabled && (team_id.is_empty() || key_id.is_empty() || bundle_id.is_empty()) {
+            return Err(AppError::ValidationError(
+                "启用 APNs 需要 team_id、key_id 和 bundle_id".to_string(),
+            ));
+        }
+
+        let has_existing_secret = existing
+            .as_ref()
+            .and_then(|v| v.secret_ciphertext.as_ref())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
+        let has_new_secret = payload
+            .private_key_p8
+            .as_ref()
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false);
+        if payload.enabled && !has_existing_secret && !has_new_secret {
+            return Err(AppError::ValidationError(
+                "启用 APNs 需要 private_key_p8".to_string(),
+            ));
+        }
+
+        if let Some(raw) = payload.private_key_p8.as_ref() {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::ValidationError(
+                    "private_key_p8 不能为空".to_string(),
+                ));
+            }
+            if !trimmed.contains("BEGIN PRIVATE KEY") {
+                return Err(AppError::ValidationError(
+                    "private_key_p8 必须是 APNs .p8 PEM 私钥".to_string(),
+                ));
+            }
+            let crypto = SecretCrypto::new()
+                .map_err(|e| AppError::InternalError(format!("加密器初始化失败: {}", e)))?;
+            secret_ciphertext = Some(
+                crypto
+                    .encrypt_to_base64(trimmed)
+                    .map_err(|e| AppError::InternalError(format!("加密失败: {}", e)))?,
+            );
+            secret_fingerprint = Some(SecretCrypto::sha256_hex(trimmed));
+        }
+
+        config_public = json!({
+            "team_id": team_id,
+            "key_id": key_id,
+            "bundle_id": bundle_id,
+            "environment": environment,
+        });
+    }
+
     let saved = store
         .upsert_config(
             &provider,
-            "all",
+            platform,
             payload.enabled,
             config_public,
             secret_ciphertext,
@@ -214,6 +366,8 @@ pub async fn upsert_push_provider_admin(
             Some(editor_id),
         )
         .await?;
+
+    crate::services::push::invalidate_push_runtime_cache().await;
 
     Ok(Json(PushProviderConfigView {
         id: saved.id.to_string(),
@@ -252,7 +406,7 @@ pub async fn test_push_admin(
     Json(payload): Json<TestPushRequest>,
 ) -> Result<Json<TestPushResponse>, AppError> {
     let provider = payload.provider.trim().to_lowercase();
-    if provider != "fcm" {
+    if provider != "fcm" && provider != "apns" {
         return Err(AppError::ValidationError(format!(
             "暂不支持的 provider: {}",
             provider
@@ -280,7 +434,7 @@ pub async fn test_push_admin(
                 .await?;
             token = devices
                 .into_iter()
-                .find(|d| d.channel == "fcm")
+                .find(|d| d.channel == provider.as_str())
                 .map(|d| d.device_token);
         }
     }
@@ -298,9 +452,30 @@ pub async fn test_push_admin(
     let mut data = HashMap::new();
     data.insert("type".to_string(), "test".to_string());
 
-    crate::services::push::send_fcm_test(&state, &token, &payload.title, &payload.body, &data)
-        .await
-        .map_err(|e| AppError::InternalError(e))?;
+    match provider.as_str() {
+        "fcm" => {
+            crate::services::push::send_fcm_test(
+                &state,
+                &token,
+                &payload.title,
+                &payload.body,
+                &data,
+            )
+            .await
+        }
+        "apns" => {
+            crate::services::push::send_apns_test(
+                &state,
+                &token,
+                &payload.title,
+                &payload.body,
+                &data,
+            )
+            .await
+        }
+        _ => unreachable!(),
+    }
+    .map_err(AppError::InternalError)?;
 
     Ok(Json(TestPushResponse {
         success: true,

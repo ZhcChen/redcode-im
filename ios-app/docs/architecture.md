@@ -90,7 +90,7 @@ SwiftUI App Shell
 - 不迁移 Android 原生。
 - 不删除 Flutter `app/`。
 - 不恢复 Google/Apple 登录。
-- 不把 Firebase Messaging 作为 iOS 原生默认依赖；Push 先用 APNs 底座、本地通知兜底和后端 `/push/devices` 合约兼容既有 FCM channel。
+- 不把 Firebase Messaging 作为 iOS 原生默认依赖；Push 使用 APNs、本地通知兜底和后端 `/push/devices` 合约，同时兼容既有 FCM channel。
 - 不在没有明确选型前手写或生成复杂 Xcode 工程配置。
 
 ## Flutter 逻辑迁移原则
@@ -98,4 +98,4 @@ SwiftUI App Shell
 - 迁移的是用户可见功能、数据流、协议语义和缓存语义，不迁移 Flutter 框架写法。
 - Flutter 的 service、storage、model、test 是行为参考；iOS 端落地为 Swift package、ViewModel、Repository、Actor/Service、SwiftData/Keychain/FileManager。
 - Flutter 热更新能力不按原样迁移到 iOS；iOS 侧只保留远程配置、版本检查、更新提示和必要的资源配置能力。
-- Firebase Messaging 不是默认 iOS 依赖；Push 阶段优先评估 APNs 直连后端。如后端当前只支持 FCM，再单独评估兼容桥接。
+- Firebase Messaging 不是默认 iOS 依赖；后端已支持 APNs provider 与既有 FCM provider 按 device channel 分发。

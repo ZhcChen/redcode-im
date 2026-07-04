@@ -113,6 +113,44 @@ func TestFCMSendScenarios(t *testing.T) {
 	}
 }
 
+func TestAPNsSendScenarios(t *testing.T) {
+	_, ts := newTestServer()
+	defer ts.Close()
+
+	cases := []struct {
+		name       string
+		token      string
+		statusCode int
+	}{
+		{name: "ok", token: "token-ok", statusCode: http.StatusOK},
+		{name: "invalid", token: "invalid-token", statusCode: http.StatusBadRequest},
+		{name: "unregistered", token: "abc-unregistered-xyz", statusCode: http.StatusGone},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			payload := map[string]any{"aps": map[string]any{"alert": map[string]any{"title": "t", "body": "b"}}}
+			raw, _ := json.Marshal(payload)
+			req, err := http.NewRequest(http.MethodPost, ts.URL+"/apns/3/device/"+tc.token, bytes.NewReader(raw))
+			if err != nil {
+				t.Fatalf("new request failed: %v", err)
+			}
+			req.Header.Set("authorization", "bearer mock")
+			req.Header.Set("apns-topic", "com.redcode.im.iosapp")
+			req.Header.Set("content-type", "application/json")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatalf("request failed: %v", err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != tc.statusCode {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("expect %d, got %d: %s", tc.statusCode, resp.StatusCode, string(body))
+			}
+		})
+	}
+}
+
 func TestIPInfo(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()

@@ -33,7 +33,7 @@
                 保存全局设置
               </a-button>
               <a-button
-                :disabled="savingGlobal || savingFcm"
+                :disabled="savingGlobal || savingFcm || savingApns"
                 @click="fetchData"
               >
                 刷新
@@ -157,7 +157,105 @@
                 >
                   保存 FCM 配置
                 </a-button>
-                <a-button @click="openTestModal"> 测试发送 </a-button>
+                <a-button @click="openTestModal('fcm')"> 测试发送 </a-button>
+              </a-space>
+            </a-card>
+
+            <a-card
+              class="provider-card"
+              title="APNs（Apple Push Notification service）"
+            >
+              <a-form :model="apnsForm" layout="vertical">
+                <a-form-item label="启用 APNs">
+                  <a-switch v-model="apnsForm.enabled" />
+                </a-form-item>
+
+                <a-form-item label="当前配置（只展示非敏感信息）">
+                  <a-descriptions :column="1" size="small" bordered>
+                    <a-descriptions-item label="状态">
+                      <a-tag :color="apnsMeta?.enabled ? 'green' : 'gray'">
+                        {{ apnsMeta?.enabled ? '已启用' : '未启用' }}
+                      </a-tag>
+                      <a-tag
+                        v-if="apnsMeta?.has_secret"
+                        color="blue"
+                        style="margin-left: 8px"
+                      >
+                        已配置凭据
+                      </a-tag>
+                      <a-tag v-else color="gray" style="margin-left: 8px">
+                        未配置凭据
+                      </a-tag>
+                    </a-descriptions-item>
+                    <a-descriptions-item label="team_id">
+                      {{ apnsTeamId }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="key_id">
+                      {{ apnsKeyId }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="bundle_id">
+                      {{ apnsBundleId }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="environment">
+                      {{ apnsEnvironment }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="secret_fingerprint">
+                      {{ apnsMeta?.secret_fingerprint || '暂无' }}
+                    </a-descriptions-item>
+                    <a-descriptions-item label="最后更新">
+                      {{ formatTime(apnsMeta?.updated_at) }}
+                    </a-descriptions-item>
+                  </a-descriptions>
+                </a-form-item>
+
+                <a-form-item label="Team ID">
+                  <a-input
+                    v-model="apnsForm.team_id"
+                    allow-clear
+                    placeholder="Apple Developer Team ID"
+                  />
+                </a-form-item>
+                <a-form-item label="Key ID">
+                  <a-input
+                    v-model="apnsForm.key_id"
+                    allow-clear
+                    placeholder="APNs Auth Key ID"
+                  />
+                </a-form-item>
+                <a-form-item label="Bundle ID">
+                  <a-input
+                    v-model="apnsForm.bundle_id"
+                    allow-clear
+                    placeholder="例如 com.redcode.im.iosapp"
+                  />
+                </a-form-item>
+                <a-form-item label="环境">
+                  <a-select v-model="apnsForm.environment">
+                    <a-option value="sandbox">sandbox</a-option>
+                    <a-option value="production">production</a-option>
+                  </a-select>
+                </a-form-item>
+                <a-form-item
+                  label="Private Key .p8（明文输入，保存后加密存储）"
+                >
+                  <a-textarea
+                    v-model="apnsForm.private_key_p8"
+                    :auto-size="{ minRows: 6, maxRows: 12 }"
+                    placeholder="粘贴 APNs Auth Key .p8 私钥"
+                    allow-clear
+                  />
+                </a-form-item>
+              </a-form>
+
+              <a-space>
+                <a-button
+                  type="primary"
+                  :loading="savingApns"
+                  @click="handleSaveApns"
+                >
+                  保存 APNs 配置
+                </a-button>
+                <a-button @click="openTestModal('apns')"> 测试发送 </a-button>
               </a-space>
             </a-card>
           </div>
@@ -167,12 +265,18 @@
 
     <a-modal
       v-model:visible="testModalVisible"
-      title="测试发送（FCM）"
+      title="测试发送"
       :ok-loading="testing"
       :mask-closable="false"
       @ok="handleTestSend"
     >
       <a-form :model="testForm" layout="vertical">
+        <a-form-item label="provider">
+          <a-select v-model="testForm.provider">
+            <a-option value="fcm">FCM</a-option>
+            <a-option value="apns">APNs</a-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="device_token（可选）">
           <a-input
             v-model="testForm.device_token"
@@ -213,6 +317,7 @@
     testPush,
     updatePushSettings,
     upsertPushProviderConfig,
+    type UpsertApnsProviderPayload,
     type PushProviderConfigView,
     type PushJobQueueStatsResponse,
   } from '@/services/push-settings';
@@ -234,6 +339,14 @@
     );
   });
 
+  const apnsMeta = computed(() => {
+    return (
+      providers.value.find(
+        (p) => p.provider === 'apns' && p.platform === 'ios'
+      ) ?? null
+    );
+  });
+
   const fcmProjectId = computed(() => {
     const v = fcmMeta.value?.config_public?.project_id;
     return typeof v === 'string' && v.trim() ? v : '未配置';
@@ -244,9 +357,38 @@
     return typeof v === 'string' && v.trim() ? v : '未配置';
   });
 
+  const apnsTeamId = computed(() => {
+    const v = apnsMeta.value?.config_public?.team_id;
+    return typeof v === 'string' && v.trim() ? v : '未配置';
+  });
+
+  const apnsKeyId = computed(() => {
+    const v = apnsMeta.value?.config_public?.key_id;
+    return typeof v === 'string' && v.trim() ? v : '未配置';
+  });
+
+  const apnsBundleId = computed(() => {
+    const v = apnsMeta.value?.config_public?.bundle_id;
+    return typeof v === 'string' && v.trim() ? v : '未配置';
+  });
+
+  const apnsEnvironment = computed(() => {
+    const v = apnsMeta.value?.config_public?.environment;
+    return typeof v === 'string' && v.trim() ? v : 'production';
+  });
+
   const fcmForm = reactive({
     enabled: false,
     service_account_json: '',
+  });
+
+  const apnsForm = reactive({
+    enabled: false,
+    team_id: '',
+    key_id: '',
+    bundle_id: '',
+    environment: 'sandbox' as 'sandbox' | 'production',
+    private_key_p8: '',
   });
 
   const queueStats = ref<PushJobQueueStatsResponse | null>(null);
@@ -255,10 +397,12 @@
   const { loading, setLoading } = useLoading(true);
   const savingGlobal = ref(false);
   const savingFcm = ref(false);
+  const savingApns = ref(false);
 
   const testModalVisible = ref(false);
   const testing = ref(false);
   const testForm = reactive({
+    provider: 'fcm',
     device_token: '',
     user_id: '',
     title: '测试通知',
@@ -297,6 +441,13 @@
 
       // 同步 fcm 开关（文本框不会回填，避免泄露/误操作）
       fcmForm.enabled = fcmMeta.value?.enabled ?? false;
+      apnsForm.enabled = apnsMeta.value?.enabled ?? false;
+      apnsForm.team_id = apnsTeamId.value === '未配置' ? '' : apnsTeamId.value;
+      apnsForm.key_id = apnsKeyId.value === '未配置' ? '' : apnsKeyId.value;
+      apnsForm.bundle_id =
+        apnsBundleId.value === '未配置' ? '' : apnsBundleId.value;
+      apnsForm.environment =
+        apnsEnvironment.value === 'production' ? 'production' : 'sandbox';
     } catch (error) {
       Message.error('加载 Push 设置失败，请稍后重试');
     } finally {
@@ -354,11 +505,56 @@
     }
   };
 
+  const handleSaveApns = async () => {
+    const hasExistingSecret = apnsMeta.value?.has_secret === true;
+    const hasNewSecret =
+      apnsForm.private_key_p8 && apnsForm.private_key_p8.trim() !== '';
+
+    if (
+      apnsForm.enabled &&
+      (!apnsForm.team_id.trim() ||
+        !apnsForm.key_id.trim() ||
+        !apnsForm.bundle_id.trim())
+    ) {
+      Message.warning('启用 APNs 需要填写 Team ID、Key ID 和 Bundle ID');
+      return;
+    }
+    if (apnsForm.enabled && !hasExistingSecret && !hasNewSecret) {
+      Message.warning('启用 APNs 需要填写 .p8 私钥');
+      return;
+    }
+
+    savingApns.value = true;
+    try {
+      const payload: UpsertApnsProviderPayload = {
+        enabled: apnsForm.enabled,
+        team_id: apnsForm.team_id.trim(),
+        key_id: apnsForm.key_id.trim(),
+        bundle_id: apnsForm.bundle_id.trim(),
+        environment: apnsForm.environment,
+      };
+      if (hasNewSecret) {
+        payload.private_key_p8 = apnsForm.private_key_p8;
+      }
+      await upsertPushProviderConfig('apns', payload);
+
+      // 保存成功后清空文本框，避免明文残留
+      apnsForm.private_key_p8 = '';
+      await fetchData();
+      Message.success('保存成功');
+    } catch (error) {
+      Message.error('保存失败，请检查配置或稍后重试');
+    } finally {
+      savingApns.value = false;
+    }
+  };
+
   const handleOpenPushLogs = () => {
     router.push({ name: 'PushLog' });
   };
 
-  const openTestModal = () => {
+  const openTestModal = (provider: 'fcm' | 'apns' = 'fcm') => {
+    testForm.provider = provider;
     testModalVisible.value = true;
   };
 
@@ -384,7 +580,7 @@
     testing.value = true;
     try {
       await testPush({
-        provider: 'fcm',
+        provider: testForm.provider,
         device_token: deviceToken || undefined,
         user_id: userId || undefined,
         title,

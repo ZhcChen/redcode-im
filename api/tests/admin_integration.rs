@@ -4,6 +4,12 @@ use axum::body::Body;
 use axum::http::StatusCode;
 use support::{body_json, spawn_test_app};
 
+const TEST_APNS_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1gsW8p7m26JzSzqh
+Xj7a8qzlgQr96B0XOgTxmPLQZ3mhRANCAASLhkavy/UiriTIjBnLK1B0ngJttikw
+mN/fOb81W2J8TNvVe4bOgzZAGGWjZYIv/IdHh3Fya9fOEo7CRaKSZs0N
+-----END PRIVATE KEY-----"#;
+
 /// 公开的 bootstrap 状态：新库无管理员 → 要求 bootstrap。
 #[tokio::test]
 async fn bootstrap_status_required_on_fresh_db() {
@@ -89,4 +95,61 @@ async fn user_account_limit_update_without_email_auth_preserves_current_switch()
             .await
             .expect("读取邮箱兼容开关");
     assert_eq!(value, "1");
+}
+
+#[tokio::test]
+async fn push_settings_supports_apns_provider_config() {
+    let app = spawn_test_app().await;
+
+    let bootstrap_body = r#"{"username":"admin","password":"adminpass123","display_name":"Admin"}"#;
+    let (status, body) = app
+        .post_json("/api/admin/bootstrap/init", bootstrap_body)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "bootstrap: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let token = body_json(&body)["token"]
+        .as_str()
+        .expect("bootstrap token")
+        .to_string();
+
+    let payload = serde_json::json!({
+        "enabled": true,
+        "team_id": "TEAMID1234",
+        "key_id": "KEYID1234",
+        "bundle_id": "com.redcode.im.iosapp",
+        "environment": "sandbox",
+        "private_key_p8": TEST_APNS_PRIVATE_KEY,
+    })
+    .to_string();
+    let (status, body) = app
+        .send(
+            "PUT",
+            "/api/admin/settings/push/providers/apns",
+            Some(&token),
+            Body::from(payload),
+            true,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "upsert apns: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let saved = body_json(&body);
+    assert_eq!(saved["provider"], "apns");
+    assert_eq!(saved["platform"], "ios");
+    assert_eq!(saved["enabled"], true);
+    assert_eq!(saved["config_public"]["bundle_id"], "com.redcode.im.iosapp");
+    assert_eq!(saved["config_public"]["environment"], "sandbox");
+    assert_eq!(saved["has_secret"], true);
+    assert!(saved["secret_fingerprint"]
+        .as_str()
+        .map(|v| !v.is_empty())
+        .unwrap_or(false));
 }

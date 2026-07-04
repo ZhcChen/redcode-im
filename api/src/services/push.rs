@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use futures_util::StreamExt;
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use once_cell::sync::OnceCell;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -51,6 +51,8 @@ const PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS: u64 = 86400;
 const PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE: i64 = 10_000;
 const PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES: i64 = 20;
 const DEFAULT_FCM_BASE_URL: &str = "https://fcm.googleapis.com";
+const DEFAULT_APNS_PRODUCTION_BASE_URL: &str = "https://api.push.apple.com";
+const DEFAULT_APNS_SANDBOX_BASE_URL: &str = "https://api.sandbox.push.apple.com";
 
 const PUSH_JOB_QUEUE_CLEANUP_ADVISORY_LOCK_KEY: i64 = 0x7075_7368_6a6f_625f; // "pushjob_"
 
@@ -67,9 +69,44 @@ struct GoogleServiceAccount {
     token_uri: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct ApnsProviderConfig {
+    team_id: String,
+    key_id: String,
+    bundle_id: String,
+    #[serde(default = "default_apns_environment")]
+    environment: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApnsEnvironment {
+    Production,
+    Sandbox,
+}
+
+impl ApnsEnvironment {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_lowercase().as_str() {
+            "production" | "prod" => Ok(Self::Production),
+            "sandbox" | "development" | "dev" => Ok(Self::Sandbox),
+            other => Err(format!("未知 APNs environment: {}", other)),
+        }
+    }
+}
+
+fn default_apns_environment() -> String {
+    "production".to_string()
+}
+
 #[derive(Debug, Clone)]
 struct CachedAccessToken {
     access_token: String,
+    expires_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedApnsProviderToken {
+    token: String,
     expires_at: chrono::DateTime<Utc>,
 }
 
@@ -80,11 +117,23 @@ struct FcmClient {
     cached_token: RwLock<Option<CachedAccessToken>>,
 }
 
+#[derive(Debug)]
+struct ApnsClient {
+    http: reqwest::Client,
+    team_id: String,
+    key_id: String,
+    bundle_id: String,
+    base_url: String,
+    private_key_p8: String,
+    cached_token: RwLock<Option<CachedApnsProviderToken>>,
+}
+
 #[derive(Debug, Clone)]
 struct PushRuntimeSnapshot {
     enabled: bool,
     skip_if_online: bool,
     fcm: Option<Arc<FcmClient>>,
+    apns: Option<Arc<ApnsClient>>,
 }
 
 #[derive(Debug)]
@@ -93,7 +142,9 @@ struct PushRuntime {
     enabled: bool,
     skip_if_online: bool,
     fcm_fingerprint: Option<String>,
+    apns_fingerprint: Option<String>,
     fcm: Option<Arc<FcmClient>>,
+    apns: Option<Arc<ApnsClient>>,
 }
 
 impl Default for PushRuntime {
@@ -103,7 +154,9 @@ impl Default for PushRuntime {
             enabled: true,
             skip_if_online: true,
             fcm_fingerprint: None,
+            apns_fingerprint: None,
             fcm: None,
+            apns: None,
         }
     }
 }
@@ -142,6 +195,13 @@ struct FcmErrorExtraDetail {
     type_url: Option<String>,
     #[serde(rename = "errorCode")]
     error_code: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApnsErrorResponse {
+    reason: Option<String>,
+    #[allow(dead_code)]
+    timestamp: Option<i64>,
 }
 
 #[derive(Debug, Clone)]
@@ -216,6 +276,74 @@ impl FcmSendError {
     }
 }
 
+#[derive(Debug, Clone)]
+enum ApnsSendErrorKind {
+    Transport,
+    Config,
+    Http {
+        status: reqwest::StatusCode,
+        reason: Option<String>,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct ApnsSendError {
+    kind: ApnsSendErrorKind,
+    message: String,
+}
+
+impl ApnsSendError {
+    fn is_unregistered(&self) -> bool {
+        matches!(
+            &self.kind,
+            ApnsSendErrorKind::Http {
+                reason: Some(reason),
+                ..
+            } if reason.eq_ignore_ascii_case("Unregistered")
+        )
+    }
+
+    fn is_invalid_token(&self) -> bool {
+        matches!(
+            &self.kind,
+            ApnsSendErrorKind::Http {
+                reason: Some(reason),
+                ..
+            } if matches!(
+                reason.as_str(),
+                "BadDeviceToken" | "DeviceTokenNotForTopic" | "MissingDeviceToken"
+            )
+        )
+    }
+
+    fn is_permanent(&self) -> bool {
+        match &self.kind {
+            ApnsSendErrorKind::Transport => false,
+            ApnsSendErrorKind::Config => true,
+            ApnsSendErrorKind::Http { status, .. } => {
+                if *status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                    return false;
+                }
+                status.is_client_error()
+            }
+        }
+    }
+
+    fn to_log_string(&self) -> String {
+        match &self.kind {
+            ApnsSendErrorKind::Transport => self.message.clone(),
+            ApnsSendErrorKind::Config => self.message.clone(),
+            ApnsSendErrorKind::Http { status, reason } => {
+                if let Some(reason) = reason.as_deref().filter(|v| !v.trim().is_empty()) {
+                    format!("status={} reason={} {}", status, reason, self.message)
+                } else {
+                    format!("status={} {}", status, self.message)
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct ServiceAccountClaims {
     iss: String,
@@ -223,6 +351,12 @@ struct ServiceAccountClaims {
     aud: String,
     iat: usize,
     exp: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct ApnsProviderTokenClaims {
+    iss: String,
+    iat: usize,
 }
 
 impl FcmClient {
@@ -433,6 +567,189 @@ impl FcmClient {
     }
 }
 
+impl ApnsClient {
+    fn from_config(
+        config_public: &serde_json::Value,
+        private_key_p8: &str,
+    ) -> Result<Self, String> {
+        let cfg: ApnsProviderConfig = serde_json::from_value(config_public.clone())
+            .map_err(|e| format!("解析 APNs 公共配置失败: {}", e))?;
+        let team_id = cfg.team_id.trim().to_string();
+        let key_id = cfg.key_id.trim().to_string();
+        let bundle_id = cfg.bundle_id.trim().to_string();
+        let environment = ApnsEnvironment::parse(&cfg.environment)?;
+        let private_key_p8 = private_key_p8.trim().to_string();
+
+        if team_id.is_empty() || key_id.is_empty() || bundle_id.is_empty() {
+            return Err("APNs 配置缺少 team_id/key_id/bundle_id".to_string());
+        }
+        if private_key_p8.is_empty() {
+            return Err("APNs private_key_p8 不能为空".to_string());
+        }
+
+        // 启动时先解析一次密钥，避免把格式错误延迟到投递路径才暴露。
+        EncodingKey::from_ec_pem(private_key_p8.as_bytes())
+            .map_err(|e| format!("解析 APNs private_key_p8 失败: {}", e))?;
+
+        let timeout_seconds =
+            env_u64("PUSH_HTTP_TIMEOUT_SECONDS", PUSH_SEND_HTTP_TIMEOUT_SECONDS).clamp(1, 120);
+
+        let http = reqwest::Client::builder()
+            .timeout(StdDuration::from_secs(timeout_seconds))
+            .connect_timeout(StdDuration::from_secs(5))
+            .build()
+            .map_err(|e| format!("构建 HTTP client 失败: {}", e))?;
+
+        Ok(Self {
+            http,
+            team_id,
+            key_id,
+            bundle_id,
+            base_url: apns_base_url(environment),
+            private_key_p8,
+            cached_token: RwLock::new(None),
+        })
+    }
+
+    async fn provider_token(&self) -> Result<String, ApnsSendError> {
+        {
+            let guard = self.cached_token.read().await;
+            if let Some(token) = guard.as_ref() {
+                if token.expires_at > Utc::now() + Duration::minutes(5) {
+                    return Ok(token.token.clone());
+                }
+            }
+        }
+
+        let mut header = Header::new(Algorithm::ES256);
+        header.kid = Some(self.key_id.clone());
+        let now = Utc::now();
+        let claims = ApnsProviderTokenClaims {
+            iss: self.team_id.clone(),
+            iat: now.timestamp() as usize,
+        };
+        let key = EncodingKey::from_ec_pem(self.private_key_p8.as_bytes()).map_err(|e| {
+            ApnsSendError {
+                kind: ApnsSendErrorKind::Config,
+                message: format!("解析 APNs private_key_p8 失败: {}", e),
+            }
+        })?;
+        let token = encode(&header, &claims, &key).map_err(|e| ApnsSendError {
+            kind: ApnsSendErrorKind::Config,
+            message: format!("签名 APNs provider token 失败: {}", e),
+        })?;
+        {
+            let mut guard = self.cached_token.write().await;
+            *guard = Some(CachedApnsProviderToken {
+                token: token.clone(),
+                expires_at: now + Duration::minutes(50),
+            });
+        }
+        Ok(token)
+    }
+
+    async fn send_to_token(
+        &self,
+        device_token: &str,
+        title: &str,
+        body: &str,
+        data: &HashMap<String, String>,
+    ) -> Result<(), ApnsSendError> {
+        let provider_token = self.provider_token().await?;
+        let url = format!("{}/3/device/{}", self.base_url, device_token);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("bearer {}", provider_token)).map_err(|e| {
+                ApnsSendError {
+                    kind: ApnsSendErrorKind::Config,
+                    message: format!("构造 Authorization header 失败: {}", e),
+                }
+            })?,
+        );
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_static("application/json; charset=utf-8"),
+        );
+        headers.insert(
+            HeaderName::from_static("apns-topic"),
+            HeaderValue::from_str(&self.bundle_id).map_err(|e| ApnsSendError {
+                kind: ApnsSendErrorKind::Config,
+                message: format!("构造 apns-topic header 失败: {}", e),
+            })?,
+        );
+        headers.insert(
+            HeaderName::from_static("apns-push-type"),
+            HeaderValue::from_static("alert"),
+        );
+        headers.insert(
+            HeaderName::from_static("apns-priority"),
+            HeaderValue::from_static("10"),
+        );
+
+        let mut payload = serde_json::Map::new();
+        payload.insert(
+            "aps".to_string(),
+            serde_json::json!({
+                "alert": {
+                    "title": title,
+                    "body": body,
+                },
+                "sound": "default",
+            }),
+        );
+        for (key, value) in data {
+            if key == "aps" {
+                continue;
+            }
+            payload.insert(key.clone(), serde_json::Value::String(value.clone()));
+        }
+
+        let _permit = push_send_semaphore()
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| ApnsSendError {
+                kind: ApnsSendErrorKind::Transport,
+                message: "获取 push send semaphore 失败".to_string(),
+            })?;
+
+        let resp = self
+            .http
+            .post(&url)
+            .headers(headers)
+            .json(&serde_json::Value::Object(payload))
+            .send()
+            .await
+            .map_err(|e| ApnsSendError {
+                kind: ApnsSendErrorKind::Transport,
+                message: format!("请求 APNs 失败: {}", e),
+            })?;
+
+        let status = resp.status();
+        let text = resp.text().await.map_err(|e| ApnsSendError {
+            kind: ApnsSendErrorKind::Transport,
+            message: format!("读取 APNs 响应失败: {}", e),
+        })?;
+
+        if status.is_success() {
+            return Ok(());
+        }
+
+        let reason = serde_json::from_str::<ApnsErrorResponse>(&text)
+            .ok()
+            .and_then(|v| v.reason)
+            .filter(|v| !v.trim().is_empty());
+        let message = reason.clone().unwrap_or_else(|| text.clone());
+
+        Err(ApnsSendError {
+            kind: ApnsSendErrorKind::Http { status, reason },
+            message,
+        })
+    }
+}
+
 fn env_flag(name: &str, default: bool) -> bool {
     match env::var(name) {
         Ok(v) => match v.trim().to_lowercase().as_str() {
@@ -480,6 +797,17 @@ fn fcm_base_url() -> String {
         .unwrap_or_else(|| DEFAULT_FCM_BASE_URL.to_string())
 }
 
+fn apns_base_url(environment: ApnsEnvironment) -> String {
+    env::var("PUSH_APNS_BASE_URL")
+        .ok()
+        .map(|v| v.trim().trim_end_matches('/').to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| match environment {
+            ApnsEnvironment::Production => DEFAULT_APNS_PRODUCTION_BASE_URL.to_string(),
+            ApnsEnvironment::Sandbox => DEFAULT_APNS_SANDBOX_BASE_URL.to_string(),
+        })
+}
+
 fn parse_bool_value(value: &str, default: bool) -> bool {
     match value.trim().to_lowercase().as_str() {
         "1" | "true" | "yes" | "y" | "on" => true,
@@ -490,6 +818,11 @@ fn parse_bool_value(value: &str, default: bool) -> bool {
 
 fn push_runtime_lock() -> &'static RwLock<PushRuntime> {
     PUSH_RUNTIME.get_or_init(|| RwLock::new(PushRuntime::default()))
+}
+
+pub async fn invalidate_push_runtime_cache() {
+    let mut guard = push_runtime_lock().write().await;
+    guard.loaded_at = Utc::now() - Duration::seconds(PUSH_RUNTIME_TTL_SECONDS * 10);
 }
 
 fn push_send_semaphore() -> &'static Arc<Semaphore> {
@@ -506,7 +839,7 @@ async fn enqueue_push_job_to_db(
 ) {
     // 未启用或未配置离线推送平台时，不入队，避免堆积“历史通知”
     let runtime = push_runtime_snapshot(state).await;
-    if !runtime.enabled || runtime.fcm.is_none() {
+    if !runtime.enabled || (runtime.fcm.is_none() && runtime.apns.is_none()) {
         return;
     }
 
@@ -989,6 +1322,7 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
                 enabled: guard.enabled,
                 skip_if_online: guard.skip_if_online,
                 fcm: guard.fcm.clone(),
+                apns: guard.apns.clone(),
             };
         }
     }
@@ -999,6 +1333,7 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
             enabled: guard.enabled,
             skip_if_online: guard.skip_if_online,
             fcm: guard.fcm.clone(),
+            apns: guard.apns.clone(),
         };
     }
 
@@ -1020,14 +1355,21 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
         skip_if_online = parse_bool_value(&record.value, skip_if_online);
     }
 
-    // 2) 平台配置：优先 DB（管理后台），缺省回退 env 文件路径（兼容开发环境）
+    // 2) 平台配置：优先 DB（管理后台）
     let provider_store = PushProviderConfigStore::new(state.database.pool());
-    let cfg = provider_store.get_config("fcm", "all").await.ok().flatten();
+    let fcm_cfg = provider_store.get_config("fcm", "all").await.ok().flatten();
+    let apns_cfg = provider_store
+        .get_config("apns", "ios")
+        .await
+        .ok()
+        .flatten();
 
     let mut next_fcm: Option<Arc<FcmClient>> = None;
-    let mut next_fingerprint: Option<String> = None;
+    let mut next_fcm_fingerprint: Option<String> = None;
+    let mut next_apns: Option<Arc<ApnsClient>> = None;
+    let mut next_apns_fingerprint: Option<String> = None;
 
-    if let Some(cfg) = cfg {
+    if let Some(cfg) = fcm_cfg {
         if cfg.enabled {
             if let Some(ciphertext) = cfg
                 .secret_ciphertext
@@ -1046,19 +1388,22 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
                             enabled: guard.enabled,
                             skip_if_online: guard.skip_if_online,
                             fcm: guard.fcm.clone(),
+                            apns: guard.apns.clone(),
                         };
                     }
                 };
 
                 match crypto.decrypt_from_base64(ciphertext) {
                     Ok(raw) => {
-                        let fp = cfg
+                        let secret_fp = cfg
                             .secret_fingerprint
                             .clone()
                             .filter(|v| !v.trim().is_empty())
                             .unwrap_or_else(|| SecretCrypto::sha256_hex(&raw));
+                        let public_fp = SecretCrypto::sha256_hex(&cfg.config_public.to_string());
+                        let fp = format!("{}:{}", secret_fp, public_fp);
 
-                        next_fingerprint = Some(fp.clone());
+                        next_fcm_fingerprint = Some(fp.clone());
                         if guard.fcm_fingerprint.as_deref() == Some(fp.as_str()) {
                             next_fcm = guard.fcm.clone();
                         } else {
@@ -1074,16 +1419,69 @@ async fn push_runtime_snapshot(state: &AppState) -> PushRuntimeSnapshot {
         }
     }
 
+    if let Some(cfg) = apns_cfg {
+        if cfg.enabled {
+            if let Some(ciphertext) = cfg
+                .secret_ciphertext
+                .as_ref()
+                .map(|v| v.trim())
+                .filter(|v| !v.is_empty())
+            {
+                let crypto = match SecretCrypto::new() {
+                    Ok(c) => c,
+                    Err(e) => {
+                        warn!("Push: SecretCrypto 初始化失败，跳过 APNs（{}）", e);
+                        guard.loaded_at = Utc::now();
+                        guard.enabled = enabled;
+                        guard.skip_if_online = skip_if_online;
+                        return PushRuntimeSnapshot {
+                            enabled: guard.enabled,
+                            skip_if_online: guard.skip_if_online,
+                            fcm: guard.fcm.clone(),
+                            apns: guard.apns.clone(),
+                        };
+                    }
+                };
+
+                match crypto.decrypt_from_base64(ciphertext) {
+                    Ok(raw) => {
+                        let secret_fp = cfg
+                            .secret_fingerprint
+                            .clone()
+                            .filter(|v| !v.trim().is_empty())
+                            .unwrap_or_else(|| SecretCrypto::sha256_hex(&raw));
+                        let public_fp = SecretCrypto::sha256_hex(&cfg.config_public.to_string());
+                        let fp = format!("{}:{}", secret_fp, public_fp);
+
+                        next_apns_fingerprint = Some(fp.clone());
+                        if guard.apns_fingerprint.as_deref() == Some(fp.as_str()) {
+                            next_apns = guard.apns.clone();
+                        } else {
+                            match ApnsClient::from_config(&cfg.config_public, &raw) {
+                                Ok(client) => next_apns = Some(Arc::new(client)),
+                                Err(e) => warn!("Push: APNs 配置解析失败（{}）", e),
+                            }
+                        }
+                    }
+                    Err(e) => warn!("Push: APNs 配置解密失败（{}）", e),
+                }
+            }
+        }
+    }
+
     guard.enabled = enabled;
     guard.skip_if_online = skip_if_online;
-    guard.fcm_fingerprint = next_fingerprint;
+    guard.fcm_fingerprint = next_fcm_fingerprint;
+    guard.apns_fingerprint = next_apns_fingerprint;
     guard.fcm = next_fcm;
+    guard.apns = next_apns;
     guard.loaded_at = Utc::now();
 
     PushRuntimeSnapshot {
         enabled: guard.enabled,
         skip_if_online: guard.skip_if_online,
         fcm: guard.fcm.clone(),
+        apns: guard.apns.clone(),
     }
 }
 
@@ -1102,6 +1500,25 @@ pub async fn send_fcm_test(
         .fcm
         .ok_or_else(|| "FCM 未配置或未启用".to_string())?;
     fcm.send_to_token(device_token, title, body, data)
+        .await
+        .map_err(|e| e.to_log_string())
+}
+
+pub async fn send_apns_test(
+    state: &AppState,
+    device_token: &str,
+    title: &str,
+    body: &str,
+    data: &HashMap<String, String>,
+) -> Result<(), String> {
+    let runtime = push_runtime_snapshot(state).await;
+    if !runtime.enabled {
+        return Err("Push 已关闭（push_enabled=false）".to_string());
+    }
+    let apns = runtime
+        .apns
+        .ok_or_else(|| "APNs 未配置或未启用".to_string())?;
+    apns.send_to_token(device_token, title, body, data)
         .await
         .map_err(|e| e.to_log_string())
 }
@@ -1361,6 +1778,44 @@ async fn send_to_token_with_retry(
     }
 }
 
+async fn send_apns_to_token_with_retry(
+    apns: &ApnsClient,
+    device_token: &str,
+    title: &str,
+    body: &str,
+    data: &HashMap<String, String>,
+) -> DeviceSendOutcome {
+    let mut attempt: i32 = 1;
+    loop {
+        match apns.send_to_token(device_token, title, body, data).await {
+            Ok(_) => {
+                return DeviceSendOutcome {
+                    ok: true,
+                    attempt,
+                    error: None,
+                    deactivate_device: false,
+                }
+            }
+            Err(e) => {
+                let deactivate_device = e.is_unregistered() || e.is_invalid_token();
+                let error = Some(e.to_log_string());
+                if e.is_permanent() || attempt >= PUSH_SEND_MAX_ATTEMPTS {
+                    return DeviceSendOutcome {
+                        ok: false,
+                        attempt,
+                        error,
+                        deactivate_device,
+                    };
+                }
+                let exp = (attempt - 1).clamp(0, 16) as u32;
+                let delay_ms = PUSH_SEND_RETRY_BASE_MS.saturating_mul(2u64.saturating_pow(exp));
+                tokio::time::sleep(tokio::time::Duration::from_millis(delay_ms)).await;
+                attempt += 1;
+            }
+        }
+    }
+}
+
 struct DeviceSendOutcome {
     ok: bool,
     attempt: i32,
@@ -1494,6 +1949,128 @@ async fn send_fcm_to_devices_and_log(
     );
 }
 
+async fn send_apns_to_devices_and_log(
+    state: &AppState,
+    apns: Arc<ApnsClient>,
+    devices: Vec<PushDevice>,
+    title: String,
+    body: String,
+    data: HashMap<String, String>,
+    data_json: serde_json::Value,
+    push_id: Uuid,
+    event_type: &str,
+    room_id: Option<Uuid>,
+    message_id: Option<Uuid>,
+    request_id: Option<Uuid>,
+) {
+    let devices: Vec<PushDevice> = devices
+        .into_iter()
+        .filter(|device| device.channel == "apns")
+        .collect();
+
+    if devices.is_empty() {
+        return;
+    }
+
+    let title = Arc::new(title);
+    let body = Arc::new(body);
+    let data = Arc::new(data);
+
+    let concurrency = push_device_send_concurrency();
+    let device_store = PushDeviceStore::new(state.database.pool());
+    let log_store = PushLogStore::new(state.database.pool());
+
+    let mut success = 0usize;
+    let mut failed = 0usize;
+
+    let mut stream = futures_util::stream::iter(devices)
+        .map(|device| {
+            let apns = apns.clone();
+            let title = title.clone();
+            let body = body.clone();
+            let data = data.clone();
+            async move {
+                let outcome = send_apns_to_token_with_retry(
+                    &apns,
+                    &device.device_token,
+                    title.as_str(),
+                    body.as_str(),
+                    data.as_ref(),
+                )
+                .await;
+                (device, outcome)
+            }
+        })
+        .buffer_unordered(concurrency);
+
+    while let Some((device, outcome)) = stream.next().await {
+        if outcome.ok {
+            success += 1;
+        } else {
+            failed += 1;
+        }
+
+        if outcome.deactivate_device {
+            match device_store
+                .deactivate_device(device.user_id, &device.device_id)
+                .await
+            {
+                Ok(updated) => {
+                    if updated {
+                        info!(
+                            "Push: 已停用无效 APNs token user_id={}, device_id={}",
+                            device.user_id, device.device_id
+                        );
+                    }
+                }
+                Err(e) => warn!(
+                    "Push: 停用无效 APNs token 失败 user_id={}, device_id={}, err={}",
+                    device.user_id, device.device_id, e
+                ),
+            }
+        }
+
+        if let Err(e) = log_store
+            .insert_log(
+                push_id,
+                device.user_id,
+                &device.device_id,
+                &device.platform,
+                &device.channel,
+                "apns",
+                event_type,
+                room_id,
+                message_id,
+                request_id,
+                Some(title.as_str()),
+                Some(body.as_str()),
+                &data_json,
+                outcome.attempt,
+                outcome.ok,
+                outcome.error.as_deref(),
+            )
+            .await
+        {
+            warn!(
+                "Push: 写入 APNs push_logs 失败 user_id={}, device_id={}, err={}",
+                device.user_id, device.device_id, e
+            );
+        }
+
+        if let Some(err) = outcome.error.as_deref() {
+            warn!(
+                "Push: APNs 发送失败 user_id={}, device_id={}, attempt={}, err={}",
+                device.user_id, device.device_id, outcome.attempt, err
+            );
+        }
+    }
+
+    info!(
+        "Push: provider=apns event_type={} push_id={} success={} failed={}",
+        event_type, push_id, success, failed
+    );
+}
+
 async fn send_basic_notification(
     state: &AppState,
     targets: Vec<Uuid>,
@@ -1514,10 +2091,11 @@ async fn send_basic_notification(
         return Ok(());
     }
 
-    let fcm = match runtime.fcm {
-        Some(c) => c,
-        None => return Ok(()),
-    };
+    let fcm = runtime.fcm.clone();
+    let apns = runtime.apns.clone();
+    if fcm.is_none() && apns.is_none() {
+        return Ok(());
+    }
 
     let skip_if_online = runtime.skip_if_online;
 
@@ -1541,11 +2119,31 @@ async fn send_basic_notification(
         return Ok(());
     }
 
-    send_fcm_to_devices_and_log(
-        state, fcm, devices, title, body, data, data_json, push_id, event_type, room_id,
-        message_id, request_id,
-    )
-    .await;
+    if let Some(fcm) = fcm {
+        send_fcm_to_devices_and_log(
+            state,
+            fcm,
+            devices.clone(),
+            title.clone(),
+            body.clone(),
+            data.clone(),
+            data_json.clone(),
+            push_id,
+            event_type,
+            room_id,
+            message_id,
+            request_id,
+        )
+        .await;
+    }
+
+    if let Some(apns) = apns {
+        send_apns_to_devices_and_log(
+            state, apns, devices, title, body, data, data_json, push_id, event_type, room_id,
+            message_id, request_id,
+        )
+        .await;
+    }
 
     Ok(())
 }
@@ -1635,10 +2233,11 @@ pub async fn notify_new_message_snapshot(
         return Ok(());
     }
 
-    let fcm = match runtime.fcm {
-        Some(c) => c,
-        None => return Ok(()),
-    };
+    let fcm = runtime.fcm.clone();
+    let apns = runtime.apns.clone();
+    if fcm.is_none() && apns.is_none() {
+        return Ok(());
+    }
 
     // 系统消息不做离线推送
     if snapshot.message_type == crate::database::models::MessageType::System {
@@ -1753,21 +2352,41 @@ pub async fn notify_new_message_snapshot(
     data.insert("push_id".to_string(), push_id.to_string());
     let data_json = serde_json::to_value(&data).unwrap_or_else(|_| serde_json::json!({}));
 
-    send_fcm_to_devices_and_log(
-        &state,
-        fcm,
-        devices,
-        title,
-        body,
-        data,
-        data_json,
-        push_id,
-        "message",
-        Some(snapshot.room_id),
-        Some(snapshot.id),
-        None,
-    )
-    .await;
+    if let Some(fcm) = fcm {
+        send_fcm_to_devices_and_log(
+            &state,
+            fcm,
+            devices.clone(),
+            title.clone(),
+            body.clone(),
+            data.clone(),
+            data_json.clone(),
+            push_id,
+            "message",
+            Some(snapshot.room_id),
+            Some(snapshot.id),
+            None,
+        )
+        .await;
+    }
+
+    if let Some(apns) = apns {
+        send_apns_to_devices_and_log(
+            &state,
+            apns,
+            devices,
+            title,
+            body,
+            data,
+            data_json,
+            push_id,
+            "message",
+            Some(snapshot.room_id),
+            Some(snapshot.id),
+            None,
+        )
+        .await;
+    }
 
     Ok(())
 }
@@ -1776,11 +2395,31 @@ pub async fn notify_new_message_snapshot(
 mod tests {
     use super::*;
     use crate::database::models::MemberRole;
+    use axum::{
+        extract::Path,
+        http::{HeaderMap as AxumHeaderMap, StatusCode as AxumStatusCode},
+        routing::post,
+        Json, Router,
+    };
     use chrono::Utc;
     use once_cell::sync::Lazy;
-    use std::sync::Mutex;
+    use serde_json::Value;
+    use std::sync::{Arc as StdArc, Mutex};
+    use tokio::sync::Mutex as AsyncMutex;
 
     static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+    const TEST_APNS_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1gsW8p7m26JzSzqh
+Xj7a8qzlgQr96B0XOgTxmPLQZ3mhRANCAASLhkavy/UiriTIjBnLK1B0ngJttikw
+mN/fOb81W2J8TNvVe4bOgzZAGGWjZYIv/IdHh3Fya9fOEo7CRaKSZs0N
+-----END PRIVATE KEY-----"#;
+
+    #[derive(Debug, Clone)]
+    struct ReceivedApnsRequest {
+        token: String,
+        topic: Option<String>,
+        payload: Value,
+    }
 
     struct EnvVarGuard {
         saved: Vec<(&'static str, Option<String>)>,
@@ -1973,5 +2612,76 @@ mod tests {
         let snapshot = PushMessageSnapshot::from_message(&message, &parts);
         assert_eq!(snapshot.preview, "[图片]");
         assert_eq!(snapshot.sender_username, "alice");
+    }
+
+    #[tokio::test]
+    async fn apns_client_should_send_payload_with_topic_and_custom_data() {
+        let received: StdArc<AsyncMutex<Option<ReceivedApnsRequest>>> =
+            StdArc::new(AsyncMutex::new(None));
+        let received_for_route = received.clone();
+
+        let router = Router::new().route(
+            "/3/device/{token}",
+            post(
+                move |Path(token): Path<String>,
+                      headers: AxumHeaderMap,
+                      Json(payload): Json<Value>| {
+                    let received = received_for_route.clone();
+                    async move {
+                        let topic = headers
+                            .get("apns-topic")
+                            .and_then(|v| v.to_str().ok())
+                            .map(|v| v.to_string());
+                        *received.lock().await = Some(ReceivedApnsRequest {
+                            token,
+                            topic,
+                            payload,
+                        });
+                        AxumStatusCode::OK
+                    }
+                },
+            ),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind mock apns");
+        let addr = listener.local_addr().expect("mock apns addr");
+        tokio::spawn(async move {
+            axum::serve(listener, router)
+                .await
+                .expect("mock apns server");
+        });
+
+        let base_url = format!("http://{}", addr);
+        let client = {
+            let _lock = ENV_LOCK.lock().expect("env lock poisoned");
+            let _guard = EnvVarGuard::apply(&[("PUSH_APNS_BASE_URL", Some(base_url.as_str()))]);
+            ApnsClient::from_config(
+                &serde_json::json!({
+                    "team_id": "TEAMID1234",
+                    "key_id": "KEYID1234",
+                    "bundle_id": "com.redcode.im.iosapp",
+                    "environment": "sandbox",
+                }),
+                TEST_APNS_PRIVATE_KEY,
+            )
+            .expect("apns client")
+        };
+        let mut data = HashMap::new();
+        data.insert("type".to_string(), "message".to_string());
+        data.insert("room_id".to_string(), "room-1".to_string());
+
+        client
+            .send_to_token("device-token", "标题", "正文", &data)
+            .await
+            .expect("send apns");
+
+        let captured = received.lock().await.take().expect("captured apns request");
+        assert_eq!(captured.token, "device-token");
+        assert_eq!(captured.topic.as_deref(), Some("com.redcode.im.iosapp"));
+        assert_eq!(captured.payload["type"], "message");
+        assert_eq!(captured.payload["room_id"], "room-1");
+        assert_eq!(captured.payload["aps"]["alert"]["title"], "标题");
+        assert_eq!(captured.payload["aps"]["alert"]["body"], "正文");
     }
 }

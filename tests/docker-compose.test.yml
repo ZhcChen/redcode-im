@@ -62,6 +62,7 @@ x-api-test-environment: &api-test-environment
   REDCODE_IM_B2_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
   IPINFO_BASE_URL: http://external-mock:19080/ipinfo
   PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
+  PUSH_APNS_BASE_URL: http://external-mock:19080/apns
   WS_OUTBOUND_QUEUE_SIZE: "${WS_OUTBOUND_QUEUE_SIZE:-1024}"
   CARGO_TARGET_DIR: /app/target
   CARGO_BUILD_JOBS: "${CARGO_BUILD_JOBS:-1}"

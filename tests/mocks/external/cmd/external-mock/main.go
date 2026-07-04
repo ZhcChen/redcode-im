@@ -77,6 +77,8 @@ func (s *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 		s.handleB2AuthorizeAccount(w, r)
 	case strings.HasPrefix(path, "/fcm/v1/projects/") && strings.HasSuffix(path, "/messages:send") && r.Method == http.MethodPost:
 		s.handleFCMSend(w, r)
+	case strings.HasPrefix(path, "/apns/3/device/") && r.Method == http.MethodPost:
+		s.handleAPNsSend(w, r)
 	case strings.HasPrefix(path, "/ipinfo/") && strings.HasSuffix(path, "/json") && r.Method == http.MethodGet:
 		s.handleIPInfo(w, r)
 	default:
@@ -174,6 +176,41 @@ func (s *mockServer) handleFCMSend(w http.ResponseWriter, r *http.Request) {
 
 	name := fmt.Sprintf("%s/messages/mock-%d", strings.TrimPrefix(r.URL.Path, "/fcm/v1/projects/"), time.Now().UnixNano())
 	writeJSON(w, http.StatusOK, map[string]any{"name": name})
+}
+
+func (s *mockServer) handleAPNsSend(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimPrefix(r.URL.Path, "/apns/3/device/")
+	if strings.TrimSpace(r.Header.Get("authorization")) == "" {
+		writeJSON(w, http.StatusForbidden, map[string]any{"reason": "MissingProviderToken"})
+		return
+	}
+	if strings.TrimSpace(r.Header.Get("apns-topic")) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"reason": "MissingTopic"})
+		return
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"reason": "BadPayload"})
+		return
+	}
+	if _, ok := payload["aps"].(map[string]any); !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"reason": "PayloadEmpty"})
+		return
+	}
+
+	lower := strings.ToLower(token)
+	if strings.Contains(lower, "unregistered") {
+		writeJSON(w, http.StatusGone, map[string]any{"reason": "Unregistered", "timestamp": time.Now().UnixMilli()})
+		return
+	}
+	if strings.Contains(lower, "invalid") {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"reason": "BadDeviceToken"})
+		return
+	}
+
+	w.Header().Set("apns-id", fmt.Sprintf("mock-%d", time.Now().UnixNano()))
+	w.WriteHeader(http.StatusOK)
 }
 
 func (s *mockServer) handleIPInfo(w http.ResponseWriter, r *http.Request) {

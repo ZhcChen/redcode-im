@@ -111,7 +111,7 @@ endef
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
-	tests.all tests.compose.config tests.tooling tests.perf.check \
+	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
 	admin-up admin-down admin-logs \
 	desktop-up desktop-down desktop-logs \
@@ -170,6 +170,7 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) ios-app.check
 	@$(MAKE) website.test.unit
 	@$(MAKE) tests.compose.config
+	@$(MAKE) tests.mocks.external
 	@$(MAKE) tests.tooling
 	@$(MAKE) tests.perf.check
 
@@ -814,6 +815,10 @@ tests.compose.config: ## 校验 api 测试栈 docker compose 配置可渲染
 tests.tooling: ## 执行仓库级 tooling 守护测试
 	@$(call require_cmd,$(GO))
 	@cd "$(ROOT_DIR)/tests/go" && $(GO) test ./tooling/
+
+tests.mocks.external: ## 执行外部依赖 mock 服务自测（B2/FCM/APNs/IPInfo）
+	@$(call require_cmd,$(GO))
+	@cd "$(ROOT_DIR)/tests/mocks/external" && $(GO) test ./...
 
 tests.perf.check: ## 执行 api 压测工具 Go 自检
 	@$(call require_cmd,$(GO))

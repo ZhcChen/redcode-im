@@ -47,7 +47,7 @@ services:
       timeout: 3s
       retries: 3
 
-  # 外部依赖 Mock（B2/S3、FCM、IPInfo），本地联调不访问线上对象存储
+  # 外部依赖 Mock（B2/S3、FCM、APNs、IPInfo），本地联调不访问线上对象存储/推送服务
   external-mock:
     build:
       context: ../../../tests/mocks/external
@@ -110,6 +110,7 @@ services:
       REDCODE_IM_B2_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
       IPINFO_BASE_URL: http://external-mock:19080/ipinfo
       PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
+      PUSH_APNS_BASE_URL: http://external-mock:19080/apns
       WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE:-1024}
       SQLX_OFFLINE: "true"
       JWT_SECRET: dev-secret-change-me

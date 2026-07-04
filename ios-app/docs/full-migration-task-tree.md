@@ -317,7 +317,7 @@ IOS
 - 聊天详情已接入 PhotosUI 图片/视频选择、文件选择、附件待发送 strip、富媒体 pending/failed/resend、上传后 rich message 发送和附件缓存。
 - 会话/聊天头像已优先使用 object key 获取下载 URL 并落本地 avatar cache；消息附件展示使用 `AttachmentFileCache`。
 - 语音基础能力已补 `VoiceRecorderController` / `VoicePlaybackController`，覆盖 AVFoundation 录音、语音消息发送、播放和麦克风权限拒绝提示。
-- dev Compose 已接入 `external-mock`，B2/IPInfo/FCM 均指向本地 mock；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator 可访问地址。
+- dev Compose 已接入 `external-mock`，B2/IPInfo/FCM/APNs 均指向本地 mock；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator 可访问地址。
 - 已补 `MediaAPIClientTests`、`MediaAPIClientLiveTests`、`ChatAPIClientTests`、`ChatDetailControllerTests`、`StorageTests` 媒体覆盖。
 - 已通过 `RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests`，覆盖 mock 对象存储上传、commit、富媒体消息发送和下载校验。
 - H5 已补 `messageService.sendRichMessage`，并在 live smoke 中覆盖 H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
@@ -437,7 +437,7 @@ IOS
 
 - 已接入 `UserNotifications` 本地通知权限和展示；App 前台不弹系统通知，后台/非前台收到 WebSocket 新消息时用本地通知兜底。
 - 已接入 APNs 注册回调和 `PushController.registerAPNsDeviceToken`；服务端现有 `/push/devices` 合约也支持保存 channel。
-- 后端当前离线系统通知主链路为 FCM；iOS 原生保留 APNs 直连底座，同时兼容既有 FCM channel，真实投递需要 iPhone 真机和平台凭据补验。
+- 后端已补 APNs provider 配置、APNs token 投递、Push 日志和本地 mock 验证链路；离线通知会按 `push_devices.channel` 分发到 FCM 或 APNs。
 - 通知点击 payload 会映射为聊天或好友请求目的地；冷启动 payload 由 App delegate 写入 `NotificationNavigationController`，App root 再切换到对应 Tab/会话。
 - 登出会先尝试注销当前 push device，并清理本地通知 token、待导航 payload 和已投递/待发送通知。
 - SwiftPM 已覆盖 Push API、Push controller、通知导航、本地通知调度条件和 device identity 存储。
@@ -451,7 +451,7 @@ IOS
 验收：
 
 - Simulator/SwiftPM 已覆盖 payload 导航、后台本地通知兜底和登出通知态清理。
-- iPhone 真机需补验 APNs/FCM token 获取、平台投递和点击进入正确页面。
+- iPhone 真机需补验 APNs token 获取、Apple 平台真实投递和点击进入正确页面。
 
 ## IOS-11 全量 parity 验收与切换准备
 
@@ -473,7 +473,7 @@ IOS
 - 已通过 `make ios-app.test.interop`，覆盖 H5/API/iOS 认证、WebSocket、聊天、好友、群管理和媒体 mock 关键链路。
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
 - IOS-11.04 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
-- IOS-11.06 需要 iPhone 真机与 APNs/FCM 平台凭据；当前 Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。
+- IOS-11.06 需要 iPhone 真机与 Apple APNs 平台凭据；当前 API mock 已覆盖 APNs/FCM 投递，Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 验收：
 

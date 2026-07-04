@@ -28,6 +28,15 @@ export interface UpsertFcmProviderPayload {
   service_account_json?: string;
 }
 
+export interface UpsertApnsProviderPayload {
+  enabled: boolean;
+  team_id?: string;
+  key_id?: string;
+  bundle_id?: string;
+  environment?: 'sandbox' | 'production';
+  private_key_p8?: string;
+}
+
 export interface TestPushPayload {
   provider: string;
   user_id?: string;
