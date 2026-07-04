@@ -57,6 +57,14 @@ public actor APIClient {
         return try await send(endpoint, bearerToken: bearerToken, bodyData: data, as: responseType)
     }
 
+    public func post<Response: Decodable & Sendable>(
+        _ endpoint: APIEndpoint,
+        bearerToken: String? = nil,
+        as responseType: Response.Type = Response.self
+    ) async throws -> Response {
+        try await send(endpoint, bearerToken: bearerToken, bodyData: nil, as: responseType)
+    }
+
     public func postNoResponse<Body: Encodable & Sendable>(
         _ endpoint: APIEndpoint,
         body: Body,

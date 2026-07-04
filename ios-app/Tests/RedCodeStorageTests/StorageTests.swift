@@ -93,6 +93,58 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testSwiftDataContactCacheStoreStoresSortsUpsertsRemovesAndClearsContacts() throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let store = SwiftDataContactCacheStore(container: container)
+        let baseDate = Date(timeIntervalSince1970: 1_000)
+
+        try store.saveContacts([
+            RedCodeContactDraft(
+                userID: "user-2",
+                username: "bob",
+                avatarObjectKey: "users/user-2/avatar.png",
+                updatedAt: baseDate
+            ),
+            RedCodeContactDraft(
+                userID: "user-1",
+                username: "alice",
+                nickname: "Alice",
+                friendshipStatus: "accepted",
+                updatedAt: baseDate.addingTimeInterval(10)
+            ),
+            RedCodeContactDraft(userID: "  ", username: "ignored"),
+        ])
+
+        var contacts = try store.loadContacts()
+        XCTAssertEqual(contacts.map(\.userID), ["user-1", "user-2"])
+        XCTAssertEqual(contacts.map(\.displayName), ["Alice", "bob"])
+        XCTAssertEqual(contacts[1].avatarObjectKey, "users/user-2/avatar.png")
+
+        try store.upsert(
+            RedCodeContactDraft(
+                userID: "user-2",
+                username: "bob",
+                nickname: "Bobby",
+                avatarURL: "https://cdn.example.test/bob.png",
+                friendshipStatus: "blocked",
+                updatedAt: baseDate.addingTimeInterval(20)
+            )
+        )
+
+        contacts = try store.loadContacts()
+        let updated = try XCTUnwrap(contacts.first { $0.userID == "user-2" })
+        XCTAssertEqual(updated.displayName, "Bobby")
+        XCTAssertEqual(updated.avatarURL, "https://cdn.example.test/bob.png")
+        XCTAssertEqual(updated.friendshipStatus, "blocked")
+
+        try store.remove(userID: " user-1 ")
+        XCTAssertEqual(try store.loadContacts().map(\.userID), ["user-2"])
+
+        try store.clearAll()
+        XCTAssertTrue(try store.loadContacts().isEmpty)
+    }
+
+    @MainActor
     func testSwiftDataSchemaStoresCoreCacheRecords() throws {
         let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
         let context = ModelContext(container)

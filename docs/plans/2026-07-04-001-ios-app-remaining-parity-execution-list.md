@@ -1,0 +1,212 @@
+# ios-app 剩余 Flutter parity 结构化执行清单
+
+本文档把 `ios-app/docs/full-migration-task-tree.md` 中未完成项目整理为执行顺序清单。原则是先补齐可测试的数据/API/缓存底座，再补 UI，再做 H5/API/iOS 联调，最后做媒体、通知和切换验收。
+
+## 执行策略
+
+- 主线顺序：IOS-05 -> IOS-06 -> IOS-07 -> IOS-08 -> IOS-09 -> IOS-10 -> IOS-11。
+- 收尾项穿插：IOS-02/IOS-04 的 UI test 与登出清理在相关底座可用后回补。
+- 每个阶段至少包含：
+  - Networking DTO/API client
+  - Storage cache / local state
+  - Features controller / SwiftUI view
+  - SwiftPM 单测
+  - H5/API/iOS live smoke 或明确的阻塞说明
+- 本机验收默认使用 iOS Simulator；API/WS 使用 `127.0.0.1`。
+- 后端依赖统一由 Docker Compose 提供；对象存储只走 mock。
+
+## P0 阶段：联系人、好友与私聊
+
+### IOS-05-A 数据/API/缓存底座
+
+- [x] IOS-05-A1 建立 `FriendAPIEndpoint`：
+  - `/users/search`
+  - `/friends`
+  - `/friends/requests`
+  - `/friends/requests/{requestId}/respond`
+  - `/friends/{friendUserId}/chat`
+  - `/friends/{friendUserId}`
+- [x] IOS-05-A2 建立好友域模型：
+  - `FriendInfo`
+  - `FriendRequestInfo`
+  - `FriendRequestStatus`
+  - `FriendRequestAction`
+  - `EnsurePrivateChatResult`
+- [x] IOS-05-A3 建立 `FriendAPIClient`：
+  - 搜索用户
+  - 拉取好友列表
+  - 发送好友申请
+  - 拉取好友申请
+  - 接受/拒绝好友申请
+  - 打开/确保私聊
+  - 删除好友
+- [x] IOS-05-A4 建立 `ContactCacheStore`：
+  - SwiftData 读取联系人
+  - SwiftData 保存联系人
+  - upsert / remove / clear
+  - displayName 排序
+- [x] IOS-05-A5 增加 Networking/Storage 单测。
+
+验收：
+
+- [x] iOS 能 decode 后端好友/请求/私聊响应。
+- [x] 联系人缓存支持缓存优先展示。
+- [x] 单测覆盖 endpoint、payload、decode、缓存排序和删除。
+
+当前结果：
+
+- 已补 `FriendAPIEndpoint`、`FriendModels`、`FriendAPIClient`、`SwiftDataContactCacheStore`。
+- 已补 `FriendAPIClientTests` 与 `StorageTests` 联系人缓存覆盖。
+- 已通过 `swift test`、`make ios-app.check`、`git diff --check`。
+
+### IOS-05-B 控制器与 UI
+
+- [ ] IOS-05-B1 建立 `ContactsController`：
+  - 缓存优先加载
+  - 远端刷新
+  - 好友请求 badge
+  - 接受请求后更新本地好友列表
+- [ ] IOS-05-B2 建立 `AddFriendController`：
+  - 用户搜索
+  - 发送好友申请
+  - 请求列表与处理
+- [ ] IOS-05-B3 建立联系人 SwiftUI：
+  - 联系人列表
+  - 新朋友入口和 badge
+  - 用户搜索
+  - 好友请求处理
+  - 联系人详情
+  - 打开私聊
+- [ ] IOS-05-B4 接入 App shell contacts tab。
+- [ ] IOS-05-B5 增加 Features 单测。
+
+验收：
+
+- iOS 可以搜索 H5 创建的账号并发送好友申请。
+- H5/iOS 好友状态双向可见。
+- 联系人详情可打开私聊，并且会话列表状态一致。
+
+### IOS-05-C 联调
+
+- [ ] IOS-05-C1 增加 iOS 好友 live smoke。
+- [ ] IOS-05-C2 增加 H5/iOS 好友流程互通 smoke。
+- [ ] IOS-05-C3 更新 `ios-app/docs/full-migration-task-tree.md` IOS-05 状态。
+
+## P1 阶段：群聊和群管理
+
+### IOS-06-A 群基础与设置
+
+- [ ] IOS-06-A1 选择联系人建群。
+- [ ] IOS-06-A2 群设置首页。
+- [ ] IOS-06-A3 群成员列表。
+- [ ] IOS-06-A4 群改名。
+- [ ] IOS-06-A5 群置顶和免打扰。
+- [ ] IOS-06-A6 退出/解散群聊。
+
+### IOS-06-B 群权限与管理
+
+- [ ] IOS-06-B1 管理员管理。
+- [ ] IOS-06-B2 禁言管理。
+- [ ] IOS-06-B3 入群申请。
+- [ ] IOS-06-B4 群规则。
+- [ ] IOS-06-B5 群操作日志。
+- [ ] IOS-06-B6 群内置顶消息。
+
+### IOS-06-C 测试与联调
+
+- [ ] IOS-06-C1 群权限单测。
+- [ ] IOS-06-C2 H5/iOS 群管理 smoke。
+
+## P2 阶段：媒体、附件、头像、语音和视频
+
+### IOS-07-A 选择、上传和缓存
+
+- [ ] IOS-07-A1 PhotosUI 图片/视频选择。
+- [ ] IOS-07-A2 DocumentPicker 文件选择。
+- [ ] IOS-07-A3 上传策略获取。
+- [ ] IOS-07-A4 对象存储 mock 直传。
+- [ ] IOS-07-A5 文件 hash 与 MIME 识别。
+- [ ] IOS-07-A6 附件缓存。
+
+### IOS-07-B 预览、头像和语音
+
+- [ ] IOS-07-B1 图片/视频/文件预览。
+- [ ] IOS-07-B2 用户头像展示与缓存。
+- [ ] IOS-07-B3 群头像展示与缓存。
+- [ ] IOS-07-B4 头像上传。
+- [ ] IOS-07-B5 AVFoundation 语音录制。
+- [ ] IOS-07-B6 语音消息发送。
+- [ ] IOS-07-B7 语音播放。
+- [ ] IOS-07-B8 权限拒绝和恢复路径。
+
+### IOS-07-C 测试与联调
+
+- [ ] IOS-07-C1 对象存储 mock 上传/下载 smoke。
+- [ ] IOS-07-C2 H5/iOS 媒体消息互通 smoke。
+
+## P3 阶段：表情、贴纸、搜索和聊天扩展
+
+- [ ] IOS-08-A1 内置 emoji。
+- [ ] IOS-08-A2 表情包列表。
+- [ ] IOS-08-A3 表情项加载。
+- [ ] IOS-08-A4 表情资源缓存。
+- [ ] IOS-08-A5 贴纸管理。
+- [ ] IOS-08-B1 消息搜索索引写入。
+- [ ] IOS-08-B2 消息搜索页面。
+- [ ] IOS-08-B3 聊天背景。
+- [ ] IOS-08-B4 聊天设置。
+- [ ] IOS-08-C1 搜索与表情缓存测试。
+
+## P4 阶段：设置、账号、文档、反馈、配置和版本
+
+- [ ] IOS-09-A1 设置首页。
+- [ ] IOS-09-A2 个人资料。
+- [ ] IOS-09-A3 昵称更新。
+- [ ] IOS-09-A4 账号安全。
+- [ ] IOS-09-A5 修改密码。
+- [ ] IOS-09-A6 用户协议和隐私政策。
+- [ ] IOS-09-A7 关于页面。
+- [ ] IOS-09-B1 反馈提交。
+- [ ] IOS-09-B2 App 配置拉取与缓存。
+- [ ] IOS-09-B3 版本检查。
+- [ ] IOS-09-B4 iOS 原生更新提示。
+- [ ] IOS-09-C1 设置域测试。
+
+## P5 阶段：Push、本地通知和通知导航
+
+- [ ] IOS-10-A1 本地通知权限请求。
+- [ ] IOS-10-A2 本地通知展示。
+- [ ] IOS-10-A3 APNs token 注册。
+- [ ] IOS-10-A4 token 上报后端。
+- [ ] IOS-10-A5 前台通知处理。
+- [ ] IOS-10-A6 后台通知点击进入会话。
+- [ ] IOS-10-A7 冷启动通知导航。
+- [ ] IOS-10-A8 登出后通知态清理。
+- [ ] IOS-10-B1 如后端只支持 FCM，设计兼容桥接。
+- [ ] IOS-10-C1 iPhone 真机验收。
+
+## P6 阶段：全量验收与切换准备
+
+- [ ] IOS-11-A1 Flutter vs iOS 功能对照清单。
+- [ ] IOS-11-A2 H5/API/iOS 联调脚本。
+- [ ] IOS-11-A3 本机 iOS Simulator smoke。
+- [ ] IOS-11-A4 UI test 回归。
+- [ ] IOS-11-A5 媒体 mock 回归。
+- [ ] IOS-11-A6 通知真机补验。
+- [ ] IOS-11-B1 P0/P1 缺口清单。
+- [ ] IOS-11-B2 Flutter iOS 下线条件。
+- [ ] IOS-11-B3 回滚策略。
+- [ ] IOS-11-B4 更新 `docs/reference/testing/README.md`。
+
+## 横向收尾任务
+
+- [ ] X-01 IOS-02.05 重置密码。
+- [ ] X-02 IOS-02.06 用户协议/隐私协议提示。
+- [ ] X-03 IOS-02.09 登出清理 Token、WS、内存态、本地敏感缓存。
+- [ ] X-04 IOS-02.11 认证 UI test。
+- [ ] X-05 IOS-04.17 聊天 UI test。
+
+说明：
+
+- X-04 / X-05 当前依赖本机 Xcode SDK 与 iOS Simulator runtime 匹配；现状为 Xcode 26.6 SDK 26.5，但本机 runtime 只有 26.3/26.4。
+- X-03 在 IOS-05/IOS-10 后统一收口，避免只清认证态而遗漏联系人、消息、通知缓存。

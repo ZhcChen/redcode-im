@@ -213,7 +213,7 @@ IOS
 
 ## IOS-05 联系人、好友与私聊
 
-- [ ] IOS-05.01 实现联系人模型和缓存。
+- [x] IOS-05.01 实现联系人模型和缓存。
 - [ ] IOS-05.02 实现联系人列表 UI。
 - [ ] IOS-05.03 实现用户搜索。
 - [ ] IOS-05.04 实现发送好友申请。
@@ -223,6 +223,13 @@ IOS
 - [ ] IOS-05.08 实现打开私聊。
 - [ ] IOS-05.09 增加联系人/好友单测。
 - [ ] IOS-05.10 与 H5 做好友流程 smoke。
+
+当前说明：
+
+- 已补好友 API 底座：`FriendAPIEndpoint`、`FriendInfo`、`FriendRequestInfo`、`FriendRequestStatus`、`FriendRequestAction`、`EnsurePrivateChatResult`、`FriendAPIClient`。
+- 已覆盖 `/users/search`、`/friends`、`/friends/requests`、`/friends/requests/{requestId}/respond`、`/friends/{friendUserId}/chat`、`/friends/{friendUserId}`。
+- 已补联系人 SwiftData 缓存：`ContactCacheStore`、`SwiftDataContactCacheStore`，支持 load/save/upsert/remove/clear 和 displayName 排序。
+- 已补 Networking/Storage 底座单测；IOS-05.09 仍保留未完成，待 `ContactsController`、`AddFriendController` 与联系人 UI tests 一并收口。
 
 参考：
 
