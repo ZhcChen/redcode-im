@@ -236,7 +236,7 @@
 - [x] IOS-10-A7 冷启动通知导航。
 - [x] IOS-10-A8 登出后通知态清理。
 - [x] IOS-10-B1 如后端只支持 FCM，设计兼容桥接。
-- [ ] IOS-10-C1 iPhone 真机验收。
+- [x] IOS-10-C1 iPhone 真机验收（SKIPPED：用户要求跳过必须真机/APNs 的验收项）。
 
 当前结果：
 
@@ -247,7 +247,7 @@
 - SwiftUI App 已接入通知权限、APNs token 注册回调、remote notification payload 处理、Tab 导航切换、聊天通知深链与登出通知态清理。
 - 后端已补 APNs provider 配置、APNs token 投递、Push 日志和 `external-mock` APNs 测试链路；iOS 原生 APNs token 会按 `/push/devices` 的 `apns` channel 注册，服务端离线通知会按设备 channel 分发到 FCM/APNs。
 - iOS App 已支持通过 Info.plist 或启动环境读取真机可访问的 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL`，并新增 `make ios-app.apns.preflight` 做 iPhone/APNs 真机验收前置检查；`make ios-app.smoke.device` 会串联预检、真机构建、安装和启动。
-- 真机 APNs token 获取、Apple 平台真实投递和点击系统通知唤醒仍放入 IOS-10-C1 / IOS-11-A6；2026-07-04 20:28 CST 重新执行 `xcrun devicectl list devices --timeout 10`，结果仍为 `No devices found.`。
+- IOS-10-C1 已按用户要求跳过并记录：真机 APNs token 获取、Apple 平台真实投递、系统通知点击唤醒和真机签名安装都必须依赖 iPhone 真机与 Apple APNs 凭据；2026-07-04 多次执行 `xcrun devicectl list devices --timeout 10`，结果均为 `No devices found.`。
 - 已补 `PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 覆盖。
 - 已通过 `swift test`。
 
@@ -258,7 +258,7 @@
 - [x] IOS-11-A3 本机 iOS Simulator smoke。
 - [x] IOS-11-A4 UI test 回归。
 - [x] IOS-11-A5 媒体 mock 回归。
-- [ ] IOS-11-A6 通知真机补验。
+- [x] IOS-11-A6 通知真机补验（SKIPPED：用户要求跳过必须真机/APNs 的验收项）。
 - [x] IOS-11-B1 P0/P1 缺口清单。
 - [x] IOS-11-B2 Flutter iOS 下线条件。
 - [x] IOS-11-B3 回滚策略。
@@ -273,8 +273,8 @@
 - 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke。
 - 已新增 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`，记录 Flutter vs iOS 对照、P0/P1 缺口、下线条件和回滚策略。
 - 当前本机已具备可运行 XCUITest 的 Simulator runtime；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
-- IOS-11-A6 仍需要 iPhone 真机与 Apple APNs 平台凭据；API mock 已覆盖 APNs/FCM 投递，Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
-- 真机补验前优先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
+- IOS-11-A6 已按用户要求跳过并记录；API mock 已覆盖 APNs/FCM 投递，Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
+- 如后续恢复真机补验，先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
 
 ## 横向收尾任务
 

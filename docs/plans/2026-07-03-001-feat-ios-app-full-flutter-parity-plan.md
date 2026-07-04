@@ -1,10 +1,11 @@
 ---
 title: "feat: Migrate full Flutter app functionality to native iOS"
 type: feat
-status: active
+status: completed
 date: 2026-07-03
 origin: docs/plans/2026-07-02-002-feat-ios-app-native-migration-plan.md
 deepened: 2026-07-03
+completed: 2026-07-04
 ---
 
 # feat: Migrate full Flutter app functionality to native iOS
@@ -12,6 +13,8 @@ deepened: 2026-07-03
 ## Overview
 
 `ios-app` 的目标调整为：完整迁移 Flutter `app/` 当前功能逻辑到原生 iOS，而不是只做 MVP。迁移时以 Flutter 的功能行为、接口协议、缓存语义和测试覆盖为 parity 基准；实现方式以 iOS 原生开发为准，不逐行翻译 Dart，不照搬 Flutter Widget/Provider 结构。
+
+> 收口说明（2026-07-04）：除必须依赖 iPhone 真机与 Apple APNs 凭据的真实 APNs 投递、系统通知点击唤醒和真机签名安装外，完整 parity 范围已通过本机 Simulator、SwiftPM、XCUITest、H5/API/iOS live smoke 和 mock 外部服务完成验收。用户已明确要求跳过需要真机的部分；跳过项记录在 `docs/plans/2026-07-04-001-ios-app-remaining-parity-execution-list.md`、`ios-app/docs/full-migration-task-tree.md` 和 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`。
 
 ## Problem Frame
 

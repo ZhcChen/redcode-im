@@ -129,7 +129,7 @@ make ios-app.smoke.device.local
 - `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock B2，不访问线上对象存储；FCM/APNs 测试发送默认走 mock Push，不访问线上推送服务；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
 - 表情、贴纸、消息搜索和聊天扩展当前由 SwiftPM 单测覆盖：`EmojiAPIClientTests`、`ChatAPIClientTests` 搜索用例、`StorageTests` 搜索/偏好用例、`ChatExtensionControllerTests`。贴纸发送在 iOS 侧先下载/缓存表情图，再复用消息图片上传链路，不直接写入 `emoji-items/*` 附件 key。
 - 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。
-- Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒仍需 iPhone 真机与 Apple 平台凭据补验。
+- Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒需要 iPhone 真机与 Apple 平台凭据，本轮已按用户要求跳过并记录，`.local` 真机入口保留供后续恢复补验。
 
 ### Admin 自测
 ```bash

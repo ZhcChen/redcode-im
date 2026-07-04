@@ -431,7 +431,7 @@ IOS
 - [x] IOS-10.07 实现冷启动通知导航。
 - [x] IOS-10.08 实现登出后通知态清理。
 - [x] IOS-10.09 如后端只支持 FCM，单独设计兼容桥接。
-- [ ] IOS-10.10 补 iPhone 真机验收。
+- [x] IOS-10.10 补 iPhone 真机验收（SKIPPED：用户要求跳过必须真机/APNs 的验收项）。
 
 当前说明：
 
@@ -452,7 +452,7 @@ IOS
 验收：
 
 - Simulator/SwiftPM 已覆盖 payload 导航、后台本地通知兜底和登出通知态清理。
-- iPhone 真机需补验 APNs token 获取、Apple 平台真实投递和点击进入正确页面。
+- iPhone 真机验收已按用户要求跳过并记录；未声称真实 APNs 投递、系统通知点击和真机签名安装已验证。
 
 ## IOS-11 全量 parity 验收与切换准备
 
@@ -461,7 +461,7 @@ IOS
 - [x] IOS-11.03 完成本机 iOS Simulator smoke。
 - [x] IOS-11.04 完成 UI test 回归。
 - [x] IOS-11.05 完成媒体 mock 回归。
-- [ ] IOS-11.06 完成通知真机补验。
+- [x] IOS-11.06 完成通知真机补验（SKIPPED：用户要求跳过必须真机/APNs 的验收项）。
 - [x] IOS-11.07 建立 P0/P1 缺口清单。
 - [x] IOS-11.08 建立 Flutter iOS 下线条件。
 - [x] IOS-11.09 建立回滚策略。
@@ -474,8 +474,8 @@ IOS
 - 已通过 `make ios-app.test.interop`，覆盖 H5/API/iOS 认证、WebSocket、聊天、好友、群管理和媒体 mock 关键链路。
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
 - IOS-11.04 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
-- IOS-11.06 需要 iPhone 真机与 Apple APNs 平台凭据；当前 API mock 已覆盖 APNs/FCM 投递，Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。2026-07-04 20:28 CST 重新执行 `xcrun devicectl list devices --timeout 10`，结果仍为 `No devices found.`。
-- 真机补验前优先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
+- IOS-11.06 已按用户要求跳过并记录；该项需要 iPhone 真机与 Apple APNs 平台凭据。当前 API mock 已覆盖 APNs/FCM 投递，Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。2026-07-04 多次执行 `xcrun devicectl list devices --timeout 10`，结果均为 `No devices found.`。
+- 如后续恢复真机补验，先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
 
 验收：
 
