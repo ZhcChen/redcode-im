@@ -1,5 +1,6 @@
 import SwiftUI
 import RedCodeFeatures
+import RedCodeNetworking
 
 struct AppRootView: View {
     let dependencies: AppDependencies
@@ -17,7 +18,10 @@ struct AppRootView: View {
             } else if authController.state.isAuthenticated {
                 MainTabView(dependencies: dependencies)
             } else {
-                AuthEntryView(authController: authController)
+                AuthEntryView(
+                    authController: authController,
+                    settingsController: dependencies.makeSettingsController()
+                )
             }
         }
         .task {
@@ -164,7 +168,9 @@ private enum AuthMode: String, CaseIterable, Identifiable {
 
 private struct AuthEntryView: View {
     let authController: AuthController
+    let settingsController: SettingsController
 
+    @AppStorage("redcode-ios-user-agreed-to-terms") private var agreedToTerms = false
     @State private var mode: AuthMode = .login
     @State private var account = ""
     @State private var password = ""
@@ -175,6 +181,7 @@ private struct AuthEntryView: View {
         let normalizedAccount = account.trimmingCharacters(in: .whitespacesAndNewlines)
         return normalizedAccount.count >= 3
             && password.count >= 6
+            && agreedToTerms
             && !authController.isLoading
     }
 
@@ -207,6 +214,21 @@ private struct AuthEntryView: View {
                     Text("账号密码")
                 } footer: {
                     Text("当前测试阶段使用普通账号密码，不需要邮箱验证码。账号支持 3-20 位小写字母、数字、点、下划线或连字符；密码至少 6 位。")
+                }
+
+                Section {
+                    Toggle(isOn: $agreedToTerms) {
+                        Text("我已阅读并同意协议")
+                    }
+
+                    NavigationLink("查看用户协议") {
+                        SettingsDocumentView(controller: settingsController, kind: .userAgreement)
+                    }
+                    NavigationLink("查看隐私协议") {
+                        SettingsDocumentView(controller: settingsController, kind: .privacyPolicy)
+                    }
+                } footer: {
+                    Text("登录或注册前需勾选协议；协议内容来自后端公开配置。")
                 }
 
                 if let message = localErrorMessage ?? authController.errorMessage {

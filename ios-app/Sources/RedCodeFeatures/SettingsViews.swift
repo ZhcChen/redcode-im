@@ -219,6 +219,10 @@ public struct AccountSecuritySettingsView: View {
     @State private var oldPassword = ""
     @State private var newPassword = ""
     @State private var confirmPassword = ""
+    @State private var resetPhone = ""
+    @State private var resetCode = ""
+    @State private var resetNewPassword = ""
+    @State private var resetConfirmPassword = ""
     @State private var localError: String?
 
     public init(controller: SettingsController) {
@@ -238,6 +242,22 @@ public struct AccountSecuritySettingsView: View {
                 Text("修改密码")
             } footer: {
                 Text("当前测试阶段使用普通账号密码；不需要邮箱验证码二次验证。")
+            }
+
+            Section {
+                TextField("当前账号/手机号", text: $resetPhone)
+                    .textContentType(.username)
+                    .autocorrectionDisabled()
+                TextField("验证码", text: $resetCode)
+                    .textContentType(.oneTimeCode)
+                SecureField("新密码", text: $resetNewPassword)
+                    .textContentType(.newPassword)
+                SecureField("确认新密码", text: $resetConfirmPassword)
+                    .textContentType(.newPassword)
+            } header: {
+                Text("验证码重置密码")
+            } footer: {
+                Text("该接口需已登录，且账号需等于当前登录账号；本地测试可使用后台通用验证码。")
             }
 
             if let localError {
@@ -267,9 +287,27 @@ public struct AccountSecuritySettingsView: View {
                     }
                 }
                 .disabled(controller.isSubmitting || oldPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty)
+
+                Button {
+                    submitPasswordReset()
+                } label: {
+                    Text("使用验证码重置密码")
+                }
+                .disabled(
+                    controller.isSubmitting
+                        || resetPhone.isEmpty
+                        || resetCode.isEmpty
+                        || resetNewPassword.isEmpty
+                        || resetConfirmPassword.isEmpty
+                )
             }
         }
         .navigationTitle("账号与安全")
+        .onAppear {
+            if resetPhone.isEmpty {
+                resetPhone = controller.user?.username ?? ""
+            }
+        }
     }
 
     private func submitPasswordChange() {
@@ -287,6 +325,32 @@ public struct AccountSecuritySettingsView: View {
                 self.oldPassword = ""
                 self.newPassword = ""
                 self.confirmPassword = ""
+            } catch {
+                localError = error.localizedDescription
+            }
+        }
+    }
+
+    private func submitPasswordReset() {
+        guard resetNewPassword == resetConfirmPassword else {
+            localError = "两次输入的新密码不一致"
+            return
+        }
+
+        let phone = resetPhone
+        let code = resetCode
+        let newPassword = resetNewPassword
+        Task {
+            localError = nil
+            do {
+                try await controller.resetPasswordWithSMS(
+                    phone: phone,
+                    code: code,
+                    newPassword: newPassword
+                )
+                resetCode = ""
+                resetNewPassword = ""
+                resetConfirmPassword = ""
             } catch {
                 localError = error.localizedDescription
             }

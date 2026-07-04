@@ -8,6 +8,7 @@ public enum AuthAPIEndpoint: Sendable {
     public static let refresh = APIEndpoint(method: .post, path: "/auth/refresh")
     public static let updateMe = APIEndpoint(method: .patch, path: "/users/me")
     public static let changePassword = APIEndpoint(method: .post, path: "/users/me/password")
+    public static let resetPassword = APIEndpoint(method: .post, path: "/auth/password/reset")
 }
 
 public struct AccountLoginRequest: Codable, Equatable, Sendable {
@@ -58,6 +59,46 @@ public struct ChangePasswordRequest: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case oldPassword = "old_password"
         case newPassword = "new_password"
+    }
+}
+
+public struct ResetPasswordWithSMSRequest: Codable, Equatable, Sendable {
+    public let phone: String
+    public let code: String
+    public let newPassword: String
+
+    public init(phone: String, code: String, newPassword: String) throws {
+        let phone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newPassword = newPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !phone.isEmpty else {
+            throw NetworkFailure(kind: .unknown, message: "手机号不能为空")
+        }
+        guard !code.isEmpty else {
+            throw NetworkFailure(kind: .unknown, message: "验证码不能为空")
+        }
+        guard newPassword.count >= 6 else {
+            throw NetworkFailure(kind: .unknown, message: "新密码长度至少 6 位")
+        }
+        self.phone = phone
+        self.code = code
+        self.newPassword = newPassword
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case phone
+        case code
+        case newPassword = "new_password"
+    }
+}
+
+public struct ResetPasswordWithSMSResponse: Codable, Equatable, Sendable {
+    public let success: Bool
+    public let message: String
+
+    public init(success: Bool, message: String) {
+        self.success = success
+        self.message = message
     }
 }
 

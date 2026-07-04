@@ -251,21 +251,31 @@
 
 ## P6 阶段：全量验收与切换准备
 
-- [ ] IOS-11-A1 Flutter vs iOS 功能对照清单。
-- [ ] IOS-11-A2 H5/API/iOS 联调脚本。
-- [ ] IOS-11-A3 本机 iOS Simulator smoke。
+- [x] IOS-11-A1 Flutter vs iOS 功能对照清单。
+- [x] IOS-11-A2 H5/API/iOS 联调脚本。
+- [x] IOS-11-A3 本机 iOS Simulator smoke。
 - [ ] IOS-11-A4 UI test 回归。
-- [ ] IOS-11-A5 媒体 mock 回归。
+- [x] IOS-11-A5 媒体 mock 回归。
 - [ ] IOS-11-A6 通知真机补验。
-- [ ] IOS-11-B1 P0/P1 缺口清单。
-- [ ] IOS-11-B2 Flutter iOS 下线条件。
-- [ ] IOS-11-B3 回滚策略。
-- [ ] IOS-11-B4 更新 `docs/reference/testing/README.md`。
+- [x] IOS-11-B1 P0/P1 缺口清单。
+- [x] IOS-11-B2 Flutter iOS 下线条件。
+- [x] IOS-11-B3 回滚策略。
+- [x] IOS-11-B4 更新 `docs/reference/testing/README.md`。
+
+当前结果：
+
+- 已新增 `make ios-app.test.interop`，串联 `h5-app.test.live` 与 `ios-app.test.live`。
+- 已通过 `make ios-app.test.interop`，覆盖 H5 live smoke 与 iOS 认证、WebSocket、聊天、好友、群、媒体 mock live smoke。
+- 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
+- 已通过 `make ios-app.check` 与 `cd ios-app && swift test`。
+- 已新增 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`，记录 Flutter vs iOS 对照、P0/P1 缺口、下线条件和回滚策略。
+- IOS-11-A4 当前被本机 Xcode/Simulator runtime 不匹配阻塞：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 runtime。
+- IOS-11-A6 需要 iPhone 真机与 APNs/FCM 平台凭据；Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 ## 横向收尾任务
 
-- [ ] X-01 IOS-02.05 重置密码。
-- [ ] X-02 IOS-02.06 用户协议/隐私协议提示。
+- [x] X-01 IOS-02.05 重置密码。
+- [x] X-02 IOS-02.06 用户协议/隐私协议提示。
 - [x] X-03 IOS-02.09 登出清理 Token、WS、内存态、本地敏感缓存。
 - [ ] X-04 IOS-02.11 认证 UI test。
 - [ ] X-05 IOS-04.17 聊天 UI test。
@@ -273,4 +283,6 @@
 说明：
 
 - X-04 / X-05 当前依赖本机 Xcode SDK 与 iOS Simulator runtime 匹配；现状为 Xcode 26.6 SDK 26.5，但本机 runtime 只有 26.3/26.4。
+- X-01 已接入认证重置密码 API：`POST /auth/password/reset`，当前 iOS 设置页提供“验证码重置密码”入口，测试阶段可使用后台通用验证码，不依赖真实邮箱。
+- X-02 已在登录/注册页增加用户协议/隐私协议勾选，未勾选时禁止登录或注册；协议内容来自后端公开配置。
 - X-03 已在 IOS-09 设置域收口并由 IOS-10 补齐通知态：退出登录会清理 Token、WS、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存、聊天背景偏好和当前用户通知注册态。

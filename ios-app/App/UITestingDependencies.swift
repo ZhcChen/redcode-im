@@ -97,6 +97,15 @@ private struct UITestingAuthAPIService: AuthAPIService {
     }
 
     func changePassword(token: String, oldPassword: String, newPassword: String) async throws {}
+
+    func resetPasswordWithSMS(
+        token: String,
+        phone: String,
+        code: String,
+        newPassword: String
+    ) async throws -> ResetPasswordWithSMSResponse {
+        ResetPasswordWithSMSResponse(success: true, message: "密码已重置，请使用新密码登录")
+    }
 }
 
 private actor UITestingChatAPIService: ChatAPIService {

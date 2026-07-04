@@ -8,6 +8,7 @@ public protocol AuthAPIService: Sendable {
     func refresh(refreshToken: String) async throws -> AuthSession
     func updateProfile(token: String, nickname: String?, avatarURL: String?, avatarObjectKey: String?) async throws -> AuthUser
     func changePassword(token: String, oldPassword: String, newPassword: String) async throws
+    func resetPasswordWithSMS(token: String, phone: String, code: String, newPassword: String) async throws -> ResetPasswordWithSMSResponse
 }
 
 public struct AuthAPIClient: AuthAPIService {
@@ -77,6 +78,25 @@ public struct AuthAPIClient: AuthAPIService {
             AuthAPIEndpoint.changePassword,
             body: request,
             bearerToken: token
+        )
+    }
+
+    public func resetPasswordWithSMS(
+        token: String,
+        phone: String,
+        code: String,
+        newPassword: String
+    ) async throws -> ResetPasswordWithSMSResponse {
+        let request = try ResetPasswordWithSMSRequest(
+            phone: phone,
+            code: code,
+            newPassword: newPassword
+        )
+        return try await apiClient.post(
+            AuthAPIEndpoint.resetPassword,
+            body: request,
+            bearerToken: token,
+            as: ResetPasswordWithSMSResponse.self
         )
     }
 }

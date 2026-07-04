@@ -94,6 +94,24 @@ public final class AuthController {
     }
 
     @discardableResult
+    public func resetPasswordWithSMS(
+        phone: String,
+        code: String,
+        newPassword: String
+    ) async throws -> String {
+        guard let session else {
+            throw RedCodeError.authentication("未登录")
+        }
+        let response = try await api.resetPasswordWithSMS(
+            token: session.token,
+            phone: phone,
+            code: code,
+            newPassword: newPassword
+        )
+        return response.message
+    }
+
+    @discardableResult
     public func updateProfile(
         nickname: String? = nil,
         avatarURL: String? = nil,

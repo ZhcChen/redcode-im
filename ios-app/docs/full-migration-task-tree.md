@@ -86,8 +86,8 @@ IOS
 - [x] IOS-02.02 实现 Splash 和启动恢复状态机。
 - [x] IOS-02.03 实现普通账号密码注册。
 - [x] IOS-02.04 实现普通账号密码登录。
-- [ ] IOS-02.05 实现重置密码。
-- [ ] IOS-02.06 实现用户协议/隐私协议提示。
+- [x] IOS-02.05 实现重置密码。
+- [x] IOS-02.06 实现用户协议/隐私协议提示。
 - [x] IOS-02.07 实现 Token Keychain 存取。
 - [x] IOS-02.08 实现登录态校验和 session 恢复。
 - [x] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
@@ -103,7 +103,9 @@ IOS
 - 已建立 `APIClient`、`AuthAPIClient`、`AuthController`、`KeychainKeyValueStore`，并补充 SwiftPM 单测。
 - `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；SwiftUI App target 已接入 SwiftPM 本地模块、Keychain-backed session store 和认证 UI。
 - IOS-02.09 已在 IOS-09 设置域收口，并由 IOS-10 补齐通知态清理：退出登录会清理认证 session、WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存、聊天背景偏好和当前用户通知注册态。
-- 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；UI test 尚未完成。
+- 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；登录/注册前需勾选用户协议/隐私协议。
+- 已接入登录后验证码重置密码入口，调用 `POST /auth/password/reset`；本地测试阶段可使用后台通用验证码，不依赖真实邮箱。
+- 认证 UI test 尚未完成，当前被本机 Xcode SDK 与已安装 Simulator runtime 不匹配阻塞。
 - 已通过 `RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 对本机 Compose API 完成注册、登录、`/auth/me` live smoke。
 
 参考：
@@ -397,7 +399,7 @@ IOS
 - 设置网络层已补 `SettingsAPIEndpoint` / `SettingsModels` / `SettingsAPIClient`，覆盖通用设置、App 名称、隐私协议、用户协议、反馈提交、最新版本检查和版本下载 URL。
 - 用户资料链路已扩展 `AuthAPIClient.updateProfile` 与 `AuthController.updateProfile`，昵称更新会写回 Keychain-backed session。
 - App 配置缓存已补 `SwiftDataAppConfigStore`，复用 `RedCodeAppConfigRecord` 保存通用设置和协议文档，设置页按“缓存优先、远端刷新”展示。
-- 原生 SwiftUI 设置页已覆盖个人资料、账号与安全、修改密码、聊天设置入口、协议文档、关于页、反馈页、消息运行模式展示、版本检查和更新链接提示。
+- 原生 SwiftUI 设置页已覆盖个人资料、账号与安全、修改密码、验证码重置密码、聊天设置入口、协议文档、关于页、反馈页、消息运行模式展示、版本检查和更新链接提示。
 - iOS 原生更新不做包内下载安装，按系统规范提示并打开 Admin 配置的 App Store URL / 下载 URL。
 - 登出流程已清理 WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存和聊天背景偏好。
 - 已补 `SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存覆盖，并扩展 Auth profile 更新测试。
@@ -453,16 +455,25 @@ IOS
 
 ## IOS-11 全量 parity 验收与切换准备
 
-- [ ] IOS-11.01 建立 Flutter vs iOS 功能对照清单。
-- [ ] IOS-11.02 建立 H5/API/iOS 联调脚本。
-- [ ] IOS-11.03 完成本机 iOS Simulator smoke。
+- [x] IOS-11.01 建立 Flutter vs iOS 功能对照清单。
+- [x] IOS-11.02 建立 H5/API/iOS 联调脚本。
+- [x] IOS-11.03 完成本机 iOS Simulator smoke。
 - [ ] IOS-11.04 完成 UI test 回归。
-- [ ] IOS-11.05 完成媒体 mock 回归。
+- [x] IOS-11.05 完成媒体 mock 回归。
 - [ ] IOS-11.06 完成通知真机补验。
-- [ ] IOS-11.07 建立 P0/P1 缺口清单。
-- [ ] IOS-11.08 建立 Flutter iOS 下线条件。
-- [ ] IOS-11.09 建立回滚策略。
-- [ ] IOS-11.10 更新 `docs/reference/testing/README.md`。
+- [x] IOS-11.07 建立 P0/P1 缺口清单。
+- [x] IOS-11.08 建立 Flutter iOS 下线条件。
+- [x] IOS-11.09 建立回滚策略。
+- [x] IOS-11.10 更新 `docs/reference/testing/README.md`。
+
+当前说明：
+
+- Flutter vs iOS 功能对照、P0/P1 缺口、下线条件和回滚策略已沉淀到 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`。
+- 已新增 `make ios-app.test.interop`，串联 H5 live smoke 与 iOS live smoke。
+- 已通过 `make ios-app.test.interop`，覆盖 H5/API/iOS 认证、WebSocket、聊天、好友、群管理和媒体 mock 关键链路。
+- 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
+- IOS-11.04 当前被环境阻塞：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 Simulator runtime，`make ios-app.ui-test` 无法解析 destination。
+- IOS-11.06 需要 iPhone 真机与 APNs/FCM 平台凭据；当前 Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 验收：
 

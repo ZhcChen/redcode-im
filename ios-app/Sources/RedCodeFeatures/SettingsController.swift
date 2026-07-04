@@ -101,6 +101,26 @@ public final class SettingsController {
         }
     }
 
+    public func resetPasswordWithSMS(phone: String, code: String, newPassword: String) async throws {
+        guard !phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw RedCodeError.validation("账号不能为空")
+        }
+        guard !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw RedCodeError.validation("验证码不能为空")
+        }
+        guard newPassword.trimmingCharacters(in: .whitespacesAndNewlines).count >= 6 else {
+            throw RedCodeError.validation("新密码至少 6 位")
+        }
+        let message = try await runSubmittingOperation(successNotice: nil) {
+            try await authController.resetPasswordWithSMS(
+                phone: phone,
+                code: code,
+                newPassword: newPassword
+            )
+        }
+        noticeMessage = message.isEmpty ? "密码已重置，请使用新密码登录" : message
+    }
+
     @discardableResult
     public func loadDocument(_ kind: SettingsDocumentKind) async throws -> DocumentContent {
         if let cached = try? cachedDocument(kind) {

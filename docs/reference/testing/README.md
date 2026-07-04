@@ -93,6 +93,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 make ios-app.check
 make ios-app.test
 make ios-app.test.live
+make ios-app.test.interop
 make ios-app.build.simulator
 make ios-app.smoke.simulator
 ```
@@ -102,7 +103,9 @@ make ios-app.smoke.simulator
 - Simulator 联调 API/WS 使用 `127.0.0.1`。
 - `ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
 - `ios-app.test.live` 需要本机 Compose API 已启动，覆盖 iOS 认证、WebSocket、聊天互发、好友私聊、群管理和媒体 mock live smoke。
+- `ios-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `ios-app.test.live`，作为 H5/API/iOS 联调总入口。
 - `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
+- `ios-app.ui-test` 运行 XCUITest；若 Xcode SDK 与已安装 Simulator runtime 不匹配，会失败并提示在 Xcode > Settings > Components 安装匹配 runtime。当前已知阻塞例子：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 runtime。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。

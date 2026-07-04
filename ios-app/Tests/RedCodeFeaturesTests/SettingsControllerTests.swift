@@ -60,6 +60,32 @@ final class SettingsControllerTests: XCTestCase {
         XCTAssertEqual(profileCalls, ["New Bear"])
     }
 
+    func testResetPasswordWithSMSDelegatesAndSetsNotice() async throws {
+        let authStore = KeyValueAuthSessionStore(keyValueStore: InMemoryKeyValueStore())
+        try await authStore.save(AuthSession(token: "access-token", user: AuthUser(id: "u1", username: "bear")))
+        let authAPI = MockSettingsAuthAPI()
+        let authController = AuthController(api: authAPI, sessionStore: authStore)
+        await authController.restoreSession()
+        let controller = SettingsController(
+            authController: authController,
+            api: MockSettingsAPI(),
+            configStore: MockAppConfigStore()
+        )
+
+        try await controller.resetPasswordWithSMS(phone: " bear ", code: " 123456 ", newPassword: " new-password ")
+
+        XCTAssertEqual(controller.noticeMessage, "密码已重置，请使用新密码登录")
+        let resetCalls = await authAPI.recordedResetCalls()
+        XCTAssertEqual(resetCalls, [
+            ResetPasswordCall(
+                token: "access-token",
+                phone: " bear ",
+                code: " 123456 ",
+                newPassword: " new-password "
+            ),
+        ])
+    }
+
     func testLoadDocumentUsesCacheThenRefreshesRemote() async throws {
         let configStore = MockAppConfigStore(values: [
             "settings.privacy_policy": #"{"title":"缓存隐私","content":"cache","updated_at":null}"#,
@@ -141,6 +167,13 @@ private struct FeedbackCall: Equatable, Sendable {
     let token: String
     let content: String
     let contact: String?
+}
+
+private struct ResetPasswordCall: Equatable, Sendable {
+    let token: String
+    let phone: String
+    let code: String
+    let newPassword: String
 }
 
 @MainActor
@@ -236,6 +269,7 @@ private actor MockSettingsAuthAPI: AuthAPIService {
     private let currentUserResponse: AuthUser
     private let updatedUserResponse: AuthUser
     private(set) var profileCalls: [String?] = []
+    private(set) var resetCalls: [ResetPasswordCall] = []
 
     init(
         currentUser: AuthUser = AuthUser(id: "u1", username: "bear", nickname: "Bear"),
@@ -277,7 +311,28 @@ private actor MockSettingsAuthAPI: AuthAPIService {
         newPassword: String
     ) async throws {}
 
+    func resetPasswordWithSMS(
+        token: String,
+        phone: String,
+        code: String,
+        newPassword: String
+    ) async throws -> ResetPasswordWithSMSResponse {
+        resetCalls.append(
+            ResetPasswordCall(
+                token: token,
+                phone: phone,
+                code: code,
+                newPassword: newPassword
+            )
+        )
+        return ResetPasswordWithSMSResponse(success: true, message: "密码已重置，请使用新密码登录")
+    }
+
     func recordedProfileCalls() -> [String?] {
         profileCalls
+    }
+
+    func recordedResetCalls() -> [ResetPasswordCall] {
+        resetCalls
     }
 }

@@ -139,6 +139,33 @@ final class AuthControllerTests: XCTestCase {
         ])
     }
 
+    func testResetPasswordWithSMSDelegatesWhenSessionExists() async throws {
+        let api = MockAuthAPIService()
+        let store = KeyValueAuthSessionStore(keyValueStore: InMemoryKeyValueStore())
+        try await store.save(
+            AuthSession(token: "access-token", user: AuthUser(id: "u1", username: "bear"))
+        )
+        let controller = AuthController(api: api, sessionStore: store)
+        await controller.restoreSession()
+
+        let message = try await controller.resetPasswordWithSMS(
+            phone: "bear",
+            code: "123456",
+            newPassword: "new-password"
+        )
+
+        let calls = await api.calls
+        XCTAssertEqual(message, "密码已重置，请使用新密码登录")
+        XCTAssertEqual(calls, [
+            .resetPassword(
+                token: "access-token",
+                phone: "bear",
+                code: "123456",
+                newPassword: "new-password"
+            ),
+        ])
+    }
+
     func testUpdateProfileDelegatesAndPersistsUpdatedUser() async throws {
         let api = MockAuthAPIService(
             currentUser: AuthUser(id: "u1", username: "bear", nickname: "New Bear")
@@ -174,6 +201,7 @@ private enum AuthCall: Equatable, Sendable {
     case currentUser(token: String)
     case updateProfile(token: String, nickname: String?, avatarURL: String?, avatarObjectKey: String?)
     case changePassword(token: String, oldPassword: String, newPassword: String)
+    case resetPassword(token: String, phone: String, code: String, newPassword: String)
 }
 
 private actor MockAuthAPIService: AuthAPIService {
@@ -248,5 +276,15 @@ private actor MockAuthAPIService: AuthAPIService {
                 newPassword: newPassword
             )
         )
+    }
+
+    func resetPasswordWithSMS(
+        token: String,
+        phone: String,
+        code: String,
+        newPassword: String
+    ) async throws -> ResetPasswordWithSMSResponse {
+        calls.append(.resetPassword(token: token, phone: phone, code: code, newPassword: newPassword))
+        return ResetPasswordWithSMSResponse(success: true, message: "密码已重置，请使用新密码登录")
     }
 }

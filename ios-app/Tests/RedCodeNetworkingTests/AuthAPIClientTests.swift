@@ -112,6 +112,35 @@ final class AuthAPIClientTests: XCTestCase {
         XCTAssertEqual(json["new_password"], "new-password")
     }
 
+    func testResetPasswordWithSMSUsesAuthenticatedResetEndpoint() async throws {
+        let transport = QueueHTTPTransport(responses: [
+            .json(#"{"success":true,"message":"密码已重置，请使用新密码登录"}"#),
+        ])
+        let client = AuthAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let response = try await client.resetPasswordWithSMS(
+            token: "access-token",
+            phone: " bear ",
+            code: " 123456 ",
+            newPassword: " new-password "
+        )
+
+        let requests = await transport.recordedRequests()
+        let request = try XCTUnwrap(requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+
+        XCTAssertEqual(request.url?.path, "/auth/password/reset")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(json["phone"], "bear")
+        XCTAssertEqual(json["code"], "123456")
+        XCTAssertEqual(json["new_password"], "new-password")
+        XCTAssertEqual(response.message, "密码已重置，请使用新密码登录")
+    }
+
     func testUpdateProfileUsesAuthenticatedUsersMeEndpoint() async throws {
         let transport = QueueHTTPTransport(responses: [
             .json(#"{"id":"u1","username":"bear","nickname":"New Bear","avatar_object_key":"users/u1/avatar.png"}"#),
