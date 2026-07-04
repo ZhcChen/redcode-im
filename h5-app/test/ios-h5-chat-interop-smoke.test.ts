@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { messageService } from '@/services/message-service';
+import { mapMessageAttachments, messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
 import type { AuthSession, BackendLoginResponse } from '@/types/auth';
 import type { ChatMessage } from '@/types/chat';
@@ -103,7 +103,86 @@ describe.skipIf(!enabled)('h5-app ios interop live smoke', () => {
     await messageService.markMessagesAsRead(room.id, iosMessage.id);
     await iosMarkMessagesAsRead(iosSession, room.id, h5Message.id);
   });
+
+  it('sends H5 rich media messages that iOS-compatible clients can read', async () => {
+    const h5Session = await registerAndLogin('h5-media');
+    const iosSession = await registerAndLogin('ios-media');
+    useH5Session(h5Session);
+
+    const room = await roomService.createGroup({
+      name: `h5 ios media ${Date.now()}`,
+      memberIds: [iosSession.user.id],
+    });
+    const payload = `h5-media-smoke-${Date.now()}`;
+    const metadata = {
+      filename: 'h5-smoke.txt',
+      content_type: 'text/plain',
+      file_size: new TextEncoder().encode(payload).byteLength,
+    };
+    const descriptor = await h5Request<Record<string, unknown>>(
+      h5Session,
+      `/rooms/${room.id}/messages/attachments/signature`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ part_type: 'file', ...metadata }),
+      },
+    );
+    const signature = descriptor.signature as Record<string, unknown> | undefined;
+    const uploadUrl = String(signature?.url ?? '');
+    expect(uploadUrl).toBeTruthy();
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: String(signature?.method ?? 'PUT'),
+      headers: signature?.headers as HeadersInit | undefined,
+      body: payload,
+    });
+    expect(uploadResponse.ok).toBe(true);
+
+    const key = String(descriptor.key ?? signature?.key ?? '');
+    expect(key).toBeTruthy();
+    await h5Request(
+      h5Session,
+      `/rooms/${room.id}/messages/attachments/commit`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          key,
+          file_size: metadata.file_size,
+        }),
+      },
+    );
+
+    const h5Message = await messageService.sendRichMessage(room.id, [
+      {
+        type: 'file',
+        key,
+        name: metadata.filename,
+        mimeType: metadata.content_type,
+        size: metadata.file_size,
+      },
+    ]);
+    const iosVisibleMessages = await iosLoadMessages(iosSession, room.id);
+
+    expect(h5Message.attachments?.[0]?.key).toBe(key);
+    expect(iosVisibleMessages.some((message) => message.id === h5Message.id && message.attachments?.[0]?.key === key)).toBe(true);
+  });
 });
+
+const h5Request = async <T = unknown>(
+  session: AuthSession,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${session.token}`);
+  headers.set('Content-Type', 'application/json');
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers,
+  });
+  expect(response.ok).toBe(true);
+  return response.json() as Promise<T>;
+};
 
 const mapSession = (response: BackendLoginResponse): AuthSession => {
   const username = response.user.username ?? response.user.email ?? response.user.id ?? 'interop-user';
@@ -128,9 +207,10 @@ const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatM
   senderId: String(row.sender_id ?? ''),
   senderName: String(row.sender_name ?? row.sender_nickname ?? row.sender_username ?? ''),
   content: String(row.content ?? ''),
-  type: 'text',
+  type: String(row.message_type ?? row.type ?? 'text') as ChatMessage['type'],
   timestamp: Date.parse(String(row.created_at ?? row.timestamp ?? new Date().toISOString())),
   isDeleted: Boolean(row.is_deleted ?? false),
   isPinned: Boolean(row.is_pinned ?? false),
+  attachments: mapMessageAttachments(row.parts ?? row.attachments),
   raw: row,
 });

@@ -276,6 +276,64 @@ describe('h5 app service contracts', () => {
     ]);
   });
 
+  it('sends rich message payloads with backend-compatible parts', async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedInit = init;
+      return mockJson({
+        message: {
+          id: 'm-rich',
+          room_id: 'r1',
+          sender_id: 'u1',
+          sender_name: 'U1',
+          content: '',
+          message_type: 'image',
+          created_at: '2026-07-02T01:00:00Z',
+          parts: [
+            {
+              position: 0,
+              part_type: 'image',
+              attachment: {
+                key: 'messages/r1/images/a.png',
+                name: 'a.png',
+                mime: 'image/png',
+                size: 123,
+              },
+            },
+          ],
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const message = await messageService.sendRichMessage('r1', [
+      {
+        type: 'image',
+        key: 'messages/r1/images/a.png',
+        name: 'a.png',
+        mimeType: 'image/png',
+        size: 123,
+      },
+    ]);
+
+    expect(message.attachments?.[0]?.key).toBe('messages/r1/images/a.png');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8010/rooms/r1/messages',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      parts: [
+        {
+          type: 'image',
+          key: 'messages/r1/images/a.png',
+          name: 'a.png',
+          mime: 'image/png',
+          size: 123,
+        },
+      ],
+    });
+  });
+
   it('maps chat summaries with backend last_message preview', async () => {
     vi.stubGlobal(
       'fetch',

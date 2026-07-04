@@ -5,6 +5,7 @@ import type {
   ChatSummary,
   ChatType,
   MessageAttachment,
+  OutgoingMessagePart,
   MessageSearchResponse,
   MessageSearchResult,
   MessageType,
@@ -46,6 +47,22 @@ export const messageService = {
       body: JSON.stringify({
         content: content.trim(),
         ...(quotedMessageId ? { quoted_message_id: quotedMessageId } : {}),
+      }),
+    }, requireToken());
+    return mapMessage(response.message ?? response, roomId);
+  },
+
+  async sendRichMessage(
+    roomId: string,
+    parts: OutgoingMessagePart[],
+    options: { content?: string; quotedMessageId?: string } = {},
+  ): Promise<ChatMessage> {
+    const response = await requestJson<{ message?: Record<string, unknown> } & Record<string, unknown>>(`/rooms/${roomId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        content: options.content?.trim() || undefined,
+        parts: parts.map(mapOutgoingMessagePart),
+        ...(options.quotedMessageId ? { quoted_message_id: options.quotedMessageId } : {}),
       }),
     }, requireToken());
     return mapMessage(response.message ?? response, roomId);
@@ -113,6 +130,22 @@ export const messageService = {
     };
   },
 };
+
+const mapOutgoingMessagePart = (part: OutgoingMessagePart) => ({
+  type: part.type,
+  ...(part.type === 'text'
+    ? { text: part.text?.trim() ?? '' }
+    : {
+        key: part.key,
+        name: part.name,
+        mime: part.mimeType,
+        size: part.size,
+        width: part.width,
+        height: part.height,
+        duration_ms: part.durationMs,
+        thumbnail_key: part.thumbnailKey,
+      }),
+});
 
 export const mapChatSummary = (row: Record<string, unknown>): ChatSummary => {
   const lastMessage = normalizeObject(row.last_message);

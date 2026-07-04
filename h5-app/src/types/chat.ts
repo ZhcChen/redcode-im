@@ -32,6 +32,19 @@ export interface ChatMessage {
   raw?: Record<string, unknown>;
 }
 
+export interface OutgoingMessagePart {
+  type: Exclude<MessageType, 'system' | 'mixed'>;
+  text?: string;
+  key?: string;
+  name?: string;
+  mimeType?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  thumbnailKey?: string;
+}
+
 export interface ChatMessageQuote {
   id: string;
   roomId: string;
