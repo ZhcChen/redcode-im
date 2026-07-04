@@ -12,6 +12,8 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail 127 "缺少命令: $1"
 }
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 trim_trailing_slash() {
   local value="$1"
   while [[ "$value" == */ ]]; do
@@ -63,23 +65,7 @@ validate_url() {
   fi
 }
 
-require_cmd xcrun
-
-device_output="$(xcrun devicectl list devices 2>&1 || true)"
-if printf '%s\n' "$device_output" | grep -q 'No devices found'; then
-  printf '%s\n' "$device_output" >&2
-  fail 65 "未检测到 iPhone 真机；APNs token 获取和系统离线通知无法在 Simulator 上完成。"
-fi
-
-if ! printf '%s\n' "$device_output" | grep -Eiq 'iPhone'; then
-  printf '%s\n' "$device_output" >&2
-  fail 65 "devicectl 未列出 iPhone 真机。"
-fi
-
-if [[ -n "${IOS_APP_DEVICE_ID:-}" ]] && ! printf '%s\n' "$device_output" | grep -Fq "$IOS_APP_DEVICE_ID"; then
-  printf '%s\n' "$device_output" >&2
-  fail 65 "指定的 IOS_APP_DEVICE_ID 未连接: $IOS_APP_DEVICE_ID"
-fi
+resolved_device="$("$script_dir/resolve_real_device.sh")"
 
 api_url="${IOS_APP_API_BASE_URL:-${API_BASE_URL:-}}"
 ws_url="${IOS_APP_WS_URL:-${WS_URL:-}}"
@@ -117,5 +103,6 @@ if command -v curl >/dev/null 2>&1; then
 fi
 
 printf '[ios-app] APNs 真机验收预检通过\n'
+printf '[ios-app] DEVICE=%s\n' "$resolved_device"
 printf '[ios-app] API_BASE_URL=%s\n' "$api_url"
 printf '[ios-app] WS_URL=%s\n' "$ws_url"

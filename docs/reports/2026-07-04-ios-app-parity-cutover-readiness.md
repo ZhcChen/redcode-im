@@ -93,4 +93,10 @@ IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 \
 IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws \
 IOS_APNS_PROVIDER_CONFIGURED=1 \
 make ios-app.apns.preflight
+
+IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 \
+IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws \
+IOS_APNS_PROVIDER_CONFIGURED=1 \
+IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> \
+make ios-app.smoke.device
 ```

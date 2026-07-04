@@ -438,7 +438,7 @@ IOS
 - 已接入 `UserNotifications` 本地通知权限和展示；App 前台不弹系统通知，后台/非前台收到 WebSocket 新消息时用本地通知兜底。
 - 已接入 APNs 注册回调和 `PushController.registerAPNsDeviceToken`；服务端现有 `/push/devices` 合约也支持保存 channel。
 - 后端已补 APNs provider 配置、APNs token 投递、Push 日志和本地 mock 验证链路；离线通知会按 `push_devices.channel` 分发到 FCM 或 APNs。
-- iOS App 已支持从 Info.plist 或启动环境读取真机 API/WS 覆盖地址，并新增 `make ios-app.apns.preflight` 统一检查 iPhone 真机、非 loopback API/WS、Admin 真实 APNs provider 配置确认和 API 健康状态。
+- iOS App 已支持从 Info.plist 或启动环境读取真机 API/WS 覆盖地址，并新增 `make ios-app.apns.preflight` 统一检查 iPhone 真机、非 loopback API/WS、Admin 真实 APNs provider 配置确认和 API 健康状态；`make ios-app.smoke.device` 会串联预检、真机构建、安装和启动。
 - 通知点击 payload 会映射为聊天或好友请求目的地；冷启动 payload 由 App delegate 写入 `NotificationNavigationController`，App root 再切换到对应 Tab/会话。
 - 登出会先尝试注销当前 push device，并清理本地通知 token、待导航 payload 和已投递/待发送通知。
 - SwiftPM 已覆盖 Push API、Push controller、通知导航、本地通知调度条件和 device identity 存储。
@@ -475,7 +475,7 @@ IOS
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
 - IOS-11.04 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
 - IOS-11.06 需要 iPhone 真机与 Apple APNs 平台凭据；当前 API mock 已覆盖 APNs/FCM 投递，Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。
-- 真机补验前先运行 `IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight`，确保未误用 `127.0.0.1` 且 API 对 iPhone 可达。
+- 真机补验前先运行 `IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight`，确保未误用 `127.0.0.1` 且 API 对 iPhone 可达；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> ... make ios-app.smoke.device` 完成真机安装启动。
 
 验收：
 
