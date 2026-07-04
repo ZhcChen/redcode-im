@@ -246,7 +246,7 @@ onMounted(() => {
               <button class="mini-action rc-focus-ring" type="button" @click="contactsStore.respondRequest(request.id, 'accept')">
                 同意
               </button>
-              <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="contactsStore.respondRequest(request.id, 'reject')">
+              <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="contactsStore.respondRequest(request.id, 'decline')">
                 拒绝
               </button>
             </div>

@@ -222,7 +222,7 @@ IOS
 - [x] IOS-05.07 实现联系人详情。
 - [x] IOS-05.08 实现打开私聊。
 - [x] IOS-05.09 增加联系人/好友单测。
-- [ ] IOS-05.10 与 H5 做好友流程 smoke。
+- [x] IOS-05.10 与 H5 做好友流程 smoke。
 
 当前说明：
 
@@ -231,7 +231,8 @@ IOS
 - 已补联系人 SwiftData 缓存：`ContactCacheStore`、`SwiftDataContactCacheStore`，支持 load/save/upsert/remove/clear 和 displayName 排序。
 - 已补 `ContactsController`、`AddFriendController`、`ContactsHomeView`、联系人详情和新的朋友页面；App contacts tab 已从占位页切换为真实联系人流程。
 - 已补 Networking/Storage/Features 单测，覆盖好友 API、联系人缓存、缓存优先刷新、好友请求 badge、打开私聊、删除回滚、搜索、发送申请和接受申请。
-- IOS-05.10 仍未完成；H5/iOS 好友互通 live smoke 前需先把 H5 旧拒绝动作 `reject` 对齐为后端合同 `decline`。
+- 已把 H5 旧拒绝动作 `reject` 对齐为后端合同 `decline`，并补充 H5 service contract 测试。
+- 已新增 `FriendAPIClientLiveTests` 并接入 `make ios-app.test.live`；已通过 `make h5-app.test.live` 和 `make ios-app.test.live` 完成 H5/iOS 好友流程 live smoke。
 
 参考：
 

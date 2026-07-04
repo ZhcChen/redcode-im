@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from './auth';
 
-export type FriendRequestAction = 'accept' | 'reject';
+export type FriendRequestAction = 'accept' | 'decline';
 
 export interface FriendRequestInfo {
   id: string;

@@ -144,6 +144,29 @@ describe('h5 app service contracts', () => {
     );
   });
 
+  it('declines friend requests with backend-compatible action', async () => {
+    const fetchMock = vi.fn(async () =>
+      mockJson({
+        id: 'req1',
+        requester_id: 'u2',
+        target_user_id: 'u1',
+        status: 'declined',
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const declined = await friendService.respondFriendRequest('req1', 'decline');
+
+    expect(declined.status).toBe('declined');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8010/friends/requests/req1/respond',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ action: 'decline' }),
+      }),
+    );
+  });
+
   it('loads friends and ensures private chats through friend routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

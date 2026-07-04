@@ -95,9 +95,15 @@
 
 ### IOS-05-C 联调
 
-- [ ] IOS-05-C1 增加 iOS 好友 live smoke。
-- [ ] IOS-05-C2 增加 H5/iOS 好友流程互通 smoke。
-- [ ] IOS-05-C3 更新 `ios-app/docs/full-migration-task-tree.md` IOS-05 状态。
+- [x] IOS-05-C1 增加 iOS 好友 live smoke。
+- [x] IOS-05-C2 增加 H5/iOS 好友流程互通 smoke。
+- [x] IOS-05-C3 更新 `ios-app/docs/full-migration-task-tree.md` IOS-05 状态。
+
+当前结果：
+
+- 已把 H5 好友拒绝动作从旧 `reject` 对齐为后端合同 `decline`。
+- 已补 `FriendAPIClientLiveTests` 并接入 `make ios-app.test.live`。
+- 已通过 `make h5-app.test.live` 和 `make ios-app.test.live`，覆盖 H5/iOS 好友搜索、申请、接受、好友列表、打开私聊和私聊消息可见。
 
 ## P1 阶段：群聊和群管理
 
