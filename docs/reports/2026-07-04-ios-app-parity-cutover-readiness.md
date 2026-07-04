@@ -89,14 +89,12 @@ make ios-app.ui-test
 ```bash
 # iPhone 真机和推送凭据就绪后执行真机通知补验
 # API mock 链路已纳入 make api.test；真机补验需连接 iPhone 并配置真实 APNs 凭据后记录到本报告或后续报告。
-IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 \
-IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws \
 IOS_APNS_PROVIDER_CONFIGURED=1 \
-make ios-app.apns.preflight
+make ios-app.apns.preflight.local
 
-IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 \
-IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws \
 IOS_APNS_PROVIDER_CONFIGURED=1 \
 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> \
-make ios-app.smoke.device
+make ios-app.smoke.device.local
 ```
+
+`.local` 入口每次运行都会重新解析当前本机局域网 IPv4，并生成真机可访问的 API/WS 地址；如自动解析失败，可传 `IOS_APP_LAN_IP=<LAN_IP>` 显式覆盖。
