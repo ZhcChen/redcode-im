@@ -24,6 +24,7 @@ public final class ChatRealtimeController {
     private let webSocket: any ChatWebSocketService
     private let listController: ChatListController
     private let messageCacheStore: any MessageCacheStore
+    private let localNotificationService: (any ChatLocalNotificationService)?
 
     private var eventTask: Task<Void, Never>?
     private var token: String?
@@ -34,11 +35,13 @@ public final class ChatRealtimeController {
     public init(
         webSocket: any ChatWebSocketService,
         listController: ChatListController,
-        messageCacheStore: any MessageCacheStore
+        messageCacheStore: any MessageCacheStore,
+        localNotificationService: (any ChatLocalNotificationService)? = nil
     ) {
         self.webSocket = webSocket
         self.listController = listController
         self.messageCacheStore = messageCacheStore
+        self.localNotificationService = localNotificationService
     }
 
     deinit {
@@ -136,6 +139,8 @@ public final class ChatRealtimeController {
             let message = try ChatMessage(webSocketEvent: event, currentUserID: currentUserID)
             try persistMessage(message)
             try listController.applyIncomingMessage(message, currentUserID: currentUserID)
+            let chat = listController.chats.first { $0.roomID == message.roomID }
+            await localNotificationService?.maybeShowChatMessage(message, chat: chat)
 
             if activeRoomID == message.roomID, let activeDetailController {
                 try activeDetailController.applyIncomingMessage(message)

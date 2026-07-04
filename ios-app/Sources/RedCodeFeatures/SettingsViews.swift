@@ -43,7 +43,6 @@ public struct SettingsHomeView: View {
             Button("取消", role: .cancel) {}
             Button("退出", role: .destructive) {
                 Task {
-                    try? await authController.logout()
                     await onLogout()
                 }
             }

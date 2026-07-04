@@ -90,7 +90,7 @@ SwiftUI App Shell
 - 不迁移 Android 原生。
 - 不删除 Flutter `app/`。
 - 不恢复 Google/Apple 登录。
-- 不在首版接入 APNs/FCM；Push 后置到核心聊天链路稳定后。
+- 不把 Firebase Messaging 作为 iOS 原生默认依赖；Push 先用 APNs 底座、本地通知兜底和后端 `/push/devices` 合约兼容既有 FCM channel。
 - 不在没有明确选型前手写或生成复杂 Xcode 工程配置。
 
 ## Flutter 逻辑迁移原则

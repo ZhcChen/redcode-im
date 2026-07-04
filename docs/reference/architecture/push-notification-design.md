@@ -173,6 +173,13 @@ API 会附带以下 `data`：
 4. Apple Developer：创建 APNs Auth Key（`.p8`），在 Firebase Cloud Messaging 中配置（Key ID / Team ID / Bundle ID 对应）。
 5. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
 
+### 4) iOS（原生 ios-app）
+
+1. Xcode 工程已声明 Push Notifications entitlement：`ios-app/App/RedCodeIM.entitlements`。
+2. App 登录后会请求本地通知权限，并在 APNs 注册成功时调用 `POST /push/devices` 上报 `platform=ios`、`channel=apns`、`device_token=<apns token hex>`。
+3. 后端当前离线投递主链路仍为 FCM；如果生产继续统一走 FCM，需要为 iOS 原生补充 Firebase Messaging token 桥接或服务端 APNs 直连能力。
+4. 未配置离线推送平台时，iOS 原生仍通过 WebSocket 新消息 + Local Notification 在 App 非前台场景提供本地通知兜底。
+
 ## 验证与排障
 
 - 推荐验证顺序：

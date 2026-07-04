@@ -3,6 +3,7 @@ import RedCodeFeatures
 
 struct AppRootView: View {
     let dependencies: AppDependencies
+    @Environment(\.scenePhase) private var scenePhase
     @State private var didRestoreSession = false
 
     private var authController: AuthController {
@@ -33,6 +34,9 @@ struct AppRootView: View {
                 }
             }
         }
+        .onChange(of: scenePhase) { _, nextPhase in
+            dependencies.pushController.updateAppActiveState(nextPhase == .active)
+        }
     }
 }
 
@@ -49,13 +53,14 @@ private struct RestoreSessionView: View {
 
 private struct MainTabView: View {
     let dependencies: AppDependencies
+    @State private var selectedTab: AppTab = .chats
 
     private var authController: AuthController {
         dependencies.authController
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 ChatHomeView(
                     authController: authController,
@@ -71,12 +76,14 @@ private struct MainTabView: View {
                     emojiCache: dependencies.mediaEmojiCache,
                     chatPreferencesStore: dependencies.chatBackgroundPreferences,
                     makeMessageSearchController: dependencies.makeMessageSearchController,
-                    makeEmojiStickerController: dependencies.makeEmojiStickerController
+                    makeEmojiStickerController: dependencies.makeEmojiStickerController,
+                    notificationNavigation: dependencies.pushController.navigationController
                 )
             }
             .tabItem {
                 Label("聊天", systemImage: "message")
             }
+            .tag(AppTab.chats)
 
             NavigationStack {
                 ContactsHomeView(
@@ -94,6 +101,7 @@ private struct MainTabView: View {
             .tabItem {
                 Label("联系人", systemImage: "person.2")
             }
+            .tag(AppTab.contacts)
 
             NavigationStack {
                 SettingsHomeView(
@@ -101,11 +109,29 @@ private struct MainTabView: View {
                     settingsController: dependencies.makeSettingsController(),
                     makeChatSettingsController: dependencies.makeChatSettingsController,
                     makeEmojiStickerController: dependencies.makeEmojiStickerController,
-                    onLogout: dependencies.clearLocalStateAfterLogout
+                    onLogout: dependencies.logoutAndClearLocalState
                 )
             }
             .tabItem {
                 Label("设置", systemImage: "gearshape")
+            }
+            .tag(AppTab.settings)
+        }
+        .task {
+            await dependencies.initializePushForAuthenticatedSession()
+        }
+        .onChange(of: dependencies.pushController.navigationController.pendingDestination?.id) { _, destinationID in
+            guard destinationID != nil else {
+                return
+            }
+            switch dependencies.pushController.navigationController.pendingDestination {
+            case .friendRequests:
+                selectedTab = .contacts
+                _ = dependencies.pushController.navigationController.consumePendingDestination()
+            case .chat:
+                selectedTab = .chats
+            case nil:
+                break
             }
         }
     }

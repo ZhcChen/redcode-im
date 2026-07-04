@@ -407,6 +407,41 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(reset, .default)
     }
 
+    @MainActor
+    func testUserDefaultsPushDeviceIdentityStoreKeepsDeviceIDAndClearsRegisteredToken() throws {
+        let suiteName = "redcode-ios-push-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+        let store = UserDefaultsPushDeviceIdentityStore(defaults: defaults, keyPrefix: "push-tests")
+
+        let firstID = try store.getOrCreateDeviceID()
+        let secondID = try store.getOrCreateDeviceID()
+        try store.saveRegisteredToken(" fcm-token ", channel: " FCM ")
+
+        let saved = try XCTUnwrap(try store.loadIdentity())
+        XCTAssertFalse(firstID.isEmpty)
+        XCTAssertEqual(secondID, firstID)
+        XCTAssertEqual(saved.deviceID, firstID)
+        XCTAssertEqual(saved.deviceToken, "fcm-token")
+        XCTAssertEqual(saved.channel, "fcm")
+        XCTAssertNotNil(saved.updatedAt)
+
+        try store.clearRegisteredToken()
+
+        let clearedToken = try XCTUnwrap(try store.loadIdentity())
+        XCTAssertEqual(clearedToken.deviceID, firstID)
+        XCTAssertNil(clearedToken.deviceToken)
+        XCTAssertNil(clearedToken.channel)
+        XCTAssertNil(clearedToken.updatedAt)
+
+        try store.clearAll()
+
+        XCTAssertNil(try store.loadIdentity())
+    }
+
     func testAttachmentFileCacheSavesResolvesAndRemovesData() async throws {
         let rootURL = try makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: rootURL) }

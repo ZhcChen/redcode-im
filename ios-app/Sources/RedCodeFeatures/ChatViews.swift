@@ -12,6 +12,24 @@ import AppKit
 
 private let defaultReactionKeys = ["👍", "❤️", "😂", "🎉", "😮", "😢"]
 
+private struct NotificationChatRoute: Identifiable, Hashable {
+    let roomID: String
+    let displayName: String
+    let roomType: ChatType
+
+    var id: String { roomID }
+
+    init(chat: ChatSummary) {
+        roomID = chat.roomID
+        displayName = chat.displayName
+        roomType = chat.roomType
+    }
+
+    var chatSummary: ChatSummary {
+        ChatSummary(roomID: roomID, displayName: displayName, roomType: roomType)
+    }
+}
+
 public struct ChatHomeView: View {
     private let authController: AuthController
     private let realtimeController: ChatRealtimeController
@@ -26,8 +44,10 @@ public struct ChatHomeView: View {
     private let chatPreferencesStore: (any ChatPreferencesStore)?
     private let makeMessageSearchController: (@MainActor () -> MessageSearchController)?
     private let makeEmojiStickerController: (@MainActor () -> EmojiStickerController)?
+    private let notificationNavigation: NotificationNavigationController?
 
     @State private var listController: ChatListController
+    @State private var notificationChatRoute: NotificationChatRoute?
 
     public init(
         authController: AuthController,
@@ -43,7 +63,8 @@ public struct ChatHomeView: View {
         emojiCache: EmojiFileCache? = nil,
         chatPreferencesStore: (any ChatPreferencesStore)? = nil,
         makeMessageSearchController: (@MainActor () -> MessageSearchController)? = nil,
-        makeEmojiStickerController: (@MainActor () -> EmojiStickerController)? = nil
+        makeEmojiStickerController: (@MainActor () -> EmojiStickerController)? = nil,
+        notificationNavigation: NotificationNavigationController? = nil
     ) {
         self.authController = authController
         self.realtimeController = realtimeController
@@ -58,6 +79,7 @@ public struct ChatHomeView: View {
         self.chatPreferencesStore = chatPreferencesStore
         self.makeMessageSearchController = makeMessageSearchController
         self.makeEmojiStickerController = makeEmojiStickerController
+        self.notificationNavigation = notificationNavigation
         _listController = State(initialValue: listController)
     }
 
@@ -149,6 +171,26 @@ public struct ChatHomeView: View {
         .task {
             await loadInitialChats()
         }
+        .onChange(of: notificationNavigation?.pendingDestination?.id) { _, _ in
+            handlePendingNotificationDestination()
+        }
+        .navigationDestination(item: $notificationChatRoute) { route in
+            ChatDetailView(
+                authController: authController,
+                chat: route.chatSummary,
+                realtimeController: realtimeController,
+                controller: makeDetailController(),
+                chatListController: listController,
+                makeGroupManagementController: makeGroupManagementController,
+                contactsController: contactsController,
+                mediaAPI: mediaAPI,
+                emojiAPI: emojiAPI,
+                attachmentCache: attachmentCache,
+                chatPreferencesStore: chatPreferencesStore,
+                makeMessageSearchController: makeMessageSearchController,
+                makeEmojiStickerController: makeEmojiStickerController
+            )
+        }
     }
 
     private func loadInitialChats() async {
@@ -159,6 +201,20 @@ public struct ChatHomeView: View {
         }
         await refresh()
         await startRealtime()
+        handlePendingNotificationDestination()
+    }
+
+    private func handlePendingNotificationDestination() {
+        guard let destination = notificationNavigation?.pendingDestination else {
+            return
+        }
+        guard case .chat(let roomID, let roomType, let chatName, _) = destination else {
+            return
+        }
+        _ = notificationNavigation?.consumePendingDestination()
+        let chat = listController.chats.first { $0.roomID == roomID }
+            ?? ChatSummary(roomID: roomID, displayName: chatName, roomType: roomType)
+        notificationChatRoute = NotificationChatRoute(chat: chat)
     }
 
     private func refresh() async {

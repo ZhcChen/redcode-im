@@ -227,16 +227,27 @@
 
 ## P5 阶段：Push、本地通知和通知导航
 
-- [ ] IOS-10-A1 本地通知权限请求。
-- [ ] IOS-10-A2 本地通知展示。
-- [ ] IOS-10-A3 APNs token 注册。
-- [ ] IOS-10-A4 token 上报后端。
-- [ ] IOS-10-A5 前台通知处理。
-- [ ] IOS-10-A6 后台通知点击进入会话。
-- [ ] IOS-10-A7 冷启动通知导航。
-- [ ] IOS-10-A8 登出后通知态清理。
-- [ ] IOS-10-B1 如后端只支持 FCM，设计兼容桥接。
+- [x] IOS-10-A1 本地通知权限请求。
+- [x] IOS-10-A2 本地通知展示。
+- [x] IOS-10-A3 APNs token 注册。
+- [x] IOS-10-A4 token 上报后端。
+- [x] IOS-10-A5 前台通知处理。
+- [x] IOS-10-A6 后台通知点击进入会话。
+- [x] IOS-10-A7 冷启动通知导航。
+- [x] IOS-10-A8 登出后通知态清理。
+- [x] IOS-10-B1 如后端只支持 FCM，设计兼容桥接。
 - [ ] IOS-10-C1 iPhone 真机验收。
+
+当前结果：
+
+- 已新增 Push 网络层：`PushAPIEndpoint`、`PushModels`、`PushAPIClient`，覆盖 `POST /push/devices` 与 `DELETE /push/devices/{device_id}`。
+- 已新增 `UserDefaultsPushDeviceIdentityStore`，稳定保存 iOS device id、已注册 token、channel 与更新时间。
+- 已新增 `PushController`、`LocalNotificationScheduler`、`NotificationNavigationController` 与通知 payload/destination 映射。
+- WebSocket 新消息在 App 非前台且非自己消息时触发本地通知兜底；前台保持静默。
+- SwiftUI App 已接入通知权限、APNs token 注册回调、remote notification payload 处理、Tab 导航切换、聊天通知深链与登出通知态清理。
+- 后端当前离线发送主链路仍是 FCM；iOS 原生保留 APNs token 注册底座，同时默认按既有 `/push/devices` 合约支持 `fcm/apns` channel，真机 FCM/APNs 投递补验放入 IOS-10-C1 / IOS-11-A6。
+- 已补 `PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 覆盖。
+- 已通过 `swift test`。
 
 ## P6 阶段：全量验收与切换准备
 
@@ -262,4 +273,4 @@
 说明：
 
 - X-04 / X-05 当前依赖本机 Xcode SDK 与 iOS Simulator runtime 匹配；现状为 Xcode 26.6 SDK 26.5，但本机 runtime 只有 26.3/26.4。
-- X-03 已在 IOS-09 设置域收口：退出登录会清理 Token、WS、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存和聊天背景偏好；通知态清理仍由 IOS-10 继续补齐。
+- X-03 已在 IOS-09 设置域收口并由 IOS-10 补齐通知态：退出登录会清理 Token、WS、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存、聊天背景偏好和当前用户通知注册态。

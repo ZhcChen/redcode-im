@@ -5,6 +5,11 @@ import RedCodeNetworking
 import RedCodeStorage
 import SwiftData
 
+#if canImport(UIKit)
+import UIKit
+import UserNotifications
+#endif
+
 @MainActor
 final class AppDependencies {
     let authController: AuthController
@@ -12,6 +17,7 @@ final class AppDependencies {
     let chatRealtimeController: ChatRealtimeController
     let contactsController: ContactsController
     let addFriendController: AddFriendController
+    let pushController: PushController
 
     private let environment: RedCodeEnvironment
     private let modelContainer: ModelContainer
@@ -19,6 +25,7 @@ final class AppDependencies {
     private let mediaAPIService: any MediaAPIService
     private let emojiAPIService: any EmojiAPIService
     private let settingsAPIService: any SettingsAPIService
+    private let pushAPIService: any PushAPIService
     private let friendAPIService: any FriendAPIService
     private let roomAPIService: any RoomAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
@@ -47,6 +54,7 @@ final class AppDependencies {
             mediaAPIService: mediaAPIService,
             emojiAPIService: EmojiAPIClient(environment: environment),
             settingsAPIService: SettingsAPIClient(environment: environment),
+            pushAPIService: PushAPIClient(environment: environment),
             friendAPIService: FriendAPIClient(environment: environment),
             roomAPIService: RoomAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
@@ -61,6 +69,7 @@ final class AppDependencies {
         mediaAPIService: (any MediaAPIService)? = nil,
         emojiAPIService: (any EmojiAPIService)? = nil,
         settingsAPIService: (any SettingsAPIService)? = nil,
+        pushAPIService: (any PushAPIService)? = nil,
         friendAPIService: (any FriendAPIService)? = nil,
         roomAPIService: (any RoomAPIService)? = nil,
         chatPreferencesStore: (any ChatPreferencesStore)? = nil,
@@ -73,6 +82,7 @@ final class AppDependencies {
         self.mediaAPIService = mediaAPIService ?? MediaAPIClient(environment: environment)
         self.emojiAPIService = emojiAPIService ?? EmojiAPIClient(environment: environment)
         self.settingsAPIService = settingsAPIService ?? SettingsAPIClient(environment: environment)
+        self.pushAPIService = pushAPIService ?? PushAPIClient(environment: environment)
         self.chatPreferencesStore = chatPreferencesStore ?? UserDefaultsChatPreferencesStore()
         self.appConfigStore = SwiftDataAppConfigStore(container: modelContainer)
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
@@ -91,10 +101,17 @@ final class AppDependencies {
             cacheStore: SwiftDataContactCacheStore(container: modelContainer)
         )
         self.addFriendController = AddFriendController(api: resolvedFriendAPIService)
+        let pushController = PushController(
+            authController: authController,
+            api: self.pushAPIService,
+            identityStore: UserDefaultsPushDeviceIdentityStore()
+        )
+        self.pushController = pushController
         self.chatRealtimeController = ChatRealtimeController(
             webSocket: webSocketService,
             listController: chatListController,
-            messageCacheStore: messageCacheStore
+            messageCacheStore: messageCacheStore,
+            localNotificationService: pushController
         )
     }
 
@@ -183,6 +200,7 @@ final class AppDependencies {
 
     func clearLocalStateAfterLogout() async {
         await chatRealtimeController.stop()
+        await pushController.clearNotificationState()
         try? SwiftDataChatSummaryCacheStore(container: modelContainer).clearAll()
         try? messageCacheStore.clearAll()
         try? SwiftDataContactCacheStore(container: modelContainer).clearAll()
@@ -193,16 +211,127 @@ final class AppDependencies {
         try? await emojiCache.clearAll()
         try? await chatPreferencesStore.resetBackground()
     }
+
+    func logoutAndClearLocalState() async {
+        await pushController.unregisterCurrentDevice()
+        try? await authController.logout()
+        await clearLocalStateAfterLogout()
+    }
+
+    func initializePushForAuthenticatedSession() async {
+        pushController.restoreStoredIdentity()
+        guard authController.state.isAuthenticated else {
+            return
+        }
+        RedCodePushAppDelegate.install(pushController: pushController)
+        let granted = await pushController.requestLocalNotificationPermission()
+        guard granted else {
+            return
+        }
+        #if canImport(UIKit)
+        UIApplication.shared.registerForRemoteNotifications()
+        #endif
+    }
 }
 
 @MainActor
 @main
 struct RedCodeIOSApp: App {
     @State private var dependencies = AppDependencies.current()
+    #if canImport(UIKit)
+    @UIApplicationDelegateAdaptor(RedCodePushAppDelegate.self) private var pushAppDelegate
+    #endif
 
     var body: some Scene {
         WindowGroup {
             AppRootView(dependencies: dependencies)
+                .onAppear {
+                    RedCodePushAppDelegate.install(pushController: dependencies.pushController)
+                }
         }
     }
 }
+
+#if canImport(UIKit)
+@MainActor
+final class RedCodePushAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private static weak var installedPushController: PushController?
+    private static var pendingPayloads: [PushNotificationPayload] = []
+
+    static func install(pushController: PushController) {
+        installedPushController = pushController
+        pendingPayloads.forEach { pushController.handleNotificationPayload($0) }
+        pendingPayloads.removeAll()
+    }
+
+    private static func deliver(_ payload: PushNotificationPayload) {
+        if let installedPushController {
+            installedPushController.handleNotificationPayload(payload)
+        } else {
+            pendingPayloads.append(payload)
+        }
+    }
+
+    nonisolated func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    nonisolated func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        let tokenData = Data(deviceToken)
+        Task { @MainActor [tokenData] in
+            try? await Self.installedPushController?.registerAPNsDeviceToken(tokenData)
+        }
+    }
+
+    nonisolated func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        let message = error.localizedDescription
+        Task { @MainActor [message] in
+            Self.installedPushController?.recordRemoteRegistrationFailure(message)
+        }
+    }
+
+    nonisolated func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        let payload = PushNotificationPayload(userInfo: userInfo)
+        Task { @MainActor [payload] in
+            Self.deliver(payload)
+        }
+        completionHandler(.newData)
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        let payload = PushNotificationPayload(userInfo: response.notification.request.content.userInfo)
+        await MainActor.run {
+            Self.deliver(payload)
+        }
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        []
+    }
+}
+#else
+@MainActor
+enum RedCodePushAppDelegate {
+    static func install(pushController: PushController) {}
+}
+#endif

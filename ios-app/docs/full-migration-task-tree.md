@@ -102,7 +102,7 @@ IOS
 - 已建立账号规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
 - 已建立 `APIClient`、`AuthAPIClient`、`AuthController`、`KeychainKeyValueStore`，并补充 SwiftPM 单测。
 - `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；SwiftUI App target 已接入 SwiftPM 本地模块、Keychain-backed session store 和认证 UI。
-- IOS-02.09 已在 IOS-09 设置域收口：退出登录会清理认证 session、WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存和聊天背景偏好；通知态清理由 IOS-10 补齐。
+- IOS-02.09 已在 IOS-09 设置域收口，并由 IOS-10 补齐通知态清理：退出登录会清理认证 session、WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存、聊天背景偏好和当前用户通知注册态。
 - 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；UI test 尚未完成。
 - 已通过 `RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 对本机 Compose API 完成注册、登录、`/auth/me` live smoke。
 
@@ -420,16 +420,25 @@ IOS
 
 ## IOS-10 Push、本地通知和通知导航
 
-- [ ] IOS-10.01 实现本地通知权限请求。
-- [ ] IOS-10.02 实现本地通知展示。
-- [ ] IOS-10.03 实现 APNs token 注册。
-- [ ] IOS-10.04 实现 token 上报后端。
-- [ ] IOS-10.05 实现前台通知处理。
-- [ ] IOS-10.06 实现后台通知点击进入会话。
-- [ ] IOS-10.07 实现冷启动通知导航。
-- [ ] IOS-10.08 实现登出后通知态清理。
-- [ ] IOS-10.09 如后端只支持 FCM，单独设计兼容桥接。
+- [x] IOS-10.01 实现本地通知权限请求。
+- [x] IOS-10.02 实现本地通知展示。
+- [x] IOS-10.03 实现 APNs token 注册。
+- [x] IOS-10.04 实现 token 上报后端。
+- [x] IOS-10.05 实现前台通知处理。
+- [x] IOS-10.06 实现后台通知点击进入会话。
+- [x] IOS-10.07 实现冷启动通知导航。
+- [x] IOS-10.08 实现登出后通知态清理。
+- [x] IOS-10.09 如后端只支持 FCM，单独设计兼容桥接。
 - [ ] IOS-10.10 补 iPhone 真机验收。
+
+当前说明：
+
+- 已接入 `UserNotifications` 本地通知权限和展示；App 前台不弹系统通知，后台/非前台收到 WebSocket 新消息时用本地通知兜底。
+- 已接入 APNs 注册回调和 `PushController.registerAPNsDeviceToken`；服务端现有 `/push/devices` 合约也支持保存 channel。
+- 后端当前离线系统通知主链路为 FCM；iOS 原生保留 APNs 直连底座，同时兼容既有 FCM channel，真实投递需要 iPhone 真机和平台凭据补验。
+- 通知点击 payload 会映射为聊天或好友请求目的地；冷启动 payload 由 App delegate 写入 `NotificationNavigationController`，App root 再切换到对应 Tab/会话。
+- 登出会先尝试注销当前 push device，并清理本地通知 token、待导航 payload 和已投递/待发送通知。
+- SwiftPM 已覆盖 Push API、Push controller、通知导航、本地通知调度条件和 device identity 存储。
 
 参考：
 
@@ -439,8 +448,8 @@ IOS
 
 验收：
 
-- 前台、后台、冷启动通知都能进入正确页面。
-- 登出后不再保留当前用户通知态。
+- Simulator/SwiftPM 已覆盖 payload 导航、后台本地通知兜底和登出通知态清理。
+- iPhone 真机需补验 APNs/FCM token 获取、平台投递和点击进入正确页面。
 
 ## IOS-11 全量 parity 验收与切换准备
 
