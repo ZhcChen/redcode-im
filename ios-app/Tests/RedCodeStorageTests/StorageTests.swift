@@ -145,6 +145,54 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testSwiftDataGroupCacheStoreStoresUpsertsRemovesAndClearsGroups() throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let store = SwiftDataGroupCacheStore(container: container)
+        let baseDate = Date(timeIntervalSince1970: 1_000)
+
+        try store.saveGroups([
+            RedCodeGroupDraft(
+                roomID: "group-1",
+                name: "Old Group",
+                ownerID: "owner-1",
+                currentUserRole: "owner",
+                memberCount: 2,
+                updatedAt: baseDate
+            ),
+            RedCodeGroupDraft(roomID: "  ", name: "ignored"),
+        ])
+
+        var groups = try store.loadGroups()
+        XCTAssertEqual(groups.map(\.roomID), ["group-1"])
+        XCTAssertEqual(groups.first?.memberCount, 2)
+
+        try store.upsert(
+            RedCodeGroupDraft(
+                roomID: "group-1",
+                name: "New Group",
+                ownerID: "owner-1",
+                currentUserRole: "admin",
+                memberCount: 4,
+                avatarObjectKey: "rooms/group-1/avatar.png",
+                updatedAt: baseDate.addingTimeInterval(10)
+            )
+        )
+
+        groups = try store.loadGroups()
+        XCTAssertEqual(groups.first?.name, "New Group")
+        XCTAssertEqual(groups.first?.currentUserRole, "admin")
+        XCTAssertEqual(groups.first?.memberCount, 4)
+        XCTAssertEqual(groups.first?.avatarObjectKey, "rooms/group-1/avatar.png")
+
+        try store.remove(roomID: " group-1 ")
+        XCTAssertTrue(try store.loadGroups().isEmpty)
+
+        try store.upsert(RedCodeGroupDraft(roomID: "group-2", name: "Group 2"))
+        try store.clearAll()
+        XCTAssertTrue(try store.loadGroups().isEmpty)
+    }
+
+    @MainActor
     func testSwiftDataSchemaStoresCoreCacheRecords() throws {
         let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
         let context = ModelContext(container)

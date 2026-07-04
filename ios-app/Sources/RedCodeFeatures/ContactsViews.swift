@@ -7,6 +7,7 @@ public struct ContactsHomeView: View {
     private let chatListController: ChatListController
     private let realtimeController: ChatRealtimeController
     private let makeDetailController: @MainActor () -> ChatDetailController
+    private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
 
     @State private var contactsController: ContactsController
     @State private var addFriendController: AddFriendController
@@ -18,12 +19,14 @@ public struct ContactsHomeView: View {
         addFriendController: AddFriendController,
         chatListController: ChatListController,
         realtimeController: ChatRealtimeController,
-        makeDetailController: @escaping @MainActor () -> ChatDetailController
+        makeDetailController: @escaping @MainActor () -> ChatDetailController,
+        makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil
     ) {
         self.authController = authController
         self.chatListController = chatListController
         self.realtimeController = realtimeController
         self.makeDetailController = makeDetailController
+        self.makeGroupManagementController = makeGroupManagementController
         _contactsController = State(initialValue: contactsController)
         _addFriendController = State(initialValue: addFriendController)
     }
@@ -58,6 +61,30 @@ public struct ContactsHomeView: View {
                     }
                 }
                 .accessibilityIdentifier("contacts.new-friends")
+
+                if let makeGroupManagementController {
+                    NavigationLink {
+                        CreateGroupView(
+                            authController: authController,
+                            contactsController: contactsController,
+                            groupController: makeGroupManagementController(),
+                            onCreated: { chat in
+                                await openCreatedGroup(chat)
+                            }
+                        )
+                    } label: {
+                        HStack(spacing: 12) {
+                            ContactIcon(systemImage: "person.3.fill", tint: .green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("发起群聊")
+                                Text("选择联系人创建群组")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("contacts.create-group")
+                }
             }
 
             Section("联系人") {
@@ -121,7 +148,10 @@ public struct ContactsHomeView: View {
                     authController: authController,
                     chat: activeChat,
                     realtimeController: realtimeController,
-                    controller: makeDetailController()
+                    controller: makeDetailController(),
+                    chatListController: chatListController,
+                    makeGroupManagementController: makeGroupManagementController,
+                    contactsController: contactsController
                 )
             }
         }
@@ -172,6 +202,16 @@ public struct ContactsHomeView: View {
             activeChat = chat
         } catch {
             // 控制器或系统弹层会保留当前页面，错误后续统一收口展示。
+        }
+    }
+
+    private func openCreatedGroup(_ chat: ChatSummary) async {
+        do {
+            try chatListController.upsertChatSummary(chat)
+            await realtimeController.syncRooms(chatListController.chats.map(\.roomID), pruneMissing: false)
+            activeChat = chat
+        } catch {
+            // 会话缓存失败不影响群已创建；后续刷新会恢复。
         }
     }
 

@@ -7,6 +7,8 @@ public struct ChatHomeView: View {
     private let authController: AuthController
     private let realtimeController: ChatRealtimeController
     private let makeDetailController: @MainActor () -> ChatDetailController
+    private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
+    private let contactsController: ContactsController?
 
     @State private var listController: ChatListController
 
@@ -14,11 +16,15 @@ public struct ChatHomeView: View {
         authController: AuthController,
         listController: ChatListController,
         realtimeController: ChatRealtimeController,
-        makeDetailController: @escaping @MainActor () -> ChatDetailController
+        makeDetailController: @escaping @MainActor () -> ChatDetailController,
+        makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
+        contactsController: ContactsController? = nil
     ) {
         self.authController = authController
         self.realtimeController = realtimeController
         self.makeDetailController = makeDetailController
+        self.makeGroupManagementController = makeGroupManagementController
+        self.contactsController = contactsController
         _listController = State(initialValue: listController)
     }
 
@@ -40,7 +46,10 @@ public struct ChatHomeView: View {
                                 authController: authController,
                                 chat: chat,
                                 realtimeController: realtimeController,
-                                controller: makeDetailController()
+                                controller: makeDetailController(),
+                                chatListController: listController,
+                                makeGroupManagementController: makeGroupManagementController,
+                                contactsController: contactsController
                             )
                         } label: {
                             ChatSummaryRow(chat: chat)
@@ -186,6 +195,9 @@ struct ChatDetailView: View {
     private let authController: AuthController
     private let chat: ChatSummary
     private let realtimeController: ChatRealtimeController
+    private let chatListController: ChatListController?
+    private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
+    private let contactsController: ContactsController?
 
     @State private var controller: ChatDetailController
     @State private var draftText = ""
@@ -194,11 +206,17 @@ struct ChatDetailView: View {
         authController: AuthController,
         chat: ChatSummary,
         realtimeController: ChatRealtimeController,
-        controller: ChatDetailController
+        controller: ChatDetailController,
+        chatListController: ChatListController? = nil,
+        makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
+        contactsController: ContactsController? = nil
     ) {
         self.authController = authController
         self.chat = chat
         self.realtimeController = realtimeController
+        self.chatListController = chatListController
+        self.makeGroupManagementController = makeGroupManagementController
+        self.contactsController = contactsController
         _controller = State(initialValue: controller)
     }
 
@@ -210,6 +228,27 @@ struct ChatDetailView: View {
         }
         .accessibilityIdentifier("chat.detail")
         .navigationTitle(chat.displayName)
+        .toolbar {
+            if chat.roomType == .group,
+               let chatListController,
+               let makeGroupManagementController {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        GroupSettingsView(
+                            authController: authController,
+                            chat: chat,
+                            chatListController: chatListController,
+                            realtimeController: realtimeController,
+                            contactsController: contactsController,
+                            controller: makeGroupManagementController()
+                        )
+                    } label: {
+                        Image(systemName: "person.3.sequence.fill")
+                    }
+                    .accessibilityIdentifier("chat.group-settings")
+                }
+            }
+        }
         .overlay {
             if controller.isLoading && controller.messages.isEmpty {
                 ProgressView("正在加载消息")

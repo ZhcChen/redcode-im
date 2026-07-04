@@ -248,20 +248,30 @@ IOS
 
 ## IOS-06 群聊和群管理全量
 
-- [ ] IOS-06.01 实现选择联系人建群。
-- [ ] IOS-06.02 实现群设置首页。
-- [ ] IOS-06.03 实现群成员列表。
-- [ ] IOS-06.04 实现群改名。
-- [ ] IOS-06.05 实现群置顶和免打扰。
-- [ ] IOS-06.06 实现退出/解散群聊。
-- [ ] IOS-06.07 实现管理员管理。
-- [ ] IOS-06.08 实现禁言管理。
-- [ ] IOS-06.09 实现入群申请。
-- [ ] IOS-06.10 实现群规则。
-- [ ] IOS-06.11 实现群操作日志。
-- [ ] IOS-06.12 实现群内置顶消息。
-- [ ] IOS-06.13 增加群权限测试。
-- [ ] IOS-06.14 与 H5 做群管理 smoke。
+- [x] IOS-06.01 实现选择联系人建群。
+- [x] IOS-06.02 实现群设置首页。
+- [x] IOS-06.03 实现群成员列表。
+- [x] IOS-06.04 实现群改名。
+- [x] IOS-06.05 实现群置顶和免打扰。
+- [x] IOS-06.06 实现退出/解散群聊。
+- [x] IOS-06.07 实现管理员管理。
+- [x] IOS-06.08 实现禁言管理。
+- [x] IOS-06.09 实现入群申请。
+- [x] IOS-06.10 实现群规则。
+- [x] IOS-06.11 实现群操作日志。
+- [x] IOS-06.12 实现群内置顶消息。
+- [x] IOS-06.13 增加群权限测试。
+- [x] IOS-06.14 与 H5 做群管理 smoke。
+
+当前说明：
+
+- 群网络层已扩展 `RoomAPIEndpoint`、`RoomModels`、`RoomAPIClient`，覆盖 `/rooms`、成员管理、群设置、置顶/免打扰、退出/解散、管理员、禁言、入群申请、群规则、操作日志和群详情。
+- 群缓存已补 `SwiftDataGroupCacheStore`，复用 SwiftData 本地 schema 支持群资料缓存优先展示和本地状态收口。
+- Feature 层已补 `GroupManagementController`，覆盖建群、加载群详情、成员排序、权限判断、改名、添加/移除成员、置顶/免打扰、退出/解散、管理员、禁言、全员禁言、群规则、入群申请审批和操作日志。
+- SwiftUI 已接入联系人页“发起群聊”、聊天详情群设置入口、群设置首页、成员列表、添加成员、管理员管理、禁言管理、入群申请、群规则和操作日志页面。
+- 群内消息置顶沿用 IOS-04 聊天详情上下文菜单与消息置顶 API；群管理阶段补齐了群级设置入口与 live smoke 合同。
+- 已补 `RoomAPIClientTests`、`GroupManagementControllerTests`、`StorageTests` 群缓存覆盖，并新增 `RoomAPIClientLiveTests` 接入 `make ios-app.test.live`。
+- 已通过 `swift test`、`make ios-app.check`、`make h5-app.test.live` 与 `make ios-app.test.live`。
 
 参考：
 

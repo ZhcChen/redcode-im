@@ -101,12 +101,14 @@ make ios-app.smoke.simulator
 - `ios-app` 默认使用本机 iOS Simulator 做开发、smoke、UI test 与 H5/API 联调验收。
 - Simulator 联调 API/WS 使用 `127.0.0.1`。
 - `ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
-- `ios-app.test.live` 需要本机 Compose API 已启动，覆盖 iOS 认证、WebSocket 和聊天互发 live smoke。
+- `ios-app.test.live` 需要本机 Compose API 已启动，覆盖 iOS 认证、WebSocket、聊天互发、好友私聊和群管理 live smoke。
 - `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证聊天 `/chats`、建群、文本互发和已读 live smoke。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 swift test --filter FriendAPIClientLiveTests` 验证好友搜索、申请、接受、好友列表、打开私聊和私聊消息 live smoke。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证群管理 live smoke。
 
 ### Admin 自测
 ```bash

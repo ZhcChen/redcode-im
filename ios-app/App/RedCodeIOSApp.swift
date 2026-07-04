@@ -17,6 +17,7 @@ final class AppDependencies {
     private let modelContainer: ModelContainer
     private let chatAPIService: any ChatAPIService
     private let friendAPIService: any FriendAPIService
+    private let roomAPIService: any RoomAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
 
     convenience init(
@@ -34,6 +35,7 @@ final class AppDependencies {
             authController: authController,
             chatAPIService: chatAPIService,
             friendAPIService: FriendAPIClient(environment: environment),
+            roomAPIService: RoomAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
         )
     }
@@ -44,6 +46,7 @@ final class AppDependencies {
         authController: AuthController,
         chatAPIService: any ChatAPIService,
         friendAPIService: (any FriendAPIService)? = nil,
+        roomAPIService: (any RoomAPIService)? = nil,
         webSocketService: any ChatWebSocketService
     ) {
         self.environment = environment
@@ -52,6 +55,7 @@ final class AppDependencies {
         self.chatAPIService = chatAPIService
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
         self.friendAPIService = resolvedFriendAPIService
+        self.roomAPIService = roomAPIService ?? RoomAPIClient(environment: environment)
         let chatListController = ChatListController(
             api: chatAPIService,
             cacheStore: SwiftDataChatSummaryCacheStore(container: modelContainer)
@@ -92,6 +96,13 @@ final class AppDependencies {
         ChatDetailController(
             api: chatAPIService,
             messageCacheStore: messageCacheStore
+        )
+    }
+
+    func makeGroupManagementController() -> GroupManagementController {
+        GroupManagementController(
+            api: roomAPIService,
+            cacheStore: SwiftDataGroupCacheStore(container: modelContainer)
         )
     }
 }

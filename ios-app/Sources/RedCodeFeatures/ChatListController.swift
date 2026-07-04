@@ -47,6 +47,24 @@ public final class ChatListController {
         try cacheStore.upsert(chat.cacheDraft)
     }
 
+    public func updateLocalChat(
+        roomID: String,
+        displayName: String? = nil,
+        isPinned: Bool? = nil,
+        isMuted: Bool? = nil
+    ) throws {
+        guard let existing = chats.first(where: { $0.roomID == roomID }) else {
+            return
+        }
+        let updated = existing.replacingDisplayAndFlags(
+            displayName: displayName,
+            isPinned: isPinned,
+            isMuted: isMuted
+        )
+        chats = ([updated] + chats.filter { $0.roomID != roomID }).sortedForChatList()
+        try cacheStore.upsert(updated.cacheDraft)
+    }
+
     public func deleteChat(roomID: String, token: String) async throws {
         let previous = chats
         chats = chats.filter { $0.roomID != roomID }
@@ -190,6 +208,31 @@ private extension ChatSummary {
             notificationSettings: notificationSettings,
             isMuted: isMuted,
             isPinned: isPinned,
+            lastMessageID: lastMessageID,
+            lastMessage: lastMessage,
+            lastMessagePreview: lastMessagePreview,
+            lastMessageAt: lastMessageAt,
+            friendUserID: friendUserID
+        )
+    }
+
+    func replacingDisplayAndFlags(
+        displayName: String?,
+        isPinned: Bool?,
+        isMuted: Bool?
+    ) -> ChatSummary {
+        ChatSummary(
+            roomID: roomID,
+            displayName: displayName ?? self.displayName,
+            roomType: roomType,
+            avatarURL: avatarURL,
+            avatarObjectKey: avatarObjectKey,
+            unreadCount: unreadCount,
+            lastReadMessageID: lastReadMessageID,
+            lastReadAt: lastReadAt,
+            notificationSettings: isMuted.map { $0 ? 2 : 0 } ?? notificationSettings,
+            isMuted: isMuted ?? self.isMuted,
+            isPinned: isPinned ?? self.isPinned,
             lastMessageID: lastMessageID,
             lastMessage: lastMessage,
             lastMessagePreview: lastMessagePreview,

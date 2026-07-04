@@ -109,26 +109,34 @@
 
 ### IOS-06-A 群基础与设置
 
-- [ ] IOS-06-A1 选择联系人建群。
-- [ ] IOS-06-A2 群设置首页。
-- [ ] IOS-06-A3 群成员列表。
-- [ ] IOS-06-A4 群改名。
-- [ ] IOS-06-A5 群置顶和免打扰。
-- [ ] IOS-06-A6 退出/解散群聊。
+- [x] IOS-06-A1 选择联系人建群。
+- [x] IOS-06-A2 群设置首页。
+- [x] IOS-06-A3 群成员列表。
+- [x] IOS-06-A4 群改名。
+- [x] IOS-06-A5 群置顶和免打扰。
+- [x] IOS-06-A6 退出/解散群聊。
 
 ### IOS-06-B 群权限与管理
 
-- [ ] IOS-06-B1 管理员管理。
-- [ ] IOS-06-B2 禁言管理。
-- [ ] IOS-06-B3 入群申请。
-- [ ] IOS-06-B4 群规则。
-- [ ] IOS-06-B5 群操作日志。
-- [ ] IOS-06-B6 群内置顶消息。
+- [x] IOS-06-B1 管理员管理。
+- [x] IOS-06-B2 禁言管理。
+- [x] IOS-06-B3 入群申请。
+- [x] IOS-06-B4 群规则。
+- [x] IOS-06-B5 群操作日志。
+- [x] IOS-06-B6 群内置顶消息。
 
 ### IOS-06-C 测试与联调
 
-- [ ] IOS-06-C1 群权限单测。
-- [ ] IOS-06-C2 H5/iOS 群管理 smoke。
+- [x] IOS-06-C1 群权限单测。
+- [x] IOS-06-C2 H5/iOS 群管理 smoke。
+
+当前结果：
+
+- 已扩展 `RoomAPIEndpoint` / `RoomAPIClient` / `RoomModels`，覆盖群创建、列表、详情、成员、设置、置顶、免打扰、退出/解散、管理员、禁言、入群申请、群规则、操作日志和群详情接口。
+- 已新增 `SwiftDataGroupCacheStore`，支持群缓存 load/save/upsert/remove/clear。
+- 已新增 `GroupManagementController`、`CreateGroupView`、`GroupSettingsView` 和群管理子页面；联系人页可发起群聊，聊天详情可进入群设置。
+- 已补 `RoomAPIClientTests`、`GroupManagementControllerTests`、`StorageTests` 群缓存覆盖，并新增 `RoomAPIClientLiveTests` 接入 `make ios-app.test.live`。
+- 已通过 `swift test`、`make ios-app.check`、`make h5-app.test.live` 与 `make ios-app.test.live`。
 
 ## P2 阶段：媒体、附件、头像、语音和视频
 

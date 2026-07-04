@@ -70,12 +70,13 @@ make ios-app.smoke.simulator
 说明：
 
 - `make ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
-- `make ios-app.test.live` 会在本机 Compose API 上顺序运行 iOS 认证、WebSocket、聊天互发和好友私聊 live smoke。
+- `make ios-app.test.live` 会在本机 Compose API 上顺序运行 iOS 认证、WebSocket、聊天互发、好友私聊和群管理 live smoke。
 - `make ios-app.smoke.simulator` 会构建、安装并启动到本机 iOS Simulator。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证 iOS 认证客户端对真实 API 的注册、登录和 `/auth/me` 链路。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 iOS WebSocket 客户端对真实 API 的连接和认证链路。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证 iOS 聊天客户端对真实 `/chats`、建群、文本收发、已读链路。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 swift test --filter FriendAPIClientLiveTests` 验证 iOS 好友搜索、申请、接受、好友列表、打开私聊和私聊消息链路。
+- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证 iOS 群创建、成员、设置、置顶、免打扰、管理员、禁言、群规则、日志和解散链路。
 
 ## 计划文档
 
