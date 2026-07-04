@@ -17,6 +17,7 @@ class MainActivity : ComponentActivity() {
                         apiBaseUrl = BuildConfig.REDCODE_API_BASE_URL,
                         wsUrl = BuildConfig.REDCODE_WS_URL,
                     ),
+                useRemoteAuth = BuildConfig.REDCODE_USE_REMOTE_AUTH,
             )
         setContent {
             RedCodeTheme {

@@ -13,7 +13,9 @@
 
 - [x] 普通账号密码注册/登录本地模拟 flow。
 - [x] 邮箱登录/注册关闭校验。
-- [ ] 真实 API `/auth/register`、`/auth/login`、`/auth/me`。
+- [x] 真实 API `/auth/register`、`/auth/login`、`/auth/me` 客户端合同。
+- [x] RemoteAuthRepository 支持真实注册后自动登录、登录、登出清理。
+- [x] Token/session store 抽象与 in-memory 测试实现。
 - [ ] Token Keystore 持久化。
 - [ ] 启动态恢复。
 - [ ] 重置密码。
@@ -23,6 +25,7 @@
 ## ANDROID-02 网络、WebSocket、本地数据底座
 
 - [ ] HTTP client 与统一错误模型。
+- [x] HTTP client 基线、JSON 编解码、Bearer token、错误消息提取。
 - [ ] WebSocket client：鉴权、订阅、重连、去重。
 - [ ] Room schema：会话、消息、联系人、群、配置。
 - [ ] DataStore：偏好、聊天设置。

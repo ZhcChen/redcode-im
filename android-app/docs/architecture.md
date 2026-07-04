@@ -46,6 +46,13 @@ MainActivity / Compose App Shell
 
 它们用于在真实 HTTP/WS/Room 接入前，让 Compose UI、ViewModel、测试覆盖率、Emulator 启动验收先闭环。后续每个真实 DataSource 接入后保留 fake/in-memory 实现用于测试。
 
+认证域已补真实 API 数据源基线：
+
+- `APIClient`：统一 JSON 编解码、Bearer token、HTTP 错误消息提取。
+- `HttpAuthRemoteDataSource`：对齐 `/auth/register`、`/auth/login`、`/auth/me`、`/auth/refresh`。
+- `RemoteAuthRepository`：普通账号密码注册后自动登录、登录会话保存、登出清理。
+- `AuthSessionStore`：先提供 in-memory 测试实现；后续替换为 Keystore/Encrypted storage。
+
 ## 测试策略
 
 - JVM unit test 覆盖校验、领域模型、Repository、ViewModel。

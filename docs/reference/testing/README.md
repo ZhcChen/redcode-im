@@ -145,6 +145,7 @@ make android-app.smoke.emulator
 - `android-app` 使用 Kotlin + Jetpack Compose + ViewModel + Repository/Flow 的 Android 官方推荐架构。
 - 当前默认使用本机 Android Studio Emulator，设备 ID 默认为 `emulator-5554`，可用 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
 - Android Emulator 访问宿主机 Compose API 使用 `10.0.2.2:8010`，默认 `ANDROID_APP_API_BASE_URL=http://10.0.2.2:8010`、`ANDROID_APP_WS_URL=ws://10.0.2.2:8010/ws`。
+- Android 原生 App 默认使用本地模拟认证；需要真实 `/auth/register`、`/auth/login`、`/auth/me` 合同时传 `ANDROID_APP_USE_REMOTE_AUTH=true` 构建或运行。
 - `android-app.test.unit` 运行 JVM 单元测试，不需要启动 API。
 - `android-app.lint` 运行 Android Lint。
 - `android-app.coverage` 生成 Jacoco 覆盖率报告：`android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。

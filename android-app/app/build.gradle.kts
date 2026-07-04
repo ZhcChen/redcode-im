@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
     jacoco
 }
 
@@ -19,8 +20,10 @@ android {
 
         val apiBaseUrl = providers.gradleProperty("redcode.apiBaseUrl").orElse("http://10.0.2.2:8010")
         val wsUrl = providers.gradleProperty("redcode.wsUrl").orElse("ws://10.0.2.2:8010/ws")
+        val useRemoteAuth = providers.gradleProperty("redcode.useRemoteAuth").orElse("false")
         buildConfigField("String", "REDCODE_API_BASE_URL", "\"${apiBaseUrl.get()}\"")
         buildConfigField("String", "REDCODE_WS_URL", "\"${wsUrl.get()}\"")
+        buildConfigField("boolean", "REDCODE_USE_REMOTE_AUTH", useRemoteAuth.get())
     }
 
     buildFeatures {
@@ -68,6 +71,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
@@ -107,6 +111,10 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             "**/*${'$'}DefaultImpls*.*",
             "**/*UiState*.*",
             "**/*FormState*.*",
+            "**/*Request*.*",
+            "**/*Response*.*",
+            "**/JavaNetHttpTransport*.*",
+            "**/HttpTransport*.*",
             "**/core/model/**",
             "**/di/**",
             "**/ui/theme/**",

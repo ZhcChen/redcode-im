@@ -114,6 +114,7 @@ ADB ?= $(ANDROID_HOME)/platform-tools/adb
 ANDROID_APP_DEVICE ?= emulator-5554
 ANDROID_APP_API_BASE_URL ?= http://10.0.2.2:$(API_PORT)
 ANDROID_APP_WS_URL ?= ws://10.0.2.2:$(API_PORT)/ws
+ANDROID_APP_USE_REMOTE_AUTH ?= false
 ANDROID_APP_PACKAGE := com.redcode.im.androidapp
 ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
 
@@ -857,6 +858,7 @@ android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android 
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
 		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
 		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
+		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
 		assembleDebug
 
 android-app.lint: ## 运行 android-app Android Lint
@@ -876,6 +878,7 @@ android-app.connected-test: ## 在当前 Android Emulator 上运行 Compose inst
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
 		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
 		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
+		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
 		connectedDebugAndroidTest
 
 android-app.install: android-app.build.debug ## 安装 android-app Debug APK 到当前 Android Emulator
