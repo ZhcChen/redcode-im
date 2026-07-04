@@ -5,6 +5,7 @@ public enum RedCodeError: Error, Equatable, Sendable {
     case authentication(String)
     case network(String)
     case storage(String)
+    case validation(String)
 }
 
 extension RedCodeError: LocalizedError {
@@ -18,6 +19,8 @@ extension RedCodeError: LocalizedError {
             "Network error: \(message)"
         case .storage(let message):
             "Storage error: \(message)"
+        case .validation(let message):
+            message
         }
     }
 }

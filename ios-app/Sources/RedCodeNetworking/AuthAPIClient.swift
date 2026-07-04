@@ -6,6 +6,7 @@ public protocol AuthAPIService: Sendable {
     func login(username: String, password: String) async throws -> AuthSession
     func currentUser(token: String) async throws -> AuthUser
     func refresh(refreshToken: String) async throws -> AuthSession
+    func updateProfile(token: String, nickname: String?, avatarURL: String?, avatarObjectKey: String?) async throws -> AuthUser
     func changePassword(token: String, oldPassword: String, newPassword: String) async throws
 }
 
@@ -45,6 +46,25 @@ public struct AuthAPIClient: AuthAPIService {
     public func refresh(refreshToken: String) async throws -> AuthSession {
         let request = RefreshTokenRequest(refreshToken: refreshToken)
         return try await apiClient.post(AuthAPIEndpoint.refresh, body: request, as: AuthSession.self)
+    }
+
+    public func updateProfile(
+        token: String,
+        nickname: String? = nil,
+        avatarURL: String? = nil,
+        avatarObjectKey: String? = nil
+    ) async throws -> AuthUser {
+        let request = UpdateProfileRequest(
+            nickname: nickname,
+            avatarURL: avatarURL,
+            avatarObjectKey: avatarObjectKey
+        )
+        return try await apiClient.patch(
+            AuthAPIEndpoint.updateMe,
+            body: request,
+            bearerToken: token,
+            as: AuthUser.self
+        )
     }
 
     public func changePassword(

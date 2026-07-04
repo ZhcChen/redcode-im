@@ -6,6 +6,7 @@ public enum AuthAPIEndpoint: Sendable {
     public static let login = APIEndpoint(method: .post, path: "/auth/login")
     public static let me = APIEndpoint(method: .get, path: "/auth/me")
     public static let refresh = APIEndpoint(method: .post, path: "/auth/refresh")
+    public static let updateMe = APIEndpoint(method: .patch, path: "/users/me")
     public static let changePassword = APIEndpoint(method: .post, path: "/users/me/password")
 }
 
@@ -57,6 +58,28 @@ public struct ChangePasswordRequest: Codable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case oldPassword = "old_password"
         case newPassword = "new_password"
+    }
+}
+
+public struct UpdateProfileRequest: Codable, Equatable, Sendable {
+    public let nickname: String?
+    public let avatarURL: String?
+    public let avatarObjectKey: String?
+
+    public init(
+        nickname: String? = nil,
+        avatarURL: String? = nil,
+        avatarObjectKey: String? = nil
+    ) {
+        self.nickname = nickname?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.avatarURL = avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.avatarObjectKey = avatarObjectKey?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case nickname
+        case avatarURL = "avatar_url"
+        case avatarObjectKey = "avatar_object_key"
     }
 }
 

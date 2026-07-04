@@ -202,18 +202,28 @@
 
 ## P4 阶段：设置、账号、文档、反馈、配置和版本
 
-- [ ] IOS-09-A1 设置首页。
-- [ ] IOS-09-A2 个人资料。
-- [ ] IOS-09-A3 昵称更新。
-- [ ] IOS-09-A4 账号安全。
-- [ ] IOS-09-A5 修改密码。
-- [ ] IOS-09-A6 用户协议和隐私政策。
-- [ ] IOS-09-A7 关于页面。
-- [ ] IOS-09-B1 反馈提交。
-- [ ] IOS-09-B2 App 配置拉取与缓存。
-- [ ] IOS-09-B3 版本检查。
-- [ ] IOS-09-B4 iOS 原生更新提示。
-- [ ] IOS-09-C1 设置域测试。
+- [x] IOS-09-A1 设置首页。
+- [x] IOS-09-A2 个人资料。
+- [x] IOS-09-A3 昵称更新。
+- [x] IOS-09-A4 账号安全。
+- [x] IOS-09-A5 修改密码。
+- [x] IOS-09-A6 用户协议和隐私政策。
+- [x] IOS-09-A7 关于页面。
+- [x] IOS-09-B1 反馈提交。
+- [x] IOS-09-B2 App 配置拉取与缓存。
+- [x] IOS-09-B3 版本检查。
+- [x] IOS-09-B4 iOS 原生更新提示。
+- [x] IOS-09-C1 设置域测试。
+
+当前结果：
+
+- 已补 `SettingsAPIEndpoint`、`SettingsModels`、`SettingsAPIClient`，覆盖 `/settings/general`、`/settings/app-name`、用户协议、隐私协议、`/feedbacks`、`/versions/latest` 和版本下载 URL。
+- 已扩展 `AuthAPIClient` / `AuthController` 支持 `/users/me` 昵称更新，并写回本地 session。
+- 已新增 `SwiftDataAppConfigStore`，使用现有 `RedCodeAppConfigRecord` 缓存通用设置与协议文档。
+- 设置 Tab 已切换为原生 SwiftUI 设置首页，包含个人资料、账号安全、聊天设置、用户协议、隐私协议、关于、反馈、版本检查和 iOS 原生更新提示。
+- 登出入口已清理 WebSocket、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存和聊天背景偏好。
+- 已补 `SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` 配置缓存覆盖，并扩展 Auth 相关测试。
+- 已通过 `swift test`。
 
 ## P5 阶段：Push、本地通知和通知导航
 
@@ -245,11 +255,11 @@
 
 - [ ] X-01 IOS-02.05 重置密码。
 - [ ] X-02 IOS-02.06 用户协议/隐私协议提示。
-- [ ] X-03 IOS-02.09 登出清理 Token、WS、内存态、本地敏感缓存。
+- [x] X-03 IOS-02.09 登出清理 Token、WS、内存态、本地敏感缓存。
 - [ ] X-04 IOS-02.11 认证 UI test。
 - [ ] X-05 IOS-04.17 聊天 UI test。
 
 说明：
 
 - X-04 / X-05 当前依赖本机 Xcode SDK 与 iOS Simulator runtime 匹配；现状为 Xcode 26.6 SDK 26.5，但本机 runtime 只有 26.3/26.4。
-- X-03 在 IOS-05/IOS-10 后统一收口，避免只清认证态而遗漏联系人、消息、通知缓存。
+- X-03 已在 IOS-09 设置域收口：退出登录会清理 Token、WS、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存和聊天背景偏好；通知态清理仍由 IOS-10 继续补齐。

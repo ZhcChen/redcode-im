@@ -96,47 +96,16 @@ private struct MainTabView: View {
             }
 
             NavigationStack {
-                SettingsHomeView(authController: authController, dependencies: dependencies)
-                    .navigationTitle("设置")
+                SettingsHomeView(
+                    authController: authController,
+                    settingsController: dependencies.makeSettingsController(),
+                    makeChatSettingsController: dependencies.makeChatSettingsController,
+                    makeEmojiStickerController: dependencies.makeEmojiStickerController,
+                    onLogout: dependencies.clearLocalStateAfterLogout
+                )
             }
             .tabItem {
                 Label("设置", systemImage: "gearshape")
-            }
-        }
-    }
-}
-
-private struct SettingsHomeView: View {
-    let authController: AuthController
-    let dependencies: AppDependencies
-
-    var body: some View {
-        List {
-            if let user = authController.session?.user {
-                Section {
-                    LabeledContent("昵称", value: user.displayName)
-                    LabeledContent("账号", value: user.username)
-                } header: {
-                    Text("当前账号")
-                }
-            }
-
-            Section("聊天") {
-                NavigationLink("聊天设置") {
-                    ChatSettingsView(
-                        authController: authController,
-                        settingsController: dependencies.makeChatSettingsController(),
-                        stickerController: dependencies.makeEmojiStickerController()
-                    )
-                }
-            }
-
-            Section {
-                Button("退出登录", role: .destructive) {
-                    Task {
-                        try? await authController.logout()
-                    }
-                }
             }
         }
     }

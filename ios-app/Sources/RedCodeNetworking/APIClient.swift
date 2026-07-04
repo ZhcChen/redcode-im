@@ -81,6 +81,25 @@ public actor APIClient {
         try await sendNoResponse(endpoint, bearerToken: bearerToken, bodyData: nil)
     }
 
+    public func patch<Body: Encodable & Sendable, Response: Decodable & Sendable>(
+        _ endpoint: APIEndpoint,
+        body: Body,
+        bearerToken: String? = nil,
+        as responseType: Response.Type = Response.self
+    ) async throws -> Response {
+        let data = try encoder.encode(body)
+        return try await send(endpoint, bearerToken: bearerToken, bodyData: data, as: responseType)
+    }
+
+    public func patchNoResponse<Body: Encodable & Sendable>(
+        _ endpoint: APIEndpoint,
+        body: Body,
+        bearerToken: String? = nil
+    ) async throws {
+        let data = try encoder.encode(body)
+        try await sendNoResponse(endpoint, bearerToken: bearerToken, bodyData: data)
+    }
+
     public func delete<Response: Decodable & Sendable>(
         _ endpoint: APIEndpoint,
         bearerToken: String? = nil,

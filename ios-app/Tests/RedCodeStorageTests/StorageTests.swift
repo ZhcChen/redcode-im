@@ -237,6 +237,31 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testSwiftDataAppConfigStoreSavesUpdatesRemovesAndClearsValues() throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let store = SwiftDataAppConfigStore(container: container)
+
+        try store.saveValue(#"{"app_name":"RedCode IM"}"#, forKey: " settings.general ")
+        XCTAssertEqual(
+            try store.loadValue(forKey: "settings.general"),
+            #"{"app_name":"RedCode IM"}"#
+        )
+
+        try store.saveValue(#"{"app_name":"RedCode Next"}"#, forKey: "settings.general")
+        XCTAssertEqual(
+            try store.loadValue(forKey: "settings.general"),
+            #"{"app_name":"RedCode Next"}"#
+        )
+
+        try store.removeValue(forKey: "settings.general")
+        XCTAssertNil(try store.loadValue(forKey: "settings.general"))
+
+        try store.saveValue(#"{"title":"隐私协议"}"#, forKey: "settings.privacy_policy")
+        try store.clearAll()
+        XCTAssertNil(try store.loadValue(forKey: "settings.privacy_policy"))
+    }
+
+    @MainActor
     func testSwiftDataMessageCacheStoreKeepsNewestMessagesPerRoom() throws {
         let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
         let store = SwiftDataMessageCacheStore(

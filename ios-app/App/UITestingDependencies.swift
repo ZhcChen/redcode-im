@@ -78,6 +78,24 @@ private struct UITestingAuthAPIService: AuthAPIService {
         session
     }
 
+    func updateProfile(
+        token: String,
+        nickname: String?,
+        avatarURL: String?,
+        avatarObjectKey: String?
+    ) async throws -> AuthUser {
+        AuthUser(
+            id: session.user.id,
+            username: session.user.username,
+            email: session.user.email,
+            nickname: nickname ?? session.user.nickname,
+            avatarURL: avatarURL ?? session.user.avatarURL,
+            avatarObjectKey: avatarObjectKey ?? session.user.avatarObjectKey,
+            localAvatarPath: session.user.localAvatarPath,
+            status: session.user.status
+        )
+    }
+
     func changePassword(token: String, oldPassword: String, newPassword: String) async throws {}
 }
 

@@ -18,11 +18,13 @@ final class AppDependencies {
     private let chatAPIService: any ChatAPIService
     private let mediaAPIService: any MediaAPIService
     private let emojiAPIService: any EmojiAPIService
+    private let settingsAPIService: any SettingsAPIService
     private let friendAPIService: any FriendAPIService
     private let roomAPIService: any RoomAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
     private let messageSearchStore: SwiftDataMessageSearchStore
     private let chatPreferencesStore: any ChatPreferencesStore
+    private let appConfigStore: SwiftDataAppConfigStore
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
     private let emojiCache = EmojiFileCache()
@@ -44,6 +46,7 @@ final class AppDependencies {
             chatAPIService: chatAPIService,
             mediaAPIService: mediaAPIService,
             emojiAPIService: EmojiAPIClient(environment: environment),
+            settingsAPIService: SettingsAPIClient(environment: environment),
             friendAPIService: FriendAPIClient(environment: environment),
             roomAPIService: RoomAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
@@ -57,6 +60,7 @@ final class AppDependencies {
         chatAPIService: any ChatAPIService,
         mediaAPIService: (any MediaAPIService)? = nil,
         emojiAPIService: (any EmojiAPIService)? = nil,
+        settingsAPIService: (any SettingsAPIService)? = nil,
         friendAPIService: (any FriendAPIService)? = nil,
         roomAPIService: (any RoomAPIService)? = nil,
         chatPreferencesStore: (any ChatPreferencesStore)? = nil,
@@ -68,7 +72,9 @@ final class AppDependencies {
         self.chatAPIService = chatAPIService
         self.mediaAPIService = mediaAPIService ?? MediaAPIClient(environment: environment)
         self.emojiAPIService = emojiAPIService ?? EmojiAPIClient(environment: environment)
+        self.settingsAPIService = settingsAPIService ?? SettingsAPIClient(environment: environment)
         self.chatPreferencesStore = chatPreferencesStore ?? UserDefaultsChatPreferencesStore()
+        self.appConfigStore = SwiftDataAppConfigStore(container: modelContainer)
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
         self.friendAPIService = resolvedFriendAPIService
         self.roomAPIService = roomAPIService ?? RoomAPIClient(environment: environment)
@@ -163,8 +169,29 @@ final class AppDependencies {
         )
     }
 
+    func makeSettingsController() -> SettingsController {
+        SettingsController(
+            authController: authController,
+            api: settingsAPIService,
+            configStore: appConfigStore
+        )
+    }
+
     var chatBackgroundPreferences: any ChatPreferencesStore {
         chatPreferencesStore
+    }
+
+    func clearLocalStateAfterLogout() async {
+        await chatRealtimeController.stop()
+        try? SwiftDataChatSummaryCacheStore(container: modelContainer).clearAll()
+        try? messageCacheStore.clearAll()
+        try? SwiftDataContactCacheStore(container: modelContainer).clearAll()
+        try? SwiftDataGroupCacheStore(container: modelContainer).clearAll()
+        try? appConfigStore.clearAll()
+        try? await attachmentCache.clearAll()
+        try? await avatarCache.clearAll()
+        try? await emojiCache.clearAll()
+        try? await chatPreferencesStore.resetBackground()
     }
 }
 

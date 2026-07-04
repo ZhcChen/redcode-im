@@ -111,6 +111,34 @@ final class AuthAPIClientTests: XCTestCase {
         XCTAssertEqual(json["old_password"], "old-password")
         XCTAssertEqual(json["new_password"], "new-password")
     }
+
+    func testUpdateProfileUsesAuthenticatedUsersMeEndpoint() async throws {
+        let transport = QueueHTTPTransport(responses: [
+            .json(#"{"id":"u1","username":"bear","nickname":"New Bear","avatar_object_key":"users/u1/avatar.png"}"#),
+        ])
+        let client = AuthAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let user = try await client.updateProfile(
+            token: "access-token",
+            nickname: " New Bear ",
+            avatarURL: nil,
+            avatarObjectKey: " users/u1/avatar.png "
+        )
+
+        let requests = await transport.recordedRequests()
+        let request = try XCTUnwrap(requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+
+        XCTAssertEqual(request.url?.path, "/users/me")
+        XCTAssertEqual(request.httpMethod, "PATCH")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(json["nickname"], "New Bear")
+        XCTAssertEqual(json["avatar_object_key"], "users/u1/avatar.png")
+        XCTAssertEqual(user.nickname, "New Bear")
+    }
 }
 
 private struct QueueHTTPResponse: Sendable {

@@ -138,12 +138,41 @@ final class AuthControllerTests: XCTestCase {
             ),
         ])
     }
+
+    func testUpdateProfileDelegatesAndPersistsUpdatedUser() async throws {
+        let api = MockAuthAPIService(
+            currentUser: AuthUser(id: "u1", username: "bear", nickname: "New Bear")
+        )
+        let store = KeyValueAuthSessionStore(keyValueStore: InMemoryKeyValueStore())
+        try await store.save(
+            AuthSession(token: "access-token", user: AuthUser(id: "u1", username: "bear", nickname: "Old Bear"))
+        )
+        let controller = AuthController(api: api, sessionStore: store)
+        await controller.restoreSession()
+
+        let updated = try await controller.updateProfile(nickname: "New Bear")
+        let restored = try await store.read()
+
+        let calls = await api.calls
+        XCTAssertEqual(calls, [
+            .updateProfile(
+                token: "access-token",
+                nickname: "New Bear",
+                avatarURL: nil,
+                avatarObjectKey: nil
+            ),
+        ])
+        XCTAssertEqual(updated.nickname, "New Bear")
+        XCTAssertEqual(restored?.user.nickname, "New Bear")
+        XCTAssertEqual(controller.session?.user.nickname, "New Bear")
+    }
 }
 
 private enum AuthCall: Equatable, Sendable {
     case register(username: String, password: String, nickname: String?)
     case login(username: String, password: String)
     case currentUser(token: String)
+    case updateProfile(token: String, nickname: String?, avatarURL: String?, avatarObjectKey: String?)
     case changePassword(token: String, oldPassword: String, newPassword: String)
 }
 
@@ -188,6 +217,23 @@ private actor MockAuthAPIService: AuthAPIService {
 
     func refresh(refreshToken: String) async throws -> AuthSession {
         sessionResponse
+    }
+
+    func updateProfile(
+        token: String,
+        nickname: String?,
+        avatarURL: String?,
+        avatarObjectKey: String?
+    ) async throws -> AuthUser {
+        calls.append(
+            .updateProfile(
+                token: token,
+                nickname: nickname,
+                avatarURL: avatarURL,
+                avatarObjectKey: avatarObjectKey
+            )
+        )
+        return currentUserResponse
     }
 
     func changePassword(

@@ -93,6 +93,31 @@ public final class AuthController {
         )
     }
 
+    @discardableResult
+    public func updateProfile(
+        nickname: String? = nil,
+        avatarURL: String? = nil,
+        avatarObjectKey: String? = nil
+    ) async throws -> AuthUser {
+        guard let session else {
+            throw RedCodeError.authentication("未登录")
+        }
+        let updatedUser = try await api.updateProfile(
+            token: session.token,
+            nickname: nickname,
+            avatarURL: avatarURL,
+            avatarObjectKey: avatarObjectKey
+        )
+        try await sessionStore.updateUser(updatedUser)
+        let nextSession = AuthSession(
+            token: session.token,
+            refreshToken: session.refreshToken,
+            user: updatedUser
+        )
+        apply(session: nextSession)
+        return updatedUser
+    }
+
     private func persist(session: AuthSession) async throws {
         guard session.isValid else {
             throw RedCodeError.authentication("登录响应缺少有效 token")

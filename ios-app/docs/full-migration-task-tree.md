@@ -90,7 +90,7 @@ IOS
 - [ ] IOS-02.06 实现用户协议/隐私协议提示。
 - [x] IOS-02.07 实现 Token Keychain 存取。
 - [x] IOS-02.08 实现登录态校验和 session 恢复。
-- [ ] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
+- [x] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
 - [x] IOS-02.10 增加认证 ViewModel 单测。
 - [ ] IOS-02.11 增加认证 UI test。
 - [x] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
@@ -102,7 +102,7 @@ IOS
 - 已建立账号规范化、认证用户、认证会话、认证 HTTP endpoint/payload、本地 session store 基础。
 - 已建立 `APIClient`、`AuthAPIClient`、`AuthController`、`KeychainKeyValueStore`，并补充 SwiftPM 单测。
 - `KeyValueAuthSessionStore` 可通过 `KeychainKeyValueStore` 落 Keychain；SwiftUI App target 已接入 SwiftPM 本地模块、Keychain-backed session store 和认证 UI。
-- IOS-02.09 当前只完成认证 session 清理基础；WS 断开和本地敏感缓存清理需等待 IOS-03/IOS-04 底座完成后收口。
+- IOS-02.09 已在 IOS-09 设置域收口：退出登录会清理认证 session、WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存和聊天背景偏好；通知态清理由 IOS-10 补齐。
 - 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；UI test 尚未完成。
 - 已通过 `RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 对本机 Compose API 完成注册、登录、`/auth/me` live smoke。
 
@@ -379,18 +379,29 @@ IOS
 
 ## IOS-09 设置、账号、文档、反馈、配置和版本
 
-- [ ] IOS-09.01 实现设置首页。
-- [ ] IOS-09.02 实现个人资料。
-- [ ] IOS-09.03 实现昵称更新。
-- [ ] IOS-09.04 实现账号安全。
-- [ ] IOS-09.05 实现修改密码。
-- [ ] IOS-09.06 实现用户协议和隐私政策。
-- [ ] IOS-09.07 实现关于页面。
-- [ ] IOS-09.08 实现反馈提交。
-- [ ] IOS-09.09 实现 App 配置拉取与缓存。
-- [ ] IOS-09.10 实现版本检查。
-- [ ] IOS-09.11 实现 iOS 原生更新提示。
-- [ ] IOS-09.12 增加设置域测试。
+- [x] IOS-09.01 实现设置首页。
+- [x] IOS-09.02 实现个人资料。
+- [x] IOS-09.03 实现昵称更新。
+- [x] IOS-09.04 实现账号安全。
+- [x] IOS-09.05 实现修改密码。
+- [x] IOS-09.06 实现用户协议和隐私政策。
+- [x] IOS-09.07 实现关于页面。
+- [x] IOS-09.08 实现反馈提交。
+- [x] IOS-09.09 实现 App 配置拉取与缓存。
+- [x] IOS-09.10 实现版本检查。
+- [x] IOS-09.11 实现 iOS 原生更新提示。
+- [x] IOS-09.12 增加设置域测试。
+
+当前说明：
+
+- 设置网络层已补 `SettingsAPIEndpoint` / `SettingsModels` / `SettingsAPIClient`，覆盖通用设置、App 名称、隐私协议、用户协议、反馈提交、最新版本检查和版本下载 URL。
+- 用户资料链路已扩展 `AuthAPIClient.updateProfile` 与 `AuthController.updateProfile`，昵称更新会写回 Keychain-backed session。
+- App 配置缓存已补 `SwiftDataAppConfigStore`，复用 `RedCodeAppConfigRecord` 保存通用设置和协议文档，设置页按“缓存优先、远端刷新”展示。
+- 原生 SwiftUI 设置页已覆盖个人资料、账号与安全、修改密码、聊天设置入口、协议文档、关于页、反馈页、消息运行模式展示、版本检查和更新链接提示。
+- iOS 原生更新不做包内下载安装，按系统规范提示并打开 Admin 配置的 App Store URL / 下载 URL。
+- 登出流程已清理 WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存和聊天背景偏好。
+- 已补 `SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存覆盖，并扩展 Auth profile 更新测试。
+- 已通过 `swift test`。
 
 参考：
 
