@@ -274,7 +274,7 @@
 - 已新增 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`，记录 Flutter vs iOS 对照、P0/P1 缺口、下线条件和回滚策略。
 - 当前本机已具备可运行 XCUITest 的 Simulator runtime；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
 - IOS-11-A6 仍需要 iPhone 真机与 Apple APNs 平台凭据；API mock 已覆盖 APNs/FCM 投递，Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
-- 真机补验前先运行 `IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight`，确保未误用 `127.0.0.1` 且 API 对 iPhone 可达；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> ... make ios-app.smoke.device` 完成真机安装启动。
+- 真机补验前优先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
 
 ## 横向收尾任务
 

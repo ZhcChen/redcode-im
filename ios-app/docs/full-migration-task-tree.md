@@ -475,7 +475,7 @@ IOS
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
 - IOS-11.04 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
 - IOS-11.06 需要 iPhone 真机与 Apple APNs 平台凭据；当前 API mock 已覆盖 APNs/FCM 投递，Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。2026-07-04 20:28 CST 重新执行 `xcrun devicectl list devices --timeout 10`，结果仍为 `No devices found.`。
-- 真机补验前先运行 `IOS_APP_API_BASE_URL=http://<LAN_IP>:8010 IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight`，确保未误用 `127.0.0.1` 且 API 对 iPhone 可达；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> ... make ios-app.smoke.device` 完成真机安装启动。
+- 真机补验前优先运行 `IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local`，该入口会重新检测当前 LAN IP 并生成真机可访问的 API/WS 地址；设备签名可用后再运行 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.smoke.device.local` 完成真机安装启动。
 
 验收：
 

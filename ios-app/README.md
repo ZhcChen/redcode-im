@@ -67,6 +67,7 @@ make ios-app.test.live
 make ios-app.smoke.simulator
 make ios-app.apns.preflight
 make ios-app.smoke.device
+make ios-app.smoke.device.local
 ```
 
 说明：
@@ -76,6 +77,7 @@ make ios-app.smoke.device
 - `make ios-app.smoke.simulator` 会构建、安装并启动到本机 iOS Simulator。
 - `make ios-app.apns.preflight` 检查 iPhone 真机、非 loopback API/WS 地址、Admin 真实 APNs provider 配置确认和 API 健康状态；真机验收前需设置 `IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL`，并在 Admin Push 设置完成真实 APNs 配置后设置 `IOS_APNS_PROVIDER_CONFIGURED=1`。
 - `make ios-app.smoke.device` 会先执行 APNs 真机预检，再构建、安装并启动到 iPhone 真机；需额外传 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID>`，必要时传 `IOS_APP_DEVICE_ID=<设备标识>`。
+- `make ios-app.smoke.device.local` 每次运行都会重新检测当前本机局域网 IPv4，并自动生成 `IOS_APP_API_BASE_URL=http://<LAN_IP>:8010` / `IOS_APP_WS_URL=ws://<LAN_IP>:8010/ws`；可用 `IOS_APP_LAN_IP=<LAN_IP>` 显式覆盖。
 - 真机调试构建可通过 `IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 写入 App Info.plist；真机启动也会通过 `devicectl` 注入 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL`；Xcode scheme 可使用同名变量或兼容的 `API_BASE_URL` / `WS_URL`。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证 iOS 认证客户端对真实 API 的注册、登录和 `/auth/me` 链路。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 iOS WebSocket 客户端对真实 API 的连接和认证链路。

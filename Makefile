@@ -100,6 +100,7 @@ IOS_APP_SIMULATOR_ID ?=
 IOS_APP_DEVICE_ID ?=
 IOS_APP_DEVELOPMENT_TEAM ?=
 IOS_APNS_PROVIDER_CONFIGURED ?=
+IOS_APP_LAN_IP ?=
 IOS_APP_API_BASE_URL ?=
 IOS_APP_WS_URL ?=
 IOS_APP_XCODEBUILD_DEVICE_FLAGS ?= -allowProvisioningUpdates
@@ -113,7 +114,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
-	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
+	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -736,6 +737,18 @@ ios-app.resolve.device: ## 输出当前可用 iPhone 真机标识
 	@$(call require_cmd,$(RUBY))
 	@IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" "$(IOS_APP_DIR)/scripts/resolve_real_device.sh"
 
+ios-app.resolve.lan-ip: ## 输出当前本机局域网 IPv4（真机验收用）
+	@IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh"
+
+ios-app.apns.preflight.local: ## 自动检测 LAN IP 后执行 iPhone/APNs 预检
+	@LAN_IP="$$(IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh")"; \
+	echo "[ios-app] LAN_IP=$$LAN_IP"; \
+	$(MAKE) ios-app.apns.preflight \
+		IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" \
+		IOS_APP_API_BASE_URL="http://$$LAN_IP:$(API_PORT)" \
+		IOS_APP_WS_URL="ws://$$LAN_IP:$(API_PORT)/ws" \
+		IOS_APNS_PROVIDER_CONFIGURED="$(IOS_APNS_PROVIDER_CONFIGURED)"
+
 ios-app.build.device: ## 构建 ios-app iPhone 真机 Debug app（需签名 Team）
 	@$(call require_cmd,$(XCODEBUILD))
 	@[ -n "$(IOS_APP_DEVELOPMENT_TEAM)" ] || { echo "[ios-app] 缺少 IOS_APP_DEVELOPMENT_TEAM；真机构建需传 Apple Developer Team ID。" >&2; exit 66; }
@@ -759,6 +772,16 @@ ios-app.smoke.device: ios-app.install.device ## 安装并启动 ios-app 到 iPho
 	echo "[ios-app] launching device: $$DEVICE_ID"; \
 	DEVICECTL_CHILD_REDCODE_API_BASE_URL="$(IOS_APP_API_BASE_URL)" DEVICECTL_CHILD_REDCODE_WS_URL="$(IOS_APP_WS_URL)" \
 	$(XCRUN) devicectl device process launch --device "$$DEVICE_ID" --terminate-existing "$(IOS_APP_BUNDLE_ID)"
+
+ios-app.smoke.device.local: ## 自动检测 LAN IP 后构建、安装并启动到 iPhone 真机
+	@LAN_IP="$$(IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh")"; \
+	echo "[ios-app] LAN_IP=$$LAN_IP"; \
+	$(MAKE) ios-app.smoke.device \
+		IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" \
+		IOS_APP_DEVELOPMENT_TEAM="$(IOS_APP_DEVELOPMENT_TEAM)" \
+		IOS_APNS_PROVIDER_CONFIGURED="$(IOS_APNS_PROVIDER_CONFIGURED)" \
+		IOS_APP_API_BASE_URL="http://$$LAN_IP:$(API_PORT)" \
+		IOS_APP_WS_URL="ws://$$LAN_IP:$(API_PORT)/ws"
 
 ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
 	@$(call require_cmd,$(XCODEBUILD))
