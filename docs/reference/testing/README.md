@@ -105,7 +105,7 @@ make ios-app.smoke.simulator
 - `ios-app.test.live` 需要本机 Compose API 已启动，覆盖 iOS 认证、WebSocket、聊天互发、好友私聊、群管理和媒体 mock live smoke。
 - `ios-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `ios-app.test.live`，作为 H5/API/iOS 联调总入口。
 - `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
-- `ios-app.ui-test` 运行 XCUITest；若 Xcode SDK 与已安装 Simulator runtime 不匹配，会失败并提示在 Xcode > Settings > Components 安装匹配 runtime。当前已知阻塞例子：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 runtime。
+- `ios-app.ui-test` 运行 XCUITest；当前本机已通过，覆盖认证协议门禁/登录和聊天详情发送 smoke。若 Xcode SDK 与已安装 Simulator runtime 不匹配，会失败并提示在 Xcode > Settings > Components 安装匹配 runtime。
 - `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
@@ -113,6 +113,7 @@ make ios-app.smoke.simulator
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 swift test --filter FriendAPIClientLiveTests` 验证好友搜索、申请、接受、好友列表、打开私聊和私聊消息 live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证群管理 live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests` 验证对象存储 mock 上传、commit、富媒体发送和下载 smoke。
+- `h5-app.test.live` 已覆盖 H5 富媒体发送互通：H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
 - `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock B2，不访问线上对象存储；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
 - 表情、贴纸、消息搜索和聊天扩展当前由 SwiftPM 单测覆盖：`EmojiAPIClientTests`、`ChatAPIClientTests` 搜索用例、`StorageTests` 搜索/偏好用例、`ChatExtensionControllerTests`。贴纸发送在 iOS 侧先下载/缓存表情图，再复用消息图片上传链路，不直接写入 `emoji-items/*` 附件 key。
 - 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。

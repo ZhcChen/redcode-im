@@ -7,6 +7,18 @@ import RedCodeStorage
 
 @MainActor
 extension AppDependencies {
+    static func uiTestingAuthFixture() -> AppDependencies {
+        let autoAgree = ProcessInfo.processInfo.environment["RED_CODE_UI_TESTING_AUTH_AUTO_AGREE"] == "1"
+        UserDefaults.standard.set(autoAgree, forKey: "redcode-ios-user-agreed-to-terms")
+        let user = AuthUser(
+            id: "ui-user",
+            username: "uitest",
+            nickname: "UI 测试用户"
+        )
+        let session = AuthSession(token: "ui-test-token", refreshToken: "ui-test-refresh", user: user)
+        return makeUITestingDependencies(user: user, session: nil, authAPI: UITestingAuthAPIService(session: session))
+    }
+
     static func uiTestingChatFixture() -> AppDependencies {
         let user = AuthUser(
             id: "ui-user",
@@ -14,12 +26,20 @@ extension AppDependencies {
             nickname: "UI 测试用户"
         )
         let session = AuthSession(token: "ui-test-token", refreshToken: "ui-test-refresh", user: user)
+        return makeUITestingDependencies(user: user, session: session, authAPI: UITestingAuthAPIService(session: session))
+    }
+
+    private static func makeUITestingDependencies(
+        user: AuthUser,
+        session: AuthSession?,
+        authAPI: UITestingAuthAPIService
+    ) -> AppDependencies {
         let chatAPIService = UITestingChatAPIService(currentUser: user)
         do {
             return AppDependencies(
                 modelContainer: try RedCodeStorageSchema.makeModelContainer(inMemory: true),
                 authController: AuthController(
-                    api: UITestingAuthAPIService(session: session),
+                    api: authAPI,
                     sessionStore: UITestingAuthSessionStore(session: session)
                 ),
                 chatAPIService: chatAPIService,

@@ -202,13 +202,16 @@ private struct AuthEntryView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .textContentType(.username)
+                        .accessibilityIdentifier("auth.account.input")
 
                     SecureField("密码", text: $password)
                         .textContentType(mode == .register ? .newPassword : .password)
+                        .accessibilityIdentifier("auth.password.input")
 
                     if mode == .register {
                         TextField("昵称（可选）", text: $nickname)
                             .textContentType(.nickname)
+                            .accessibilityIdentifier("auth.nickname.input")
                     }
                 } header: {
                     Text("账号密码")
@@ -220,6 +223,7 @@ private struct AuthEntryView: View {
                     Toggle(isOn: $agreedToTerms) {
                         Text("我已阅读并同意协议")
                     }
+                    .accessibilityIdentifier("auth.terms.toggle")
 
                     NavigationLink("查看用户协议") {
                         SettingsDocumentView(controller: settingsController, kind: .userAgreement)
@@ -253,6 +257,7 @@ private struct AuthEntryView: View {
                         }
                     }
                     .disabled(!canSubmit)
+                    .accessibilityIdentifier("auth.submit")
                 }
             }
             .navigationTitle("RedCode IM")

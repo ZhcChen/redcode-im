@@ -163,7 +163,7 @@
 ### IOS-07-C 测试与联调
 
 - [x] IOS-07-C1 对象存储 mock 上传/下载 smoke。
-- [ ] IOS-07-C2 H5/iOS 媒体消息互通 smoke。
+- [x] IOS-07-C2 H5/iOS 媒体消息互通 smoke。
 
 当前结果：
 
@@ -174,7 +174,7 @@
 - 已把 dev Compose 接入 `external-mock`，本地媒体 smoke 不访问线上 B2；API 生成的 presigned URL 会通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator/H5 可访问的 `127.0.0.1`。
 - 已补 `MediaAPIClientTests`、`MediaAPIClientLiveTests`、`ChatDetailControllerTests`、`ChatAPIClientTests` 和 `StorageTests` 媒体覆盖。
 - 已通过 `RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests`，覆盖 Compose mock 对象存储上传、commit、富媒体发送和下载校验。
-- H5 当前已支持附件展示、缓存和后端 `parts` 映射；H5 主动发送富媒体与 H5/iOS 媒体互通 smoke 放入 IOS-08/IOS-11 联调继续补齐。
+- H5 已补 `messageService.sendRichMessage`，并在 `ios-h5-chat-interop-smoke` 中覆盖 H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
 
 ## P3 阶段：表情、贴纸、搜索和聊天扩展
 
@@ -254,7 +254,7 @@
 - [x] IOS-11-A1 Flutter vs iOS 功能对照清单。
 - [x] IOS-11-A2 H5/API/iOS 联调脚本。
 - [x] IOS-11-A3 本机 iOS Simulator smoke。
-- [ ] IOS-11-A4 UI test 回归。
+- [x] IOS-11-A4 UI test 回归。
 - [x] IOS-11-A5 媒体 mock 回归。
 - [ ] IOS-11-A6 通知真机补验。
 - [x] IOS-11-B1 P0/P1 缺口清单。
@@ -265,24 +265,25 @@
 当前结果：
 
 - 已新增 `make ios-app.test.interop`，串联 `h5-app.test.live` 与 `ios-app.test.live`。
-- 已通过 `make ios-app.test.interop`，覆盖 H5 live smoke 与 iOS 认证、WebSocket、聊天、好友、群、媒体 mock live smoke。
+- 已通过 `make ios-app.test.interop`，覆盖 H5 live smoke、H5/iOS 富媒体互通与 iOS 认证、WebSocket、聊天、好友、群、媒体 mock live smoke。
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
 - 已通过 `make ios-app.check` 与 `cd ios-app && swift test`。
+- 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke。
 - 已新增 `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`，记录 Flutter vs iOS 对照、P0/P1 缺口、下线条件和回滚策略。
-- IOS-11-A4 当前被本机 Xcode/Simulator runtime 不匹配阻塞：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 runtime。
-- IOS-11-A6 需要 iPhone 真机与 APNs/FCM 平台凭据；Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
+- 当前本机已具备可运行 XCUITest 的 Simulator runtime；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
+- IOS-11-A6 仍需要 iPhone 真机与 APNs/FCM 平台凭据；Simulator/单测已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 ## 横向收尾任务
 
 - [x] X-01 IOS-02.05 重置密码。
 - [x] X-02 IOS-02.06 用户协议/隐私协议提示。
 - [x] X-03 IOS-02.09 登出清理 Token、WS、内存态、本地敏感缓存。
-- [ ] X-04 IOS-02.11 认证 UI test。
-- [ ] X-05 IOS-04.17 聊天 UI test。
+- [x] X-04 IOS-02.11 认证 UI test。
+- [x] X-05 IOS-04.17 聊天 UI test。
 
 说明：
 
-- X-04 / X-05 当前依赖本机 Xcode SDK 与 iOS Simulator runtime 匹配；现状为 Xcode 26.6 SDK 26.5，但本机 runtime 只有 26.3/26.4。
+- X-04 / X-05 已通过 `make ios-app.ui-test`；认证用例使用 mock fixture 验证未同意协议时禁止登录、已同意协议后账号密码登录进入聊天页，聊天用例使用本机 fixture 验证会话详情和文本发送。
 - X-01 已接入认证重置密码 API：`POST /auth/password/reset`，当前 iOS 设置页提供“验证码重置密码”入口，测试阶段可使用后台通用验证码，不依赖真实邮箱。
 - X-02 已在登录/注册页增加用户协议/隐私协议勾选，未勾选时禁止登录或注册；协议内容来自后端公开配置。
 - X-03 已在 IOS-09 设置域收口并由 IOS-10 补齐通知态：退出登录会清理 Token、WS、聊天/消息/联系人/群/配置缓存、媒体/头像/表情缓存、聊天背景偏好和当前用户通知注册态。

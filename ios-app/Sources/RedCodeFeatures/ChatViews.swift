@@ -432,7 +432,6 @@ struct ChatDetailView: View {
             Divider()
             composer
         }
-        .accessibilityIdentifier("chat.detail")
         .navigationTitle(chat.displayName)
         .toolbar {
             if let makeMessageSearchController {

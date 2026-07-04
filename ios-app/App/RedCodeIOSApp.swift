@@ -125,6 +125,9 @@ final class AppDependencies {
 
     static func current() -> AppDependencies {
         #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--redcode-ui-testing-auth-fixture") {
+            return uiTestingAuthFixture()
+        }
         if ProcessInfo.processInfo.arguments.contains("--redcode-ui-testing-chat-fixture") {
             return uiTestingChatFixture()
         }

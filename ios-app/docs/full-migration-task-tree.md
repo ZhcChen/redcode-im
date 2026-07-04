@@ -92,7 +92,7 @@ IOS
 - [x] IOS-02.08 实现登录态校验和 session 恢复。
 - [x] IOS-02.09 实现登出清理：Token、WS、内存态、本地敏感缓存。
 - [x] IOS-02.10 增加认证 ViewModel 单测。
-- [ ] IOS-02.11 增加认证 UI test。
+- [x] IOS-02.11 增加认证 UI test。
 - [x] IOS-02.12 与 API Compose 做账号密码注册/登录 smoke。
 
 当前说明：
@@ -105,7 +105,7 @@ IOS
 - IOS-02.09 已在 IOS-09 设置域收口，并由 IOS-10 补齐通知态清理：退出登录会清理认证 session、WebSocket、聊天列表、消息、联系人、群、配置缓存、附件、头像、表情缓存、聊天背景偏好和当前用户通知注册态。
 - 当前 iOS UI 已提供普通账号密码登录、注册并登录、启动恢复 loading、登录后 tab shell 和设置页登出入口；登录/注册前需勾选用户协议/隐私协议。
 - 已接入登录后验证码重置密码入口，调用 `POST /auth/password/reset`；本地测试阶段可使用后台通用验证码，不依赖真实邮箱。
-- 认证 UI test 尚未完成，当前被本机 Xcode SDK 与已安装 Simulator runtime 不匹配阻塞。
+- 认证 UI test 已接入 `RedCodeIMUITests`，覆盖未勾选协议时禁止登录、已同意协议后账号密码登录进入聊天页。
 - 已通过 `RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 对本机 Compose API 完成注册、登录、`/auth/me` live smoke。
 
 参考：
@@ -181,7 +181,7 @@ IOS
 - [x] IOS-04.14 实现 reaction。
 - [x] IOS-04.15 实现房间订阅管理。
 - [x] IOS-04.16 增加聊天 ViewModel 单测。
-- [ ] IOS-04.17 增加聊天 UI test。
+- [x] IOS-04.17 增加聊天 UI test。
 - [x] IOS-04.18 与 H5 做同后端互发 smoke。
 
 参考：
@@ -208,10 +208,10 @@ IOS
 - 已补 `ChatRealtimeControllerTests` 和 WebSocket message event 解码测试，覆盖入站消息同步、active detail 自动已读、read/pin 事件同步到详情和缓存。
 - 已补 reaction 基础链路：`MessageReactionSummary` 模型、reaction add/remove/get API、详情页 reaction 标签展示和点击切换、`reaction_update` 后 active detail 刷新 summaries。
 - 已新增 `RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests`，对本机 Compose API 的 `/chats` 解码做 live smoke。
-- 已新增 `RedCodeIMUITests` XCUITest target、Debug-only 聊天 UI fixture 和 `make ios-app.ui-test` 入口；当前本机 Xcode 26.6 只有 iOS 26.5 SDK，但 Simulator runtime 只有 iOS 26.3/26.4，`xcodebuild test` 无法解析 simulator destination，待安装 iOS 26.5 runtime 后执行 UI test。
+- 已新增 `RedCodeIMUITests` XCUITest target、Debug-only 认证/聊天 UI fixture 和 `make ios-app.ui-test` 入口；当前已通过认证与聊天 smoke。
 - 已补 `RoomAPIClient` 和 `make ios-app.test.live`，覆盖 iOS 认证、WebSocket、建群、文本互发和已读 live smoke。
 - 已补 H5 `ios-h5-chat-interop-smoke`，通过 H5 service 与 iOS-compatible HTTP contract 在同一 Compose API 上验证双向文本可见。
-- IOS-04.17 聊天 UI test 代码已接入但运行仍受本机 Simulator runtime 不匹配阻塞；IOS-04.18 已通过 `make h5-app.test.live` 和 `make ios-app.test.live`。
+- IOS-04.17 已通过 `make ios-app.ui-test`；IOS-04.18 已通过 `make h5-app.test.live` 和 `make ios-app.test.live`。
 
 ## IOS-05 联系人、好友与私聊
 
@@ -320,7 +320,7 @@ IOS
 - dev Compose 已接入 `external-mock`，B2/IPInfo/FCM 均指向本地 mock；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator 可访问地址。
 - 已补 `MediaAPIClientTests`、`MediaAPIClientLiveTests`、`ChatAPIClientTests`、`ChatDetailControllerTests`、`StorageTests` 媒体覆盖。
 - 已通过 `RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests`，覆盖 mock 对象存储上传、commit、富媒体消息发送和下载校验。
-- H5 当前已支持附件展示、缓存和后端 `parts` 映射；H5 主动发送富媒体与 H5/iOS 媒体互通 smoke 在 IOS-08/IOS-11 联调阶段继续补齐。
+- H5 已补 `messageService.sendRichMessage`，并在 live smoke 中覆盖 H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
 
 参考：
 
@@ -458,7 +458,7 @@ IOS
 - [x] IOS-11.01 建立 Flutter vs iOS 功能对照清单。
 - [x] IOS-11.02 建立 H5/API/iOS 联调脚本。
 - [x] IOS-11.03 完成本机 iOS Simulator smoke。
-- [ ] IOS-11.04 完成 UI test 回归。
+- [x] IOS-11.04 完成 UI test 回归。
 - [x] IOS-11.05 完成媒体 mock 回归。
 - [ ] IOS-11.06 完成通知真机补验。
 - [x] IOS-11.07 建立 P0/P1 缺口清单。
@@ -472,7 +472,7 @@ IOS
 - 已新增 `make ios-app.test.interop`，串联 H5 live smoke 与 iOS live smoke。
 - 已通过 `make ios-app.test.interop`，覆盖 H5/API/iOS 认证、WebSocket、聊天、好友、群管理和媒体 mock 关键链路。
 - 已通过 `make ios-app.smoke.simulator`，本机 `iPhone 17 Pro` Simulator 可构建、安装、启动。
-- IOS-11.04 当前被环境阻塞：Xcode 26.6 使用 iOS 26.5 SDK，但本机未安装 iOS 26.5 Simulator runtime，`make ios-app.ui-test` 无法解析 destination。
+- IOS-11.04 已通过 `make ios-app.ui-test`，覆盖认证协议门禁/登录和聊天详情发送 smoke；若后续 Xcode SDK 升级导致 runtime 不匹配，按测试文档安装对应 runtime 后重跑。
 - IOS-11.06 需要 iPhone 真机与 APNs/FCM 平台凭据；当前 Simulator/SwiftPM 已覆盖本地通知调度、payload 导航和登出通知态清理。
 
 验收：
