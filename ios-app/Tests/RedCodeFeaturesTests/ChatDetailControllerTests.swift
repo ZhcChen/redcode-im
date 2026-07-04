@@ -158,6 +158,75 @@ final class ChatDetailControllerTests: XCTestCase {
         XCTAssertTrue(calls.contains(.addReaction(roomID: "r1", messageID: "m1", reactionKey: "👍", token: "access-token")))
         XCTAssertTrue(calls.contains(.removeReaction(roomID: "r1", messageID: "m1", reactionKey: "👍", token: "access-token")))
     }
+
+    func testSendPreparedMediaUploadsCommitsAndSendsRichMessage() async throws {
+        let cache = SwiftDataMessageCacheStore(
+            container: try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-media-test-\(UUID().uuidString).png")
+        try Data("image-bytes".utf8).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let prepared = try MediaUploadPreparer.prepareFile(
+            at: tempURL,
+            kind: .image,
+            fileName: "image.png",
+            contentType: "image/png"
+        )
+        let api = MockChatDetailAPIService(sendOutcomes: [
+            .success(
+                ChatMessage(
+                    id: "server-media",
+                    roomID: "r1",
+                    senderID: "u1",
+                    senderName: "Me",
+                    content: "[图片]",
+                    messageType: .image,
+                    timestamp: Date(timeIntervalSince1970: 300),
+                    parts: [
+                        ChatMessagePart(
+                            position: 0,
+                            partType: .image,
+                            attachment: ChatMessageAttachment(
+                                key: "messages/r1/images_20260704/abc.png",
+                                name: "image.png",
+                                mimeType: "image/png",
+                                size: Int64(Data("image-bytes".utf8).count)
+                            )
+                        ),
+                    ]
+                )
+            ),
+        ])
+        let media = MockMediaAPIService()
+        let controller = ChatDetailController(
+            api: api,
+            messageCacheStore: cache,
+            mediaAPI: media,
+            attachmentCache: AttachmentFileCache(rootURL: FileManager.default.temporaryDirectory)
+        )
+        try await controller.enterRoom(roomID: "r1", token: "access-token", currentUserID: "u1")
+
+        let sent = try await controller.sendPreparedMedia(
+            files: [prepared],
+            token: "access-token",
+            currentUserID: "u1",
+            currentUserName: "Me"
+        )
+
+        XCTAssertEqual(sent?.id, "server-media")
+        XCTAssertEqual(controller.messages.map(\.id), ["server-media"])
+        XCTAssertEqual(controller.messages.first?.attachments.first?.key, "messages/r1/images_20260704/abc.png")
+        let calls = await api.calls
+        XCTAssertTrue(calls.contains(.sendRich(roomID: "r1", partTypes: [.image], token: "access-token")))
+        let mediaCalls = await media.recordedCalls()
+        XCTAssertEqual(mediaCalls, [
+            .request(roomID: "r1", partType: .image, fileName: "image.png"),
+            .upload(contentType: "image/png", byteCount: 11),
+            .commit(roomID: "r1", key: "messages/r1/images_20260704/abc.png"),
+        ])
+    }
 }
 
 private enum ChatDetailCall: Equatable, Sendable {
@@ -167,6 +236,7 @@ private enum ChatDetailCall: Equatable, Sendable {
     case addReaction(roomID: String, messageID: String, reactionKey: String, token: String)
     case removeReaction(roomID: String, messageID: String, reactionKey: String, token: String)
     case fetchReactions(roomID: String, messageID: String, token: String)
+    case sendRich(roomID: String, partTypes: [ChatMessageType], token: String)
 }
 
 private enum ChatDetailFailure: Error, Sendable {
@@ -232,6 +302,23 @@ private actor MockChatDetailAPIService: ChatAPIService {
         }
     }
 
+    func sendRichMessage(
+        roomID: String,
+        content: String?,
+        parts: [OutgoingMessagePart],
+        quotedMessageID: String?,
+        token: String
+    ) async throws -> ChatMessage {
+        calls.append(.sendRich(roomID: roomID, partTypes: parts.map(\.type), token: token))
+        let outcome = sendOutcomes.isEmpty ? .failure : sendOutcomes.removeFirst()
+        switch outcome {
+        case .success(let message):
+            return message
+        case .failure:
+            throw ChatDetailFailure.sendFailed
+        }
+    }
+
     func markMessagesAsRead(roomID: String, messageID: String, token: String) async throws {
         calls.append(.markRead(roomID: roomID, messageID: messageID, token: token))
     }
@@ -275,5 +362,87 @@ private actor MockChatDetailAPIService: ChatAPIService {
     func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary] {
         calls.append(.fetchReactions(roomID: roomID, messageID: messageID, token: token))
         return fetchedReactionSummaries
+    }
+}
+
+private enum MediaCall: Equatable, Sendable {
+    case request(roomID: String, partType: MediaPartType, fileName: String)
+    case upload(contentType: String?, byteCount: Int)
+    case commit(roomID: String, key: String)
+}
+
+private actor MockMediaAPIService: MediaAPIService {
+    private(set) var calls: [MediaCall] = []
+
+    func recordedCalls() -> [MediaCall] {
+        calls
+    }
+
+    func requestUserAvatarUpload(metadata: MediaUploadMetadata, token: String) async throws -> DirectUploadDescriptor {
+        DirectUploadDescriptor(key: "avatars/u1.png", signature: nil)
+    }
+
+    func commitUserAvatarUpload(key: String, token: String) async throws -> MediaCommitResult {
+        MediaCommitResult(success: true, message: "ok", avatarURL: nil)
+    }
+
+    func userAvatarDownloadURL(userID: String?, token: String, expiresInSeconds: Int) async throws -> URL? {
+        nil
+    }
+
+    func requestRoomAvatarUpload(roomID: String, metadata: MediaUploadMetadata, token: String) async throws -> DirectUploadDescriptor {
+        DirectUploadDescriptor(key: "room_avatars/\(roomID)/avatar.png", signature: nil)
+    }
+
+    func commitRoomAvatarUpload(roomID: String, key: String, token: String) async throws -> MediaCommitResult {
+        MediaCommitResult(success: true, message: "ok", avatarURL: nil)
+    }
+
+    func roomAvatarDownloadURL(roomID: String, token: String, expiresInSeconds: Int) async throws -> URL? {
+        nil
+    }
+
+    func requestMessageAttachmentUpload(
+        roomID: String,
+        partType: MediaPartType,
+        metadata: MediaUploadMetadata,
+        token: String
+    ) async throws -> DirectUploadDescriptor {
+        calls.append(.request(roomID: roomID, partType: partType, fileName: metadata.fileName))
+        return DirectUploadDescriptor(
+            key: "messages/r1/images_20260704/abc.png",
+            signature: DirectUploadSignature(
+                url: URL(string: "http://storage.local/mock-bucket/messages/r1/images_20260704/abc.png")!,
+                method: .put,
+                headers: [:],
+                key: "messages/r1/images_20260704/abc.png"
+            )
+        )
+    }
+
+    func commitMessageAttachmentUpload(
+        roomID: String,
+        key: String,
+        metadata: MediaUploadMetadata,
+        token: String
+    ) async throws {
+        calls.append(.commit(roomID: roomID, key: key))
+    }
+
+    func messageAttachmentDownloadURL(
+        roomID: String,
+        key: String,
+        token: String,
+        expiresInSeconds: Int
+    ) async throws -> URL? {
+        URL(string: "http://storage.local/mock-bucket/\(key)")
+    }
+
+    func upload(data: Data, using signature: DirectUploadSignature, defaultContentType: String?) async throws {
+        calls.append(.upload(contentType: defaultContentType, byteCount: data.count))
+    }
+
+    func download(from url: URL) async throws -> Data {
+        Data()
     }
 }

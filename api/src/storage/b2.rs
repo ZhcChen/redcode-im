@@ -50,6 +50,31 @@ fn ensure_endpoint_url(endpoint: &str) -> String {
     }
 }
 
+fn presign_public_endpoint() -> Option<String> {
+    std::env::var("REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT")
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn rewrite_presigned_url_for_client(raw_url: String) -> String {
+    let Some(public_endpoint) = presign_public_endpoint() else {
+        return raw_url;
+    };
+
+    let Ok(mut original) = reqwest::Url::parse(&raw_url) else {
+        return raw_url;
+    };
+    let Ok(public) = reqwest::Url::parse(&public_endpoint) else {
+        return raw_url;
+    };
+
+    let _ = original.set_scheme(public.scheme());
+    let _ = original.set_host(public.host_str());
+    let _ = original.set_port(public.port());
+    original.to_string()
+}
+
 fn normalize_region(region: &str) -> String {
     let trimmed = region.trim();
     if trimmed.is_empty() {
@@ -375,7 +400,7 @@ impl StorageService for BackblazeB2Service {
             .map_err(|e| AppError::InternalError(format!("生成 B2 上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
-            url: presigned.uri().to_string(),
+            url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
             method: presigned.method().to_string(),
             headers: map_presigned_headers(presigned.headers()),
             key: key.to_string(),
@@ -444,7 +469,7 @@ impl StorageService for BackblazeB2Service {
             .map_err(|e| AppError::InternalError(format!("生成 B2 分片上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
-            url: presigned.uri().to_string(),
+            url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
             method: presigned.method().to_string(),
             headers: map_presigned_headers(presigned.headers()),
             key: key.to_string(),
@@ -541,7 +566,7 @@ impl StorageService for BackblazeB2Service {
             .await
             .map_err(|e| AppError::InternalError(format!("生成 B2 下载链接失败: {}", e)))?;
 
-        Ok(presigned.uri().to_string())
+        Ok(rewrite_presigned_url_for_client(presigned.uri().to_string()))
     }
 }
 

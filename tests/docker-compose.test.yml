@@ -50,6 +50,7 @@ x-api-test-environment: &api-test-environment
   METRICS_FLUSH_INTERVAL_SECONDS: "${METRICS_FLUSH_INTERVAL_SECONDS:-5}"
   METRICS_SAMPLE_RATE: "${METRICS_SAMPLE_RATE:-1.0}"
   EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
+  REDCODE_IM_STORAGE_SCHEME: http
   REDCODE_IM_B2_ENDPOINT: http://external-mock:19080
   REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL: http://external-mock:19080/b2api/v4/b2_authorize_account
   REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT: "true"

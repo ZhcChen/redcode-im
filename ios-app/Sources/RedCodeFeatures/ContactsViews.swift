@@ -1,6 +1,7 @@
 import SwiftUI
 import RedCodeCore
 import RedCodeNetworking
+import RedCodeStorage
 
 public struct ContactsHomeView: View {
     private let authController: AuthController
@@ -8,6 +9,8 @@ public struct ContactsHomeView: View {
     private let realtimeController: ChatRealtimeController
     private let makeDetailController: @MainActor () -> ChatDetailController
     private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
+    private let mediaAPI: (any MediaAPIService)?
+    private let attachmentCache: AttachmentFileCache?
 
     @State private var contactsController: ContactsController
     @State private var addFriendController: AddFriendController
@@ -20,13 +23,17 @@ public struct ContactsHomeView: View {
         chatListController: ChatListController,
         realtimeController: ChatRealtimeController,
         makeDetailController: @escaping @MainActor () -> ChatDetailController,
-        makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil
+        makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
+        mediaAPI: (any MediaAPIService)? = nil,
+        attachmentCache: AttachmentFileCache? = nil
     ) {
         self.authController = authController
         self.chatListController = chatListController
         self.realtimeController = realtimeController
         self.makeDetailController = makeDetailController
         self.makeGroupManagementController = makeGroupManagementController
+        self.mediaAPI = mediaAPI
+        self.attachmentCache = attachmentCache
         _contactsController = State(initialValue: contactsController)
         _addFriendController = State(initialValue: addFriendController)
     }
@@ -151,7 +158,9 @@ public struct ContactsHomeView: View {
                     controller: makeDetailController(),
                     chatListController: chatListController,
                     makeGroupManagementController: makeGroupManagementController,
-                    contactsController: contactsController
+                    contactsController: contactsController,
+                    mediaAPI: mediaAPI,
+                    attachmentCache: attachmentCache
                 )
             }
         }

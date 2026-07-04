@@ -1,5 +1,14 @@
 import SwiftUI
+import PhotosUI
 import RedCodeNetworking
+import RedCodeStorage
+import UniformTypeIdentifiers
+
+#if canImport(UIKit)
+import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 private let defaultReactionKeys = ["👍", "❤️", "😂", "🎉", "😮", "😢"]
 
@@ -9,6 +18,9 @@ public struct ChatHomeView: View {
     private let makeDetailController: @MainActor () -> ChatDetailController
     private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
     private let contactsController: ContactsController?
+    private let mediaAPI: (any MediaAPIService)?
+    private let attachmentCache: AttachmentFileCache?
+    private let avatarCache: AvatarFileCache?
 
     @State private var listController: ChatListController
 
@@ -18,13 +30,19 @@ public struct ChatHomeView: View {
         realtimeController: ChatRealtimeController,
         makeDetailController: @escaping @MainActor () -> ChatDetailController,
         makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
-        contactsController: ContactsController? = nil
+        contactsController: ContactsController? = nil,
+        mediaAPI: (any MediaAPIService)? = nil,
+        attachmentCache: AttachmentFileCache? = nil,
+        avatarCache: AvatarFileCache? = nil
     ) {
         self.authController = authController
         self.realtimeController = realtimeController
         self.makeDetailController = makeDetailController
         self.makeGroupManagementController = makeGroupManagementController
         self.contactsController = contactsController
+        self.mediaAPI = mediaAPI
+        self.attachmentCache = attachmentCache
+        self.avatarCache = avatarCache
         _listController = State(initialValue: listController)
     }
 
@@ -49,10 +67,17 @@ public struct ChatHomeView: View {
                                 controller: makeDetailController(),
                                 chatListController: listController,
                                 makeGroupManagementController: makeGroupManagementController,
-                                contactsController: contactsController
+                                contactsController: contactsController,
+                                mediaAPI: mediaAPI,
+                                attachmentCache: attachmentCache
                             )
                         } label: {
-                            ChatSummaryRow(chat: chat)
+                            ChatSummaryRow(
+                                chat: chat,
+                                token: authController.session?.token,
+                                mediaAPI: mediaAPI,
+                                avatarCache: avatarCache
+                            )
                         }
                         .accessibilityIdentifier("chat.row.\(chat.roomID)")
                         .swipeActions(edge: .trailing) {
@@ -141,10 +166,20 @@ public struct ChatHomeView: View {
 
 private struct ChatSummaryRow: View {
     let chat: ChatSummary
+    let token: String?
+    let mediaAPI: (any MediaAPIService)?
+    let avatarCache: AvatarFileCache?
+
+    @State private var cachedAvatarURL: URL?
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarCircle(title: chat.displayName, systemImage: chat.roomType == .group ? "person.3.fill" : "person.fill")
+            AvatarCircle(
+                title: chat.displayName,
+                systemImage: chat.roomType == .group ? "person.3.fill" : "person.fill",
+                fileURL: cachedAvatarURL,
+                remoteURL: chat.avatarURL.flatMap(URL.init(string:))
+            )
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
@@ -188,6 +223,63 @@ private struct ChatSummaryRow: View {
             }
         }
         .padding(.vertical, 6)
+        .task(id: avatarTaskID) {
+            await resolveAvatar()
+        }
+    }
+
+    private var avatarTaskID: String {
+        [chat.roomID, chat.friendUserID ?? "", chat.avatarObjectKey ?? "", chat.avatarURL ?? ""].joined(separator: "|")
+    }
+
+    private func resolveAvatar() async {
+        guard let avatarObjectKey = chat.avatarObjectKey, !avatarObjectKey.isEmpty else {
+            cachedAvatarURL = nil
+            return
+        }
+        guard let token, let mediaAPI, let avatarCache else {
+            return
+        }
+
+        do {
+            if chat.roomType == .group {
+                if let cached = try await avatarCache.resolveRoomAvatar(roomID: chat.roomID, objectKey: avatarObjectKey) {
+                    cachedAvatarURL = cached.fileURL
+                    return
+                }
+                guard let downloadURL = try await mediaAPI.roomAvatarDownloadURL(roomID: chat.roomID, token: token, expiresInSeconds: 3_600) else {
+                    return
+                }
+                let data = try await mediaAPI.download(from: downloadURL)
+                let cached = try await avatarCache.saveRoomAvatar(
+                    roomID: chat.roomID,
+                    objectKey: avatarObjectKey,
+                    data: data,
+                    suggestedExtension: URL(fileURLWithPath: avatarObjectKey).pathExtension,
+                    mimeType: nil
+                )
+                cachedAvatarURL = cached.fileURL
+            } else if let friendUserID = chat.friendUserID, !friendUserID.isEmpty {
+                if let cached = try await avatarCache.resolveUserAvatar(userID: friendUserID, objectKey: avatarObjectKey) {
+                    cachedAvatarURL = cached.fileURL
+                    return
+                }
+                guard let downloadURL = try await mediaAPI.userAvatarDownloadURL(userID: friendUserID, token: token, expiresInSeconds: 3_600) else {
+                    return
+                }
+                let data = try await mediaAPI.download(from: downloadURL)
+                let cached = try await avatarCache.saveUserAvatar(
+                    userID: friendUserID,
+                    objectKey: avatarObjectKey,
+                    data: data,
+                    suggestedExtension: URL(fileURLWithPath: avatarObjectKey).pathExtension,
+                    mimeType: nil
+                )
+                cachedAvatarURL = cached.fileURL
+            }
+        } catch {
+            // 头像失败不影响会话列表。
+        }
     }
 }
 
@@ -198,9 +290,16 @@ struct ChatDetailView: View {
     private let chatListController: ChatListController?
     private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
     private let contactsController: ContactsController?
+    private let mediaAPI: (any MediaAPIService)?
+    private let attachmentCache: AttachmentFileCache?
 
     @State private var controller: ChatDetailController
     @State private var draftText = ""
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var pendingFiles: [PreparedUploadFile] = []
+    @State private var isPreparingMedia = false
+    @State private var isFileImporterPresented = false
+    @State private var voiceRecorder = VoiceRecorderController()
 
     init(
         authController: AuthController,
@@ -209,7 +308,9 @@ struct ChatDetailView: View {
         controller: ChatDetailController,
         chatListController: ChatListController? = nil,
         makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
-        contactsController: ContactsController? = nil
+        contactsController: ContactsController? = nil,
+        mediaAPI: (any MediaAPIService)? = nil,
+        attachmentCache: AttachmentFileCache? = nil
     ) {
         self.authController = authController
         self.chat = chat
@@ -217,6 +318,8 @@ struct ChatDetailView: View {
         self.chatListController = chatListController
         self.makeGroupManagementController = makeGroupManagementController
         self.contactsController = contactsController
+        self.mediaAPI = mediaAPI
+        self.attachmentCache = attachmentCache
         _controller = State(initialValue: controller)
     }
 
@@ -284,6 +387,10 @@ struct ChatDetailView: View {
                             MessageBubble(
                                 message: message,
                                 isSelf: message.senderID == authController.session?.user.id,
+                                roomID: chat.roomID,
+                                token: authController.session?.token,
+                                mediaAPI: mediaAPI,
+                                attachmentCache: attachmentCache,
                                 onReactionTap: { reactionKey in
                                     toggleReaction(message, reactionKey: reactionKey)
                                 }
@@ -366,7 +473,37 @@ struct ChatDetailView: View {
                 .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
             }
 
+            if !pendingFiles.isEmpty {
+                PendingAttachmentStrip(files: pendingFiles) { file in
+                    pendingFiles.removeAll { $0.localURL == file.localURL }
+                }
+            }
+
             HStack(alignment: .bottom, spacing: 8) {
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 6,
+                    matching: .any(of: [.images, .videos])
+                ) {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                .disabled(mediaAPI == nil || isPreparingMedia)
+
+                Button {
+                    isFileImporterPresented = true
+                } label: {
+                    Image(systemName: "paperclip")
+                }
+                .disabled(mediaAPI == nil || isPreparingMedia)
+
+                Button {
+                    toggleVoiceRecording()
+                } label: {
+                    Image(systemName: voiceRecorder.isRecording ? "stop.circle.fill" : "mic.circle")
+                        .foregroundStyle(voiceRecorder.isRecording ? .red : .primary)
+                }
+                .disabled(mediaAPI == nil || isPreparingMedia)
+
                 TextField("输入消息", text: $draftText, axis: .vertical)
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
@@ -386,11 +523,27 @@ struct ChatDetailView: View {
                     }
                 }
                 .accessibilityIdentifier("chat.composer.send")
-                .disabled(draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || controller.isSending)
+                .disabled(
+                    (draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && pendingFiles.isEmpty)
+                        || controller.isSending
+                        || isPreparingMedia
+                )
             }
         }
         .padding(12)
         .background(.background)
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            handleFileImport(result)
+        }
+        .onChange(of: selectedPhotoItems) { _, items in
+            Task {
+                await preparePhotoItems(items)
+            }
+        }
     }
 
     private func enterRoom() async {
@@ -415,14 +568,26 @@ struct ChatDetailView: View {
         }
         let text = draftText
         draftText = ""
+        let files = pendingFiles
+        pendingFiles = []
         Task {
             do {
-                _ = try await controller.sendText(
-                    text,
-                    token: session.token,
-                    currentUserID: session.user.id,
-                    currentUserName: session.user.displayName
-                )
+                if files.isEmpty {
+                    _ = try await controller.sendText(
+                        text,
+                        token: session.token,
+                        currentUserID: session.user.id,
+                        currentUserName: session.user.displayName
+                    )
+                } else {
+                    _ = try await controller.sendPreparedMedia(
+                        files: files,
+                        caption: text,
+                        token: session.token,
+                        currentUserID: session.user.id,
+                        currentUserName: session.user.displayName
+                    )
+                }
             } catch {
                 // pending message 会保留为 failed，用户可通过上下文重试（后续 UI 继续细化）。
             }
@@ -465,6 +630,81 @@ struct ChatDetailView: View {
         }
     }
 
+    private func preparePhotoItems(_ items: [PhotosPickerItem]) async {
+        guard !items.isEmpty else {
+            return
+        }
+        isPreparingMedia = true
+        defer {
+            isPreparingMedia = false
+            selectedPhotoItems = []
+        }
+
+        for item in items {
+            do {
+                guard let data = try await item.loadTransferable(type: Data.self) else {
+                    continue
+                }
+                let contentType = item.supportedContentTypes.first
+                let ext = contentType?.preferredFilenameExtension ?? "bin"
+                let fileName = "photo-\(UUID().uuidString).\(ext)"
+                let url = try MediaUploadPreparer.writeTemporaryFile(data: data, preferredFileName: fileName)
+                let kind: PreparedUploadKind = contentType?.conforms(to: .movie) == true ? .video : .image
+                let prepared = try MediaUploadPreparer.prepareFile(
+                    at: url,
+                    kind: kind,
+                    fileName: fileName,
+                    contentType: contentType?.preferredMIMEType
+                )
+                pendingFiles.append(prepared)
+            } catch {
+                controller.setErrorMessage(error.localizedDescription)
+            }
+        }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            for sourceURL in urls {
+                let didStartAccessing = sourceURL.startAccessingSecurityScopedResource()
+                defer {
+                    if didStartAccessing {
+                        sourceURL.stopAccessingSecurityScopedResource()
+                    }
+                }
+                let data = try Data(contentsOf: sourceURL)
+                let tempURL = try MediaUploadPreparer.writeTemporaryFile(
+                    data: data,
+                    preferredFileName: sourceURL.lastPathComponent
+                )
+                pendingFiles.append(try MediaUploadPreparer.prepareFile(at: tempURL))
+            }
+        } catch {
+            controller.setErrorMessage(error.localizedDescription)
+        }
+    }
+
+    private func toggleVoiceRecording() {
+        if voiceRecorder.isRecording {
+            do {
+                let file = try voiceRecorder.stop()
+                pendingFiles.append(file)
+            } catch {
+                controller.setErrorMessage(error.localizedDescription)
+            }
+            return
+        }
+
+        Task {
+            do {
+                try await voiceRecorder.start()
+            } catch {
+                controller.setErrorMessage(error.localizedDescription)
+            }
+        }
+    }
+
     private func scrollToBottom(_ proxy: ScrollViewProxy) {
         guard let lastID = controller.messages.last?.id else {
             return
@@ -480,6 +720,10 @@ struct ChatDetailView: View {
 private struct MessageBubble: View {
     let message: ChatMessage
     let isSelf: Bool
+    let roomID: String
+    let token: String?
+    let mediaAPI: (any MediaAPIService)?
+    let attachmentCache: AttachmentFileCache?
     let onReactionTap: ((String) -> Void)?
 
     var body: some View {
@@ -511,6 +755,21 @@ private struct MessageBubble: View {
 
                     Text(messageText)
                         .foregroundStyle(isSelf ? .white : .primary)
+
+                    if !message.attachments.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(message.parts.filter { $0.attachment != nil }, id: \.position) { part in
+                                AttachmentContentView(
+                                    part: part,
+                                    roomID: roomID,
+                                    token: token,
+                                    mediaAPI: mediaAPI,
+                                    attachmentCache: attachmentCache,
+                                    isSelf: isSelf
+                                )
+                            }
+                        }
+                    }
 
                     HStack(spacing: 6) {
                         Text(message.timestamp, style: .time)
@@ -604,21 +863,305 @@ private struct MessageBubble: View {
 private struct AvatarCircle: View {
     let title: String
     let systemImage: String
+    var fileURL: URL?
+    var remoteURL: URL?
 
     var body: some View {
         ZStack {
             Circle()
                 .fill(Color.accentColor.opacity(0.16))
-            if let first = title.trimmingCharacters(in: .whitespacesAndNewlines).first {
-                Text(String(first))
-                    .font(.headline)
-                    .foregroundStyle(Color.accentColor)
+            if let fileURL, let image = platformImage(from: fileURL) {
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .clipShape(Circle())
+            } else if let remoteURL {
+                AsyncImage(url: remoteURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        fallback
+                    }
+                }
+                .clipShape(Circle())
             } else {
-                Image(systemName: systemImage)
-                    .foregroundStyle(Color.accentColor)
+                fallback
             }
         }
         .frame(width: 44, height: 44)
+        .clipShape(Circle())
+    }
+
+    @ViewBuilder
+    private var fallback: some View {
+        if let first = title.trimmingCharacters(in: .whitespacesAndNewlines).first {
+                Text(String(first))
+                    .font(.headline)
+                    .foregroundStyle(Color.accentColor)
+        } else {
+            Image(systemName: systemImage)
+                .foregroundStyle(Color.accentColor)
+        }
+    }
+}
+
+private struct PendingAttachmentStrip: View {
+    let files: [PreparedUploadFile]
+    let onRemove: (PreparedUploadFile) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(files, id: \.localURL) { file in
+                    HStack(spacing: 6) {
+                        Image(systemName: file.kind.systemImageName)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(file.fileName)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                            Text(file.size.formattedByteCount)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button {
+                            onRemove(file)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.secondary.opacity(0.12), in: Capsule())
+                }
+            }
+        }
+    }
+}
+
+private struct AttachmentContentView: View {
+    let part: ChatMessagePart
+    let roomID: String
+    let token: String?
+    let mediaAPI: (any MediaAPIService)?
+    let attachmentCache: AttachmentFileCache?
+    let isSelf: Bool
+
+    @State private var cachedFileURL: URL?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var playback = VoicePlaybackController()
+
+    private var attachment: ChatMessageAttachment? {
+        part.attachment
+    }
+
+    var body: some View {
+        Button {
+            Task {
+                await loadIfNeeded(playAudioWhenReady: part.partType == .audio)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                if part.partType == .image,
+                   let cachedFileURL,
+                   let image = platformImage(from: cachedFileURL) {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 220, maxHeight: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: part.partType.attachmentSystemImageName)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(displayName)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            Text(detailText)
+                                .font(.caption2)
+                                .foregroundStyle(isSelf ? .white.opacity(0.75) : .secondary)
+                        }
+                        if isLoading {
+                            ProgressView()
+                        }
+                    }
+                }
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .task(id: attachment?.key) {
+            if part.partType == .image {
+                await loadIfNeeded(playAudioWhenReady: false)
+            }
+        }
+    }
+
+    private var displayName: String {
+        attachment?.name?.nilIfEmpty ?? part.partType.attachmentFallbackName
+    }
+
+    private var detailText: String {
+        let size = attachment?.size.map(\.formattedByteCount)
+        let duration = attachment?.durationMilliseconds.map { "\($0 / 1_000)s" }
+        return [attachment?.mimeType, size, duration]
+            .compactMap { $0?.nilIfEmpty }
+            .joined(separator: " · ")
+    }
+
+    private func loadIfNeeded(playAudioWhenReady: Bool) async {
+        guard let attachment else {
+            return
+        }
+        if let localURL = URL(string: attachment.key), localURL.isFileURL {
+            cachedFileURL = localURL
+            playIfNeeded(url: localURL, playAudioWhenReady: playAudioWhenReady)
+            return
+        }
+        guard cachedFileURL == nil else {
+            if let cachedFileURL {
+                playIfNeeded(url: cachedFileURL, playAudioWhenReady: playAudioWhenReady)
+            }
+            return
+        }
+        guard let token, let mediaAPI, let attachmentCache else {
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            if let cached = try await attachmentCache.resolve(objectKey: attachment.key) {
+                cachedFileURL = cached.fileURL
+                playIfNeeded(url: cached.fileURL, playAudioWhenReady: playAudioWhenReady)
+                return
+            }
+            guard let downloadURL = try await mediaAPI.messageAttachmentDownloadURL(
+                roomID: roomID,
+                key: attachment.key,
+                token: token,
+                expiresInSeconds: 600
+            ) else {
+                return
+            }
+            let data = try await mediaAPI.download(from: downloadURL)
+            let cached = try await attachmentCache.save(
+                objectKey: attachment.key,
+                data: data,
+                suggestedExtension: URL(fileURLWithPath: attachment.key).pathExtension,
+                mimeType: attachment.mimeType
+            )
+            cachedFileURL = cached.fileURL
+            playIfNeeded(url: cached.fileURL, playAudioWhenReady: playAudioWhenReady)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func playIfNeeded(url: URL, playAudioWhenReady: Bool) {
+        guard playAudioWhenReady else {
+            return
+        }
+        do {
+            try playback.play(url: url)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+#if canImport(UIKit)
+private func platformImage(from url: URL) -> Image? {
+    guard let image = UIImage(contentsOfFile: url.path) else {
+        return nil
+    }
+    return Image(uiImage: image)
+}
+#elseif canImport(AppKit)
+private func platformImage(from url: URL) -> Image? {
+    guard let image = NSImage(contentsOf: url) else {
+        return nil
+    }
+    return Image(nsImage: image)
+}
+#else
+private func platformImage(from url: URL) -> Image? {
+    nil
+}
+#endif
+
+private extension PreparedUploadKind {
+    var systemImageName: String {
+        switch self {
+        case .image:
+            "photo"
+        case .video:
+            "video"
+        case .audio:
+            "waveform"
+        case .file:
+            "doc"
+        }
+    }
+}
+
+private extension ChatMessageType {
+    var attachmentSystemImageName: String {
+        switch self {
+        case .image:
+            "photo"
+        case .video:
+            "play.rectangle"
+        case .audio:
+            "waveform.circle"
+        case .file:
+            "doc"
+        case .mixed:
+            "paperclip"
+        case .system:
+            "info.circle"
+        case .text:
+            "text.bubble"
+        }
+    }
+
+    var attachmentFallbackName: String {
+        switch self {
+        case .image:
+            "图片"
+        case .video:
+            "视频"
+        case .audio:
+            "语音"
+        case .file:
+            "文件"
+        case .mixed:
+            "附件"
+        case .system:
+            "系统消息"
+        case .text:
+            "文本"
+        }
+    }
+}
+
+private extension Int64 {
+    var formattedByteCount: String {
+        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

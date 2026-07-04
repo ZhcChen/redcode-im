@@ -716,6 +716,7 @@ ios-app.test.live: ## 执行 ios-app 真实后端 smoke（认证 + WS + 聊天�
 	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 $(SWIFT) test --filter ChatAPIClientLiveTests
 	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 $(SWIFT) test --filter FriendAPIClientLiveTests
 	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 $(SWIFT) test --filter RoomAPIClientLiveTests
+	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 $(SWIFT) test --filter MediaAPIClientLiveTests
 
 ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
 	@$(call require_cmd,$(XCODEBUILD))

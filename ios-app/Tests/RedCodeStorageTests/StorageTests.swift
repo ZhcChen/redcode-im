@@ -372,6 +372,25 @@ final class StorageTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: saved.fileURL.path))
     }
 
+    func testMediaUploadPreparerInfersMimeKindAndSHA256() throws {
+        let rootURL = try makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let fileURL = rootURL.appendingPathComponent("sample.png")
+        try Data("abc".utf8).write(to: fileURL)
+
+        let prepared = try MediaUploadPreparer.prepareFile(at: fileURL)
+
+        XCTAssertEqual(prepared.fileName, "sample.png")
+        XCTAssertEqual(prepared.contentType, "image/png")
+        XCTAssertEqual(prepared.kind, .image)
+        XCTAssertEqual(prepared.size, 3)
+        XCTAssertEqual(prepared.hashAlgorithm, MediaUploadPreparer.sha256HashAlgorithm)
+        XCTAssertEqual(
+            prepared.hashValue,
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+    }
+
     #if canImport(Security)
     func testKeychainKeyValueStoreStoresAndRemovesValues() async throws {
         let store = KeychainKeyValueStore(

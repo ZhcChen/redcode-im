@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import RedCodeCore
 import RedCodeNetworking
 import RedCodeStorage
 
@@ -18,14 +19,20 @@ public final class ChatDetailController {
     }
 
     private let api: any ChatAPIService
+    private let mediaAPI: (any MediaAPIService)?
     private let messageCacheStore: any MessageCacheStore
+    private let attachmentCache: AttachmentFileCache?
 
     public init(
         api: any ChatAPIService,
-        messageCacheStore: any MessageCacheStore
+        messageCacheStore: any MessageCacheStore,
+        mediaAPI: (any MediaAPIService)? = nil,
+        attachmentCache: AttachmentFileCache? = nil
     ) {
         self.api = api
+        self.mediaAPI = mediaAPI
         self.messageCacheStore = messageCacheStore
+        self.attachmentCache = attachmentCache
     }
 
     public func enterRoom(
@@ -83,6 +90,10 @@ public final class ChatDetailController {
         quotedMessage = nil
     }
 
+    public func setErrorMessage(_ message: String?) {
+        errorMessage = message
+    }
+
     @discardableResult
     public func sendText(
         _ content: String,
@@ -116,9 +127,83 @@ public final class ChatDetailController {
     }
 
     @discardableResult
+    public func sendPreparedMedia(
+        files: [PreparedUploadFile],
+        caption: String? = nil,
+        token: String,
+        currentUserID: String,
+        currentUserName: String = "我"
+    ) async throws -> ChatMessage? {
+        let caption = caption?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        guard !files.isEmpty, !roomID.isEmpty else {
+            if let caption {
+                return try await sendText(caption, token: token, currentUserID: currentUserID, currentUserName: currentUserName)
+            }
+            return nil
+        }
+        guard let mediaAPI else {
+            throw RedCodeError.configuration("MediaAPIService is required to send attachments")
+        }
+
+        let quote = quotedMessage?.asQuote
+        quotedMessage = nil
+
+        let localID = "local-\(Date().timeIntervalSince1970)-\(UUID().uuidString)"
+        let pending = ChatMessage.pendingMedia(
+            localID: localID,
+            roomID: roomID,
+            senderID: currentUserID,
+            senderName: currentUserName,
+            caption: caption,
+            files: files,
+            quotedMessage: quote
+        )
+        messages = ChatDetailController.mergeMessages(current: messages, incoming: [pending])
+        isSending = true
+        defer { isSending = false }
+        errorMessage = nil
+        try persist()
+
+        do {
+            let uploaded = try await upload(files: files, token: token, mediaAPI: mediaAPI)
+            let sent = try await api.sendRichMessage(
+                roomID: roomID,
+                content: caption,
+                parts: uploaded.outgoingParts(caption: nil),
+                quotedMessageID: quote?.id,
+                token: token
+            )
+            .replacingStatus(.sent)
+            messages = ChatDetailController.mergeMessages(current: messages, incoming: [sent])
+            try persist()
+            return sent
+        } catch {
+            messages = messages.map {
+                $0.id == localID ? $0.replacingStatus(.failed) : $0
+            }
+            errorMessage = error.localizedDescription
+            try persist()
+            throw error
+        }
+    }
+
+    @discardableResult
     public func resendMessage(messageID: String, token: String) async throws -> ChatMessage? {
         guard let failed = messages.first(where: { $0.id == messageID && $0.status == .failed }) else {
             return nil
+        }
+        if !failed.attachments.isEmpty {
+            let sent = try await api.sendRichMessage(
+                roomID: roomID,
+                content: failed.content.nilIfEmpty,
+                parts: failed.outgoingPartsForResend(),
+                quotedMessageID: failed.quotedMessage?.id,
+                token: token
+            )
+            .replacingStatus(.sent)
+            messages = ChatDetailController.mergeMessages(current: messages, incoming: [sent])
+            try persist()
+            return sent
         }
         return try await flushPendingMessage(
             localID: failed.id,
@@ -312,6 +397,43 @@ public final class ChatDetailController {
         }
     }
 
+    private func upload(
+        files: [PreparedUploadFile],
+        token: String,
+        mediaAPI: any MediaAPIService
+    ) async throws -> [UploadedMediaFile] {
+        var uploaded: [UploadedMediaFile] = []
+        for file in files {
+            let metadata = file.uploadMetadata
+            let descriptor = try await mediaAPI.requestMessageAttachmentUpload(
+                roomID: roomID,
+                partType: file.mediaPartType,
+                metadata: metadata,
+                token: token
+            )
+            if let signature = descriptor.signature {
+                let data = try Data(contentsOf: file.localURL)
+                try await mediaAPI.upload(data: data, using: signature, defaultContentType: file.contentType)
+            }
+            try await mediaAPI.commitMessageAttachmentUpload(
+                roomID: roomID,
+                key: descriptor.key,
+                metadata: metadata,
+                token: token
+            )
+            if let attachmentCache {
+                _ = try? await attachmentCache.saveFile(
+                    objectKey: descriptor.key,
+                    sourceURL: file.localURL,
+                    suggestedExtension: file.localURL.pathExtension,
+                    mimeType: file.contentType
+                )
+            }
+            uploaded.append(UploadedMediaFile(file: file, objectKey: descriptor.key))
+        }
+        return uploaded
+    }
+
     private func syncReadState(token: String, currentUserID: String?) async throws {
         guard let currentUserID else {
             return
@@ -371,6 +493,8 @@ extension ChatMessage {
                     content: ""
                 )
             },
+            parts: draft.cachedExtras.parts,
+            attachments: draft.cachedExtras.parts.compactMap(\.attachment),
             reactions: draft.cachedExtras.reactions
         )
     }
@@ -392,6 +516,46 @@ extension ChatMessage {
             status: .sending,
             timestamp: Date(),
             quotedMessage: quotedMessage
+        )
+    }
+
+    static func pendingMedia(
+        localID: String,
+        roomID: String,
+        senderID: String,
+        senderName: String,
+        caption: String?,
+        files: [PreparedUploadFile],
+        quotedMessage: ChatMessageQuote?
+    ) -> ChatMessage {
+        let parts = files.enumerated().map { index, file in
+            ChatMessagePart(
+                position: index,
+                partType: file.chatMessageType,
+                attachment: ChatMessageAttachment(
+                    key: file.localURL.absoluteString,
+                    name: file.fileName,
+                    mimeType: file.contentType,
+                    size: file.size,
+                    width: file.width,
+                    height: file.height,
+                    durationMilliseconds: file.durationMilliseconds
+                )
+            )
+        }
+        let content = caption?.nilIfEmpty ?? files.summaryText
+        return ChatMessage(
+            id: localID,
+            roomID: roomID,
+            senderID: senderID,
+            senderName: senderName,
+            content: content,
+            messageType: files.messageType(caption: caption),
+            status: .sending,
+            timestamp: Date(),
+            quotedMessage: quotedMessage,
+            parts: parts,
+            attachments: parts.compactMap(\.attachment)
         )
     }
 
@@ -547,9 +711,142 @@ extension ChatMessage {
 }
 
 private struct CachedMessageExtras: Codable {
+    let parts: [ChatMessagePart]
     let reactions: [MessageReactionSummary]
 
-    static let empty = CachedMessageExtras(reactions: [])
+    static let empty = CachedMessageExtras(parts: [], reactions: [])
+
+    init(parts: [ChatMessagePart], reactions: [MessageReactionSummary]) {
+        self.parts = parts
+        self.reactions = reactions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        parts = try container.decodeIfPresent([ChatMessagePart].self, forKey: .parts) ?? []
+        reactions = try container.decodeIfPresent([MessageReactionSummary].self, forKey: .reactions) ?? []
+    }
+}
+
+private struct UploadedMediaFile: Sendable {
+    let file: PreparedUploadFile
+    let objectKey: String
+}
+
+private extension PreparedUploadFile {
+    var uploadMetadata: MediaUploadMetadata {
+        MediaUploadMetadata(
+            fileName: fileName,
+            contentType: contentType,
+            fileSize: size,
+            hashValue: hashValue,
+            hashAlgorithm: hashAlgorithm
+        )
+    }
+
+    var mediaPartType: MediaPartType {
+        switch kind {
+        case .image:
+            .image
+        case .video:
+            .video
+        case .audio:
+            .audio
+        case .file:
+            .file
+        }
+    }
+
+    var chatMessageType: ChatMessageType {
+        switch kind {
+        case .image:
+            .image
+        case .video:
+            .video
+        case .audio:
+            .audio
+        case .file:
+            .file
+        }
+    }
+}
+
+private extension Array where Element == UploadedMediaFile {
+    func outgoingParts(caption: String?) -> [OutgoingMessagePart] {
+        var parts: [OutgoingMessagePart] = []
+        if let caption = caption?.nilIfEmpty {
+            parts.append(.text(caption))
+        }
+        for item in self {
+            parts.append(
+                .attachment(
+                    type: item.file.chatMessageType,
+                    key: item.objectKey,
+                    name: item.file.fileName,
+                    mime: item.file.contentType,
+                    size: item.file.size,
+                    width: item.file.width,
+                    height: item.file.height,
+                    durationMilliseconds: item.file.durationMilliseconds
+                )
+            )
+        }
+        return parts
+    }
+}
+
+private extension Array where Element == PreparedUploadFile {
+    var summaryText: String {
+        map { file in
+            switch file.kind {
+            case .image:
+                "[图片]"
+            case .video:
+                "[视频]"
+            case .audio:
+                "[语音]"
+            case .file:
+                "[文件]"
+            }
+        }
+        .joined(separator: " ")
+    }
+
+    func messageType(caption: String?) -> ChatMessageType {
+        if count == 1, caption?.nilIfEmpty == nil {
+            return first?.chatMessageType ?? .file
+        }
+        return .mixed
+    }
+}
+
+private extension ChatMessage {
+    func outgoingPartsForResend() -> [OutgoingMessagePart] {
+        var outgoing: [OutgoingMessagePart] = []
+        for part in parts {
+            if part.partType == .text, let text = part.text?.nilIfEmpty {
+                outgoing.append(.text(text))
+                continue
+            }
+            guard let attachment = part.attachment else {
+                continue
+            }
+            outgoing.append(
+                .attachment(
+                    type: part.partType,
+                    key: attachment.key,
+                    name: attachment.name,
+                    mime: attachment.mimeType,
+                    size: attachment.size,
+                    width: attachment.width,
+                    height: attachment.height,
+                    durationMilliseconds: attachment.durationMilliseconds,
+                    thumbnailKey: attachment.thumbnailKey
+                )
+            )
+        }
+        return outgoing
+    }
 }
 
 private extension RedCodeMessageDraft {
@@ -565,8 +862,8 @@ private extension RedCodeMessageDraft {
 
 private extension ChatMessage {
     var cacheExtrasJSON: String? {
-        let extras = CachedMessageExtras(reactions: reactions)
-        guard !extras.reactions.isEmpty,
+        let extras = CachedMessageExtras(parts: parts, reactions: reactions)
+        guard !extras.parts.isEmpty || !extras.reactions.isEmpty,
               let data = try? JSONEncoder().encode(extras) else {
             return nil
         }
@@ -592,5 +889,12 @@ private extension Array where Element == MessageReactionSummary {
                 }
                 return lhs.reactionKey < rhs.reactionKey
             }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

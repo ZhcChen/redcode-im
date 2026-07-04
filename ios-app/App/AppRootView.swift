@@ -63,7 +63,10 @@ private struct MainTabView: View {
                     realtimeController: dependencies.chatRealtimeController,
                     makeDetailController: dependencies.makeChatDetailController,
                     makeGroupManagementController: dependencies.makeGroupManagementController,
-                    contactsController: dependencies.contactsController
+                    contactsController: dependencies.contactsController,
+                    mediaAPI: dependencies.mediaAPI,
+                    attachmentCache: dependencies.messageAttachmentCache,
+                    avatarCache: dependencies.mediaAvatarCache
                 )
             }
             .tabItem {
@@ -78,7 +81,9 @@ private struct MainTabView: View {
                     chatListController: dependencies.chatListController,
                     realtimeController: dependencies.chatRealtimeController,
                     makeDetailController: dependencies.makeChatDetailController,
-                    makeGroupManagementController: dependencies.makeGroupManagementController
+                    makeGroupManagementController: dependencies.makeGroupManagementController,
+                    mediaAPI: dependencies.mediaAPI,
+                    attachmentCache: dependencies.messageAttachmentCache
                 )
             }
             .tabItem {

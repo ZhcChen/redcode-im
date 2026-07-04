@@ -47,6 +47,25 @@ services:
       timeout: 3s
       retries: 3
 
+  # 外部依赖 Mock（B2/S3、FCM、IPInfo），本地联调不访问线上对象存储
+  external-mock:
+    build:
+      context: ../../../tests/mocks/external
+      dockerfile: Dockerfile
+    container_name: redcode-dev-external-mock
+    environment:
+      EXTERNAL_MOCK_ADDR: ":19080"
+    ports:
+      - "19080:19080"
+    networks:
+      - dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:19080/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   # 后端服务
   api:
     build:
@@ -77,6 +96,20 @@ services:
       REDIS_SESSION_URL: redis://:123456@redis:6379/0
       REDIS_PUBSUB_URL: redis://:123456@redis:6379/0
       REDIS_CACHE_URL: redis://:123456@redis:6379/0
+      EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
+      REDCODE_IM_STORAGE_SCHEME: http
+      REDCODE_IM_B2_ENDPOINT: http://external-mock:19080
+      REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: http://127.0.0.1:19080
+      REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL: http://external-mock:19080/b2api/v4/b2_authorize_account
+      REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT: "true"
+      REDCODE_IM_B2_REGION: us-east-005
+      REDCODE_IM_B2_KEY_ID: mock-key-id
+      REDCODE_IM_B2_APPLICATION_KEY: mock-application-key
+      REDCODE_IM_B2_PRIVATE_BUCKET: mock-bucket
+      REDCODE_IM_B2_PUBLIC_BUCKET: mock-bucket
+      REDCODE_IM_B2_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
+      IPINFO_BASE_URL: http://external-mock:19080/ipinfo
+      PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
       WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE:-1024}
       SQLX_OFFLINE: "true"
       JWT_SECRET: dev-secret-change-me
@@ -86,6 +119,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      external-mock:
         condition: service_healthy
     networks:
       - dev-network

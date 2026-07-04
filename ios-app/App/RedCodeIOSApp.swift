@@ -16,9 +16,12 @@ final class AppDependencies {
     private let environment: RedCodeEnvironment
     private let modelContainer: ModelContainer
     private let chatAPIService: any ChatAPIService
+    private let mediaAPIService: any MediaAPIService
     private let friendAPIService: any FriendAPIService
     private let roomAPIService: any RoomAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
+    private let attachmentCache = AttachmentFileCache()
+    private let avatarCache = AvatarFileCache()
 
     convenience init(
         environment: RedCodeEnvironment = .simulatorDevelopment(),
@@ -29,11 +32,13 @@ final class AppDependencies {
             sessionStore: KeyValueAuthSessionStore(keyValueStore: KeychainKeyValueStore())
         )
         let chatAPIService = ChatAPIClient(environment: environment)
+        let mediaAPIService = MediaAPIClient(environment: environment)
         self.init(
             environment: environment,
             modelContainer: modelContainer,
             authController: authController,
             chatAPIService: chatAPIService,
+            mediaAPIService: mediaAPIService,
             friendAPIService: FriendAPIClient(environment: environment),
             roomAPIService: RoomAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
@@ -45,6 +50,7 @@ final class AppDependencies {
         modelContainer: ModelContainer,
         authController: AuthController,
         chatAPIService: any ChatAPIService,
+        mediaAPIService: (any MediaAPIService)? = nil,
         friendAPIService: (any FriendAPIService)? = nil,
         roomAPIService: (any RoomAPIService)? = nil,
         webSocketService: any ChatWebSocketService
@@ -53,6 +59,7 @@ final class AppDependencies {
         self.modelContainer = modelContainer
         self.authController = authController
         self.chatAPIService = chatAPIService
+        self.mediaAPIService = mediaAPIService ?? MediaAPIClient(environment: environment)
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
         self.friendAPIService = resolvedFriendAPIService
         self.roomAPIService = roomAPIService ?? RoomAPIClient(environment: environment)
@@ -95,8 +102,22 @@ final class AppDependencies {
     func makeChatDetailController() -> ChatDetailController {
         ChatDetailController(
             api: chatAPIService,
-            messageCacheStore: messageCacheStore
+            messageCacheStore: messageCacheStore,
+            mediaAPI: mediaAPIService,
+            attachmentCache: attachmentCache
         )
+    }
+
+    var mediaAPI: any MediaAPIService {
+        mediaAPIService
+    }
+
+    var messageAttachmentCache: AttachmentFileCache {
+        attachmentCache
+    }
+
+    var mediaAvatarCache: AvatarFileCache {
+        avatarCache
     }
 
     func makeGroupManagementController() -> GroupManagementController {

@@ -292,21 +292,33 @@ IOS
 
 ## IOS-07 媒体、附件、头像、语音和视频
 
-- [ ] IOS-07.01 接入 PhotosUI 图片/视频选择。
-- [ ] IOS-07.02 接入 DocumentPicker 文件选择。
-- [ ] IOS-07.03 实现上传策略获取。
-- [ ] IOS-07.04 实现直传。
-- [ ] IOS-07.05 实现文件 hash 和 MIME 识别。
-- [ ] IOS-07.06 实现附件缓存。
-- [ ] IOS-07.07 实现图片/视频/文件预览。
-- [ ] IOS-07.08 实现用户头像展示与缓存。
-- [ ] IOS-07.09 实现群头像展示与缓存。
-- [ ] IOS-07.10 实现头像上传。
-- [ ] IOS-07.11 接入 AVFoundation 语音录制。
-- [ ] IOS-07.12 实现语音消息发送。
-- [ ] IOS-07.13 实现语音播放。
-- [ ] IOS-07.14 实现权限拒绝和恢复路径。
-- [ ] IOS-07.15 使用对象存储 mock 做上传/下载 smoke。
+- [x] IOS-07.01 接入 PhotosUI 图片/视频选择。
+- [x] IOS-07.02 接入 DocumentPicker 文件选择。
+- [x] IOS-07.03 实现上传策略获取。
+- [x] IOS-07.04 实现直传。
+- [x] IOS-07.05 实现文件 hash 和 MIME 识别。
+- [x] IOS-07.06 实现附件缓存。
+- [x] IOS-07.07 实现图片/视频/文件预览。
+- [x] IOS-07.08 实现用户头像展示与缓存。
+- [x] IOS-07.09 实现群头像展示与缓存。
+- [x] IOS-07.10 实现头像上传。
+- [x] IOS-07.11 接入 AVFoundation 语音录制。
+- [x] IOS-07.12 实现语音消息发送。
+- [x] IOS-07.13 实现语音播放。
+- [x] IOS-07.14 实现权限拒绝和恢复路径。
+- [x] IOS-07.15 使用对象存储 mock 做上传/下载 smoke。
+
+当前说明：
+
+- 媒体网络层已补 `MediaAPIEndpoint`、`MediaModels`、`MediaAPIClient`，覆盖用户头像、群头像、消息附件上传签名、commit、download URL 与 direct upload/download。
+- `MediaUploadPreparer` 已支持 SHA256、MIME/UTType 推断、文件名规范化和图片/视频/音频/文件类型推断，hash_alg 对齐后端 `2`。
+- 聊天详情已接入 PhotosUI 图片/视频选择、文件选择、附件待发送 strip、富媒体 pending/failed/resend、上传后 rich message 发送和附件缓存。
+- 会话/聊天头像已优先使用 object key 获取下载 URL 并落本地 avatar cache；消息附件展示使用 `AttachmentFileCache`。
+- 语音基础能力已补 `VoiceRecorderController` / `VoicePlaybackController`，覆盖 AVFoundation 录音、语音消息发送、播放和麦克风权限拒绝提示。
+- dev Compose 已接入 `external-mock`，B2/IPInfo/FCM 均指向本地 mock；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator 可访问地址。
+- 已补 `MediaAPIClientTests`、`MediaAPIClientLiveTests`、`ChatAPIClientTests`、`ChatDetailControllerTests`、`StorageTests` 媒体覆盖。
+- 已通过 `RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests`，覆盖 mock 对象存储上传、commit、富媒体消息发送和下载校验。
+- H5 当前已支持附件展示、缓存和后端 `parts` 映射；H5 主动发送富媒体与 H5/iOS 媒体互通 smoke 在 IOS-08/IOS-11 联调阶段继续补齐。
 
 参考：
 

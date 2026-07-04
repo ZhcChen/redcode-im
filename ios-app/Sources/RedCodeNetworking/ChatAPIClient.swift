@@ -16,6 +16,13 @@ public protocol ChatAPIService: Sendable {
         quotedMessageID: String?,
         token: String
     ) async throws -> ChatMessage
+    func sendRichMessage(
+        roomID: String,
+        content: String?,
+        parts: [OutgoingMessagePart],
+        quotedMessageID: String?,
+        token: String
+    ) async throws -> ChatMessage
     func markMessagesAsRead(roomID: String, messageID: String, token: String) async throws
     func deleteChat(roomID: String, token: String) async throws
     func deleteMessage(roomID: String, messageID: String, token: String) async throws -> ChatMessage
@@ -33,6 +40,26 @@ public protocol ChatAPIService: Sendable {
         token: String
     ) async throws -> [MessageReactionSummary]
     func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary]
+}
+
+public extension ChatAPIService {
+    func sendRichMessage(
+        roomID: String,
+        content: String?,
+        parts: [OutgoingMessagePart],
+        quotedMessageID: String?,
+        token: String
+    ) async throws -> ChatMessage {
+        if parts.isEmpty, let content {
+            return try await sendTextMessage(
+                roomID: roomID,
+                content: content,
+                quotedMessageID: quotedMessageID,
+                token: token
+            )
+        }
+        throw NetworkFailure(kind: .invalidResponse, message: "当前 ChatAPIService 未实现富媒体消息发送")
+    }
 }
 
 public struct ChatAPIClient: ChatAPIService {
@@ -78,6 +105,27 @@ public struct ChatAPIClient: ChatAPIService {
         token: String
     ) async throws -> ChatMessage {
         let request = SendTextMessageRequest(content: content, quotedMessageID: quotedMessageID)
+        let response = try await apiClient.post(
+            ChatAPIEndpoint.sendMessage(roomID: roomID),
+            body: request,
+            bearerToken: token,
+            as: SendMessageResponse.self
+        )
+        return response.message
+    }
+
+    public func sendRichMessage(
+        roomID: String,
+        content: String? = nil,
+        parts: [OutgoingMessagePart],
+        quotedMessageID: String? = nil,
+        token: String
+    ) async throws -> ChatMessage {
+        let request = SendRichMessageRequest(
+            content: content,
+            parts: parts,
+            quotedMessageID: quotedMessageID
+        )
         let response = try await apiClient.post(
             ChatAPIEndpoint.sendMessage(roomID: roomID),
             body: request,
@@ -187,6 +235,28 @@ public struct SendTextMessageRequest: Encodable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case content
+        case quotedMessageID = "quoted_message_id"
+    }
+}
+
+public struct SendRichMessageRequest: Encodable, Equatable, Sendable {
+    public let content: String?
+    public let parts: [OutgoingMessagePart]
+    public let quotedMessageID: String?
+
+    public init(
+        content: String? = nil,
+        parts: [OutgoingMessagePart],
+        quotedMessageID: String? = nil
+    ) {
+        self.content = content?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+        self.parts = parts
+        self.quotedMessageID = quotedMessageID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case content
+        case parts
         case quotedMessageID = "quoted_message_id"
     }
 }

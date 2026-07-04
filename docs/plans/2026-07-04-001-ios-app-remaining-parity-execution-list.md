@@ -142,28 +142,39 @@
 
 ### IOS-07-A 选择、上传和缓存
 
-- [ ] IOS-07-A1 PhotosUI 图片/视频选择。
-- [ ] IOS-07-A2 DocumentPicker 文件选择。
-- [ ] IOS-07-A3 上传策略获取。
-- [ ] IOS-07-A4 对象存储 mock 直传。
-- [ ] IOS-07-A5 文件 hash 与 MIME 识别。
-- [ ] IOS-07-A6 附件缓存。
+- [x] IOS-07-A1 PhotosUI 图片/视频选择。
+- [x] IOS-07-A2 DocumentPicker 文件选择。
+- [x] IOS-07-A3 上传策略获取。
+- [x] IOS-07-A4 对象存储 mock 直传。
+- [x] IOS-07-A5 文件 hash 与 MIME 识别。
+- [x] IOS-07-A6 附件缓存。
 
 ### IOS-07-B 预览、头像和语音
 
-- [ ] IOS-07-B1 图片/视频/文件预览。
-- [ ] IOS-07-B2 用户头像展示与缓存。
-- [ ] IOS-07-B3 群头像展示与缓存。
-- [ ] IOS-07-B4 头像上传。
-- [ ] IOS-07-B5 AVFoundation 语音录制。
-- [ ] IOS-07-B6 语音消息发送。
-- [ ] IOS-07-B7 语音播放。
-- [ ] IOS-07-B8 权限拒绝和恢复路径。
+- [x] IOS-07-B1 图片/视频/文件预览。
+- [x] IOS-07-B2 用户头像展示与缓存。
+- [x] IOS-07-B3 群头像展示与缓存。
+- [x] IOS-07-B4 头像上传。
+- [x] IOS-07-B5 AVFoundation 语音录制。
+- [x] IOS-07-B6 语音消息发送。
+- [x] IOS-07-B7 语音播放。
+- [x] IOS-07-B8 权限拒绝和恢复路径。
 
 ### IOS-07-C 测试与联调
 
-- [ ] IOS-07-C1 对象存储 mock 上传/下载 smoke。
+- [x] IOS-07-C1 对象存储 mock 上传/下载 smoke。
 - [ ] IOS-07-C2 H5/iOS 媒体消息互通 smoke。
+
+当前结果：
+
+- 已新增 iOS 媒体网络层 `MediaAPIEndpoint` / `MediaModels` / `MediaAPIClient`，覆盖用户头像、群头像、消息附件上传签名、commit、download URL 与 direct upload/download。
+- 已新增 `MediaUploadPreparer`，支持 SHA256、MIME/UTType 推断、文件名规范化和图片/视频/音频/文件类型推断。
+- 已接入聊天详情 PhotosUI、文件选择、待发送附件 strip、富媒体 pending/failed/resend、上传成功后发送 rich message，并把附件落到 `AttachmentFileCache`。
+- 已接入用户/群头像 object key 下载缓存展示，语音录制、语音发送、语音播放与麦克风权限拒绝提示。
+- 已把 dev Compose 接入 `external-mock`，本地媒体 smoke 不访问线上 B2；API 生成的 presigned URL 会通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT` 改写为 Simulator/H5 可访问的 `127.0.0.1`。
+- 已补 `MediaAPIClientTests`、`MediaAPIClientLiveTests`、`ChatDetailControllerTests`、`ChatAPIClientTests` 和 `StorageTests` 媒体覆盖。
+- 已通过 `RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests`，覆盖 Compose mock 对象存储上传、commit、富媒体发送和下载校验。
+- H5 当前已支持附件展示、缓存和后端 `parts` 映射；H5 主动发送富媒体与 H5/iOS 媒体互通 smoke 放入 IOS-08/IOS-11 联调继续补齐。
 
 ## P3 阶段：表情、贴纸、搜索和聊天扩展
 

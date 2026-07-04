@@ -117,6 +117,102 @@ public struct ChatMessagePart: Codable, Equatable, Sendable {
     }
 }
 
+public struct OutgoingMessagePart: Encodable, Equatable, Sendable {
+    public let type: ChatMessageType
+    public let text: String?
+    public let key: String?
+    public let name: String?
+    public let mime: String?
+    public let size: Int64?
+    public let width: Int?
+    public let height: Int?
+    public let durationMilliseconds: Int?
+    public let thumbnailKey: String?
+
+    public static func text(_ text: String) -> OutgoingMessagePart {
+        OutgoingMessagePart(type: .text, text: text)
+    }
+
+    public static func attachment(
+        type: ChatMessageType,
+        key: String,
+        name: String? = nil,
+        mime: String? = nil,
+        size: Int64? = nil,
+        width: Int? = nil,
+        height: Int? = nil,
+        durationMilliseconds: Int? = nil,
+        thumbnailKey: String? = nil
+    ) -> OutgoingMessagePart {
+        OutgoingMessagePart(
+            type: type,
+            text: nil,
+            key: key,
+            name: name,
+            mime: mime,
+            size: size,
+            width: width,
+            height: height,
+            durationMilliseconds: durationMilliseconds,
+            thumbnailKey: thumbnailKey
+        )
+    }
+
+    public init(
+        type: ChatMessageType,
+        text: String? = nil,
+        key: String? = nil,
+        name: String? = nil,
+        mime: String? = nil,
+        size: Int64? = nil,
+        width: Int? = nil,
+        height: Int? = nil,
+        durationMilliseconds: Int? = nil,
+        thumbnailKey: String? = nil
+    ) {
+        self.type = type
+        self.text = text
+        self.key = key
+        self.name = name
+        self.mime = mime
+        self.size = size
+        self.width = width
+        self.height = height
+        self.durationMilliseconds = durationMilliseconds
+        self.thumbnailKey = thumbnailKey
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type.rawValue, forKey: .type)
+        if type == .text {
+            try container.encodeIfPresent(text, forKey: .text)
+        } else {
+            try container.encodeIfPresent(key, forKey: .key)
+            try container.encodeIfPresent(name, forKey: .name)
+            try container.encodeIfPresent(mime, forKey: .mime)
+            try container.encodeIfPresent(size, forKey: .size)
+            try container.encodeIfPresent(width, forKey: .width)
+            try container.encodeIfPresent(height, forKey: .height)
+            try container.encodeIfPresent(durationMilliseconds, forKey: .durationMilliseconds)
+            try container.encodeIfPresent(thumbnailKey, forKey: .thumbnailKey)
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case text
+        case key
+        case name
+        case mime
+        case size
+        case width
+        case height
+        case durationMilliseconds = "duration_ms"
+        case thumbnailKey = "thumbnail_key"
+    }
+}
+
 public struct MessageReactionSummary: Codable, Equatable, Identifiable, Sendable {
     public var id: String { reactionKey }
 
@@ -251,7 +347,7 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         self.pinnedBy = pinnedBy
         self.quotedMessage = quotedMessage
         self.parts = parts
-        self.attachments = attachments
+        self.attachments = attachments.isEmpty ? parts.compactMap(\.attachment) : attachments
         self.reactions = reactions
     }
 

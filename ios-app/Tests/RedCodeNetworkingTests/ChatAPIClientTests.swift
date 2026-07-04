@@ -203,6 +203,70 @@ final class ChatAPIClientTests: XCTestCase {
         XCTAssertEqual(message.content, "hello")
     }
 
+    func testSendRichMessagePostsPartsPayload() async throws {
+        let transport = MockChatHTTPTransport(
+            data: Data(
+                """
+                {
+                  "message": {
+                    "id": "m-media",
+                    "room_id": "r1",
+                    "sender_id": "u1",
+                    "sender_username": "bear",
+                    "content": "[图片]",
+                    "message_type": "image",
+                    "created_at": "2026-07-04T10:00:00Z",
+                    "parts": [
+                      {
+                        "position": 0,
+                        "part_type": "image",
+                        "attachment": {
+                          "key": "messages/r1/images_20260704/abc.png",
+                          "name": "abc.png",
+                          "mime": "image/png",
+                          "size": 11
+                        }
+                      }
+                    ]
+                  }
+                }
+                """.utf8
+            ),
+            statusCode: 200
+        )
+        let client = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let message = try await client.sendRichMessage(
+            roomID: "r1",
+            parts: [
+                .attachment(
+                    type: .image,
+                    key: "messages/r1/images_20260704/abc.png",
+                    name: "abc.png",
+                    mime: "image/png",
+                    size: 11
+                ),
+            ],
+            token: "access-token"
+        )
+
+        let recordedRequest = await transport.recordedLastRequest()
+        let request = try XCTUnwrap(recordedRequest)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        let parts = try XCTUnwrap(json["parts"] as? [[String: Any]])
+
+        XCTAssertNil(json["content"])
+        XCTAssertEqual(parts.first?["type"] as? String, "image")
+        XCTAssertEqual(parts.first?["key"] as? String, "messages/r1/images_20260704/abc.png")
+        XCTAssertEqual(parts.first?["mime"] as? String, "image/png")
+        XCTAssertEqual(message.id, "m-media")
+        XCTAssertEqual(message.messageType, .image)
+        XCTAssertEqual(message.attachments.first?.key, "messages/r1/images_20260704/abc.png")
+    }
+
     func testMarkMessagesAsReadPostsBackendPayload() async throws {
         let transport = MockChatHTTPTransport(
             data: Data(#"{"success":true,"message":"ok"}"#.utf8),
