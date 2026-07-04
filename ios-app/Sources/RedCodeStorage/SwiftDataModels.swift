@@ -119,7 +119,7 @@ public final class RedCodeMessageRecord {
     public var messageType: String
     public var status: String
     public var timestamp: Date
-    public var isDeleted: Bool
+    public var messageIsDeleted: Bool
     public var isPinned: Bool
     public var quotedMessageID: String?
     public var rawPayloadJSON: String?
@@ -146,7 +146,7 @@ public final class RedCodeMessageRecord {
         self.messageType = messageType
         self.status = status
         self.timestamp = timestamp
-        self.isDeleted = isDeleted
+        self.messageIsDeleted = isDeleted
         self.isPinned = isPinned
         self.quotedMessageID = quotedMessageID
         self.rawPayloadJSON = rawPayloadJSON
@@ -179,7 +179,7 @@ public final class RedCodeMessageRecord {
             messageType: messageType,
             status: status,
             timestamp: timestamp,
-            isDeleted: isDeleted,
+            isDeleted: messageIsDeleted,
             isPinned: isPinned,
             quotedMessageID: quotedMessageID,
             rawPayloadJSON: rawPayloadJSON

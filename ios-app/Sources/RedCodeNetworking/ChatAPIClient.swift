@@ -40,6 +40,14 @@ public protocol ChatAPIService: Sendable {
         token: String
     ) async throws -> [MessageReactionSummary]
     func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary]
+    func searchMessages(
+        query: String,
+        roomID: String?,
+        messageType: ChatMessageType?,
+        limit: Int,
+        offset: Int,
+        token: String
+    ) async throws -> ChatMessageSearchResponse
 }
 
 public extension ChatAPIService {
@@ -59,6 +67,17 @@ public extension ChatAPIService {
             )
         }
         throw NetworkFailure(kind: .invalidResponse, message: "当前 ChatAPIService 未实现富媒体消息发送")
+    }
+
+    func searchMessages(
+        query: String,
+        roomID: String? = nil,
+        messageType: ChatMessageType? = nil,
+        limit: Int = 50,
+        offset: Int = 0,
+        token: String
+    ) async throws -> ChatMessageSearchResponse {
+        throw NetworkFailure(kind: .invalidResponse, message: "当前 ChatAPIService 未实现消息搜索")
     }
 }
 
@@ -221,6 +240,35 @@ public struct ChatAPIClient: ChatAPIService {
             as: MessageReactionResponse.self
         )
         return response.summaries
+    }
+
+    public func searchMessages(
+        query: String,
+        roomID: String? = nil,
+        messageType: ChatMessageType? = nil,
+        limit: Int = 50,
+        offset: Int = 0,
+        token: String
+    ) async throws -> ChatMessageSearchResponse {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ChatMessageSearchResponse(
+                results: [],
+                stats: ChatMessageSearchStats(totalResults: 0, searchTimeMilliseconds: 0, query: ""),
+                hasMore: false
+            )
+        }
+        return try await apiClient.get(
+            ChatAPIEndpoint.searchMessages(
+                query: trimmed,
+                roomID: roomID,
+                messageType: messageType,
+                limit: limit,
+                offset: offset
+            ),
+            bearerToken: token,
+            as: ChatMessageSearchResponse.self
+        )
     }
 }
 

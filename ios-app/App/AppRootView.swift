@@ -65,8 +65,13 @@ private struct MainTabView: View {
                     makeGroupManagementController: dependencies.makeGroupManagementController,
                     contactsController: dependencies.contactsController,
                     mediaAPI: dependencies.mediaAPI,
+                    emojiAPI: dependencies.emojiAPI,
                     attachmentCache: dependencies.messageAttachmentCache,
-                    avatarCache: dependencies.mediaAvatarCache
+                    avatarCache: dependencies.mediaAvatarCache,
+                    emojiCache: dependencies.mediaEmojiCache,
+                    chatPreferencesStore: dependencies.chatBackgroundPreferences,
+                    makeMessageSearchController: dependencies.makeMessageSearchController,
+                    makeEmojiStickerController: dependencies.makeEmojiStickerController
                 )
             }
             .tabItem {
@@ -91,7 +96,7 @@ private struct MainTabView: View {
             }
 
             NavigationStack {
-                SettingsHomeView(authController: authController)
+                SettingsHomeView(authController: authController, dependencies: dependencies)
                     .navigationTitle("设置")
             }
             .tabItem {
@@ -103,6 +108,7 @@ private struct MainTabView: View {
 
 private struct SettingsHomeView: View {
     let authController: AuthController
+    let dependencies: AppDependencies
 
     var body: some View {
         List {
@@ -112,6 +118,16 @@ private struct SettingsHomeView: View {
                     LabeledContent("账号", value: user.username)
                 } header: {
                     Text("当前账号")
+                }
+            }
+
+            Section("聊天") {
+                NavigationLink("聊天设置") {
+                    ChatSettingsView(
+                        authController: authController,
+                        settingsController: dependencies.makeChatSettingsController(),
+                        stickerController: dependencies.makeEmojiStickerController()
+                    )
                 }
             }
 

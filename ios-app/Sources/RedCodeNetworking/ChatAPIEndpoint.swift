@@ -66,4 +66,25 @@ public enum ChatAPIEndpoint: Sendable {
             ]
         )
     }
+
+    public static func searchMessages(
+        query: String,
+        roomID: String? = nil,
+        messageType: ChatMessageType? = nil,
+        limit: Int = 50,
+        offset: Int = 0
+    ) -> APIEndpoint {
+        var queryItems = [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(max(0, offset))),
+        ]
+        if let roomID, !roomID.isEmpty {
+            queryItems.append(URLQueryItem(name: "room_id", value: roomID))
+        }
+        if let messageType {
+            queryItems.append(URLQueryItem(name: "message_type", value: messageType.rawValue))
+        }
+        return APIEndpoint(method: .get, path: "/messages/search", queryItems: queryItems)
+    }
 }

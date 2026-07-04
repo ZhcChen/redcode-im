@@ -17,11 +17,15 @@ final class AppDependencies {
     private let modelContainer: ModelContainer
     private let chatAPIService: any ChatAPIService
     private let mediaAPIService: any MediaAPIService
+    private let emojiAPIService: any EmojiAPIService
     private let friendAPIService: any FriendAPIService
     private let roomAPIService: any RoomAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
+    private let messageSearchStore: SwiftDataMessageSearchStore
+    private let chatPreferencesStore: any ChatPreferencesStore
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
+    private let emojiCache = EmojiFileCache()
 
     convenience init(
         environment: RedCodeEnvironment = .simulatorDevelopment(),
@@ -39,6 +43,7 @@ final class AppDependencies {
             authController: authController,
             chatAPIService: chatAPIService,
             mediaAPIService: mediaAPIService,
+            emojiAPIService: EmojiAPIClient(environment: environment),
             friendAPIService: FriendAPIClient(environment: environment),
             roomAPIService: RoomAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
@@ -51,8 +56,10 @@ final class AppDependencies {
         authController: AuthController,
         chatAPIService: any ChatAPIService,
         mediaAPIService: (any MediaAPIService)? = nil,
+        emojiAPIService: (any EmojiAPIService)? = nil,
         friendAPIService: (any FriendAPIService)? = nil,
         roomAPIService: (any RoomAPIService)? = nil,
+        chatPreferencesStore: (any ChatPreferencesStore)? = nil,
         webSocketService: any ChatWebSocketService
     ) {
         self.environment = environment
@@ -60,6 +67,8 @@ final class AppDependencies {
         self.authController = authController
         self.chatAPIService = chatAPIService
         self.mediaAPIService = mediaAPIService ?? MediaAPIClient(environment: environment)
+        self.emojiAPIService = emojiAPIService ?? EmojiAPIClient(environment: environment)
+        self.chatPreferencesStore = chatPreferencesStore ?? UserDefaultsChatPreferencesStore()
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
         self.friendAPIService = resolvedFriendAPIService
         self.roomAPIService = roomAPIService ?? RoomAPIClient(environment: environment)
@@ -70,6 +79,7 @@ final class AppDependencies {
         let messageCacheStore = SwiftDataMessageCacheStore(container: modelContainer)
         self.chatListController = chatListController
         self.messageCacheStore = messageCacheStore
+        self.messageSearchStore = SwiftDataMessageSearchStore(messageCacheStore: messageCacheStore)
         self.contactsController = ContactsController(
             api: resolvedFriendAPIService,
             cacheStore: SwiftDataContactCacheStore(container: modelContainer)
@@ -112,6 +122,10 @@ final class AppDependencies {
         mediaAPIService
     }
 
+    var emojiAPI: any EmojiAPIService {
+        emojiAPIService
+    }
+
     var messageAttachmentCache: AttachmentFileCache {
         attachmentCache
     }
@@ -120,11 +134,37 @@ final class AppDependencies {
         avatarCache
     }
 
+    var mediaEmojiCache: EmojiFileCache {
+        emojiCache
+    }
+
     func makeGroupManagementController() -> GroupManagementController {
         GroupManagementController(
             api: roomAPIService,
             cacheStore: SwiftDataGroupCacheStore(container: modelContainer)
         )
+    }
+
+    func makeMessageSearchController() -> MessageSearchController {
+        MessageSearchController(localSearchStore: messageSearchStore, remoteAPI: chatAPIService)
+    }
+
+    func makeEmojiStickerController() -> EmojiStickerController {
+        EmojiStickerController(api: emojiAPIService, emojiCache: emojiCache)
+    }
+
+    func makeChatSettingsController() -> ChatSettingsController {
+        ChatSettingsController(
+            preferencesStore: chatPreferencesStore,
+            messageCacheStore: messageCacheStore,
+            attachmentCache: attachmentCache,
+            avatarCache: avatarCache,
+            emojiCache: emojiCache
+        )
+    }
+
+    var chatBackgroundPreferences: any ChatPreferencesStore {
+        chatPreferencesStore
     }
 }
 

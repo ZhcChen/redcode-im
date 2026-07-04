@@ -292,6 +292,96 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(try store.listRoomIDs().isEmpty)
     }
 
+    @MainActor
+    func testSwiftDataMessageSearchStoreRebuildsFiltersAndPaginatesLocalIndex() throws {
+        let container = try RedCodeStorageSchema.makeModelContainer(inMemory: true)
+        let cache = SwiftDataMessageCacheStore(container: container)
+        let searchStore = SwiftDataMessageSearchStore(messageCacheStore: cache)
+        let base = Date(timeIntervalSince1970: 1_000)
+
+        try cache.saveMessages(roomID: "room-1", messages: [
+            RedCodeMessageDraft(
+                id: "m1",
+                roomID: "room-1",
+                senderID: "u1",
+                senderName: "Alice",
+                content: "hello redcode",
+                messageType: "text",
+                timestamp: base
+            ),
+            RedCodeMessageDraft(
+                id: "m2",
+                roomID: "room-1",
+                senderID: "u2",
+                senderName: "Bob",
+                content: "",
+                messageType: "image",
+                timestamp: base.addingTimeInterval(10)
+            ),
+            RedCodeMessageDraft(
+                id: "deleted",
+                roomID: "room-1",
+                senderID: "u2",
+                senderName: "Bob",
+                content: "redcode deleted",
+                status: "deleted",
+                timestamp: base.addingTimeInterval(20),
+                isDeleted: true
+            ),
+        ])
+        try cache.saveMessages(roomID: "room-2", messages: [
+            RedCodeMessageDraft(
+                id: "m3",
+                roomID: "room-2",
+                senderID: "u3",
+                senderName: "Carol",
+                content: "redcode in second room",
+                messageType: "text",
+                timestamp: base.addingTimeInterval(30)
+            ),
+        ])
+        let deletedDraft = try XCTUnwrap(try cache.loadMessages(roomID: "room-1").first { $0.id == "deleted" })
+        XCTAssertTrue(deletedDraft.isDeleted)
+
+        try searchStore.rebuildIndex(roomNamesByID: ["room-1": "General", "room-2": "Random"])
+
+        let all = try searchStore.searchMessages(query: "redcode", roomID: nil, messageType: nil, limit: 1, offset: 0)
+        XCTAssertEqual(all.stats.totalResults, 2)
+        XCTAssertEqual(all.results.map(\.id), ["m3"])
+        XCTAssertTrue(all.hasMore)
+        XCTAssertEqual(all.results.first?.roomName, "Random")
+
+        let pageTwo = try searchStore.searchMessages(query: "redcode", roomID: nil, messageType: nil, limit: 1, offset: 1)
+        XCTAssertEqual(pageTwo.results.map(\.id), ["m1"])
+        XCTAssertFalse(pageTwo.hasMore)
+        XCTAssertEqual(pageTwo.results.first?.matchedText, "hello redcode")
+
+        let imageResults = try searchStore.searchMessages(query: "图片", roomID: "room-1", messageType: "image", limit: 10, offset: 0)
+        XCTAssertEqual(imageResults.results.map(\.id), ["m2"])
+
+        let blank = try searchStore.searchMessages(query: "  ", roomID: nil, messageType: nil, limit: 10, offset: 0)
+        XCTAssertTrue(blank.results.isEmpty)
+        XCTAssertEqual(blank.stats.query, "")
+    }
+
+    func testUserDefaultsChatPreferencesStoreSavesLoadsAndResetsBackground() async throws {
+        let key = "redcode-ios-chat-background-tests-\(UUID().uuidString)"
+        defer {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        let store = UserDefaultsChatPreferencesStore(key: key)
+
+        let initial = try await store.loadBackground()
+        try await store.saveBackground(ChatBackgroundPreference(kind: .preset, value: "blue"))
+        let saved = try await store.loadBackground()
+        try await store.resetBackground()
+        let reset = try await store.loadBackground()
+
+        XCTAssertEqual(initial, .default)
+        XCTAssertEqual(saved, ChatBackgroundPreference(kind: .preset, value: "blue"))
+        XCTAssertEqual(reset, .default)
+    }
+
     func testAttachmentFileCacheSavesResolvesAndRemovesData() async throws {
         let rootURL = try makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: rootURL) }

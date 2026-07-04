@@ -19,8 +19,13 @@ public struct ChatHomeView: View {
     private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
     private let contactsController: ContactsController?
     private let mediaAPI: (any MediaAPIService)?
+    private let emojiAPI: (any EmojiAPIService)?
     private let attachmentCache: AttachmentFileCache?
     private let avatarCache: AvatarFileCache?
+    private let emojiCache: EmojiFileCache?
+    private let chatPreferencesStore: (any ChatPreferencesStore)?
+    private let makeMessageSearchController: (@MainActor () -> MessageSearchController)?
+    private let makeEmojiStickerController: (@MainActor () -> EmojiStickerController)?
 
     @State private var listController: ChatListController
 
@@ -32,8 +37,13 @@ public struct ChatHomeView: View {
         makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
         contactsController: ContactsController? = nil,
         mediaAPI: (any MediaAPIService)? = nil,
+        emojiAPI: (any EmojiAPIService)? = nil,
         attachmentCache: AttachmentFileCache? = nil,
-        avatarCache: AvatarFileCache? = nil
+        avatarCache: AvatarFileCache? = nil,
+        emojiCache: EmojiFileCache? = nil,
+        chatPreferencesStore: (any ChatPreferencesStore)? = nil,
+        makeMessageSearchController: (@MainActor () -> MessageSearchController)? = nil,
+        makeEmojiStickerController: (@MainActor () -> EmojiStickerController)? = nil
     ) {
         self.authController = authController
         self.realtimeController = realtimeController
@@ -41,8 +51,13 @@ public struct ChatHomeView: View {
         self.makeGroupManagementController = makeGroupManagementController
         self.contactsController = contactsController
         self.mediaAPI = mediaAPI
+        self.emojiAPI = emojiAPI
         self.attachmentCache = attachmentCache
         self.avatarCache = avatarCache
+        self.emojiCache = emojiCache
+        self.chatPreferencesStore = chatPreferencesStore
+        self.makeMessageSearchController = makeMessageSearchController
+        self.makeEmojiStickerController = makeEmojiStickerController
         _listController = State(initialValue: listController)
     }
 
@@ -69,7 +84,11 @@ public struct ChatHomeView: View {
                                 makeGroupManagementController: makeGroupManagementController,
                                 contactsController: contactsController,
                                 mediaAPI: mediaAPI,
-                                attachmentCache: attachmentCache
+                                emojiAPI: emojiAPI,
+                                attachmentCache: attachmentCache,
+                                chatPreferencesStore: chatPreferencesStore,
+                                makeMessageSearchController: makeMessageSearchController,
+                                makeEmojiStickerController: makeEmojiStickerController
                             )
                         } label: {
                             ChatSummaryRow(
@@ -98,6 +117,19 @@ public struct ChatHomeView: View {
         }
         .navigationTitle("聊天")
         .toolbar {
+            if let makeMessageSearchController {
+                ToolbarItem {
+                    NavigationLink {
+                        MessageSearchView(
+                            authController: authController,
+                            chats: listController.chats,
+                            controller: makeMessageSearchController()
+                        )
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                }
+            }
             ToolbarItem {
                 Button {
                     Task {
@@ -291,10 +323,17 @@ struct ChatDetailView: View {
     private let makeGroupManagementController: (@MainActor () -> GroupManagementController)?
     private let contactsController: ContactsController?
     private let mediaAPI: (any MediaAPIService)?
+    private let emojiAPI: (any EmojiAPIService)?
     private let attachmentCache: AttachmentFileCache?
+    private let chatPreferencesStore: (any ChatPreferencesStore)?
+    private let makeMessageSearchController: (@MainActor () -> MessageSearchController)?
+    private let makeEmojiStickerController: (@MainActor () -> EmojiStickerController)?
 
     @State private var controller: ChatDetailController
     @State private var draftText = ""
+    @State private var showEmojiPalette = false
+    @State private var backgroundPreference: ChatBackgroundPreference = .default
+    @State private var stickerController: EmojiStickerController?
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var pendingFiles: [PreparedUploadFile] = []
     @State private var isPreparingMedia = false
@@ -310,7 +349,11 @@ struct ChatDetailView: View {
         makeGroupManagementController: (@MainActor () -> GroupManagementController)? = nil,
         contactsController: ContactsController? = nil,
         mediaAPI: (any MediaAPIService)? = nil,
-        attachmentCache: AttachmentFileCache? = nil
+        emojiAPI: (any EmojiAPIService)? = nil,
+        attachmentCache: AttachmentFileCache? = nil,
+        chatPreferencesStore: (any ChatPreferencesStore)? = nil,
+        makeMessageSearchController: (@MainActor () -> MessageSearchController)? = nil,
+        makeEmojiStickerController: (@MainActor () -> EmojiStickerController)? = nil
     ) {
         self.authController = authController
         self.chat = chat
@@ -319,7 +362,11 @@ struct ChatDetailView: View {
         self.makeGroupManagementController = makeGroupManagementController
         self.contactsController = contactsController
         self.mediaAPI = mediaAPI
+        self.emojiAPI = emojiAPI
         self.attachmentCache = attachmentCache
+        self.chatPreferencesStore = chatPreferencesStore
+        self.makeMessageSearchController = makeMessageSearchController
+        self.makeEmojiStickerController = makeEmojiStickerController
         _controller = State(initialValue: controller)
     }
 
@@ -332,6 +379,20 @@ struct ChatDetailView: View {
         .accessibilityIdentifier("chat.detail")
         .navigationTitle(chat.displayName)
         .toolbar {
+            if let makeMessageSearchController {
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        MessageSearchView(
+                            authController: authController,
+                            chats: chatListController?.chats ?? [chat],
+                            initialRoomID: chat.roomID,
+                            controller: makeMessageSearchController()
+                        )
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                }
+            }
             if chat.roomType == .group,
                let chatListController,
                let makeGroupManagementController {
@@ -365,6 +426,7 @@ struct ChatDetailView: View {
         }
         .task {
             await enterRoom()
+            await loadBackgroundPreference()
         }
         .onDisappear {
             realtimeController.detachDetailController(controller)
@@ -438,6 +500,8 @@ struct ChatDetailView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .background(backgroundPreference.swiftUIColor)
                     .onChange(of: controller.messages.count) { _, _ in
                         scrollToBottom(proxy)
                     }
@@ -497,6 +561,12 @@ struct ChatDetailView: View {
                 .disabled(mediaAPI == nil || isPreparingMedia)
 
                 Button {
+                    showEmojiPalette.toggle()
+                } label: {
+                    Image(systemName: "face.smiling")
+                }
+
+                Button {
                     toggleVoiceRecording()
                 } label: {
                     Image(systemName: voiceRecorder.isRecording ? "stop.circle.fill" : "mic.circle")
@@ -532,6 +602,21 @@ struct ChatDetailView: View {
         }
         .padding(12)
         .background(.background)
+        .overlay(alignment: .topLeading) {
+            if showEmojiPalette {
+                ChatComposerEmojiPanel(
+                    stickerController: stickerController,
+                    token: authController.session?.token,
+                    onEmojiSelect: { emoji in
+                        draftText.append(emoji)
+                    },
+                    onStickerSelect: sendSticker
+                )
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                .padding(.horizontal, 12)
+                .offset(y: -300)
+            }
+        }
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: [.item],
@@ -542,6 +627,11 @@ struct ChatDetailView: View {
         .onChange(of: selectedPhotoItems) { _, items in
             Task {
                 await preparePhotoItems(items)
+            }
+        }
+        .onChange(of: showEmojiPalette) { _, isShown in
+            if isShown {
+                loadStickerPacksIfNeeded()
             }
         }
     }
@@ -562,12 +652,40 @@ struct ChatDetailView: View {
         }
     }
 
+    private func loadBackgroundPreference() async {
+        guard let chatPreferencesStore else {
+            return
+        }
+        if let preference = try? await chatPreferencesStore.loadBackground() {
+            backgroundPreference = preference
+        }
+    }
+
+    private func loadStickerPacksIfNeeded() {
+        guard let token = authController.session?.token,
+              let makeEmojiStickerController else {
+            return
+        }
+        let resolvedController: EmojiStickerController
+        if let stickerController {
+            resolvedController = stickerController
+        } else {
+            let newController = makeEmojiStickerController()
+            stickerController = newController
+            resolvedController = newController
+        }
+        Task {
+            await resolvedController.load(token: token)
+        }
+    }
+
     private func send() {
         guard let session = authController.session else {
             return
         }
         let text = draftText
         draftText = ""
+        showEmojiPalette = false
         let files = pendingFiles
         pendingFiles = []
         Task {
@@ -627,6 +745,36 @@ struct ChatDetailView: View {
         }
         Task {
             try? await controller.toggleReaction(messageID: message.id, reactionKey: reactionKey, token: token)
+        }
+    }
+
+    private func sendSticker(_ item: EmojiItem) {
+        guard let session = authController.session,
+              let stickerController else {
+            return
+        }
+        showEmojiPalette = false
+        Task {
+            do {
+                guard let fileURL = await stickerController.resolveEmojiImage(item: item, token: session.token) else {
+                    controller.setErrorMessage("表情图片加载失败")
+                    return
+                }
+                let prepared = try MediaUploadPreparer.prepareFile(
+                    at: fileURL,
+                    kind: .image,
+                    fileName: item.preparedUploadFileName,
+                    contentType: item.preferredImageContentType
+                )
+                _ = try await controller.sendPreparedMedia(
+                    files: [prepared],
+                    token: session.token,
+                    currentUserID: session.user.id,
+                    currentUserName: session.user.displayName
+                )
+            } catch {
+                controller.setErrorMessage(error.localizedDescription)
+            }
         }
     }
 
@@ -940,6 +1088,119 @@ private struct PendingAttachmentStrip: View {
     }
 }
 
+private struct ChatComposerEmojiPanel: View {
+    let stickerController: EmojiStickerController?
+    let token: String?
+    let onEmojiSelect: (String) -> Void
+    let onStickerSelect: (EmojiItem) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Emoji")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                BuiltInEmojiPalette(onSelect: onEmojiSelect)
+
+                if let stickerController {
+                    Divider()
+                    HStack {
+                        Text("我的表情")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if stickerController.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    let packs = stickerController.myPacks.filter { !$0.items.isEmpty }
+                    if packs.isEmpty {
+                        Text("暂无自定义表情，可到设置 > 聊天设置 > 表情管理添加。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                    } else {
+                        ForEach(packs) { pack in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(pack.name)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 46), spacing: 10)], spacing: 10) {
+                                    ForEach(pack.items) { item in
+                                        StickerItemButton(
+                                            item: item,
+                                            token: token,
+                                            stickerController: stickerController,
+                                            onSelect: onStickerSelect
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let error = stickerController.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .padding(12)
+        }
+        .frame(maxHeight: 280)
+    }
+}
+
+private struct StickerItemButton: View {
+    let item: EmojiItem
+    let token: String?
+    let stickerController: EmojiStickerController
+    let onSelect: (EmojiItem) -> Void
+
+    @State private var fileURL: URL?
+
+    var body: some View {
+        Button {
+            onSelect(item)
+        } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(width: 46, height: 46)
+
+                    if let fileURL, let image = platformImage(from: fileURL) {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                    } else {
+                        Image(systemName: "face.smiling")
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+
+                if let name = item.name?.nilIfEmpty {
+                    Text(name)
+                        .font(.caption2)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .task(id: item.id) {
+            guard let token else {
+                return
+            }
+            fileURL = await stickerController.resolveEmojiImage(item: item, token: token)
+        }
+    }
+}
+
 private struct AttachmentContentView: View {
     let part: ChatMessagePart
     let roomID: String
@@ -1149,6 +1410,30 @@ private extension ChatMessageType {
         case .text:
             "文本"
         }
+    }
+}
+
+private extension EmojiItem {
+    var preparedUploadFileName: String {
+        let fallbackName = name?.nilIfEmpty ?? id
+        let sanitizedBase = String(fallbackName
+            .map { character in
+                character.isLetter || character.isNumber || character == "-" || character == "_" ? character : "-"
+            })
+        let ext = preferredImageExtension
+        return sanitizedBase.hasSuffix(".\(ext)") ? sanitizedBase : "\(sanitizedBase).\(ext)"
+    }
+
+    var preferredImageContentType: String {
+        UTType(filenameExtension: preferredImageExtension)?.preferredMIMEType ?? "image/png"
+    }
+
+    private var preferredImageExtension: String {
+        let objectKeyExtension = imageObjectKey
+            .flatMap { URL(fileURLWithPath: $0).pathExtension.nilIfEmpty }
+        let imageURLExtension = URL(string: imageURL)?.pathExtension.nilIfEmpty
+            ?? URL(fileURLWithPath: imageURL).pathExtension.nilIfEmpty
+        return objectKeyExtension ?? imageURLExtension ?? "png"
     }
 }
 

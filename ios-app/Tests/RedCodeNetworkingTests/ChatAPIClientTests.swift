@@ -402,6 +402,87 @@ final class ChatAPIClientTests: XCTestCase {
         XCTAssertEqual(request.httpMethod, "GET")
         XCTAssertEqual(fetched, [MessageReactionSummary(reactionKey: "😂", count: 1, hasSelf: false)])
     }
+
+    func testSearchMessagesBuildsQueryAndDecodesBackendResponse() async throws {
+        let transport = MockChatHTTPTransport(
+            data: Data(
+                """
+                {
+                  "results": [
+                    {
+                      "id": "m1",
+                      "room_id": "r1",
+                      "room_name": "General",
+                      "sender_id": "u1",
+                      "sender_name": "Alice",
+                      "content": "hello redcode",
+                      "message_type": "text",
+                      "timestamp": "2026-07-04T10:00:00Z",
+                      "matched_text": "hello redcode",
+                      "relevance_score": 1.0
+                    }
+                  ],
+                  "stats": {
+                    "total_results": 2,
+                    "search_time_ms": 7,
+                    "query": "redcode"
+                  },
+                  "has_more": true
+                }
+                """.utf8
+            ),
+            statusCode: 200
+        )
+        let client = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let response = try await client.searchMessages(
+            query: " redcode ",
+            roomID: "r1",
+            messageType: .text,
+            limit: 25,
+            offset: 50,
+            token: "access-token"
+        )
+
+        let recordedRequest = await transport.recordedLastRequest()
+        let request = try XCTUnwrap(recordedRequest)
+        XCTAssertEqual(
+            request.url?.absoluteString,
+            "http://127.0.0.1:8010/messages/search?query=redcode&limit=25&offset=50&room_id=r1&message_type=text"
+        )
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer access-token")
+        XCTAssertEqual(response.results.map(\.id), ["m1"])
+        XCTAssertEqual(response.results.first?.roomName, "General")
+        XCTAssertEqual(response.results.first?.messageType, .text)
+        XCTAssertEqual(response.stats.totalResults, 2)
+        XCTAssertEqual(response.stats.searchTimeMilliseconds, 7)
+        XCTAssertTrue(response.hasMore)
+    }
+
+    func testSearchMessagesSkipsBlankQuery() async throws {
+        let transport = MockChatHTTPTransport(data: Data(), statusCode: 200)
+        let client = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let response = try await client.searchMessages(
+            query: "  ",
+            roomID: nil,
+            messageType: nil,
+            limit: 50,
+            offset: 0,
+            token: "access-token"
+        )
+
+        XCTAssertTrue(response.results.isEmpty)
+        XCTAssertEqual(response.stats.query, "")
+        XCTAssertFalse(response.hasMore)
+        let recordedRequest = await transport.recordedLastRequest()
+        XCTAssertNil(recordedRequest)
+    }
 }
 
 private actor MockChatHTTPTransport: HTTPTransport {

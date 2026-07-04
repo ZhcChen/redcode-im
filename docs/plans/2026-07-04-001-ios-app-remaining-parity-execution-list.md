@@ -178,16 +178,27 @@
 
 ## P3 阶段：表情、贴纸、搜索和聊天扩展
 
-- [ ] IOS-08-A1 内置 emoji。
-- [ ] IOS-08-A2 表情包列表。
-- [ ] IOS-08-A3 表情项加载。
-- [ ] IOS-08-A4 表情资源缓存。
-- [ ] IOS-08-A5 贴纸管理。
-- [ ] IOS-08-B1 消息搜索索引写入。
-- [ ] IOS-08-B2 消息搜索页面。
-- [ ] IOS-08-B3 聊天背景。
-- [ ] IOS-08-B4 聊天设置。
-- [ ] IOS-08-C1 搜索与表情缓存测试。
+- [x] IOS-08-A1 内置 emoji。
+- [x] IOS-08-A2 表情包列表。
+- [x] IOS-08-A3 表情项加载。
+- [x] IOS-08-A4 表情资源缓存。
+- [x] IOS-08-A5 贴纸管理。
+- [x] IOS-08-B1 消息搜索索引写入。
+- [x] IOS-08-B2 消息搜索页面。
+- [x] IOS-08-B3 聊天背景。
+- [x] IOS-08-B4 聊天设置。
+- [x] IOS-08-C1 搜索与表情缓存测试。
+
+当前结果：
+
+- 已新增 iOS 表情网络层 `EmojiAPIEndpoint` / `EmojiModels` / `EmojiAPIClient`，覆盖我的表情、可用表情、搜索、添加/移除、套装添加、套装表情和表情下载 URL。
+- 聊天输入区已接入内置 emoji 面板；已登录用户打开面板时会加载“我的表情”，点选贴纸后先下载并缓存表情图，再复用现有消息图片上传链路发送为图片消息。
+- 已新增 `SwiftDataMessageSearchStore`，从本地消息缓存重建搜索索引，支持关键词、房间、消息类型过滤、分页和删除消息过滤。
+- 已新增 `MessageSearchView`，会话列表和聊天详情均可进入搜索页，优先查本地缓存并合并服务端 `/messages/search` 结果。
+- 已新增 `UserDefaultsChatPreferencesStore`、聊天背景设置、聊天设置页、表情管理页，以及媒体/头像/表情缓存清理和本地聊天记录清理入口。
+- 已修复 SwiftData 消息缓存中删除状态字段与模型运行态语义冲突的问题，将持久化字段改为 `messageIsDeleted`。
+- 已补 `EmojiAPIClientTests`、`ChatAPIClientTests` 搜索覆盖、`StorageTests` 搜索/偏好覆盖和 `ChatExtensionControllerTests`。
+- 已通过 `swift test`、`make ios-app.check`、`make h5-app.test.live` 和 `make ios-app.test.live`。
 
 ## P4 阶段：设置、账号、文档、反馈、配置和版本
 

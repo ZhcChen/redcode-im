@@ -584,6 +584,106 @@ public struct ChatSummary: Decodable, Equatable, Identifiable, Sendable {
     }
 }
 
+public struct ChatMessageSearchResult: Decodable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let roomID: String
+    public let roomName: String
+    public let senderID: String
+    public let senderName: String
+    public let content: String
+    public let messageType: ChatMessageType
+    public let timestamp: Date
+    public let matchedText: String?
+    public let relevanceScore: Double
+
+    public init(
+        id: String,
+        roomID: String,
+        roomName: String,
+        senderID: String,
+        senderName: String,
+        content: String,
+        messageType: ChatMessageType = .text,
+        timestamp: Date,
+        matchedText: String? = nil,
+        relevanceScore: Double = 0
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.roomName = roomName
+        self.senderID = senderID
+        self.senderName = senderName
+        self.content = content
+        self.messageType = messageType
+        self.timestamp = timestamp
+        self.matchedText = matchedText
+        self.relevanceScore = relevanceScore
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeString(forKey: .id)
+        roomID = try container.decodeString(forKey: .roomID)
+        roomName = try container.decodeIfPresent(String.self, forKey: .roomName) ?? roomID
+        senderID = try container.decodeIfPresent(String.self, forKey: .senderID) ?? ""
+        senderName = try container.decodeIfPresent(String.self, forKey: .senderName) ?? senderID
+        content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        messageType = try container.decodeIfPresent(ChatMessageType.self, forKey: .messageType) ?? .text
+        timestamp = container.decodeFlexibleDate(forKey: .timestamp) ?? Date(timeIntervalSince1970: 0)
+        matchedText = try container.decodeIfPresent(String.self, forKey: .matchedText)
+        relevanceScore = try container.decodeIfPresent(Double.self, forKey: .relevanceScore) ?? 0
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case roomID = "room_id"
+        case roomName = "room_name"
+        case senderID = "sender_id"
+        case senderName = "sender_name"
+        case content
+        case messageType = "message_type"
+        case timestamp
+        case matchedText = "matched_text"
+        case relevanceScore = "relevance_score"
+    }
+}
+
+public struct ChatMessageSearchStats: Decodable, Equatable, Sendable {
+    public let totalResults: Int
+    public let searchTimeMilliseconds: Int
+    public let query: String
+
+    public init(totalResults: Int, searchTimeMilliseconds: Int, query: String) {
+        self.totalResults = totalResults
+        self.searchTimeMilliseconds = searchTimeMilliseconds
+        self.query = query
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case totalResults = "total_results"
+        case searchTimeMilliseconds = "search_time_ms"
+        case query
+    }
+}
+
+public struct ChatMessageSearchResponse: Decodable, Equatable, Sendable {
+    public let results: [ChatMessageSearchResult]
+    public let stats: ChatMessageSearchStats
+    public let hasMore: Bool
+
+    public init(results: [ChatMessageSearchResult], stats: ChatMessageSearchStats, hasMore: Bool) {
+        self.results = results
+        self.stats = stats
+        self.hasMore = hasMore
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case results
+        case stats
+        case hasMore = "has_more"
+    }
+}
+
 private extension KeyedDecodingContainer {
     func decodeString(forKey key: Key, fallbackKey: Key? = nil) throws -> String {
         if let value = try decodeIfPresent(String.self, forKey: key), !value.isEmpty {
