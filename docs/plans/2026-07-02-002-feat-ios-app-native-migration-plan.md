@@ -1,9 +1,10 @@
 ---
 title: "feat: Add native iOS app module"
 type: feat
-status: active
+status: completed
 date: 2026-07-02
 deepened: 2026-07-02
+completed: 2026-07-04
 ---
 
 # feat: Add native iOS app module
@@ -11,6 +12,8 @@ deepened: 2026-07-02
 ## Overview
 
 新增 `ios-app/` 原生 iOS 客户端模块，用 Swift/SwiftUI 逐步复刻 Flutter `app/` 的 iOS 侧核心能力。迁移期间 `app/`、`h5-app/` 和 `ios-app/` 并行存在；H5 继续作为后端联调和功能验收基准，iOS 原生按阶段补齐核心流程后再讨论替换 Flutter iOS。
+
+> 收口说明（2026-07-04）：本文档是 `ios-app` 初始 MVP 迁移计划，后续已被完整 Flutter parity 计划 `docs/plans/2026-07-03-001-feat-ios-app-full-flutter-parity-plan.md` 和执行清单 `docs/plans/2026-07-04-001-ios-app-remaining-parity-execution-list.md` 深化覆盖。本文 6 个 Unit 的目标均已落到当前 `ios-app` 代码、测试和文档中；真实剩余项只保留在最新执行清单与 `ios-app/docs/full-migration-task-tree.md` 中。
 
 ## Problem Frame
 
@@ -106,7 +109,7 @@ ios-app/App
 
 ## Implementation Units
 
-- [ ] **Unit 1: iOS 模块骨架与规范文档**
+- [x] **Unit 1: iOS 模块骨架与规范文档**
 
 **Goal:** 创建 `ios-app/` 模块边界和基础说明，明确后续原生 iOS 迁移方向。
 
@@ -140,7 +143,7 @@ ios-app/App
 - `ios-app/` 被 Git 跟踪。
 - README 和架构文档能解释模块定位、技术栈和不做事项。
 
-- [ ] **Unit 2: Xcode 工程与 local packages 接入**
+- [x] **Unit 2: Xcode 工程与 local packages 接入**
 
 **Goal:** 建立可在 Xcode 打开、构建和运行的原生 iOS App 工程，并接入本地 SPM 模块。
 
@@ -174,7 +177,7 @@ ios-app/App
 - iOS Simulator 可启动空壳 App。
 - package 单元测试可运行。
 
-- [ ] **Unit 3: Auth 与 App Shell**
+- [x] **Unit 3: Auth 与 App Shell**
 
 **Goal:** 实现账号注册、账号密码登录、Token 存储、启动态恢复和登出。
 
@@ -213,7 +216,7 @@ ios-app/App
 **Verification:**
 - iOS Simulator 可完成注册、登录、重启恢复和登出闭环。
 
-- [ ] **Unit 4: Chat 列表、本地缓存与 WebSocket 主链路**
+- [x] **Unit 4: Chat 列表、本地缓存与 WebSocket 主链路**
 
 **Goal:** 实现会话列表、本地缓存优先加载、后台刷新和 WebSocket 认证订阅。
 
@@ -252,7 +255,7 @@ ios-app/App
 **Verification:**
 - 真实后端环境下，会话列表能加载、刷新并响应实时消息。
 
-- [ ] **Unit 5: Chat 详情与文本消息发送**
+- [x] **Unit 5: Chat 详情与文本消息发送**
 
 **Goal:** 实现聊天详情页、历史消息、本地 pending、文本发送、失败重试和服务端回包替换。
 
@@ -290,7 +293,7 @@ ios-app/App
 **Verification:**
 - iOS Simulator 与 H5 可在同一后端环境互发文本消息。
 
-- [ ] **Unit 6: Contacts、Groups、Settings parity**
+- [x] **Unit 6: Contacts、Groups、Settings parity**
 
 **Goal:** 补齐好友、联系人、群聊基础流程和设置页，形成可验收 MVP。
 

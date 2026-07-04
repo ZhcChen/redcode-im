@@ -247,7 +247,7 @@
 - SwiftUI App 已接入通知权限、APNs token 注册回调、remote notification payload 处理、Tab 导航切换、聊天通知深链与登出通知态清理。
 - 后端已补 APNs provider 配置、APNs token 投递、Push 日志和 `external-mock` APNs 测试链路；iOS 原生 APNs token 会按 `/push/devices` 的 `apns` channel 注册，服务端离线通知会按设备 channel 分发到 FCM/APNs。
 - iOS App 已支持通过 Info.plist 或启动环境读取真机可访问的 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL`，并新增 `make ios-app.apns.preflight` 做 iPhone/APNs 真机验收前置检查；`make ios-app.smoke.device` 会串联预检、真机构建、安装和启动。
-- 真机 APNs token 获取、Apple 平台真实投递和点击系统通知唤醒仍放入 IOS-10-C1 / IOS-11-A6；当前 `xcrun devicectl list devices` 未检测到 iPhone 真机。
+- 真机 APNs token 获取、Apple 平台真实投递和点击系统通知唤醒仍放入 IOS-10-C1 / IOS-11-A6；2026-07-04 20:28 CST 重新执行 `xcrun devicectl list devices --timeout 10`，结果仍为 `No devices found.`。
 - 已补 `PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 覆盖。
 - 已通过 `swift test`。
 
