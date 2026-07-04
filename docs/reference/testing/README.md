@@ -131,6 +131,27 @@ make ios-app.smoke.device.local
 - 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。
 - Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒需要 iPhone 真机与 Apple 平台凭据，本轮已按用户要求跳过并记录，`.local` 真机入口保留供后续恢复补验。
 
+### Android 原生 App 自测
+```bash
+make android-app.test.unit
+make android-app.lint
+make android-app.coverage
+make android-app.build.debug
+make android-app.connected-test
+make android-app.smoke.emulator
+```
+
+说明：
+- `android-app` 使用 Kotlin + Jetpack Compose + ViewModel + Repository/Flow 的 Android 官方推荐架构。
+- 当前默认使用本机 Android Studio Emulator，设备 ID 默认为 `emulator-5554`，可用 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
+- Android Emulator 访问宿主机 Compose API 使用 `10.0.2.2:8010`，默认 `ANDROID_APP_API_BASE_URL=http://10.0.2.2:8010`、`ANDROID_APP_WS_URL=ws://10.0.2.2:8010/ws`。
+- `android-app.test.unit` 运行 JVM 单元测试，不需要启动 API。
+- `android-app.lint` 运行 Android Lint。
+- `android-app.coverage` 生成 Jacoco 覆盖率报告：`android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
+- `android-app.connected-test` 在当前 Emulator 上运行 Compose instrumented tests。
+- `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Emulator。
+- 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
+
 ### Admin 自测
 ```bash
 cd admin && bun run type:check

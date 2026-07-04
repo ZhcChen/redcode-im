@@ -1,0 +1,112 @@
+# android-app 完整迁移任务树
+
+## ANDROID-00 方案与骨架
+
+- [x] 创建原生 Android 模块目录。
+- [x] 确认官方架构：Compose、ViewModel、UDF、Repository、Flow。
+- [x] 建立 Gradle Android 工程。
+- [x] 建立 Compose App Shell。
+- [x] 建立测试和覆盖率入口。
+- [x] 建立迁移文档。
+
+## ANDROID-01 启动、认证与会话
+
+- [x] 普通账号密码注册/登录本地模拟 flow。
+- [x] 邮箱登录/注册关闭校验。
+- [ ] 真实 API `/auth/register`、`/auth/login`、`/auth/me`。
+- [ ] Token Keystore 持久化。
+- [ ] 启动态恢复。
+- [ ] 重置密码。
+- [ ] 用户协议/隐私协议勾选与文档拉取。
+- [ ] 登出清理 Token、WS、Room/DataStore/cache/通知态。
+
+## ANDROID-02 网络、WebSocket、本地数据底座
+
+- [ ] HTTP client 与统一错误模型。
+- [ ] WebSocket client：鉴权、订阅、重连、去重。
+- [ ] Room schema：会话、消息、联系人、群、配置。
+- [ ] DataStore：偏好、聊天设置。
+- [ ] File cache：附件、头像、表情。
+- [ ] 测试 fake data source 与 live smoke 分层。
+
+## ANDROID-03 聊天核心
+
+- [x] In-memory 会话列表和文本发送基线。
+- [x] 每 room 最近消息保留策略单测。
+- [ ] 真实会话列表。
+- [ ] 历史消息分页。
+- [ ] pending/failed/resend。
+- [ ] 已读、删除、置顶、引用、reaction。
+- [ ] 未读数、置顶、免打扰。
+- [ ] 本地搜索索引。
+- [ ] H5/API/Android 聊天互通 smoke。
+
+## ANDROID-04 联系人与好友
+
+- [x] In-memory 联系人列表、搜索和 upsert。
+- [ ] 真实用户搜索。
+- [ ] 好友申请、接受、拒绝。
+- [ ] 联系人详情。
+- [ ] 打开私聊。
+- [ ] H5/API/Android 好友互通 smoke。
+
+## ANDROID-05 群聊和群管理
+
+- [ ] 创建群聊。
+- [ ] 群设置、成员列表。
+- [ ] 改名、置顶、免打扰。
+- [ ] 管理员、禁言、入群申请。
+- [ ] 群规则、操作日志。
+- [ ] 退出/解散。
+- [ ] H5/API/Android 群管理 smoke。
+
+## ANDROID-06 媒体、附件、头像、语音和视频
+
+- [ ] 图片/视频选择。
+- [ ] 文件选择。
+- [ ] 上传策略、对象存储 mock 直传、commit。
+- [ ] 图片/视频/附件预览。
+- [ ] 用户头像和群头像缓存。
+- [ ] 语音录制、发送、播放。
+- [ ] 权限拒绝和恢复路径。
+- [ ] H5/API/Android 富媒体互通 smoke。
+- [ ] SKIPPED 真机补验：相机、麦克风硬件差异、厂商 ROM 文件选择差异。
+
+## ANDROID-07 表情、贴纸、搜索和聊天扩展
+
+- [ ] 内置 emoji。
+- [ ] 表情包列表和表情项加载。
+- [ ] 表情资源缓存。
+- [ ] 贴纸管理。
+- [ ] 聊天背景。
+- [ ] 聊天设置。
+
+## ANDROID-08 设置、账号、文档、反馈、配置和版本
+
+- [x] In-memory 设置通知开关。
+- [ ] 个人资料和昵称更新。
+- [ ] 账号安全和修改密码。
+- [ ] 用户协议、隐私政策、关于。
+- [ ] 反馈提交。
+- [ ] App 配置拉取与缓存。
+- [ ] 版本检查和更新提示。
+
+## ANDROID-09 Push、本地通知和通知导航
+
+- [ ] 本地通知权限请求。
+- [ ] 本地通知展示。
+- [ ] FCM token 注册与上报。
+- [ ] 前台/后台/冷启动通知导航。
+- [ ] 登出通知态清理。
+- [ ] SKIPPED 真机补验：FCM 真实 token、云端投递、后台限制和厂商 ROM 行为。
+
+## ANDROID-10 全量验收与切换准备
+
+- [ ] Android vs Flutter 功能对照清单。
+- [ ] H5/API/Android 联调脚本。
+- [ ] Emulator smoke。
+- [ ] Compose UI 回归。
+- [ ] 覆盖率尽可能接近 100%。
+- [ ] P0/P1 缺口清单。
+- [ ] Flutter Android 下线条件。
+- [ ] 回滚策略。

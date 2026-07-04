@@ -105,6 +105,18 @@ IOS_APP_API_BASE_URL ?=
 IOS_APP_WS_URL ?=
 IOS_APP_XCODEBUILD_DEVICE_FLAGS ?= -allowProvisioningUpdates
 
+ANDROID_APP_DIR := $(ROOT_DIR)/android-app
+ANDROID_GRADLEW := $(APP_DIR)/android/gradlew
+ANDROID_GRADLE ?= $(shell command -v gradle 2>/dev/null || find "$$HOME/.gradle/wrapper/dists" -path "*/gradle-9.3.1/bin/gradle" -type f -print -quit 2>/dev/null || printf "%s" "$(ANDROID_GRADLEW)")
+ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
+ANDROID_HOME ?= $(ANDROID_SDK_ROOT)
+ADB ?= $(ANDROID_HOME)/platform-tools/adb
+ANDROID_APP_DEVICE ?= emulator-5554
+ANDROID_APP_API_BASE_URL ?= http://10.0.2.2:$(API_PORT)
+ANDROID_APP_WS_URL ?= ws://10.0.2.2:$(API_PORT)/ws
+ANDROID_APP_PACKAGE := com.redcode.im.androidapp
+ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
+
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
@@ -115,6 +127,7 @@ endef
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
+	android-app.check android-app.lint android-app.test android-app.test.unit android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -153,6 +166,9 @@ status: ## 查看各模块状态（api / admin / desktop / h5-app / app / websit
 	@echo "[website]"
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(WEBSITE_SCREEN)"; then echo "screen: running ($(WEBSITE_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(WEBSITE_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(WEBSITE_PORT): listening"; else echo "port $(WEBSITE_PORT): stopped"; fi
+	@echo
+	@echo "[android-app]"
+	@if [ -x "$(ADB)" ]; then "$(ADB)" devices -l | sed -n '1,6p'; else echo "adb: unavailable ($(ADB))"; fi
 
 install.all: ## 安装 admin / desktop / h5-app / website 依赖，并拉取 app 依赖
 	@$(MAKE) admin.install
@@ -175,6 +191,7 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) h5-app.check
 	@$(MAKE) h5-app.test.unit
 	@$(MAKE) ios-app.check
+	@$(MAKE) android-app.check
 	@$(MAKE) website.test.unit
 	@$(MAKE) tests.compose.config
 	@$(MAKE) tests.mocks.external
@@ -823,6 +840,55 @@ ios-app.smoke.simulator: ios-app.build.simulator ## 安装并启动 ios-app 到�
 	$(XCRUN) simctl get_app_container "$$DEVICE_ID" "$(IOS_APP_BUNDLE_ID)" app
 
 ios-app.check: ios-app.test ios-app.build.simulator ## 运行 ios-app 当前可用检查
+
+android-app.test: android-app.test.unit ## 运行 android-app 默认 JVM 单元测试
+
+android-app.test.unit: ## 运行 android-app JVM 单元测试
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest
+
+android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" coverageDebugUnitTest
+	@echo "[android-app] coverage: $(ANDROID_APP_DIR)/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html"
+
+android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android Emulator 的 10.0.2.2）
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
+		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
+		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
+		assembleDebug
+
+android-app.lint: ## 运行 android-app Android Lint
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" lintDebug
+
+android-app.resolve.device: ## 输出当前 Android Emulator 设备 ID
+	@$(call require_cmd,$(ADB))
+	@DEVICE_ID="$$( "$(ADB)" devices | awk 'NR > 1 && $$2 == "device" && $$1 ~ /^emulator-/ { print $$1; exit }' )"; \
+	if [ -z "$$DEVICE_ID" ]; then echo "[android-app] 未找到已连接 Android Emulator" >&2; exit 66; fi; \
+	echo "$$DEVICE_ID"
+
+android-app.connected-test: ## 在当前 Android Emulator 上运行 Compose instrumented tests
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@$(call require_cmd,$(ADB))
+	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
+	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
+		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
+		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
+		connectedDebugAndroidTest
+
+android-app.install: android-app.build.debug ## 安装 android-app Debug APK 到当前 Android Emulator
+	@$(call require_cmd,$(ADB))
+	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
+	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" install -r "$(ANDROID_APP_APK)"
+
+android-app.smoke.emulator: android-app.install ## 安装并启动 android-app 到当前 Android Emulator
+	@$(call require_cmd,$(ADB))
+	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" shell am start -n "$(ANDROID_APP_PACKAGE)/.MainActivity"
+	@echo "[android-app] launched on $(ANDROID_APP_DEVICE)"
+
+android-app.check: android-app.test.unit android-app.lint android-app.build.debug ## 运行 android-app 当前可用检查
 
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))
