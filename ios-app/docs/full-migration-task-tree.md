@@ -214,14 +214,14 @@ IOS
 ## IOS-05 联系人、好友与私聊
 
 - [x] IOS-05.01 实现联系人模型和缓存。
-- [ ] IOS-05.02 实现联系人列表 UI。
-- [ ] IOS-05.03 实现用户搜索。
-- [ ] IOS-05.04 实现发送好友申请。
-- [ ] IOS-05.05 实现好友请求 badge。
-- [ ] IOS-05.06 实现处理好友请求。
-- [ ] IOS-05.07 实现联系人详情。
-- [ ] IOS-05.08 实现打开私聊。
-- [ ] IOS-05.09 增加联系人/好友单测。
+- [x] IOS-05.02 实现联系人列表 UI。
+- [x] IOS-05.03 实现用户搜索。
+- [x] IOS-05.04 实现发送好友申请。
+- [x] IOS-05.05 实现好友请求 badge。
+- [x] IOS-05.06 实现处理好友请求。
+- [x] IOS-05.07 实现联系人详情。
+- [x] IOS-05.08 实现打开私聊。
+- [x] IOS-05.09 增加联系人/好友单测。
 - [ ] IOS-05.10 与 H5 做好友流程 smoke。
 
 当前说明：
@@ -229,7 +229,9 @@ IOS
 - 已补好友 API 底座：`FriendAPIEndpoint`、`FriendInfo`、`FriendRequestInfo`、`FriendRequestStatus`、`FriendRequestAction`、`EnsurePrivateChatResult`、`FriendAPIClient`。
 - 已覆盖 `/users/search`、`/friends`、`/friends/requests`、`/friends/requests/{requestId}/respond`、`/friends/{friendUserId}/chat`、`/friends/{friendUserId}`。
 - 已补联系人 SwiftData 缓存：`ContactCacheStore`、`SwiftDataContactCacheStore`，支持 load/save/upsert/remove/clear 和 displayName 排序。
-- 已补 Networking/Storage 底座单测；IOS-05.09 仍保留未完成，待 `ContactsController`、`AddFriendController` 与联系人 UI tests 一并收口。
+- 已补 `ContactsController`、`AddFriendController`、`ContactsHomeView`、联系人详情和新的朋友页面；App contacts tab 已从占位页切换为真实联系人流程。
+- 已补 Networking/Storage/Features 单测，覆盖好友 API、联系人缓存、缓存优先刷新、好友请求 badge、打开私聊、删除回滚、搜索、发送申请和接受申请。
+- IOS-05.10 仍未完成；H5/iOS 好友互通 live smoke 前需先把 H5 旧拒绝动作 `reject` 对齐为后端合同 `decline`。
 
 参考：
 

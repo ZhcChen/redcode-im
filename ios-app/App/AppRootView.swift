@@ -69,8 +69,14 @@ private struct MainTabView: View {
             }
 
             NavigationStack {
-                ContentUnavailableView("联系人", systemImage: "person.2", description: Text("好友和联系人流程将在聊天底座后接入"))
-                    .navigationTitle("联系人")
+                ContactsHomeView(
+                    authController: authController,
+                    contactsController: dependencies.contactsController,
+                    addFriendController: dependencies.addFriendController,
+                    chatListController: dependencies.chatListController,
+                    realtimeController: dependencies.chatRealtimeController,
+                    makeDetailController: dependencies.makeChatDetailController
+                )
             }
             .tabItem {
                 Label("联系人", systemImage: "person.2")

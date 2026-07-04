@@ -10,10 +10,13 @@ final class AppDependencies {
     let authController: AuthController
     let chatListController: ChatListController
     let chatRealtimeController: ChatRealtimeController
+    let contactsController: ContactsController
+    let addFriendController: AddFriendController
 
     private let environment: RedCodeEnvironment
     private let modelContainer: ModelContainer
     private let chatAPIService: any ChatAPIService
+    private let friendAPIService: any FriendAPIService
     private let messageCacheStore: SwiftDataMessageCacheStore
 
     convenience init(
@@ -30,6 +33,7 @@ final class AppDependencies {
             modelContainer: modelContainer,
             authController: authController,
             chatAPIService: chatAPIService,
+            friendAPIService: FriendAPIClient(environment: environment),
             webSocketService: WebSocketClient(configuration: WebSocketConfiguration(environment: environment))
         )
     }
@@ -39,12 +43,15 @@ final class AppDependencies {
         modelContainer: ModelContainer,
         authController: AuthController,
         chatAPIService: any ChatAPIService,
+        friendAPIService: (any FriendAPIService)? = nil,
         webSocketService: any ChatWebSocketService
     ) {
         self.environment = environment
         self.modelContainer = modelContainer
         self.authController = authController
         self.chatAPIService = chatAPIService
+        let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
+        self.friendAPIService = resolvedFriendAPIService
         let chatListController = ChatListController(
             api: chatAPIService,
             cacheStore: SwiftDataChatSummaryCacheStore(container: modelContainer)
@@ -52,6 +59,11 @@ final class AppDependencies {
         let messageCacheStore = SwiftDataMessageCacheStore(container: modelContainer)
         self.chatListController = chatListController
         self.messageCacheStore = messageCacheStore
+        self.contactsController = ContactsController(
+            api: resolvedFriendAPIService,
+            cacheStore: SwiftDataContactCacheStore(container: modelContainer)
+        )
+        self.addFriendController = AddFriendController(api: resolvedFriendAPIService)
         self.chatRealtimeController = ChatRealtimeController(
             webSocket: webSocketService,
             listController: chatListController,

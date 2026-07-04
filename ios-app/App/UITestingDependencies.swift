@@ -23,6 +23,7 @@ extension AppDependencies {
                     sessionStore: UITestingAuthSessionStore(session: session)
                 ),
                 chatAPIService: chatAPIService,
+                friendAPIService: UITestingFriendAPIService(currentUser: user),
                 webSocketService: UITestingChatWebSocketService()
             )
         } catch {
@@ -203,6 +204,74 @@ private actor UITestingChatAPIService: ChatAPIService {
     func fetchMessageReactions(roomID: String, messageID: String, token: String) async throws -> [MessageReactionSummary] {
         [MessageReactionSummary(reactionKey: "👍", count: 1, hasSelf: false)]
     }
+}
+
+private actor UITestingFriendAPIService: FriendAPIService {
+    private let currentUser: AuthUser
+    private let friend = AuthUser(id: "alice", username: "alice", nickname: "Alice 测试")
+
+    init(currentUser: AuthUser) {
+        self.currentUser = currentUser
+    }
+
+    func searchUsers(keyword: String, limit: Int, token: String) async throws -> [AuthUser] {
+        keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? [] : [friend]
+    }
+
+    func fetchFriends(token: String) async throws -> [FriendInfo] {
+        [FriendInfo(id: "ui-friendship-1", user: friend, createdAt: Date(timeIntervalSince1970: 1_700_000_000))]
+    }
+
+    func sendFriendRequest(targetUserID: String, message: String?, token: String) async throws -> FriendRequestInfo {
+        FriendRequestInfo(
+            id: "ui-request-outgoing",
+            requester: currentUser,
+            addressee: friend,
+            status: .pending,
+            message: message,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    }
+
+    func fetchFriendRequests(direction: String?, status: String?, token: String) async throws -> [FriendRequestInfo] {
+        guard direction == "incoming" else {
+            return []
+        }
+        return [
+            FriendRequestInfo(
+                id: "ui-request-incoming",
+                requester: friend,
+                addressee: currentUser,
+                status: .pending,
+                message: "我是 Alice",
+                createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+                isIncoming: true
+            ),
+        ]
+    }
+
+    func respondFriendRequest(requestID: String, action: FriendRequestAction, token: String) async throws -> FriendRequestInfo {
+        FriendRequestInfo(
+            id: requestID,
+            requester: friend,
+            addressee: currentUser,
+            status: action == .accept ? .accepted : .declined,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            respondedAt: Date(),
+            isIncoming: true
+        )
+    }
+
+    func ensurePrivateChat(friendUserID: String, token: String) async throws -> EnsurePrivateChatResult {
+        EnsurePrivateChatResult(
+            roomID: "ui-room",
+            roomName: "Alice 测试",
+            friendID: friendUserID,
+            friendName: "Alice 测试"
+        )
+    }
+
+    func deleteFriend(friendUserID: String, token: String) async throws {}
 }
 
 private actor UITestingChatWebSocketService: ChatWebSocketService {

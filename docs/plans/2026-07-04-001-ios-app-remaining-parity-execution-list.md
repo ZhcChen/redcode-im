@@ -61,30 +61,37 @@
 
 ### IOS-05-B 控制器与 UI
 
-- [ ] IOS-05-B1 建立 `ContactsController`：
+- [x] IOS-05-B1 建立 `ContactsController`：
   - 缓存优先加载
   - 远端刷新
   - 好友请求 badge
   - 接受请求后更新本地好友列表
-- [ ] IOS-05-B2 建立 `AddFriendController`：
+- [x] IOS-05-B2 建立 `AddFriendController`：
   - 用户搜索
   - 发送好友申请
   - 请求列表与处理
-- [ ] IOS-05-B3 建立联系人 SwiftUI：
+- [x] IOS-05-B3 建立联系人 SwiftUI：
   - 联系人列表
   - 新朋友入口和 badge
   - 用户搜索
   - 好友请求处理
   - 联系人详情
   - 打开私聊
-- [ ] IOS-05-B4 接入 App shell contacts tab。
-- [ ] IOS-05-B5 增加 Features 单测。
+- [x] IOS-05-B4 接入 App shell contacts tab。
+- [x] IOS-05-B5 增加 Features 单测。
 
 验收：
 
 - iOS 可以搜索 H5 创建的账号并发送好友申请。
 - H5/iOS 好友状态双向可见。
 - 联系人详情可打开私聊，并且会话列表状态一致。
+
+当前结果：
+
+- 已补 `ContactsController`、`AddFriendController`、`ContactsHomeView`、联系人详情、新朋友页面。
+- 已接入 iOS App contacts tab，支持缓存优先加载、远端刷新、好友请求 badge、搜索、发送申请、接受/拒绝、删除好友、打开私聊。
+- 已补 `ContactsControllerTests`，并通过 `swift test`、`make ios-app.check`、`git diff --check`。
+- H5/iOS 好友互通 live smoke 仍在 IOS-05-C 执行；当前已知 H5 旧拒绝动作仍为 `reject`，IOS-05-C 前需改为后端合同 `decline`。
 
 ### IOS-05-C 联调
 

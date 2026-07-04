@@ -182,7 +182,7 @@ private struct ChatSummaryRow: View {
     }
 }
 
-private struct ChatDetailView: View {
+struct ChatDetailView: View {
     private let authController: AuthController
     private let chat: ChatSummary
     private let realtimeController: ChatRealtimeController
@@ -583,7 +583,7 @@ private struct AvatarCircle: View {
     }
 }
 
-private struct ErrorBanner: View {
+struct ErrorBanner: View {
     let message: String
 
     var body: some View {
