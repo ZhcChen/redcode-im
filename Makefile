@@ -115,6 +115,8 @@ ANDROID_APP_DEVICE ?= emulator-5554
 ANDROID_APP_API_BASE_URL ?= http://10.0.2.2:$(API_PORT)
 ANDROID_APP_WS_URL ?= ws://10.0.2.2:$(API_PORT)/ws
 ANDROID_APP_USE_REMOTE_AUTH ?= false
+ANDROID_APP_LIVE_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+ANDROID_APP_LIVE_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 ANDROID_APP_PACKAGE := com.redcode.im.androidapp
 ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
 
@@ -128,7 +130,7 @@ endef
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
-	android-app.check android-app.lint android-app.test android-app.test.unit android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.install android-app.smoke.emulator \
+	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -209,6 +211,7 @@ test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app/ios-app �
 	@$(MAKE) admin.test.live
 	@$(MAKE) desktop.test.live
 	@$(MAKE) h5-app.test.live
+	@$(MAKE) android-app.test.live
 	@$(MAKE) ios-app.test.live
 
 dev.up: ## 启动常用开发链路（api + admin + h5-app + website）
@@ -847,6 +850,16 @@ android-app.test: android-app.test.unit ## 运行 android-app 默认 JVM 单元�
 android-app.test.unit: ## 运行 android-app JVM 单元测试
 	@$(call require_cmd,$(ANDROID_GRADLE))
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest
+
+android-app.test.live: ## 执行 android-app 真实后端聊天 smoke（需 api dev 就绪）
+	@$(call require_cmd,$(ANDROID_GRADLE))
+	@ANDROID_HOME="$(ANDROID_HOME)" \
+		RED_CODE_ANDROID_LIVE_CHAT_SMOKE=1 \
+		ANDROID_APP_LIVE_API_BASE_URL="$(ANDROID_APP_LIVE_API_BASE_URL)" \
+		ANDROID_APP_LIVE_WS_URL="$(ANDROID_APP_LIVE_WS_URL)" \
+		"$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks --tests com.redcode.im.androidapp.live.AndroidChatLiveSmokeTest
+
+android-app.test.interop: h5-app.test.live android-app.test.live ## 执行 H5/API/Android 聊天互通 smoke（需 api dev 就绪）
 
 android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
 	@$(call require_cmd,$(ANDROID_GRADLE))
