@@ -18,9 +18,9 @@
 
 ## 当前结论
 
-- 当前主线：H5/API/Android 联调脚本扩展 -> Android 原生 P1 parity -> Android P2
+- 当前主线：Android 原生 P1 parity -> Android P2
   底座/通知 -> API 架构和性能重构 -> 全模块回归与发布准备。
-- 当前立即任务：`CROSS-P1-01 H5/API/Android 联调脚本扩展`。
+- 当前立即任务：`ANDROID-P1-01 聊天扩展`。
 - `h5-app` 已完成 Flutter parity P1，是当前 backend + frontend 联调优先入口。
 - `ios-app` 主链路已完成；仅保留 iPhone 真机/APNs 补验。
 - `android-app` 已完成 P0 媒体切片；剩余集中在聊天扩展、设置账号配置、通知
@@ -37,12 +37,13 @@
 
 ## 当前立即队列
 
-- [ ] `CROSS-P1-01` H5/API/Android 联调脚本扩展
-  - 串联 H5 live smoke 与 Android live smoke。
-  - 在同一 Compose API 上覆盖认证、联系人、好友、建群、文本、富媒体、头像
-    缓存、权限降级和语音播放可测路径。
-  - 明确失败排查入口：API 容器日志、H5 live 日志、Android Gradle 报告和
-    coverage 报告。
+- [x] `CROSS-P1-01` H5/API/Android 联调脚本扩展
+  - `make android-app.test.interop` 已自动启动并等待 Compose API dev 栈。
+  - 已串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
+  - 已覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限恢复状态机和
+    语音播放状态机。
+- [ ] `ANDROID-P1-01` 聊天扩展
+  - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
 
 ## H5 剩余任务
 

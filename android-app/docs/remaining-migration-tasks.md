@@ -7,7 +7,7 @@
 ## 当前状态
 
 - 已完成：原生 Android 工程骨架、账号密码认证、Chat/Contacts/Rooms 真实 API、WebSocket JSON 增量、Room 缓存、群管理、附件选择、mock 对象存储直传、富媒体消息基线。
-- 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
+- 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.test.interop.support`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
 - 当前测试设备：本机 Android Emulator，最近验收设备为 `emulator-5554` / `Pixel_8_Pro(AVD) - 15`。
 - 真机依赖策略：需要相机、麦克风、FCM 云投递、厂商 ROM 行为的项不阻塞 Emulator 阶段，记录为 SKIPPED，后续真机补验。
 - 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径、语音播放基线已完成并验证。头像缓存已通过 unit/lint/build/connected/emulator smoke/live/interop 验证；权限恢复已通过 unit/connected/lint/build/emulator smoke 验证；语音播放已通过 unit/connected/lint/build/emulator smoke 验证。
@@ -165,9 +165,11 @@
 - [ ] Android vs Flutter 功能对照清单
   - 逐项比对 Flutter `app/` 已有功能。
   - 标出 Android 已完成、部分完成、跳过、缺失。
-- [ ] H5/API/Android 联调脚本
-  - 串联认证、联系人、群、文本、富媒体、设置、通知可测路径。
-  - 保持 Docker Compose-first。
+- [x] H5/API/Android 基础联调脚本
+  - `make android-app.test.interop` 会自动启动并等待 Compose API dev 栈。
+  - 串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
+  - 当前覆盖认证、联系人、好友、群、文本、富媒体、头像缓存、权限恢复状态机和语音播放状态机。
+  - 设置域、通知域完整联调仍留在 ANDROID-08/09 完成后扩展。
 - [ ] Emulator smoke 扩展
   - 覆盖主要 Compose UI 入口。
   - 保持无真机依赖。

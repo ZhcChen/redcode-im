@@ -73,7 +73,7 @@
 - 引用消息已接入 `quoted_message_id` 发送、`quoted_message` 解析、Room v3 缓存和聊天详情引用预览。
 - 会话置顶和免打扰已接入 `/rooms/{room_id}/pin`、`/rooms/{room_id}/notification-settings`，并在 Room 会话摘要、列表排序和 Compose 操作入口中生效；未读数已有摘要显示和进入会话已读清零基线，后续联调阶段再补独立未读拉取/多端校验。
 - 本地消息搜索已基于 Room 缓存接入，当前支持按房间搜索消息正文、发送人名、引用内容和富媒体附件元数据，Compose 聊天详情页提供搜索入口；远端 `/messages/search` 互通后续随联调阶段补齐。
-- 已新增 `make android-app.test.live` 与 `make android-app.test.interop`；`android-app.test.interop` 串联 H5 live smoke 与 Android 数据层 live smoke，在同一 Compose API 上验证账号注册、建群、H5-compatible/Android HTTP 双向文本/附件引用互发、双方消息可见和已读标记。
+- 已新增 `make android-app.test.live` 与 `make android-app.test.interop`；`android-app.test.interop` 会自动启动并等待 Compose API dev 栈，串联 H5 live smoke、Android 数据层 live smoke 和 Android 本地能力定向测试，在同一 Compose API 上验证账号注册、建群、H5-compatible/Android HTTP 双向文本/附件引用互发、双方消息可见和已读标记，并覆盖头像缓存、权限恢复状态机和语音播放状态机。
 
 ## ANDROID-04 联系人与好友
 
@@ -103,7 +103,7 @@
 - 已新增 `RoomRepository` / `RoomRemoteDataSource` / `HttpRoomRemoteDataSource`，覆盖 `/rooms`、成员、群设置、置顶、免打扰、管理员、禁言、群规、入群申请和操作日志合同。
 - Room v4 已新增群、成员和群设置缓存表；真实 API 构建下使用 `CachedRemoteRoomRepository` 写入 Room，默认无后端构建使用 `InMemoryRoomRepository` 保障 emulator smoke。
 - Compose 新增“群聊”主 Tab，支持创建群、选择好友成员、群详情、资料编辑、成员管理、入群审批/全员禁言切换、管理员/禁言、群规、日志、退出/解散，以及打开群聊。
-- 已新增 `AndroidRoomLiveSmokeTest`，`make android-app.test.live` 覆盖群管理 live smoke；`make android-app.test.interop` 会串联 H5 live smoke 与 Android 认证/聊天/好友/群管理数据层 smoke。
+- 已新增 `AndroidRoomLiveSmokeTest`，`make android-app.test.live` 覆盖群管理 live smoke；`make android-app.test.interop` 会串联 H5 live smoke、Android 认证/聊天/好友/群管理数据层 smoke 和本地能力定向测试。
 
 ## ANDROID-06 媒体、附件、头像、语音和视频
 
@@ -163,7 +163,7 @@
 ## ANDROID-10 全量验收与切换准备
 
 - [ ] Android vs Flutter 功能对照清单。
-- [ ] H5/API/Android 联调脚本。
+- [x] H5/API/Android 基础联调脚本。
 - [ ] Emulator smoke。
 - [ ] Compose UI 回归。
 - [ ] 覆盖率尽可能接近 100%。

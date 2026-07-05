@@ -52,6 +52,7 @@ make android-app.connected-test
 make android-app.smoke.emulator
 make android-app.test.live
 make android-app.test.interop
+make android-app.test.interop.support
 ```
 
 说明：
@@ -61,9 +62,10 @@ make android-app.test.interop
 - 如需用真实认证 API 构建调试包，可传 `ANDROID_APP_USE_REMOTE_AUTH=true`；Emulator 访问宿主 API 默认使用 `10.0.2.2:8010`。
 - 传 `ANDROID_APP_USE_REMOTE_AUTH=true` 时，Android 原生模块同时启用真实认证、公开设置文档、Chat HTTP、Contacts HTTP、Rooms HTTP 和 WebSocket JSON 基线；Chat/Contacts/Rooms 远端刷新会落 Room 缓存，联系人 UI 已覆盖搜索添加、好友申请处理、联系人详情和私聊入口，群聊 UI 已覆盖建群、群资料、成员、设置、管理员/禁言、群规、日志、退出/解散入口，聊天详情已支持系统文件选择、mock 对象存储直传和附件消息元数据展示；默认仍用本地模拟数据便于无后端 smoke。
 - `connected-test` 和 `smoke.emulator` 需要本机已有可用 Android Emulator。
-- `connected-test` 当前覆盖 Compose 登录/协议门禁 smoke、Room in-memory DAO/Repository、Android Keystore 加密会话存储、DataStore 协议偏好。
+- `connected-test` 当前覆盖 Compose 登录/协议门禁 smoke、权限恢复 banner、语音播放 UI smoke、Room in-memory DAO/Repository、Android Keystore 加密会话存储、DataStore 协议偏好。
 - `android-app.test.live` 需要本机 Compose API 已启动，覆盖 Android 数据层注册、建群、双向文本互发、附件签名/mock 直传/commit/发送/可见性/下载 URL、已读、好友申请/接受、私聊消息和群管理 smoke。
-- `android-app.test.interop` 串联 `h5-app.test.live` 与 `android-app.test.live`，用于 H5/API/Android 聊天、富媒体附件、好友和群管理互通验收。
+- `android-app.test.interop` 会自动启动并等待 Compose API dev 栈，串联 `h5-app.test.live`、`android-app.test.live` 与 `android-app.test.interop.support`，用于 H5/API/Android 聊天、富媒体附件、好友、群管理、头像缓存、权限降级和语音播放状态机互通验收。
+- `android-app.test.interop.support` 不依赖 API，定向覆盖头像缓存、权限恢复状态机和语音播放 ViewModel 状态机；失败时查看 `app/build/reports/tests/testDebugUnitTest/index.html` 和 `app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
 - WebSocket JVM 单测覆盖 URL 规范化、auth/ping、join/leave、typing guard、服务端错误、断开清理、失败重连和增量事件分发；protobuf 二进制帧在后续切片补齐。
 - 覆盖率报告输出到 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
 

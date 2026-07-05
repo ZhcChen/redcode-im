@@ -9,9 +9,9 @@
 ## 0. 当前口径
 
 - 当前分支：`feat/core-architecture-performance`。
-- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调；随后收口
-  Android 原生 parity；最后做全模块回归和 API 核心架构重构。
-- 当前立即任务：`CROSS-P1-01 H5/API/Android 联调脚本扩展`。
+- 当前主线：H5/API/Android 基础联调已收口；接下来收口 Android 原生 parity，
+  随后进入全模块回归和 API 核心架构重构。
+- 当前立即任务：`ANDROID-P1-01 聊天扩展`。
 - `h5-app` 已完成 Flutter parity P1，可作为 backend + frontend 联调优先入口。
 - `ios-app` 主链路已完成，后续只剩 iPhone 真机/APNs 补验项。
 - `android-app` 已完成 P0 媒体切片；剩余集中在聊天扩展、设置账号配置、通知
@@ -105,7 +105,7 @@
 
 ## 3. 剩余任务优先级总览
 
-P0：当前必须先收口
+P0：已收口
 - `CROSS-P1-01` H5/API/Android 联调脚本扩展。
 
 P1：Android 原生 parity 补齐
@@ -133,67 +133,36 @@ P3：发布、回滚和非主线保留
 
 ### CROSS-P1-01 H5/API/Android 联调脚本扩展
 
-状态：待执行
+状态：完成
 
 目标：
 - 让 H5 和 Android 原生在同一 Compose API 上完成核心流程互通验收。
 - 把当前散落的 H5 live、Android live、Android 可测本地能力入口整理成一个可复现
   的联调总入口。
 
-当前基础：
-- `make android-app.test.interop` 当前已串联 `h5-app.test.live` 与
-  `android-app.test.live`。
-- `android-app.test.live` 当前覆盖 Android 数据层注册、建群、双向文本互发、
+当前结果：
+- `make android-app.test.interop` 已改为自动启动并等待 Compose API dev 栈，然后串联
+  `h5-app.test.live`、`android-app.test.live` 与 `android-app.test.interop.support`。
+- `android-app.test.live` 覆盖 Android 数据层注册、建群、双向文本互发、
   附件签名/mock 直传/commit/发送/双方可见/下载 URL、已读、好友申请/接受、
   私聊消息和群管理。
-- 权限恢复、语音播放和头像缓存中一部分能力主要由 Android unit 或 connected
-  test 覆盖，尚未在 interop 入口中显式体现。
+- `android-app.test.interop.support` 覆盖头像缓存、权限恢复状态机和语音播放
+  ViewModel 状态机，避免联调入口只验证 live API 而漏掉本地可测能力。
+- 失败提示已明确 API 容器日志、H5 live 输出、Android unit report、test results
+  和 coverage report。
 
-任务：
-- 明确 `android-app.test.interop` 的执行边界：
-  - API、PG、Redis、external-mock 由 Docker Compose 创建。
-  - 需要 API dev 栈时自动依赖 `api.up` / `api.wait`，或在命令输出中清晰提示。
-  - H5 live smoke 与 Android live smoke 使用同一 API。
-- 扩展联调覆盖面：
-  - 普通账号注册/登录。
-  - 联系人。
-  - 好友申请和接受。
-  - 建群与群管理。
-  - 文本消息。
-  - 富媒体附件。
-  - 头像缓存。
-  - 权限降级可测入口。
-  - 语音播放可测入口。
-- 对无法通过 live API 证明的 Android 本地能力，增加轻量 targeted JVM test 或
-  connected test 聚合入口，避免每次联调都跑无关全量测试。
-- 失败提示必须明确以下排查入口：
-  - API 容器日志。
-  - H5 live smoke 日志。
-  - Android Gradle 测试报告路径。
-  - Android coverage 报告路径。
-
-建议修改文件：
+已更新：
 - `Makefile`
 - `android-app/README.md`
-- `docs/reference/testing/README.md`
 - `android-app/docs/remaining-migration-tasks.md`
 - `android-app/docs/full-migration-task-tree.md`
+- `docs/reference/testing/README.md`
 - `docs/reports/task-list.md`
 - 本文档
 
-验收：
-- `make api.up`
-- `make api.wait`
-- `make h5-app.test.live`
+已验证：
+- `make android-app.test.interop.support`
 - `make android-app.test.interop`
-- 如修改 Android unit/Makefile 聚合入口，再运行 `make android-app.test.unit`
-- `git diff --check`
-
-完成标准：
-- 联调入口可从干净 API dev 栈复现。
-- 核心 H5/API/Android 互通链路通过。
-- 权限、头像缓存、语音播放这些非 live API 能力有明确自动化入口或跳过说明。
-- 文档和任务总账更新，随后提交并推送。
 
 ## 5. Android P1：原生 parity 后续能力
 
@@ -515,13 +484,12 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 下一步直接执行：
 
 ```text
-CROSS-P1-01 H5/API/Android 联调脚本扩展
+ANDROID-P1-01 聊天扩展
 ```
 
-执行完成后进入：
+随后进入：
 
 ```text
-ANDROID-P1-01 聊天扩展
 ANDROID-P1-02 设置、账号和配置
 ANDROID-P1-03 全量对照和覆盖率提升
 ```
