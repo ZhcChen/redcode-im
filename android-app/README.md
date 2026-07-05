@@ -56,6 +56,7 @@ make android-app.smoke.emulator
 - JVM 单测不需要启动 API。
 - 如需用真实认证 API 构建调试包，可传 `ANDROID_APP_USE_REMOTE_AUTH=true`；Emulator 访问宿主 API 默认使用 `10.0.2.2:8010`。
 - `connected-test` 和 `smoke.emulator` 需要本机已有可用 Android Emulator。
+- `connected-test` 当前覆盖 Compose 登录 smoke 和 Room in-memory DAO/Repository。
 - 覆盖率报告输出到 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
 
 ## 文档

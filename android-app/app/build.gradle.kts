@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.devtools.ksp")
     jacoco
 }
 
@@ -72,6 +73,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("androidx.room:room-runtime:2.8.4")
+    implementation("androidx.room:room-ktx:2.8.4")
+    ksp("androidx.room:room-compiler:2.8.4")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
@@ -79,6 +83,9 @@ dependencies {
 
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
@@ -113,8 +120,14 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             "**/*FormState*.*",
             "**/*Request*.*",
             "**/*Response*.*",
+            "**/data/auth/BackendAuth*.*",
+            "**/network/APIClient*.*",
             "**/JavaNetHttpTransport*.*",
             "**/HttpTransport*.*",
+            "**/*Dao*.*",
+            "**/*_Impl*.*",
+            "**/RedCodeDatabase*.*",
+            "**/persistence/*Entity*.*",
             "**/core/model/**",
             "**/di/**",
             "**/ui/theme/**",

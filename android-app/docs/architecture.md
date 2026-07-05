@@ -35,6 +35,16 @@ MainActivity / Compose App Shell
 - Token 和敏感会话数据走 Android Keystore / Jetpack Security。
 - 附件、头像、表情资源进入 app cache 目录。
 
+当前 Room 底座已覆盖：
+
+- `RedCodeDatabase`
+- `ChatSummaryEntity` / `ChatMessageEntity` / `ContactEntity`
+- `ChatDao` / `ContactDao`
+- `RoomChatRepository`：会话摘要、消息缓存、发送文本、本地已读、每 room 最近消息裁剪。
+- `RoomContactsRepository`：联系人缓存、搜索、upsert、remove、clear。
+
+群和配置 schema 在后续阶段扩展，避免第一版 schema 过早锁定未接入的业务字段。
+
 ## 当前第一切片
 
 当前已建立 in-memory Repository：
@@ -57,6 +67,7 @@ MainActivity / Compose App Shell
 
 - JVM unit test 覆盖校验、领域模型、Repository、ViewModel。
 - Compose instrumented test 覆盖 Emulator 上的关键 UI flow。
+- Room in-memory instrumented test 覆盖 DAO SQL、Flow 查询和 Repository 持久化行为。
 - Jacoco 输出覆盖率报告。
 - 后续 live smoke 统一接入本机 Docker Compose API；Android Emulator 使用 `10.0.2.2` 访问宿主机。
 
