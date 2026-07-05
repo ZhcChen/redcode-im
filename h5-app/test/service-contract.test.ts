@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authService } from '@/services/auth-service';
+import { avatarUploadService } from '@/services/avatar-upload-service';
 import { friendService } from '@/services/friend-service';
 import { messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
@@ -558,6 +559,125 @@ describe('h5 app service contracts', () => {
         body: JSON.stringify({ old_password: 'old-pass', new_password: 'new-pass' }),
       }),
     );
+  });
+
+  it('uploads user avatars through direct upload and commit routes', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/users/me/avatar/direct-upload')) {
+        return mockJson({
+          success: true,
+          key: 'avatars/u1/avatar.png',
+          signature: {
+            url: 'http://127.0.0.1:19080/upload/avatars/u1/avatar.png',
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/png' },
+            key: 'avatars/u1/avatar.png',
+          },
+        });
+      }
+      if (url.includes('/upload/avatars/u1/avatar.png')) {
+        return new Response('', { status: 200 });
+      }
+      return mockJson({
+        success: true,
+        download_url: 'http://127.0.0.1:19080/download/avatars/u1/avatar.png',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const file = new File(['avatar'], 'avatar.png', { type: 'image/png' });
+    const result = await avatarUploadService.uploadUserAvatar(file);
+
+    expect(result).toEqual({
+      objectKey: 'avatars/u1/avatar.png',
+      downloadUrl: 'http://127.0.0.1:19080/download/avatars/u1/avatar.png',
+    });
+    expect(calls[0]?.url).toBe('http://127.0.0.1:8010/users/me/avatar/direct-upload');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      filename: 'avatar.png',
+      content_type: 'image/png',
+      file_size: 6,
+    });
+    expect((calls[0]?.init?.headers as Headers).get('Authorization')).toBe('Bearer token-1');
+    expect(calls[1]).toMatchObject({
+      url: 'http://127.0.0.1:19080/upload/avatars/u1/avatar.png',
+      init: expect.objectContaining({
+        method: 'PUT',
+        body: file,
+      }),
+    });
+    expect(calls[2]?.url).toBe('http://127.0.0.1:8010/users/me/avatar/commit');
+    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
+      key: 'avatars/u1/avatar.png',
+      delete_previous: true,
+      expires_in_seconds: 3600,
+    });
+    expect((calls[2]?.init?.headers as Headers).get('Authorization')).toBe('Bearer token-1');
+  });
+
+  it('uploads room avatars through direct upload and commit routes', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init });
+      if (url.endsWith('/rooms/r1/avatar/direct-upload')) {
+        return mockJson({
+          success: true,
+          key: 'room_avatars/r1/avatar.png',
+          signature: {
+            url: 'http://127.0.0.1:19080/upload/room_avatars/r1/avatar.png',
+            method: 'PUT',
+            headers: { 'Content-Type': 'image/png' },
+            key: 'room_avatars/r1/avatar.png',
+          },
+        });
+      }
+      if (url.includes('/upload/room_avatars/r1/avatar.png')) {
+        return new Response('', { status: 200 });
+      }
+      return mockJson({
+        success: true,
+        avatar_url: 'http://127.0.0.1:19080/download/room_avatars/r1/avatar.png',
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const file = new File(['room-avatar'], 'room-avatar.png', { type: 'image/png' });
+    const result = await avatarUploadService.uploadRoomAvatar('r1', file);
+
+    expect(result.objectKey).toBe('room_avatars/r1/avatar.png');
+    expect(result.downloadUrl).toContain('/download/room_avatars/r1/avatar.png');
+    expect(calls[0]?.url).toBe('http://127.0.0.1:8010/rooms/r1/avatar/direct-upload');
+    expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
+      filename: 'room-avatar.png',
+      content_type: 'image/png',
+      file_size: 11,
+    });
+    expect(calls[1]).toMatchObject({
+      url: 'http://127.0.0.1:19080/upload/room_avatars/r1/avatar.png',
+      init: expect.objectContaining({
+        method: 'PUT',
+        body: file,
+      }),
+    });
+    expect(calls[2]?.url).toBe('http://127.0.0.1:8010/rooms/r1/avatar/commit');
+    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
+      key: 'room_avatars/r1/avatar.png',
+    });
+  });
+
+  it('rejects non-image avatar uploads before network requests', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      avatarUploadService.uploadUserAvatar(new File(['plain'], 'plain.txt', { type: 'text/plain' })),
+    ).rejects.toThrow('头像仅支持图片文件');
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('loads documents and submits feedback through settings routes', async () => {

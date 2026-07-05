@@ -2,11 +2,14 @@ import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
 import { authService } from '@/services/auth-service';
+import { avatarCacheService } from '@/services/avatar-cache';
+import { avatarUploadService, validateAvatarFile } from '@/services/avatar-upload-service';
 import { settingsService } from '@/services/settings-service';
 import type { AuthUser } from '@/types/auth';
 import type { DocumentContent, GeneralSettings } from '@/types/settings';
 
 import { useAuthStore } from './auth';
+import { useContactsStore } from './contacts';
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
@@ -21,6 +24,7 @@ export const useSettingsStore = defineStore('settings', {
     feedbackContact: '',
     loading: false,
     submitting: false,
+    avatarUploading: false,
     error: '',
     notice: '',
   }),
@@ -81,6 +85,56 @@ export const useSettingsStore = defineStore('settings', {
         throw error;
       } finally {
         this.submitting = false;
+      }
+    },
+
+    async uploadAvatar(file: File | null | undefined) {
+      if (!file) return;
+      const previous = this.user;
+      const authStore = useAuthStore();
+      const previousAuthUser = authStore.currentUser;
+      this.avatarUploading = true;
+      this.error = '';
+      this.notice = '';
+      try {
+        validateAvatarFile(file);
+        const current = previous ?? createMockUser();
+        const uploaded = appEnv.useMockData
+          ? {
+              objectKey: `avatars/${current.id}/${Date.now()}-${file.name || 'avatar.png'}`,
+              downloadUrl: null,
+            }
+          : await avatarUploadService.uploadUserAvatar(file);
+        const updated = appEnv.useMockData
+          ? { ...current, avatarObjectKey: uploaded.objectKey, avatarUrl: uploaded.downloadUrl ?? null }
+          : await authService.me();
+        if (!updated) throw new Error('头像上传后刷新用户失败');
+        const nextUser = {
+          ...updated,
+          avatarUrl: updated.avatarUrl ?? uploaded.downloadUrl ?? null,
+          avatarObjectKey: updated.avatarObjectKey ?? uploaded.objectKey,
+        };
+        this.user = nextUser;
+        authStore.updateCurrentUser(nextUser);
+        await avatarCacheService.loadUserAvatar({ userId: nextUser.id, objectKey: nextUser.avatarObjectKey });
+        const contactsStore = useContactsStore();
+        if (!appEnv.useMockData && contactsStore.initialized) {
+          try {
+            await contactsStore.refreshFriends();
+          } catch (error) {
+            console.warn('[h5-app] 头像上传后刷新联系人失败，已保留当前用户状态', error);
+          }
+        }
+        this.notice = '头像已更新';
+      } catch (error) {
+        this.user = previous;
+        if (previousAuthUser) {
+          authStore.updateCurrentUser(previousAuthUser);
+        }
+        this.error = error instanceof Error ? error.message : '更新头像失败';
+        throw error;
+      } finally {
+        this.avatarUploading = false;
       }
     },
 

@@ -46,6 +46,7 @@ export const mapCreatedRoom = (input: Record<string, unknown>): CreatedRoom => (
   roomType: String(input.room_type ?? input.roomType ?? 'group'),
   description: input.description == null ? null : String(input.description),
   avatarUrl: input.avatar_url == null ? null : String(input.avatar_url),
+  avatarObjectKey: input.avatar_object_key == null ? null : String(input.avatar_object_key),
   ownerId: input.owner_id == null ? null : String(input.owner_id),
 });
 

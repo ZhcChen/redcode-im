@@ -14,7 +14,7 @@ import (
 
 func newTestServer() (*mockServer, *httptest.Server) {
 	s := newMockServer()
-	ts := httptest.NewServer(http.HandlerFunc(s.handle))
+	ts := httptest.NewServer(withCORS(http.HandlerFunc(s.handle)))
 	return s, ts
 }
 
@@ -30,6 +30,35 @@ func TestHealthz(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expect 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestCORSPreflightForBrowserDirectUpload(t *testing.T) {
+	_, ts := newTestServer()
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodOptions, ts.URL+"/mock-bucket/avatars/u1/avatar.png", nil)
+	if err != nil {
+		t.Fatalf("build request failed: %v", err)
+	}
+	req.Header.Set("Origin", "http://127.0.0.1:8016")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPut)
+	req.Header.Set("Access-Control-Request-Headers", "content-type,x-amz-content-sha256")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("preflight request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("expect 204, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
+		t.Fatalf("missing allow origin header: %q", resp.Header.Get("Access-Control-Allow-Origin"))
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Headers"); got != "content-type,x-amz-content-sha256" {
+		t.Fatalf("expect echoed request headers, got %q", got)
 	}
 }
 

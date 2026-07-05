@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { authService } from '@/services/auth-service';
+import { avatarUploadService } from '@/services/avatar-upload-service';
 import { friendService } from '@/services/friend-service';
 import { messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
@@ -41,8 +42,13 @@ describe.skipIf(!enabled)('h5-app live service smoke', () => {
     expect(me?.username).toBe(owner.username);
     const updatedMe = await authService.updateProfile({ nickname: `H5 ${Date.now()}` });
     expect(updatedMe.username).toBe(owner.username);
+    const uploadedAvatar = await avatarUploadService.uploadUserAvatar(
+      new File(['h5-user-avatar'], 'h5-user-avatar.png', { type: 'image/png' }),
+    );
+    expect(uploadedAvatar.objectKey).toBeTruthy();
     const refreshedMe = await authService.me();
     expect(refreshedMe?.nickname).toBe(updatedMe.nickname);
+    expect(refreshedMe?.avatarObjectKey).toBe(uploadedAvatar.objectKey);
 
     const settings = await settingsService.fetchGeneralSettings();
     expect(settings.messageRuntime.serverStorageMode).toBeTruthy();
@@ -55,6 +61,13 @@ describe.skipIf(!enabled)('h5-app live service smoke', () => {
       memberIds: [member.session.user.id],
     });
     expect(room.id).toBeTruthy();
+    const uploadedRoomAvatar = await avatarUploadService.uploadRoomAvatar(
+      room.id,
+      new File(['h5-room-avatar'], 'h5-room-avatar.png', { type: 'image/png' }),
+    );
+    expect(uploadedRoomAvatar.objectKey).toBeTruthy();
+    const refreshedRoom = await roomService.getRoom(room.id);
+    expect(refreshedRoom.avatarObjectKey).toBe(uploadedRoomAvatar.objectKey);
 
     const sent = await messageService.sendTextMessage(room.id, 'hello from h5 service');
     expect(sent.roomId).toBe(room.id);

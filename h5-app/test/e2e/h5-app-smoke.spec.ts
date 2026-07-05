@@ -1,6 +1,10 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 const apiBaseURL = process.env.H5_APP_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8010';
+const pngFixture = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+);
 
 interface TestSession {
   token: string;
@@ -140,6 +144,12 @@ test.describe('h5-app browser smoke', () => {
     await page.getByLabel('群设置').click();
     await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/settings$`));
     await expect(page.getByRole('heading', { name: roomName })).toBeVisible();
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'room-avatar.png',
+      mimeType: 'image/png',
+      buffer: pngFixture,
+    });
+    await expect(page.getByText('群头像已更新')).toBeVisible();
     await page.getByText('置顶聊天').click();
     await expect(page.getByText('已开启')).toBeVisible();
   });
@@ -184,5 +194,22 @@ test.describe('h5-app browser smoke', () => {
     await page.getByRole('button', { name: /联系人/ }).click();
     const contactRow = page.locator('.contact-row').filter({ hasText: target.username }).filter({ hasText: '私聊' });
     await expect(contactRow).toBeVisible();
+  });
+
+  test('uploads current user avatar from profile settings', async ({ page }) => {
+    const username = uniqueAccount('h5e2ea');
+    const password = `H5pass-${username}`;
+    await registerThroughUi(page, username, password);
+
+    await page.getByRole('button', { name: /设置/ }).click();
+    await page.locator('.profile-card').click();
+    await expect(page).toHaveURL(/\/settings\/profile$/);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'user-avatar.png',
+      mimeType: 'image/png',
+      buffer: pngFixture,
+    });
+
+    await expect(page.getByText('头像已更新')).toBeVisible();
   });
 });

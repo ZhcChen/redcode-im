@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
+import { avatarCacheService } from '@/services/avatar-cache';
+import { avatarUploadService, validateAvatarFile } from '@/services/avatar-upload-service';
 import { roomService } from '@/services/room-service';
 import type { CreatedRoom, GroupSettingsInfo, RoomMember } from '@/types/room';
 
@@ -17,7 +19,9 @@ export const useGroupSettingsStore = defineStore('groupSettings', {
     pinned: false,
     loading: false,
     submitting: false,
+    avatarUploading: false,
     error: '',
+    notice: '',
   }),
   actions: {
     async enterRoom(roomId: string) {
@@ -38,6 +42,7 @@ export const useGroupSettingsStore = defineStore('groupSettings', {
         this.members = createMockMembers();
         this.settings = createMockSettings(roomId);
         this.draftName = this.room.name;
+        this.notice = '';
         this.loading = false;
         return;
       }
@@ -52,6 +57,7 @@ export const useGroupSettingsStore = defineStore('groupSettings', {
         this.members = members;
         this.settings = settings;
         this.draftName = room.name;
+        this.notice = '';
       } catch (error) {
         this.error = error instanceof Error ? error.message : '加载群设置失败';
       } finally {
@@ -78,6 +84,59 @@ export const useGroupSettingsStore = defineStore('groupSettings', {
         throw error;
       } finally {
         this.submitting = false;
+      }
+    },
+
+    async uploadRoomAvatar(file: File | null | undefined) {
+      if (!this.roomId || !file) return;
+      const chatStore = useChatStore();
+      const previousRoom = this.room;
+      const previousChats = chatStore.chats.slice();
+      this.avatarUploading = true;
+      this.error = '';
+      this.notice = '';
+      try {
+        validateAvatarFile(file);
+        const uploaded = appEnv.useMockData
+          ? {
+              objectKey: `room_avatars/${this.roomId}/${Date.now()}-${file.name || 'avatar.png'}`,
+              downloadUrl: null,
+            }
+          : await avatarUploadService.uploadRoomAvatar(this.roomId, file);
+        const nextRoom: CreatedRoom = {
+          ...(previousRoom ?? {
+            id: this.roomId,
+            name: this.draftName || '群聊',
+            roomType: 'group',
+          }),
+          avatarUrl: uploaded.downloadUrl ?? previousRoom?.avatarUrl ?? null,
+          avatarObjectKey: uploaded.objectKey,
+        };
+        this.room = nextRoom;
+        await avatarCacheService.loadRoomAvatar({ roomId: this.roomId, objectKey: uploaded.objectKey });
+        const currentSummary = chatStore.chats.find((chat) => chat.roomId === this.roomId);
+        if (currentSummary) {
+          await chatStore.upsertChatSummary({
+            ...currentSummary,
+            avatar: nextRoom.avatarUrl ?? currentSummary.avatar,
+            avatarObjectKey: uploaded.objectKey,
+          });
+        }
+        if (!appEnv.useMockData) {
+          try {
+            await chatStore.refreshChats();
+          } catch (error) {
+            console.warn('[h5-app] 群头像上传后刷新会话失败，已保留本地状态', error);
+          }
+        }
+        this.notice = '群头像已更新';
+      } catch (error) {
+        this.room = previousRoom;
+        chatStore.chats = previousChats;
+        this.error = error instanceof Error ? error.message : '更新群头像失败';
+        throw error;
+      } finally {
+        this.avatarUploading = false;
       }
     },
 

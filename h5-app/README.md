@@ -59,6 +59,7 @@ make h5-app.test.e2e
 
 - 普通账号密码注册、登录和 `/auth/me`
 - service 层认证、资料更新、settings、好友搜索、建群、文本消息发送、已读和聊天列表
+- 用户头像和群头像 direct upload / commit / avatar cache，走本地 `external-mock`
 - H5/iOS-compatible HTTP 合同互通
 - 富媒体 mock 对象存储直传、commit、发送和下载 URL 读取
 
@@ -78,8 +79,9 @@ make h5-app.test.e2e
 - UI 普通账号注册后进入聊天 tab
 - 创建/进入群聊、发送消息、刷新页面后恢复消息
 - 本地消息搜索结果跳转回聊天详情
-- 群设置页置顶关键路径
+- 群设置页群头像上传和置顶关键路径
 - 搜索用户、发送好友申请、接受后联系人状态可见
+- 个人资料页用户头像上传
 
 ## 当前范围
 
@@ -110,14 +112,14 @@ make h5-app.test.e2e
   - `/groups/:roomId/settings` 覆盖成员、改名、免打扰、置顶、退出/解散群聊基础流程
 - 设置与内容页：
   - 设置 tab 连接个人资料、账号安全、隐私协议、用户协议、关于和反馈页面
-  - 个人资料支持昵称更新并同步 localStorage session；账号安全支持修改密码
+  - 个人资料支持昵称更新和用户头像上传，并同步 localStorage session；账号安全支持修改密码
   - 隐私协议/用户协议复用后端公开 settings 文档，反馈提交走 `/feedbacks`
 - 媒体缓存：
   - `BlobCache` 用 Cache API + localStorage metadata 保存头像、附件、表情资源，测试环境降级为内存 Blob
   - 用户头像、群头像、消息附件和表情图片统一用 `objectKey -> objectUrl`，不依赖手机本机路径
+  - 用户头像和群头像上传复用后端 direct upload / commit，成功后刷新当前用户、群资料、会话摘要和头像缓存；失败保留旧头像
   - 消息 `parts` 会映射为 H5 `attachments`，HTTP 历史消息和 WebSocket 实时消息都能渲染附件预览
 
 后续继续补齐：
 
-- 头像上传浏览器能力：用户头像、群头像、失败回退和缓存刷新
 - 浏览器存储增强：wa-sqlite OPFS worker、IndexedDB fallback、FTS5 能力探测、Cache API 配额清理

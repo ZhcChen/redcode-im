@@ -111,9 +111,9 @@ make h5-app.test.e2e
 - 当前 H5 默认普通账号密码注册/登录；邮箱注册/登录只作为后台配置能力保留，不要求真实邮箱验证码二次验证。
 - `h5-app.check` 执行 `vue-tsc --noEmit`。
 - `h5-app.test.unit` 执行 mock 模式 Vitest，覆盖 service、Pinia store、本地 SQLite/IndexedDB adapter、Cache API 包装、页面状态和组件。
-- `h5-app.test.live` 需要本机 Compose API 已启动，覆盖普通账号注册/登录、`/auth/me`、资料更新、settings、好友搜索、建群、文本消息、已读、聊天列表、H5/iOS-compatible HTTP 合同和富媒体 mock 对象存储链路。
-- `h5-app.test.e2e` 需要本机 Compose API 已启动，会用 Playwright 启动或复用 `http://127.0.0.1:8016`，默认使用本机 Chrome channel；覆盖 UI 注册登录、进入群聊、发送消息、刷新后缓存恢复、本地消息搜索结果跳转、群设置置顶、好友申请闭环。
-- 头像上传浏览器能力仍作为 H5 后续 P1 子项推进；未完成前不要把它标为发布级浏览器回归已覆盖。
+- `h5-app.test.live` 需要本机 Compose API 已启动，覆盖普通账号注册/登录、`/auth/me`、资料更新、用户头像上传、settings、好友搜索、建群、群头像上传、文本消息、已读、聊天列表、H5/iOS-compatible HTTP 合同和富媒体 mock 对象存储链路。
+- `h5-app.test.e2e` 需要本机 Compose API 已启动，会用 Playwright 启动或复用 `http://127.0.0.1:8016`，默认使用本机 Chrome channel；覆盖 UI 注册登录、进入群聊、发送消息、刷新后缓存恢复、本地消息搜索结果跳转、群头像上传、群设置置顶、好友申请闭环、个人头像上传。
+- H5 媒体、附件和头像上传依赖 `external-mock`；该 mock 已支持浏览器 direct upload 所需 CORS preflight，E2E 不访问线上 B2。
 
 从零联调顺序：
 

@@ -18,9 +18,9 @@
 ## 当前结论
 
 - 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，随后扩展 Android 原生互通、全模块回归和 API 架构重构。
-- 当前立即任务：收口 H5 头像上传浏览器能力。
-- 当前 H5 头像上传已有未提交草稿，状态是 `进行中`，不能视为完成。
-- `h5-app` 已承担联调入口，文档、live smoke、浏览器 E2E smoke、本地消息搜索页已收口。
+- 当前立即任务：进入 H5 浏览器存储增强。
+- H5 头像上传浏览器能力已收口：用户头像、群头像、direct upload / commit / avatar cache、失败回退、live smoke、E2E 和视觉截图均已完成。
+- `h5-app` 已承担联调入口，文档、live smoke、浏览器 E2E smoke、本地消息搜索页和头像上传已收口。
 - `android-app` P0 媒体切片已完成：附件缓存、头像缓存、权限拒绝恢复、语音播放基线均已收口。
 - `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
@@ -30,20 +30,21 @@
 
 ## 当前立即队列
 
-- [ ] `H5-P1-04` H5 头像上传浏览器能力
-  - 状态：进行中。
+- [x] `H5-P1-04` H5 头像上传浏览器能力
+  - 状态：完成。
   - 用户头像上传、群头像上传。
   - 复用 direct upload / signed URL PUT / commit / avatar cache。
   - 上传失败保留旧头像、旧 session 和旧会话摘要。
   - 成功后刷新当前用户、联系人/会话展示、群资料和头像缓存。
   - 使用 `external-mock` 完成 live smoke。
+  - 视觉截图：`docs/reports/h5-app/avatar-upload-smoke.png`。
 - [ ] `H5-P1-05` H5 浏览器存储增强
   - wa-sqlite OPFS worker 化。
   - IndexedDB VFS fallback。
   - OPFS、IndexedDB、FTS5、Cache API 能力探测。
   - 缓存配额、过期和清理策略。
 - [ ] `H5-P1-06` H5 parity Unit 8 最终勾选
-  - 头像上传和存储增强完成后，回填 H5 parity 计划与测试文档。
+  - 头像上传提交推送、存储增强完成后，回填 H5 parity 计划与测试文档。
 - [ ] `CROSS-P1-01` H5/API/Android 联调脚本扩展
   - 串联 H5 live smoke 与 Android live smoke。
   - 覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限降级和语音播放可测路径。
@@ -53,7 +54,7 @@
 - [x] H5 全量验收与文档收口。
 - [x] 浏览器 E2E / smoke 扩展。
 - [x] 本地消息搜索页面。
-- [ ] 头像上传浏览器能力。
+- [x] 头像上传浏览器能力。
 - [ ] 浏览器存储增强。
 - [ ] H5 parity Unit 8 最终勾选。
 

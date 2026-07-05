@@ -47,7 +47,9 @@ describe('settings views', () => {
 
     expect(wrapper.text()).toContain('个人资料');
     expect(wrapper.text()).toContain('U1');
+    expect(wrapper.text()).toContain('更换头像');
     expect(wrapper.find('input[placeholder="输入昵称"]').exists()).toBe(true);
+    expect(wrapper.find('input[type="file"][accept="image/*"]').exists()).toBe(true);
   });
 
   it('renders privacy policy document content', async () => {

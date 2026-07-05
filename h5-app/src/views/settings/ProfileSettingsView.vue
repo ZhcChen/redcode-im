@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import CachedAvatar from '@/components/CachedAvatar.vue';
@@ -7,9 +7,25 @@ import { useSettingsStore } from '@/stores/settings';
 
 const router = useRouter();
 const store = useSettingsStore();
+const avatarInput = ref<HTMLInputElement | null>(null);
 
 const goBack = async () => {
   await router.push({ name: 'home' });
+};
+
+const chooseAvatar = () => {
+  avatarInput.value?.click();
+};
+
+const handleAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  try {
+    await store.uploadAvatar(file);
+  } catch {
+    // Store state already contains the user-facing error.
+  }
 };
 
 onMounted(() => {
@@ -41,7 +57,11 @@ onMounted(() => {
           :label="store.displayName"
           :size="92"
         />
-        <p class="settings-muted">头像上传将在媒体缓存单元接入浏览器文件能力。</p>
+        <input ref="avatarInput" class="sr-only" type="file" accept="image/*" @change="handleAvatarSelected" />
+        <button class="avatar-upload-button rc-focus-ring" type="button" :disabled="store.avatarUploading" @click="chooseAvatar">
+          {{ store.avatarUploading ? '上传中...' : '更换头像' }}
+        </button>
+        <p class="settings-muted">支持 PNG、JPG、WebP 等图片，上传失败会保留当前头像。</p>
       </section>
 
       <form class="settings-card" @submit.prevent="store.updateNickname">
@@ -131,6 +151,21 @@ onMounted(() => {
   color: #fff;
   font-size: 34px;
   font-weight: 800;
+}
+
+.avatar-upload-button {
+  min-width: 110px;
+  height: 38px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--rc-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.avatar-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .settings-field {

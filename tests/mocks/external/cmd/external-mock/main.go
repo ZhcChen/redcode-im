@@ -53,9 +53,28 @@ func main() {
 	mux.HandleFunc("/", server.handle)
 
 	log.Printf("[external-mock] listening on %s", addr)
-	if err := http.ListenAndServe(addr, logRequest(mux)); err != nil {
+	if err := http.ListenAndServe(addr, logRequest(withCORS(mux))); err != nil {
 		log.Fatalf("[external-mock] server stopped: %v", err)
 	}
+}
+
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET,HEAD,PUT,POST,DELETE,OPTIONS")
+		if requestedHeaders := strings.TrimSpace(r.Header.Get("Access-Control-Request-Headers")); requestedHeaders != "" {
+			w.Header().Set("Access-Control-Allow-Headers", requestedHeaders)
+		} else {
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Amz-Content-Sha256,X-Amz-Date,X-Amz-Security-Token")
+		}
+		w.Header().Set("Access-Control-Expose-Headers", "ETag,Content-Length,Content-Type")
+		w.Header().Set("Access-Control-Max-Age", "600")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func logRequest(next http.Handler) http.Handler {

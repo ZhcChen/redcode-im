@@ -8,16 +8,21 @@
 
 - 当前分支：`feat/core-architecture-performance`。
 - 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，确认核心功能与流程正确，再继续 Android 原生补齐、全模块回归和底层架构重构。
-- 当前立即任务：收口 `H5-P1-04 头像上传浏览器能力`。
-- 当前工作区已有 H5 头像上传未提交实现草稿，涉及：
+- 当前立即任务：进入 `H5-P1-05 浏览器存储增强`。
+- `H5-P1-04 头像上传浏览器能力` 已完成，涉及：
   - `h5-app/src/services/avatar-upload-service.ts`
   - `h5-app/src/stores/settings.ts`
   - `h5-app/src/stores/group-settings.ts`
+  - `h5-app/src/components/CachedAvatar.vue`
   - `h5-app/src/views/settings/ProfileSettingsView.vue`
   - `h5-app/src/views/GroupSettingsView.vue`
   - `h5-app/src/types/room.ts`
   - `h5-app/src/services/mappers.ts`
-- 上述 H5 头像上传草稿未完成测试、文档、提交和推送；本文按 `进行中` 记录，不视为完成。
+  - `tests/mocks/external/cmd/external-mock/main.go`
+  - `tests/mocks/external/cmd/external-mock/main_test.go`
+  - `h5-app/test/` 相关 service/store/view/live/E2E 测试
+  - `docs/reports/h5-app/avatar-upload-smoke.png`
+- 本轮同时为 `external-mock` 增加浏览器直传 CORS preflight，确保 H5 E2E 可通过 signed URL 直传本地对象存储 mock。
 - Flutter `app/` 保留，不移除；当前只作为行为对照、回滚包和原生迁移基线。
 - Google / Apple 登录不进入当前主线；当前默认普通账号密码注册/登录。
 - 邮箱注册/登录作为后台配置能力保留；当前自动化测试不依赖真实邮箱资源，也不要求邮箱验证码二次验证。
@@ -29,6 +34,7 @@
 
 - `待执行`：尚未开始当前切片实现。
 - `进行中`：已有局部实现或分析，但还没有完成测试、文档、提交和推送。
+- `已验证待提交`：实现、测试和文档已本地收口，但尚未 review、提交或推送；按 CE 规则仍不能视为完成。
 - `待补验`：受真机、平台凭据或外部发布资源限制，暂不阻塞主线，但必须保留恢复入口。
 - `完成`：实现、测试、文档、提交和推送均已收口。
 - `非当前主线`：保留入口，不主动展开，除非用户重新激活。
@@ -37,26 +43,20 @@
 
 ### NOW-01 H5 头像上传浏览器能力
 
-状态：进行中
+状态：完成
 
 目标：
 - 在浏览器端补齐用户头像和群头像上传，使 H5 资料链路可完整验收。
 
-当前已开始但未收口：
-- 已有 direct upload / signed URL PUT / commit 服务草稿。
-- 已有用户头像上传入口草稿。
-- 已有群头像上传入口草稿。
-- 已有 room `avatarObjectKey` 映射草稿。
-
-剩余收口：
-- 修复群头像上传失败回滚，避免使用可变引用作为历史状态。
-- 确认用户头像上传成功后刷新 `auth` session、当前用户资料、联系人/会话摘要展示和头像缓存。
-- 确认群头像上传成功后刷新群资料、会话摘要、群设置页和头像缓存。
+已完成：
+- 新增 H5 头像上传 service，复用 direct upload / signed URL PUT / commit。
+- 用户头像上传成功后刷新 `auth` session、当前用户资料、联系人缓存和头像缓存。
+- 群头像上传成功后刷新群资料、会话摘要、群设置页和头像缓存。
 - 上传失败时保留旧头像、旧 session 和旧会话摘要。
+- `CachedAvatar` 在缓存图片损坏或无法渲染时回退到首字母占位。
+- `external-mock` 增加 CORS preflight，支持浏览器直传 signed URL。
 - 补 service/store/view/live/E2E 覆盖。
-- 生成头像上传入口视觉截图。
-- 更新 `h5-app/README.md`、`docs/reference/testing/README.md` 和本文档。
-- 通过测试后仅提交本切片相关文件并推送。
+- 视觉截图：`docs/reports/h5-app/avatar-upload-smoke.png`。
 
 验收：
 - `make h5-app.check`
@@ -67,6 +67,11 @@
 - `make h5-app.test.live`
 - `make h5-app.test.e2e`
 - `git diff --check`
+
+收口结果：
+- 已完成轻量自审，并补齐文件选择失败时的浏览器端错误吞吐和可展示错误。
+- 已重跑上述验收命令，均通过。
+- 本切片按 Conventional Commits 独立提交和推送。
 
 ### NOW-02 H5 浏览器存储增强
 
@@ -138,7 +143,6 @@
   - 视觉截图：`docs/reports/h5-app/message-search-smoke.png`。
 
 剩余：
-- `H5-P1-04 头像上传浏览器能力`：进行中，见 `NOW-01`。
 - `H5-P1-05 浏览器存储增强`：待执行，见 `NOW-02`。
 - `H5-P1-06 H5 parity Unit 8 最终勾选`：待执行，见 `NOW-03`。
 

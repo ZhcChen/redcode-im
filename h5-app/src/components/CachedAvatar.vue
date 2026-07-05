@@ -51,7 +51,7 @@ onBeforeUnmount(() => {
 
 <template>
   <span class="cached-avatar" :style="{ width: sizePx, height: sizePx }" :title="label || undefined">
-    <img v-if="entry && !failed" :src="entry.objectUrl" :alt="label || 'avatar'" />
+    <img v-if="entry && !failed" :src="entry.objectUrl" :alt="label || 'avatar'" @error="failed = true" />
     <span v-else>{{ initial }}</span>
   </span>
 </template>

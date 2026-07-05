@@ -4,6 +4,7 @@ export interface CreatedRoom {
   roomType: string;
   description?: string | null;
   avatarUrl?: string | null;
+  avatarObjectKey?: string | null;
   ownerId?: string | null;
 }
 

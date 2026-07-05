@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import CachedAvatar from '@/components/CachedAvatar.vue';
@@ -8,6 +8,7 @@ import { useGroupSettingsStore } from '@/stores/group-settings';
 const route = useRoute();
 const router = useRouter();
 const store = useGroupSettingsStore();
+const avatarInput = ref<HTMLInputElement | null>(null);
 
 const roomId = computed(() => String(route.params.roomId ?? ''));
 const owner = computed(() => store.members.find((member) => member.role === 'owner'));
@@ -24,6 +25,21 @@ const leaveRoom = async () => {
 const dissolveRoom = async () => {
   await store.dissolveRoom();
   await router.replace({ name: 'home' });
+};
+
+const chooseRoomAvatar = () => {
+  avatarInput.value?.click();
+};
+
+const handleRoomAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  try {
+    await store.uploadRoomAvatar(file);
+  } catch {
+    // Store state already contains the user-facing error.
+  }
 };
 
 onMounted(() => {
@@ -43,10 +59,28 @@ onMounted(() => {
 
     <section class="group-settings__content">
       <p v-if="store.error" class="group-settings__notice group-settings__notice--error">{{ store.error }}</p>
+      <p v-if="store.notice" class="group-settings__notice">{{ store.notice }}</p>
       <p v-if="store.loading" class="group-settings__notice">正在加载群设置...</p>
 
       <section class="settings-panel">
         <h2>基础信息</h2>
+        <div class="room-avatar-panel">
+          <CachedAvatar
+            class="room-avatar-panel__avatar"
+            kind="room"
+            :entity-id="roomId"
+            :object-key="store.room?.avatarObjectKey"
+            :label="store.room?.name || '群聊'"
+            :size="72"
+          />
+          <div>
+            <input ref="avatarInput" class="sr-only" type="file" accept="image/*" @change="handleRoomAvatarSelected" />
+            <button class="avatar-upload-button rc-focus-ring" type="button" :disabled="store.avatarUploading" @click="chooseRoomAvatar">
+              {{ store.avatarUploading ? '上传中...' : '更换群头像' }}
+            </button>
+            <p class="settings-hint">上传失败会保留当前群头像。</p>
+          </div>
+        </div>
         <label class="settings-field">
           <span>群名称</span>
           <input v-model="store.draftName" class="rc-focus-ring" placeholder="输入群名称" />
@@ -179,6 +213,39 @@ onMounted(() => {
   margin: 0;
   color: var(--rc-text-primary);
   font-size: 16px;
+}
+
+.room-avatar-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.room-avatar-panel__avatar {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: var(--rc-primary-soft);
+  color: var(--rc-primary-strong);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.avatar-upload-button {
+  min-width: 116px;
+  height: 38px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--rc-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.avatar-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .settings-panel__title {
