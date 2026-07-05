@@ -26,6 +26,7 @@ data class ChatDetailFormState(
     val searchResults: List<ChatMessage> = emptyList(),
     val isSearching: Boolean = false,
     val isUploadingAttachment: Boolean = false,
+    val attachmentCacheStatus: Map<String, String> = emptyMap(),
 )
 
 data class ChatDetailUiState(
@@ -39,6 +40,7 @@ data class ChatDetailUiState(
     val searchResults: List<ChatMessage> = emptyList(),
     val isSearching: Boolean = false,
     val isUploadingAttachment: Boolean = false,
+    val attachmentCacheStatus: Map<String, String> = emptyMap(),
 )
 
 class ChatDetailViewModel(
@@ -61,6 +63,7 @@ class ChatDetailViewModel(
                 searchResults = form.searchResults,
                 isSearching = form.isSearching,
                 isUploadingAttachment = form.isUploadingAttachment,
+                attachmentCacheStatus = form.attachmentCacheStatus,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -215,6 +218,34 @@ class ChatDetailViewModel(
             }.onFailure { error ->
                 formState.update {
                     it.copy(errorMessage = error.message ?: "上传附件失败", isUploadingAttachment = false)
+                }
+            }
+        }
+    }
+
+    fun cacheAttachment(attachment: MessageAttachment) {
+        viewModelScope.launch {
+            formState.update {
+                it.copy(
+                    attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存中"),
+                    errorMessage = null,
+                )
+            }
+            runCatching {
+                chatRepository.downloadAndCacheAttachment(roomId = roomId, attachment = attachment)
+            }.onSuccess { cached ->
+                formState.update {
+                    it.copy(
+                        attachmentCacheStatus =
+                            it.attachmentCacheStatus + (attachment.key to (cached.localPath ?: "已缓存")),
+                    )
+                }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(
+                        attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存失败"),
+                        errorMessage = error.message ?: "附件缓存失败",
+                    )
                 }
             }
         }

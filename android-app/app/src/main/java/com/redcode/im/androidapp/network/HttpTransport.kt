@@ -12,6 +12,7 @@ data class HttpRequest(
 data class HttpResponse(
     val statusCode: Int,
     val body: String,
+    val bodyBytes: ByteArray = body.toByteArray(Charsets.UTF_8),
 )
 
 interface HttpTransport {

@@ -9,6 +9,9 @@ import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.data.chat.withAttachmentLocalPath
+import com.redcode.im.androidapp.data.chat.withAttachmentLocalPathsFrom
+import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.ChatRepository
 import com.redcode.im.androidapp.data.chat.toWireName
@@ -22,6 +25,7 @@ class CachedRemoteChatRepository(
     private val remoteDataSource: ChatRemoteDataSource,
     private val session: StateFlow<AuthSession?>,
     private val localRepository: RoomChatRepository,
+    private val attachmentFileCache: FileResourceCache? = null,
 ) : ChatRepository {
     override val chats: Flow<List<ChatSummary>> = localRepository.chats
 
@@ -158,14 +162,41 @@ class CachedRemoteChatRepository(
         if (!commit.success) {
             error(commit.message.ifBlank { "附件上传提交失败" })
         }
+        val cached = attachmentFileCache?.put(key = key, bytes = file.bytes, expectedSize = file.size)
         return sendAttachmentReference(
             roomId = roomId,
             senderId = senderId,
             senderName = senderName,
             text = text,
-            parts = listOf(file.toMessagePart(type = type, key = key)),
+            parts = listOf(file.toMessagePart(type = type, key = key, localPath = cached?.localPath)),
             quotedMessageId = quotedMessageId,
         )
+    }
+
+    override suspend fun downloadAndCacheAttachment(
+        roomId: String,
+        attachment: MessageAttachment,
+        forceRefresh: Boolean,
+    ): MessageAttachment {
+        val cache = attachmentFileCache ?: return attachment
+        val cached =
+            if (forceRefresh) {
+                null
+            } else {
+                cache.get(key = attachment.key, expectedSize = attachment.size)
+            } ?: run {
+                val downloadUrl =
+                    fetchAttachmentDownloadUrl(roomId = roomId, key = attachment.key)
+                        ?: error("附件下载地址不可用")
+                val bytes = remoteDataSource.downloadAttachmentBytes(downloadUrl)
+                cache.put(key = attachment.key, bytes = bytes, expectedSize = attachment.size ?: bytes.size.toLong())
+            }
+        localRepository.messages(roomId).first()
+            .filter { message -> message.parts.any { it.attachment?.key == attachment.key } }
+            .forEach { message ->
+                localRepository.upsertMessage(message.withAttachmentLocalPath(key = attachment.key, localPath = cached.localPath))
+            }
+        return attachment.copy(localPath = cached.localPath)
     }
 
     override suspend fun resendMessage(messageId: String): ChatMessage? {
@@ -249,6 +280,7 @@ class CachedRemoteChatRepository(
                     )
             }
                 .toDomain()
+                .withAttachmentLocalPathsFrom(pending)
         }.fold(
             onSuccess = { sent ->
                 localRepository.removeMessage(pending.id)
@@ -295,7 +327,7 @@ class CachedRemoteChatRepository(
         return segments.joinToString(" ").ifBlank { "[消息]" }
     }
 
-    private fun AttachmentUploadPayload.toMessagePart(type: MessagePartType, key: String): MessagePart =
+    private fun AttachmentUploadPayload.toMessagePart(type: MessagePartType, key: String, localPath: String? = null): MessagePart =
         MessagePart(
             position = 0,
             type = type,
@@ -309,6 +341,7 @@ class CachedRemoteChatRepository(
                     height = height,
                     durationMs = durationMs,
                     thumbnailKey = thumbnailKey,
+                    localPath = localPath,
                 ),
         )
 

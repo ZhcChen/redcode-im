@@ -77,6 +77,12 @@ interface ChatRepository {
 
     suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, expiresInSeconds: Int = 600): String? = null
 
+    suspend fun downloadAndCacheAttachment(
+        roomId: String,
+        attachment: MessageAttachment,
+        forceRefresh: Boolean = false,
+    ): MessageAttachment = attachment
+
     suspend fun resendMessage(messageId: String): ChatMessage? = null
 
     suspend fun markRead(roomId: String)

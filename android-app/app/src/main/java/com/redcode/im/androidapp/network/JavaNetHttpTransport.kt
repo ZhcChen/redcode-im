@@ -43,9 +43,11 @@ class JavaNetHttpTransport : HttpTransport {
                     .build()
 
             client.newCall(okHttpRequest).execute().use { response ->
+                val bytes = response.body?.bytes() ?: ByteArray(0)
                 HttpResponse(
                     statusCode = response.code,
-                    body = response.body?.string().orEmpty(),
+                    body = bytes.toString(Charsets.UTF_8),
+                    bodyBytes = bytes,
                 )
             }
         }

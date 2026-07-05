@@ -26,10 +26,17 @@
   - 接入群头像 download URL。
   - 群列表、群详情使用缓存头像。
   - 登出或清理本地状态时清理相关缓存。
-- [ ] 附件本地文件 cache
+- [x] 附件本地文件 cache
   - 已发送/已下载附件保存到 app cache。
   - 再次打开时优先使用本地缓存。
   - 文件不存在或损坏时重新拉取 download URL。
+
+  当前结果：
+  - 已新增 Android `FileResourceCache`，附件缓存按 object key 映射到 app cache 文件。
+  - `APIClient` 已支持 signed URL binary download。
+  - 发送附件成功后会保存上传 bytes 并把 `localPath` 回写消息 parts。
+  - 聊天附件支持手动缓存；二次缓存优先命中本地文件，缓存文件缺失或大小不匹配时重新获取 download URL。
+  - 已覆盖缓存命中、下载失败不污染缓存、损坏清理、上传后保留 localPath、下载后二次命中。
 - [ ] 权限拒绝和恢复路径
   - 文件选择器取消选择不报错。
   - 麦克风/通知权限拒绝时 UI 给出可恢复提示。

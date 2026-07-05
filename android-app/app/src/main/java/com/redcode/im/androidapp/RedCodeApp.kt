@@ -443,11 +443,29 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                     }
                     message.parts.filter { it.type != MessagePartType.Text && it.attachment != null }.forEach { part ->
                         val attachment = part.attachment!!
-                        Text(
-                            text = "${part.type.label()} · ${attachment.displayName} · ${attachment.mime ?: "unknown"} · ${attachment.size?.let(::formatBytes) ?: "-"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${part.type.label()} · ${attachment.displayName} · ${attachment.mime ?: "unknown"} · ${attachment.size?.let(::formatBytes) ?: "-"}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                )
+                                val cacheStatus = uiState.attachmentCacheStatus[attachment.key] ?: attachment.localPath?.let { "已缓存" }
+                                if (cacheStatus != null) {
+                                    Text(
+                                        text = cacheStatus,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                    )
+                                }
+                            }
+                            TextButton(
+                                onClick = { viewModel.cacheAttachment(attachment) },
+                                modifier = Modifier.testTag("cache-attachment-${attachment.key.hashCode()}"),
+                            ) {
+                                Text(if (attachment.localPath.isNullOrBlank()) "缓存" else "刷新")
+                            }
+                        }
                     }
                     if (!message.id.startsWith("local-") && !message.isDeleted) {
                         Row {

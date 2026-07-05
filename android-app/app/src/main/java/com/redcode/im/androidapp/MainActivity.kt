@@ -7,6 +7,7 @@ import androidx.room.Room
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.data.auth.AndroidKeystoreKeyValueStore
 import com.redcode.im.androidapp.data.auth.SerializedAuthSessionStore
+import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.persistence.MIGRATION_1_2
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
                 localChatRepository = RoomChatRepository(database.chatDao()),
                 localContactsRepository = RoomContactsRepository(database.contactDao()),
                 localRoomRepository = RoomGroupRepository(database.roomDao()),
+                attachmentFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/attachments")),
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {

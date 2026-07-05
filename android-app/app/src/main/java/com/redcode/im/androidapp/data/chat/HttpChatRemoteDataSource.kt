@@ -102,6 +102,9 @@ class HttpChatRemoteDataSource(
             )
             .downloadUrl
 
+    override suspend fun downloadAttachmentBytes(url: String): ByteArray =
+        apiClient.downloadBytes(url)
+
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {
         apiClient.post<MarkMessageReadRequest, JsonObject>(
             ChatAPIEndpoint.markMessagesRead(roomId),

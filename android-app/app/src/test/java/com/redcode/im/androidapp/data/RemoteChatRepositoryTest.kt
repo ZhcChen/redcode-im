@@ -12,20 +12,27 @@ import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.ChatAPIEndpoint
 import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.RemoteChatRepository
+import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.network.HTTPMethod
 import com.redcode.im.androidapp.network.HttpRequest
 import com.redcode.im.androidapp.network.HttpResponse
 import com.redcode.im.androidapp.network.HttpTransport
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 
 class RemoteChatRepositoryTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
     @Test
     fun chatEndpoint_buildsMessageQueryWithBoundsAndEncoding() {
         val endpoint = ChatAPIEndpoint.messages(roomId = "room-1", limit = 500, beforeId = "m 1")
@@ -402,6 +409,119 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun uploadAndSendAttachment_cachesUploadedFileAndKeepsLocalPathOnSentMessage() =
+        runTest {
+            val bytes = "image-bytes".encodeToByteArray()
+            val key = "messages/room-1/images_20260705/a.png"
+            val cache = FileResourceCache(temporaryFolder.newFolder("attachment-cache"))
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "success":true,
+                          "message":"ok",
+                          "key":"$key",
+                          "signature":{
+                            "url":"http://127.0.0.1:19080/mock-bucket/$key",
+                            "method":"PUT",
+                            "headers":{}
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "uploaded"),
+                    HttpResponse(200, """{"success":true,"message":"committed"}"""),
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-img",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "sender_nickname":"Me",
+                            "content":"[图片]",
+                            "status":"sent",
+                            "created_at":"2026-07-05T00:00:02Z",
+                            "parts":[
+                              {"position":0,"part_type":"image","attachment":{"key":"$key","name":"a.png","mime":"image/png","size":11}}
+                            ]
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport = transport, attachmentFileCache = cache)
+
+            val sent =
+                repository.uploadAndSendAttachment(
+                    roomId = "room-1",
+                    senderId = "user-me",
+                    senderName = "Me",
+                    file =
+                        AttachmentUploadPayload(
+                            bytes = bytes,
+                            fileName = "a.png",
+                            mime = "image/png",
+                            size = bytes.size.toLong(),
+                        ),
+                    type = MessagePartType.Image,
+                    text = null,
+                )
+
+            val localPath = sent.parts.single().attachment?.localPath
+            assertTrue(!localPath.isNullOrBlank())
+            assertEquals(bytes.toList(), File(localPath!!).readBytes().toList())
+            assertEquals(localPath, repository.messages("room-1").first().single().parts.single().attachment?.localPath)
+        }
+
+    @Test
+    fun downloadAndCacheAttachment_usesLocalCacheBeforeRequestingDownloadUrlAgain() =
+        runTest {
+            val bytes = "cached bytes".encodeToByteArray()
+            val key = "messages/room-1/files_20260705/a.txt"
+            val cache = FileResourceCache(temporaryFolder.newFolder("attachment-cache"))
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-file",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "content":"[文件]",
+                            "created_at":"2026-07-05T00:00:00Z",
+                            "parts":[
+                              {"position":0,"part_type":"file","attachment":{"key":"$key","name":"a.txt","mime":"text/plain","size":${bytes.size}}}
+                            ]
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, """{"success":true,"download_url":"http://127.0.0.1:19080/mock-bucket/$key"}"""),
+                    HttpResponse(statusCode = 200, body = "", bodyBytes = bytes),
+                )
+            val repository = repository(transport = transport, attachmentFileCache = cache)
+
+            repository.refreshMessages("room-1")
+            val attachment = repository.messages("room-1").first().single().parts.single().attachment!!
+            val first = repository.downloadAndCacheAttachment(roomId = "room-1", attachment = attachment)
+            val second = repository.downloadAndCacheAttachment(roomId = "room-1", attachment = first)
+
+            assertEquals(first.localPath, second.localPath)
+            assertEquals(bytes.toList(), File(first.localPath!!).readBytes().toList())
+            assertEquals(first.localPath, repository.messages("room-1").first().single().parts.single().attachment?.localPath)
+            assertEquals(3, transport.requests.size)
+            assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/attachments/download?key=messages%2Froom-1%2Ffiles_20260705%2Fa.txt&expires_in_seconds=600", transport.requests[1].url)
+            assertEquals("http://127.0.0.1:19080/mock-bucket/$key", transport.requests[2].url)
+        }
+
+    @Test
     fun loadOlderMessages_usesFirstMessageAsBeforeCursorAndMergesResults() =
         runTest {
             val transport =
@@ -714,10 +834,14 @@ class RemoteChatRepositoryTest {
             assertTrue(runCatching { repository.refreshChats() }.exceptionOrNull() is IllegalStateException)
         }
 
-    private fun repository(transport: QueueTransport): RemoteChatRepository =
+    private fun repository(
+        transport: QueueTransport,
+        attachmentFileCache: FileResourceCache? = null,
+    ): RemoteChatRepository =
         RemoteChatRepository(
             remoteDataSource = HttpChatRemoteDataSource(APIClient(RedCodeEnvironment.localEmulator(), transport)),
             session = MutableStateFlow(session()),
+            attachmentFileCache = attachmentFileCache,
         )
 
     private fun session(): AuthSession =

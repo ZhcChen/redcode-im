@@ -15,6 +15,7 @@ import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.data.contacts.HttpFriendRemoteDataSource
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
 import com.redcode.im.androidapp.data.contacts.RemoteContactsRepository
+import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import com.redcode.im.androidapp.data.preferences.UserPreferenceStore
 import com.redcode.im.androidapp.data.rooms.HttpRoomRemoteDataSource
@@ -46,6 +47,7 @@ class AppContainer(
     private val localChatRepository: RoomChatRepository? = null,
     private val localContactsRepository: RoomContactsRepository? = null,
     private val localRoomRepository: RoomGroupRepository? = null,
+    private val attachmentFileCache: FileResourceCache? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -62,11 +64,13 @@ class AppContainer(
                 remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
                 session = authRepository.session,
                 localRepository = localChatRepository,
+                attachmentFileCache = attachmentFileCache,
             )
         } else if (useRemoteChat) {
             RemoteChatRepository(
                 remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
                 session = authRepository.session,
+                attachmentFileCache = attachmentFileCache,
             )
         } else {
             InMemoryChatRepository()
@@ -133,5 +137,6 @@ class AppContainer(
         chatRepository.clearLocalState()
         contactsRepository.clearLocalState()
         roomRepository.clearLocalState()
+        attachmentFileCache?.clear()
     }
 }

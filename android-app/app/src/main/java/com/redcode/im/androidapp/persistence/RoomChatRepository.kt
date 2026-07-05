@@ -8,6 +8,7 @@ import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.data.chat.ChatRepository
+import com.redcode.im.androidapp.data.chat.withAttachmentLocalPathsFrom
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -128,7 +129,7 @@ class RoomChatRepository(
     }
 
     suspend fun upsertMessage(message: ChatMessage) {
-        upsertMessageEntity(preserveCachedReactions(message))
+        upsertMessageEntity(preserveCachedMessageFields(message))
     }
 
     suspend fun findMessage(messageId: String): ChatMessage? =
@@ -157,7 +158,7 @@ class RoomChatRepository(
                 pinnedAt = if (cachedPinIsMissingFromEvent) existing?.pinnedAt else message.pinnedAt,
                 pinnedBy = if (cachedPinIsMissingFromEvent) existing?.pinnedBy else message.pinnedBy,
                 reactions = if (message.reactions.isEmpty()) existing?.reactions.orEmpty() else message.reactions,
-            )
+            ).withAttachmentLocalPathsFrom(existing)
         chatDao.upsertMessage(ChatMessageEntity.fromDomain(messageForCache))
         val currentSummary = chatDao.findSummary(message.roomId)?.toDomain()
         val isSelf = message.senderId == currentUserId
@@ -259,7 +260,7 @@ class RoomChatRepository(
     }
 
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessage>) {
-        val mergedMessages = messages.map { preserveCachedReactions(it) }
+        val mergedMessages = messages.map { preserveCachedMessageFields(it) }
         chatDao.replaceMessages(
             roomId = roomId,
             messages = mergedMessages.map(ChatMessageEntity::fromDomain),
@@ -267,10 +268,10 @@ class RoomChatRepository(
         )
     }
 
-    private suspend fun preserveCachedReactions(message: ChatMessage): ChatMessage {
-        if (message.reactions.isNotEmpty()) return message
+    private suspend fun preserveCachedMessageFields(message: ChatMessage): ChatMessage {
         val existing = findMessage(message.id) ?: return message
-        return if (existing.reactions.isEmpty()) message else message.copy(reactions = existing.reactions)
+        val withReactions = if (message.reactions.isEmpty() && existing.reactions.isNotEmpty()) message.copy(reactions = existing.reactions) else message
+        return withReactions.withAttachmentLocalPathsFrom(existing)
     }
 
     private suspend fun upsertMessageEntity(message: ChatMessage) {

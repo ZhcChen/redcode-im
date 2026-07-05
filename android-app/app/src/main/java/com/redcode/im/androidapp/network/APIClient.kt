@@ -89,6 +89,24 @@ class APIClient(
         }
     }
 
+    suspend fun downloadBytes(url: String, headers: Map<String, String> = emptyMap()): ByteArray {
+        val response =
+            transport.execute(
+                HttpRequest(
+                    method = HTTPMethod.GET,
+                    url = url,
+                    headers = headers,
+                ),
+            )
+        if (response.statusCode !in 200..299) {
+            throw NetworkFailure(
+                statusCode = response.statusCode,
+                message = response.body.takeIf { it.isNotBlank() } ?: "HTTP ${response.statusCode}",
+            )
+        }
+        return response.bodyBytes
+    }
+
     suspend inline fun <reified Response : Any> send(
         endpoint: APIEndpoint,
         bearerToken: String? = null,

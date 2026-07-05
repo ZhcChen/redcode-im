@@ -722,6 +722,9 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
         return "https://asset.example/$key"
     }
 
+    override suspend fun downloadAttachmentBytes(url: String): ByteArray =
+        "downloaded".encodeToByteArray()
+
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {
         tokens += token
         markedReadMessageId = messageId

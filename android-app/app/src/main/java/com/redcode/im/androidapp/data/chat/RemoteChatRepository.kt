@@ -9,6 +9,7 @@ import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.data.media.FileResourceCache
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.map
 class RemoteChatRepository(
     private val remoteDataSource: ChatRemoteDataSource,
     private val session: StateFlow<AuthSession?>,
+    private val attachmentFileCache: FileResourceCache? = null,
 ) : ChatRepository {
     private val summaryState = MutableStateFlow<List<ChatSummary>>(emptyList())
     private val messageState = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
@@ -40,7 +42,10 @@ class RemoteChatRepository(
         val messages =
             remoteDataSource
                 .loadMessages(roomId = roomId, token = requireToken(), limit = limit)
-                .map { it.toDomain() }
+                .map { incoming ->
+                    val message = incoming.toDomain()
+                    message.withAttachmentLocalPathsFrom(messageState.value[roomId].orEmpty().firstOrNull { it.id == message.id })
+                }
                 .sortedBy { it.createdAt }
         messageState.value = messageState.value + (roomId to messages)
     }
@@ -74,7 +79,10 @@ class RemoteChatRepository(
         val older =
             remoteDataSource
                 .loadMessages(roomId = roomId, token = requireToken(), limit = limit, beforeId = beforeId)
-                .map { it.toDomain() }
+                .map { incoming ->
+                    val message = incoming.toDomain()
+                    message.withAttachmentLocalPathsFrom(currentMessages.firstOrNull { it.id == message.id })
+                }
                 .filterNot { it.id in existingIds }
         if (older.isEmpty()) return false
         val merged =
@@ -186,14 +194,37 @@ class RemoteChatRepository(
         if (!commit.success) {
             error(commit.message.ifBlank { "附件上传提交失败" })
         }
+        val cached = attachmentFileCache?.put(key = key, bytes = file.bytes, expectedSize = file.size)
         return sendAttachmentReference(
             roomId = roomId,
             senderId = senderId,
             senderName = senderName,
             text = text,
-            parts = listOf(file.toMessagePart(type = type, key = key)),
+            parts = listOf(file.toMessagePart(type = type, key = key, localPath = cached?.localPath)),
             quotedMessageId = quotedMessageId,
         )
+    }
+
+    override suspend fun downloadAndCacheAttachment(
+        roomId: String,
+        attachment: MessageAttachment,
+        forceRefresh: Boolean,
+    ): MessageAttachment {
+        val cache = attachmentFileCache ?: return attachment
+        val cached =
+            if (forceRefresh) {
+                null
+            } else {
+                cache.get(key = attachment.key, expectedSize = attachment.size)
+            } ?: run {
+                val downloadUrl =
+                    fetchAttachmentDownloadUrl(roomId = roomId, key = attachment.key)
+                        ?: error("附件下载地址不可用")
+                val bytes = remoteDataSource.downloadAttachmentBytes(downloadUrl)
+                cache.put(key = attachment.key, bytes = bytes, expectedSize = attachment.size ?: bytes.size.toLong())
+            }
+        updateAttachmentLocalPath(roomId = roomId, key = attachment.key, localPath = cached.localPath)
+        return attachment.copy(localPath = cached.localPath)
     }
 
     override suspend fun resendMessage(messageId: String): ChatMessage? {
@@ -285,6 +316,7 @@ class RemoteChatRepository(
                     )
             }
                 .toDomain()
+                .withAttachmentLocalPathsFrom(pending)
         }.fold(
             onSuccess = { sent ->
                 removeLocalMessage(pending.roomId, pending.id)
@@ -327,7 +359,7 @@ class RemoteChatRepository(
         return segments.joinToString(" ").ifBlank { "[消息]" }
     }
 
-    private fun AttachmentUploadPayload.toMessagePart(type: MessagePartType, key: String): MessagePart =
+    private fun AttachmentUploadPayload.toMessagePart(type: MessagePartType, key: String, localPath: String? = null): MessagePart =
         MessagePart(
             position = 0,
             type = type,
@@ -341,6 +373,7 @@ class RemoteChatRepository(
                     height = height,
                     durationMs = durationMs,
                     thumbnailKey = thumbnailKey,
+                    localPath = localPath,
                 ),
         )
 
@@ -363,6 +396,20 @@ class RemoteChatRepository(
         messageState.value =
             messageState.value +
             (roomId to messageState.value[roomId].orEmpty().map { if (it.id == messageId) transform(it) else it })
+    }
+
+    private fun updateAttachmentLocalPath(roomId: String, key: String, localPath: String) {
+        messageState.value =
+            messageState.value +
+            (
+                roomId to messageState.value[roomId].orEmpty().map { message ->
+                    if (message.parts.any { it.attachment?.key == key }) {
+                        message.withAttachmentLocalPath(key = key, localPath = localPath)
+                    } else {
+                        message
+                    }
+                }
+            )
     }
 
     private fun updateSummary(roomId: String, transform: (ChatSummary) -> ChatSummary) {

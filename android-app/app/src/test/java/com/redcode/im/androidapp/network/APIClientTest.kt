@@ -122,6 +122,20 @@ class APIClientTest {
             assertEquals(bytes.toList(), transport.lastRequest.bodyBytes?.toList())
         }
 
+    @Test
+    fun downloadBytes_returnsRawBodyFromAbsoluteUrl() =
+        runTest {
+            val bytes = byteArrayOf(0, 1, 2, 3)
+            val transport = RecordingTransport(HttpResponse(statusCode = 200, body = "", bodyBytes = bytes))
+            val client = APIClient(RedCodeEnvironment.localEmulator(), transport)
+
+            val downloaded = client.downloadBytes("http://127.0.0.1:19080/mock-bucket/a.bin")
+
+            assertEquals(HTTPMethod.GET, transport.lastRequest.method)
+            assertEquals("http://127.0.0.1:19080/mock-bucket/a.bin", transport.lastRequest.url)
+            assertEquals(bytes.toList(), downloaded.toList())
+        }
+
     @Serializable
     private data class TestRequest(val name: String)
 

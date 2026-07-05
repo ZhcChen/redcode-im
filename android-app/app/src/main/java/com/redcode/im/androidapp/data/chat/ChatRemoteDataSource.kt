@@ -36,6 +36,8 @@ interface ChatRemoteDataSource {
 
     suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int = 600): String?
 
+    suspend fun downloadAttachmentBytes(url: String): ByteArray
+
     suspend fun markMessagesRead(roomId: String, messageId: String, token: String)
 
     suspend fun pinRoom(roomId: String, pinned: Boolean, token: String)

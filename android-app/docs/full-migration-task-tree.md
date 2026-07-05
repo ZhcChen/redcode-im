@@ -126,6 +126,7 @@
 - Room v5 为 `chat_messages` 增加 `partsJson`，会话详情可渲染附件类型、文件名、MIME、大小等元数据，本地搜索可命中附件名。
 - `RealtimeEventProcessor` 已解析 WebSocket `parts` / `attachments` 增量字段，写入同一 Room 消息缓存。
 - `AndroidChatLiveSmokeTest` 已覆盖文本互发、Android image attachment mock 直传/commit/发送，以及 H5-compatible HTTP / Android HTTP 双方可见和下载 URL 可生成。
+- 已新增附件本地 cache 底座：上传成功后保存 bytes 到 app cache，附件手动缓存时优先命中本地文件，缺失或大小不匹配时重新拉 download URL，并把 `localPath` 持久化到消息 parts。
 - 当前未接相机、麦克风和语音播放链路；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展
