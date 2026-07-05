@@ -16,8 +16,8 @@
 - [x] 真实 API `/auth/register`、`/auth/login`、`/auth/me` 客户端合同。
 - [x] RemoteAuthRepository 支持真实注册后自动登录、登录、登出清理。
 - [x] Token/session store 抽象与 in-memory 测试实现。
-- [ ] Token Keystore 持久化。
-- [ ] 启动态恢复。
+- [x] Token Keystore 持久化。
+- [x] 启动态恢复。
 - [ ] 重置密码。
 - [ ] 用户协议/隐私协议勾选与文档拉取。
 - [ ] 登出清理 Token、WS、Room/DataStore/cache/通知态。

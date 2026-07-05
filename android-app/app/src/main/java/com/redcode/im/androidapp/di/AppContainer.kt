@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.di
 
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.data.auth.AuthRepository
+import com.redcode.im.androidapp.data.auth.AuthSessionStore
 import com.redcode.im.androidapp.data.auth.HttpAuthRemoteDataSource
 import com.redcode.im.androidapp.data.auth.InMemoryAuthRepository
 import com.redcode.im.androidapp.data.auth.InMemoryAuthSessionStore
@@ -17,11 +18,12 @@ import com.redcode.im.androidapp.network.APIClient
 class AppContainer(
     val environment: RedCodeEnvironment,
     useRemoteAuth: Boolean = false,
+    authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
             RemoteAuthRepository(
                 remoteDataSource = HttpAuthRemoteDataSource(APIClient(environment)),
-                sessionStore = InMemoryAuthSessionStore(),
+                sessionStore = authSessionStore,
             )
         } else {
             InMemoryAuthRepository()

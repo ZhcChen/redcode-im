@@ -121,6 +121,7 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             "**/*Request*.*",
             "**/*Response*.*",
             "**/data/auth/BackendAuth*.*",
+            "**/data/auth/AndroidKeystoreKeyValueStore*.*",
             "**/network/APIClient*.*",
             "**/JavaNetHttpTransport*.*",
             "**/HttpTransport*.*",

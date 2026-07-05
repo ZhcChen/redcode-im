@@ -61,13 +61,15 @@ MainActivity / Compose App Shell
 - `APIClient`：统一 JSON 编解码、Bearer token、HTTP 错误消息提取。
 - `HttpAuthRemoteDataSource`：对齐 `/auth/register`、`/auth/login`、`/auth/me`、`/auth/refresh`。
 - `RemoteAuthRepository`：普通账号密码注册后自动登录、登录会话保存、登出清理。
-- `AuthSessionStore`：先提供 in-memory 测试实现；后续替换为 Keystore/Encrypted storage。
+- `AuthSessionStore`：提供 in-memory 测试实现和 `SerializedAuthSessionStore`。
+- `AndroidKeystoreKeyValueStore`：Android Keystore 生成不可导出 AES/GCM 密钥，SharedPreferences 只保存密文，App 启动时恢复 `AuthSession`，登出时清理会话密文。
 
 ## 测试策略
 
 - JVM unit test 覆盖校验、领域模型、Repository、ViewModel。
 - Compose instrumented test 覆盖 Emulator 上的关键 UI flow。
 - Room in-memory instrumented test 覆盖 DAO SQL、Flow 查询和 Repository 持久化行为。
+- Android Keystore instrumented test 覆盖密文落盘、读取恢复、覆盖写、删除和损坏 payload 丢弃。
 - Jacoco 输出覆盖率报告。
 - 后续 live smoke 统一接入本机 Docker Compose API；Android Emulator 使用 `10.0.2.2` 访问宿主机。
 
