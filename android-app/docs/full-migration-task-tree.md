@@ -64,13 +64,13 @@
 - [x] Room 联系人缓存、搜索、upsert、remove、clear。
 - [x] 真实用户搜索。
 - [x] 好友申请、接受、拒绝。
-- [ ] 联系人详情。
+- [x] 联系人详情。
 - [x] 打开私聊。
 - [ ] H5/API/Android 好友互通 smoke。
 
 进度备注：
 - `RemoteContactsRepository` 已接入 `/users/search`、`/friends`、`/friends/requests`、`/friends/requests/{id}/respond`、`/friends/{id}/chat`。
-- 当前 Android UI 仍保留极简联系人列表/搜索入口；好友申请列表、联系人详情和互通 smoke 待后续 UI/联调阶段补齐。
+- Android 联系人 UI 已补齐搜索添加、好友申请列表、同意/拒绝、已发送申请、联系人详情弹窗和私聊入口；互通 smoke 待后续联调阶段补齐。
 
 ## ANDROID-05 群聊和群管理
 

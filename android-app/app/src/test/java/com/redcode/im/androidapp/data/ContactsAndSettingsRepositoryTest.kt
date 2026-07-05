@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.data
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.DocumentContent
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
+import com.redcode.im.androidapp.core.model.FriendRequestStatus
 import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
@@ -32,6 +33,22 @@ class ContactsAndSettingsRepositoryTest {
             val contacts = repository.contacts.first()
             assertEquals(3, contacts.size)
             assertEquals("charlie2", contacts.single { it.userId == "user-charlie" }.accountName)
+        }
+
+    @Test
+    fun contacts_friendRequestsAndPrivateChatAreDeterministic() =
+        runTest {
+            val repository = InMemoryContactsRepository()
+
+            repository.sendFriendRequest(" user-charlie ", " hello ")
+            repository.respondFriendRequest("request-mia", accept = true)
+            val roomId = repository.ensurePrivateChat("user-mia")
+
+            assertEquals(FriendRequestStatus.Pending, repository.outgoingRequests.value.single().status)
+            assertEquals("hello", repository.outgoingRequests.value.single().message)
+            assertEquals(FriendRequestStatus.Accepted, repository.incomingRequests.value.single().status)
+            assertEquals("Mia", repository.contacts.first().single { it.userId == "user-mia" }.displayName)
+            assertEquals("room-private-user-mia", roomId)
         }
 
     @Test

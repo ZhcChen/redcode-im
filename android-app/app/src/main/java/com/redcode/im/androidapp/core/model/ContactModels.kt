@@ -15,7 +15,9 @@ enum class FriendRequestStatus {
 
 data class FriendRequest(
     val id: String,
-    val fromUserId: String,
-    val fromDisplayName: String,
     val status: FriendRequestStatus,
+    val counterpartyUserId: String,
+    val counterpartyDisplayName: String,
+    val message: String? = null,
+    val isIncoming: Boolean = true,
 )

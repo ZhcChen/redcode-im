@@ -4,6 +4,10 @@ import com.redcode.im.androidapp.core.model.DocumentContent
 import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.MainDispatcherRule
 import com.redcode.im.androidapp.core.model.AppSettings
+import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.FriendRequest
+import com.redcode.im.androidapp.core.model.FriendRequestStatus
+import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
 import com.redcode.im.androidapp.data.settings.SettingsRepository
@@ -11,6 +15,7 @@ import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -41,6 +46,147 @@ class ContactsAndSettingsViewModelTest {
 
             assertEquals("", viewModel.uiState.value.query)
             assertEquals(emptyList<Any>(), viewModel.uiState.value.searchResults)
+            assertEquals(alice.userId, viewModel.uiState.value.outgoingRequests.single().counterpartyUserId)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun contacts_acceptIncomingRequestAddsContact() =
+        runTest {
+            val viewModel = ContactsViewModel(InMemoryContactsRepository())
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.respondRequest("request-mia", accept = true)
+            advanceUntilIdle()
+
+            assertEquals(FriendRequestStatus.Accepted, viewModel.uiState.value.incomingRequests.single().status)
+            assertEquals("Mia", viewModel.uiState.value.contacts.single { it.userId == "user-mia" }.displayName)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun contacts_openPrivateChatEmitsRoomId() =
+        runTest {
+            val viewModel = ContactsViewModel(InMemoryContactsRepository())
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            var openedRoomId = ""
+            advanceUntilIdle()
+
+            viewModel.openPrivateChat(Contact("user-bob", "bob", "Bob")) { roomId ->
+                openedRoomId = roomId
+            }
+            advanceUntilIdle()
+
+            assertEquals("room-private-user-bob", openedRoomId)
+            assertEquals(false, viewModel.uiState.value.isSubmitting)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun contacts_refreshFailureShowsError() =
+        runTest {
+            val viewModel =
+                ContactsViewModel(
+                    object : ContactsRepository {
+                        override val contacts: Flow<List<Contact>> = MutableStateFlow(emptyList())
+                        override val incomingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+                        override val outgoingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+
+                        override suspend fun refreshContacts() {
+                            throw IllegalStateException("boom")
+                        }
+
+                        override suspend fun search(query: String): List<Contact> = emptyList()
+
+                        override suspend fun addLocalContact(contact: Contact) = Unit
+                    },
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            assertEquals("boom", viewModel.uiState.value.errorMessage)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun contacts_operationFailuresSetErrorsAndBlankRoomDoesNotOpen() =
+        runTest {
+            val contactState = MutableStateFlow(listOf(Contact("user-a", "alice", "Alice")))
+            val repository =
+                object : ContactsRepository {
+                    override val contacts: Flow<List<Contact>> = contactState
+                    override val incomingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+                    override val outgoingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+
+                    override suspend fun search(query: String): List<Contact> {
+                        throw IllegalStateException("search failed")
+                    }
+
+                    override suspend fun addLocalContact(contact: Contact) = Unit
+
+                    override suspend fun sendFriendRequest(targetUserId: String, message: String?) {
+                        throw IllegalStateException("request failed")
+                    }
+
+                    override suspend fun ensurePrivateChat(friendUserId: String): String? = ""
+                }
+            val viewModel = ContactsViewModel(repository)
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            var opened = false
+            advanceUntilIdle()
+
+            viewModel.search()
+            advanceUntilIdle()
+            assertEquals("search failed", viewModel.uiState.value.errorMessage)
+
+            viewModel.addContact(Contact("user-a", "alice", "Alice"))
+            advanceUntilIdle()
+            assertEquals("request failed", viewModel.uiState.value.errorMessage)
+
+            viewModel.openPrivateChat(Contact("user-a", "alice", "Alice")) {
+                opened = true
+            }
+            advanceUntilIdle()
+
+            assertEquals(false, opened)
+            assertEquals(false, viewModel.uiState.value.isSubmitting)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun contacts_respondFailureAndOpenFailureSetErrors() =
+        runTest {
+            val viewModel =
+                ContactsViewModel(
+                    object : ContactsRepository {
+                        override val contacts: Flow<List<Contact>> = MutableStateFlow(emptyList())
+                        override val incomingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+                        override val outgoingRequests: Flow<List<FriendRequest>> = MutableStateFlow(emptyList())
+
+                        override suspend fun search(query: String): List<Contact> = emptyList()
+
+                        override suspend fun addLocalContact(contact: Contact) = Unit
+
+                        override suspend fun respondFriendRequest(requestId: String, accept: Boolean) {
+                            throw IllegalStateException("respond failed")
+                        }
+
+                        override suspend fun ensurePrivateChat(friendUserId: String): String? {
+                            throw IllegalStateException("open failed")
+                        }
+                    },
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.respondRequest("missing", accept = false)
+            advanceUntilIdle()
+            assertEquals("respond failed", viewModel.uiState.value.errorMessage)
+
+            viewModel.openPrivateChat(Contact("user-a", "alice", "Alice")) {}
+            advanceUntilIdle()
+            assertEquals("open failed", viewModel.uiState.value.errorMessage)
             collectJob.cancel()
         }
 

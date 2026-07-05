@@ -30,8 +30,16 @@ class RemoteContactsRepositoryTest {
             FriendAPIEndpoint.searchUsers("alice bob", limit = 99).url(RedCodeEnvironment.localEmulator()),
         )
         assertEquals(
+            "http://10.0.2.2:8010/users/search?keyword=alice&limit=20",
+            FriendAPIEndpoint.searchUsers(" alice ").url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(
             "http://10.0.2.2:8010/friends/requests?direction=incoming&status=pending",
             FriendAPIEndpoint.friendRequests(direction = "incoming", status = "pending").url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(
+            "http://10.0.2.2:8010/friends/requests",
+            FriendAPIEndpoint.friendRequests().url(RedCodeEnvironment.localEmulator()),
         )
     }
 
@@ -88,8 +96,34 @@ class RemoteContactsRepositoryTest {
 
             assertEquals(FriendRequestStatus.Pending, requests.single().toDomain().status)
             assertEquals(FriendRequestStatus.Declined, declined.toDomain().status)
+            assertEquals("user-b", requests.single().toDomain().counterpartyUserId)
             assertEquals("http://10.0.2.2:8010/friends/requests?direction=incoming&status=pending", transport.requests[0].url)
             assertEquals("""{"action":"decline"}""", transport.requests[1].body)
+        }
+
+    @Test
+    fun refreshFriendRequests_loadsIncomingAndOutgoingPendingRequests() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """[{"id":"req-in","requester":{"id":"user-b","username":"bob"},"addressee":{"id":"user-me","username":"me"},"status":"pending","message":"hi","is_incoming":true}]""",
+                    ),
+                    HttpResponse(
+                        200,
+                        """[{"id":"req-out","requester":{"id":"user-me","username":"me"},"addressee":{"id":"user-c","username":"cici"},"status":"pending","is_incoming":false}]""",
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshFriendRequests()
+
+            assertEquals("bob", repository.incomingRequests.value.single().counterpartyDisplayName)
+            assertEquals("hi", repository.incomingRequests.value.single().message)
+            assertEquals("cici", repository.outgoingRequests.value.single().counterpartyDisplayName)
+            assertEquals("http://10.0.2.2:8010/friends/requests?direction=incoming&status=pending", transport.requests[0].url)
+            assertEquals("http://10.0.2.2:8010/friends/requests?direction=outgoing&status=pending", transport.requests[1].url)
         }
 
     @Test
@@ -109,6 +143,7 @@ class RemoteContactsRepositoryTest {
             val roomId = repository.ensurePrivateChat("user-b")
 
             assertEquals("room-private", roomId)
+            assertEquals("user-b", repository.outgoingRequests.value.single().counterpartyUserId)
             assertEquals(HTTPMethod.POST, transport.requests[0].method)
             assertEquals("http://10.0.2.2:8010/friends/requests", transport.requests[0].url)
             assertEquals("""{"target_user_id":"user-b"}""", transport.requests[0].body)
@@ -132,6 +167,31 @@ class RemoteContactsRepositoryTest {
 
             assertEquals("""{"action":"accept"}""", transport.requests[0].body)
             assertEquals("Bob", repository.contacts.value.single().displayName)
+            assertEquals(emptyList<Any>(), repository.incomingRequests.value)
+        }
+
+    @Test
+    fun respondFriendRequest_updatesExistingIncomingRequestWhenDeclined() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """[{"id":"req-1","requester":{"id":"user-b","username":"bob"},"addressee":{"id":"user-me","username":"me"},"status":"pending","is_incoming":true}]""",
+                    ),
+                    HttpResponse(200, "[]"),
+                    HttpResponse(
+                        200,
+                        """{"id":"req-1","requester":{"id":"user-b","username":"bob"},"addressee":{"id":"user-me","username":"me"},"status":"declined","is_incoming":true}""",
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshFriendRequests()
+            repository.respondFriendRequest("req-1", accept = false)
+
+            assertEquals(emptyList<Any>(), repository.incomingRequests.value)
+            assertEquals("""{"action":"decline"}""", transport.requests[2].body)
         }
 
     @Test
@@ -144,6 +204,21 @@ class RemoteContactsRepositoryTest {
                 )
 
             assertTrue(runCatching { repository.refreshContacts() }.exceptionOrNull() is IllegalStateException)
+        }
+
+    @Test
+    fun blankToken_rejectsRemoteContactsOperations() =
+        runTest {
+            val repository =
+                RemoteContactsRepository(
+                    remoteDataSource = HttpFriendRemoteDataSource(APIClient(RedCodeEnvironment.localEmulator(), QueueTransport())),
+                    session =
+                        MutableStateFlow(
+                            session().copy(tokens = TokenPair(accessToken = " ", refreshToken = "refresh-token")),
+                        ),
+                )
+
+            assertTrue(runCatching { repository.ensurePrivateChat("user-b") }.exceptionOrNull() is IllegalStateException)
         }
 
     @Test
@@ -165,8 +240,11 @@ class RemoteContactsRepositoryTest {
                 isIncoming = true,
             ).toDomain()
 
-        assertEquals("user-b", request.fromUserId)
-        assertEquals("Bob", request.fromDisplayName)
+        assertEquals("user-b", request.counterpartyUserId)
+        assertEquals("Bob", request.counterpartyDisplayName)
+        assertEquals(false, request.isIncoming)
+        assertEquals("user-a", accepted.counterpartyUserId)
+        assertEquals(true, accepted.isIncoming)
         assertEquals(FriendRequestStatus.Declined, request.status)
         assertEquals(FriendRequestStatus.Accepted, accepted.status)
     }

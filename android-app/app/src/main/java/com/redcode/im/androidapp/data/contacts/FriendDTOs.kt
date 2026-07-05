@@ -44,6 +44,7 @@ data class BackendFriendRequest(
     val requester: BackendUser,
     val addressee: BackendUser,
     val status: String = "pending",
+    val message: String? = null,
     @SerialName("is_incoming")
     val isIncoming: Boolean = false,
 ) {
@@ -51,9 +52,11 @@ data class BackendFriendRequest(
         val user = if (isIncoming) requester else addressee
         return FriendRequest(
             id = id,
-            fromUserId = user.id,
-            fromDisplayName = user.toContact().displayName,
             status = status.toFriendRequestStatus(),
+            counterpartyUserId = user.id,
+            counterpartyDisplayName = user.toContact().displayName,
+            message = message,
+            isIncoming = isIncoming,
         )
     }
 }

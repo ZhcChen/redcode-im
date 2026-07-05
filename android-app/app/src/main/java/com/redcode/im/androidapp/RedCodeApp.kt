@@ -38,6 +38,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.FriendRequest
+import com.redcode.im.androidapp.core.model.FriendRequestStatus
 import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.feature.auth.AuthMode
@@ -46,6 +50,7 @@ import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
+import java.time.Instant
 
 enum class MainTab(val label: String) {
     Chats("聊天"),
@@ -212,7 +217,20 @@ private fun MainShell(
             } else {
                 when (selectedTab) {
                     MainTab.Chats -> ChatListScreen(chatListViewModel, onOpenChat = { selectedChat = it })
-                    MainTab.Contacts -> ContactsScreen(contactsViewModel)
+                    MainTab.Contacts ->
+                        ContactsScreen(
+                            viewModel = contactsViewModel,
+                            onOpenPrivateChat = { contact, roomId ->
+                                selectedChat =
+                                    ChatSummary(
+                                        roomId = roomId,
+                                        title = contact.displayName,
+                                        roomType = ChatRoomType.Direct,
+                                        lastMessagePreview = "暂无消息",
+                                        updatedAt = Instant.now(),
+                                    )
+                            },
+                        )
                     MainTab.Settings -> SettingsScreen(settingsViewModel, authViewModel, container.environment.apiBaseUrl)
                 }
             }
@@ -286,10 +304,21 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
 }
 
 @Composable
-fun ContactsScreen(viewModel: ContactsViewModel) {
+fun ContactsScreen(viewModel: ContactsViewModel, onOpenPrivateChat: (Contact, String) -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    Column(modifier = Modifier.fillMaxSize().testTag("contacts-screen")) {
-        Header(title = "联系人")
+    var selectedContact by remember { mutableStateOf<Contact?>(null) }
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("contacts-screen")) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "联系人",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = viewModel::refresh, enabled = !uiState.isRefreshing, modifier = Modifier.testTag("contacts-refresh")) {
+                Text(if (uiState.isRefreshing) "刷新中" else "刷新")
+            }
+        }
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = uiState.query,
@@ -298,25 +327,164 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
                 modifier = Modifier.weight(1f).testTag("contact-search"),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = viewModel::search) { Text("搜索") }
+            Button(onClick = viewModel::search, enabled = !uiState.isSearching, modifier = Modifier.testTag("contact-search-submit")) {
+                Text(if (uiState.isSearching) "搜索中" else "搜索")
+            }
+        }
+        if (uiState.errorMessage != null) {
+            Text(
+                text = uiState.errorMessage!!,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp).testTag("contacts-error"),
+            )
         }
         if (uiState.searchResults.isNotEmpty()) {
             Text("搜索结果", modifier = Modifier.padding(horizontal = 16.dp), fontWeight = FontWeight.SemiBold)
             uiState.searchResults.forEach { contact ->
-                TextButton(onClick = { viewModel.addContact(contact) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("${contact.displayName} / ${contact.accountName}")
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(contact.displayName, fontWeight = FontWeight.SemiBold)
+                        Text(contact.accountName, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    Button(
+                        onClick = { viewModel.addContact(contact) },
+                        enabled = !uiState.isSubmitting,
+                        modifier = Modifier.testTag("send-friend-request-${contact.userId}"),
+                    ) {
+                        Text("添加")
+                    }
                 }
             }
             HorizontalDivider()
         }
+        Text(
+            text = "新的朋友 · ${uiState.incomingRequests.count { it.status == FriendRequestStatus.Pending }} 条待处理",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (uiState.incomingRequests.isEmpty()) {
+            Text("暂无好友请求", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        } else {
+            uiState.incomingRequests.forEach { request ->
+                FriendRequestRow(
+                    request = request,
+                    isSubmitting = uiState.isSubmitting,
+                    onAccept = { viewModel.respondRequest(request.id, accept = true) },
+                    onDecline = { viewModel.respondRequest(request.id, accept = false) },
+                )
+                HorizontalDivider()
+            }
+        }
+        if (uiState.outgoingRequests.isNotEmpty()) {
+            Text("已发送申请", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontWeight = FontWeight.SemiBold)
+            uiState.outgoingRequests.forEach { request ->
+                Text(
+                    text = "${request.counterpartyDisplayName} · 等待对方验证",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            HorizontalDivider()
+        }
+        Text(
+            text = "联系人 · ${uiState.contacts.size} 人",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (uiState.contacts.isEmpty()) {
+            Text("暂无联系人，搜索账号添加好友。", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        }
         uiState.contacts.forEach { contact ->
-            Text(
-                text = "${contact.displayName} (${contact.accountName})",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            )
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { selectedContact = contact }, modifier = Modifier.weight(1f).testTag("contact-row-${contact.userId}")) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(contact.displayName, fontWeight = FontWeight.SemiBold)
+                        Text(contact.accountName, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Button(
+                    onClick = {
+                        viewModel.openPrivateChat(contact) { roomId ->
+                            onOpenPrivateChat(contact, roomId)
+                        }
+                    },
+                    enabled = !uiState.isSubmitting,
+                    modifier = Modifier.testTag("open-private-chat-${contact.userId}"),
+                ) {
+                    Text("私聊")
+                }
+            }
             HorizontalDivider()
         }
     }
+    selectedContact?.let { contact ->
+        ContactDetailDialog(
+            contact = contact,
+            isSubmitting = uiState.isSubmitting,
+            onDismiss = { selectedContact = null },
+            onOpenPrivateChat = {
+                viewModel.openPrivateChat(contact) { roomId ->
+                    selectedContact = null
+                    onOpenPrivateChat(contact, roomId)
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun FriendRequestRow(
+    request: FriendRequest,
+    isSubmitting: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(request.counterpartyDisplayName, fontWeight = FontWeight.SemiBold)
+        Text(request.message ?: "请求添加你为好友", style = MaterialTheme.typography.bodyMedium)
+        if (request.status == FriendRequestStatus.Pending && request.isIncoming) {
+            Row(modifier = Modifier.padding(top = 8.dp)) {
+                Button(onClick = onAccept, enabled = !isSubmitting, modifier = Modifier.testTag("accept-request-${request.id}")) {
+                    Text("同意")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(onClick = onDecline, enabled = !isSubmitting, modifier = Modifier.testTag("decline-request-${request.id}")) {
+                    Text("拒绝")
+                }
+            }
+        } else {
+            Text(request.status.name, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+private fun ContactDetailDialog(
+    contact: Contact,
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+    onOpenPrivateChat: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("联系人详情") },
+        text = {
+            Column(modifier = Modifier.testTag("contact-detail")) {
+                Text(contact.displayName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("账号：${contact.accountName}")
+                Text("用户ID：${contact.userId}")
+            }
+        },
+        confirmButton = {
+            Button(onClick = onOpenPrivateChat, enabled = !isSubmitting, modifier = Modifier.testTag("contact-detail-open-chat")) {
+                Text("发消息")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        },
+    )
 }
 
 @Composable
