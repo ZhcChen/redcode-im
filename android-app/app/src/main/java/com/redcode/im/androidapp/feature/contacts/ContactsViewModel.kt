@@ -36,6 +36,14 @@ class ContactsViewModel(
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ContactsUiState())
 
+    init {
+        viewModelScope.launch {
+            runCatching {
+                contactsRepository.refreshContacts()
+            }
+        }
+    }
+
     fun onQueryChange(value: String) {
         formState.update { it.copy(query = value) }
     }

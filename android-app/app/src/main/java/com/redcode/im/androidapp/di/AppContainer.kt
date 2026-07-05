@@ -12,7 +12,9 @@ import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.InMemoryChatRepository
 import com.redcode.im.androidapp.data.chat.RemoteChatRepository
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
+import com.redcode.im.androidapp.data.contacts.HttpFriendRemoteDataSource
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
+import com.redcode.im.androidapp.data.contacts.RemoteContactsRepository
 import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import com.redcode.im.androidapp.data.preferences.UserPreferenceStore
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
@@ -25,6 +27,7 @@ class AppContainer(
     useRemoteAuth: Boolean = false,
     useRemoteSettings: Boolean = useRemoteAuth,
     useRemoteChat: Boolean = useRemoteAuth,
+    useRemoteContacts: Boolean = useRemoteAuth,
     authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
@@ -45,7 +48,15 @@ class AppContainer(
         } else {
             InMemoryChatRepository()
         },
-    val contactsRepository: ContactsRepository = InMemoryContactsRepository(),
+    val contactsRepository: ContactsRepository =
+        if (useRemoteContacts) {
+            RemoteContactsRepository(
+                remoteDataSource = HttpFriendRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+            )
+        } else {
+            InMemoryContactsRepository()
+        },
     val settingsRepository: SettingsRepository =
         if (useRemoteSettings) {
             RemoteSettingsRepository(APIClient(environment))
