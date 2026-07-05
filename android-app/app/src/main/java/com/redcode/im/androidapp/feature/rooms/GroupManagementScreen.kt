@@ -26,10 +26,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.redcode.im.androidapp.core.model.RoomInfo
+import com.redcode.im.androidapp.data.media.AvatarCacheRepository
+import com.redcode.im.androidapp.ui.components.CachedAvatarBadge
+import com.redcode.im.androidapp.ui.components.CachedAvatarKind
 
 @Composable
 fun GroupManagementScreen(
     viewModel: GroupManagementViewModel,
+    accessToken: String,
+    avatarCacheRepository: AvatarCacheRepository?,
     onOpenGroupChat: (RoomInfo) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -60,18 +65,23 @@ fun GroupManagementScreen(
         uiState.infoMessage?.let {
             Text(text = it, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 16.dp).testTag("groups-info"))
         }
-        CreateGroupPanel(uiState, viewModel)
+        CreateGroupPanel(uiState, viewModel, accessToken, avatarCacheRepository)
         HorizontalDivider()
-        GroupListPanel(uiState, viewModel, onOpenGroupChat)
+        GroupListPanel(uiState, viewModel, accessToken, avatarCacheRepository, onOpenGroupChat)
         uiState.selectedRoom?.let {
             HorizontalDivider()
-            GroupDetailPanel(uiState, viewModel, onOpenGroupChat)
+            GroupDetailPanel(uiState, viewModel, accessToken, avatarCacheRepository, onOpenGroupChat)
         }
     }
 }
 
 @Composable
-private fun CreateGroupPanel(uiState: GroupManagementUiState, viewModel: GroupManagementViewModel) {
+private fun CreateGroupPanel(
+    uiState: GroupManagementUiState,
+    viewModel: GroupManagementViewModel,
+    accessToken: String,
+    avatarCacheRepository: AvatarCacheRepository?,
+) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("create-group-panel")) {
         Text("创建群聊", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(8.dp))
@@ -100,6 +110,16 @@ private fun CreateGroupPanel(uiState: GroupManagementUiState, viewModel: GroupMa
                     onCheckedChange = { viewModel.toggleCreateMember(contact.userId) },
                     modifier = Modifier.testTag("group-member-toggle-${contact.userId}"),
                 )
+                CachedAvatarBadge(
+                    kind = CachedAvatarKind.User,
+                    entityId = contact.userId,
+                    objectKey = contact.avatarObjectKey,
+                    label = contact.displayName,
+                    token = accessToken,
+                    avatarCacheRepository = avatarCacheRepository,
+                    size = 32.dp,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(contact.displayName)
                     Text(contact.accountName, style = MaterialTheme.typography.bodySmall)
@@ -121,6 +141,8 @@ private fun CreateGroupPanel(uiState: GroupManagementUiState, viewModel: GroupMa
 private fun GroupListPanel(
     uiState: GroupManagementUiState,
     viewModel: GroupManagementViewModel,
+    accessToken: String,
+    avatarCacheRepository: AvatarCacheRepository?,
     onOpenGroupChat: (RoomInfo) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("group-list-panel")) {
@@ -129,17 +151,28 @@ private fun GroupListPanel(
             Text("暂无群聊。", style = MaterialTheme.typography.bodyMedium)
         }
         uiState.rooms.forEach { room ->
-            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                Text(room.name, fontWeight = FontWeight.SemiBold)
-                if (!room.description.isNullOrBlank()) {
-                    Text(room.description, style = MaterialTheme.typography.bodyMedium)
-                }
-                Row {
-                    TextButton(onClick = { viewModel.selectRoom(room) }, modifier = Modifier.testTag("manage-group-${room.id}")) {
-                        Text("管理")
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CachedAvatarBadge(
+                    kind = CachedAvatarKind.Room,
+                    entityId = room.id,
+                    objectKey = room.avatarObjectKey,
+                    label = room.name,
+                    token = accessToken,
+                    avatarCacheRepository = avatarCacheRepository,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(room.name, fontWeight = FontWeight.SemiBold)
+                    if (!room.description.isNullOrBlank()) {
+                        Text(room.description, style = MaterialTheme.typography.bodyMedium)
                     }
-                    TextButton(onClick = { onOpenGroupChat(room) }, modifier = Modifier.testTag("open-group-chat-${room.id}")) {
-                        Text("打开聊天")
+                    Row {
+                        TextButton(onClick = { viewModel.selectRoom(room) }, modifier = Modifier.testTag("manage-group-${room.id}")) {
+                            Text("管理")
+                        }
+                        TextButton(onClick = { onOpenGroupChat(room) }, modifier = Modifier.testTag("open-group-chat-${room.id}")) {
+                            Text("打开聊天")
+                        }
                     }
                 }
             }
@@ -152,11 +185,23 @@ private fun GroupListPanel(
 private fun GroupDetailPanel(
     uiState: GroupManagementUiState,
     viewModel: GroupManagementViewModel,
+    accessToken: String,
+    avatarCacheRepository: AvatarCacheRepository?,
     onOpenGroupChat: (RoomInfo) -> Unit,
 ) {
     val room = uiState.selectedRoom ?: return
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("group-detail-panel")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            CachedAvatarBadge(
+                kind = CachedAvatarKind.Room,
+                entityId = room.id,
+                objectKey = room.avatarObjectKey,
+                label = room.name,
+                token = accessToken,
+                avatarCacheRepository = avatarCacheRepository,
+                size = 48.dp,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Text("群管理：${room.name}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             TextButton(onClick = viewModel::clearSelection) {
                 Text("关闭")
@@ -212,7 +257,7 @@ private fun GroupDetailPanel(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        GroupMembersPanel(uiState, viewModel)
+        GroupMembersPanel(uiState, viewModel, accessToken, avatarCacheRepository)
         Spacer(modifier = Modifier.height(8.dp))
         GroupRulesPanel(uiState, viewModel)
         Spacer(modifier = Modifier.height(8.dp))
@@ -231,10 +276,25 @@ private fun GroupDetailPanel(
 }
 
 @Composable
-private fun GroupMembersPanel(uiState: GroupManagementUiState, viewModel: GroupManagementViewModel) {
+private fun GroupMembersPanel(
+    uiState: GroupManagementUiState,
+    viewModel: GroupManagementViewModel,
+    accessToken: String,
+    avatarCacheRepository: AvatarCacheRepository?,
+) {
     Text("成员 · ${uiState.members.size}", fontWeight = FontWeight.SemiBold)
     uiState.members.forEach { member ->
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            CachedAvatarBadge(
+                kind = CachedAvatarKind.User,
+                entityId = member.userId,
+                objectKey = member.avatarObjectKey,
+                label = member.displayName,
+                token = accessToken,
+                avatarCacheRepository = avatarCacheRepository,
+                size = 32.dp,
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text("${member.displayName} · ${member.role}")
                 Text(member.userId, style = MaterialTheme.typography.bodySmall)

@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoomMemberEntity::class,
         GroupSettingsEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class RedCodeDatabase : RoomDatabase() {
@@ -112,5 +112,17 @@ val MIGRATION_4_5 =
     object : Migration(4, 5) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN partsJson TEXT NOT NULL DEFAULT '[]'")
+        }
+    }
+
+val MIGRATION_5_6 =
+    object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE chat_summaries ADD COLUMN avatarUrl TEXT")
+            db.execSQL("ALTER TABLE chat_summaries ADD COLUMN avatarObjectKey TEXT")
+            db.execSQL("ALTER TABLE chat_summaries ADD COLUMN friendUserId TEXT")
+            db.execSQL("ALTER TABLE contacts ADD COLUMN avatarObjectKey TEXT")
+            db.execSQL("ALTER TABLE rooms_cache ADD COLUMN avatarObjectKey TEXT")
+            db.execSQL("ALTER TABLE room_members_cache ADD COLUMN avatarObjectKey TEXT")
         }
     }

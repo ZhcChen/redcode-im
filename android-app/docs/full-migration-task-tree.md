@@ -38,7 +38,7 @@
 - [x] 真实 Chat/Contacts HTTP 数据落 Room 组合仓储。
 - [x] Room schema：群、成员、配置缓存。
 - [ ] DataStore：偏好、聊天设置。
-- [ ] File cache：附件、头像、表情。
+- [ ] File cache：附件、头像、表情（附件和头像已完成，表情待补）。
 - [x] 测试 fake data source 与 Room in-memory test 分层。
 - [ ] live smoke 分层。
 
@@ -113,7 +113,7 @@
 - [x] 对象存储 mock 直传执行。
 - [x] 图片/视频/语音/文件消息 parts DTO、WebSocket 增量解析和 Room v5 缓存。
 - [x] 图片/视频/附件元数据预览基线。
-- [ ] 用户头像和群头像缓存。
+- [x] 用户头像和群头像缓存。
 - [ ] 语音录制、发送、播放。
 - [ ] 权限拒绝和恢复路径。
 - [x] H5/API/Android 富媒体互通 smoke 基线。
@@ -127,6 +127,7 @@
 - `RealtimeEventProcessor` 已解析 WebSocket `parts` / `attachments` 增量字段，写入同一 Room 消息缓存。
 - `AndroidChatLiveSmokeTest` 已覆盖文本互发、Android image attachment mock 直传/commit/发送，以及 H5-compatible HTTP / Android HTTP 双方可见和下载 URL 可生成。
 - 已新增附件本地 cache 底座：上传成功后保存 bytes 到 app cache，附件手动缓存时优先命中本地文件，缺失或大小不匹配时重新拉 download URL，并把 `localPath` 持久化到消息 parts。
+- 用户头像和群头像缓存已完成：当前包含 avatar download URL、avatar cache repository、`CachedAvatarBadge`、`avatarObjectKey` DTO/model/Room mapping 和单测；已通过 unit/lint/build/connected/emulator smoke/live/interop 验证。
 - 当前未接相机、麦克风和语音播放链路；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展

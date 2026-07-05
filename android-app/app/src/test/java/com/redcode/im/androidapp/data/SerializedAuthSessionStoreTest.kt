@@ -60,6 +60,7 @@ class SerializedAuthSessionStoreTest {
                     accountName = "tester",
                     displayName = "Tester",
                     avatarUrl = "https://asset.example/tester.png",
+                    avatarObjectKey = "avatars/user-1/tester.png",
                 ),
             tokens =
                 TokenPair(

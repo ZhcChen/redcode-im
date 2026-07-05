@@ -28,6 +28,9 @@ class RoomEntityMappingTest {
                 title = "测试群",
                 roomType = ChatRoomType.Group,
                 lastMessagePreview = "hello",
+                avatarUrl = "https://asset.example/room.png",
+                avatarObjectKey = "room_avatars/room-1/a.png",
+                friendUserId = "user-a",
                 unreadCount = 3,
                 isPinned = true,
                 isMuted = true,
@@ -101,6 +104,7 @@ class RoomEntityMappingTest {
                 accountName = "alice",
                 displayName = "Alice",
                 avatarUrl = "https://asset.example/alice.png",
+                avatarObjectKey = "avatars/user-1/a.png",
             )
 
         val entity = ContactEntity.fromDomain(contact)
@@ -119,6 +123,7 @@ class RoomEntityMappingTest {
                 roomType = "group",
                 description = "desc",
                 avatarUrl = "https://asset.example/room.png",
+                avatarObjectKey = "room_avatars/room-1/a.png",
                 ownerId = "user-owner",
                 createdAt = Instant.ofEpochMilli(1000),
                 updatedAt = Instant.ofEpochMilli(2000),
@@ -129,6 +134,7 @@ class RoomEntityMappingTest {
                 username = "alice",
                 nickname = "Alice",
                 avatarUrl = "https://asset.example/a.png",
+                avatarObjectKey = "avatars/user-1/a.png",
                 role = "admin",
                 joinedAt = Instant.ofEpochMilli(3000),
             )

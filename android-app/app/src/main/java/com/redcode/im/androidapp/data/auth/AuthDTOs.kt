@@ -34,6 +34,8 @@ data class BackendAuthUser(
     val status: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("avatar_object_key")
+    val avatarObjectKey: String? = null,
 ) {
     fun toDomain(): AuthUser {
         val account = username ?: email ?: id
@@ -42,6 +44,7 @@ data class BackendAuthUser(
             accountName = account,
             displayName = nickname?.takeIf { it.isNotBlank() } ?: account,
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
         )
     }
 }

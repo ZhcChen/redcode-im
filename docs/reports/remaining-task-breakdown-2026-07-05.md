@@ -4,21 +4,52 @@
 
 本文档是当前剩余任务的执行级拆解，作为 `docs/reports/task-list.md` 的详细版。执行时以本文档的优先级顺序推进；模块内细节仍以对应模块文档为准。
 
+状态口径：
+
+- `进行中`：本地已有未提交实现或正在验证，不能当作已完成。
+- `待执行`：尚未开始当前切片实现。
+- `跳过/待补验`：按用户要求或环境限制暂不阻塞主线，但必须保留恢复入口。
+- `完成`：测试、文档、提交和推送均已收口。
+
 ## 1. 当前总体结论
 
 - 当前主线：`android-app` 原生迁移补齐，优先完成 Emulator 可测能力。
-- 当前下一刀：用户头像缓存 + 群头像缓存。
+- 当前已完成切片：用户头像缓存 + 群头像缓存。
+- 当前下一刀：权限拒绝和恢复路径。
 - H5 已是 backend + frontend 联调优先入口，剩余集中在全量验收文档、浏览器 E2E、本地搜索页、头像上传和浏览器存储增强。
 - iOS 原生 Flutter parity 已完成主链路；必须 iPhone 真机/APNs 的项已按要求跳过并记录，不阻塞当前主线。
 - Flutter `app/` 保留，不移除，作为行为对照和回滚基线。
 - API 已有 Compose-first 性能基线；核心架构重构应在 Android/H5/API 主链路稳定后单独推进。
 - 当前没有影响本地 H5/API/iOS/Android smoke 的新增外部服务依赖。对象存储、Push、IPInfo 走本地 `external-mock`。
+- Android 头像缓存相关实现已通过 unit/lint/build/connected/live/interop 验证；本轮提交后进入权限拒绝和恢复路径。
 
-## 2. 执行顺序
+## 2. 当前工作区快照
+
+分支：`feat/core-architecture-performance`
+
+最近已提交：
+
+- `bfef9d51 docs(project): 完整整理剩余任务`
+- `11ce2f25 feat(android-app): 支持附件本地文件缓存`
+
+本轮待提交主线改动：
+
+- Android 领域模型、DTO、Room schema 与 mapping 已补齐 `avatarObjectKey`。
+- Android 新增 avatar download URL、remote data source、cache repository、Compose 缓存头像组件和相关 JVM 单测。
+- Android Chat list、Contacts、Groups、Settings UI 已接入缓存头像组件。
+- 已完成验证：`make android-app.test.unit`、`make android-app.lint`、`make android-app.build.debug`、`make android-app.connected-test`、`make android-app.smoke.emulator`、`make android-app.test.live`、`make android-app.test.interop`、`git diff --check`。
+
+恢复执行第一条命令：
+
+```bash
+git status --short --branch
+```
+
+## 3. 执行顺序
 
 按下面顺序推进，不再并行展开无关大项：
 
-1. `ANDROID-P0`：头像缓存、权限拒绝恢复、语音播放基线。
+1. `ANDROID-P0`：头像缓存已完成，继续推进权限拒绝恢复、语音播放基线。
 2. `H5-P1`：H5 全量验收与浏览器 E2E 收口。
 3. `INTEROP-P1`：H5/API/Android 联调扩展和回归稳定。
 4. `ANDROID-P1`：聊天扩展、设置账号、配置版本。
@@ -27,13 +58,13 @@
 7. `RELEASE-P3`：全模块回归、切换条件、回滚文档。
 8. `DEVICE-SKIP`：Android 真机、iPhone/APNs、Play/App Store 等真实设备/平台补验，后续有设备和凭据后恢复。
 
-## 3. P0：Android 原生迁移当前切片
+## 4. P0：Android 原生迁移当前切片
 
 目标：完成 `ANDROID-06` 中不依赖 Android 真机的媒体、缓存、权限和语音播放能力。
 
 ### ANDROID-P0-01 用户头像缓存
 
-状态：待执行
+状态：完成（待本轮提交推送）
 
 任务：
 - 接入 `GET /users/me/avatar/url` 和 `GET /users/{user_id}/avatar/url`。
@@ -41,6 +72,12 @@
 - 复用 `FileResourceCache` 建立 avatar cache，不新造重复缓存底座。
 - UI 优先展示缓存头像；缓存失败或无 object key 时降级为姓名首字母/占位头像。
 - 登出或清理本地状态时清理用户头像缓存。
+
+当前结果：
+- 已新增 `AvatarCacheRepository`、`HttpAvatarRemoteDataSource`、`CachedAvatarBadge`、`MIGRATION_5_6`。
+- 已补 DTO/model/Room mapping 和 `AvatarCacheRepositoryTest`。
+- 当前用户、联系人、房间成员、会话摘要均保留 `avatarObjectKey`；UI 无缓存或失败时降级首字母占位。
+- 登出/清理本地状态会清理头像 cache。
 
 验收：
 - JVM 单测覆盖缓存命中不重复请求、下载失败不污染缓存、object key 变化重新下载、clear 清理。
@@ -51,9 +88,11 @@
 - `make android-app.connected-test`
 - `git diff --check`
 
+验证结果：以上命令均已通过。
+
 ### ANDROID-P0-02 群头像缓存
 
-状态：待执行
+状态：完成（待本轮提交推送）
 
 任务：
 - 接入 `GET /rooms/{room_id}/avatar/url`。
@@ -61,11 +100,18 @@
 - 群列表、群详情、聊天列表群会话展示缓存头像。
 - 与用户头像共用缓存策略和清理入口。
 
+当前结果：
+- 已在 `RoomInfo`、`RoomMember`、`ChatSummary`、Room cache 表和群管理 UI 中传递 `avatarObjectKey`。
+- 群列表、群详情、聊天列表群会话可通过共用头像缓存策略展示本地缓存头像。
+- 群头像下载、命中、失败降级和清理已由 `AvatarCacheRepositoryTest` 覆盖。
+
 验收：
 - 单测覆盖群头像下载、命中、失败降级、清理。
 - H5/API/Android interop 不回归。
 - `make android-app.test.live`
 - `make android-app.test.interop`
+
+验证结果：以上命令均已通过。
 
 ### ANDROID-P0-03 权限拒绝和恢复路径
 
@@ -97,7 +143,7 @@
 - 单测覆盖播放状态机。
 - Emulator smoke 能打开包含 audio part 的消息并触发播放/暂停路径。
 
-## 4. P1：Android 原生后续 parity
+## 5. P1：Android 原生后续 parity
 
 ### ANDROID-P1-01 聊天扩展
 
@@ -150,7 +196,7 @@
 - `make android-app.test.interop`
 - 失败时能定位到 H5 live、Android live 或 API 容器日志。
 
-## 5. P1：H5 联调入口收口
+## 6. P1：H5 联调入口收口
 
 ### H5-P1-01 全量验收与文档收口
 
@@ -223,7 +269,7 @@
 - 构建不破坏 Vite 8。
 - 旧浏览器 fallback 不白屏。
 
-## 6. P2：Android 通知、Push 和底座协议
+## 7. P2：Android 通知、Push 和底座协议
 
 ### ANDROID-P2-01 通知和 Push mock 可测部分
 
@@ -292,7 +338,7 @@
 - 文档明确当前是否展示入口。
 - 自动化测试不依赖真实邮箱。
 
-## 7. P2：API 性能与核心架构重构
+## 8. P2：API 性能与核心架构重构
 
 ### ARCH-P2-01 性能矩阵扩展
 
@@ -342,7 +388,7 @@
 - `tests/docker-compose.test.yml`
 - perf 入口均同步更新并记录资源限制。
 
-## 8. P2：iOS 真机/APNs 补验
+## 9. P2：iOS 真机/APNs 补验
 
 状态：跳过，待设备和 Apple 平台凭据恢复。
 
@@ -364,7 +410,7 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 - 本项不阻塞当前 H5/API/iOS Simulator/Android Emulator 主线。
 - 不把 Simulator/mock 验收描述为真实 APNs 已通过。
 
-## 9. P2：Android 真机补验
+## 10. P2：Android 真机补验
 
 状态：跳过，待 Android 真机和发布凭据恢复。
 
@@ -382,7 +428,7 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 - Emulator 阶段只做可模拟的权限和本地通知状态机。
 - 真机行为不伪造通过。
 
-## 10. P3：横向回归和发布准备
+## 11. P3：横向回归和发布准备
 
 ### RELEASE-P3-01 全模块回归
 
@@ -428,14 +474,15 @@ cd website && bun run test
 - 客户端缓存问题的清理和回滚步骤。
 - Push、对象存储、消息总线的回滚开关。
 
-## 11. 非当前主线但应保留的长期事项
+## 12. 非当前主线但应保留的长期事项
 
 - 端到端加密设计已在文档中存在，尚未进入当前实现主线；需独立计划和威胁模型复核后再执行。
 - Admin 当前不是 P0，保留 route smoke、真实后端 smoke 和 RBAC 回归入口。
 - Desktop / Website 当前不是 P0，保留单测、真实后端 smoke 和下载逻辑测试。
 - 生产安全加固：H5 token 后续可评估 httpOnly SameSite Cookie 或短生命周期 token 策略。
+- 历史 `docs/plans/2026-03-*` 中仍有未勾选项，但不自动纳入当前主线；只有用户重新激活对应计划时再复核并迁移到本文档。
 
-## 12. 每个切片的通用完成标准
+## 13. 每个切片的通用完成标准
 
 - 只改当前切片相关文件。
 - 更新对应模块文档和本总清单。
@@ -444,7 +491,7 @@ cd website && bun run test
 - 通过后使用 Conventional Commits 提交并推送。
 - API、PG、Redis、external-mock、性能压测保持 Docker Compose-first。
 
-## 13. 主要依据文档
+## 14. 主要依据文档
 
 - `docs/reports/task-list.md`
 - `android-app/docs/remaining-migration-tasks.md`

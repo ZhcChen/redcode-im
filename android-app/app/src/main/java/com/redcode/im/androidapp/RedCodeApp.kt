@@ -49,6 +49,7 @@ import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
+import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.FriendRequest
 import com.redcode.im.androidapp.core.model.FriendRequestStatus
 import com.redcode.im.androidapp.core.model.MessageStatus
@@ -63,6 +64,8 @@ import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
 import com.redcode.im.androidapp.feature.rooms.GroupManagementScreen
 import com.redcode.im.androidapp.feature.rooms.GroupManagementViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
+import com.redcode.im.androidapp.ui.components.CachedAvatarBadge
+import com.redcode.im.androidapp.ui.components.CachedAvatarKind
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -100,8 +103,7 @@ fun RedCodeApp(container: AppContainer) {
                 container = container,
                 authViewModel = authViewModel,
                 settingsViewModel = settingsViewModel,
-                currentUserId = authState.session!!.user.id,
-                currentUserName = authState.session!!.user.displayName,
+                currentUser = authState.session!!.user,
                 accessToken = authState.session!!.tokens.accessToken,
             )
         }
@@ -193,8 +195,7 @@ private fun MainShell(
     container: AppContainer,
     authViewModel: AuthViewModel,
     settingsViewModel: SettingsViewModel,
-    currentUserId: String,
-    currentUserName: String,
+    currentUser: AuthUser,
     accessToken: String,
 ) {
     var selectedTab by remember { mutableStateOf(MainTab.Chats) }
@@ -248,18 +249,26 @@ private fun MainShell(
                             ChatDetailViewModel(
                                 chatRepository = container.chatRepository,
                                 roomId = selectedChat!!.roomId,
-                                currentUserId = currentUserId,
-                                currentUserName = currentUserName,
+                                currentUserId = currentUser.id,
+                                currentUserName = currentUser.displayName,
                             )
                         },
                     onBack = { selectedChat = null },
                 )
             } else {
                 when (selectedTab) {
-                    MainTab.Chats -> ChatListScreen(chatListViewModel, onOpenChat = { selectedChat = it })
+                    MainTab.Chats ->
+                        ChatListScreen(
+                            viewModel = chatListViewModel,
+                            accessToken = accessToken,
+                            avatarCacheRepository = container.avatarCacheRepository,
+                            onOpenChat = { selectedChat = it },
+                        )
                     MainTab.Contacts ->
                         ContactsScreen(
                             viewModel = contactsViewModel,
+                            accessToken = accessToken,
+                            avatarCacheRepository = container.avatarCacheRepository,
                             onOpenPrivateChat = { contact, roomId ->
                                 selectedChat =
                                     ChatSummary(
@@ -267,6 +276,9 @@ private fun MainShell(
                                         title = contact.displayName,
                                         roomType = ChatRoomType.Direct,
                                         lastMessagePreview = "暂无消息",
+                                        avatarUrl = contact.avatarUrl,
+                                        avatarObjectKey = contact.avatarObjectKey,
+                                        friendUserId = contact.userId,
                                         updatedAt = Instant.now(),
                                     )
                             },
@@ -274,6 +286,8 @@ private fun MainShell(
                     MainTab.Groups ->
                         GroupManagementScreen(
                             viewModel = groupsViewModel,
+                            accessToken = accessToken,
+                            avatarCacheRepository = container.avatarCacheRepository,
                             onOpenGroupChat = { room ->
                                 selectedChat =
                                     ChatSummary(
@@ -281,11 +295,21 @@ private fun MainShell(
                                         title = room.name,
                                         roomType = ChatRoomType.Group,
                                         lastMessagePreview = "暂无消息",
+                                        avatarUrl = room.avatarUrl,
+                                        avatarObjectKey = room.avatarObjectKey,
                                         updatedAt = room.updatedAt ?: Instant.now(),
                                     )
                             },
                         )
-                    MainTab.Settings -> SettingsScreen(settingsViewModel, authViewModel, container.environment.apiBaseUrl)
+                    MainTab.Settings ->
+                        SettingsScreen(
+                            viewModel = settingsViewModel,
+                            authViewModel = authViewModel,
+                            apiBaseUrl = container.environment.apiBaseUrl,
+                            currentUser = currentUser,
+                            accessToken = accessToken,
+                            avatarCacheRepository = container.avatarCacheRepository,
+                        )
                 }
             }
         }
@@ -293,7 +317,12 @@ private fun MainShell(
 }
 
 @Composable
-fun ChatListScreen(viewModel: ChatListViewModel, onOpenChat: (ChatSummary) -> Unit) {
+fun ChatListScreen(
+    viewModel: ChatListViewModel,
+    accessToken: String,
+    avatarCacheRepository: com.redcode.im.androidapp.data.media.AvatarCacheRepository?,
+    onOpenChat: (ChatSummary) -> Unit,
+) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().testTag("chat-list")) {
@@ -307,21 +336,32 @@ fun ChatListScreen(viewModel: ChatListViewModel, onOpenChat: (ChatSummary) -> Un
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        if (chat.isPinned) Text("置顶", color = MaterialTheme.colorScheme.primary)
-                        if (chat.isMuted) Text(" 免打扰", color = MaterialTheme.colorScheme.secondary)
-                        if (chat.unreadCount > 0) Text("未读 ${chat.unreadCount}", color = MaterialTheme.colorScheme.primary)
-                    }
-                    Text(chat.lastMessagePreview, style = MaterialTheme.typography.bodyMedium)
-                    Row {
-                        TextButton(onClick = { viewModel.togglePinned(chat) }) {
-                            Text(if (chat.isPinned) "取消置顶" else "置顶")
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    CachedAvatarBadge(
+                        kind = if (chat.roomType == ChatRoomType.Group) CachedAvatarKind.Room else CachedAvatarKind.User,
+                        entityId = if (chat.roomType == ChatRoomType.Group) chat.roomId else chat.friendUserId,
+                        objectKey = chat.avatarObjectKey,
+                        label = chat.title,
+                        token = accessToken,
+                        avatarCacheRepository = avatarCacheRepository,
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            if (chat.isPinned) Text("置顶", color = MaterialTheme.colorScheme.primary)
+                            if (chat.isMuted) Text(" 免打扰", color = MaterialTheme.colorScheme.secondary)
+                            if (chat.unreadCount > 0) Text("未读 ${chat.unreadCount}", color = MaterialTheme.colorScheme.primary)
                         }
-                        TextButton(onClick = { viewModel.toggleMuted(chat) }) {
-                            Text(if (chat.isMuted) "取消免打扰" else "免打扰")
+                        Text(chat.lastMessagePreview, style = MaterialTheme.typography.bodyMedium)
+                        Row {
+                            TextButton(onClick = { viewModel.togglePinned(chat) }) {
+                                Text(if (chat.isPinned) "取消置顶" else "置顶")
+                            }
+                            TextButton(onClick = { viewModel.toggleMuted(chat) }) {
+                                Text(if (chat.isMuted) "取消免打扰" else "免打扰")
+                            }
                         }
                     }
                 }
@@ -530,7 +570,12 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
 }
 
 @Composable
-fun ContactsScreen(viewModel: ContactsViewModel, onOpenPrivateChat: (Contact, String) -> Unit) {
+fun ContactsScreen(
+    viewModel: ContactsViewModel,
+    accessToken: String,
+    avatarCacheRepository: com.redcode.im.androidapp.data.media.AvatarCacheRepository?,
+    onOpenPrivateChat: (Contact, String) -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedContact by remember { mutableStateOf<Contact?>(null) }
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("contacts-screen")) {
@@ -568,6 +613,15 @@ fun ContactsScreen(viewModel: ContactsViewModel, onOpenPrivateChat: (Contact, St
             Text("搜索结果", modifier = Modifier.padding(horizontal = 16.dp), fontWeight = FontWeight.SemiBold)
             uiState.searchResults.forEach { contact ->
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CachedAvatarBadge(
+                        kind = CachedAvatarKind.User,
+                        entityId = contact.userId,
+                        objectKey = contact.avatarObjectKey,
+                        label = contact.displayName,
+                        token = accessToken,
+                        avatarCacheRepository = avatarCacheRepository,
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(contact.displayName, fontWeight = FontWeight.SemiBold)
                         Text(contact.accountName, style = MaterialTheme.typography.bodyMedium)
@@ -621,6 +675,15 @@ fun ContactsScreen(viewModel: ContactsViewModel, onOpenPrivateChat: (Contact, St
         }
         uiState.contacts.forEach { contact ->
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CachedAvatarBadge(
+                    kind = CachedAvatarKind.User,
+                    entityId = contact.userId,
+                    objectKey = contact.avatarObjectKey,
+                    label = contact.displayName,
+                    token = accessToken,
+                    avatarCacheRepository = avatarCacheRepository,
+                )
+                Spacer(modifier = Modifier.width(12.dp))
                 TextButton(onClick = { selectedContact = contact }, modifier = Modifier.weight(1f).testTag("contact-row-${contact.userId}")) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text(contact.displayName, fontWeight = FontWeight.SemiBold)
@@ -714,10 +777,33 @@ private fun ContactDetailDialog(
 }
 
 @Composable
-fun SettingsScreen(viewModel: SettingsViewModel, authViewModel: AuthViewModel, apiBaseUrl: String) {
+fun SettingsScreen(
+    viewModel: SettingsViewModel,
+    authViewModel: AuthViewModel,
+    apiBaseUrl: String,
+    currentUser: AuthUser,
+    accessToken: String,
+    avatarCacheRepository: com.redcode.im.androidapp.data.media.AvatarCacheRepository?,
+) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().testTag("settings-screen")) {
         Header(title = "设置")
+        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            CachedAvatarBadge(
+                kind = CachedAvatarKind.CurrentUser,
+                entityId = currentUser.id,
+                objectKey = currentUser.avatarObjectKey,
+                label = currentUser.displayName,
+                token = accessToken,
+                avatarCacheRepository = avatarCacheRepository,
+                size = 48.dp,
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(currentUser.displayName, fontWeight = FontWeight.SemiBold)
+                Text(currentUser.accountName, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
         Text("API: $apiBaseUrl", modifier = Modifier.padding(16.dp))
         Text("通知: ${if (settings.notificationEnabled) "已开启" else "已关闭"}", modifier = Modifier.padding(16.dp))
         Button(onClick = viewModel::toggleNotification, modifier = Modifier.padding(horizontal = 16.dp)) {

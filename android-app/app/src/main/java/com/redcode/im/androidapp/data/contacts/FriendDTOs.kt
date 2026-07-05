@@ -14,6 +14,8 @@ data class BackendUser(
     val nickname: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("avatar_object_key")
+    val avatarObjectKey: String? = null,
 ) {
     fun toContact(remark: String? = null): Contact {
         val accountName = firstNotBlank(username, email, id)
@@ -22,6 +24,7 @@ data class BackendUser(
             accountName = accountName,
             displayName = firstNotBlank(remark, nickname, username, email, id),
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
         )
     }
 }
@@ -79,6 +82,12 @@ data class EnsurePrivateChatResponse(
     val roomId: String,
     @SerialName("room_name")
     val roomName: String? = null,
+    @SerialName("friend_id")
+    val friendId: String? = null,
+    @SerialName("friend_avatar")
+    val friendAvatar: String? = null,
+    @SerialName("friend_avatar_object_key")
+    val friendAvatarObjectKey: String? = null,
 )
 
 private fun String?.toFriendRequestStatus(): FriendRequestStatus =

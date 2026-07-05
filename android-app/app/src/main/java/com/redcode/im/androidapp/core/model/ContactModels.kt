@@ -5,6 +5,7 @@ data class Contact(
     val accountName: String,
     val displayName: String,
     val avatarUrl: String? = null,
+    val avatarObjectKey: String? = null,
 )
 
 enum class FriendRequestStatus {

@@ -14,6 +14,7 @@ import com.redcode.im.androidapp.persistence.MIGRATION_1_2
 import com.redcode.im.androidapp.persistence.MIGRATION_2_3
 import com.redcode.im.androidapp.persistence.MIGRATION_3_4
 import com.redcode.im.androidapp.persistence.MIGRATION_4_5
+import com.redcode.im.androidapp.persistence.MIGRATION_5_6
 import com.redcode.im.androidapp.persistence.RedCodeDatabase
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
@@ -29,7 +30,7 @@ class MainActivity : ComponentActivity() {
                 RedCodeDatabase::class.java,
                 "redcode-im.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
         val container =
             AppContainer(
@@ -47,6 +48,7 @@ class MainActivity : ComponentActivity() {
                 localContactsRepository = RoomContactsRepository(database.contactDao()),
                 localRoomRepository = RoomGroupRepository(database.roomDao()),
                 attachmentFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/attachments")),
+                avatarFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/avatars")),
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {

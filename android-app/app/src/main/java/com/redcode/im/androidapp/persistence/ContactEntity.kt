@@ -14,6 +14,7 @@ data class ContactEntity(
     val accountName: String,
     val displayName: String,
     val avatarUrl: String?,
+    val avatarObjectKey: String? = null,
 ) {
     fun toDomain(): Contact =
         Contact(
@@ -21,6 +22,7 @@ data class ContactEntity(
             accountName = accountName,
             displayName = displayName,
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
         )
 
     companion object {
@@ -30,6 +32,7 @@ data class ContactEntity(
                 accountName = contact.accountName,
                 displayName = contact.displayName,
                 avatarUrl = contact.avatarUrl,
+                avatarObjectKey = contact.avatarObjectKey,
             )
     }
 }

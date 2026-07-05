@@ -8,6 +8,7 @@ data class RoomInfo(
     val roomType: String = "group",
     val description: String? = null,
     val avatarUrl: String? = null,
+    val avatarObjectKey: String? = null,
     val ownerId: String? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
@@ -18,6 +19,7 @@ data class RoomMember(
     val username: String,
     val nickname: String? = null,
     val avatarUrl: String? = null,
+    val avatarObjectKey: String? = null,
     val role: String = "member",
     val joinedAt: Instant? = null,
 ) {

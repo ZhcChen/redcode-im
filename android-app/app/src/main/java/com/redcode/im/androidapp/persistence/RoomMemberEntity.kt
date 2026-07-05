@@ -16,6 +16,7 @@ data class RoomMemberEntity(
     val username: String,
     val nickname: String?,
     val avatarUrl: String?,
+    val avatarObjectKey: String? = null,
     val role: String,
     val joinedAtMillis: Long?,
 ) {
@@ -25,6 +26,7 @@ data class RoomMemberEntity(
             username = username,
             nickname = nickname,
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
             role = role,
             joinedAt = joinedAtMillis?.let(Instant::ofEpochMilli),
         )
@@ -37,6 +39,7 @@ data class RoomMemberEntity(
                 username = member.username,
                 nickname = member.nickname,
                 avatarUrl = member.avatarUrl,
+                avatarObjectKey = member.avatarObjectKey,
                 role = member.role,
                 joinedAtMillis = member.joinedAt?.toEpochMilli(),
             )

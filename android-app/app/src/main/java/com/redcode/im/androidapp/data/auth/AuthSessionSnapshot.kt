@@ -11,6 +11,7 @@ data class AuthSessionSnapshot(
     val accountName: String,
     val displayName: String,
     val avatarUrl: String? = null,
+    val avatarObjectKey: String? = null,
     val accessToken: String,
     val refreshToken: String,
 ) {
@@ -22,6 +23,7 @@ data class AuthSessionSnapshot(
                     accountName = accountName,
                     displayName = displayName,
                     avatarUrl = avatarUrl,
+                    avatarObjectKey = avatarObjectKey,
                 ),
             tokens =
                 TokenPair(
@@ -37,6 +39,7 @@ data class AuthSessionSnapshot(
                 accountName = session.user.accountName,
                 displayName = session.user.displayName,
                 avatarUrl = session.user.avatarUrl,
+                avatarObjectKey = session.user.avatarObjectKey,
                 accessToken = session.tokens.accessToken,
                 refreshToken = session.tokens.refreshToken,
             )

@@ -23,12 +23,16 @@ class ChatDTOsMappingTest {
                 friendUsername = "alice",
                 friendNickname = "Alice",
                 friendRemark = "A 备注",
+                friendUserId = "user-a",
+                friendAvatarObjectKey = "avatars/user-a/a.png",
                 lastMessage = BackendChatMessagePreview(id = "m-1", content = "hello", createdAt = "not-a-date"),
             ).toDomain()
 
         assertEquals("A 备注", summary.title)
         assertEquals(ChatRoomType.Direct, summary.roomType)
         assertEquals("hello", summary.lastMessagePreview)
+        assertEquals("user-a", summary.friendUserId)
+        assertEquals("avatars/user-a/a.png", summary.avatarObjectKey)
         assertEquals(java.time.Instant.EPOCH, summary.updatedAt)
     }
 
@@ -38,11 +42,13 @@ class ChatDTOsMappingTest {
             BackendChatSummary(
                 roomId = "room-group",
                 roomType = "public",
+                roomAvatarObjectKey = "room_avatars/room-group/a.png",
                 lastMessage = BackendChatMessagePreview(id = "m-1", createdAt = "2026-07-05T00:00:00Z"),
             ).toDomain()
 
         assertEquals("群聊", summary.title)
         assertEquals(ChatRoomType.Group, summary.roomType)
+        assertEquals("room_avatars/room-group/a.png", summary.avatarObjectKey)
         assertEquals(java.time.Instant.parse("2026-07-05T00:00:00Z"), summary.updatedAt)
     }
 

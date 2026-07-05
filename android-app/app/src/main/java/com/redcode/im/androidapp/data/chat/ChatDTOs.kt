@@ -20,6 +20,12 @@ data class BackendChatSummary(
     val name: String? = null,
     @SerialName("room_type")
     val roomType: String? = null,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
+    @SerialName("avatar_object_key")
+    val avatarObjectKey: String? = null,
+    @SerialName("room_avatar_object_key")
+    val roomAvatarObjectKey: String? = null,
     @SerialName("unread_count")
     val unreadCount: Int = 0,
     @SerialName("is_pinned")
@@ -34,6 +40,10 @@ data class BackendChatSummary(
     val friendUsername: String? = null,
     @SerialName("friend_remark")
     val friendRemark: String? = null,
+    @SerialName("friend_user_id")
+    val friendUserId: String? = null,
+    @SerialName("friend_avatar_object_key")
+    val friendAvatarObjectKey: String? = null,
 ) {
     fun toDomain(): ChatSummary {
         val type = roomType.toRoomType()
@@ -48,6 +58,14 @@ data class BackendChatSummary(
             title = title,
             roomType = type,
             lastMessagePreview = lastMessage?.content.orEmpty(),
+            avatarUrl = avatarUrl,
+            avatarObjectKey =
+                if (type == ChatRoomType.Direct) {
+                    firstNotBlankNullable(friendAvatarObjectKey, avatarObjectKey, roomAvatarObjectKey)
+                } else {
+                    firstNotBlankNullable(roomAvatarObjectKey, avatarObjectKey, friendAvatarObjectKey)
+                },
+            friendUserId = friendUserId?.takeIf { it.isNotBlank() },
             unreadCount = unreadCount,
             isPinned = isPinned,
             isMuted = isMuted,
@@ -365,3 +383,6 @@ private fun parseNullableInstant(value: String?): Instant? =
 
 private fun firstNotBlank(vararg values: String?): String =
     values.firstOrNull { !it.isNullOrBlank() }.orEmpty()
+
+private fun firstNotBlankNullable(vararg values: String?): String? =
+    values.firstOrNull { !it.isNullOrBlank() }

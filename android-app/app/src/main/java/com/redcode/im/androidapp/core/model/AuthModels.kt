@@ -5,6 +5,7 @@ data class AuthUser(
     val accountName: String,
     val displayName: String,
     val avatarUrl: String? = null,
+    val avatarObjectKey: String? = null,
 )
 
 data class TokenPair(

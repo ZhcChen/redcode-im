@@ -10,6 +10,7 @@
 - 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
 - 当前测试设备：本机 Android Emulator，最近验收设备为 `emulator-5554` / `Pixel_8_Pro(AVD) - 15`。
 - 真机依赖策略：需要相机、麦克风、FCM 云投递、厂商 ROM 行为的项不阻塞 Emulator 阶段，记录为 SKIPPED，后续真机补验。
+- 最新进度：用户头像缓存和群头像缓存已完成，包含 `AvatarCacheRepository`、avatar remote data source、`CachedAvatarBadge`、`avatarObjectKey` DTO/model/Room mapping 和相关测试；已通过 unit/lint/build/connected/emulator smoke/live/interop 验证。
 
 ## 优先级队列
 
@@ -17,15 +18,21 @@
 
 目标：完成 ANDROID-06 中不依赖真机的剩余可测能力。
 
-- [ ] 用户头像缓存
+- [x] 用户头像缓存
   - 接入用户头像 download URL。
   - 本地 app cache 保存头像文件。
   - UI 使用缓存头像，失败时降级为占位。
   - 覆盖缓存命中、下载失败、清理逻辑单测。
-- [ ] 群头像缓存
+- [x] 群头像缓存
   - 接入群头像 download URL。
   - 群列表、群详情使用缓存头像。
   - 登出或清理本地状态时清理相关缓存。
+  当前结果：
+  - 已新增 Android avatar cache repository，用户/群头像按 object key 映射到 app cache 文件。
+  - `ChatSummary`、`Contact`、`RoomInfo`、`RoomMember` 和认证 session 已保留 `avatarObjectKey`。
+  - 聊天列表、联系人、群列表、群详情、群成员、设置页当前用户头像均接入缓存头像组件。
+  - 缓存缺失或下载失败时降级为首字母占位；登出清理本地状态时清理头像缓存。
+  - 已覆盖缓存命中、object key 变化、下载失败不污染缓存和 clear 清理。
 - [x] 附件本地文件 cache
   - 已发送/已下载附件保存到 app cache。
   - 再次打开时优先使用本地缓存。
@@ -182,7 +189,7 @@
 
 ## 建议执行顺序
 
-1. ANDROID-06：头像/附件 cache、权限拒绝恢复、语音播放基线。
+1. ANDROID-06：继续推进权限拒绝恢复、语音播放基线。
 2. ANDROID-07：emoji、表情包、贴纸、聊天设置。
 3. ANDROID-08：个人资料、账号安全、反馈、配置、版本。
 4. ANDROID-09：通知权限、本地通知、通知导航、FCM mock 链路。

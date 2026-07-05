@@ -48,8 +48,8 @@ class RemoteContactsRepositoryTest {
         runTest {
             val transport =
                 QueueTransport(
-                    HttpResponse(200, """[{"id":"f-1","friend_remark":"Ali","user":{"id":"user-a","username":"alice","nickname":"Alice"}}]"""),
-                    HttpResponse(200, """[{"id":"user-b","username":"bob","nickname":"Bob"}]"""),
+                    HttpResponse(200, """[{"id":"f-1","friend_remark":"Ali","user":{"id":"user-a","username":"alice","nickname":"Alice","avatar_object_key":"avatars/user-a/a.png"}}]"""),
+                    HttpResponse(200, """[{"id":"user-b","username":"bob","nickname":"Bob","avatar_object_key":"avatars/user-b/b.png"}]"""),
                 )
             val repository = repository(transport)
 
@@ -57,7 +57,9 @@ class RemoteContactsRepositoryTest {
             val results = repository.search("bob")
 
             assertEquals("Ali", repository.contacts.value.single().displayName)
+            assertEquals("avatars/user-a/a.png", repository.contacts.value.single().avatarObjectKey)
             assertEquals("Bob", results.single().displayName)
+            assertEquals("avatars/user-b/b.png", results.single().avatarObjectKey)
             assertEquals("http://10.0.2.2:8010/friends", transport.requests[0].url)
             assertEquals("http://10.0.2.2:8010/users/search?keyword=bob&limit=20", transport.requests[1].url)
             assertEquals("Bearer access-token", transport.requests[1].headers["Authorization"])

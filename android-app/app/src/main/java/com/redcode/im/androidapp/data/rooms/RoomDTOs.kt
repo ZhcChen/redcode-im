@@ -31,6 +31,8 @@ data class BackendRoomInfo(
     val description: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("avatar_object_key")
+    val avatarObjectKey: String? = null,
     @SerialName("owner_id")
     val ownerId: String? = null,
     @SerialName("created_at")
@@ -45,6 +47,7 @@ data class BackendRoomInfo(
             roomType = roomType,
             description = description,
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
             ownerId = ownerId,
             createdAt = parseInstant(createdAt),
             updatedAt = parseInstant(updatedAt),
@@ -59,6 +62,8 @@ data class BackendRoomMember(
     val nickname: String? = null,
     @SerialName("avatar_url")
     val avatarUrl: String? = null,
+    @SerialName("avatar_object_key")
+    val avatarObjectKey: String? = null,
     val role: String = "member",
     @SerialName("joined_at")
     val joinedAt: String? = null,
@@ -69,6 +74,7 @@ data class BackendRoomMember(
             username = username ?: userId,
             nickname = nickname,
             avatarUrl = avatarUrl,
+            avatarObjectKey = avatarObjectKey,
             role = role,
             joinedAt = parseInstant(joinedAt),
         )

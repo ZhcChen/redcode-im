@@ -15,7 +15,7 @@
 ## 当前结论
 
 - 当前主线不再是旧 Admin RBAC 任务；旧 Admin mock / `src/api` 业务依赖清理已收口，不作为当前 P0。
-- 当前 P0 是 `android-app` 原生迁移剩余能力，先补齐 Emulator 可测的媒体、cache、权限和语音播放基线。
+- 当前 P0 是 `android-app` 原生迁移剩余能力；头像缓存已完成，下一步补齐 Emulator 可测的权限和语音播放基线。
 - `h5-app` 已承担 H5/API 联调入口，核心功能已完成；剩余是全量验收、E2E 文档收口、搜索页和头像上传等尾项。
 - `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录，不阻塞当前主线。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
@@ -25,12 +25,12 @@
 
 目标：完成 `ANDROID-06` 中不依赖 Android 真机的剩余可测能力，并保持 H5/API/Android 联调可重复。
 
-- [ ] 用户头像缓存
+- [x] 用户头像缓存
   - 接入用户头像 download URL。
   - 保存到 app cache。
   - UI 优先使用缓存头像，失败降级占位。
   - 覆盖缓存命中、下载失败和清理逻辑。
-- [ ] 群头像缓存
+- [x] 群头像缓存
   - 接入群头像 download URL。
   - 群列表、群详情使用缓存头像。
   - 登出或清理本地状态时清理缓存。
@@ -49,10 +49,9 @@
 
 下一步执行：
 
-1. 复用已完成的 Android `FileResourceCache` 与通用 download bytes 能力。
-2. 先落用户头像缓存和群头像缓存。
-3. 补 DTO mapping、cache repository、ViewModel/UI 状态和 JVM 单测。
-4. 通过后继续权限拒绝恢复路径和语音播放基线。
+1. 进入权限拒绝和恢复路径：文件选择器取消、麦克风/通知权限拒绝、永久拒绝引导系统设置。
+2. 完成语音播放基线：已有 audio part 播放、暂停、加载失败状态。
+3. 扩展 Android P0 验证后继续 H5 全量验收和浏览器 E2E。
 
 P0 验证入口：
 

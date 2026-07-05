@@ -45,7 +45,7 @@ class RemoteRoomRepositoryTest {
                     HttpResponse(
                         200,
                         """
-                        {"room":{"id":"room-1","name":"Android Group","room_type":"group","description":"desc","owner_id":"user-me","created_at":"2026-07-05T00:00:00Z","updated_at":"2026-07-05T00:00:01Z"}}
+                        {"room":{"id":"room-1","name":"Android Group","room_type":"group","description":"desc","avatar_object_key":"room_avatars/room-1/a.png","owner_id":"user-me","created_at":"2026-07-05T00:00:00Z","updated_at":"2026-07-05T00:00:01Z"}}
                         """.trimIndent(),
                     ),
                     HttpResponse(
@@ -53,7 +53,7 @@ class RemoteRoomRepositoryTest {
                         """
                         [
                           {"user_id":"user-me","username":"me","role":"owner","joined_at":"2026-07-05T00:00:00Z"},
-                          {"user_id":"user-b","username":"bob","nickname":"Bob","role":"member","joined_at":"2026-07-05T00:00:00Z"}
+                          {"user_id":"user-b","username":"bob","nickname":"Bob","avatar_object_key":"avatars/user-b/b.png","role":"member","joined_at":"2026-07-05T00:00:00Z"}
                         ]
                         """.trimIndent(),
                     ),
@@ -71,9 +71,11 @@ class RemoteRoomRepositoryTest {
             val settings = repository.fetchGroupSettings(room.id)
 
             assertEquals("room-1", room.id)
+            assertEquals("room_avatars/room-1/a.png", room.avatarObjectKey)
             assertEquals("Android Group", repository.rooms.first().single().name)
             assertEquals(listOf("user-me", "user-b"), members.map { it.userId })
             assertEquals("Bob", members[1].displayName)
+            assertEquals("avatars/user-b/b.png", members[1].avatarObjectKey)
             assertEquals(500, settings.settings.maxMembers)
             assertEquals("Bearer access-token", transport.requests.first().headers["Authorization"])
             assertEquals("""{"name":"Android Group","description":"desc","room_type":"group","member_ids":["user-b"]}""", transport.requests.first().body)
