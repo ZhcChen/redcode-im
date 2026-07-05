@@ -38,6 +38,15 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMessages(messages: List<ChatMessageEntity>)
 
+    @Query("SELECT * FROM chat_summaries WHERE roomId = :roomId LIMIT 1")
+    suspend fun findSummary(roomId: String): ChatSummaryEntity?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM chat_messages WHERE id = :messageId)")
+    suspend fun hasMessage(messageId: String): Boolean
+
+    @Query("UPDATE chat_messages SET text = :text WHERE roomId = :roomId AND id = :messageId")
+    suspend fun updateMessageText(roomId: String, messageId: String, text: String)
+
     @Query("UPDATE chat_summaries SET unreadCount = 0 WHERE roomId = :roomId")
     suspend fun markRead(roomId: String)
 
@@ -61,6 +70,12 @@ interface ChatDao {
     @Query("DELETE FROM chat_summaries")
     suspend fun clearSummaries()
 
+    @Query("DELETE FROM chat_messages WHERE roomId = :roomId")
+    suspend fun clearMessages(roomId: String)
+
+    @Query("DELETE FROM chat_summaries WHERE roomId = :roomId")
+    suspend fun deleteSummary(roomId: String)
+
     @Transaction
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessageEntity>, keep: Int) {
         upsertMessages(messages)
@@ -77,5 +92,11 @@ interface ChatDao {
     suspend fun clearAll() {
         clearMessages()
         clearSummaries()
+    }
+
+    @Transaction
+    suspend fun deleteRoom(roomId: String) {
+        clearMessages(roomId)
+        deleteSummary(roomId)
     }
 }

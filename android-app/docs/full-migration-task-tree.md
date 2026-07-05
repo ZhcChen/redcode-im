@@ -28,7 +28,7 @@
 - [x] HTTP client 基线、JSON 编解码、Bearer token、错误消息提取。
 - [x] Chat HTTP API 基线：`/chats`、`/rooms/{room_id}/messages`、文本发送、已读标记。
 - [x] WebSocket JSON client 基线：鉴权、订阅/退订、ping、重连、重复订阅保护。
-- [ ] WebSocket 增量事件落库与消息去重。
+- [x] WebSocket 增量事件落库与消息去重基线。
 - [ ] WebSocket protobuf 二进制帧。
 - [x] Room schema：会话、消息、联系人。
 - [x] Room Chat/Contacts DAO、Repository 与 Emulator in-memory 验证。
@@ -42,7 +42,7 @@
 进度备注：
 - 已接入 Preferences DataStore 保存协议勾选状态；聊天设置等非敏感偏好仍在后续阶段扩展。
 - 已接入公开设置文档端点：`/settings/privacy-policy`、`/settings/user-agreement`。
-- 已接入 `/ws?format=json` 控制帧基线，登录后自动鉴权并根据 Room 缓存会话维护房间订阅；消息、已读、好友申请等服务端增量事件仍在后续切片落 Room。
+- 已接入 `/ws?format=json` 控制帧基线，登录后自动鉴权并根据 Room 缓存会话维护房间订阅；`message`、`message_read`、`message_update`、房间变更/清理和好友申请增量事件已接到 Room/Repository。
 
 ## ANDROID-03 聊天核心
 
@@ -62,7 +62,7 @@
 - `RemoteChatRepository` 已接入真实 HTTP 合同，并在 `ANDROID_APP_USE_REMOTE_AUTH=true` 时随真实认证链路启用。
 - 当前 Android UI 会在进入会话列表和聊天详情时触发一次 HTTP 刷新；真正的分页、失败重试、WebSocket 增量同步仍在后续阶段。
 - 真实 API 构建下，Chat/Contacts 远端刷新结果已经写入 Room，UI 订阅 Room Flow；后续 WebSocket 增量同步会写入同一缓存层。
-- WebSocket JSON client 已能维持会话房间订阅；消息增量落库、消息去重、已读事件同步待后续切片补齐。
+- WebSocket JSON client 已能维持会话房间订阅；消息增量会按消息 ID 去重写入 Room，并同步会话摘要、未读数和本机已读清零。
 
 ## ANDROID-04 联系人与好友
 

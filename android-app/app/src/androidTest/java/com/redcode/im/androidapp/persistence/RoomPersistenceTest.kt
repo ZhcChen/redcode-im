@@ -103,6 +103,47 @@ class RoomPersistenceTest {
         }
 
     @Test
+    fun roomChatRepository_appliesRealtimeMessagesAndRoomCleanup() =
+        runTest {
+            val repository = RoomChatRepository(database.chatDao(), maxMessagesPerRoom = 5)
+            repository.upsertSummary(
+                ChatSummary(
+                    roomId = "room-a",
+                    title = "Room A",
+                    roomType = ChatRoomType.Group,
+                    lastMessagePreview = "seed",
+                    unreadCount = 1,
+                    updatedAt = Instant.ofEpochMilli(1),
+                ),
+            )
+            val incoming =
+                ChatMessage(
+                    id = "m-realtime",
+                    roomId = "room-a",
+                    senderId = "user-other",
+                    senderName = "Other",
+                    text = "new",
+                    status = MessageStatus.Sent,
+                    createdAt = Instant.ofEpochMilli(2),
+                )
+
+            repository.applyIncomingMessage(incoming, currentUserId = "user-me")
+            repository.applyIncomingMessage(incoming, currentUserId = "user-me")
+
+            val summary = repository.chats.first().single()
+            assertEquals("new", summary.lastMessagePreview)
+            assertEquals(2, summary.unreadCount)
+            assertEquals(listOf("m-realtime"), repository.messages("room-a").first().map { it.id })
+
+            repository.markMessageDeleted(roomId = "room-a", messageId = "m-realtime")
+            assertEquals("消息已删除", repository.messages("room-a").first().single().text)
+
+            repository.removeRoom("room-a")
+            assertEquals(emptyList<ChatSummary>(), repository.chats.first())
+            assertEquals(emptyList<ChatMessage>(), repository.messages("room-a").first())
+        }
+
+    @Test
     fun contactDao_searchesUpsertsRemovesAndClears() =
         runTest {
             val repository = RoomContactsRepository(database.contactDao())

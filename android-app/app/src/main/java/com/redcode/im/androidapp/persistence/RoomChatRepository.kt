@@ -67,6 +67,46 @@ class RoomChatRepository(
         chatDao.pruneMessages(message.roomId, maxMessagesPerRoom)
     }
 
+    suspend fun applyIncomingMessage(message: ChatMessage, currentUserId: String?) {
+        val alreadyCached = chatDao.hasMessage(message.id)
+        chatDao.upsertMessage(ChatMessageEntity.fromDomain(message))
+        val currentSummary = chatDao.findSummary(message.roomId)?.toDomain()
+        val isSelf = message.senderId == currentUserId
+        val nextUnread =
+            when {
+                currentSummary == null -> if (isSelf || alreadyCached) 0 else 1
+                isSelf || alreadyCached -> currentSummary.unreadCount
+                else -> currentSummary.unreadCount + 1
+            }
+        val nextSummary =
+            currentSummary
+                ?.let { summary ->
+                    if (message.createdAt >= summary.updatedAt) {
+                        summary.copy(
+                            lastMessagePreview = message.text,
+                            unreadCount = nextUnread,
+                            updatedAt = message.createdAt,
+                        )
+                    } else {
+                        summary.copy(unreadCount = nextUnread)
+                    }
+                }
+                ?: ChatSummary(
+                    roomId = message.roomId,
+                    title = message.senderName.ifBlank { "新会话" },
+                    roomType = ChatRoomType.Direct,
+                    lastMessagePreview = message.text,
+                    unreadCount = nextUnread,
+                    updatedAt = message.createdAt,
+                )
+        chatDao.upsertSummary(ChatSummaryEntity.fromDomain(nextSummary))
+        chatDao.pruneMessages(message.roomId, maxMessagesPerRoom)
+    }
+
+    suspend fun markMessageDeleted(roomId: String, messageId: String) {
+        chatDao.updateMessageText(roomId = roomId, messageId = messageId, text = "消息已删除")
+    }
+
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessage>) {
         chatDao.replaceMessages(
             roomId = roomId,
@@ -77,5 +117,9 @@ class RoomChatRepository(
 
     suspend fun clear() {
         chatDao.clearAll()
+    }
+
+    suspend fun removeRoom(roomId: String) {
+        chatDao.deleteRoom(roomId)
     }
 }

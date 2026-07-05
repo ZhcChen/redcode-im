@@ -192,6 +192,12 @@ private fun MainShell(
     LaunchedEffect(realtimeChats) {
         container.webSocketClient?.ensureRoomsSubscribed(realtimeChats.map { it.roomId }, pruneMissing = true)
     }
+    container.webSocketClient?.let { client ->
+        val realtimeEvent by client.events.collectAsStateWithLifecycle()
+        LaunchedEffect(realtimeEvent) {
+            realtimeEvent?.let { container.realtimeEventProcessor?.handle(it) }
+        }
+    }
     DisposableEffect(container.webSocketClient) {
         onDispose {
             container.webSocketClient?.disconnect()

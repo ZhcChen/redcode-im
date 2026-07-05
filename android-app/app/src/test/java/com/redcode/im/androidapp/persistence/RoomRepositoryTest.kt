@@ -69,6 +69,40 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun roomChatRepository_realtimeSelfAndOlderMessagesKeepUnreadAndPreviewStable() =
+        runTest {
+            val repository = RoomChatRepository(FakeChatDao())
+            repository.applyIncomingMessage(
+                ChatMessage(
+                    id = "self-message",
+                    roomId = "room-new",
+                    senderId = "user-me",
+                    senderName = "Me",
+                    text = "mine",
+                    status = MessageStatus.Sent,
+                    createdAt = Instant.ofEpochMilli(10),
+                ),
+                currentUserId = "user-me",
+            )
+            repository.applyIncomingMessage(
+                ChatMessage(
+                    id = "older-message",
+                    roomId = "room-new",
+                    senderId = "user-other",
+                    senderName = "Other",
+                    text = "older",
+                    status = MessageStatus.Sent,
+                    createdAt = Instant.ofEpochMilli(1),
+                ),
+                currentUserId = "user-me",
+            )
+
+            val summary = repository.chats.first().single()
+            assertEquals("mine", summary.lastMessagePreview)
+            assertEquals(1, summary.unreadCount)
+        }
+
+    @Test
     fun roomContactsRepository_searchesUpsertsRemovesAndClears() =
         runTest {
             val repository = RoomContactsRepository(FakeContactDao())
@@ -182,6 +216,23 @@ private class FakeChatDao : ChatDao {
         messages.forEach { upsertMessage(it) }
     }
 
+    override suspend fun findSummary(roomId: String): ChatSummaryEntity? =
+        summaries.value.firstOrNull { it.roomId == roomId }
+
+    override suspend fun hasMessage(messageId: String): Boolean =
+        messages.value.values.any { roomMessages -> roomMessages.any { it.id == messageId } }
+
+    override suspend fun updateMessageText(roomId: String, messageId: String, text: String) {
+        messages.value =
+            messages.value +
+            (
+                roomId to
+                    messages.value[roomId].orEmpty().map {
+                        if (it.id == messageId) it.copy(text = text) else it
+                    }
+            )
+    }
+
     override suspend fun markRead(roomId: String) {
         summaries.value = summaries.value.map { if (it.roomId == roomId) it.copy(unreadCount = 0) else it }
     }
@@ -197,6 +248,19 @@ private class FakeChatDao : ChatDao {
 
     override suspend fun clearSummaries() {
         summaries.value = emptyList()
+    }
+
+    override suspend fun clearMessages(roomId: String) {
+        messages.value = messages.value - roomId
+    }
+
+    override suspend fun deleteSummary(roomId: String) {
+        summaries.value = summaries.value.filterNot { it.roomId == roomId }
+    }
+
+    override suspend fun deleteRoom(roomId: String) {
+        clearMessages(roomId)
+        deleteSummary(roomId)
     }
 }
 
