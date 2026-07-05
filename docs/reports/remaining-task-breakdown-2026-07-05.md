@@ -3,32 +3,34 @@
 重整时间：2026-07-05
 
 本文档是当前仓库剩余任务的本地执行总账，作为
-`docs/reports/task-list.md` 的详细版。执行时以本文档顺序推进；模块内
-更细执行细节继续参考对应模块文档。
+`docs/reports/task-list.md` 的详细版。执行时以本文档顺序推进；模块内更细
+实现细节继续参考对应模块文档。
 
 ## 0. 当前口径
 
 - 当前分支：`feat/core-architecture-performance`。
-- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，
-  确认核心功能与流程正确；再扩展 Android 原生互通、全模块回归和 API
-  核心架构重构。
+- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调；随后收口
+  Android 原生 parity；最后做全模块回归和 API 核心架构重构。
 - 当前立即任务：`CROSS-P1-01 H5/API/Android 联调脚本扩展`。
-- `H5-P1-04 H5 头像上传浏览器能力` 已完成并推送；头像上传、群头像上传、
-  direct upload / commit / avatar cache、失败回退、live smoke、E2E 和
-  视觉截图均已收口。
-- `H5-P1-05 H5 浏览器存储增强` 已完成并通过 H5 check/unit/build/live/E2E。
-- `H5-P1-06 H5 parity Unit 8 最终勾选` 已完成，`h5-app` 当前可作为 backend +
-  frontend 联调优先入口。
+- `h5-app` 已完成 Flutter parity P1，可作为 backend + frontend 联调优先入口。
+- `ios-app` 主链路已完成，后续只剩 iPhone 真机/APNs 补验项。
+- `android-app` 已完成 P0 媒体切片；剩余集中在聊天扩展、设置账号配置、通知
+  mock、底座协议和最终切换准备。
 - Flutter `app/` 保留，不移除；当前只作为行为对照、回滚包和原生迁移基线。
 - 当前默认普通账号密码注册/登录；Google / Apple 登录不进入当前主线。
 - 邮箱注册/登录作为后台配置能力保留；当前测试不依赖真实邮箱资源，也不要求
   邮箱验证码二次验证。
 - 对象存储、Push、IPInfo 在本地测试中继续走 `external-mock`，禁止为了测试
   访问线上 B2、FCM、APNs。
-- API、PG、Redis、external-mock、性能压测坚持 Compose-first；测试栈
-  PG/Redis/external-mock 不映射宿主端口。
+- API、PG、Redis、external-mock、性能压测坚持 Compose-first。
+- 测试栈 PG/Redis/external-mock 不映射宿主端口；测试栈只启动一个 Redis，
+  `REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 指向同一 Redis。
+- 性能指标必须通过 Docker Compose 资源限制固定测试档位；PG pool 按对应档位的
+  最佳值配置。
 - Android 真机、iPhone 真机、真实 APNs/FCM/厂商 ROM 行为按用户要求跳过并
   记录，不伪造通过。
+- Superpowers 不再作为当前仓库工作流入口；当前 active 工作流以根目录
+  `AGENTS.md` 的 Compound Engineering (CE) 为准。
 
 ## 1. 状态定义
 
@@ -39,145 +41,55 @@
 - `完成`：实现、测试、文档、提交和推送均已收口。
 - `非当前主线`：保留入口，不主动展开，除非用户重新激活。
 
-## 2. 优先级总览
+## 2. 当前完成归档
 
-### P0：当前必须先收口
+这些项不再进入剩余任务队列，只作为后续回归和对照依据。
 
-1. `CROSS-P1-01` H5/API/Android 联调脚本扩展。
-
-### P1：Android 原生 parity 补齐
-
-1. `ANDROID-P1-01` 聊天扩展。
-2. `ANDROID-P1-02` 设置、账号和配置。
-3. `ANDROID-P1-03` 全量对照和覆盖率提升。
-
-### P2：底座、通知和 API 架构
-
-1. `ANDROID-P2-01` 通知和 Push mock 可测部分。
-2. `ANDROID-P2-02` HTTP client 与统一错误模型。
-3. `ANDROID-P2-03` WebSocket protobuf 二进制帧。
-4. `ANDROID-P2-04` DataStore、live smoke 分层和清理。
-5. `ARCH-P2-01` 性能矩阵扩展。
-6. `ARCH-P2-02` broker/event bus 抽象。
-7. `ARCH-P2-03` Compose-first 环境扩展。
-8. `ARCH-P2-04` 最终性能报告。
-
-### P3：发布、回滚和非主线保留
-
-1. `RELEASE-P3-01` 全模块回归。
-2. `RELEASE-P3-02` 原生切换条件。
-3. `RELEASE-P3-03` 发布与回滚文档。
-4. Admin / Desktop / Website / Flutter `app/` / E2EE / H5 安全加固保留入口。
-
-## 3. P0 详细队列
-
-### H5-P1-05 H5 浏览器存储增强
-
-状态：完成
-
-目标：
-- 把 H5 本地数据库和缓存能力从当前可用基线增强到正式浏览器运行口径。
-
-已完成：
-- 新增 `h5-app/src/storage/storage-capabilities.ts`：
-  - 探测 OPFS、IndexedDB、Cache API、Web Worker、localStorage。
-  - 探测 SQLite FTS5、JSON1、transaction 能力。
-- 新增 `h5-app/src/storage/opfs-worker-sql-adapter.ts`：
-  - 主线程 SQL adapter，通过 Web Worker 执行 wa-sqlite OPFS。
-- 新增 `h5-app/src/storage/wa-sqlite-opfs.worker.ts`：
-  - worker 内使用 `wa-sqlite` async API 与 `OriginPrivateFileSystemVFS`。
-- 修改 `h5-app/src/storage/local-database.ts`：
-  - 正式环境选择顺序为 wa-sqlite OPFS worker -> wa-sqlite IndexedDB VFS ->
-    IndexedDB persisted shim -> Memory。
-  - mock/test 仍使用 Memory。
-  - 暴露 `getStorageRuntimeReport()`。
-- 修改 `h5-app/src/config/env.ts`：
-  - 默认 `VITE_H5_SQL_ENGINE` 改为 `wa-sqlite`。
-- 修改 `h5-app/src/storage/blob-cache.ts`：
-  - 增加默认缓存策略、TTL、maxEntries、maxBytes 和 oldest-first 清理。
-- 修改 `h5-app/src/stores/chat-detail.ts`：
-  - 搜索索引写入失败不阻断消息主链路。
-- 新增/扩展单测：
-  - `h5-app/test/local-database.test.ts`
-  - `h5-app/test/storage-capabilities.test.ts`
-  - `h5-app/test/blob-cache.test.ts`
-  - `h5-app/test/chat-detail-store.test.ts`
-
-- 修复 `OpfsWorkerSqlAdapter` 事务串行化，所有 `execute` / `query` /
-  `transaction` 通过 adapter queue 串行进入 worker；transaction 内使用 scoped
-  adapter，嵌套 transaction 不重复发送 `BEGIN` / `COMMIT`。
-- 修复刷新后缓存恢复竞态：新本地消息在缓存写入完成后才对 UI 暴露。
-- 修复 FTS5 fallback 重启误判：普通 `message_search` 表存在时不会误用
-  `MATCH`，继续走 LIKE 查询。
-- 补齐 OPFS worker transaction、fallback table、缓存清理和发送缓存竞态测试。
-- 已更新：
-  - `h5-app/README.md`
-  - `docs/reference/testing/README.md`
-  - `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-  - `docs/reports/task-list.md`
-  - 本文档
-
-验收：
-  - `make h5-app.check`
-  - `make h5-app.test.unit`
-  - `make h5-app.build`
-  - `make h5-app.test.live`
-  - `make h5-app.test.e2e`
-  - `git diff --check`
-
-### H5-P1-06 H5 parity Unit 8 最终勾选
+### H5 App
 
 状态：完成
 
 已完成：
-- 回填 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8。
-- 更新 `h5-app/README.md` 能力矩阵。
-- 更新 `docs/reference/testing/README.md` H5 验收矩阵。
-- 明确 H5 当前可作为 backend + frontend 联调优先入口。
-
-验收：
-- H5 parity 计划中 Unit 8 可勾选。
-- 从零联调步骤可复现。
-- H5 live smoke 和 E2E smoke 均通过。
-
-### CROSS-P1-01 H5/API/Android 联调脚本扩展
-
-状态：待执行
-
-目标：
-- 让 H5 和 Android 原生在同一 Compose API 上完成核心流程互通验收。
-
-任务：
-- 扩展 `make android-app.test.interop`，串联 H5 live smoke 与 Android live smoke。
-- 覆盖普通账号注册/登录、联系人、好友申请、建群、文本消息、富媒体附件、
-  头像缓存、权限降级可测入口、语音播放可测入口。
-- API、PG、Redis、external-mock 全部由 Docker Compose 创建。
-- 失败时明确提示 API 容器日志、H5 live 日志和 Android Gradle 测试报告路径。
-
-验收：
-- `make api.up`
-- `make api.wait`
-- `make h5-app.test.live`
-- `make android-app.test.interop`
-
-## 4. H5 P1：联调端完整性
-
-目标：让 `h5-app` 成为后续 API、Android、iOS 功能联调的浏览器基准端。
-
-已完成：
-- `H5-P1-01` 全量验收与文档收口。
+- `H5-P1-01` H5 全量验收与文档收口。
 - `H5-P1-02` 浏览器 E2E / smoke 扩展。
 - `H5-P1-03` 本地消息搜索页面。
 - `H5-P1-04` 头像上传浏览器能力。
+- `H5-P1-05` 浏览器存储增强：
+  - wa-sqlite OPFS worker。
+  - wa-sqlite IndexedDB VFS fallback。
+  - IndexedDB persisted shim / Memory fallback。
+  - OPFS/IndexedDB/FTS5/Cache API/localStorage/Web Worker 能力探测。
+  - OPFS worker operation queue 与 transaction 串行化。
+  - FTS5 不可用时稳定降级到 LIKE 查询。
+  - Blob cache TTL、maxEntries、maxBytes 和 oldest-first cleanup。
+  - 新本地消息缓存写入完成后再暴露到 UI，避免刷新恢复竞态。
+- `H5-P1-06` H5 parity Unit 8 最终勾选。
 
-剩余：
-- H5 P1 当前无剩余任务；下一步进入 `CROSS-P1-01` H5/API/Android 联调脚本扩展。
+当前已验证入口：
+- `make h5-app.check`
+- `make h5-app.test.unit`
+- `make h5-app.build`
+- `make h5-app.test.live`
+- `make h5-app.test.e2e`
 
-## 5. Android P1：原生 parity 后续能力
+### iOS App
 
-目标：补齐 Android 原生替代 Flutter Android 的剩余可测能力。
+状态：主链路完成，真机/APNs 待补验
 
-当前已完成基线：
+已完成：
+- Swift/SwiftUI 原生实现覆盖 Flutter parity 主链路。
+- SwiftPM 单测、H5/API/iOS live smoke、H5/iOS 富媒体互通、媒体 mock 回归、本机
+  iOS Simulator smoke 和 XCUITest 均已收口。
+- `make ios-app.test.interop` 已作为 H5/API/iOS 联调总入口。
+- 当前未发现阻断 H5/API/iOS 主链路联调的 P0/P1 功能缺口。
+
+保留待补验见本文档第 9 节。
+
+### Android App 已完成基线
+
+状态：P0 媒体切片完成，P1/P2 待执行
+
+已完成：
 - 原生 Android 工程骨架、Compose App Shell、测试和覆盖率入口。
 - 普通账号密码认证、本地模拟认证和真实 API 认证合同。
 - Chat / Contacts / Rooms 真实 API、Room 缓存、WebSocket JSON 增量、群管理。
@@ -185,6 +97,107 @@
 - 用户头像缓存、群头像缓存、权限拒绝恢复、语音播放基线。
 - 已验证入口包括 unit、live、interop、coverage、lint、debug build、connected test、
   emulator smoke。
+
+保留待补：
+- 语音录制、相机、麦克风质量、FCM 真实 token、云端 Push、厂商 ROM 行为和 Play
+  发布链路属于真机补验，不在 Emulator 阶段伪造通过。
+- Android P1/P2 的剩余功能见第 5、6 节。
+
+## 3. 剩余任务优先级总览
+
+P0：当前必须先收口
+- `CROSS-P1-01` H5/API/Android 联调脚本扩展。
+
+P1：Android 原生 parity 补齐
+- `ANDROID-P1-01` 聊天扩展。
+- `ANDROID-P1-02` 设置、账号和配置。
+- `ANDROID-P1-03` 全量对照和覆盖率提升。
+
+P2：Android 底座、通知和 API 架构
+- `ANDROID-P2-01` 通知和 Push mock 可测部分。
+- `ANDROID-P2-02` HTTP client 与统一错误模型。
+- `ANDROID-P2-03` WebSocket protobuf 二进制帧。
+- `ANDROID-P2-04` DataStore、live smoke 分层和清理。
+- `ARCH-P2-01` 性能矩阵扩展。
+- `ARCH-P2-02` broker/event bus 抽象。
+- `ARCH-P2-03` Compose-first 环境扩展。
+- `ARCH-P2-04` 最终性能报告。
+
+P3：发布、回滚和非主线保留
+- `RELEASE-P3-01` 全模块回归。
+- `RELEASE-P3-02` 原生切换条件。
+- `RELEASE-P3-03` 发布与回滚文档。
+- Admin / Desktop / Website / Flutter `app/` / E2EE / H5 安全加固保留入口。
+
+## 4. P0：当前立即任务
+
+### CROSS-P1-01 H5/API/Android 联调脚本扩展
+
+状态：待执行
+
+目标：
+- 让 H5 和 Android 原生在同一 Compose API 上完成核心流程互通验收。
+- 把当前散落的 H5 live、Android live、Android 可测本地能力入口整理成一个可复现
+  的联调总入口。
+
+当前基础：
+- `make android-app.test.interop` 当前已串联 `h5-app.test.live` 与
+  `android-app.test.live`。
+- `android-app.test.live` 当前覆盖 Android 数据层注册、建群、双向文本互发、
+  附件签名/mock 直传/commit/发送/双方可见/下载 URL、已读、好友申请/接受、
+  私聊消息和群管理。
+- 权限恢复、语音播放和头像缓存中一部分能力主要由 Android unit 或 connected
+  test 覆盖，尚未在 interop 入口中显式体现。
+
+任务：
+- 明确 `android-app.test.interop` 的执行边界：
+  - API、PG、Redis、external-mock 由 Docker Compose 创建。
+  - 需要 API dev 栈时自动依赖 `api.up` / `api.wait`，或在命令输出中清晰提示。
+  - H5 live smoke 与 Android live smoke 使用同一 API。
+- 扩展联调覆盖面：
+  - 普通账号注册/登录。
+  - 联系人。
+  - 好友申请和接受。
+  - 建群与群管理。
+  - 文本消息。
+  - 富媒体附件。
+  - 头像缓存。
+  - 权限降级可测入口。
+  - 语音播放可测入口。
+- 对无法通过 live API 证明的 Android 本地能力，增加轻量 targeted JVM test 或
+  connected test 聚合入口，避免每次联调都跑无关全量测试。
+- 失败提示必须明确以下排查入口：
+  - API 容器日志。
+  - H5 live smoke 日志。
+  - Android Gradle 测试报告路径。
+  - Android coverage 报告路径。
+
+建议修改文件：
+- `Makefile`
+- `android-app/README.md`
+- `docs/reference/testing/README.md`
+- `android-app/docs/remaining-migration-tasks.md`
+- `android-app/docs/full-migration-task-tree.md`
+- `docs/reports/task-list.md`
+- 本文档
+
+验收：
+- `make api.up`
+- `make api.wait`
+- `make h5-app.test.live`
+- `make android-app.test.interop`
+- 如修改 Android unit/Makefile 聚合入口，再运行 `make android-app.test.unit`
+- `git diff --check`
+
+完成标准：
+- 联调入口可从干净 API dev 栈复现。
+- 核心 H5/API/Android 互通链路通过。
+- 权限、头像缓存、语音播放这些非 live API 能力有明确自动化入口或跳过说明。
+- 文档和任务总账更新，随后提交并推送。
+
+## 5. Android P1：原生 parity 后续能力
+
+目标：补齐 Android 原生替代 Flutter Android 的剩余可测能力。
 
 ### ANDROID-P1-01 聊天扩展
 
@@ -198,8 +211,15 @@
 - 聊天背景，按 room 保存本地偏好。
 - 聊天设置：字体大小、回车发送、媒体自动下载等。
 
+建议涉及文件：
+- `android-app/app/src/main/java/com/redcode/im/androidapp/feature/`
+- `android-app/app/src/main/java/com/redcode/im/androidapp/data/`
+- `android-app/app/src/main/java/com/redcode/im/androidapp/persistence/`
+- `android-app/app/src/test/java/com/redcode/im/androidapp/`
+- `android-app/app/src/androidTest/java/com/redcode/im/androidapp/`
+
 验收：
-- ViewModel、Repository、DTO、cache 单测。
+- ViewModel、Repository、DTO mapping、cache 单测覆盖。
 - Compose UI test 覆盖输入区、表情入口、贴纸发送可测路径。
 - `make android-app.test.unit`
 - `make android-app.connected-test`
@@ -211,7 +231,7 @@
 
 任务：
 - 个人资料页和昵称更新。
-- 头像上传入口，复用 P0 头像缓存展示。
+- 头像上传入口，复用头像缓存展示。
 - 账号安全和修改密码。
 - 用户协议、隐私政策、关于页完善。
 - 反馈提交。
@@ -301,31 +321,7 @@
 - 单测覆盖每类偏好读写和清理。
 - Makefile 或 Gradle 参数可单独跑 live smoke 子集。
 
-## 7. iOS：已收口与待补验
-
-状态：主链路完成，真机/APNs 待补验。
-
-已完成：
-- `ios-app` 主要 Flutter parity 已完成，采用 Swift/SwiftUI 原生实现。
-- 已通过 SwiftPM 单测、H5/API/iOS live smoke、H5/iOS 富媒体互通、媒体 mock
-  回归、本机 iOS Simulator smoke 和 XCUITest。
-- 当前未发现阻断 H5/API/iOS 主链路联调的 P0/P1 功能缺口。
-
-保留待补验：
-- iPhone 真机签名、安装和启动。
-- APNs token 获取。
-- Apple APNs 真实离线系统通知。
-- 系统通知点击唤醒。
-- 冷启动通知深链。
-
-恢复入口：
-
-```bash
-IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
-IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
-```
-
-## 8. API P2：性能与核心架构重构
+## 7. API P2：性能与核心架构重构
 
 目标：在 H5/API/Android 主链路稳定后，进入可度量、可回滚的底层架构优化。
 
@@ -376,6 +372,8 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 - Redis 测试栈保持一个实例，API 的 session/pubsub/cache 三个通道指向同一
   Redis。
 - Docker Compose 资源限制用于固定测试指标。
+- 分布式 profile 应与单机 profile 共用同一套 Makefile/文档入口，避免两套不可
+  比较的环境。
 
 验收：
 - `api/docker/dev/docker-compose.yml`
@@ -396,43 +394,7 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 - 新性能报告写入 `docs/reports/performance/`。
 - 报告包含可复现实验条件和回滚说明。
 
-## 9. 真机待补验
-
-### iOS 真机/APNs
-
-状态：待补验
-
-说明：
-- 当前已按用户要求跳过，不阻塞主线。
-- Simulator/单测只能覆盖本地通知调度、payload 导航和登出通知态清理，不能
-  替代真实 APNs 离线投递。
-
-任务：
-- iPhone 真机签名、安装和启动。
-- APNs token 获取。
-- Apple APNs 真实离线系统通知。
-- 系统通知点击唤醒。
-- 冷启动通知深链。
-
-### Android 真机/FCM/厂商行为
-
-状态：待补验
-
-说明：
-- Emulator 阶段只做可模拟的权限、本地通知和数据层状态机。
-- 以下真机行为不在 Emulator 阶段伪造通过。
-
-任务：
-- 相机拍摄图片/视频。
-- 麦克风录音质量、权限、后台中断。
-- 厂商 ROM 文件选择器差异。
-- FCM 真实 token 获取。
-- 云端 Push 投递。
-- 前台/后台/冷启动通知导航。
-- 厂商 ROM 后台限制。
-- Play 签名、release 包安装和发布链路。
-
-## 10. P3：横向回归和发布准备
+## 8. P3：横向回归和发布准备
 
 ### RELEASE-P3-01 全模块回归
 
@@ -482,7 +444,50 @@ git diff --check
 - 客户端缓存问题的清理和回滚步骤。
 - Push、对象存储、消息总线的回滚开关。
 
-## 11. 非当前主线但保留入口
+## 9. 真机待补验
+
+### iOS 真机/APNs
+
+状态：待补验
+
+说明：
+- 当前已按用户要求跳过，不阻塞主线。
+- Simulator/单测只能覆盖本地通知调度、payload 导航和登出通知态清理，不能
+  替代真实 APNs 离线投递。
+
+任务：
+- iPhone 真机签名、安装和启动。
+- APNs token 获取。
+- Apple APNs 真实离线系统通知。
+- 系统通知点击唤醒。
+- 冷启动通知深链。
+
+恢复入口：
+
+```bash
+IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
+IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
+```
+
+### Android 真机/FCM/厂商行为
+
+状态：待补验
+
+说明：
+- Emulator 阶段只做可模拟的权限、本地通知和数据层状态机。
+- 以下真机行为不在 Emulator 阶段伪造通过。
+
+任务：
+- 相机拍摄图片/视频。
+- 麦克风录音质量、权限、后台中断。
+- 厂商 ROM 文件选择器差异。
+- FCM 真实 token 获取。
+- 云端 Push 投递。
+- 前台/后台/冷启动通知导航。
+- 厂商 ROM 后台限制。
+- Play 签名、release 包安装和发布链路。
+
+## 10. 非当前主线但保留入口
 
 - Admin：当前不是 P0；保留 route smoke、真实后端 smoke 和 RBAC 回归入口。
 - Desktop / Website：当前不是 P0；保留单测、真实后端 smoke 和下载逻辑测试。
@@ -491,10 +496,10 @@ git diff --check
   尚未进入实现主线；需要独立威胁模型和迁移计划。
 - H5 安全加固：token 后续可评估 httpOnly SameSite Cookie 或短生命周期 token
   策略。
-- 历史 `docs/plans/2026-03-*` 中仍有未勾选项，不自动纳入当前主线；只有用户
-  重新激活对应计划时再复核并迁移到本文档。
+- 历史 `docs/plans/2026-03-*` 和 `docs/plans/2026-04-*` 中仍有未勾选项，不自动
+  纳入当前主线；只有用户重新激活对应计划时再复核并迁移到本文档。
 
-## 12. 每个切片通用完成标准
+## 11. 每个切片通用完成标准
 
 - 只改当前切片相关文件。
 - 更新对应模块文档和本总账。
@@ -504,6 +509,22 @@ git diff --check
 - 通过后使用 Conventional Commits 提交并推送。
 - 只 stage 本轮相关文件，避免混入用户或历史无关改动。
 - API、PG、Redis、external-mock、性能压测保持 Docker Compose-first。
+
+## 12. 下一步执行指针
+
+下一步直接执行：
+
+```text
+CROSS-P1-01 H5/API/Android 联调脚本扩展
+```
+
+执行完成后进入：
+
+```text
+ANDROID-P1-01 聊天扩展
+ANDROID-P1-02 设置、账号和配置
+ANDROID-P1-03 全量对照和覆盖率提升
+```
 
 ## 13. 主要依据文档
 
@@ -517,3 +538,6 @@ git diff --check
 - `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
 - `docs/reports/performance/api-compose-baseline-2026-07-01.md`
 - `docs/reference/testing/README.md`
+- `api/docker/dev/docker-compose.yml`
+- `api/docker/release/docker-compose.yml`
+- `tests/docker-compose.test.yml`
