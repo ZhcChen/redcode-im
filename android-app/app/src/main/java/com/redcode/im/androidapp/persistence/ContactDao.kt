@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -32,4 +33,10 @@ interface ContactDao {
 
     @Query("DELETE FROM contacts")
     suspend fun clear()
+
+    @Transaction
+    suspend fun replaceAll(contacts: List<ContactEntity>) {
+        clear()
+        upsertAll(contacts)
+    }
 }

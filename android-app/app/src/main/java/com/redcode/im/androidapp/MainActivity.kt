@@ -3,16 +3,26 @@ package com.redcode.im.androidapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.room.Room
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.data.auth.AndroidKeystoreKeyValueStore
 import com.redcode.im.androidapp.data.auth.SerializedAuthSessionStore
 import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
+import com.redcode.im.androidapp.persistence.RedCodeDatabase
+import com.redcode.im.androidapp.persistence.RoomChatRepository
+import com.redcode.im.androidapp.persistence.RoomContactsRepository
 import com.redcode.im.androidapp.ui.theme.RedCodeTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val database =
+            Room.databaseBuilder(
+                applicationContext,
+                RedCodeDatabase::class.java,
+                "redcode-im.db",
+            ).build()
         val container =
             AppContainer(
                 environment =
@@ -25,6 +35,8 @@ class MainActivity : ComponentActivity() {
                     SerializedAuthSessionStore(
                         AndroidKeystoreKeyValueStore(applicationContext),
                     ),
+                localChatRepository = RoomChatRepository(database.chatDao()),
+                localContactsRepository = RoomContactsRepository(database.contactDao()),
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {

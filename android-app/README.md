@@ -17,7 +17,7 @@
 - MVVM / Unidirectional Data Flow
 - Coroutines + Flow / StateFlow
 - Repository / DataSource 分层
-- Room / Android Keystore / Preferences DataStore 已接入
+- Room / Android Keystore / Preferences DataStore 已接入，真实 Chat/Contacts HTTP 数据会写入 Room 缓存
 - JUnit + Compose UI Test + Jacoco coverage
 
 ## 目录
@@ -55,7 +55,7 @@ make android-app.smoke.emulator
 - Android Emulator 访问宿主机 API 使用 `10.0.2.2:8010`。
 - JVM 单测不需要启动 API。
 - 如需用真实认证 API 构建调试包，可传 `ANDROID_APP_USE_REMOTE_AUTH=true`；Emulator 访问宿主 API 默认使用 `10.0.2.2:8010`。
-- 传 `ANDROID_APP_USE_REMOTE_AUTH=true` 时，Android 原生模块同时启用真实认证、公开设置文档、Chat HTTP 和 Contacts HTTP 基线；联系人 UI 已覆盖搜索添加、好友申请处理、联系人详情和私聊入口；默认仍用本地模拟数据便于无后端 smoke。
+- 传 `ANDROID_APP_USE_REMOTE_AUTH=true` 时，Android 原生模块同时启用真实认证、公开设置文档、Chat HTTP 和 Contacts HTTP 基线；Chat/Contacts 远端刷新会落 Room 缓存，联系人 UI 已覆盖搜索添加、好友申请处理、联系人详情和私聊入口；默认仍用本地模拟数据便于无后端 smoke。
 - `connected-test` 和 `smoke.emulator` 需要本机已有可用 Android Emulator。
 - `connected-test` 当前覆盖 Compose 登录/协议门禁 smoke、Room in-memory DAO/Repository、Android Keystore 加密会话存储、DataStore 协议偏好。
 - 覆盖率报告输出到 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。

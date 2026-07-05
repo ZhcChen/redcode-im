@@ -22,7 +22,7 @@ class RoomContactsRepository(
     }
 
     suspend fun replaceContacts(contacts: List<Contact>) {
-        contactDao.upsertAll(contacts.map(ContactEntity::fromDomain))
+        contactDao.replaceAll(contacts.map(ContactEntity::fromDomain))
     }
 
     suspend fun remove(userId: String) {

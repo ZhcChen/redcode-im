@@ -58,6 +58,15 @@ class RoomChatRepository(
         chatDao.upsertSummary(ChatSummaryEntity.fromDomain(summary))
     }
 
+    suspend fun replaceSummaries(summaries: List<ChatSummary>) {
+        chatDao.replaceSummaries(summaries.map(ChatSummaryEntity::fromDomain))
+    }
+
+    suspend fun upsertMessage(message: ChatMessage) {
+        chatDao.upsertMessage(ChatMessageEntity.fromDomain(message))
+        chatDao.pruneMessages(message.roomId, maxMessagesPerRoom)
+    }
+
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessage>) {
         chatDao.replaceMessages(
             roomId = roomId,

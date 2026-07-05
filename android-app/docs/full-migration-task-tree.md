@@ -30,6 +30,7 @@
 - [ ] WebSocket client：鉴权、订阅、重连、去重。
 - [x] Room schema：会话、消息、联系人。
 - [x] Room Chat/Contacts DAO、Repository 与 Emulator in-memory 验证。
+- [x] 真实 Chat/Contacts HTTP 数据落 Room 组合仓储。
 - [ ] Room schema：群、配置。
 - [ ] DataStore：偏好、聊天设置。
 - [ ] File cache：附件、头像、表情。
@@ -57,6 +58,7 @@
 进度备注：
 - `RemoteChatRepository` 已接入真实 HTTP 合同，并在 `ANDROID_APP_USE_REMOTE_AUTH=true` 时随真实认证链路启用。
 - 当前 Android UI 会在进入会话列表和聊天详情时触发一次 HTTP 刷新；真正的分页、失败重试、WebSocket 增量同步仍在后续阶段。
+- 真实 API 构建下，Chat/Contacts 远端刷新结果已经写入 Room，UI 订阅 Room Flow；后续 WebSocket 增量同步会写入同一缓存层。
 
 ## ANDROID-04 联系人与好友
 

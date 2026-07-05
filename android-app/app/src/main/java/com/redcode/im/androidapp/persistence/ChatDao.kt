@@ -30,6 +30,9 @@ interface ChatDao {
     suspend fun upsertSummary(summary: ChatSummaryEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertSummaries(summaries: List<ChatSummaryEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertMessage(message: ChatMessageEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -62,6 +65,12 @@ interface ChatDao {
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessageEntity>, keep: Int) {
         upsertMessages(messages)
         pruneMessages(roomId, keep)
+    }
+
+    @Transaction
+    suspend fun replaceSummaries(summaries: List<ChatSummaryEntity>) {
+        clearSummaries()
+        upsertSummaries(summaries)
     }
 
     @Transaction

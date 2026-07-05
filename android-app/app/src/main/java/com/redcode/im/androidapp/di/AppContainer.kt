@@ -21,6 +21,10 @@ import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
 import com.redcode.im.androidapp.data.settings.RemoteSettingsRepository
 import com.redcode.im.androidapp.data.settings.SettingsRepository
 import com.redcode.im.androidapp.network.APIClient
+import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
+import com.redcode.im.androidapp.persistence.CachedRemoteContactsRepository
+import com.redcode.im.androidapp.persistence.RoomChatRepository
+import com.redcode.im.androidapp.persistence.RoomContactsRepository
 
 class AppContainer(
     val environment: RedCodeEnvironment,
@@ -29,6 +33,8 @@ class AppContainer(
     useRemoteChat: Boolean = useRemoteAuth,
     useRemoteContacts: Boolean = useRemoteAuth,
     authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
+    localChatRepository: RoomChatRepository? = null,
+    localContactsRepository: RoomContactsRepository? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -40,7 +46,13 @@ class AppContainer(
             InMemoryAuthRepository()
         },
     val chatRepository: ChatRepository =
-        if (useRemoteChat) {
+        if (useRemoteChat && localChatRepository != null) {
+            CachedRemoteChatRepository(
+                remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+                localRepository = localChatRepository,
+            )
+        } else if (useRemoteChat) {
             RemoteChatRepository(
                 remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
                 session = authRepository.session,
@@ -49,7 +61,13 @@ class AppContainer(
             InMemoryChatRepository()
         },
     val contactsRepository: ContactsRepository =
-        if (useRemoteContacts) {
+        if (useRemoteContacts && localContactsRepository != null) {
+            CachedRemoteContactsRepository(
+                remoteDataSource = HttpFriendRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+                localRepository = localContactsRepository,
+            )
+        } else if (useRemoteContacts) {
             RemoteContactsRepository(
                 remoteDataSource = HttpFriendRemoteDataSource(APIClient(environment)),
                 session = authRepository.session,
