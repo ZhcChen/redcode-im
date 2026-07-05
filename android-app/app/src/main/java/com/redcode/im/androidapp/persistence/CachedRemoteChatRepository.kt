@@ -55,6 +55,10 @@ class CachedRemoteChatRepository(
         localRepository.markRead(roomId)
     }
 
+    override suspend fun clearLocalState() {
+        localRepository.clear()
+    }
+
     private fun requireToken(): String =
         session.value?.tokens?.accessToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("请先登录")

@@ -20,7 +20,8 @@
 - [x] 启动态恢复。
 - [ ] 重置密码。
 - [x] 用户协议/隐私协议勾选与文档拉取。
-- [ ] 登出清理 Token、WS、Room/DataStore/cache/通知态。
+- [x] 登出清理 Token、WS、Room 缓存、Repository 内存态和表单敏感态。
+- [ ] 登出清理文件 cache/通知态。
 
 ## ANDROID-02 网络、WebSocket、本地数据底座
 

@@ -119,6 +119,10 @@ class RoomChatRepository(
         chatDao.clearAll()
     }
 
+    override suspend fun clearLocalState() {
+        clear()
+    }
+
     suspend fun removeRoom(roomId: String) {
         chatDao.deleteRoom(roomId)
     }

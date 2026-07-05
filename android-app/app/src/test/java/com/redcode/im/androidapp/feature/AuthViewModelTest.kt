@@ -29,7 +29,12 @@ class AuthViewModelTest {
     @Test
     fun registerAndLogout_updateUiSession() =
         runTest {
-            val viewModel = AuthViewModel(InMemoryAuthRepository())
+            var cleanupCalls = 0
+            val viewModel =
+                AuthViewModel(
+                    authRepository = InMemoryAuthRepository(),
+                    logoutCleanup = { cleanupCalls += 1 },
+                )
             val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
             advanceUntilIdle()
 
@@ -48,6 +53,30 @@ class AuthViewModelTest {
             viewModel.logout()
             advanceUntilIdle()
             assertNull(viewModel.uiState.value.session)
+            assertEquals("", viewModel.uiState.value.accountName)
+            assertEquals("", viewModel.uiState.value.password)
+            assertEquals(1, cleanupCalls)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun logout_reportsCleanupFailureAfterClearingSession() =
+        runTest {
+            val repository = InMemoryAuthRepository()
+            repository.register("tester", "password1")
+            val viewModel =
+                AuthViewModel(
+                    authRepository = repository,
+                    logoutCleanup = { error("cleanup failed") },
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.logout()
+            advanceUntilIdle()
+
+            assertNull(viewModel.uiState.value.session)
+            assertEquals("cleanup failed", viewModel.uiState.value.errorMessage)
             collectJob.cancel()
         }
 

@@ -56,6 +56,11 @@ class RemoteChatRepository(
         summaryState.value = summaryState.value.map { if (it.roomId == roomId) it.copy(unreadCount = 0) else it }
     }
 
+    override suspend fun clearLocalState() {
+        summaryState.value = emptyList()
+        messageState.value = emptyMap()
+    }
+
     private fun requireToken(): String =
         session.value?.tokens?.accessToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("请先登录")

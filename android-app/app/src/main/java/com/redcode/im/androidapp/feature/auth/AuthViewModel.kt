@@ -42,6 +42,7 @@ data class AuthUiState(
 class AuthViewModel(
     private val authRepository: AuthRepository,
     private val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
+    private val logoutCleanup: suspend () -> Unit = {},
 ) : ViewModel() {
     private val formState = MutableStateFlow(AuthFormState())
 
@@ -119,7 +120,15 @@ class AuthViewModel(
 
     fun logout() {
         viewModelScope.launch {
-            authRepository.logout()
+            val logoutError = runCatching { authRepository.logout() }.exceptionOrNull()
+            val cleanupError = runCatching { logoutCleanup() }.exceptionOrNull()
+            formState.update {
+                it.copy(
+                    accountName = "",
+                    password = "",
+                    errorMessage = (logoutError ?: cleanupError)?.message,
+                )
+            }
         }
     }
 }

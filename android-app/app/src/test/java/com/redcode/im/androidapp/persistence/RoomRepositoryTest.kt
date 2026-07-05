@@ -141,6 +141,10 @@ class RoomRepositoryTest {
             assertEquals("access-token", remote.tokens.distinct().single())
             assertEquals("m2", remote.markedReadMessageId)
             assertEquals(0, repository.chats.first().single().unreadCount)
+
+            repository.clearLocalState()
+            assertEquals(emptyList<ChatSummary>(), repository.chats.first())
+            assertEquals(emptyList<ChatMessage>(), repository.messages("room-1").first())
         }
 
     @Test
@@ -163,6 +167,11 @@ class RoomRepositoryTest {
             assertEquals("Cici", repository.outgoingRequests.value.single().counterpartyDisplayName)
             assertEquals("room-private", roomId)
             assertEquals("access-token", remote.tokens.distinct().single())
+
+            repository.clearLocalState()
+            assertEquals(emptyList<Contact>(), repository.contacts.first())
+            assertEquals(emptyList<Any>(), repository.incomingRequests.value)
+            assertEquals(emptyList<Any>(), repository.outgoingRequests.value)
         }
 
     private fun message(id: String, millis: Long): ChatMessage =

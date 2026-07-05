@@ -66,6 +66,7 @@ fun RedCodeApp(container: AppContainer) {
             AuthViewModel(
                 authRepository = container.authRepository,
                 userPreferenceStore = container.userPreferenceStore,
+                logoutCleanup = container::clearLocalSessionState,
             )
         }
     val settingsViewModel = remember { SettingsViewModel(container.settingsRepository) }

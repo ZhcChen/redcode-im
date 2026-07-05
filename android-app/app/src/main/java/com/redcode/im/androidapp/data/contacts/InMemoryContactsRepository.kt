@@ -8,26 +8,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class InMemoryContactsRepository : ContactsRepository {
+    private val seedContacts =
+        listOf(
+            Contact(userId = "user-alice", accountName = "alice", displayName = "Alice"),
+            Contact(userId = "user-bob", accountName = "bob", displayName = "Bob"),
+        )
+    private val seedIncoming =
+        listOf(
+            FriendRequest(
+                id = "request-mia",
+                status = FriendRequestStatus.Pending,
+                counterpartyUserId = "user-mia",
+                counterpartyDisplayName = "Mia",
+                message = "一起做 Android 联调",
+                isIncoming = true,
+            ),
+        )
     private val state =
-        MutableStateFlow(
-            listOf(
-                Contact(userId = "user-alice", accountName = "alice", displayName = "Alice"),
-                Contact(userId = "user-bob", accountName = "bob", displayName = "Bob"),
-            ),
-        )
+        MutableStateFlow(seedContacts)
     private val incoming =
-        MutableStateFlow(
-            listOf(
-                FriendRequest(
-                    id = "request-mia",
-                    status = FriendRequestStatus.Pending,
-                    counterpartyUserId = "user-mia",
-                    counterpartyDisplayName = "Mia",
-                    message = "一起做 Android 联调",
-                    isIncoming = true,
-                ),
-            ),
-        )
+        MutableStateFlow(seedIncoming)
     private val outgoing = MutableStateFlow<List<FriendRequest>>(emptyList())
 
     override val contacts = state.asStateFlow()
@@ -78,6 +78,12 @@ class InMemoryContactsRepository : ContactsRepository {
 
     override suspend fun ensurePrivateChat(friendUserId: String): String? =
         friendUserId.trim().takeIf { it.isNotBlank() }?.let { "room-private-$it" }
+
+    override suspend fun clearLocalState() {
+        state.value = emptyList()
+        incoming.value = emptyList()
+        outgoing.value = emptyList()
+    }
 
     private fun addAcceptedContact(request: FriendRequest) {
         state.value =

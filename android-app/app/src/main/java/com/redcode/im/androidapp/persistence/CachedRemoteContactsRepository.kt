@@ -77,6 +77,12 @@ class CachedRemoteContactsRepository(
     override suspend fun ensurePrivateChat(friendUserId: String): String =
         remoteDataSource.ensurePrivateChat(friendUserId = friendUserId, token = requireToken()).roomId
 
+    override suspend fun clearLocalState() {
+        incomingState.value = emptyList()
+        outgoingState.value = emptyList()
+        localRepository.clear()
+    }
+
     private fun requireToken(): String =
         session.value?.tokens?.accessToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("请先登录")

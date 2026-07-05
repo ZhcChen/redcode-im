@@ -70,6 +70,7 @@ MainActivity / Compose App Shell
 - `CachedRemoteChatRepository` / `CachedRemoteContactsRepository`：真实 API 构建下优先以 HTTP 刷新远端数据，并将会话、消息、联系人写入 Room；UI 订阅 Room Flow，后续 WebSocket 增量事件会复用同一缓存入口。
 - `RedCodeWebSocketClient`：真实 API 构建下连接后端 `/ws?format=json`，登录后发送 `auth`，会话列表变化后维护 `join` / `leave` 房间订阅，已支持 `ping`、`typing`、断线重连、重复订阅保护和旧连接回调隔离。
 - `RealtimeEventProcessor`：消费 WebSocket JSON 服务端事件，已把 `message`、`message_read`、`message_update`、`room_created`、`room_updated`、`room_history_cleared`、`group_dissolved`、`friend_request_update` 接到 Room/Repository；protobuf 二进制帧在后续切片补齐。
+- `AppContainer.clearLocalSessionState`：登出时断开 WebSocket，并通过 Repository `clearLocalState` 清理 Room Chat/Contacts 缓存和内存态；文件 cache 和通知态清理留到对应能力接入后补齐。
 
 ## 测试策略
 

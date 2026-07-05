@@ -32,4 +32,8 @@ class RoomContactsRepository(
     suspend fun clear() {
         contactDao.clear()
     }
+
+    override suspend fun clearLocalState() {
+        clear()
+    }
 }

@@ -14,36 +14,36 @@ import kotlinx.coroutines.flow.map
 class InMemoryChatRepository(
     private val maxMessagesPerRoom: Int = 200,
 ) : ChatRepository {
-    private val summaries =
-        MutableStateFlow(
-            listOf(
-                ChatSummary(
-                    roomId = "room-general",
-                    title = "RedCode 测试群",
-                    roomType = ChatRoomType.Group,
-                    lastMessagePreview = "原生 Android 迁移基座已就绪",
-                    unreadCount = 1,
-                    updatedAt = Instant.parse("2026-07-04T00:00:00Z"),
-                ),
+    private val seedSummaries =
+        listOf(
+            ChatSummary(
+                roomId = "room-general",
+                title = "RedCode 测试群",
+                roomType = ChatRoomType.Group,
+                lastMessagePreview = "原生 Android 迁移基座已就绪",
+                unreadCount = 1,
+                updatedAt = Instant.parse("2026-07-04T00:00:00Z"),
             ),
         )
-    private val messageState =
-        MutableStateFlow(
-            mapOf(
-                "room-general" to
-                    listOf(
-                        ChatMessage(
-                            id = "seed-1",
-                            roomId = "room-general",
-                            senderId = "system",
-                            senderName = "RedCode",
-                            text = "原生 Android 迁移基座已就绪",
-                            status = MessageStatus.Sent,
-                            createdAt = Instant.parse("2026-07-04T00:00:00Z"),
-                        ),
+    private val seedMessages =
+        mapOf(
+            "room-general" to
+                listOf(
+                    ChatMessage(
+                        id = "seed-1",
+                        roomId = "room-general",
+                        senderId = "system",
+                        senderName = "RedCode",
+                        text = "原生 Android 迁移基座已就绪",
+                        status = MessageStatus.Sent,
+                        createdAt = Instant.parse("2026-07-04T00:00:00Z"),
                     ),
-            ),
+                ),
         )
+    private val summaries =
+        MutableStateFlow(seedSummaries)
+    private val messageState =
+        MutableStateFlow(seedMessages)
 
     override val chats: Flow<List<ChatSummary>> = summaries.asStateFlow()
 
@@ -84,5 +84,10 @@ class InMemoryChatRepository(
             summaries.value.map { summary ->
                 if (summary.roomId == roomId) summary.copy(unreadCount = 0) else summary
             }
+    }
+
+    override suspend fun clearLocalState() {
+        summaries.value = emptyList()
+        messageState.value = emptyMap()
     }
 }

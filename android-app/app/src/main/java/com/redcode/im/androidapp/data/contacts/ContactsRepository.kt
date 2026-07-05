@@ -27,4 +27,6 @@ interface ContactsRepository {
     suspend fun respondFriendRequest(requestId: String, accept: Boolean) = Unit
 
     suspend fun ensurePrivateChat(friendUserId: String): String? = null
+
+    suspend fun clearLocalState() = Unit
 }

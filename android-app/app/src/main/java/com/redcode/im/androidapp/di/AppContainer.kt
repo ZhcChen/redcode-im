@@ -36,8 +36,8 @@ class AppContainer(
     useRemoteChat: Boolean = useRemoteAuth,
     useRemoteContacts: Boolean = useRemoteAuth,
     authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
-    localChatRepository: RoomChatRepository? = null,
-    localContactsRepository: RoomContactsRepository? = null,
+    private val localChatRepository: RoomChatRepository? = null,
+    private val localContactsRepository: RoomContactsRepository? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -104,4 +104,10 @@ class AppContainer(
         } else {
             null
         },
-)
+) {
+    suspend fun clearLocalSessionState() {
+        webSocketClient?.disconnect()
+        chatRepository.clearLocalState()
+        contactsRepository.clearLocalState()
+    }
+}
