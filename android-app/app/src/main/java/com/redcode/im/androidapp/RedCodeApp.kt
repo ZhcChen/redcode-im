@@ -265,8 +265,12 @@ private fun MainShell(
 @Composable
 fun ChatListScreen(viewModel: ChatListViewModel, onOpenChat: (ChatSummary) -> Unit) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     Column(modifier = Modifier.fillMaxSize().testTag("chat-list")) {
         Header(title = "聊天")
+        errorMessage?.let {
+            Text(text = it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
+        }
         chats.forEach { chat ->
             TextButton(
                 onClick = { onOpenChat(chat) },
@@ -277,9 +281,19 @@ fun ChatListScreen(viewModel: ChatListViewModel, onOpenChat: (ChatSummary) -> Un
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(chat.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.width(8.dp))
+                        if (chat.isPinned) Text("置顶", color = MaterialTheme.colorScheme.primary)
+                        if (chat.isMuted) Text(" 免打扰", color = MaterialTheme.colorScheme.secondary)
                         if (chat.unreadCount > 0) Text("未读 ${chat.unreadCount}", color = MaterialTheme.colorScheme.primary)
                     }
                     Text(chat.lastMessagePreview, style = MaterialTheme.typography.bodyMedium)
+                    Row {
+                        TextButton(onClick = { viewModel.togglePinned(chat) }) {
+                            Text(if (chat.isPinned) "取消置顶" else "置顶")
+                        }
+                        TextButton(onClick = { viewModel.toggleMuted(chat) }) {
+                            Text(if (chat.isMuted) "取消免打扰" else "免打扰")
+                        }
+                    }
                 }
             }
             HorizontalDivider()

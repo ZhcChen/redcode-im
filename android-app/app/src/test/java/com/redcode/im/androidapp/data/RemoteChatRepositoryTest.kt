@@ -35,6 +35,16 @@ class RemoteChatRepositoryTest {
     @Test
     fun chatEndpoint_buildsMessageActionPaths() {
         assertEquals(
+            "http://10.0.2.2:8010/rooms/room-1/pin",
+            ChatAPIEndpoint.pinRoom("room-1", pinned = true).url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(HTTPMethod.POST, ChatAPIEndpoint.pinRoom("room-1", pinned = true).method)
+        assertEquals(HTTPMethod.DELETE, ChatAPIEndpoint.pinRoom("room-1", pinned = false).method)
+        assertEquals(
+            "http://10.0.2.2:8010/rooms/room-1/notification-settings",
+            ChatAPIEndpoint.updateNotificationSettings("room-1").url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(
             "http://10.0.2.2:8010/rooms/room-1/messages/m-1",
             ChatAPIEndpoint.deleteMessage("room-1", "m-1").url(RedCodeEnvironment.localEmulator()),
         )
@@ -301,6 +311,56 @@ class RemoteChatRepositoryTest {
             assertEquals(0, repository.chats.first().single().unreadCount)
             assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/read", transport.requests.last().url)
             assertEquals("""{"message_id":"m-1"}""", transport.requests.last().body)
+        }
+
+    @Test
+    fun chatSummaryActions_callBackendAndUpdateLocalSummaryOrdering() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "room_id":"room-a",
+                            "name":"A",
+                            "room_type":"group",
+                            "unread_count":0,
+                            "is_pinned":false,
+                            "is_muted":false,
+                            "last_message":{"id":"m-a","content":"a","created_at":"2026-07-05T00:00:01Z"}
+                          },
+                          {
+                            "room_id":"room-b",
+                            "name":"B",
+                            "room_type":"group",
+                            "unread_count":0,
+                            "is_pinned":false,
+                            "is_muted":false,
+                            "last_message":{"id":"m-b","content":"b","created_at":"2026-07-05T00:00:02Z"}
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, """{"success":true,"is_pinned":true}"""),
+                    HttpResponse(200, """{"notification_settings":2}"""),
+                )
+            val repository = repository(transport)
+
+            repository.refreshChats()
+            repository.setChatPinned("room-a", pinned = true)
+            repository.setChatMuted("room-a", muted = true)
+
+            val summaries = repository.chats.first()
+            assertEquals(listOf("room-a", "room-b"), summaries.map { it.roomId })
+            assertEquals(true, summaries.first().isPinned)
+            assertEquals(true, summaries.first().isMuted)
+            assertEquals(HTTPMethod.POST, transport.requests[1].method)
+            assertEquals("http://10.0.2.2:8010/rooms/room-a/pin", transport.requests[1].url)
+            assertEquals(HTTPMethod.POST, transport.requests[2].method)
+            assertEquals("http://10.0.2.2:8010/rooms/room-a/notification-settings", transport.requests[2].url)
+            assertEquals("""{"notification_settings":2}""", transport.requests[2].body)
         }
 
     @Test

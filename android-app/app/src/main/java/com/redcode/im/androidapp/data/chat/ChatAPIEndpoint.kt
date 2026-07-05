@@ -25,6 +25,12 @@ object ChatAPIEndpoint {
     fun markMessagesRead(roomId: String): APIEndpoint =
         APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages/read")
 
+    fun pinRoom(roomId: String, pinned: Boolean): APIEndpoint =
+        APIEndpoint(if (pinned) HTTPMethod.POST else HTTPMethod.DELETE, "/rooms/$roomId/pin")
+
+    fun updateNotificationSettings(roomId: String): APIEndpoint =
+        APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/notification-settings")
+
     fun deleteMessage(roomId: String, messageId: String): APIEndpoint =
         APIEndpoint(HTTPMethod.DELETE, "/rooms/$roomId/messages/$messageId")
 

@@ -104,6 +104,16 @@ class RemoteChatRepository(
         summaryState.value = summaryState.value.map { if (it.roomId == roomId) it.copy(unreadCount = 0) else it }
     }
 
+    override suspend fun setChatPinned(roomId: String, pinned: Boolean) {
+        remoteDataSource.pinRoom(roomId = roomId, pinned = pinned, token = requireToken())
+        updateSummary(roomId) { it.copy(isPinned = pinned) }
+    }
+
+    override suspend fun setChatMuted(roomId: String, muted: Boolean) {
+        remoteDataSource.updateNotificationSettings(roomId = roomId, notificationSettings = if (muted) 2 else 0, token = requireToken())
+        updateSummary(roomId) { it.copy(isMuted = muted) }
+    }
+
     override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage {
         val deleted =
             remoteDataSource
@@ -188,6 +198,13 @@ class RemoteChatRepository(
         messageState.value =
             messageState.value +
             (roomId to messageState.value[roomId].orEmpty().map { if (it.id == messageId) transform(it) else it })
+    }
+
+    private fun updateSummary(roomId: String, transform: (ChatSummary) -> ChatSummary) {
+        summaryState.value =
+            summaryState.value
+                .map { if (it.roomId == roomId) transform(it) else it }
+                .sortedWith(compareByDescending<ChatSummary> { it.isPinned }.thenByDescending { it.updatedAt })
     }
 
     private fun requireToken(): String =

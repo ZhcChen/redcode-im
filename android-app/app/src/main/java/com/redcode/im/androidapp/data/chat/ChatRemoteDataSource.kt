@@ -11,6 +11,10 @@ interface ChatRemoteDataSource {
 
     suspend fun markMessagesRead(roomId: String, messageId: String, token: String)
 
+    suspend fun pinRoom(roomId: String, pinned: Boolean, token: String)
+
+    suspend fun updateNotificationSettings(roomId: String, notificationSettings: Int, token: String)
+
     suspend fun deleteMessage(roomId: String, messageId: String, token: String): BackendChatMessage
 
     suspend fun pinMessage(roomId: String, messageId: String, pinned: Boolean, token: String): BackendChatMessage?

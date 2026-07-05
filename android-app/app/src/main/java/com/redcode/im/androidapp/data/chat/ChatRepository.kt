@@ -28,6 +28,10 @@ interface ChatRepository {
 
     suspend fun markRead(roomId: String)
 
+    suspend fun setChatPinned(roomId: String, pinned: Boolean) = Unit
+
+    suspend fun setChatMuted(roomId: String, muted: Boolean) = Unit
+
     suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage? = null
 
     suspend fun setMessagePinned(roomId: String, messageId: String, pinned: Boolean): ChatMessage? = null

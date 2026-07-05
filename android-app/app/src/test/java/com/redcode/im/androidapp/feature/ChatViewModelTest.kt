@@ -33,6 +33,25 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun chatList_togglePinnedAndMutedUpdatesConversation() =
+        runTest {
+            val viewModel = ChatListViewModel(InMemoryChatRepository())
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.chats.collect() }
+            advanceUntilIdle()
+
+            viewModel.togglePinned(viewModel.chats.value.single())
+            advanceUntilIdle()
+            viewModel.toggleMuted(viewModel.chats.value.single())
+            advanceUntilIdle()
+
+            val chat = viewModel.chats.value.single()
+            assertEquals(true, chat.isPinned)
+            assertEquals(true, chat.isMuted)
+            assertEquals(null, viewModel.errorMessage.value)
+            collectJob.cancel()
+        }
+
+    @Test
     fun chatDetail_sendsDraftAndClearsInput() =
         runTest {
             val repository = InMemoryChatRepository()

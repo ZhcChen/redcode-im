@@ -71,6 +71,11 @@ class RoomChatRepository(
         chatDao.replaceSummaries(summaries.map(ChatSummaryEntity::fromDomain))
     }
 
+    suspend fun updateSummary(roomId: String, transform: (ChatSummary) -> ChatSummary) {
+        val current = chatDao.findSummary(roomId)?.toDomain() ?: return
+        chatDao.upsertSummary(ChatSummaryEntity.fromDomain(transform(current)))
+    }
+
     suspend fun upsertMessage(message: ChatMessage) {
         upsertMessageEntity(preserveCachedReactions(message))
     }
@@ -239,6 +244,14 @@ class RoomChatRepository(
 
     override suspend fun clearLocalState() {
         clear()
+    }
+
+    override suspend fun setChatPinned(roomId: String, pinned: Boolean) {
+        updateSummary(roomId) { it.copy(isPinned = pinned) }
+    }
+
+    override suspend fun setChatMuted(roomId: String, muted: Boolean) {
+        updateSummary(roomId) { it.copy(isMuted = muted) }
     }
 
     override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage? {

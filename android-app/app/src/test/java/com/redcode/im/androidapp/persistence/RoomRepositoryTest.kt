@@ -104,6 +104,38 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun roomChatRepository_updatesPinnedMutedSummaryState() =
+        runTest {
+            val repository = RoomChatRepository(FakeChatDao())
+            repository.replaceSummaries(
+                listOf(
+                    ChatSummary(
+                        roomId = "room-a",
+                        title = "A",
+                        roomType = ChatRoomType.Group,
+                        lastMessagePreview = "a",
+                        updatedAt = Instant.ofEpochMilli(1),
+                    ),
+                    ChatSummary(
+                        roomId = "room-b",
+                        title = "B",
+                        roomType = ChatRoomType.Group,
+                        lastMessagePreview = "b",
+                        updatedAt = Instant.ofEpochMilli(2),
+                    ),
+                ),
+            )
+
+            repository.setChatPinned("room-a", pinned = true)
+            repository.setChatMuted("room-a", muted = true)
+
+            val summaries = repository.chats.first()
+            assertEquals(listOf("room-a", "room-b"), summaries.map { it.roomId })
+            assertEquals(true, summaries.first().isPinned)
+            assertEquals(true, summaries.first().isMuted)
+        }
+
+    @Test
     fun roomContactsRepository_searchesUpsertsRemovesAndClears() =
         runTest {
             val repository = RoomContactsRepository(FakeContactDao())
@@ -205,6 +237,25 @@ class RoomRepositoryTest {
 
             repository.deleteMessage("room-1", "m1")
             assertEquals(true, repository.messages("room-1").first().single().isDeleted)
+        }
+
+    @Test
+    fun cachedRemoteChatRepository_persistsChatSummaryActions() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val repository = CachedRemoteChatRepository(remote, MutableStateFlow(session()), local)
+
+            repository.refreshChats()
+            repository.setChatPinned("room-1", pinned = true)
+            repository.setChatMuted("room-1", muted = true)
+
+            val summary = repository.chats.first().single()
+            assertEquals(true, summary.isPinned)
+            assertEquals(true, summary.isMuted)
+            assertEquals(true, remote.roomPinned)
+            assertEquals(2, remote.lastNotificationSettings)
+            assertEquals("access-token", remote.tokens.distinct().single())
         }
 
     @Test
@@ -426,6 +477,8 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     val tokens = mutableListOf<String>()
     var markedReadMessageId = ""
     var failNextSend = false
+    var roomPinned: Boolean? = null
+    var lastNotificationSettings: Int? = null
     var pinned: Boolean? = null
     var lastReactionKey = ""
     var lastQuotedMessageId: String? = null
@@ -499,6 +552,16 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {
         tokens += token
         markedReadMessageId = messageId
+    }
+
+    override suspend fun pinRoom(roomId: String, pinned: Boolean, token: String) {
+        tokens += token
+        roomPinned = pinned
+    }
+
+    override suspend fun updateNotificationSettings(roomId: String, notificationSettings: Int, token: String) {
+        tokens += token
+        lastNotificationSettings = notificationSettings
     }
 
     override suspend fun deleteMessage(roomId: String, messageId: String, token: String): BackendChatMessage {

@@ -98,6 +98,14 @@ class InMemoryChatRepository(
             }
     }
 
+    override suspend fun setChatPinned(roomId: String, pinned: Boolean) {
+        updateSummary(roomId) { it.copy(isPinned = pinned) }
+    }
+
+    override suspend fun setChatMuted(roomId: String, muted: Boolean) {
+        updateSummary(roomId) { it.copy(isMuted = muted) }
+    }
+
     override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage? {
         var updated: ChatMessage? = null
         messageState.value =
@@ -182,4 +190,11 @@ class InMemoryChatRepository(
             createdAt = createdAt,
             isDeleted = isDeleted,
         )
+
+    private fun updateSummary(roomId: String, transform: (ChatSummary) -> ChatSummary) {
+        summaries.value =
+            summaries.value
+                .map { if (it.roomId == roomId) transform(it) else it }
+                .sortedWith(compareByDescending<ChatSummary> { it.isPinned }.thenByDescending { it.updatedAt })
+    }
 }

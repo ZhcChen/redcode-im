@@ -39,6 +39,18 @@ class HttpChatRemoteDataSource(
         )
     }
 
+    override suspend fun pinRoom(roomId: String, pinned: Boolean, token: String) {
+        apiClient.send<JsonObject>(ChatAPIEndpoint.pinRoom(roomId, pinned), bearerToken = token)
+    }
+
+    override suspend fun updateNotificationSettings(roomId: String, notificationSettings: Int, token: String) {
+        apiClient.post<UpdateNotificationSettingsRequest, JsonObject>(
+            ChatAPIEndpoint.updateNotificationSettings(roomId),
+            UpdateNotificationSettingsRequest(notificationSettings),
+            bearerToken = token,
+        )
+    }
+
     override suspend fun deleteMessage(roomId: String, messageId: String, token: String): BackendChatMessage =
         apiClient.send(ChatAPIEndpoint.deleteMessage(roomId, messageId), bearerToken = token)
 

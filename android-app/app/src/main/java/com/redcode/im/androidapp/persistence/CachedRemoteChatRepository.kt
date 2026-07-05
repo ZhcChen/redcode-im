@@ -92,6 +92,16 @@ class CachedRemoteChatRepository(
         localRepository.markRead(roomId)
     }
 
+    override suspend fun setChatPinned(roomId: String, pinned: Boolean) {
+        remoteDataSource.pinRoom(roomId = roomId, pinned = pinned, token = requireToken())
+        localRepository.updateSummary(roomId) { it.copy(isPinned = pinned) }
+    }
+
+    override suspend fun setChatMuted(roomId: String, muted: Boolean) {
+        remoteDataSource.updateNotificationSettings(roomId = roomId, notificationSettings = if (muted) 2 else 0, token = requireToken())
+        localRepository.updateSummary(roomId) { it.copy(isMuted = muted) }
+    }
+
     override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage {
         val deleted =
             remoteDataSource

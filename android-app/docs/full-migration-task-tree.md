@@ -56,7 +56,7 @@
 - [x] pending/failed/resend 基线。
 - [x] 消息删除、消息置顶、reaction 基线。
 - [x] 引用消息发送和渲染基线。
-- [ ] 未读数、置顶、免打扰。
+- [x] 未读数、会话置顶、免打扰基线。
 - [ ] 本地搜索索引。
 - [ ] H5/API/Android 聊天互通 smoke。
 
@@ -69,6 +69,7 @@
 - 历史消息已支持使用当前首条消息作为 `before_id` 加载更早消息，并合并写入本地消息流。
 - 消息删除、消息置顶和 `👍` reaction 已接入真实 HTTP 合同、Room v2 缓存、ViewModel/UI 操作入口，并处理 `pin_update` / `reaction_update` WebSocket 增量事件。
 - 引用消息已接入 `quoted_message_id` 发送、`quoted_message` 解析、Room v3 缓存和聊天详情引用预览。
+- 会话置顶和免打扰已接入 `/rooms/{room_id}/pin`、`/rooms/{room_id}/notification-settings`，并在 Room 会话摘要、列表排序和 Compose 操作入口中生效；未读数已有摘要显示和进入会话已读清零基线，后续联调阶段再补独立未读拉取/多端校验。
 
 ## ANDROID-04 联系人与好友
 

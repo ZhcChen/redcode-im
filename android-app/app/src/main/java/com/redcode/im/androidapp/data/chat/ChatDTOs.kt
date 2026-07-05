@@ -157,6 +157,12 @@ data class MarkMessageReadRequest(
 )
 
 @Serializable
+data class UpdateNotificationSettingsRequest(
+    @SerialName("notification_settings")
+    val notificationSettings: Int,
+)
+
+@Serializable
 data class AddReactionRequest(
     @SerialName("reaction_key")
     val reactionKey: String,
