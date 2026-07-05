@@ -81,7 +81,8 @@ class AndroidChatLiveSmokeTest {
     }
 
     private fun liveSmokeEnabled(): Boolean =
-        System.getenv("RED_CODE_ANDROID_LIVE_CHAT_SMOKE") == "1"
+        System.getenv("RED_CODE_ANDROID_LIVE_SMOKE") == "1" ||
+            System.getenv("RED_CODE_ANDROID_LIVE_CHAT_SMOKE") == "1"
 
     private fun liveEnvironment(): RedCodeEnvironment =
         RedCodeEnvironment(

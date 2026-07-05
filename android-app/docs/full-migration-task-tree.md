@@ -81,11 +81,11 @@
 - [x] 好友申请、接受、拒绝。
 - [x] 联系人详情。
 - [x] 打开私聊。
-- [ ] H5/API/Android 好友互通 smoke。
+- [x] H5/API/Android 好友互通 smoke。
 
 进度备注：
 - `RemoteContactsRepository` 已接入 `/users/search`、`/friends`、`/friends/requests`、`/friends/requests/{id}/respond`、`/friends/{id}/chat`。
-- Android 联系人 UI 已补齐搜索添加、好友申请列表、同意/拒绝、已发送申请、联系人详情弹窗和私聊入口；互通 smoke 待后续联调阶段补齐。
+- Android 联系人 UI 已补齐搜索添加、好友申请列表、同意/拒绝、已发送申请、联系人详情弹窗和私聊入口；已通过 `make android-app.test.interop` 覆盖 H5 live smoke 与 Android 数据层好友搜索、好友申请、接受、联系人刷新、打开私聊和私聊消息可见。
 
 ## ANDROID-05 群聊和群管理
 

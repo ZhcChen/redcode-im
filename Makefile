@@ -851,15 +851,15 @@ android-app.test.unit: ## 运行 android-app JVM 单元测试
 	@$(call require_cmd,$(ANDROID_GRADLE))
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest
 
-android-app.test.live: ## 执行 android-app 真实后端聊天 smoke（需 api dev 就绪）
+android-app.test.live: ## 执行 android-app 真实后端聊天/好友 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(ANDROID_GRADLE))
 	@ANDROID_HOME="$(ANDROID_HOME)" \
-		RED_CODE_ANDROID_LIVE_CHAT_SMOKE=1 \
+		RED_CODE_ANDROID_LIVE_SMOKE=1 \
 		ANDROID_APP_LIVE_API_BASE_URL="$(ANDROID_APP_LIVE_API_BASE_URL)" \
 		ANDROID_APP_LIVE_WS_URL="$(ANDROID_APP_LIVE_WS_URL)" \
-		"$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks --tests com.redcode.im.androidapp.live.AndroidChatLiveSmokeTest
+		"$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks --tests 'com.redcode.im.androidapp.live.*'
 
-android-app.test.interop: h5-app.test.live android-app.test.live ## 执行 H5/API/Android 聊天互通 smoke（需 api dev 就绪）
+android-app.test.interop: h5-app.test.live android-app.test.live ## 执行 H5/API/Android 聊天/好友互通 smoke（需 api dev 就绪）
 
 android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
 	@$(call require_cmd,$(ANDROID_GRADLE))
