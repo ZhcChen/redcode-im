@@ -28,3 +28,9 @@ node_modules/
 
 # Coverage reports
 api/coverage/
+
+# Browser test artifacts
+playwright-report/
+test-results/
+h5-app/playwright-report/
+h5-app/test-results/

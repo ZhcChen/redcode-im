@@ -10,7 +10,8 @@
     "preview": "vite preview --host 0.0.0.0 --port 8016",
     "test": "VITE_USE_MOCK_DATA=true vitest run",
     "test:watch": "VITE_USE_MOCK_DATA=true vitest",
-    "test:live": "H5_APP_LIVE_BACKEND_ENABLED=true vitest run test/live-backend-smoke.test.ts test/live-service-smoke.test.ts test/ios-h5-chat-interop-smoke.test.ts"
+    "test:live": "H5_APP_LIVE_BACKEND_ENABLED=true vitest run test/live-backend-smoke.test.ts test/live-service-smoke.test.ts test/ios-h5-chat-interop-smoke.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "pinia": "^3.0.4",
@@ -19,6 +20,7 @@
     "wa-sqlite": "^1.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.0",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.6",

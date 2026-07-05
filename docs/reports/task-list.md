@@ -122,7 +122,7 @@ make android-app.test.interop
   - 完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 中的文档和 live smoke 入口收口；浏览器 E2E、搜索跳转和头像上传继续作为独立 H5 P1 子项执行。
   - 明确 H5 是 backend + frontend 联调优先入口。
   - 保持 `make h5-app.test.live` 可覆盖 auth、chat、contacts、settings、富媒体。
-- [ ] 浏览器 E2E / smoke 扩展
+- [x] 浏览器 E2E / smoke 扩展
   - 注册登录后进入聊天 tab。
   - 创建或进入房间，发送消息。
   - 刷新页面后从本地缓存恢复。

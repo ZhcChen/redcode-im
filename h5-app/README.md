@@ -47,6 +47,14 @@ make api.wait
 make h5-app.test.live
 ```
 
+浏览器 E2E smoke：
+
+```bash
+make api.up
+make api.wait
+make h5-app.test.e2e
+```
+
 `make h5-app.test.live` 当前覆盖：
 
 - 普通账号密码注册、登录和 `/auth/me`
@@ -62,7 +70,15 @@ make h5-app.test.unit
 make api.up
 make api.wait
 make h5-app.test.live
+make h5-app.test.e2e
 ```
+
+`make h5-app.test.e2e` 使用 Playwright + Chrome channel，启动或复用 `http://127.0.0.1:8016`，覆盖：
+
+- UI 普通账号注册后进入聊天 tab
+- 创建/进入群聊、发送消息、刷新页面后恢复消息
+- 群设置页置顶关键路径
+- 搜索用户、发送好友申请、接受后联系人状态可见
 
 ## 当前范围
 
@@ -101,7 +117,6 @@ make h5-app.test.live
 
 后续继续补齐：
 
-- 浏览器 E2E / smoke：注册登录、聊天发送、刷新缓存恢复、好友申请闭环、群设置关键路径
 - 本地消息搜索页面：关键词、room 过滤、结果跳转
 - 头像上传浏览器能力：用户头像、群头像、失败回退和缓存刷新
 - 浏览器存储增强：wa-sqlite OPFS worker、IndexedDB fallback、FTS5 能力探测、Cache API 配额清理

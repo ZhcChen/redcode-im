@@ -128,7 +128,7 @@ endef
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -729,6 +729,10 @@ h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 h5-app.test.live: ## 执行 h5-app 真实后端普通账号注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
+
+h5-app.test.e2e: ## 执行 h5-app 浏览器 E2E smoke（需 api dev 就绪；默认 Chrome channel）
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:e2e
 
 ios-app.describe: ## 查看 ios-app SwiftPM package 描述
 	@$(call require_cmd,$(SWIFT))
