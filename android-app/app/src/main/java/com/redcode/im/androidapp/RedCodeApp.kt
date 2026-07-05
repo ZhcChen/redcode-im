@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +85,7 @@ fun RedCodeApp(container: AppContainer) {
                 settingsViewModel = settingsViewModel,
                 currentUserId = authState.session!!.user.id,
                 currentUserName = authState.session!!.user.displayName,
+                accessToken = authState.session!!.tokens.accessToken,
             )
         }
         if (documentState.kind != null) {
@@ -176,11 +178,25 @@ private fun MainShell(
     settingsViewModel: SettingsViewModel,
     currentUserId: String,
     currentUserName: String,
+    accessToken: String,
 ) {
     var selectedTab by remember { mutableStateOf(MainTab.Chats) }
     var selectedChat by remember { mutableStateOf<ChatSummary?>(null) }
     val chatListViewModel = remember { ChatListViewModel(container.chatRepository) }
     val contactsViewModel = remember { ContactsViewModel(container.contactsRepository) }
+    val realtimeChats by chatListViewModel.chats.collectAsStateWithLifecycle()
+
+    LaunchedEffect(accessToken) {
+        container.webSocketClient?.connect(accessToken)
+    }
+    LaunchedEffect(realtimeChats) {
+        container.webSocketClient?.ensureRoomsSubscribed(realtimeChats.map { it.roomId }, pruneMissing = true)
+    }
+    DisposableEffect(container.webSocketClient) {
+        onDispose {
+            container.webSocketClient?.disconnect()
+        }
+    }
 
     Scaffold(
         bottomBar = {

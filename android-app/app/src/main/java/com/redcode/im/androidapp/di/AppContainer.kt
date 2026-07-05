@@ -25,6 +25,7 @@ import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteContactsRepository
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
+import com.redcode.im.androidapp.realtime.RedCodeWebSocketClient
 
 class AppContainer(
     val environment: RedCodeEnvironment,
@@ -80,5 +81,11 @@ class AppContainer(
             RemoteSettingsRepository(APIClient(environment))
         } else {
             InMemorySettingsRepository()
+        },
+    val webSocketClient: RedCodeWebSocketClient? =
+        if (useRemoteChat) {
+            RedCodeWebSocketClient(environment)
+        } else {
+            null
         },
 )

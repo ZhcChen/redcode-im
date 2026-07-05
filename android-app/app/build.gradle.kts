@@ -73,6 +73,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
@@ -130,6 +131,8 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             "**/network/APIClient*.*",
             "**/JavaNetHttpTransport*.*",
             "**/HttpTransport*.*",
+            "**/realtime/OkHttpWebSocketConnector*.*",
+            "**/realtime/WebSocketTransport*.*",
             "**/*Dao*.*",
             "**/*_Impl*.*",
             "**/RedCodeDatabase*.*",
