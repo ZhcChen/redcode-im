@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.data
 
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePart
@@ -320,6 +321,83 @@ class RemoteChatRepositoryTest {
             assertEquals(
                 """{"parts":[{"type":"file","key":"messages/room-1/files_20260705/a.pdf","name":"a.pdf","mime":"application/pdf","size":128}]}""",
                 transport.requests[0].body,
+            )
+        }
+
+    @Test
+    fun uploadAndSendAttachment_signsUploadsCommitsAndSendsRichMessage() =
+        runTest {
+            val bytes = "image-bytes".encodeToByteArray()
+            val key = "messages/room-1/images_20260705/a.png"
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "success":true,
+                          "message":"ok",
+                          "key":"$key",
+                          "signature":{
+                            "url":"http://127.0.0.1:19080/mock-bucket/$key",
+                            "method":"PUT",
+                            "headers":{"X-Mock":"1"}
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "uploaded"),
+                    HttpResponse(200, """{"success":true,"message":"committed"}"""),
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-img",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "sender_nickname":"Me",
+                            "content":"[图片]",
+                            "status":"sent",
+                            "created_at":"2026-07-05T00:00:02Z",
+                            "parts":[
+                              {"position":0,"part_type":"image","attachment":{"key":"$key","name":"a.png","mime":"image/png","size":11}}
+                            ]
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport)
+
+            val sent =
+                repository.uploadAndSendAttachment(
+                    roomId = "room-1",
+                    senderId = "user-me",
+                    senderName = "Me",
+                    file =
+                        AttachmentUploadPayload(
+                            bytes = bytes,
+                            fileName = "a.png",
+                            mime = "image/png",
+                            size = bytes.size.toLong(),
+                        ),
+                    type = MessagePartType.Image,
+                    text = null,
+                )
+
+            assertEquals("m-img", sent.id)
+            assertEquals("""{"part_type":"image","filename":"a.png","content_type":"image/png","file_size":11}""", transport.requests[0].body)
+            assertEquals(HTTPMethod.PUT, transport.requests[1].method)
+            assertEquals("http://127.0.0.1:19080/mock-bucket/$key", transport.requests[1].url)
+            assertEquals("1", transport.requests[1].headers["X-Mock"])
+            assertEquals("image/png", transport.requests[1].headers["Content-Type"])
+            assertEquals(bytes.toList(), transport.requests[1].bodyBytes?.toList())
+            assertEquals("""{"key":"$key","file_size":11}""", transport.requests[2].body)
+            assertEquals(
+                """{"parts":[{"type":"image","key":"$key","name":"a.png","mime":"image/png","size":11}]}""",
+                transport.requests[3].body,
             )
         }
 

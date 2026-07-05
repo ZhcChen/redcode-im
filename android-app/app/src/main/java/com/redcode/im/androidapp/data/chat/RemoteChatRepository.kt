@@ -1,8 +1,10 @@
 package com.redcode.im.androidapp.data.chat
 
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
@@ -150,6 +152,50 @@ class RemoteChatRepository(
             expiresInSeconds = expiresInSeconds,
         )
 
+    override suspend fun uploadAndSendAttachment(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        file: AttachmentUploadPayload,
+        type: MessagePartType,
+        text: String?,
+        quotedMessageId: String?,
+    ): ChatMessage {
+        val token = requireToken()
+        val descriptor =
+            remoteDataSource.requestAttachmentSignature(
+                roomId = roomId,
+                partType = type.toWireName(),
+                filename = file.fileName,
+                contentType = file.mime,
+                fileSize = file.size,
+                token = token,
+            )
+        if (!descriptor.success) {
+            error(descriptor.message.ifBlank { "获取上传签名失败" })
+        }
+        val key =
+            descriptor.key
+                ?.takeIf { it.isNotBlank() }
+                ?: descriptor.signature?.key?.takeIf { it.isNotBlank() }
+                ?: error("上传签名响应缺少 key")
+        descriptor.signature?.let { signature ->
+            remoteDataSource.uploadAttachmentBytes(signature = signature, bytes = file.bytes, contentType = file.mime)
+        }
+        val commit = remoteDataSource.commitAttachmentUpload(roomId = roomId, key = key, fileSize = file.size, token = token)
+        if (!commit.success) {
+            error(commit.message.ifBlank { "附件上传提交失败" })
+        }
+        return sendAttachmentReference(
+            roomId = roomId,
+            senderId = senderId,
+            senderName = senderName,
+            text = text,
+            parts = listOf(file.toMessagePart(type = type, key = key)),
+            quotedMessageId = quotedMessageId,
+        )
+    }
+
     override suspend fun resendMessage(messageId: String): ChatMessage? {
         val failed =
             messageState.value.values
@@ -280,6 +326,23 @@ class RemoteChatRepository(
         }
         return segments.joinToString(" ").ifBlank { "[消息]" }
     }
+
+    private fun AttachmentUploadPayload.toMessagePart(type: MessagePartType, key: String): MessagePart =
+        MessagePart(
+            position = 0,
+            type = type,
+            attachment =
+                MessageAttachment(
+                    key = key,
+                    name = fileName,
+                    mime = mime,
+                    size = size,
+                    width = width,
+                    height = height,
+                    durationMs = durationMs,
+                    thumbnailKey = thumbnailKey,
+                ),
+        )
 
     private fun upsertLocalMessage(message: ChatMessage) {
         val nextMessages =

@@ -2,7 +2,10 @@ package com.redcode.im.androidapp.data.chat
 
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
+import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import kotlinx.coroutines.flow.Flow
 
@@ -36,6 +39,41 @@ interface ChatRepository {
         quotedMessageId: String? = null,
     ): ChatMessage =
         sendText(roomId = roomId, senderId = senderId, senderName = senderName, text = text.orEmpty(), quotedMessageId = quotedMessageId)
+
+    suspend fun uploadAndSendAttachment(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        file: AttachmentUploadPayload,
+        type: MessagePartType,
+        text: String? = null,
+        quotedMessageId: String? = null,
+    ): ChatMessage =
+        sendAttachmentReference(
+            roomId = roomId,
+            senderId = senderId,
+            senderName = senderName,
+            text = text,
+            parts =
+                listOf(
+                    MessagePart(
+                        position = 0,
+                        type = type,
+                        attachment =
+                            MessageAttachment(
+                                key = "local/${file.fileName}",
+                                name = file.fileName,
+                                mime = file.mime,
+                                size = file.size,
+                                width = file.width,
+                                height = file.height,
+                                durationMs = file.durationMs,
+                                thumbnailKey = file.thumbnailKey,
+                            ),
+                    ),
+                ),
+            quotedMessageId = quotedMessageId,
+        )
 
     suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, expiresInSeconds: Int = 600): String? = null
 

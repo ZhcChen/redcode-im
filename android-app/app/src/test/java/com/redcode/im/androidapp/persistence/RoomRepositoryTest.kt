@@ -17,6 +17,7 @@ import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.data.chat.BackendChatMessagePreview
 import com.redcode.im.androidapp.data.chat.BackendChatSummary
 import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
+import com.redcode.im.androidapp.data.chat.DirectUploadSignature
 import com.redcode.im.androidapp.data.chat.MessageAttachmentCommitResponse
 import com.redcode.im.androidapp.data.chat.MessageAttachmentSignatureResponse
 import com.redcode.im.androidapp.data.contacts.BackendFriendInfo
@@ -593,6 +594,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     var lastQuotedMessageId: String? = null
     var lastRichContent: String? = null
     var lastRichParts: List<MessagePart> = emptyList()
+    var uploadedBytes: ByteArray? = null
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -709,6 +711,10 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     ): MessageAttachmentCommitResponse {
         tokens += token
         return MessageAttachmentCommitResponse(success = true)
+    }
+
+    override suspend fun uploadAttachmentBytes(signature: DirectUploadSignature, bytes: ByteArray, contentType: String?) {
+        uploadedBytes = bytes
     }
 
     override suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int): String? {

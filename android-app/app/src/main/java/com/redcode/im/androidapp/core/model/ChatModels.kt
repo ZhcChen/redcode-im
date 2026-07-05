@@ -76,6 +76,17 @@ data class MessageAttachment(
         name?.takeIf { it.isNotBlank() } ?: key.substringAfterLast('/').ifBlank { "附件" }
 }
 
+class AttachmentUploadPayload(
+    val bytes: ByteArray,
+    val fileName: String,
+    val mime: String? = null,
+    val size: Long = bytes.size.toLong(),
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationMs: Int? = null,
+    val thumbnailKey: String? = null,
+)
+
 data class MessagePart(
     val position: Int,
     val type: MessagePartType,

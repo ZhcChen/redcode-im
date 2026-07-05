@@ -4,6 +4,7 @@ import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.network.APIClient
+import com.redcode.im.androidapp.network.HTTPMethod
 import kotlinx.serialization.json.JsonObject
 
 class HttpChatRemoteDataSource(
@@ -83,6 +84,16 @@ class HttpChatRemoteDataSource(
             bearerToken = token,
         )
 
+    override suspend fun uploadAttachmentBytes(signature: DirectUploadSignature, bytes: ByteArray, contentType: String?) {
+        apiClient.uploadBytes(
+            url = signature.url,
+            method = signature.method.toHttpMethod(),
+            headers = signature.headers,
+            bytes = bytes,
+            contentType = contentType,
+        )
+    }
+
     override suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int): String? =
         apiClient
             .get<MessageAttachmentDownloadResponse>(
@@ -151,4 +162,12 @@ class HttpChatRemoteDataSource(
             thumbnailKey = attachment?.thumbnailKey?.takeIf { type == MessagePartType.Image || type == MessagePartType.Video },
         )
     }
+
+    private fun String.toHttpMethod(): HTTPMethod =
+        when (uppercase()) {
+            "POST" -> HTTPMethod.POST
+            "PATCH" -> HTTPMethod.PATCH
+            "DELETE" -> HTTPMethod.DELETE
+            else -> HTTPMethod.PUT
+        }
 }

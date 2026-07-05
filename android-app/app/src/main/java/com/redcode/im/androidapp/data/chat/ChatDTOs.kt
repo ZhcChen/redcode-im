@@ -12,7 +12,6 @@ import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class BackendChatSummary(
@@ -243,7 +242,15 @@ data class MessageAttachmentSignatureResponse(
     val success: Boolean,
     val message: String = "",
     val key: String? = null,
-    val signature: JsonObject? = null,
+    val signature: DirectUploadSignature? = null,
+)
+
+@Serializable
+data class DirectUploadSignature(
+    val url: String,
+    val method: String = "PUT",
+    val headers: Map<String, String> = emptyMap(),
+    val key: String? = null,
 )
 
 @Serializable

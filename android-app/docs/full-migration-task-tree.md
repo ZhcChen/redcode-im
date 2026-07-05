@@ -105,10 +105,10 @@
 
 ## ANDROID-06 媒体、附件、头像、语音和视频
 
-- [ ] 图片/视频选择。
-- [ ] 文件选择。
+- [x] 图片/视频选择（系统文件选择器基线）。
+- [x] 文件选择（系统文件选择器基线）。
 - [x] 上传签名、对象存储 commit、下载 URL API 合同。
-- [ ] 对象存储 mock 直传执行。
+- [x] 对象存储 mock 直传执行。
 - [x] 图片/视频/语音/文件消息 parts DTO、WebSocket 增量解析和 Room v5 缓存。
 - [x] 图片/视频/附件元数据预览基线。
 - [ ] 用户头像和群头像缓存。
@@ -119,11 +119,12 @@
 
 进度备注：
 - `ChatMessage.parts` 已对齐后端 `MessagePartPayload`，支持 text/image/video/audio/file 分片和附件元数据。
-- `HttpChatRemoteDataSource` 已接入 `/rooms/{room_id}/messages/attachments/signature`、`/commit`、`/download`，并支持发送富媒体消息引用已生成的 `messages/*` object key。
+- `HttpChatRemoteDataSource` 已接入 `/rooms/{room_id}/messages/attachments/signature`、直传 signature URL、`/commit`、`/download`，并支持发送富媒体消息引用已生成的 `messages/*` object key。
+- Compose 聊天详情已接入 Android 系统 `OpenDocument` 文件选择器，选择图片/视频/音频/普通文件后会读取元数据、推断 part type，并经真实 API 构建执行“签名 -> mock 对象存储直传 -> commit -> 发送富媒体消息”链路。
 - Room v5 为 `chat_messages` 增加 `partsJson`，会话详情可渲染附件类型、文件名、MIME、大小等元数据，本地搜索可命中附件名。
 - `RealtimeEventProcessor` 已解析 WebSocket `parts` / `attachments` 增量字段，写入同一 Room 消息缓存。
-- `AndroidChatLiveSmokeTest` 已覆盖文本互发和 Android 发送 image attachment reference 后 H5-compatible HTTP / Android HTTP 双方可见。
-- 当前未接系统文件选择器、相机、麦克风和真实字节直传；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
+- `AndroidChatLiveSmokeTest` 已覆盖文本互发、Android image attachment mock 直传/commit/发送，以及 H5-compatible HTTP / Android HTTP 双方可见和下载 URL 可生成。
+- 当前未接相机、麦克风和语音播放链路；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展
 

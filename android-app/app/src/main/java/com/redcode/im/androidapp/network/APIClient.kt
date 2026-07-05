@@ -59,6 +59,36 @@ class APIClient(
         executeRaw(endpoint = endpoint, bearerToken = bearerToken, body = body)
     }
 
+    suspend fun uploadBytes(
+        url: String,
+        method: HTTPMethod,
+        headers: Map<String, String>,
+        bytes: ByteArray,
+        contentType: String? = null,
+    ) {
+        val uploadHeaders = linkedMapOf<String, String>()
+        uploadHeaders += headers
+        if (!contentType.isNullOrBlank() && uploadHeaders.keys.none { it.equals("Content-Type", ignoreCase = true) }) {
+            uploadHeaders["Content-Type"] = contentType
+        }
+        val response =
+            transport.execute(
+                HttpRequest(
+                    method = method,
+                    url = url,
+                    headers = uploadHeaders,
+                    bodyBytes = bytes,
+                    contentType = contentType,
+                ),
+            )
+        if (response.statusCode !in 200..299) {
+            throw NetworkFailure(
+                statusCode = response.statusCode,
+                message = response.body.takeIf { it.isNotBlank() } ?: "HTTP ${response.statusCode}",
+            )
+        }
+    }
+
     suspend inline fun <reified Response : Any> send(
         endpoint: APIEndpoint,
         bearerToken: String? = null,

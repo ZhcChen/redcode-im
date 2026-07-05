@@ -99,6 +99,29 @@ class APIClientTest {
             assertEquals("Bearer token-1", transport.lastRequest.headers["Authorization"])
         }
 
+    @Test
+    fun uploadBytes_sendsRawBodyToAbsoluteUrl() =
+        runTest {
+            val transport = RecordingTransport(HttpResponse(200, "ok"))
+            val client = APIClient(RedCodeEnvironment.localEmulator(), transport)
+            val bytes = "image-bytes".encodeToByteArray()
+
+            client.uploadBytes(
+                url = "http://127.0.0.1:19080/mock-bucket/messages/r1/a.png",
+                method = HTTPMethod.PUT,
+                headers = mapOf("X-Test" to "1"),
+                bytes = bytes,
+                contentType = "image/png",
+            )
+
+            assertEquals(HTTPMethod.PUT, transport.lastRequest.method)
+            assertEquals("http://127.0.0.1:19080/mock-bucket/messages/r1/a.png", transport.lastRequest.url)
+            assertEquals("1", transport.lastRequest.headers["X-Test"])
+            assertEquals("image/png", transport.lastRequest.headers["Content-Type"])
+            assertEquals(null, transport.lastRequest.body)
+            assertEquals(bytes.toList(), transport.lastRequest.bodyBytes?.toList())
+        }
+
     @Serializable
     private data class TestRequest(val name: String)
 

@@ -32,6 +32,8 @@ interface ChatRemoteDataSource {
         hashAlg: Int? = null,
     ): MessageAttachmentCommitResponse
 
+    suspend fun uploadAttachmentBytes(signature: DirectUploadSignature, bytes: ByteArray, contentType: String?)
+
     suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int = 600): String?
 
     suspend fun markMessagesRead(roomId: String, messageId: String, token: String)

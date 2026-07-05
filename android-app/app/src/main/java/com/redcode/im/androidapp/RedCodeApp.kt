@@ -1,5 +1,10 @@
 package com.redcode.im.androidapp
 
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,9 +35,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -41,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.FriendRequest
 import com.redcode.im.androidapp.core.model.FriendRequestStatus
 import com.redcode.im.androidapp.core.model.MessageStatus
@@ -56,6 +64,9 @@ import com.redcode.im.androidapp.feature.rooms.GroupManagementScreen
 import com.redcode.im.androidapp.feature.rooms.GroupManagementViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
 import java.time.Instant
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class MainTab(val label: String) {
     Chats("聊天"),
@@ -323,6 +334,24 @@ fun ChatListScreen(viewModel: ChatListViewModel, onOpenChat: (ChatSummary) -> Un
 @Composable
 fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val attachmentLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri ?: return@rememberLauncherForActivityResult
+            scope.launch {
+                runCatching {
+                    readPickedAttachment(context, uri)
+                }.onSuccess { file ->
+                    viewModel.uploadAndSendAttachment(
+                        file = file,
+                        type = inferPickedAttachmentType(file.mime, file.fileName),
+                    )
+                }.onFailure { error ->
+                    viewModel.showError(error.message ?: "附件读取失败")
+                }
+            }
+        }
     LaunchedEffect(Unit) {
         viewModel.markRead()
     }
@@ -466,6 +495,14 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 label = { Text("输入消息") },
                 modifier = Modifier.weight(1f).testTag("message-input"),
             )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = { attachmentLauncher.launch(arrayOf("*/*")) },
+                enabled = !uiState.isUploadingAttachment,
+                modifier = Modifier.testTag("pick-attachment"),
+            ) {
+                Text(if (uiState.isUploadingAttachment) "上传中" else "附件")
+            }
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = viewModel::sendDraft, modifier = Modifier.testTag("send-message")) {
                 Text("发送")
@@ -744,4 +781,69 @@ private fun formatBytes(value: Long): String =
         value >= 1024L * 1024L -> "${value / 1024L / 1024L} MB"
         value >= 1024L -> "${value / 1024L} KB"
         else -> "$value B"
+    }
+
+private suspend fun readPickedAttachment(context: Context, uri: Uri): AttachmentUploadPayload =
+    withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val mime = resolver.getType(uri)
+        val metadata = resolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (cursor.moveToFirst()) {
+                val name =
+                    nameIndex
+                        .takeIf { it >= 0 }
+                        ?.let(cursor::getString)
+                        ?.takeIf { it.isNotBlank() }
+                val size =
+                    sizeIndex
+                        .takeIf { it >= 0 && !cursor.isNull(it) }
+                        ?.let(cursor::getLong)
+                        ?.takeIf { it >= 0L }
+                name to size
+            } else {
+                null
+            }
+        }
+        val bytes =
+            resolver.openInputStream(uri)?.use { input -> input.readBytes() }
+                ?: error("附件读取失败")
+        val fileName = metadata?.first ?: uri.lastPathSegment?.substringAfterLast('/') ?: "attachment-${System.currentTimeMillis()}"
+        AttachmentUploadPayload(
+            bytes = bytes,
+            fileName = fileName,
+            mime = mime ?: guessMimeFromName(fileName),
+            size = metadata?.second ?: bytes.size.toLong(),
+        )
+    }
+
+private fun inferPickedAttachmentType(mime: String?, fileName: String): MessagePartType =
+    when {
+        mime?.startsWith("image/") == true -> MessagePartType.Image
+        mime?.startsWith("video/") == true -> MessagePartType.Video
+        mime?.startsWith("audio/") == true -> MessagePartType.Audio
+        fileName.endsWith(".png", ignoreCase = true) ||
+            fileName.endsWith(".jpg", ignoreCase = true) ||
+            fileName.endsWith(".jpeg", ignoreCase = true) ||
+            fileName.endsWith(".gif", ignoreCase = true) ||
+            fileName.endsWith(".webp", ignoreCase = true) -> MessagePartType.Image
+        fileName.endsWith(".mp4", ignoreCase = true) ||
+            fileName.endsWith(".mov", ignoreCase = true) -> MessagePartType.Video
+        fileName.endsWith(".mp3", ignoreCase = true) ||
+            fileName.endsWith(".m4a", ignoreCase = true) ||
+            fileName.endsWith(".wav", ignoreCase = true) -> MessagePartType.Audio
+        else -> MessagePartType.File
+    }
+
+private fun guessMimeFromName(fileName: String): String =
+    when {
+        fileName.endsWith(".png", ignoreCase = true) -> "image/png"
+        fileName.endsWith(".jpg", ignoreCase = true) || fileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+        fileName.endsWith(".gif", ignoreCase = true) -> "image/gif"
+        fileName.endsWith(".webp", ignoreCase = true) -> "image/webp"
+        fileName.endsWith(".mp4", ignoreCase = true) -> "video/mp4"
+        fileName.endsWith(".mp3", ignoreCase = true) -> "audio/mpeg"
+        fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+        else -> "application/octet-stream"
     }

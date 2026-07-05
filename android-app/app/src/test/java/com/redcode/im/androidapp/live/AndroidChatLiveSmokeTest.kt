@@ -48,7 +48,7 @@ class AndroidChatLiveSmokeTest {
             val h5Text = "hello from h5 $suffix"
             val androidText = "hello from android $suffix"
             val imageName = "android-smoke-$suffix.png"
-            val imageKey = "messages/${room.id}/images_20260705/$imageName"
+            val imageBytes = "android image bytes $suffix".encodeToByteArray()
 
             val h5Message =
                 chatDataSource.sendTextMessage(
@@ -64,6 +64,28 @@ class AndroidChatLiveSmokeTest {
                     androidSession.tokens.accessToken,
                     quotedMessageId = null,
                 )
+            val imageDescriptor =
+                chatDataSource.requestAttachmentSignature(
+                    roomId = room.id,
+                    partType = "image",
+                    filename = imageName,
+                    contentType = "image/png",
+                    fileSize = imageBytes.size.toLong(),
+                    token = androidSession.tokens.accessToken,
+                )
+            val imageKey =
+                imageDescriptor.key
+                    ?: imageDescriptor.signature?.key
+                    ?: error("missing upload key")
+            imageDescriptor.signature?.let { signature ->
+                chatDataSource.uploadAttachmentBytes(signature, imageBytes, "image/png")
+            }
+            chatDataSource.commitAttachmentUpload(
+                roomId = room.id,
+                key = imageKey,
+                fileSize = imageBytes.size.toLong(),
+                token = androidSession.tokens.accessToken,
+            )
             val androidImageMessage =
                 chatDataSource.sendRichMessage(
                     room.id,
@@ -78,7 +100,7 @@ class AndroidChatLiveSmokeTest {
                                         key = imageKey,
                                         name = imageName,
                                         mime = "image/png",
-                                        size = 128,
+                                        size = imageBytes.size.toLong(),
                                         width = 16,
                                         height = 16,
                                     ),
@@ -112,6 +134,7 @@ class AndroidChatLiveSmokeTest {
                     message.id == androidImageMessage.id && message.parts.any { it.attachment?.mime == "image/png" }
                 },
             )
+            assertTrue(chatDataSource.fetchAttachmentDownloadUrl(room.id, imageKey, androidSession.tokens.accessToken)?.isNotBlank() == true)
 
             chatDataSource.markMessagesRead(room.id, androidMessage.id, h5Session.tokens.accessToken)
             chatDataSource.markMessagesRead(room.id, h5Message.id, androidSession.tokens.accessToken)

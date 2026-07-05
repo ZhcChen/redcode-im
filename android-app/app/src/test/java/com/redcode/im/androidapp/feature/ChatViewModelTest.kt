@@ -1,6 +1,8 @@
 package com.redcode.im.androidapp.feature
 
 import com.redcode.im.androidapp.MainDispatcherRule
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.chat.InMemoryChatRepository
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
@@ -76,6 +78,40 @@ class ChatViewModelTest {
             val sent = viewModel.uiState.value.messages.last()
             assertEquals("hello", sent.text)
             assertEquals(seed.id, sent.quotedMessage?.id)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_uploadsAttachmentAndClearsInput() =
+        runTest {
+            val repository = InMemoryChatRepository()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.onDraftChange("caption")
+            viewModel.uploadAndSendAttachment(
+                file =
+                    AttachmentUploadPayload(
+                        bytes = "file".encodeToByteArray(),
+                        fileName = "report.pdf",
+                        mime = "application/pdf",
+                    ),
+                type = MessagePartType.File,
+            )
+            advanceUntilIdle()
+
+            val sent = viewModel.uiState.value.messages.last()
+            assertEquals("", viewModel.uiState.value.draft)
+            assertEquals(false, viewModel.uiState.value.isUploadingAttachment)
+            assertEquals("caption [文件]", sent.text)
+            assertEquals("report.pdf", sent.parts.single { it.type == MessagePartType.File }.attachment?.displayName)
             collectJob.cancel()
         }
 

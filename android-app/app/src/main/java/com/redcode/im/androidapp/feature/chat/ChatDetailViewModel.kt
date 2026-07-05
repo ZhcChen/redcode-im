@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.MessagePart
@@ -24,6 +25,7 @@ data class ChatDetailFormState(
     val searchQuery: String = "",
     val searchResults: List<ChatMessage> = emptyList(),
     val isSearching: Boolean = false,
+    val isUploadingAttachment: Boolean = false,
 )
 
 data class ChatDetailUiState(
@@ -36,6 +38,7 @@ data class ChatDetailUiState(
     val searchQuery: String = "",
     val searchResults: List<ChatMessage> = emptyList(),
     val isSearching: Boolean = false,
+    val isUploadingAttachment: Boolean = false,
 )
 
 class ChatDetailViewModel(
@@ -57,6 +60,7 @@ class ChatDetailViewModel(
                 searchQuery = form.searchQuery,
                 searchResults = form.searchResults,
                 isSearching = form.isSearching,
+                isUploadingAttachment = form.isUploadingAttachment,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -70,6 +74,10 @@ class ChatDetailViewModel(
 
     fun onDraftChange(value: String) {
         formState.update { it.copy(draft = value, errorMessage = null) }
+    }
+
+    fun showError(message: String) {
+        formState.update { it.copy(errorMessage = message, isUploadingAttachment = false) }
     }
 
     fun quoteMessage(message: ChatMessage) {
@@ -177,6 +185,37 @@ class ChatDetailViewModel(
                 formState.update { it.copy(draft = "", quotedMessage = null, errorMessage = null) }
             }.onFailure { error ->
                 formState.update { it.copy(errorMessage = error.message ?: "发送附件失败") }
+            }
+        }
+    }
+
+    fun uploadAndSendAttachment(
+        file: AttachmentUploadPayload,
+        type: MessagePartType,
+        text: String? = formState.value.draft,
+    ) {
+        if (formState.value.isUploadingAttachment) return
+        val quotedMessageId = formState.value.quotedMessage?.id
+        viewModelScope.launch {
+            formState.update { it.copy(isUploadingAttachment = true, errorMessage = null) }
+            runCatching {
+                chatRepository.uploadAndSendAttachment(
+                    roomId = roomId,
+                    senderId = currentUserId,
+                    senderName = currentUserName,
+                    file = file,
+                    type = type,
+                    text = text,
+                    quotedMessageId = quotedMessageId,
+                )
+            }.onSuccess {
+                formState.update {
+                    it.copy(draft = "", quotedMessage = null, errorMessage = null, isUploadingAttachment = false)
+                }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(errorMessage = error.message ?: "上传附件失败", isUploadingAttachment = false)
+                }
             }
         }
     }

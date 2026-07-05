@@ -5,6 +5,8 @@ data class HttpRequest(
     val url: String,
     val headers: Map<String, String> = emptyMap(),
     val body: String? = null,
+    val bodyBytes: ByteArray? = null,
+    val contentType: String? = null,
 )
 
 data class HttpResponse(
