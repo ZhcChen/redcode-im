@@ -35,11 +35,49 @@ class APIClient(
     ): Response =
         send(endpoint = endpoint, bearerToken = bearerToken, body = json.encodeToString(body))
 
+    suspend inline fun <reified Body : Any> postNoResponse(
+        endpoint: APIEndpoint,
+        body: Body,
+        bearerToken: String? = null,
+    ) {
+        sendNoResponse(endpoint = endpoint, bearerToken = bearerToken, body = json.encodeToString(body))
+    }
+
+    suspend inline fun <reified Body : Any> patchNoResponse(
+        endpoint: APIEndpoint,
+        body: Body,
+        bearerToken: String? = null,
+    ) {
+        sendNoResponse(endpoint = endpoint, bearerToken = bearerToken, body = json.encodeToString(body))
+    }
+
+    suspend fun sendNoResponse(
+        endpoint: APIEndpoint,
+        bearerToken: String? = null,
+        body: String? = null,
+    ) {
+        executeRaw(endpoint = endpoint, bearerToken = bearerToken, body = body)
+    }
+
     suspend inline fun <reified Response : Any> send(
         endpoint: APIEndpoint,
         bearerToken: String? = null,
         body: String? = null,
     ): Response {
+        val responseBody = executeRaw(endpoint = endpoint, bearerToken = bearerToken, body = body)
+        return try {
+            json.decodeFromString(responseBody)
+        } catch (error: SerializationException) {
+            throw NetworkFailure(message = "响应解析失败", cause = error)
+        }
+    }
+
+    @PublishedApi
+    internal suspend fun executeRaw(
+        endpoint: APIEndpoint,
+        bearerToken: String? = null,
+        body: String? = null,
+    ): String {
         val headers = linkedMapOf("Accept" to "application/json")
         if (body != null) headers["Content-Type"] = "application/json"
         if (!bearerToken.isNullOrBlank()) headers["Authorization"] = "Bearer $bearerToken"
@@ -59,11 +97,7 @@ class APIClient(
                 message = extractErrorMessage(response.body) ?: "HTTP ${response.statusCode}",
             )
         }
-        return try {
-            json.decodeFromString(response.body)
-        } catch (error: SerializationException) {
-            throw NetworkFailure(message = "响应解析失败", cause = error)
-        }
+        return response.body
     }
 
     fun extractErrorMessage(body: String): String? =

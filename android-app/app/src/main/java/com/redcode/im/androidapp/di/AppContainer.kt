@@ -17,14 +17,20 @@ import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
 import com.redcode.im.androidapp.data.contacts.RemoteContactsRepository
 import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import com.redcode.im.androidapp.data.preferences.UserPreferenceStore
+import com.redcode.im.androidapp.data.rooms.HttpRoomRemoteDataSource
+import com.redcode.im.androidapp.data.rooms.InMemoryRoomRepository
+import com.redcode.im.androidapp.data.rooms.RemoteRoomRepository
+import com.redcode.im.androidapp.data.rooms.RoomRepository
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
 import com.redcode.im.androidapp.data.settings.RemoteSettingsRepository
 import com.redcode.im.androidapp.data.settings.SettingsRepository
 import com.redcode.im.androidapp.network.APIClient
+import com.redcode.im.androidapp.persistence.CachedRemoteRoomRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteContactsRepository
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
+import com.redcode.im.androidapp.persistence.RoomGroupRepository
 import com.redcode.im.androidapp.realtime.RedCodeWebSocketClient
 import com.redcode.im.androidapp.realtime.RealtimeEventProcessor
 import com.redcode.im.androidapp.realtime.RoomRealtimeChatCache
@@ -35,9 +41,11 @@ class AppContainer(
     useRemoteSettings: Boolean = useRemoteAuth,
     useRemoteChat: Boolean = useRemoteAuth,
     useRemoteContacts: Boolean = useRemoteAuth,
+    useRemoteRooms: Boolean = useRemoteAuth,
     authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
     private val localChatRepository: RoomChatRepository? = null,
     private val localContactsRepository: RoomContactsRepository? = null,
+    private val localRoomRepository: RoomGroupRepository? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -78,6 +86,21 @@ class AppContainer(
         } else {
             InMemoryContactsRepository()
         },
+    val roomRepository: RoomRepository =
+        if (useRemoteRooms && localRoomRepository != null) {
+            CachedRemoteRoomRepository(
+                remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+                localRepository = localRoomRepository,
+            )
+        } else if (useRemoteRooms) {
+            RemoteRoomRepository(
+                remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+            )
+        } else {
+            InMemoryRoomRepository()
+        },
     val settingsRepository: SettingsRepository =
         if (useRemoteSettings) {
             RemoteSettingsRepository(APIClient(environment))
@@ -109,5 +132,6 @@ class AppContainer(
         webSocketClient?.disconnect()
         chatRepository.clearLocalState()
         contactsRepository.clearLocalState()
+        roomRepository.clearLocalState()
     }
 }

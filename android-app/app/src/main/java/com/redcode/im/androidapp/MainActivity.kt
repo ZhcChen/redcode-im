@@ -11,9 +11,11 @@ import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.persistence.MIGRATION_1_2
 import com.redcode.im.androidapp.persistence.MIGRATION_2_3
+import com.redcode.im.androidapp.persistence.MIGRATION_3_4
 import com.redcode.im.androidapp.persistence.RedCodeDatabase
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
+import com.redcode.im.androidapp.persistence.RoomGroupRepository
 import com.redcode.im.androidapp.ui.theme.RedCodeTheme
 
 class MainActivity : ComponentActivity() {
@@ -25,7 +27,7 @@ class MainActivity : ComponentActivity() {
                 RedCodeDatabase::class.java,
                 "redcode-im.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
         val container =
             AppContainer(
@@ -38,9 +40,10 @@ class MainActivity : ComponentActivity() {
                 authSessionStore =
                     SerializedAuthSessionStore(
                         AndroidKeystoreKeyValueStore(applicationContext),
-                    ),
+                ),
                 localChatRepository = RoomChatRepository(database.chatDao()),
                 localContactsRepository = RoomContactsRepository(database.contactDao()),
+                localRoomRepository = RoomGroupRepository(database.roomDao()),
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {

@@ -51,12 +51,15 @@ import com.redcode.im.androidapp.feature.auth.AuthViewModel
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
+import com.redcode.im.androidapp.feature.rooms.GroupManagementScreen
+import com.redcode.im.androidapp.feature.rooms.GroupManagementViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
 import java.time.Instant
 
 enum class MainTab(val label: String) {
     Chats("聊天"),
     Contacts("联系人"),
+    Groups("群聊"),
     Settings("设置"),
 }
 
@@ -186,6 +189,7 @@ private fun MainShell(
     var selectedChat by remember { mutableStateOf<ChatSummary?>(null) }
     val chatListViewModel = remember { ChatListViewModel(container.chatRepository) }
     val contactsViewModel = remember { ContactsViewModel(container.contactsRepository) }
+    val groupsViewModel = remember { GroupManagementViewModel(container.roomRepository, container.contactsRepository) }
     val realtimeChats by chatListViewModel.chats.collectAsStateWithLifecycle()
 
     LaunchedEffect(accessToken) {
@@ -252,6 +256,20 @@ private fun MainShell(
                                         roomType = ChatRoomType.Direct,
                                         lastMessagePreview = "暂无消息",
                                         updatedAt = Instant.now(),
+                                    )
+                            },
+                        )
+                    MainTab.Groups ->
+                        GroupManagementScreen(
+                            viewModel = groupsViewModel,
+                            onOpenGroupChat = { room ->
+                                selectedChat =
+                                    ChatSummary(
+                                        roomId = room.id,
+                                        title = room.name,
+                                        roomType = ChatRoomType.Group,
+                                        lastMessagePreview = "暂无消息",
+                                        updatedAt = room.updatedAt ?: Instant.now(),
                                     )
                             },
                         )

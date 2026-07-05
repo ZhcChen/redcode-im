@@ -1,40 +1,43 @@
 package com.redcode.im.androidapp.network
 
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class JavaNetHttpTransport : HttpTransport {
+    private val client = OkHttpClient()
+
     override suspend fun execute(request: HttpRequest): HttpResponse =
         withContext(Dispatchers.IO) {
-            val connection = URL(request.url).openConnection() as HttpURLConnection
-            try {
-                connection.requestMethod = request.method.name
-                connection.connectTimeout = 10_000
-                connection.readTimeout = 15_000
-                request.headers.forEach { (key, value) -> connection.setRequestProperty(key, value) }
-                val body = request.body
-                if (body != null) {
-                    connection.doOutput = true
-                    connection.outputStream.use { output ->
-                        output.write(body.toByteArray(Charsets.UTF_8))
-                    }
+            val requestBody = request.body?.toRequestBody(JSON_MEDIA_TYPE)
+            val bodyForMethod =
+                when {
+                    request.method == HTTPMethod.GET -> null
+                    requestBody != null -> requestBody
+                    request.method == HTTPMethod.POST || request.method == HTTPMethod.PATCH -> ByteArray(0).toRequestBody(JSON_MEDIA_TYPE)
+                    else -> null
                 }
-
-                val statusCode = connection.responseCode
-                val stream =
-                    if (statusCode in 200..299) {
-                        connection.inputStream
-                    } else {
-                        connection.errorStream ?: connection.inputStream
+            val okHttpRequest =
+                Request.Builder()
+                    .url(request.url)
+                    .also { builder ->
+                        request.headers.forEach { (key, value) -> builder.header(key, value) }
                     }
+                    .method(request.method.name, bodyForMethod)
+                    .build()
+
+            client.newCall(okHttpRequest).execute().use { response ->
                 HttpResponse(
-                    statusCode = statusCode,
-                    body = stream.use { it.readBytes().toString(Charsets.UTF_8) },
+                    statusCode = response.code,
+                    body = response.body?.string().orEmpty(),
                 )
-            } finally {
-                connection.disconnect()
             }
         }
+
+    private companion object {
+        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    }
 }

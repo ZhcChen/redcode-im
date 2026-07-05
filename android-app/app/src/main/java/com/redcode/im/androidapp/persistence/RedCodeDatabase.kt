@@ -10,14 +10,19 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         ChatSummaryEntity::class,
         ChatMessageEntity::class,
         ContactEntity::class,
+        RoomInfoEntity::class,
+        RoomMemberEntity::class,
+        GroupSettingsEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class RedCodeDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 
     abstract fun contactDao(): ContactDao
+
+    abstract fun roomDao(): RoomDao
 }
 
 val MIGRATION_1_2 =
@@ -41,5 +46,64 @@ val MIGRATION_2_3 =
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN quotedText TEXT")
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN quotedCreatedAtMillis INTEGER")
             db.execSQL("ALTER TABLE chat_messages ADD COLUMN quotedIsDeleted INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+val MIGRATION_3_4 =
+    object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS rooms_cache (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    roomType TEXT NOT NULL,
+                    description TEXT,
+                    avatarUrl TEXT,
+                    ownerId TEXT,
+                    createdAtMillis INTEGER,
+                    updatedAtMillis INTEGER
+                )
+                """.trimIndent(),
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_rooms_cache_name ON rooms_cache(name)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_rooms_cache_roomType ON rooms_cache(roomType)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS room_members_cache (
+                    roomId TEXT NOT NULL,
+                    userId TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    nickname TEXT,
+                    avatarUrl TEXT,
+                    role TEXT NOT NULL,
+                    joinedAtMillis INTEGER,
+                    PRIMARY KEY(roomId, userId)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_room_members_cache_roomId ON room_members_cache(roomId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_room_members_cache_userId ON room_members_cache(userId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_room_members_cache_role ON room_members_cache(role)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS group_settings_cache (
+                    roomId TEXT NOT NULL PRIMARY KEY,
+                    joinApprovalRequired INTEGER NOT NULL,
+                    memberCanInvite INTEGER NOT NULL,
+                    memberCanAddFriends INTEGER NOT NULL,
+                    requireAdminToAddFriends INTEGER NOT NULL,
+                    maxMembers INTEGER NOT NULL,
+                    globalMuteEnabled INTEGER NOT NULL,
+                    globalMuteUntilMillis INTEGER,
+                    globalMuteReason TEXT,
+                    globalMuteSetBy TEXT,
+                    myIsMuted INTEGER NOT NULL,
+                    myMuteReason TEXT,
+                    myMutedAtMillis INTEGER,
+                    myMuteUntilMillis INTEGER
+                )
+                """.trimIndent(),
+            )
         }
     }

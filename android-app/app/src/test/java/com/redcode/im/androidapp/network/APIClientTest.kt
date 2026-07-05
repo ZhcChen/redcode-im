@@ -87,6 +87,18 @@ class APIClientTest {
             assertEquals("响应解析失败", error.message)
         }
 
+    @Test
+    fun sendNoResponse_acceptsEmptySuccessBody() =
+        runTest {
+            val transport = RecordingTransport(HttpResponse(204, ""))
+            val client = APIClient(RedCodeEnvironment.localEmulator(), transport)
+
+            client.sendNoResponse(APIEndpoint(HTTPMethod.DELETE, "/rooms/room-1/rules/rule-1"), bearerToken = "token-1")
+
+            assertEquals(HTTPMethod.DELETE, transport.lastRequest.method)
+            assertEquals("Bearer token-1", transport.lastRequest.headers["Authorization"])
+        }
+
     @Serializable
     private data class TestRequest(val name: String)
 

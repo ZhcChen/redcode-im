@@ -7,8 +7,12 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.GroupSettingsInfo
+import com.redcode.im.androidapp.core.model.GroupSettingsSnapshot
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.core.model.RoomInfo
+import com.redcode.im.androidapp.core.model.RoomMember
 import java.time.Instant
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -205,6 +209,52 @@ class RoomPersistenceTest {
 
             repository.clear()
             assertEquals(emptyList<Contact>(), repository.contacts.first())
+        }
+
+    @Test
+    fun roomDao_persistsGroupRoomsMembersAndSettings() =
+        runTest {
+            val repository = RoomGroupRepository(database.roomDao())
+            val room =
+                RoomInfo(
+                    id = "room-a",
+                    name = "A Group",
+                    roomType = "group",
+                    description = "desc",
+                    ownerId = "user-owner",
+                    updatedAt = Instant.ofEpochMilli(2),
+                )
+
+            repository.replaceRooms(listOf(room))
+            repository.replaceMembers(
+                "room-a",
+                listOf(
+                    RoomMember(userId = "user-b", username = "bob", role = "member"),
+                    RoomMember(userId = "user-owner", username = "owner", role = "owner"),
+                ),
+            )
+            repository.upsertSettings(
+                GroupSettingsSnapshot(
+                    GroupSettingsInfo(
+                        roomId = "room-a",
+                        joinApprovalRequired = true,
+                        globalMuteEnabled = true,
+                        maxMembers = 300,
+                    ),
+                ),
+            )
+
+            assertEquals(listOf("room-a"), repository.rooms.first().map { it.id })
+            assertEquals(listOf("owner", "bob"), repository.members("room-a").first().map { it.username })
+            assertEquals(true, repository.settings("room-a").first()?.settings?.joinApprovalRequired)
+            assertEquals(300, repository.settings("room-a").first()?.settings?.maxMembers)
+
+            repository.removeMember("room-a", "user-b")
+            assertEquals(listOf("user-owner"), repository.members("room-a").first().map { it.userId })
+
+            repository.removeRoom("room-a")
+            assertEquals(emptyList<RoomInfo>(), repository.rooms.first())
+            assertEquals(emptyList<RoomMember>(), repository.members("room-a").first())
         }
 
     private fun message(id: String, millis: Long): ChatMessage =

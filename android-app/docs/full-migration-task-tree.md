@@ -34,7 +34,7 @@
 - [x] Room schema：会话、消息、联系人。
 - [x] Room Chat/Contacts DAO、Repository 与 Emulator in-memory 验证。
 - [x] 真实 Chat/Contacts HTTP 数据落 Room 组合仓储。
-- [ ] Room schema：群、配置。
+- [x] Room schema：群、成员、配置缓存。
 - [ ] DataStore：偏好、聊天设置。
 - [ ] File cache：附件、头像、表情。
 - [x] 测试 fake data source 与 Room in-memory test 分层。
@@ -89,13 +89,19 @@
 
 ## ANDROID-05 群聊和群管理
 
-- [ ] 创建群聊。
-- [ ] 群设置、成员列表。
-- [ ] 改名、置顶、免打扰。
-- [ ] 管理员、禁言、入群申请。
-- [ ] 群规则、操作日志。
-- [ ] 退出/解散。
-- [ ] H5/API/Android 群管理 smoke。
+- [x] 创建群聊。
+- [x] 群设置、成员列表。
+- [x] 改名、置顶、免打扰。
+- [x] 管理员、禁言、入群申请 API 合同。
+- [x] 群规则、操作日志。
+- [x] 退出/解散。
+- [x] H5/API/Android 群管理 smoke。
+
+进度备注：
+- 已新增 `RoomRepository` / `RoomRemoteDataSource` / `HttpRoomRemoteDataSource`，覆盖 `/rooms`、成员、群设置、置顶、免打扰、管理员、禁言、群规、入群申请和操作日志合同。
+- Room v4 已新增群、成员和群设置缓存表；真实 API 构建下使用 `CachedRemoteRoomRepository` 写入 Room，默认无后端构建使用 `InMemoryRoomRepository` 保障 emulator smoke。
+- Compose 新增“群聊”主 Tab，支持创建群、选择好友成员、群详情、资料编辑、成员管理、入群审批/全员禁言切换、管理员/禁言、群规、日志、退出/解散，以及打开群聊。
+- 已新增 `AndroidRoomLiveSmokeTest`，`make android-app.test.live` 覆盖群管理 live smoke；`make android-app.test.interop` 会串联 H5 live smoke 与 Android 认证/聊天/好友/群管理数据层 smoke。
 
 ## ANDROID-06 媒体、附件、头像、语音和视频
 

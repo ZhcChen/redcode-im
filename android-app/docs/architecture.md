@@ -38,10 +38,11 @@ MainActivity / Compose App Shell
 当前 Room 底座已覆盖：
 
 - `RedCodeDatabase`
-- `ChatSummaryEntity` / `ChatMessageEntity` / `ContactEntity`
-- `ChatDao` / `ContactDao`
+- `ChatSummaryEntity` / `ChatMessageEntity` / `ContactEntity` / `RoomInfoEntity` / `RoomMemberEntity` / `GroupSettingsEntity`
+- `ChatDao` / `ContactDao` / `RoomDao`
 - `RoomChatRepository`：会话摘要、消息缓存、发送文本、本地已读、每 room 最近消息裁剪。
 - `RoomContactsRepository`：联系人缓存、搜索、upsert、remove、clear。
+- `RoomGroupRepository`：群聊、群成员、群设置缓存和清理。
 
 群和配置 schema 在后续阶段扩展，避免第一版 schema 过早锁定未接入的业务字段。
 
@@ -67,7 +68,8 @@ MainActivity / Compose App Shell
 - `SettingsRepository`：提供公开协议文档拉取，真实联调时访问 `/settings/privacy-policy` 和 `/settings/user-agreement`，本地模拟时返回内置 mock 文档。
 - `RemoteChatRepository`：在真实认证构建下接入 `/chats`、`/rooms/{room_id}/messages`、文本发送和已读标记；本地默认仍使用 in-memory 数据便于无后端 UI smoke。
 - `RemoteContactsRepository`：在真实认证构建下接入用户搜索、好友列表、好友申请/响应和打开私聊；Compose 联系人页已覆盖搜索添加、好友申请处理、联系人详情和私聊入口；本地默认仍使用 in-memory 联系人数据。
-- `CachedRemoteChatRepository` / `CachedRemoteContactsRepository`：真实 API 构建下优先以 HTTP 刷新远端数据，并将会话、消息、联系人写入 Room；UI 订阅 Room Flow，后续 WebSocket 增量事件会复用同一缓存入口。
+- `RemoteRoomRepository`：在真实认证构建下接入 `/rooms`、成员、群设置、置顶/免打扰、管理员、禁言、群规、入群申请、操作日志、退出/解散。
+- `CachedRemoteChatRepository` / `CachedRemoteContactsRepository` / `CachedRemoteRoomRepository`：真实 API 构建下优先以 HTTP 刷新远端数据，并将会话、消息、联系人、群聊、成员、群设置写入 Room；UI 订阅 Room Flow，后续 WebSocket 增量事件会复用同一缓存入口。
 - `ChatRepository.resendMessage`：文本发送先落本地 `Pending`；远端失败更新为 `Failed`，详情页提供重试，成功后删除本地临时消息并写入服务端消息。
 - `RedCodeWebSocketClient`：真实 API 构建下连接后端 `/ws?format=json`，登录后发送 `auth`，会话列表变化后维护 `join` / `leave` 房间订阅，已支持 `ping`、`typing`、断线重连、重复订阅保护和旧连接回调隔离。
 - `RealtimeEventProcessor`：消费 WebSocket JSON 服务端事件，已把 `message`、`message_read`、`message_update`、`room_created`、`room_updated`、`room_history_cleared`、`group_dissolved`、`friend_request_update` 接到 Room/Repository；protobuf 二进制帧在后续切片补齐。
@@ -82,6 +84,7 @@ MainActivity / Compose App Shell
 - DataStore instrumented test 覆盖协议勾选偏好读写；Compose UI test 覆盖未勾选协议时阻止认证和协议文档弹窗。
 - Chat HTTP JVM test 覆盖 token、endpoint、DTO 映射、会话列表刷新、消息首屏加载、文本发送和已读标记。
 - Contacts HTTP JVM test 覆盖 token、endpoint、DTO 映射、好友列表刷新、用户搜索、好友申请、请求响应和打开私聊。
+- Rooms HTTP JVM test 覆盖 token、endpoint、DTO 映射、建群、群资料、成员、设置、置顶/免打扰、管理员、禁言、群规、入群申请、日志和空响应合同。
 - WebSocket JVM test 覆盖 URL 规范化、auth/ping、join/leave、typing guard、服务端错误、断开清理、失败重连、旧连接回调隔离和增量事件分发。
 - Jacoco 输出覆盖率报告。
 - 后续 live smoke 统一接入本机 Docker Compose API；Android Emulator 使用 `10.0.2.2` 访问宿主机。

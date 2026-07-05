@@ -5,8 +5,13 @@ import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.GroupSettingsInfo
+import com.redcode.im.androidapp.core.model.GroupSettingsSnapshot
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.core.model.MyMuteInfo
+import com.redcode.im.androidapp.core.model.RoomInfo
+import com.redcode.im.androidapp.core.model.RoomMember
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -82,5 +87,54 @@ class RoomEntityMappingTest {
 
         assertEquals("alice", entity.accountName)
         assertEquals(contact, mapped)
+    }
+
+    @Test
+    fun roomInfoMemberAndSettings_roundTripDomainFields() {
+        val room =
+            RoomInfo(
+                id = "room-1",
+                name = "测试群",
+                roomType = "group",
+                description = "desc",
+                avatarUrl = "https://asset.example/room.png",
+                ownerId = "user-owner",
+                createdAt = Instant.ofEpochMilli(1000),
+                updatedAt = Instant.ofEpochMilli(2000),
+            )
+        val member =
+            RoomMember(
+                userId = "user-1",
+                username = "alice",
+                nickname = "Alice",
+                avatarUrl = "https://asset.example/a.png",
+                role = "admin",
+                joinedAt = Instant.ofEpochMilli(3000),
+            )
+        val settings =
+            GroupSettingsSnapshot(
+                settings =
+                    GroupSettingsInfo(
+                        roomId = "room-1",
+                        joinApprovalRequired = true,
+                        memberCanInvite = false,
+                        maxMembers = 200,
+                        globalMuteEnabled = true,
+                        globalMuteUntil = Instant.ofEpochMilli(4000),
+                        globalMuteReason = "quiet",
+                        globalMuteSetBy = "user-owner",
+                    ),
+                myMute =
+                    MyMuteInfo(
+                        isMuted = true,
+                        reason = "test",
+                        mutedAt = Instant.ofEpochMilli(5000),
+                        muteUntil = Instant.ofEpochMilli(6000),
+                    ),
+            )
+
+        assertEquals(room, RoomInfoEntity.fromDomain(room).toDomain())
+        assertEquals(member, RoomMemberEntity.fromDomain("room-1", member).toDomain())
+        assertEquals(settings, GroupSettingsEntity.fromDomain(settings).toDomain())
     }
 }
