@@ -1,4 +1,4 @@
-import type { SqlAdapter, SqlRow, SqlValue } from './sql-adapter';
+import type { SqlAdapter, SqlRow, SqlTransactionWork, SqlValue } from './sql-adapter';
 
 interface WaSQLiteApi {
   open_v2(name: string, flags?: number, vfs?: string): Promise<number>;
@@ -19,6 +19,7 @@ interface WaSQLiteApiModule {
 export class WaSQLiteAdapter implements SqlAdapter {
   private db: number | null = null;
   private vfs: { close?: () => Promise<void>; name: string } | null = null;
+  private operationChain: Promise<unknown> = Promise.resolve();
 
   private constructor(
     private readonly sqlite: WaSQLiteApi,
@@ -46,6 +47,29 @@ export class WaSQLiteAdapter implements SqlAdapter {
   }
 
   async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
+    await this.enqueue(() => this.executeDirect(sql, params));
+  }
+
+  async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
+    return this.enqueue(() => this.queryDirect<T>(sql, params));
+  }
+
+  async transaction<T>(work: SqlTransactionWork<T>): Promise<T> {
+    return this.enqueue(() => this.runTransaction(work));
+  }
+
+  async close(): Promise<void> {
+    await this.enqueue(async () => {
+      if (this.db !== null) {
+        await this.sqlite.close(this.db);
+        this.db = null;
+      }
+      await this.vfs?.close?.();
+      this.vfs = null;
+    });
+  }
+
+  private async executeDirect(sql: string, params: readonly SqlValue[] = []): Promise<void> {
     const db = this.requireDb();
     if (params.length > 0 && this.sqlite.execWithParams) {
       await this.sqlite.execWithParams(db, sql, params);
@@ -54,7 +78,7 @@ export class WaSQLiteAdapter implements SqlAdapter {
     await this.sqlite.exec(db, sql);
   }
 
-  async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
+  private async queryDirect<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
     const db = this.requireDb();
     if (this.sqlite.execWithParams) {
       const result = await this.sqlite.execWithParams(db, sql, params);
@@ -68,25 +92,37 @@ export class WaSQLiteAdapter implements SqlAdapter {
     return rows;
   }
 
-  async transaction<T>(work: () => Promise<T>): Promise<T> {
-    await this.execute('BEGIN TRANSACTION');
+  private async runTransaction<T>(work: SqlTransactionWork<T>): Promise<T> {
+    const scoped = this.createTransactionAdapter();
+    await this.executeDirect('BEGIN TRANSACTION');
     try {
-      const result = await work();
-      await this.execute('COMMIT');
+      const result = await work(scoped);
+      await this.executeDirect('COMMIT');
       return result;
     } catch (error) {
-      await this.execute('ROLLBACK');
+      try {
+        await this.executeDirect('ROLLBACK');
+      } catch (rollbackError) {
+        console.warn('[h5-app] wa-sqlite transaction rollback failed', rollbackError);
+      }
       throw error;
     }
   }
 
-  async close(): Promise<void> {
-    if (this.db !== null) {
-      await this.sqlite.close(this.db);
-      this.db = null;
-    }
-    await this.vfs?.close?.();
-    this.vfs = null;
+  private createTransactionAdapter(): SqlAdapter {
+    const scoped: SqlAdapter = {
+      execute: (sql, params = []) => this.executeDirect(sql, params),
+      query: <T = SqlRow>(sql: string, params: readonly SqlValue[] = []) => this.queryDirect<T>(sql, params),
+      transaction: (work) => work(scoped),
+      close: async () => undefined,
+    };
+    return scoped;
+  }
+
+  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const run = this.operationChain.then(operation, operation);
+    this.operationChain = run.catch(() => undefined);
+    return run;
   }
 
   private requireDb() {

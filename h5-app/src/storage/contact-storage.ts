@@ -23,11 +23,11 @@ export class ContactStorage {
   async saveFriends(friends: FriendInfo[]): Promise<void> {
     const db = await this.ready();
     const sorted = friends.slice().sort(compareFriend);
-    await db.transaction(async () => {
-      await db.execute('DELETE FROM contacts');
+    await db.transaction(async (tx) => {
+      await tx.execute('DELETE FROM contacts');
       for (const friend of sorted) {
         if (!friend.user.id) continue;
-        await db.execute(
+        await tx.execute(
           `INSERT OR REPLACE INTO contacts
            (friend_user_id, display_name, payload)
            VALUES (?, ?, ?)`,

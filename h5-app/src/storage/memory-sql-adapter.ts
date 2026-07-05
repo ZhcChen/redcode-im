@@ -1,4 +1,4 @@
-import type { SqlAdapter, SqlRow, SqlValue } from './sql-adapter';
+import type { SqlAdapter, SqlRow, SqlTransactionWork, SqlValue } from './sql-adapter';
 
 export interface MemoryMessageRow extends SqlRow {
   id: string;
@@ -151,13 +151,13 @@ export class MemorySqlAdapter implements SqlAdapter {
     return [];
   }
 
-  async transaction<T>(work: () => Promise<T>): Promise<T> {
+  async transaction<T>(work: SqlTransactionWork<T>): Promise<T> {
     const messages = new Map(this.messages);
     const searchRows = new Map(this.searchRows);
     const chatRows = new Map(this.chatRows);
     const contactRows = new Map(this.contactRows);
     try {
-      return await work();
+      return await work(this);
     } catch (error) {
       this.messages.clear();
       messages.forEach((value, key) => this.messages.set(key, value));

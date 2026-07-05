@@ -47,8 +47,8 @@ describe('IndexedDbSqlAdapter', () => {
   it('rolls back in-memory state when a transaction fails', async () => {
     const adapter = await IndexedDbSqlAdapter.create('redcode-h5-cache-test');
 
-    await expect(adapter.transaction(async () => {
-      await adapter.execute(
+    await expect(adapter.transaction(async (tx) => {
+      await tx.execute(
         `INSERT OR REPLACE INTO contacts
          (friend_user_id, display_name, payload)
          VALUES (?, ?, ?)`,
@@ -64,8 +64,8 @@ describe('IndexedDbSqlAdapter', () => {
   it('does not persist failed transaction changes across adapter instances', async () => {
     const first = await IndexedDbSqlAdapter.create('redcode-h5-cache-test');
 
-    await expect(first.transaction(async () => {
-      await first.execute(
+    await expect(first.transaction(async (tx) => {
+      await tx.execute(
         `INSERT OR REPLACE INTO contacts
          (friend_user_id, display_name, payload)
          VALUES (?, ?, ?)`,

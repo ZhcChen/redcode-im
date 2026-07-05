@@ -111,6 +111,22 @@ describe('MessageSearchStorage', () => {
 
     expect(result.results.map((item) => item.id)).toEqual(['m1']);
   });
+
+  it('keeps LIKE mode after a fallback table already exists across storage instances', async () => {
+    const fallback = new ExistingPlainSearchTableAdapter();
+    const firstStorage = new MessageSearchStorage(async () => fallback);
+    const secondStorage = new MessageSearchStorage(async () => fallback);
+
+    await firstStorage.replaceRoomIndex({
+      roomId: 'r1',
+      roomName: '降级房间',
+      messages: [message('m1', 'r1', 1000, 'fallback persisted table')],
+    });
+
+    const result = await secondStorage.searchMessages({ query: 'persisted' });
+
+    expect(result.results.map((item) => item.id)).toEqual(['m1']);
+  });
 });
 
 class LikeOnlySearchAdapter extends MemorySqlAdapter implements SqlAdapter {
@@ -122,6 +138,29 @@ class LikeOnlySearchAdapter extends MemorySqlAdapter implements SqlAdapter {
   }
 
   async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
+    return super.query<T>(sql, params);
+  }
+}
+
+class ExistingPlainSearchTableAdapter extends MemorySqlAdapter implements SqlAdapter {
+  private hasPlainSearchTable = false;
+
+  async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
+    const normalized = sql.toLowerCase();
+    if (normalized.includes('create virtual table') && normalized.includes('message_search')) {
+      if (this.hasPlainSearchTable) return;
+      throw new Error('fts5 unavailable');
+    }
+    if (normalized.includes('create table if not exists message_search')) {
+      this.hasPlainSearchTable = true;
+    }
+    await super.execute(sql, params);
+  }
+
+  async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
+    if (sql.toLowerCase().includes('message_search match')) {
+      throw new Error('no such column: message_search');
+    }
     return super.query<T>(sql, params);
   }
 }

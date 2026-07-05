@@ -1,5 +1,5 @@
 import { MemorySqlAdapter } from './memory-sql-adapter';
-import type { SqlAdapter, SqlRow, SqlValue } from './sql-adapter';
+import type { SqlAdapter, SqlRow, SqlTransactionWork, SqlValue } from './sql-adapter';
 
 interface PersistedState {
   chatRows: Array<[string, unknown]>;
@@ -41,14 +41,14 @@ export class IndexedDbSqlAdapter implements SqlAdapter {
     return this.memory.query<T>(sql, params);
   }
 
-  async transaction<T>(work: () => Promise<T>): Promise<T> {
+  async transaction<T>(work: SqlTransactionWork<T>): Promise<T> {
     const isOuterTransaction = this.transactionDepth === 0;
     const previousDirty = this.transactionDirty;
     this.transactionDepth += 1;
     let succeeded = false;
 
     try {
-      const result = await this.memory.transaction(work);
+      const result = await this.memory.transaction(() => work(this));
       succeeded = true;
       return result;
     } catch (error) {

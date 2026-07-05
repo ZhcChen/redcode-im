@@ -92,7 +92,8 @@ make h5-app.test.e2e
 - 本地存储底座：
   - `MessageStorage` 对齐 Flutter `MessageStorage` 的 room 消息缓存语义，单房间保留最近 200 条
   - `MessageSearchStorage` 使用 SQLite FTS5 建立本地消息搜索索引，FTS5 不可用时降级到 LIKE 查询
-  - 测试环境使用内存 adapter，浏览器环境使用 wa-sqlite + IndexedDB VFS
+  - 测试环境使用内存 adapter，浏览器环境优先使用 wa-sqlite + OPFS worker，失败后降级到 wa-sqlite IndexedDB VFS、IndexedDB persisted shim 或内存存储
+  - 运行时会探测 OPFS、IndexedDB、Cache API、FTS5，并保留 `getStorageRuntimeReport()` 供调试
 - API/service parity 底座：
   - `authService` / `friendService` / `roomService` / `messageService` / `settingsService`
   - 请求路径与 payload 优先对齐 Flutter `app/lib/core/services/` 和 `api/src/routes.rs`
@@ -116,10 +117,7 @@ make h5-app.test.e2e
   - 隐私协议/用户协议复用后端公开 settings 文档，反馈提交走 `/feedbacks`
 - 媒体缓存：
   - `BlobCache` 用 Cache API + localStorage metadata 保存头像、附件、表情资源，测试环境降级为内存 Blob
+  - `BlobCache` 已支持 TTL、最大条目数、最大字节数和 oldest-first 清理策略
   - 用户头像、群头像、消息附件和表情图片统一用 `objectKey -> objectUrl`，不依赖手机本机路径
   - 用户头像和群头像上传复用后端 direct upload / commit，成功后刷新当前用户、群资料、会话摘要和头像缓存；失败保留旧头像
   - 消息 `parts` 会映射为 H5 `attachments`，HTTP 历史消息和 WebSocket 实时消息都能渲染附件预览
-
-后续继续补齐：
-
-- 浏览器存储增强：wa-sqlite OPFS worker、IndexedDB fallback、FTS5 能力探测、Cache API 配额清理

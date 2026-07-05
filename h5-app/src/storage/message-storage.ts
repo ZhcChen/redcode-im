@@ -39,11 +39,11 @@ export class MessageStorage {
       .sort((a, b) => a.timestamp - b.timestamp)
       .slice(-MAX_CACHE_COUNT);
 
-    await db.transaction(async () => {
-      await db.execute('DELETE FROM messages WHERE room_id = ?', [roomId]);
+    await db.transaction(async (tx) => {
+      await tx.execute('DELETE FROM messages WHERE room_id = ?', [roomId]);
       for (const message of trimmed) {
         if (!message.id) continue;
-        await db.execute(
+        await tx.execute(
           'INSERT OR REPLACE INTO messages (id, room_id, timestamp, payload) VALUES (?, ?, ?, ?)',
           [message.id, roomId, message.timestamp, JSON.stringify(message)],
         );

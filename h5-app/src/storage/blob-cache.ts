@@ -14,23 +14,51 @@ interface BlobCacheMetadata {
   cachedAt: number;
 }
 
+export interface BlobCachePolicy {
+  ttlMs: number;
+  maxEntries: number;
+  maxBytes: number;
+}
+
+export interface BlobCacheCleanupResult {
+  removed: number;
+  entriesBefore: number;
+  entriesAfter: number;
+  bytesBefore: number;
+  bytesAfter: number;
+}
+
 interface BlobCacheOptions {
   namespace?: string;
   ttlMs?: number;
+  maxEntries?: number;
+  maxBytes?: number;
   now?: () => number;
 }
 
 const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_MAX_ENTRIES = 500;
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
 const memoryBlobs = new Map<string, Blob>();
+
+export const DEFAULT_BLOB_CACHE_POLICY: BlobCachePolicy = {
+  ttlMs: DEFAULT_TTL_MS,
+  maxEntries: DEFAULT_MAX_ENTRIES,
+  maxBytes: DEFAULT_MAX_BYTES,
+};
 
 export class BlobCache {
   private readonly namespace: string;
-  private readonly ttlMs: number;
+  private readonly policy: BlobCachePolicy;
   private readonly now: () => number;
 
   constructor(options: BlobCacheOptions = {}) {
     this.namespace = options.namespace ?? 'redcode-h5-blob-cache';
-    this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.policy = {
+      ttlMs: options.ttlMs ?? DEFAULT_TTL_MS,
+      maxEntries: options.maxEntries ?? DEFAULT_MAX_ENTRIES,
+      maxBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
+    };
     this.now = options.now ?? (() => Date.now());
   }
 
@@ -42,7 +70,7 @@ export class BlobCache {
       await this.remove(cacheKey);
       return null;
     }
-    if (this.now() - metadata.cachedAt > this.ttlMs) {
+    if (this.isExpired(metadata)) {
       await this.remove(cacheKey);
       return null;
     }
@@ -73,6 +101,7 @@ export class BlobCache {
       cachedAt,
     };
     this.writeMetadata(params.cacheKey, metadata);
+    await this.cleanup();
     return {
       cacheKey: params.cacheKey,
       objectKey: params.objectKey,
@@ -101,6 +130,44 @@ export class BlobCache {
       await this.remove(params.cacheKey);
       return null;
     }
+  }
+
+  async cleanup(): Promise<BlobCacheCleanupResult> {
+    const entries = this.readAllMetadata();
+    const bytesBefore = sumMetadataBytes(entries);
+    const keysToRemove = new Set<string>();
+    entries
+      .filter((entry) => this.isExpired(entry.metadata))
+      .forEach((entry) => keysToRemove.add(entry.cacheKey));
+
+    const survivors = entries
+      .filter((entry) => !keysToRemove.has(entry.cacheKey))
+      .sort((a, b) => a.metadata.cachedAt - b.metadata.cachedAt);
+    let survivorBytes = sumMetadataBytes(survivors);
+
+    while (survivors.length > this.policy.maxEntries || survivorBytes > this.policy.maxBytes) {
+      const oldest = survivors.shift();
+      if (!oldest) break;
+      keysToRemove.add(oldest.cacheKey);
+      survivorBytes -= oldest.metadata.size;
+    }
+
+    for (const key of keysToRemove) {
+      await this.remove(key);
+    }
+
+    const remaining = this.readAllMetadata();
+    return {
+      removed: keysToRemove.size,
+      entriesBefore: entries.length,
+      entriesAfter: remaining.length,
+      bytesBefore,
+      bytesAfter: sumMetadataBytes(remaining),
+    };
+  }
+
+  getPolicy(): BlobCachePolicy {
+    return { ...this.policy };
   }
 
   async remove(cacheKey: string): Promise<void> {
@@ -169,6 +236,20 @@ export class BlobCache {
     window.localStorage.setItem(this.metadataKey(cacheKey), JSON.stringify(metadata));
   }
 
+  private readAllMetadata() {
+    return Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+      .filter((key): key is string => Boolean(key?.startsWith(`${this.namespace}:meta:`)))
+      .map((key) => {
+        const cacheKey = key.slice(`${this.namespace}:meta:`.length);
+        return { cacheKey, metadata: this.readMetadata(cacheKey) };
+      })
+      .filter((entry): entry is { cacheKey: string; metadata: BlobCacheMetadata } => Boolean(entry.metadata));
+  }
+
+  private isExpired(metadata: Pick<BlobCacheMetadata, 'cachedAt'>) {
+    return this.now() - metadata.cachedAt > this.policy.ttlMs;
+  }
+
   private removeMetadata(cacheKey: string): void {
     window.localStorage.removeItem(this.metadataKey(cacheKey));
   }
@@ -187,6 +268,9 @@ export class BlobCache {
 }
 
 const hasCacheApi = () => typeof caches !== 'undefined' && typeof caches.open === 'function';
+
+const sumMetadataBytes = (entries: Array<{ metadata: Pick<BlobCacheMetadata, 'size'> }>) =>
+  entries.reduce((sum, entry) => sum + Number(entry.metadata.size ?? 0), 0);
 
 const createObjectUrl = (blob: Blob, cacheKey: string) => {
   if (typeof URL.createObjectURL === 'function') {

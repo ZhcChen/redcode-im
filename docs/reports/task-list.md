@@ -2,7 +2,9 @@
 
 更新时间：2026-07-05
 
-本文档是当前仓库剩余任务的总入口。完整执行顺序以 `docs/reports/remaining-task-breakdown-2026-07-05.md` 为准；模块细节继续参考模块文档。
+本文档是当前仓库剩余任务的总入口。完整执行顺序以
+`docs/reports/remaining-task-breakdown-2026-07-05.md` 为准；模块细节继续参考
+模块文档。
 
 ## 入口文档
 
@@ -17,37 +19,40 @@
 
 ## 当前结论
 
-- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，随后扩展 Android 原生互通、全模块回归和 API 架构重构。
-- 当前立即任务：进入 H5 浏览器存储增强。
-- H5 头像上传浏览器能力已收口：用户头像、群头像、direct upload / commit / avatar cache、失败回退、live smoke、E2E 和视觉截图均已完成。
-- `h5-app` 已承担联调入口，文档、live smoke、浏览器 E2E smoke、本地消息搜索页和头像上传已收口。
-- `android-app` P0 媒体切片已完成：附件缓存、头像缓存、权限拒绝恢复、语音播放基线均已收口。
-- `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录。
+- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，随后扩展
+  Android 原生互通、全模块回归和 API 架构重构。
+- 当前立即任务：`CROSS-P1-01 H5/API/Android 联调脚本扩展`。
+- `H5-P1-04` 头像上传浏览器能力已完成并推送。
+- `H5-P1-05` 浏览器存储增强已完成：wa-sqlite OPFS worker、IndexedDB fallback、
+  存储能力探测、Cache API 清理策略、搜索索引失败不阻断主链路，以及 OPFS
+  worker 事务串行化均已收口。
+- `H5-P1-06` H5 parity Unit 8 最终勾选已完成，`h5-app` 当前可作为 backend +
+  frontend 联调优先入口。
+- `h5-app` 是当前 backend + frontend 联调优先入口。
+- `android-app` P0 媒体切片已完成：附件缓存、头像缓存、权限拒绝恢复、语音播放
+  基线均已收口。
+- `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项
+  按用户要求跳过并记录。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
 - Google / Apple 登录不进入当前主线；默认普通账号密码注册/登录。
-- 对象存储、Push、IPInfo 在本地测试走 `external-mock`，不访问线上 B2、FCM、APNs。
-- API 性能基线已建立；分布式消息总线和性能矩阵扩展在 H5/API/Android 主链路稳定后进入独立重构切片。
+- 对象存储、Push、IPInfo 在本地测试走 `external-mock`，不访问线上 B2、FCM、
+  APNs。
+- API 性能基线已建立；分布式消息总线和性能矩阵扩展在 H5/API/Android 主链路
+  稳定后进入独立重构切片。
 
 ## 当前立即队列
 
-- [x] `H5-P1-04` H5 头像上传浏览器能力
+- [x] `H5-P1-05` H5 浏览器存储增强
   - 状态：完成。
-  - 用户头像上传、群头像上传。
-  - 复用 direct upload / signed URL PUT / commit / avatar cache。
-  - 上传失败保留旧头像、旧 session 和旧会话摘要。
-  - 成功后刷新当前用户、联系人/会话展示、群资料和头像缓存。
-  - 使用 `external-mock` 完成 live smoke。
-  - 视觉截图：`docs/reports/h5-app/avatar-upload-smoke.png`。
-- [ ] `H5-P1-05` H5 浏览器存储增强
-  - wa-sqlite OPFS worker 化。
-  - IndexedDB VFS fallback。
-  - OPFS、IndexedDB、FTS5、Cache API 能力探测。
-  - 缓存配额、过期和清理策略。
-- [ ] `H5-P1-06` H5 parity Unit 8 最终勾选
-  - 头像上传提交推送、存储增强完成后，回填 H5 parity 计划与测试文档。
+  - 已完成 wa-sqlite OPFS worker、IndexedDB fallback、OPFS/IndexedDB/FTS5/
+    Cache API 能力探测、缓存配额/过期/清理策略、搜索索引失败降级、OPFS
+    worker 事务串行化和刷新后缓存恢复。
+- [x] `H5-P1-06` H5 parity Unit 8 最终勾选
+  - H5 parity 计划、H5 README 和测试文档已回填。
 - [ ] `CROSS-P1-01` H5/API/Android 联调脚本扩展
   - 串联 H5 live smoke 与 Android live smoke。
-  - 覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限降级和语音播放可测路径。
+  - 覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限降级和语音播放
+    可测路径。
 
 ## H5 剩余任务
 
@@ -55,21 +60,24 @@
 - [x] 浏览器 E2E / smoke 扩展。
 - [x] 本地消息搜索页面。
 - [x] 头像上传浏览器能力。
-- [ ] 浏览器存储增强。
-- [ ] H5 parity Unit 8 最终勾选。
+- [x] 浏览器存储增强。
+- [x] H5 parity Unit 8 最终勾选。
 
 ## Android 剩余任务
 
 - [ ] `ANDROID-07` 聊天扩展
   - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
 - [ ] `ANDROID-08` 设置、账号和配置
-  - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、反馈、配置、版本检查。
+  - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、反馈、
+    配置、版本检查。
 - [ ] `ANDROID-09` 通知和 Push 的 Emulator/mock 可测部分
   - 通知权限、本地通知、通知导航、FCM token mock、登出通知态清理。
 - [ ] `ANDROID-10` 全量验收与切换准备
-  - Flutter vs Android 对照、H5/API/Android 联调、Compose UI 回归、覆盖率提升、缺口清单、下线条件、回滚策略。
+  - Flutter vs Android 对照、H5/API/Android 联调、Compose UI 回归、覆盖率提升、
+    缺口清单、下线条件、回滚策略。
 - [ ] 底座补齐
-  - 统一错误模型、WebSocket protobuf 二进制帧、DataStore 扩展、live smoke 分层、登出清理文件 cache/通知态。
+  - 统一错误模型、WebSocket protobuf 二进制帧、DataStore 扩展、live smoke 分层、
+    登出清理文件 cache/通知态。
 
 ## iOS 剩余任务
 
@@ -92,7 +100,8 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
 ## API / 架构剩余任务
 
 - [ ] 性能矩阵扩展
-  - `BCRYPT_COST=12` auth 指标、account limit settings 缓存、注册/登录存在性检查优化、WS 100/500/1000 订阅者、多房间广播、慢客户端和满队列行为。
+  - `BCRYPT_COST=12` auth 指标、account limit settings 缓存、注册/登录存在性检查优化、
+    WS 100/500/1000 订阅者、多房间广播、慢客户端和满队列行为。
 - [ ] broker/event bus 抽象
   - 保留 Redis PubSub 实现。
   - 分布式 profile 引入 NATS Core。
@@ -138,7 +147,8 @@ iOS 真机待补验见上方 iOS 剩余任务。
   - Android 原生 P0/P1 完成、interop 通过、真机必要项补验或明确豁免。
   - iOS 原生主链路已完成；正式上架如要求 APNs/真机则恢复补验。
 - [ ] 发布与回滚文档
-  - 原生 Android/iOS 切换步骤、H5 联调基线、API 兼容边界、缓存清理和回滚步骤、Push/对象存储/消息总线回滚开关。
+  - 原生 Android/iOS 切换步骤、H5 联调基线、API 兼容边界、缓存清理和回滚步骤、
+    Push/对象存储/消息总线回滚开关。
 
 ## 执行规则
 

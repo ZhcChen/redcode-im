@@ -110,10 +110,11 @@ make h5-app.test.e2e
 - 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上 B2、FCM 或 APNs。
 - 当前 H5 默认普通账号密码注册/登录；邮箱注册/登录只作为后台配置能力保留，不要求真实邮箱验证码二次验证。
 - `h5-app.check` 执行 `vue-tsc --noEmit`。
-- `h5-app.test.unit` 执行 mock 模式 Vitest，覆盖 service、Pinia store、本地 SQLite/IndexedDB adapter、Cache API 包装、页面状态和组件。
+- `h5-app.test.unit` 执行 mock 模式 Vitest，覆盖 service、Pinia store、本地 SQLite/IndexedDB/OPFS worker adapter、FTS5/LIKE 搜索降级、Cache API 清理策略、页面状态和组件。
 - `h5-app.test.live` 需要本机 Compose API 已启动，覆盖普通账号注册/登录、`/auth/me`、资料更新、用户头像上传、settings、好友搜索、建群、群头像上传、文本消息、已读、聊天列表、H5/iOS-compatible HTTP 合同和富媒体 mock 对象存储链路。
 - `h5-app.test.e2e` 需要本机 Compose API 已启动，会用 Playwright 启动或复用 `http://127.0.0.1:8016`，默认使用本机 Chrome channel；覆盖 UI 注册登录、进入群聊、发送消息、刷新后缓存恢复、本地消息搜索结果跳转、群头像上传、群设置置顶、好友申请闭环、个人头像上传。
 - H5 媒体、附件和头像上传依赖 `external-mock`；该 mock 已支持浏览器 direct upload 所需 CORS preflight，E2E 不访问线上 B2。
+- H5 浏览器数据库正式运行口径为 wa-sqlite OPFS worker 优先，降级顺序为 wa-sqlite IndexedDB VFS、IndexedDB persisted shim、Memory；旧浏览器降级不得导致登录、聊天或基础缓存白屏。
 
 从零联调顺序：
 

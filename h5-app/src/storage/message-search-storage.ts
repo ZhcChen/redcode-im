@@ -44,10 +44,10 @@ export class MessageSearchStorage {
       .sort((a, b) => a.timestamp - b.timestamp)
       .slice(-maxMessages);
 
-    await db.transaction(async () => {
-      await db.execute('DELETE FROM message_search WHERE room_id = ?', [roomId]);
+    await db.transaction(async (tx) => {
+      await tx.execute('DELETE FROM message_search WHERE room_id = ?', [roomId]);
       for (const message of trimmed) {
-        await db.execute(
+        await tx.execute(
           `
             INSERT OR REPLACE INTO message_search
               (id, room_id, room_name, sender_id, sender_name, content, message_type, timestamp)
@@ -146,6 +146,7 @@ export class MessageSearchStorage {
           timestamp UNINDEXED
         )
       `);
+      await assertFtsSearchUsable(db);
       this.initializedAdapter = db;
       this.initializedMode = 'fts';
       return { db, mode: 'fts' };
@@ -171,6 +172,13 @@ export class MessageSearchStorage {
     }
   }
 }
+
+const assertFtsSearchUsable = async (db: SqlAdapter) => {
+  await db.query(
+    'SELECT id FROM message_search WHERE message_search MATCH ? LIMIT 1',
+    ['"__redcode_noop__"'],
+  );
+};
 
 const normalizeContent = (message: ChatMessage) => {
   const trimmed = message.content.trim();

@@ -25,11 +25,11 @@ export class ChatSummaryStorage {
 
   async saveChats(chats: ChatSummary[]): Promise<void> {
     const db = await this.ready();
-    await db.transaction(async () => {
-      await db.execute('DELETE FROM chat_summaries');
+    await db.transaction(async (tx) => {
+      await tx.execute('DELETE FROM chat_summaries');
       for (const chat of chats) {
         if (!chat.roomId) continue;
-        await db.execute(
+        await tx.execute(
           `INSERT OR REPLACE INTO chat_summaries
            (room_id, pinned_rank, last_message_time, payload)
            VALUES (?, ?, ?, ?)`,

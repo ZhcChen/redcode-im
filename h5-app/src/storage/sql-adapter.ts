@@ -1,10 +1,11 @@
 export type SqlValue = string | number | Uint8Array | null;
 export type SqlRow = Record<string, SqlValue | undefined>;
+export type SqlTransactionWork<T> = (adapter: SqlAdapter) => Promise<T>;
 
 export interface SqlAdapter {
   execute(sql: string, params?: readonly SqlValue[]): Promise<void>;
   query<T = SqlRow>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
-  transaction<T>(work: () => Promise<T>): Promise<T>;
+  transaction<T>(work: SqlTransactionWork<T>): Promise<T>;
   close(): Promise<void>;
 }
 

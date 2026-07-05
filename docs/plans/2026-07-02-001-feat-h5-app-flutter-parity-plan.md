@@ -1,7 +1,7 @@
 ---
 title: feat: 完整迁移 Flutter App 到 H5 App
 type: feat
-status: active
+status: completed
 date: 2026-07-02
 ---
 
@@ -346,11 +346,11 @@ flowchart TB
 **Verification:**
 - H5 头像和附件预览不依赖本机路径字段。
 
-- [ ] **Unit 8: H5 全量验收与文档收口**
+- [x] **Unit 8: H5 全量验收与文档收口**
 
 **Goal:** 建立 H5 完整功能验收入口和文档，确保后续优先用 h5-app 测试。
 
-**Progress note (2026-07-05):** H5 文档入口、从零启动流程、Makefile 验收入口、live backend smoke、浏览器 E2E smoke 和本地消息搜索结果跳转已收口；头像上传浏览器能力与浏览器存储增强仍拆到 `docs/reports/remaining-task-breakdown-2026-07-05.md` 的 `H5-P1-04`、`H5-P1-05` 继续执行，因此本 Unit 暂不整体勾选完成。
+**Progress note (2026-07-05):** H5 文档入口、从零启动流程、Makefile 验收入口、live backend smoke、浏览器 E2E smoke、本地消息搜索结果跳转、头像上传浏览器能力和浏览器存储增强均已收口；`h5-app` 可作为当前 backend + frontend 联调优先入口。
 
 **Requirements:** R4, R6
 

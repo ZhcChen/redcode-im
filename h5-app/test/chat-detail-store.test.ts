@@ -1,10 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { appEnv } from '@/config/env';
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { MessageSearchStorage } from '@/storage/message-search-storage';
 import { MessageStorage } from '@/storage/message-storage';
+import type { SqlValue } from '@/storage/sql-adapter';
 import { useChatStore } from '@/stores/chat';
 import { mergeMessages, useChatDetailStore } from '@/stores/chat-detail';
 import type { ChatMessage } from '@/types/chat';
@@ -40,6 +42,7 @@ describe('chat detail store', () => {
   let adapter: MemorySqlAdapter;
 
   beforeEach(async () => {
+    appEnv.useMockData = true;
     adapter = new MemorySqlAdapter();
     await resetLocalDatabaseForTests(adapter);
     setActivePinia(createPinia());
@@ -114,6 +117,40 @@ describe('chat detail store', () => {
     });
     const persisted = await new MessageStorage(async () => adapter).loadMessages('r1');
     expect(persisted.some((item) => item.content === 'hello from detail')).toBe(true);
+  });
+
+  it('keeps sending when local search index persistence fails', async () => {
+    adapter = new SearchWriteFailingAdapter();
+    await resetLocalDatabaseForTests(adapter);
+    const store = useChatDetailStore();
+
+    await store.enterRoom('r1');
+    await store.sendText('send despite search failure');
+
+    expect(store.messages.at(-1)).toMatchObject({
+      content: 'send despite search failure',
+      status: 'sent',
+    });
+    const persisted = await new MessageStorage(async () => adapter).loadMessages('r1');
+    expect(persisted.some((item) => item.content === 'send despite search failure')).toBe(true);
+  });
+
+  it('does not expose a new local message until the cache write has completed', async () => {
+    const delayedAdapter = new DelayedMessageWriteAdapter('m-delayed');
+    adapter = delayedAdapter;
+    await resetLocalDatabaseForTests(adapter);
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+
+    const upsert = store.upsertLocalMessage(message('m-delayed', { content: 'durable before visible' }));
+    await delayedAdapter.waitForWrite();
+
+    expect(store.messages.some((item) => item.id === 'm-delayed')).toBe(false);
+
+    delayedAdapter.releaseWrite();
+    await upsert;
+
+    expect(store.messages.some((item) => item.id === 'm-delayed')).toBe(true);
   });
 
   it('sends quoted text and clears quote selection', async () => {
@@ -296,3 +333,46 @@ describe('chat detail store', () => {
     expect(merged.map((item) => item.id)).toEqual(['local-1', 'server-1']);
   });
 });
+
+class SearchWriteFailingAdapter extends MemorySqlAdapter {
+  async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
+    if (sql.toLowerCase().includes('message_search')) {
+      throw new Error('search index unavailable');
+    }
+    await super.execute(sql, params);
+  }
+}
+
+class DelayedMessageWriteAdapter extends MemorySqlAdapter {
+  private writeStartedResolve: () => void = () => undefined;
+  private writeReleaseResolve: () => void = () => undefined;
+  private readonly writeStarted = new Promise<void>((resolve) => {
+    this.writeStartedResolve = resolve;
+  });
+  private readonly writeReleased = new Promise<void>((resolve) => {
+    this.writeReleaseResolve = resolve;
+  });
+
+  constructor(private readonly delayedMessageId: string) {
+    super();
+  }
+
+  async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
+    if (
+      sql.toLowerCase().includes('insert or replace into messages')
+      && params[0] === this.delayedMessageId
+    ) {
+      this.writeStartedResolve();
+      await this.writeReleased;
+    }
+    await super.execute(sql, params);
+  }
+
+  waitForWrite() {
+    return this.writeStarted;
+  }
+
+  releaseWrite() {
+    this.writeReleaseResolve();
+  }
+}

@@ -130,8 +130,9 @@ export const useChatDetailStore = defineStore('chatDetail', {
     },
 
     async upsertLocalMessage(message: ChatMessage) {
-      this.messages = mergeMessages(this.messages, [message]);
-      await this.persist();
+      const nextMessages = mergeMessages(this.messages, [message]);
+      await this.persist(nextMessages);
+      this.messages = nextMessages;
     },
 
     async flushPendingMessage(localId: string, content: string, quotedMessageId?: string) {
@@ -263,18 +264,23 @@ export const useChatDetailStore = defineStore('chatDetail', {
       }
     },
 
-    async persist() {
+    async persist(messages?: ChatMessage[]) {
       if (!this.roomId) return;
+      const snapshot = messages ?? this.messages;
       try {
-        await messageStorage.saveMessages(this.roomId, this.messages);
+        await messageStorage.saveMessages(this.roomId, snapshot);
       } catch (error) {
         console.warn('[h5-app] 消息本地缓存写入失败，已忽略', error);
       }
-      await useMessageSearchStore().replaceRoomIndex({
-        roomId: this.roomId,
-        roomName: this.chat?.name || useChatStore().chats.find((item) => item.roomId === this.roomId)?.name || '聊天',
-        messages: this.messages,
-      });
+      try {
+        await useMessageSearchStore().replaceRoomIndex({
+          roomId: this.roomId,
+          roomName: this.chat?.name || useChatStore().chats.find((item) => item.roomId === this.roomId)?.name || '聊天',
+          messages: snapshot,
+        });
+      } catch (error) {
+        console.warn('[h5-app] 消息搜索索引写入失败，已忽略', error);
+      }
     },
 
     async loadCachedMessages(roomId: string) {

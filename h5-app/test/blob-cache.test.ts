@@ -102,4 +102,47 @@ describe('BlobCache', () => {
     expect(window.localStorage.getItem(`${namespace}:meta:avatar:u1`)).toBeNull();
     expect(window.localStorage.getItem('other:meta:avatar:u2')).toBe('keep');
   });
+
+  it('cleans up expired entries and reports removed bytes', async () => {
+    const cache = new BlobCache({ namespace, ttlMs: 100, now: () => now });
+    await cache.save({
+      cacheKey: 'old',
+      objectKey: 'old.png',
+      blob: new Blob(['old']),
+    });
+    now = 1_101;
+
+    const result = await cache.cleanup();
+
+    expect(result).toMatchObject({
+      removed: 1,
+      entriesBefore: 1,
+      entriesAfter: 0,
+      bytesBefore: 3,
+      bytesAfter: 0,
+    });
+  });
+
+  it('keeps cache under max entry count using oldest-first cleanup', async () => {
+    const cache = new BlobCache({ namespace, maxEntries: 2, now: () => now });
+    await cache.save({ cacheKey: 'a', objectKey: 'a.png', blob: new Blob(['a']) });
+    now += 1;
+    await cache.save({ cacheKey: 'b', objectKey: 'b.png', blob: new Blob(['b']) });
+    now += 1;
+    await cache.save({ cacheKey: 'c', objectKey: 'c.png', blob: new Blob(['c']) });
+
+    expect(await cache.resolve('a', 'a.png')).toBeNull();
+    expect(await cache.resolve('b', 'b.png')).not.toBeNull();
+    expect(await cache.resolve('c', 'c.png')).not.toBeNull();
+  });
+
+  it('keeps cache under max byte count using oldest-first cleanup', async () => {
+    const cache = new BlobCache({ namespace, maxBytes: 5, now: () => now });
+    await cache.save({ cacheKey: 'a', objectKey: 'a.png', blob: new Blob(['123']) });
+    now += 1;
+    await cache.save({ cacheKey: 'b', objectKey: 'b.png', blob: new Blob(['456']) });
+
+    expect(await cache.resolve('a', 'a.png')).toBeNull();
+    expect(await cache.resolve('b', 'b.png')).not.toBeNull();
+  });
 });
