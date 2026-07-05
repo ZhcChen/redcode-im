@@ -21,6 +21,14 @@ class RoomChatRepository(
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
         chatDao.observeMessages(roomId).map { messages -> messages.map { it.toDomain() } }
 
+    override suspend fun searchMessages(roomId: String, query: String, limit: Int): List<ChatMessage> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return emptyList()
+        return chatDao
+            .searchMessages(roomId = roomId, pattern = normalized.toLikePattern(), limit = limit.coerceIn(1, 100))
+            .map { it.toDomain() }
+    }
+
     override suspend fun sendText(
         roomId: String,
         senderId: String,
@@ -302,4 +310,11 @@ class RoomChatRepository(
     suspend fun removeRoom(roomId: String) {
         chatDao.deleteRoom(roomId)
     }
+
+    private fun String.toLikePattern(): String =
+        "%" +
+            replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_") +
+            "%"
 }

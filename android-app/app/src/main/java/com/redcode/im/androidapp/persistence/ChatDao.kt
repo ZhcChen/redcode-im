@@ -47,6 +47,22 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE id = :messageId LIMIT 1")
     suspend fun findMessage(messageId: String): ChatMessageEntity?
 
+    @Query(
+        """
+        SELECT * FROM chat_messages
+        WHERE roomId = :roomId
+          AND isDeleted = 0
+          AND (
+            text LIKE :pattern ESCAPE '\'
+            OR senderName LIKE :pattern ESCAPE '\'
+            OR quotedText LIKE :pattern ESCAPE '\'
+          )
+        ORDER BY createdAtMillis DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun searchMessages(roomId: String, pattern: String, limit: Int): List<ChatMessageEntity>
+
     @Query("UPDATE chat_messages SET text = :text WHERE roomId = :roomId AND id = :messageId")
     suspend fun updateMessageText(roomId: String, messageId: String, text: String)
 

@@ -104,6 +104,26 @@ class RoomPersistenceTest {
         }
 
     @Test
+    fun roomChatRepository_searchesCachedMessages() =
+        runTest {
+            val repository = RoomChatRepository(database.chatDao(), maxMessagesPerRoom = 5)
+            repository.replaceMessages(
+                roomId = "room-a",
+                messages =
+                    listOf(
+                        message("m1", 1).copy(text = "alpha target", senderName = "Alice"),
+                        message("m2", 2).copy(text = "beta", senderName = "Bob"),
+                    ),
+            )
+
+            val byText = repository.searchMessages("room-a", "target")
+            val bySender = repository.searchMessages("room-a", "bob")
+
+            assertEquals(listOf("m1"), byText.map { it.id })
+            assertEquals(listOf("m2"), bySender.map { it.id })
+        }
+
+    @Test
     fun roomChatRepository_appliesRealtimeMessagesAndRoomCleanup() =
         runTest {
             val repository = RoomChatRepository(database.chatDao(), maxMessagesPerRoom = 5)

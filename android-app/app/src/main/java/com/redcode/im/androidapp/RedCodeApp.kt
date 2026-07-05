@@ -313,6 +313,43 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
             Text(summary.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
         HorizontalDivider()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = uiState.searchQuery,
+                onValueChange = viewModel::onSearchQueryChange,
+                label = { Text("搜索本地消息") },
+                singleLine = true,
+                modifier = Modifier.weight(1f).testTag("message-search-input"),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = viewModel::searchMessages,
+                enabled = !uiState.isSearching,
+                modifier = Modifier.testTag("message-search-button"),
+            ) {
+                Text(if (uiState.isSearching) "搜索中" else "搜索")
+            }
+            if (uiState.searchQuery.isNotBlank() || uiState.searchResults.isNotEmpty()) {
+                TextButton(onClick = viewModel::clearSearch) { Text("清空") }
+            }
+        }
+        if (uiState.searchQuery.isNotBlank()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .testTag("message-search-results"),
+            ) {
+                Text("本地搜索结果 ${uiState.searchResults.size}", style = MaterialTheme.typography.titleSmall)
+                uiState.searchResults.forEach { result ->
+                    Text("${result.senderName}: ${result.text}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            HorizontalDivider()
+        }
         Column(modifier = Modifier.weight(1f).padding(16.dp)) {
             if (uiState.messages.isNotEmpty() && uiState.hasOlderMessages) {
                 TextButton(

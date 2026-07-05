@@ -18,6 +18,9 @@ data class ChatDetailFormState(
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = true,
     val quotedMessage: ChatMessage? = null,
+    val searchQuery: String = "",
+    val searchResults: List<ChatMessage> = emptyList(),
+    val isSearching: Boolean = false,
 )
 
 data class ChatDetailUiState(
@@ -27,6 +30,9 @@ data class ChatDetailUiState(
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = true,
     val quotedMessage: ChatMessage? = null,
+    val searchQuery: String = "",
+    val searchResults: List<ChatMessage> = emptyList(),
+    val isSearching: Boolean = false,
 )
 
 class ChatDetailViewModel(
@@ -45,6 +51,9 @@ class ChatDetailViewModel(
                 isLoadingOlder = form.isLoadingOlder,
                 hasOlderMessages = form.hasOlderMessages,
                 quotedMessage = form.quotedMessage,
+                searchQuery = form.searchQuery,
+                searchResults = form.searchResults,
+                isSearching = form.isSearching,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -67,6 +76,41 @@ class ChatDetailViewModel(
 
     fun clearQuote() {
         formState.update { it.copy(quotedMessage = null) }
+    }
+
+    fun onSearchQueryChange(value: String) {
+        formState.update {
+            it.copy(searchQuery = value, searchResults = emptyList(), errorMessage = null)
+        }
+    }
+
+    fun clearSearch() {
+        formState.update {
+            it.copy(searchQuery = "", searchResults = emptyList(), isSearching = false, errorMessage = null)
+        }
+    }
+
+    fun searchMessages() {
+        val query = formState.value.searchQuery
+        viewModelScope.launch {
+            val normalized = query.trim()
+            if (normalized.isBlank()) {
+                formState.update {
+                    it.copy(searchQuery = "", searchResults = emptyList(), isSearching = false, errorMessage = null)
+                }
+                return@launch
+            }
+            formState.update { it.copy(searchQuery = normalized, isSearching = true, errorMessage = null) }
+            runCatching {
+                chatRepository.searchMessages(roomId = roomId, query = normalized)
+            }.onSuccess { results ->
+                formState.update { it.copy(searchResults = results, isSearching = false) }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(searchResults = emptyList(), isSearching = false, errorMessage = error.message ?: "搜索消息失败")
+                }
+            }
+        }
     }
 
     fun loadOlderMessages() {

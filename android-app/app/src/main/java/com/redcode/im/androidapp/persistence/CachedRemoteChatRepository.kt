@@ -41,6 +41,9 @@ class CachedRemoteChatRepository(
         localRepository.replaceMessages(roomId, messages)
     }
 
+    override suspend fun searchMessages(roomId: String, query: String, limit: Int): List<ChatMessage> =
+        localRepository.searchMessages(roomId = roomId, query = query, limit = limit)
+
     override suspend fun loadOlderMessages(roomId: String, limit: Int): Boolean {
         val currentMessages = localRepository.messages(roomId).first()
         val beforeId = currentMessages.firstOrNull()?.id ?: return false

@@ -41,6 +41,24 @@ class RemoteChatRepository(
         messageState.value = messageState.value + (roomId to messages)
     }
 
+    override suspend fun searchMessages(roomId: String, query: String, limit: Int): List<ChatMessage> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return emptyList()
+        val cappedLimit = limit.coerceIn(1, 100)
+        return messageState.value[roomId]
+            .orEmpty()
+            .asReversed()
+            .filter { message ->
+                !message.isDeleted &&
+                    (
+                        message.text.contains(normalized, ignoreCase = true) ||
+                            message.senderName.contains(normalized, ignoreCase = true) ||
+                            message.quotedMessage?.text?.contains(normalized, ignoreCase = true) == true
+                    )
+            }
+            .take(cappedLimit)
+    }
+
     override suspend fun loadOlderMessages(roomId: String, limit: Int): Boolean {
         val currentMessages = messageState.value[roomId].orEmpty()
         val beforeId = currentMessages.firstOrNull()?.id ?: return false

@@ -291,6 +291,36 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun searchMessages_usesCachedMessagesWithoutNetworkRequest() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-1",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "sender_username":"alice",
+                            "content":"hello search",
+                            "created_at":"2026-07-05T00:00:00Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshMessages("room-1")
+            val results = repository.searchMessages("room-1", "search")
+
+            assertEquals(listOf("m-1"), results.map { it.id })
+            assertEquals(1, transport.requests.size)
+        }
+
+    @Test
     fun markRead_callsBackendAndClearsUnreadCount() =
         runTest {
             val transport =

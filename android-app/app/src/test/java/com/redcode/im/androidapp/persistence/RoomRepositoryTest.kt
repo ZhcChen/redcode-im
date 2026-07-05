@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.persistence
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
@@ -133,6 +134,63 @@ class RoomRepositoryTest {
             assertEquals(listOf("room-a", "room-b"), summaries.map { it.roomId })
             assertEquals(true, summaries.first().isPinned)
             assertEquals(true, summaries.first().isMuted)
+        }
+
+    @Test
+    fun roomChatRepository_searchesCachedMessagesLocally() =
+        runTest {
+            val repository = RoomChatRepository(FakeChatDao())
+            repository.replaceMessages(
+                "room-1",
+                listOf(
+                    ChatMessage(
+                        id = "m1",
+                        roomId = "room-1",
+                        senderId = "user-a",
+                        senderName = "Alice",
+                        text = "hello project",
+                        status = MessageStatus.Sent,
+                        createdAt = Instant.ofEpochMilli(1),
+                    ),
+                    ChatMessage(
+                        id = "m2",
+                        roomId = "room-1",
+                        senderId = "user-b",
+                        senderName = "Bob",
+                        text = "quoted reply",
+                        status = MessageStatus.Sent,
+                        createdAt = Instant.ofEpochMilli(2),
+                        quotedMessage =
+                            ChatMessageQuote(
+                                id = "m1",
+                                roomId = "room-1",
+                                senderId = "user-a",
+                                senderName = "Alice",
+                                text = "indexed quote",
+                            ),
+                    ),
+                    ChatMessage(
+                        id = "m3",
+                        roomId = "room-1",
+                        senderId = "user-c",
+                        senderName = "Carol",
+                        text = "消息已删除",
+                        status = MessageStatus.Sent,
+                        createdAt = Instant.ofEpochMilli(3),
+                        isDeleted = true,
+                    ),
+                ),
+            )
+
+            val byText = repository.searchMessages("room-1", "hello")
+            val bySender = repository.searchMessages("room-1", "bob")
+            val byQuote = repository.searchMessages("room-1", "indexed")
+            val deleted = repository.searchMessages("room-1", "删除")
+
+            assertEquals(listOf("m1"), byText.map { it.id })
+            assertEquals(listOf("m2"), bySender.map { it.id })
+            assertEquals(listOf("m2"), byQuote.map { it.id })
+            assertEquals(emptyList<ChatMessage>(), deleted)
         }
 
     @Test
@@ -344,6 +402,22 @@ private class FakeChatDao : ChatDao {
 
     override suspend fun findMessage(messageId: String): ChatMessageEntity? =
         messages.value.values.flatten().firstOrNull { it.id == messageId }
+
+    override suspend fun searchMessages(roomId: String, pattern: String, limit: Int): List<ChatMessageEntity> {
+        val query = pattern.removePrefix("%").removeSuffix("%").replace("\\%", "%").replace("\\_", "_").replace("\\\\", "\\")
+        return messages.value[roomId]
+            .orEmpty()
+            .filter {
+                !it.isDeleted &&
+                    (
+                        it.text.contains(query, ignoreCase = true) ||
+                            it.senderName.contains(query, ignoreCase = true) ||
+                            it.quotedText?.contains(query, ignoreCase = true) == true
+                    )
+            }
+            .sortedByDescending { it.createdAtMillis }
+            .take(limit)
+    }
 
     override suspend fun updateMessageText(roomId: String, messageId: String, text: String) {
         messages.value =

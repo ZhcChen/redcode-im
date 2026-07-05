@@ -51,6 +51,24 @@ class InMemoryChatRepository(
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
         messageState.map { it[roomId].orEmpty() }
 
+    override suspend fun searchMessages(roomId: String, query: String, limit: Int): List<ChatMessage> {
+        val normalized = query.trim()
+        if (normalized.isBlank()) return emptyList()
+        val cappedLimit = limit.coerceIn(1, 100)
+        return messageState.value[roomId]
+            .orEmpty()
+            .asReversed()
+            .filter { message ->
+                !message.isDeleted &&
+                    (
+                        message.text.contains(normalized, ignoreCase = true) ||
+                            message.senderName.contains(normalized, ignoreCase = true) ||
+                            message.quotedMessage?.text?.contains(normalized, ignoreCase = true) == true
+                    )
+            }
+            .take(cappedLimit)
+    }
+
     override suspend fun sendText(
         roomId: String,
         senderId: String,

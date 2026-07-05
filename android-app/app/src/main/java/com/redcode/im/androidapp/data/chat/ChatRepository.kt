@@ -14,6 +14,8 @@ interface ChatRepository {
 
     suspend fun refreshMessages(roomId: String, limit: Int = 50) = Unit
 
+    suspend fun searchMessages(roomId: String, query: String, limit: Int = 50): List<ChatMessage> = emptyList()
+
     suspend fun loadOlderMessages(roomId: String, limit: Int = 50): Boolean = false
 
     suspend fun sendText(

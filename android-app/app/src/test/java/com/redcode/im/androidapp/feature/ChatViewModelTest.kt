@@ -125,6 +125,34 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun chatDetail_searchesLocalMessagesAndClearsResults() =
+        runTest {
+            val repository = InMemoryChatRepository()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.onDraftChange("search target")
+            viewModel.sendDraft()
+            advanceUntilIdle()
+            viewModel.onSearchQueryChange("target")
+            viewModel.searchMessages()
+            advanceUntilIdle()
+
+            assertEquals(listOf("search target"), viewModel.uiState.value.searchResults.map { it.text })
+            viewModel.clearSearch()
+            assertEquals("", viewModel.uiState.value.searchQuery)
+            assertEquals(emptyList<Any>(), viewModel.uiState.value.searchResults)
+            collectJob.cancel()
+        }
+
+    @Test
     fun chatDetail_messageActionsUpdateLocalState() =
         runTest {
             val repository = InMemoryChatRepository()
