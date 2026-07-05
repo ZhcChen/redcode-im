@@ -1,6 +1,8 @@
 package com.redcode.im.androidapp.data.chat
 
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.network.APIClient
 import kotlinx.serialization.json.JsonObject
 
@@ -30,6 +32,64 @@ class HttpChatRemoteDataSource(
                 bearerToken = token,
             )
             .message
+
+    override suspend fun sendRichMessage(roomId: String, content: String?, parts: List<MessagePart>, token: String, quotedMessageId: String?): BackendChatMessage =
+        apiClient
+            .post<SendRichMessageRequest, SendMessageResponse>(
+                ChatAPIEndpoint.sendMessage(roomId),
+                SendRichMessageRequest(
+                    content = content?.trim()?.takeIf { it.isNotBlank() },
+                    parts = parts.map { it.toRequest() },
+                    quotedMessageId = quotedMessageId,
+                ),
+                bearerToken = token,
+            )
+            .message
+
+    override suspend fun requestAttachmentSignature(
+        roomId: String,
+        partType: String,
+        filename: String?,
+        contentType: String?,
+        fileSize: Long?,
+        token: String,
+        hashValue: String?,
+        hashAlg: Int?,
+    ): MessageAttachmentSignatureResponse =
+        apiClient.post(
+            ChatAPIEndpoint.attachmentSignature(roomId),
+            MessageAttachmentSignatureRequest(
+                partType = partType,
+                filename = filename,
+                contentType = contentType,
+                fileSize = fileSize,
+                hashValue = hashValue,
+                hashAlg = hashAlg,
+            ),
+            bearerToken = token,
+        )
+
+    override suspend fun commitAttachmentUpload(
+        roomId: String,
+        key: String,
+        fileSize: Long?,
+        token: String,
+        hashValue: String?,
+        hashAlg: Int?,
+    ): MessageAttachmentCommitResponse =
+        apiClient.post(
+            ChatAPIEndpoint.attachmentCommit(roomId),
+            MessageAttachmentCommitRequest(key = key, fileSize = fileSize, hashValue = hashValue, hashAlg = hashAlg),
+            bearerToken = token,
+        )
+
+    override suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int): String? =
+        apiClient
+            .get<MessageAttachmentDownloadResponse>(
+                ChatAPIEndpoint.attachmentDownload(roomId = roomId, key = key, expiresInSeconds = expiresInSeconds),
+                bearerToken = token,
+            )
+            .downloadUrl
 
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {
         apiClient.post<MarkMessageReadRequest, JsonObject>(
@@ -75,4 +135,20 @@ class HttpChatRemoteDataSource(
                 bearerToken = token,
             )
             .summaries
+
+    private fun MessagePart.toRequest(): SendMessagePartRequest {
+        val attachment = attachment
+        return SendMessagePartRequest(
+            type = type.toWireName(),
+            text = text?.trim()?.takeIf { it.isNotBlank() },
+            key = attachment?.key,
+            name = attachment?.name,
+            mime = attachment?.mime,
+            size = attachment?.size,
+            width = attachment?.width?.takeIf { type == MessagePartType.Image || type == MessagePartType.Video },
+            height = attachment?.height?.takeIf { type == MessagePartType.Image || type == MessagePartType.Video },
+            durationMs = attachment?.durationMs?.takeIf { type == MessagePartType.Audio || type == MessagePartType.Video },
+            thumbnailKey = attachment?.thumbnailKey?.takeIf { type == MessagePartType.Image || type == MessagePartType.Video },
+        )
+    }
 }

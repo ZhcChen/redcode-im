@@ -1,6 +1,7 @@
 package com.redcode.im.androidapp.data.chat
 
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
+import com.redcode.im.androidapp.core.model.MessagePart
 
 interface ChatRemoteDataSource {
     suspend fun fetchChats(token: String): List<BackendChatSummary>
@@ -8,6 +9,30 @@ interface ChatRemoteDataSource {
     suspend fun loadMessages(roomId: String, token: String, limit: Int = 50, beforeId: String? = null, sinceId: String? = null): List<BackendChatMessage>
 
     suspend fun sendTextMessage(roomId: String, content: String, token: String, quotedMessageId: String? = null): BackendChatMessage
+
+    suspend fun sendRichMessage(roomId: String, content: String?, parts: List<MessagePart>, token: String, quotedMessageId: String? = null): BackendChatMessage
+
+    suspend fun requestAttachmentSignature(
+        roomId: String,
+        partType: String,
+        filename: String?,
+        contentType: String?,
+        fileSize: Long?,
+        token: String,
+        hashValue: String? = null,
+        hashAlg: Int? = null,
+    ): MessageAttachmentSignatureResponse
+
+    suspend fun commitAttachmentUpload(
+        roomId: String,
+        key: String,
+        fileSize: Long?,
+        token: String,
+        hashValue: String? = null,
+        hashAlg: Int? = null,
+    ): MessageAttachmentCommitResponse
+
+    suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int = 600): String?
 
     suspend fun markMessagesRead(roomId: String, messageId: String, token: String)
 

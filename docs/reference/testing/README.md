@@ -154,9 +154,9 @@ make android-app.test.interop
 - `android-app.connected-test` 在当前 Emulator 上运行 Compose instrumented tests。
 - `android-app.connected-test` 当前包含 Compose 登录/协议门禁 smoke、Room in-memory DAO/Repository 测试、Android Keystore 加密会话存储测试和 DataStore 协议偏好测试。
 - `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Emulator。
-- `android-app.test.live` 需要本机 Compose API 已启动，使用 Android APIClient/Auth/Chat/Contacts/Rooms 数据层覆盖注册、建群、双向文本互发、已读、好友申请/接受、私聊消息和群管理 live smoke；该入口强制 `--rerun-tasks`，避免 Gradle 缓存跳过真实联调。
-- `android-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `android-app.test.live`，作为 H5/API/Android 聊天、好友和群管理互通 smoke 入口。
-- 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
+- `android-app.test.live` 需要本机 Compose API 已启动，使用 Android APIClient/Auth/Chat/Contacts/Rooms 数据层覆盖注册、建群、双向文本互发、附件引用发送/双方可见、已读、好友申请/接受、私聊消息和群管理 live smoke；该入口强制 `--rerun-tasks`，避免 Gradle 缓存跳过真实联调。
+- `android-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `android-app.test.live`，作为 H5/API/Android 聊天、富媒体附件、好友和群管理互通 smoke 入口。
+- 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、系统相册/文件选择器厂商差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
 
 ### Admin 自测
 ```bash

@@ -4,11 +4,15 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class BackendChatSummary(
@@ -96,6 +100,7 @@ data class BackendChatMessage(
     val pinnedBy: String? = null,
     @SerialName("quoted_message")
     val quotedMessage: BackendQuotedMessage? = null,
+    val parts: List<BackendMessagePart> = emptyList(),
 ) {
     fun toDomain(): ChatMessage =
         ChatMessage(
@@ -111,6 +116,50 @@ data class BackendChatMessage(
             pinnedAt = parseNullableInstant(pinnedAt),
             pinnedBy = pinnedBy?.takeIf { it.isNotBlank() },
             quotedMessage = quotedMessage?.toDomain(),
+            parts = parts.map { it.toDomain() },
+        )
+}
+
+@Serializable
+data class BackendMessageAttachment(
+    val key: String,
+    val name: String? = null,
+    val mime: String? = null,
+    val size: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    @SerialName("duration_ms")
+    val durationMs: Int? = null,
+    @SerialName("thumbnail_key")
+    val thumbnailKey: String? = null,
+) {
+    fun toDomain(): MessageAttachment =
+        MessageAttachment(
+            key = key,
+            name = name,
+            mime = mime,
+            size = size,
+            width = width,
+            height = height,
+            durationMs = durationMs,
+            thumbnailKey = thumbnailKey,
+        )
+}
+
+@Serializable
+data class BackendMessagePart(
+    val position: Int = 0,
+    @SerialName("part_type")
+    val partType: String,
+    val text: String? = null,
+    val attachment: BackendMessageAttachment? = null,
+) {
+    fun toDomain(): MessagePart =
+        MessagePart(
+            position = position,
+            type = partType.toMessagePartType(),
+            text = text,
+            attachment = attachment?.toDomain(),
         )
 }
 
@@ -148,6 +197,78 @@ data class SendTextMessageRequest(
     val content: String,
     @SerialName("quoted_message_id")
     val quotedMessageId: String? = null,
+)
+
+@Serializable
+data class SendRichMessageRequest(
+    val content: String? = null,
+    val parts: List<SendMessagePartRequest> = emptyList(),
+    @SerialName("quoted_message_id")
+    val quotedMessageId: String? = null,
+)
+
+@Serializable
+data class SendMessagePartRequest(
+    val type: String,
+    val text: String? = null,
+    val key: String? = null,
+    val name: String? = null,
+    val mime: String? = null,
+    val size: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    @SerialName("duration_ms")
+    val durationMs: Int? = null,
+    @SerialName("thumbnail_key")
+    val thumbnailKey: String? = null,
+)
+
+@Serializable
+data class MessageAttachmentSignatureRequest(
+    @SerialName("part_type")
+    val partType: String,
+    val filename: String? = null,
+    @SerialName("content_type")
+    val contentType: String? = null,
+    @SerialName("file_size")
+    val fileSize: Long? = null,
+    @SerialName("hash_value")
+    val hashValue: String? = null,
+    @SerialName("hash_alg")
+    val hashAlg: Int? = null,
+)
+
+@Serializable
+data class MessageAttachmentSignatureResponse(
+    val success: Boolean,
+    val message: String = "",
+    val key: String? = null,
+    val signature: JsonObject? = null,
+)
+
+@Serializable
+data class MessageAttachmentCommitRequest(
+    val key: String,
+    @SerialName("hash_value")
+    val hashValue: String? = null,
+    @SerialName("hash_alg")
+    val hashAlg: Int? = null,
+    @SerialName("file_size")
+    val fileSize: Long? = null,
+)
+
+@Serializable
+data class MessageAttachmentCommitResponse(
+    val success: Boolean,
+    val message: String = "",
+)
+
+@Serializable
+data class MessageAttachmentDownloadResponse(
+    val success: Boolean,
+    val message: String = "",
+    @SerialName("download_url")
+    val downloadUrl: String? = null,
 )
 
 @Serializable
@@ -204,6 +325,24 @@ private fun String?.toMessageStatus(): MessageStatus =
         "sending" -> MessageStatus.Pending
         "failed" -> MessageStatus.Failed
         else -> MessageStatus.Sent
+    }
+
+fun MessagePartType.toWireName(): String =
+    when (this) {
+        MessagePartType.Text -> "text"
+        MessagePartType.Image -> "image"
+        MessagePartType.Video -> "video"
+        MessagePartType.Audio -> "audio"
+        MessagePartType.File -> "file"
+    }
+
+private fun String?.toMessagePartType(): MessagePartType =
+    when (this?.lowercase()) {
+        "image" -> MessagePartType.Image
+        "video" -> MessagePartType.Video
+        "audio", "voice" -> MessagePartType.Audio
+        "file" -> MessagePartType.File
+        else -> MessagePartType.Text
     }
 
 private fun parseInstant(value: String?): Instant =

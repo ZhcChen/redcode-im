@@ -2,7 +2,7 @@ package com.redcode.im.androidapp.realtime
 
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.Contact
-import com.redcode.im.androidapp.core.model.FriendRequest
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -45,6 +45,49 @@ class RealtimeEventProcessorTest {
             assertEquals("alice", message.senderName)
             assertEquals("hello", message.text)
             assertEquals("user-me", cache.currentUserIds.single())
+        }
+
+    @Test
+    fun messageEvent_withPartsPreservesAttachmentMetadata() =
+        runTest {
+            val cache = FakeChatCache()
+            val processor = processor(cache)
+
+            processor.handle(
+                event(
+                    """
+                    {
+                      "type":"message",
+                      "message_id":"m-1",
+                      "room_id":"room-1",
+                      "sender_id":"user-a",
+                      "sender_username":"alice",
+                      "content":"caption [图片]",
+                      "timestamp":"2026-07-05T00:00:00Z",
+                      "parts":[
+                        {"position":0,"part_type":"text","text":"caption"},
+                        {
+                          "position":1,
+                          "part_type":"image",
+                          "attachment":{
+                            "key":"messages/room-1/images_20260705/a.png",
+                            "name":"a.png",
+                            "mime":"image/png",
+                            "size":128,
+                            "width":16,
+                            "height":16
+                          }
+                        }
+                      ]
+                    }
+                    """.trimIndent(),
+                ),
+            )
+
+            val imagePart = cache.messages.single().parts.single { it.type == MessagePartType.Image }
+            assertEquals("messages/room-1/images_20260705/a.png", imagePart.attachment?.key)
+            assertEquals("a.png", imagePart.attachment?.name)
+            assertEquals(128L, imagePart.attachment?.size)
         }
 
     @Test

@@ -5,11 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatMessageQuote
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -36,6 +40,7 @@ data class ChatMessageEntity(
     val pinnedAtMillis: Long? = null,
     val pinnedBy: String? = null,
     val reactionsJson: String = "[]",
+    val partsJson: String = "[]",
     val quotedMessageId: String? = null,
     val quotedRoomId: String? = null,
     val quotedSenderId: String? = null,
@@ -58,6 +63,7 @@ data class ChatMessageEntity(
             pinnedAt = pinnedAtMillis?.let(Instant::ofEpochMilli),
             pinnedBy = pinnedBy,
             reactions = decodeReactions(reactionsJson),
+            parts = decodeParts(partsJson),
             quotedMessage =
                 quotedMessageId?.let {
                     ChatMessageQuote(
@@ -92,6 +98,7 @@ data class ChatMessageEntity(
                 pinnedAtMillis = message.pinnedAt?.toEpochMilli(),
                 pinnedBy = message.pinnedBy,
                 reactionsJson = encodeReactions(message.reactions),
+                partsJson = encodeParts(message.parts),
                 quotedMessageId = message.quotedMessage?.id,
                 quotedRoomId = message.quotedMessage?.roomId,
                 quotedSenderId = message.quotedMessage?.senderId,
@@ -114,6 +121,34 @@ data class ChatMessageEntity(
                 },
             ).toString()
 
+        fun encodeParts(parts: List<MessagePart>): String =
+            JsonArray(
+                parts.map { part ->
+                    val values =
+                        mutableMapOf<String, JsonElement>(
+                            "position" to JsonPrimitive(part.position),
+                            "type" to JsonPrimitive(part.type.name),
+                        )
+                    part.text?.let { values["text"] = JsonPrimitive(it) }
+                    part.attachment?.let { attachment ->
+                        val attachmentValues =
+                            mutableMapOf<String, JsonElement>(
+                                "key" to JsonPrimitive(attachment.key),
+                            )
+                        attachment.name?.let { attachmentValues["name"] = JsonPrimitive(it) }
+                        attachment.mime?.let { attachmentValues["mime"] = JsonPrimitive(it) }
+                        attachment.size?.let { attachmentValues["size"] = JsonPrimitive(it) }
+                        attachment.width?.let { attachmentValues["width"] = JsonPrimitive(it) }
+                        attachment.height?.let { attachmentValues["height"] = JsonPrimitive(it) }
+                        attachment.durationMs?.let { attachmentValues["duration_ms"] = JsonPrimitive(it) }
+                        attachment.thumbnailKey?.let { attachmentValues["thumbnail_key"] = JsonPrimitive(it) }
+                        attachment.localPath?.let { attachmentValues["local_path"] = JsonPrimitive(it) }
+                        values["attachment"] = JsonObject(attachmentValues)
+                    }
+                    JsonObject(values)
+                },
+            ).toString()
+
         private fun decodeReactions(value: String): List<MessageReactionSummary> =
             try {
                 json.parseToJsonElement(value).jsonArray.mapNotNull { element ->
@@ -132,6 +167,47 @@ data class ChatMessageEntity(
                 }
             } catch (_: Exception) {
                 emptyList()
+            }
+
+        private fun decodeParts(value: String): List<MessagePart> =
+            try {
+                json.parseToJsonElement(value).jsonArray.mapNotNull { element ->
+                    val obj = element.jsonObject
+                    val type = obj["type"]?.jsonPrimitive?.contentOrNull.toMessagePartType()
+                    val attachmentObj = obj["attachment"]?.jsonObject
+                    val attachment =
+                        attachmentObj?.let {
+                            val key = it["key"]?.jsonPrimitive?.contentOrNull?.takeIf { key -> key.isNotBlank() } ?: return@let null
+                            MessageAttachment(
+                                key = key,
+                                name = it["name"]?.jsonPrimitive?.contentOrNull,
+                                mime = it["mime"]?.jsonPrimitive?.contentOrNull,
+                                size = it["size"]?.jsonPrimitive?.longOrNull,
+                                width = it["width"]?.jsonPrimitive?.longOrNull?.toInt(),
+                                height = it["height"]?.jsonPrimitive?.longOrNull?.toInt(),
+                                durationMs = it["duration_ms"]?.jsonPrimitive?.longOrNull?.toInt(),
+                                thumbnailKey = it["thumbnail_key"]?.jsonPrimitive?.contentOrNull,
+                                localPath = it["local_path"]?.jsonPrimitive?.contentOrNull,
+                            )
+                        }
+                    MessagePart(
+                        position = obj["position"]?.jsonPrimitive?.longOrNull?.toInt() ?: 0,
+                        type = type,
+                        text = obj["text"]?.jsonPrimitive?.contentOrNull,
+                        attachment = attachment,
+                    )
+                }
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+        private fun String?.toMessagePartType(): MessagePartType =
+            when (this) {
+                MessagePartType.Image.name -> MessagePartType.Image
+                MessagePartType.Video.name -> MessagePartType.Video
+                MessagePartType.Audio.name -> MessagePartType.Audio
+                MessagePartType.File.name -> MessagePartType.File
+                else -> MessagePartType.Text
             }
     }
 }

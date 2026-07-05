@@ -22,6 +22,23 @@ object ChatAPIEndpoint {
     fun sendMessage(roomId: String): APIEndpoint =
         APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages")
 
+    fun attachmentSignature(roomId: String): APIEndpoint =
+        APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages/attachments/signature")
+
+    fun attachmentCommit(roomId: String): APIEndpoint =
+        APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages/attachments/commit")
+
+    fun attachmentDownload(roomId: String, key: String, expiresInSeconds: Int = 600): APIEndpoint =
+        endpointWithQuery(
+            method = HTTPMethod.GET,
+            path = "/rooms/$roomId/messages/attachments/download",
+            values =
+                mapOf(
+                    "key" to key,
+                    "expires_in_seconds" to expiresInSeconds.coerceIn(60, 86_400).toString(),
+                ),
+        )
+
     fun markMessagesRead(roomId: String): APIEndpoint =
         APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages/read")
 

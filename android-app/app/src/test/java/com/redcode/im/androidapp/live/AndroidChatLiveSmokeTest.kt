@@ -2,6 +2,9 @@ package com.redcode.im.androidapp.live
 
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.core.model.AuthSession
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.auth.HttpAuthRemoteDataSource
 import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
 import com.redcode.im.androidapp.network.APIClient
@@ -44,6 +47,8 @@ class AndroidChatLiveSmokeTest {
                     .room
             val h5Text = "hello from h5 $suffix"
             val androidText = "hello from android $suffix"
+            val imageName = "android-smoke-$suffix.png"
+            val imageKey = "messages/${room.id}/images_20260705/$imageName"
 
             val h5Message =
                 chatDataSource.sendTextMessage(
@@ -59,16 +64,54 @@ class AndroidChatLiveSmokeTest {
                     androidSession.tokens.accessToken,
                     quotedMessageId = null,
                 )
+            val androidImageMessage =
+                chatDataSource.sendRichMessage(
+                    room.id,
+                    content = "android image $suffix",
+                    parts =
+                        listOf(
+                            MessagePart(
+                                position = 0,
+                                type = MessagePartType.Image,
+                                attachment =
+                                    MessageAttachment(
+                                        key = imageKey,
+                                        name = imageName,
+                                        mime = "image/png",
+                                        size = 128,
+                                        width = 16,
+                                        height = 16,
+                                    ),
+                            ),
+                        ),
+                    token = androidSession.tokens.accessToken,
+                    quotedMessageId = null,
+                )
             val h5Visible = chatDataSource.loadMessages(room.id, h5Session.tokens.accessToken, limit = 20)
             val androidVisible = chatDataSource.loadMessages(room.id, androidSession.tokens.accessToken, limit = 20)
 
             assertEquals("group", room.roomType)
             assertEquals(h5Text, h5Message.content)
             assertEquals(androidText, androidMessage.content)
+            assertTrue(
+                androidImageMessage.parts.any {
+                    it.partType == "image" && it.attachment?.key == imageKey
+                },
+            )
             assertTrue(h5Visible.any { it.id == h5Message.id && it.content == h5Text })
             assertTrue(h5Visible.any { it.id == androidMessage.id && it.content == androidText })
+            assertTrue(
+                h5Visible.any { message ->
+                    message.id == androidImageMessage.id && message.parts.any { it.attachment?.name == imageName }
+                },
+            )
             assertTrue(androidVisible.any { it.id == h5Message.id && it.content == h5Text })
             assertTrue(androidVisible.any { it.id == androidMessage.id && it.content == androidText })
+            assertTrue(
+                androidVisible.any { message ->
+                    message.id == androidImageMessage.id && message.parts.any { it.attachment?.mime == "image/png" }
+                },
+            )
 
             chatDataSource.markMessagesRead(room.id, androidMessage.id, h5Session.tokens.accessToken)
             chatDataSource.markMessagesRead(room.id, h5Message.id, androidSession.tokens.accessToken)

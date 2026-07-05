@@ -56,6 +56,7 @@ interface ChatDao {
             text LIKE :pattern ESCAPE '\'
             OR senderName LIKE :pattern ESCAPE '\'
             OR quotedText LIKE :pattern ESCAPE '\'
+            OR partsJson LIKE :pattern ESCAPE '\'
           )
         ORDER BY createdAtMillis DESC
         LIMIT :limit

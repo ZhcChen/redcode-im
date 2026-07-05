@@ -7,6 +7,9 @@ import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.GroupSettingsInfo
 import com.redcode.im.androidapp.core.model.GroupSettingsSnapshot
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.MyMuteInfo
@@ -54,6 +57,24 @@ class RoomEntityMappingTest {
                 pinnedAt = Instant.ofEpochMilli(6789),
                 pinnedBy = "user-2",
                 reactions = listOf(MessageReactionSummary(reactionKey = "👍", count = 2, hasSelf = true)),
+                parts =
+                    listOf(
+                        MessagePart(position = 0, type = MessagePartType.Text, text = "hello"),
+                        MessagePart(
+                            position = 1,
+                            type = MessagePartType.Image,
+                            attachment =
+                                MessageAttachment(
+                                    key = "messages/room-1/images_20260705/a.png",
+                                    name = "a.png",
+                                    mime = "image/png",
+                                    size = 128,
+                                    width = 10,
+                                    height = 20,
+                                    localPath = "/tmp/a.png",
+                                ),
+                        ),
+                    ),
                 quotedMessage =
                     ChatMessageQuote(
                         id = "quote-1",

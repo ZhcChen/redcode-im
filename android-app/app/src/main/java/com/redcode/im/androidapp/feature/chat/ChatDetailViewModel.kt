@@ -2,7 +2,10 @@ package com.redcode.im.androidapp.feature.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.chat.ChatRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -143,6 +146,37 @@ class ChatDetailViewModel(
                 formState.update { it.copy(draft = "", quotedMessage = null, errorMessage = null) }
             }.onFailure { error ->
                 formState.update { it.copy(errorMessage = error.message ?: "发送失败") }
+            }
+        }
+    }
+
+    fun sendAttachmentReference(
+        attachment: MessageAttachment,
+        type: MessagePartType = MessagePartType.File,
+        text: String? = formState.value.draft,
+    ) {
+        val quotedMessageId = formState.value.quotedMessage?.id
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.sendAttachmentReference(
+                    roomId = roomId,
+                    senderId = currentUserId,
+                    senderName = currentUserName,
+                    text = text,
+                    parts =
+                        listOf(
+                            MessagePart(
+                                position = 0,
+                                type = type,
+                                attachment = attachment,
+                            ),
+                        ),
+                    quotedMessageId = quotedMessageId,
+                )
+            }.onSuccess {
+                formState.update { it.copy(draft = "", quotedMessage = null, errorMessage = null) }
+            }.onFailure { error ->
+                formState.update { it.copy(errorMessage = error.message ?: "发送附件失败") }
             }
         }
     }

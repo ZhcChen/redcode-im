@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.data.chat
 
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import kotlinx.coroutines.flow.Flow
 
@@ -25,6 +26,18 @@ interface ChatRepository {
         text: String,
         quotedMessageId: String? = null,
     ): ChatMessage
+
+    suspend fun sendAttachmentReference(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        text: String? = null,
+        parts: List<MessagePart>,
+        quotedMessageId: String? = null,
+    ): ChatMessage =
+        sendText(roomId = roomId, senderId = senderId, senderName = senderName, text = text.orEmpty(), quotedMessageId = quotedMessageId)
+
+    suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, expiresInSeconds: Int = 600): String? = null
 
     suspend fun resendMessage(messageId: String): ChatMessage? = null
 

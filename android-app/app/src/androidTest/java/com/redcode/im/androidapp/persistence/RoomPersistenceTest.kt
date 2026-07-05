@@ -9,6 +9,9 @@ import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.GroupSettingsInfo
 import com.redcode.im.androidapp.core.model.GroupSettingsSnapshot
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.RoomInfo
@@ -116,15 +119,28 @@ class RoomPersistenceTest {
                 messages =
                     listOf(
                         message("m1", 1).copy(text = "alpha target", senderName = "Alice"),
-                        message("m2", 2).copy(text = "beta", senderName = "Bob"),
+                        message("m2", 2).copy(
+                            text = "beta",
+                            senderName = "Bob",
+                            parts =
+                                listOf(
+                                    MessagePart(
+                                        position = 0,
+                                        type = MessagePartType.File,
+                                        attachment = MessageAttachment(key = "messages/room-a/files_20260705/report.pdf", name = "report.pdf"),
+                                    ),
+                                ),
+                        ),
                     ),
             )
 
             val byText = repository.searchMessages("room-a", "target")
             val bySender = repository.searchMessages("room-a", "bob")
+            val byAttachment = repository.searchMessages("room-a", "report")
 
             assertEquals(listOf("m1"), byText.map { it.id })
             assertEquals(listOf("m2"), bySender.map { it.id })
+            assertEquals(listOf("m2"), byAttachment.map { it.id })
         }
 
     @Test

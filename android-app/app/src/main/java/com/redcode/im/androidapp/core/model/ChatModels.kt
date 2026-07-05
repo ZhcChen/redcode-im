@@ -40,6 +40,7 @@ data class ChatMessage(
     val pinnedBy: String? = null,
     val reactions: List<MessageReactionSummary> = emptyList(),
     val quotedMessage: ChatMessageQuote? = null,
+    val parts: List<MessagePart> = emptyList(),
 )
 
 data class ChatMessageQuote(
@@ -50,6 +51,36 @@ data class ChatMessageQuote(
     val text: String,
     val createdAt: Instant? = null,
     val isDeleted: Boolean = false,
+)
+
+enum class MessagePartType {
+    Text,
+    Image,
+    Video,
+    Audio,
+    File,
+}
+
+data class MessageAttachment(
+    val key: String,
+    val name: String? = null,
+    val mime: String? = null,
+    val size: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationMs: Int? = null,
+    val thumbnailKey: String? = null,
+    val localPath: String? = null,
+) {
+    val displayName: String =
+        name?.takeIf { it.isNotBlank() } ?: key.substringAfterLast('/').ifBlank { "附件" }
+}
+
+data class MessagePart(
+    val position: Int,
+    val type: MessagePartType,
+    val text: String? = null,
+    val attachment: MessageAttachment? = null,
 )
 
 @Serializable

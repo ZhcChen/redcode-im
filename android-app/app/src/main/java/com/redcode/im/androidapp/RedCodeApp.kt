@@ -44,6 +44,7 @@ import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.FriendRequest
 import com.redcode.im.androidapp.core.model.FriendRequestStatus
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.feature.auth.AuthMode
@@ -411,6 +412,14 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
+                    message.parts.filter { it.type != MessagePartType.Text && it.attachment != null }.forEach { part ->
+                        val attachment = part.attachment!!
+                        Text(
+                            text = "${part.type.label()} · ${attachment.displayName} · ${attachment.mime ?: "unknown"} · ${attachment.size?.let(::formatBytes) ?: "-"}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
                     if (!message.id.startsWith("local-") && !message.isDeleted) {
                         Row {
                             TextButton(onClick = { viewModel.deleteMessage(message.id) }) {
@@ -720,3 +729,19 @@ private fun Header(title: String) {
         modifier = Modifier.fillMaxWidth().padding(16.dp),
     )
 }
+
+private fun MessagePartType.label(): String =
+    when (this) {
+        MessagePartType.Image -> "图片"
+        MessagePartType.Video -> "视频"
+        MessagePartType.Audio -> "语音"
+        MessagePartType.File -> "文件"
+        MessagePartType.Text -> "文本"
+    }
+
+private fun formatBytes(value: Long): String =
+    when {
+        value >= 1024L * 1024L -> "${value / 1024L / 1024L} MB"
+        value >= 1024L -> "${value / 1024L} KB"
+        else -> "$value B"
+    }

@@ -7,6 +7,9 @@ import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.TokenPair
@@ -14,6 +17,8 @@ import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.data.chat.BackendChatMessagePreview
 import com.redcode.im.androidapp.data.chat.BackendChatSummary
 import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
+import com.redcode.im.androidapp.data.chat.MessageAttachmentCommitResponse
+import com.redcode.im.androidapp.data.chat.MessageAttachmentSignatureResponse
 import com.redcode.im.androidapp.data.contacts.BackendFriendInfo
 import com.redcode.im.androidapp.data.contacts.BackendFriendRequest
 import com.redcode.im.androidapp.data.contacts.BackendUser
@@ -256,6 +261,36 @@ class RoomRepositoryTest {
             assertEquals(MessageStatus.Failed, failed.status)
             assertEquals("m2", resent?.id)
             assertEquals(listOf("m2"), repository.messages("room-1").first().map { it.id })
+        }
+
+    @Test
+    fun cachedRemoteChatRepository_sendsAttachmentWithoutCaptionAsNullContent() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val repository = CachedRemoteChatRepository(remote, MutableStateFlow(session()), local)
+
+            repository.sendAttachmentReference(
+                roomId = "room-1",
+                senderId = "user-me",
+                senderName = "Me",
+                text = null,
+                parts =
+                    listOf(
+                        MessagePart(
+                            position = 0,
+                            type = MessagePartType.File,
+                            attachment =
+                                MessageAttachment(
+                                    key = "messages/room-1/files_20260705/a.pdf",
+                                    name = "a.pdf",
+                                ),
+                        ),
+                    ),
+            )
+
+            assertEquals(null, remote.lastRichContent)
+            assertEquals(listOf(MessagePartType.File), remote.lastRichParts.map { it.type })
         }
 
     @Test
@@ -556,6 +591,8 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     var pinned: Boolean? = null
     var lastReactionKey = ""
     var lastQuotedMessageId: String? = null
+    var lastRichContent: String? = null
+    var lastRichParts: List<MessagePart> = emptyList()
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -621,6 +658,62 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
                     )
                 },
         )
+    }
+
+    override suspend fun sendRichMessage(
+        roomId: String,
+        content: String?,
+        parts: List<MessagePart>,
+        token: String,
+        quotedMessageId: String?,
+    ): BackendChatMessage {
+        tokens += token
+        lastQuotedMessageId = quotedMessageId
+        lastRichContent = content
+        lastRichParts = parts
+        if (failNextSend) {
+            failNextSend = false
+            error("send failed")
+        }
+        return BackendChatMessage(
+            id = "m2",
+            roomId = roomId,
+            senderId = "user-me",
+            senderUsername = "me",
+            content = content ?: "[附件]",
+            createdAt = "2026-07-04T00:00:01Z",
+        )
+    }
+
+    override suspend fun requestAttachmentSignature(
+        roomId: String,
+        partType: String,
+        filename: String?,
+        contentType: String?,
+        fileSize: Long?,
+        token: String,
+        hashValue: String?,
+        hashAlg: Int?,
+    ): MessageAttachmentSignatureResponse {
+        tokens += token
+        return MessageAttachmentSignatureResponse(success = true, key = "messages/$roomId/files_20260705/test.bin")
+    }
+
+    override suspend fun commitAttachmentUpload(
+        roomId: String,
+        key: String,
+        fileSize: Long?,
+        token: String,
+        hashValue: String?,
+        hashAlg: Int?,
+    ): MessageAttachmentCommitResponse {
+        tokens += token
+        return MessageAttachmentCommitResponse(success = true)
+    }
+
+    override suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, token: String, expiresInSeconds: Int): String? {
+        tokens += token
+        return "https://asset.example/$key"
     }
 
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {

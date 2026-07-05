@@ -3,6 +3,9 @@ package com.redcode.im.androidapp.data
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.ChatAPIEndpoint
@@ -51,6 +54,10 @@ class RemoteChatRepositoryTest {
         assertEquals(
             "http://10.0.2.2:8010/rooms/room-1/messages/m-1/reactions?reaction_key=%F0%9F%91%8D",
             ChatAPIEndpoint.removeReaction("room-1", "m-1", "👍").url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(
+            "http://10.0.2.2:8010/rooms/room-1/messages/attachments/download?key=messages%2Froom-1%2Fimages_20260705%2Fa.png&expires_in_seconds=600",
+            ChatAPIEndpoint.attachmentDownload("room-1", "messages/room-1/images_20260705/a.png").url(RedCodeEnvironment.localEmulator()),
         )
     }
 
@@ -198,6 +205,122 @@ class RemoteChatRepositoryTest {
 
             assertEquals("m-1", sent.quotedMessage?.id)
             assertEquals("""{"content":"reply","quoted_message_id":"m-1"}""", transport.requests[1].body)
+        }
+
+    @Test
+    fun sendAttachmentReference_postsRichMessageParts() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-img",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "sender_nickname":"Me",
+                            "content":"caption [图片]",
+                            "status":"sent",
+                            "created_at":"2026-07-05T00:00:02Z",
+                            "parts":[
+                              {"position":0,"part_type":"text","text":"caption"},
+                              {"position":1,"part_type":"image","attachment":{"key":"messages/room-1/images_20260705/a.png","name":"a.png","mime":"image/png","size":128,"width":10,"height":20}}
+                            ]
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport)
+
+            val sent =
+                repository.sendAttachmentReference(
+                    roomId = "room-1",
+                    senderId = "user-me",
+                    senderName = "Me",
+                    text = " caption ",
+                    parts =
+                        listOf(
+                            MessagePart(
+                                position = 0,
+                                type = MessagePartType.Image,
+                                attachment =
+                                    MessageAttachment(
+                                        key = "messages/room-1/images_20260705/a.png",
+                                        name = "a.png",
+                                        mime = "image/png",
+                                        size = 128,
+                                        width = 10,
+                                        height = 20,
+                                    ),
+                            ),
+                        ),
+                )
+
+            assertEquals("m-img", sent.id)
+            assertEquals(MessagePartType.Image, sent.parts[1].type)
+            assertEquals(
+                """{"content":"caption","parts":[{"type":"image","key":"messages/room-1/images_20260705/a.png","name":"a.png","mime":"image/png","size":128,"width":10,"height":20}]}""",
+                transport.requests[0].body,
+            )
+        }
+
+    @Test
+    fun sendAttachmentReference_withoutCaptionDoesNotSendPreviewAsContent() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-file",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "sender_nickname":"Me",
+                            "content":"[文件]",
+                            "status":"sent",
+                            "created_at":"2026-07-05T00:00:02Z",
+                            "parts":[
+                              {"position":0,"part_type":"file","attachment":{"key":"messages/room-1/files_20260705/a.pdf","name":"a.pdf","mime":"application/pdf","size":128}}
+                            ]
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport)
+
+            repository.sendAttachmentReference(
+                roomId = "room-1",
+                senderId = "user-me",
+                senderName = "Me",
+                text = null,
+                parts =
+                    listOf(
+                        MessagePart(
+                            position = 0,
+                            type = MessagePartType.File,
+                            attachment =
+                                MessageAttachment(
+                                    key = "messages/room-1/files_20260705/a.pdf",
+                                    name = "a.pdf",
+                                    mime = "application/pdf",
+                                    size = 128,
+                                ),
+                        ),
+                    ),
+            )
+
+            assertEquals(
+                """{"parts":[{"type":"file","key":"messages/room-1/files_20260705/a.pdf","name":"a.pdf","mime":"application/pdf","size":128}]}""",
+                transport.requests[0].body,
+            )
         }
 
     @Test

@@ -70,8 +70,8 @@
 - 消息删除、消息置顶和 `👍` reaction 已接入真实 HTTP 合同、Room v2 缓存、ViewModel/UI 操作入口，并处理 `pin_update` / `reaction_update` WebSocket 增量事件。
 - 引用消息已接入 `quoted_message_id` 发送、`quoted_message` 解析、Room v3 缓存和聊天详情引用预览。
 - 会话置顶和免打扰已接入 `/rooms/{room_id}/pin`、`/rooms/{room_id}/notification-settings`，并在 Room 会话摘要、列表排序和 Compose 操作入口中生效；未读数已有摘要显示和进入会话已读清零基线，后续联调阶段再补独立未读拉取/多端校验。
-- 本地消息搜索已基于 Room 缓存接入，当前支持按房间搜索消息正文、发送人名和引用内容，Compose 聊天详情页提供搜索入口；远端 `/messages/search` 互通和富媒体字段索引后续随联调/富媒体阶段补齐。
-- 已新增 `make android-app.test.live` 与 `make android-app.test.interop`；`android-app.test.interop` 串联 H5 live smoke 与 Android 数据层 live smoke，在同一 Compose API 上验证账号注册、建群、H5-compatible/Android HTTP 双向文本互发、双方消息可见和已读标记。
+- 本地消息搜索已基于 Room 缓存接入，当前支持按房间搜索消息正文、发送人名、引用内容和富媒体附件元数据，Compose 聊天详情页提供搜索入口；远端 `/messages/search` 互通后续随联调阶段补齐。
+- 已新增 `make android-app.test.live` 与 `make android-app.test.interop`；`android-app.test.interop` 串联 H5 live smoke 与 Android 数据层 live smoke，在同一 Compose API 上验证账号注册、建群、H5-compatible/Android HTTP 双向文本/附件引用互发、双方消息可见和已读标记。
 
 ## ANDROID-04 联系人与好友
 
@@ -107,13 +107,23 @@
 
 - [ ] 图片/视频选择。
 - [ ] 文件选择。
-- [ ] 上传策略、对象存储 mock 直传、commit。
-- [ ] 图片/视频/附件预览。
+- [x] 上传签名、对象存储 commit、下载 URL API 合同。
+- [ ] 对象存储 mock 直传执行。
+- [x] 图片/视频/语音/文件消息 parts DTO、WebSocket 增量解析和 Room v5 缓存。
+- [x] 图片/视频/附件元数据预览基线。
 - [ ] 用户头像和群头像缓存。
 - [ ] 语音录制、发送、播放。
 - [ ] 权限拒绝和恢复路径。
-- [ ] H5/API/Android 富媒体互通 smoke。
+- [x] H5/API/Android 富媒体互通 smoke 基线。
 - [ ] SKIPPED 真机补验：相机、麦克风硬件差异、厂商 ROM 文件选择差异。
+
+进度备注：
+- `ChatMessage.parts` 已对齐后端 `MessagePartPayload`，支持 text/image/video/audio/file 分片和附件元数据。
+- `HttpChatRemoteDataSource` 已接入 `/rooms/{room_id}/messages/attachments/signature`、`/commit`、`/download`，并支持发送富媒体消息引用已生成的 `messages/*` object key。
+- Room v5 为 `chat_messages` 增加 `partsJson`，会话详情可渲染附件类型、文件名、MIME、大小等元数据，本地搜索可命中附件名。
+- `RealtimeEventProcessor` 已解析 WebSocket `parts` / `attachments` 增量字段，写入同一 Room 消息缓存。
+- `AndroidChatLiveSmokeTest` 已覆盖文本互发和 Android 发送 image attachment reference 后 H5-compatible HTTP / Android HTTP 双方可见。
+- 当前未接系统文件选择器、相机、麦克风和真实字节直传；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展
 

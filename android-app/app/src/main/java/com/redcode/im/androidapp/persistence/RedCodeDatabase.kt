@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoomMemberEntity::class,
         GroupSettingsEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class RedCodeDatabase : RoomDatabase() {
@@ -105,5 +105,12 @@ val MIGRATION_3_4 =
                 )
                 """.trimIndent(),
             )
+        }
+    }
+
+val MIGRATION_4_5 =
+    object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE chat_messages ADD COLUMN partsJson TEXT NOT NULL DEFAULT '[]'")
         }
     }

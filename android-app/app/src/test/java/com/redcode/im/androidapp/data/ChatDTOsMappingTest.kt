@@ -1,14 +1,18 @@
 package com.redcode.im.androidapp.data
 
 import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.data.chat.BackendChatMessagePreview
 import com.redcode.im.androidapp.data.chat.BackendChatSummary
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ChatDTOsMappingTest {
+    private val json = Json { ignoreUnknownKeys = true }
+
     @Test
     fun summary_prefersPrivateFriendNamesAndDefaultsInvalidDates() {
         val summary =
@@ -88,5 +92,31 @@ class ChatDTOsMappingTest {
         assertEquals(java.time.Instant.parse("2026-07-05T00:00:01Z"), failedDeleted.pinnedAt)
         assertEquals("q-1", failedDeleted.quotedMessage?.id)
         assertEquals("quote-user", failedDeleted.quotedMessage?.senderName)
+    }
+
+    @Test
+    fun message_mapsAttachmentParts() {
+        val payload =
+            """
+            {
+              "id":"m-attach",
+              "room_id":"room-1",
+              "sender_id":"user-a",
+              "content":"[图片]",
+              "parts":[
+                {"position":0,"part_type":"text","text":"look"},
+                {"position":1,"part_type":"image","attachment":{"key":"messages/room-1/images_20260705/a.png","name":"a.png","mime":"image/png","size":128,"width":10,"height":20}}
+              ]
+            }
+            """.trimIndent()
+
+        val message = json.decodeFromString<BackendChatMessage>(payload).toDomain()
+
+        assertEquals(2, message.parts.size)
+        assertEquals(MessagePartType.Text, message.parts[0].type)
+        assertEquals("look", message.parts[0].text)
+        assertEquals(MessagePartType.Image, message.parts[1].type)
+        assertEquals("a.png", message.parts[1].attachment?.displayName)
+        assertEquals(128L, message.parts[1].attachment?.size)
     }
 }
