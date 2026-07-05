@@ -1,166 +1,222 @@
-# 任务清单
+# RedCode IM 剩余任务清单
 
-> 本文件用于记录 **RedCode IM** 当前仍需推进的工作流与优先级。默认执行主线以 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md` 为准。
+更新时间：2026-07-05
 
-**最后更新**: 2026-04-13
+本文档是当前仓库剩余任务的总入口。细节任务仍以对应模块文档为准：
 
----
+- Android 原生迁移执行清单：`android-app/docs/remaining-migration-tasks.md`
+- Android 全量迁移任务树：`android-app/docs/full-migration-task-tree.md`
+- iOS 原生 parity 收口报告：`docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
+- H5 Flutter parity 计划：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
+- API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
+- 测试入口：`docs/reference/testing/README.md`
 
-## 当前主执行线（P0）
+## 当前结论
 
-1. **Message runtime 全链路切换**
-   - 当前后台已支持配置面与部分行为约束。
-   - app / desktop 已完成第一轮 relay_only 降级闭环：
-     - 客户端已消费并缓存 `message_runtime`
-     - 聊天页动作菜单与多选栏已隐藏 relay_only 不支持动作
-     - 发送 / 引用 / 转发 / pin / 删除 / reaction / 服务端已读同步已做 guard
-     - 搜索页已切为“仅本地缓存搜索”并跳过服务端搜索
-   - app / desktop 已补 plaintext / e2ee 展示层提示闭环：
-     - 聊天输入区会展示当前审计模式与服务器存储策略提示
-     - `e2ee` 提示文案明确为“按当前配置目标”，避免误导为协议已完整落地
-   - app / desktop 已补 relay_only 历史链路一致性：
-     - 进入会话优先使用本地缓存，不再额外请求服务端历史消息
-     - desktop 已避免“本地有缓存但被空历史响应覆盖”的错位
-   - app / desktop 已补 relay_only 历史定位提示：
-     - 引用消息或置顶消息若不在本地缓存，会提示“当前模式不保存聊天记录，只能定位本地缓存中的消息”
-   - app 已补 relay_only 离线补拉 guard：
-     - WebSocket 重连认证后不会再触发服务端历史补拉
-   - app / desktop 已补 relay_only 缓存摘要清洗：
-     - 启动时若本地 chat cache 留有旧 `lastMessage / unreadCount / lastMessageId`，会先按 relay_only 规则清空，避免闪出旧摘要
-   - app / desktop 已补 runtime 切换时的即时清洗：
-     - 当 `persist -> relay_only` 在运行中生效时，会立刻清空当前会话列表残留摘要，并同步刷新当前聊天页 / 未读汇总
-   - app / desktop 已补 relay_only 本地摘要回填：
-     - 清洗旧摘要后，会基于本机消息缓存回填最近一条消息、最后消息 ID 与本地未读数，避免聊天列表长时间空白
-   - app 已补 relay_only 本地已读收口：
-     - 进入当前会话后会在本地立即清空未读数，不再依赖服务端已读接口
-   - app 已补搜索页 runtime 响应式切换：
-     - 若搜索页打开期间 runtime 从 persist 切到 relay_only，会自动切回“仅本地缓存搜索”
-   - app 已补消息编辑/删除后的本地摘要即时刷新：
-     - 最新一条消息在本地被编辑或删除后，会同步刷新 relay_only 聊天列表摘要，且不再受启动阶段 chat cache 初始化竞态影响
-   - app 已补 live 消息摘要预览统一：
-     - 实时收到图片/语音/文件等消息时，聊天列表会立即使用统一 preview 规则刷新摘要，并同步写入 `last_message_id`
-   - app 已补本地主动编辑/删除摘要刷新：
-     - 编辑或删除最新一条消息时，API 返回替换本地消息后会立即同步 chat summary，不再依赖后续 websocket 回推
-   - app 已补 reaction 本地缓存收口：
-     - 添加/取消 reaction 已统一走可注入 HTTP client，并在更新内存消息后同步落盘本地消息缓存
-   - app 已补 reaction / pin 未加载房间缓存回写：
-     - `getReactions` 与 pin websocket 更新在房间未预加载到内存时，也会直接回写本地消息缓存
-     - 从本地消息缓存恢复房间消息时，会同步重建 pinned cache，避免 reload 后置顶态丢失
-   - app 已补本地未读清零缓存回写：
-     - `markChatAsRead` 在更新内存 unread 后会同步写回 `ChatCache`，避免 reload 后未读角标回弹
-   - desktop 已补消息更新缓存收口：
-     - 编辑/删除事件会同步写回本地消息缓存，删除不再直接丢记录，relay_only 重启后仍能稳定重建 `[消息已删除]` 等摘要
-   - desktop 已补本地主动编辑/删除摘要刷新：
-     - 右键删除、编辑、批量删除已接入统一 message update 链路，本地操作后会立刻刷新当前消息缓存与聊天列表摘要
-   - desktop 已补 reaction / pin 本地缓存收口：
-     - 当前房间的添加/取消 reaction、置顶/取消置顶，以及对应 websocket 更新，都会同步写回本地消息缓存
-     - 非当前房间收到 reaction / pin websocket 更新时，也会刷新对应 room 的本地消息缓存，避免 reload 后状态回退
-   - desktop 已补 chatList store 缓存持久化：
-     - `updateChatItem / setChatUnreadCount` 更新会话摘要、未读数后，会同步写回 `CACHE_KEYS.chatList`
-     - unread、lastMessage、pin/top 等经 store 更新的会话态在 reload 后不再回弹
-   - 下一步需补齐：
-     - 更多边缘交互的一致行为（如局部提示口径、剩余边缘按钮/跳转一致性）
+- 当前主线不再是旧 Admin RBAC 任务；旧 Admin mock / `src/api` 业务依赖清理已收口，不作为当前 P0。
+- 当前 P0 是 `android-app` 原生迁移剩余能力，先补齐 Emulator 可测的媒体、cache、权限和语音播放基线。
+- `h5-app` 已承担 H5/API 联调入口，核心功能已完成；剩余是全量验收、E2E 文档收口、搜索页和头像上传等尾项。
+- `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录，不阻塞当前主线。
+- Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
+- API 性能基线已建立；架构重构和分布式消息总线应在 Android/H5/API 主链路验收后进入独立重构计划。
 
-2. **测试入口与命令体系整理**
-   - 根目录 `Makefile`
-   - `docs/reference/testing/README.md`
-   - 各模块 README
-   - 目标是把常用 dev / test / verify 命令整理成稳定入口。
+## P0：Android 原生迁移当前切片
 
-3. **跨模块文档清理**
-   - 聚焦当前已完成主线的 README / plan / report 口径同步。
-   - 清理已失效的 legacy 目录引用与过期说明。
+目标：完成 `ANDROID-06` 中不依赖 Android 真机的剩余可测能力，并保持 H5/API/Android 联调可重复。
 
----
+- [ ] 用户头像缓存
+  - 接入用户头像 download URL。
+  - 保存到 app cache。
+  - UI 优先使用缓存头像，失败降级占位。
+  - 覆盖缓存命中、下载失败和清理逻辑。
+- [ ] 群头像缓存
+  - 接入群头像 download URL。
+  - 群列表、群详情使用缓存头像。
+  - 登出或清理本地状态时清理缓存。
+- [ ] 附件本地文件 cache
+  - 已发送/已下载附件保存到 app cache。
+  - 再次打开优先使用本地缓存。
+  - 本地文件丢失或损坏时重新拉取 download URL。
+- [ ] 权限拒绝和恢复路径
+  - 文件选择器取消选择不报错。
+  - 麦克风/通知权限拒绝时给出可恢复提示。
+  - 二次拒绝时引导到系统设置。
+- [ ] 语音播放基线
+  - 已上传 audio part 的播放入口。
+  - 播放、暂停、错误状态。
+  - 不依赖麦克风录音即可在 Emulator 验证。
 
-## 下一层工作（P1）
+建议第一刀：
 
-1. **Dashboard / dev mock 债务清理**
-   - `admin/src/mock/`
-   - `admin/src/features/dashboard/**/mock.ts`
-   - 需要明确哪些仍保留为开发态模拟，哪些应删除或替换成真实接口。
+1. 建立 Android 文件缓存底座，供头像、附件、表情复用。
+2. 增加通用 download bytes 能力。
+3. 先落附件 cache，再复用到用户头像和群头像。
+4. 补 JVM 单测和必要的 instrumented cache 测试。
 
-2. **更细粒度的服务层拆分与共享类型整理**
-   - 当前 `admin/src/services/` 已收口完成。
-   - 后续可按业务域继续合并重复类型、抽共享 helper，减少横向重复。
+P0 验证入口：
 
----
+```bash
+make android-app.test.unit
+make android-app.connected-test
+make android-app.lint
+make android-app.build.debug
+make android-app.smoke.emulator
+git diff --check
+```
 
-## 暂挂工作流（P2，不并入当前主线）
+触达真实 API / mock 对象存储后追加：
 
-1. **移动端 / 桌面端大规模脏改动整理**
-   - 当前工作区存在大量 `app/`、`desktop/` 变更，后续需要单独分流，不应混入 admin 主线提交。
+```bash
+make android-app.test.live
+make android-app.test.interop
+```
 
-2. **E2EE 真正落地**
-   - 设计文档：`docs/reference/architecture/end-to-end-encryption-design.md`
-   - 当前仍属于后续独立工作流，不纳入本轮最小闭环。
+## P1：Android 后续 parity 能力
 
-3. **跨模块文档清理**
-   - 目前有一批 README / docs 删除与迁移，等主线闭环后再统一整理。
+目标：完成 Android 原生 App 对 Flutter 当前核心功能的完整替代准备。
 
----
+- [ ] `ANDROID-07` 聊天扩展
+  - 内置 emoji 面板。
+  - 表情包列表和表情项加载。
+  - 表情资源 cache。
+  - 贴纸发送。
+  - 聊天背景。
+  - 聊天设置。
+- [ ] `ANDROID-08` 设置、账号和配置
+  - 个人资料和昵称更新。
+  - 账号安全和修改密码。
+  - 用户协议、隐私政策、关于页完善。
+  - 反馈提交。
+  - App 配置拉取与缓存。
+  - 版本检查和更新提示。
+- [ ] `ANDROID-09` 通知和 Push 的 Emulator/mock 可测部分
+  - Android 13+ 本地通知权限。
+  - 本地通知展示和 channel 管理。
+  - 通知点击进入 room。
+  - FCM token 注册 mock 覆盖。
+  - 登出通知态清理。
+- [ ] `ANDROID-10` 全量验收与切换准备
+  - Android vs Flutter 功能对照。
+  - H5/API/Android 联调脚本扩展。
+  - Compose UI 回归和截图/UiTest 覆盖。
+  - 覆盖率继续提升，优先 ViewModel、Repository、DTO mapping、Room cache。
+  - P0/P1 缺口清单。
+  - Flutter Android 下线条件。
+  - 回滚策略。
 
-## 已完成的当前主线里程碑
+## P1：H5 联调入口收口
 
-- ✅ Admin feature-based 路由/页面迁移
-- ✅ Admin RBAC 页面落地
-- ✅ App providers / layouts / router 收口
-- ✅ shared auth runtime / http 服务收口
-- ✅ 首个超级管理员改为 bootstrap 初始化
-- ✅ Admin 关键 Playwright 回归 18 条通过
-- ✅ B2 provider 编辑时显式清空 `bucket_name` 会被后端拒绝，并补齐 Go 合同测试
-- ✅ `database_migration_smoke` 环境变量串扰已收口，`cargo test` 可稳定通过
-- ✅ SQL baseline / active migration / verify 脚本口径已统一到 bootstrap-first 流程
-- ✅ message runtime settings 已补 Go contract，并与 live Playwright 回归对齐
-- ✅ bootstrap status / repeat init 拒绝语义已补 Go contract
-- ✅ RBAC 已补管理员登录快照 / 权限检查接口的 Go contract
-- ✅ 根 Makefile 已整理为模块化入口，app 默认真机已切到 Pixel 8 Pro
-- ✅ `tests/run.sh` 已拆分为按 mode 执行的 api contract 入口，并补了 workflow tooling 守护测试
-- ✅ admin 已补 live Playwright 快捷脚本，并开始清理 lockfile / 测试产物 / 无用说明文件残留
-- ✅ desktop 已对齐 macOS ad-hoc 打包脚本，并开始清理过期示例 / 说明残留
-- ✅ 仓库级文档与配置已开始对齐：CE 兼容入口、API 文档路径、website 私有部署文件忽略
-- ✅ api 已切换到 B2-only 对象存储链路，并补了无默认存储时的举报列表降级处理
-- ✅ app 已移除未接入业务的发现页与对应静态资源占位
-- ✅ app 群设置已补群改名、加人/移人能力，并抽出好友选择面板与 room service 测试入口
-- ✅ app 设置页与通用组件已开始收口：InputDialog 简化、设置项 trailing 固定化、Flutter 新 API 兼容替换
-- ✅ app 运行脚本已切到 Pixel 8 Pro 默认真机，并在 development 真机启动前自动检测当前局域网 IP 注入 API / WS 地址
-- ✅ app integration smoke 已统一切到 `IntegrationTestWidgetsFlutterBinding`，便于后续 Patrol / 真机联调复用
-- ✅ app iOS Patrol harness 已接入 RunnerUITests / TestPlan 链路，并确认需避开默认 `8081 / 8082` 端口冲突
-- ✅ app 消息转发已放开到富媒体消息，转发失败时保留失败态，并补了 rich message 转发测试
-- ✅ app 聊天列表 / 搜索 / 群管理若干页已收口 Flutter 新 API 与 mounted 守卫，头像颜色种子改为稳定 roomId / senderId
-- ✅ app 开发环境默认 API / WS 已切到 localhost，启动页更新弹窗已切 `PopScope`，历史聊天示例页残留已移除
-- ✅ app 已补 `message_runtime` 本地缓存与 relay_only 第一轮降级：聊天页动作/多选栏裁剪、provider guard、本地缓存搜索提示与服务端搜索跳过
-- ✅ app 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
-- ✅ app 已补 relay_only 历史加载 guard：进入会话与本地定位不再额外请求服务端历史
-- ✅ app 已补 relay_only 引用定位提示：目标消息不在本地缓存时给出明确提示，并清理跳转加载提示队列
-- ✅ app 已补 relay_only 离线补拉 guard：断线重连后跳过 `syncOfflineMessages` 的服务端历史请求
-- ✅ app 已补 relay_only 会话缓存清洗：启动从 chat cache 恢复时先清空旧摘要与未读数
-- ✅ app 已补 runtime 切换即时收口：`persist -> relay_only` 时会清空当前内存会话摘要，并刷新聊天页 runtime 提示
-- ✅ app 已补 relay_only 本地摘要回填：会基于 SQLite 本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
-- ✅ app 已补 relay_only 本地已读清零：进入会话后会立刻清空本地未读数，不再残留红点
-- ✅ app 已补搜索页 runtime 响应式切换：搜索页打开期间若切到 relay_only，会立即隐藏服务端搜索并重跑本地搜索
-- ✅ app 已补消息编辑/删除后的 relay_only 摘要即时刷新：`handleMessageUpdate` 会等待 chat cache 初始化完成，再刷新最新消息摘要与 `last_message_id`
-- ✅ app 已补 live 消息摘要预览统一：实时收到图片/语音/文件等消息时，聊天列表摘要不再直接取 `message.content`，而是统一走 preview 规则并写入 `last_message_id`
-- ✅ app 已补本地主动编辑/删除摘要刷新：`editMessage` / `markMessageDeleted` 通过 `_replaceMessage` 回写最新摘要，且相关 API helper 已统一走可注入 `_client`
-- ✅ app 已补 reaction 本地缓存收口：`addReaction/removeReaction/getReactions` 已统一走可注入 `_client`，且 `add/remove` 成功后会落盘本地消息缓存
-- ✅ app 已补 reaction / pin 未加载房间缓存回写：房间不在内存时，`getReactions` 与 pin websocket 仍会写回本地消息缓存，且恢复缓存消息时会同步重建 pinned cache
-- ✅ app 已补本地未读清零缓存回写：`markChatAsRead` 会同步持久化 chat cache，reload 后 unread 不再回弹
-- ✅ desktop 已补 `message_runtime` 公开设置消费与本地缓存，并完成 relay_only 第一轮降级：消息菜单裁剪、引用/转发/pin/删除/reaction/read sync guard、本地缓存搜索提示与服务端搜索跳过
-- ✅ desktop 已补 plaintext / e2ee 模式展示层消费：聊天输入区展示审计模式提示，并补充 runtime 文案测试
-- ✅ desktop 已补 relay_only 历史链路收口：优先保留本地缓存消息，不再被服务端空历史覆盖
-- ✅ desktop 已补历史定位失败提示：目标消息不在当前缓存时不再静默无反馈
-- ✅ desktop 已补 relay_only 会话缓存清洗：缓存聊天列表恢复时先清空旧摘要与未读数
-- ✅ desktop 已补 runtime 切换即时收口：`persist -> relay_only` 时会同步清空当前 store/chat page 残留摘要，并刷新账号未读汇总
-- ✅ desktop 已补 relay_only 本地摘要回填：会基于本地消息缓存重建最近消息预览、最后消息 ID 与本地未读数
-- ✅ desktop 已补消息更新缓存收口：编辑/删除事件会同步写回本地消息缓存，删除消息保留 tombstone 以保证 relay_only 重启后摘要与未读统计一致
-- ✅ desktop 已补本地主动编辑/删除摘要刷新：右键删除、编辑、批量删除已统一走 message update cache 链路，本地操作后聊天列表摘要立即同步
-- ✅ desktop 已补 reaction / pin 本地缓存收口：本地操作与 websocket 更新都会同步刷新消息缓存，非当前房间的 reaction / pin 事件也不再在 reload 后回退
-- ✅ desktop 已补 chatList store 缓存持久化：`updateChatItem / setChatUnreadCount` 会同步写回 `CACHE_KEYS.chatList`，会话摘要与未读数 reload 后不再回弹
-- ✅ api 剩余模块已完成统一格式收口，并重新验证 `cargo test` 全量通过
-- ✅ admin 已移除 dev mock 自动注入链路，HTTP 拦截器已从 `src/api` 收口到 `src/services`
-- ✅ admin 已把 dashboard / message 两组高频 `src/api` 调用迁到 `src/services`
-- ✅ admin 已把 user / version / audit / log / chat-history / emoji 等小型 `src/api` 文件迁到 `src/services`
-- ✅ admin 已完成 `src/api` 业务依赖清零，`settings.ts` 也已迁入 `src/services`
-- ✅ admin 已把单体 `services/settings.ts` 拆分为 documents / push / storage / general 四组领域服务
-- ✅ `api/scripts/verify-base-sql.sh` 已通过，SQL baseline / active migration / legacy 归档口径一致
-- ✅ `./tests/run.sh go` 已完整通过，admin/bootstrap/RBAC/B2/message runtime 等后端合约链路稳定
+目标：保证后续先用 `h5-app` 与 API 联调，作为 Android/iOS 原生迁移的浏览器基准端。
+
+- [ ] H5 全量验收与文档收口
+  - 完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` 的 Unit 8。
+  - 明确 H5 是 backend + frontend 联调优先入口。
+  - 保持 `make h5-app.test.live` 可覆盖 auth、chat、contacts、settings、富媒体。
+- [ ] 浏览器 E2E / smoke 扩展
+  - 注册登录后进入聊天 tab。
+  - 创建或进入房间，发送消息。
+  - 刷新页面后从本地缓存恢复。
+  - 好友申请闭环。
+  - 群设置关键路径。
+- [ ] H5 本地消息搜索页面
+  - 当前已有本地搜索存储测试。
+  - 需要补页面、跳转和真实缓存查询交互。
+- [ ] H5 头像上传浏览器能力
+  - 走浏览器文件选择。
+  - 复用 direct upload / commit / avatar cache。
+  - 失败时保持旧头像。
+
+## P2：API 性能与核心架构重构
+
+目标：在功能主链路稳定后，进入可度量、可回滚的底层架构优化。
+
+- [ ] 性能矩阵继续扩展
+  - auth 链路生产成本 `BCRYPT_COST=12` 指标。
+  - account limit settings 缓存。
+  - 用户名/邮箱存在性检查合并，或改为依赖唯一索引冲突处理。
+  - WebSocket 广播扩展到 100 / 500 / 1000 订阅者。
+  - 多房间并发广播。
+  - 慢客户端和 `WS_OUTBOUND_QUEUE_SIZE` 满队列行为。
+- [ ] 分布式消息架构计划
+  - 先抽象 broker/event bus 层，当前 Redis PubSub 作为一个实现。
+  - 单机默认保持轻量：PG + Redis + API + external-mock。
+  - 分布式 profile 增加 NATS Core，用于低延迟实时 fanout。
+  - 需要持久化、重放、消费者 ack 的异步任务再引入 NATS JetStream。
+  - Kafka 暂不作为 IM 实时消息主链路；仅在后续需要审计事件流、超大规模日志分析、跨系统数据管道时评估。
+- [ ] Compose-first 重构环境
+  - 所有中间件、数据库、API 启动和测试都通过 docker compose。
+  - 保持测试栈 PG/Redis/external-mock 不映射宿主端口。
+  - 新增中间件时同步 dev/test/perf compose profile 和资源限制。
+- [ ] 最终性能报告
+  - Android/H5/iOS/API 主链路验收后，重新跑 release small/standard/large。
+  - 统一记录 CPU、内存、PG pool、bcrypt cost、metrics 参数和 WS 队列大小。
+
+## P2：iOS 真机补验
+
+这些不阻塞当前主线，已按用户要求跳过并记录。
+
+- [ ] iPhone 真机签名、安装和启动。
+- [ ] APNs token 获取。
+- [ ] Apple APNs 真实离线系统通知。
+- [ ] 系统通知点击唤醒。
+- [ ] 冷启动通知深链。
+
+恢复补验入口：
+
+```bash
+IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
+IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
+```
+
+## P2：Android 真机补验
+
+这些不在 Emulator 阶段伪造通过。
+
+- [ ] 相机拍摄图片/视频。
+- [ ] 麦克风录音质量、权限、后台中断。
+- [ ] 厂商 ROM 文件选择器差异。
+- [ ] FCM 真实 token 获取。
+- [ ] 云端 Push 投递。
+- [ ] 前台/后台/冷启动通知导航。
+- [ ] 厂商 ROM 后台限制。
+- [ ] Play 签名、release 包安装和发布链路。
+
+## P3：横向回归和发布准备
+
+- [ ] 全模块回归
+  - `make api.test`
+  - `make h5-app.check`
+  - `make h5-app.test.unit`
+  - `make h5-app.test.live`
+  - `make android-app.test.interop`
+  - `make ios-app.test.interop`
+  - `cd admin && bun run type:check`
+  - `cd desktop && bun run test`
+  - `cd website && bun run test`
+- [ ] Flutter `app/` 保留策略
+  - 不移除 Flutter 模块。
+  - Android/iOS 原生完成切换前，Flutter 继续作为回滚包和行为对照。
+  - 原生移动端稳定后，再单独制定 Flutter 下线计划。
+- [ ] 发布与回滚文档
+  - 原生 Android 切换条件。
+  - 原生 iOS 切换条件。
+  - H5 联调基线。
+  - API 兼容边界。
+  - 出现客户端缓存问题时的清理和回滚步骤。
+
+## 当前外部依赖 / Mock 口径
+
+- 本地测试对象存储走 `external-mock`，不访问线上 Backblaze B2。
+- 本地 Push 发送走 `external-mock`，不访问线上 FCM/APNs。
+- IPInfo 走 `external-mock`。
+- Google / Apple 登录已移除当前主线。
+- 邮箱验证码不作为当前注册/登录必需条件；当前测试主线使用普通账号密码。
+- 当前未发现影响本地 H5/API/iOS/Android smoke 的新增外部服务依赖。
+
+## 执行规则
+
+- 每个功能切片完成后更新对应模块文档。
+- 每个可独立验收切片通过测试后，按 Conventional Commits 提交并推送。
+- 只 stage 本轮相关文件，避免混入用户或历史无关改动。
+- 端口冲突先停止占用进程，不改用其他端口。
+- API、PG、Redis、external-mock、性能压测全部保持 Compose-first。

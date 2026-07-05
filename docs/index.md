@@ -8,9 +8,10 @@
 |------|------|
 | [需求/方向讨论](brainstorms/) | `ce:brainstorm` 产出目录 |
 | [规划文档目录](plans/) | `ce:plan` 产出目录 |
-| [Admin 架构重构主计划](plans/2026-04-09-admin-rbac-architecture-refactor-plan.md) | 当前 active 执行文档（admin / B2 / SQL / 测试闭环） |
+| [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
+| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 当前移动端 Android 原生迁移计划 |
+| [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
-| [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 
 > CE 采用全局安装：`~/.codex/prompts/ce-*.md`、`~/.codex/skills/ce-*`、`~/.codex/scripts/ce-init`。
 
@@ -105,6 +106,8 @@
 | 文档 | 说明 |
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
+| [iOS 原生 parity 收口报告](reports/2026-07-04-ios-app-parity-cutover-readiness.md) | iOS 原生迁移完成度、跳过项与切换条件 |
+| [API Compose 性能基线](reports/performance/api-compose-baseline-2026-07-01.md) | API Compose-first 性能指标与后续优化方向 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
 | [模块功能清单（2026-03-01）](reports/module-function-inventory-2026-03-01.md) | 五大模块功能基线 |
 | [批次A验收报告（2026-03-01）](reports/2026-03-01-batch-a-acceptance.md) | 外部模拟与测试栈接入验收 |
@@ -131,4 +134,4 @@
 
 ---
 
-**文档最后更新**: 2026-04-10
+**文档最后更新**: 2026-07-05
