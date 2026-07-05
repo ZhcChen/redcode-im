@@ -65,6 +65,15 @@ class ChatDTOsMappingTest {
                 isPinned = true,
                 pinnedAt = "2026-07-05T00:00:01Z",
                 pinnedBy = "user-a",
+                quotedMessage =
+                    com.redcode.im.androidapp.data.chat.BackendQuotedMessage(
+                        id = "q-1",
+                        roomId = "room-1",
+                        senderId = "user-q",
+                        senderUsername = "quote-user",
+                        content = "quote",
+                        createdAt = "2026-07-05T00:00:00Z",
+                    ),
             ).toDomain()
 
         assertEquals("alice", pending.senderName)
@@ -77,5 +86,7 @@ class ChatDTOsMappingTest {
         assertEquals(true, failedDeleted.isPinned)
         assertEquals("user-a", failedDeleted.pinnedBy)
         assertEquals(java.time.Instant.parse("2026-07-05T00:00:01Z"), failedDeleted.pinnedAt)
+        assertEquals("q-1", failedDeleted.quotedMessage?.id)
+        assertEquals("quote-user", failedDeleted.quotedMessage?.senderName)
     }
 }

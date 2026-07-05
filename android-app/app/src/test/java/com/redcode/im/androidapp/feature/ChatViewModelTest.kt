@@ -46,12 +46,17 @@ class ChatViewModelTest {
             val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
             advanceUntilIdle()
 
+            val seed = viewModel.uiState.value.messages.single()
+            viewModel.quoteMessage(seed)
             viewModel.onDraftChange("hello")
             viewModel.sendDraft()
             advanceUntilIdle()
 
             assertEquals("", viewModel.uiState.value.draft)
-            assertTrue(viewModel.uiState.value.messages.any { it.text == "hello" })
+            assertEquals(null, viewModel.uiState.value.quotedMessage)
+            val sent = viewModel.uiState.value.messages.last()
+            assertEquals("hello", sent.text)
+            assertEquals(seed.id, sent.quotedMessage?.id)
             collectJob.cancel()
         }
 

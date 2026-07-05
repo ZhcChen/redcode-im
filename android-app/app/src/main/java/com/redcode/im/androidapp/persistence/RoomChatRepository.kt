@@ -21,10 +21,17 @@ class RoomChatRepository(
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
         chatDao.observeMessages(roomId).map { messages -> messages.map { it.toDomain() } }
 
-    override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
+    override suspend fun sendText(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        text: String,
+        quotedMessageId: String?,
+    ): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }
         val now = Instant.now()
+        val quotedMessage = quotedMessageId?.let { findMessage(it)?.toQuote() }
         val message =
             ChatMessage(
                 id = UUID.randomUUID().toString(),
@@ -34,6 +41,7 @@ class RoomChatRepository(
                 text = normalized,
                 status = MessageStatus.Sent,
                 createdAt = now,
+                quotedMessage = quotedMessage,
             )
         chatDao.upsertMessage(ChatMessageEntity.fromDomain(message))
         chatDao.upsertSummary(
@@ -213,6 +221,17 @@ class RoomChatRepository(
         chatDao.upsertMessage(ChatMessageEntity.fromDomain(message))
         chatDao.pruneMessages(message.roomId, maxMessagesPerRoom)
     }
+
+    private fun ChatMessage.toQuote(): com.redcode.im.androidapp.core.model.ChatMessageQuote =
+        com.redcode.im.androidapp.core.model.ChatMessageQuote(
+            id = id,
+            roomId = roomId,
+            senderId = senderId,
+            senderName = senderName,
+            text = text,
+            createdAt = createdAt,
+            isDeleted = isDeleted,
+        )
 
     suspend fun clear() {
         chatDao.clearAll()

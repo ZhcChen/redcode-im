@@ -51,10 +51,20 @@ class InMemoryChatRepository(
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
         messageState.map { it[roomId].orEmpty() }
 
-    override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
+    override suspend fun sendText(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        text: String,
+        quotedMessageId: String?,
+    ): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }
         val now = Instant.now()
+        val quotedMessage =
+            quotedMessageId?.let { quoteId ->
+                messageState.value[roomId].orEmpty().firstOrNull { it.id == quoteId }?.toQuote()
+            }
         val message =
             ChatMessage(
                 id = UUID.randomUUID().toString(),
@@ -64,6 +74,7 @@ class InMemoryChatRepository(
                 text = normalized,
                 status = MessageStatus.Sent,
                 createdAt = now,
+                quotedMessage = quotedMessage,
             )
         val nextMessages = (messageState.value[roomId].orEmpty() + message).takeLast(maxMessagesPerRoom)
         messageState.value = messageState.value + (roomId to nextMessages)
@@ -160,4 +171,15 @@ class InMemoryChatRepository(
         summaries.value = emptyList()
         messageState.value = emptyMap()
     }
+
+    private fun ChatMessage.toQuote(): com.redcode.im.androidapp.core.model.ChatMessageQuote =
+        com.redcode.im.androidapp.core.model.ChatMessageQuote(
+            id = id,
+            roomId = roomId,
+            senderId = senderId,
+            senderName = senderName,
+            text = text,
+            createdAt = createdAt,
+            isDeleted = isDeleted,
+        )
 }

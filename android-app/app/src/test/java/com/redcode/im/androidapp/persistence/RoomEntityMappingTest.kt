@@ -1,6 +1,7 @@
 package com.redcode.im.androidapp.persistence
 
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
@@ -48,6 +49,15 @@ class RoomEntityMappingTest {
                 pinnedAt = Instant.ofEpochMilli(6789),
                 pinnedBy = "user-2",
                 reactions = listOf(MessageReactionSummary(reactionKey = "👍", count = 2, hasSelf = true)),
+                quotedMessage =
+                    ChatMessageQuote(
+                        id = "quote-1",
+                        roomId = "room-1",
+                        senderId = "user-2",
+                        senderName = "Bob",
+                        text = "quoted",
+                        createdAt = Instant.ofEpochMilli(4567),
+                    ),
             )
 
         val entity = ChatMessageEntity.fromDomain(message)

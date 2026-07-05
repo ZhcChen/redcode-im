@@ -55,9 +55,16 @@ class CachedRemoteChatRepository(
         return true
     }
 
-    override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
+    override suspend fun sendText(
+        roomId: String,
+        senderId: String,
+        senderName: String,
+        text: String,
+        quotedMessageId: String?,
+    ): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }
+        val quotedMessage = quotedMessageId?.let { localRepository.findMessage(it)?.toQuote() }
         val pending =
             ChatMessage(
                 id = "local-${UUID.randomUUID()}",
@@ -67,15 +74,16 @@ class CachedRemoteChatRepository(
                 text = normalized,
                 status = MessageStatus.Pending,
                 createdAt = Instant.now(),
+                quotedMessage = quotedMessage,
             )
         localRepository.applyIncomingMessage(pending, currentUserId = senderId)
-        return sendPending(pending)
+        return sendPending(pending, quotedMessageId = quotedMessageId)
     }
 
     override suspend fun resendMessage(messageId: String): ChatMessage? {
         val failed = localRepository.findMessage(messageId)?.takeIf { it.status == MessageStatus.Failed } ?: return null
         localRepository.updateMessageStatus(messageId = failed.id, status = MessageStatus.Pending)
-        return sendPending(failed.copy(status = MessageStatus.Pending, createdAt = Instant.now()))
+        return sendPending(failed.copy(status = MessageStatus.Pending, createdAt = Instant.now()), quotedMessageId = failed.quotedMessage?.id)
     }
 
     override suspend fun markRead(roomId: String) {
@@ -127,10 +135,10 @@ class CachedRemoteChatRepository(
         localRepository.clear()
     }
 
-    private suspend fun sendPending(pending: ChatMessage): ChatMessage {
+    private suspend fun sendPending(pending: ChatMessage, quotedMessageId: String?): ChatMessage {
         return runCatching {
             remoteDataSource
-                .sendTextMessage(roomId = pending.roomId, content = pending.text, token = requireToken())
+                .sendTextMessage(roomId = pending.roomId, content = pending.text, token = requireToken(), quotedMessageId = quotedMessageId)
                 .toDomain()
         }.fold(
             onSuccess = { sent ->
@@ -149,4 +157,15 @@ class CachedRemoteChatRepository(
     private fun requireToken(): String =
         session.value?.tokens?.accessToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("请先登录")
+
+    private fun ChatMessage.toQuote(): com.redcode.im.androidapp.core.model.ChatMessageQuote =
+        com.redcode.im.androidapp.core.model.ChatMessageQuote(
+            id = id,
+            roomId = roomId,
+            senderId = senderId,
+            senderName = senderName,
+            text = text,
+            createdAt = createdAt,
+            isDeleted = isDeleted,
+        )
 }

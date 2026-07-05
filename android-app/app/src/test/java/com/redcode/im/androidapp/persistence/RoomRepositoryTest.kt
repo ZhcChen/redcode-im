@@ -134,13 +134,15 @@ class RoomRepositoryTest {
 
             repository.refreshChats()
             repository.refreshMessages("room-1")
-            val sent = repository.sendText("room-1", "ignored", "ignored", "  hello  ")
+            val sent = repository.sendText("room-1", "ignored", "ignored", "  hello  ", quotedMessageId = "m1")
             repository.markRead("room-1")
 
             assertEquals("Room 1", repository.chats.first().single().title)
             assertEquals(listOf("m1", sent.id), repository.messages("room-1").first().map { it.id })
             assertEquals("access-token", remote.tokens.distinct().single())
             assertEquals("m2", remote.markedReadMessageId)
+            assertEquals("m1", remote.lastQuotedMessageId)
+            assertEquals("m1", sent.quotedMessage?.id)
             assertEquals(0, repository.chats.first().single().unreadCount)
 
             repository.clearLocalState()
@@ -426,6 +428,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     var failNextSend = false
     var pinned: Boolean? = null
     var lastReactionKey = ""
+    var lastQuotedMessageId: String? = null
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -467,6 +470,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
         quotedMessageId: String?,
     ): BackendChatMessage {
         tokens += token
+        lastQuotedMessageId = quotedMessageId
         if (failNextSend) {
             failNextSend = false
             error("send failed")
@@ -478,6 +482,17 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
             senderUsername = "me",
             content = content,
             createdAt = "2026-07-04T00:00:01Z",
+            quotedMessage =
+                quotedMessageId?.let {
+                    com.redcode.im.androidapp.data.chat.BackendQuotedMessage(
+                        id = it,
+                        roomId = roomId,
+                        senderId = "user-a",
+                        senderUsername = "alice",
+                        content = "seed",
+                        createdAt = "2026-07-04T00:00:00Z",
+                    )
+                },
         )
     }
 

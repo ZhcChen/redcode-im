@@ -329,6 +329,13 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                             MessageStatus.Sent -> Unit
                         }
                     }
+                    message.quotedMessage?.let { quote ->
+                        Text(
+                            text = "引用 ${quote.senderName}: ${quote.text}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
                     if (message.reactions.isNotEmpty()) {
                         Text(
                             text = message.reactions.joinToString(" ") { "${it.reactionKey} ${it.count}" },
@@ -346,6 +353,9 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                             TextButton(onClick = { viewModel.toggleThumbReaction(message) }) {
                                 Text(if (message.reactions.any { it.reactionKey == "👍" && it.hasSelf }) "取消👍" else "👍")
                             }
+                            TextButton(onClick = { viewModel.quoteMessage(message) }) {
+                                Text("引用")
+                            }
                         }
                     }
                 }
@@ -358,6 +368,18 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
+        }
+        uiState.quotedMessage?.let { quote ->
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "引用 ${quote.senderName}: ${quote.text}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f).testTag("quoted-message-preview"),
+                )
+                TextButton(onClick = viewModel::clearQuote) {
+                    Text("取消")
+                }
+            }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(

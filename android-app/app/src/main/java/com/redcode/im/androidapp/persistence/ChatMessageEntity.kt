@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
@@ -35,6 +36,13 @@ data class ChatMessageEntity(
     val pinnedAtMillis: Long? = null,
     val pinnedBy: String? = null,
     val reactionsJson: String = "[]",
+    val quotedMessageId: String? = null,
+    val quotedRoomId: String? = null,
+    val quotedSenderId: String? = null,
+    val quotedSenderName: String? = null,
+    val quotedText: String? = null,
+    val quotedCreatedAtMillis: Long? = null,
+    val quotedIsDeleted: Boolean = false,
 ) {
     fun toDomain(): ChatMessage =
         ChatMessage(
@@ -50,6 +58,18 @@ data class ChatMessageEntity(
             pinnedAt = pinnedAtMillis?.let(Instant::ofEpochMilli),
             pinnedBy = pinnedBy,
             reactions = decodeReactions(reactionsJson),
+            quotedMessage =
+                quotedMessageId?.let {
+                    ChatMessageQuote(
+                        id = it,
+                        roomId = quotedRoomId.orEmpty(),
+                        senderId = quotedSenderId.orEmpty(),
+                        senderName = quotedSenderName.orEmpty(),
+                        text = if (quotedIsDeleted) "消息已删除" else quotedText.orEmpty(),
+                        createdAt = quotedCreatedAtMillis?.let(Instant::ofEpochMilli),
+                        isDeleted = quotedIsDeleted,
+                    )
+                },
         )
 
     companion object {
@@ -72,6 +92,13 @@ data class ChatMessageEntity(
                 pinnedAtMillis = message.pinnedAt?.toEpochMilli(),
                 pinnedBy = message.pinnedBy,
                 reactionsJson = encodeReactions(message.reactions),
+                quotedMessageId = message.quotedMessage?.id,
+                quotedRoomId = message.quotedMessage?.roomId,
+                quotedSenderId = message.quotedMessage?.senderId,
+                quotedSenderName = message.quotedMessage?.senderName,
+                quotedText = message.quotedMessage?.text,
+                quotedCreatedAtMillis = message.quotedMessage?.createdAt?.toEpochMilli(),
+                quotedIsDeleted = message.quotedMessage?.isDeleted == true,
             )
 
         fun encodeReactions(reactions: List<MessageReactionSummary>): String =

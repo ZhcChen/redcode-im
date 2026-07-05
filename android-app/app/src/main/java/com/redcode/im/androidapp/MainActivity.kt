@@ -10,6 +10,7 @@ import com.redcode.im.androidapp.data.auth.SerializedAuthSessionStore
 import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.persistence.MIGRATION_1_2
+import com.redcode.im.androidapp.persistence.MIGRATION_2_3
 import com.redcode.im.androidapp.persistence.RedCodeDatabase
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
@@ -24,7 +25,7 @@ class MainActivity : ComponentActivity() {
                 RedCodeDatabase::class.java,
                 "redcode-im.db",
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
         val container =
             AppContainer(

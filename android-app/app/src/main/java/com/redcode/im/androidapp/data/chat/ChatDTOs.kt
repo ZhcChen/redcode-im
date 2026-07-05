@@ -1,6 +1,7 @@
 package com.redcode.im.androidapp.data.chat
 
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.MessageReactionSummary
@@ -93,6 +94,8 @@ data class BackendChatMessage(
     val pinnedAt: String? = null,
     @SerialName("pinned_by")
     val pinnedBy: String? = null,
+    @SerialName("quoted_message")
+    val quotedMessage: BackendQuotedMessage? = null,
 ) {
     fun toDomain(): ChatMessage =
         ChatMessage(
@@ -107,6 +110,36 @@ data class BackendChatMessage(
             isPinned = isPinned,
             pinnedAt = parseNullableInstant(pinnedAt),
             pinnedBy = pinnedBy?.takeIf { it.isNotBlank() },
+            quotedMessage = quotedMessage?.toDomain(),
+        )
+}
+
+@Serializable
+data class BackendQuotedMessage(
+    val id: String,
+    @SerialName("room_id")
+    val roomId: String,
+    @SerialName("sender_id")
+    val senderId: String,
+    @SerialName("sender_username")
+    val senderUsername: String? = null,
+    @SerialName("sender_nickname")
+    val senderNickname: String? = null,
+    val content: String? = null,
+    @SerialName("created_at")
+    val createdAt: String? = null,
+    @SerialName("is_deleted")
+    val isDeleted: Boolean = false,
+) {
+    fun toDomain(): ChatMessageQuote =
+        ChatMessageQuote(
+            id = id,
+            roomId = roomId,
+            senderId = senderId,
+            senderName = firstNotBlank(senderNickname, senderUsername, senderId),
+            text = if (isDeleted) "消息已删除" else content.orEmpty(),
+            createdAt = parseNullableInstant(createdAt),
+            isDeleted = isDeleted,
         )
 }
 

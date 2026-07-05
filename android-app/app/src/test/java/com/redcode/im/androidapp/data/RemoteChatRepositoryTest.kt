@@ -138,6 +138,59 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun sendText_withQuotedMessagePassesQuotedMessageId() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-1",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "sender_username":"alice",
+                            "content":"old",
+                            "created_at":"2026-07-05T00:00:00Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-2",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "content":"reply",
+                            "created_at":"2026-07-05T00:00:01Z",
+                            "quoted_message":{
+                              "id":"m-1",
+                              "room_id":"room-1",
+                              "sender_id":"user-a",
+                              "sender_username":"alice",
+                              "content":"old",
+                              "created_at":"2026-07-05T00:00:00Z"
+                            }
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport)
+
+            repository.refreshMessages("room-1")
+            val sent = repository.sendText("room-1", "user-me", "Me", " reply ", quotedMessageId = "m-1")
+
+            assertEquals("m-1", sent.quotedMessage?.id)
+            assertEquals("""{"content":"reply","quoted_message_id":"m-1"}""", transport.requests[1].body)
+        }
+
+    @Test
     fun loadOlderMessages_usesFirstMessageAsBeforeCursorAndMergesResults() =
         runTest {
             val transport =

@@ -17,6 +17,7 @@ data class ChatDetailFormState(
     val errorMessage: String? = null,
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = true,
+    val quotedMessage: ChatMessage? = null,
 )
 
 data class ChatDetailUiState(
@@ -25,6 +26,7 @@ data class ChatDetailUiState(
     val errorMessage: String? = null,
     val isLoadingOlder: Boolean = false,
     val hasOlderMessages: Boolean = true,
+    val quotedMessage: ChatMessage? = null,
 )
 
 class ChatDetailViewModel(
@@ -42,6 +44,7 @@ class ChatDetailViewModel(
                 errorMessage = form.errorMessage,
                 isLoadingOlder = form.isLoadingOlder,
                 hasOlderMessages = form.hasOlderMessages,
+                quotedMessage = form.quotedMessage,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -55,6 +58,15 @@ class ChatDetailViewModel(
 
     fun onDraftChange(value: String) {
         formState.update { it.copy(draft = value, errorMessage = null) }
+    }
+
+    fun quoteMessage(message: ChatMessage) {
+        if (message.isDeleted || message.id.startsWith("local-")) return
+        formState.update { it.copy(quotedMessage = message, errorMessage = null) }
+    }
+
+    fun clearQuote() {
+        formState.update { it.copy(quotedMessage = null) }
     }
 
     fun loadOlderMessages() {
@@ -73,11 +85,18 @@ class ChatDetailViewModel(
 
     fun sendDraft() {
         val text = formState.value.draft
+        val quotedMessageId = formState.value.quotedMessage?.id
         viewModelScope.launch {
             runCatching {
-                chatRepository.sendText(roomId, currentUserId, currentUserName, text)
+                chatRepository.sendText(
+                    roomId = roomId,
+                    senderId = currentUserId,
+                    senderName = currentUserName,
+                    text = text,
+                    quotedMessageId = quotedMessageId,
+                )
             }.onSuccess {
-                formState.update { it.copy(draft = "", errorMessage = null) }
+                formState.update { it.copy(draft = "", quotedMessage = null, errorMessage = null) }
             }.onFailure { error ->
                 formState.update { it.copy(errorMessage = error.message ?: "发送失败") }
             }

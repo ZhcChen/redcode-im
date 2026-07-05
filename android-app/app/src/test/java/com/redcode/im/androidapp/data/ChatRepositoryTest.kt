@@ -13,10 +13,12 @@ class ChatRepositoryTest {
         runTest {
             val repository = InMemoryChatRepository(maxMessagesPerRoom = 3)
 
-            repository.sendText("room-general", "user-a", "Alice", "  hello  ")
+            val seed = repository.messages("room-general").first().single()
+            repository.sendText("room-general", "user-a", "Alice", "  hello  ", quotedMessageId = seed.id)
 
             val messages = repository.messages("room-general").first()
             assertEquals("hello", messages.last().text)
+            assertEquals(seed.id, messages.last().quotedMessage?.id)
             assertEquals("hello", repository.chats.first().single().lastMessagePreview)
         }
 

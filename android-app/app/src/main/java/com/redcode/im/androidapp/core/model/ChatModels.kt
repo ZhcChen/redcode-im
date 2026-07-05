@@ -39,6 +39,17 @@ data class ChatMessage(
     val pinnedAt: Instant? = null,
     val pinnedBy: String? = null,
     val reactions: List<MessageReactionSummary> = emptyList(),
+    val quotedMessage: ChatMessageQuote? = null,
+)
+
+data class ChatMessageQuote(
+    val id: String,
+    val roomId: String,
+    val senderId: String,
+    val senderName: String,
+    val text: String,
+    val createdAt: Instant? = null,
+    val isDeleted: Boolean = false,
 )
 
 @Serializable

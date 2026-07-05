@@ -1,6 +1,7 @@
 package com.redcode.im.androidapp.realtime
 
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.data.chat.ChatRepository
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
@@ -187,6 +188,22 @@ private fun JsonObject.toChatMessage(): ChatMessage? {
         isPinned = boolean("is_pinned") == true,
         pinnedAt = parseInstantOrNull(string("pinned_at")),
         pinnedBy = string("pinned_by"),
+        quotedMessage = jsonObject("quoted_message")?.toQuote(),
+    )
+}
+
+private fun JsonObject.toQuote(): ChatMessageQuote? {
+    val id = string("message_id") ?: string("id") ?: return null
+    val senderId = string("sender_id") ?: return null
+    val isDeleted = boolean("is_deleted") == true
+    return ChatMessageQuote(
+        id = id,
+        roomId = string("room_id").orEmpty(),
+        senderId = senderId,
+        senderName = firstNotBlank(string("sender_nickname"), string("sender_username"), senderId),
+        text = if (isDeleted) "消息已删除" else string("content").orEmpty(),
+        createdAt = parseInstantOrNull(string("timestamp") ?: string("created_at")),
+        isDeleted = isDeleted,
     )
 }
 
@@ -197,6 +214,8 @@ private fun JsonObject.boolean(key: String): Boolean? =
     value(key)?.jsonPrimitive?.booleanOrNull
 
 private fun JsonObject.value(key: String): JsonElement? = this[key]?.takeIf { it !is JsonPrimitive || !it.isStringNull() }
+
+private fun JsonObject.jsonObject(key: String): JsonObject? = value(key) as? JsonObject
 
 private fun JsonPrimitive.isStringNull(): Boolean = contentOrNull == null || contentOrNull == "null"
 
