@@ -1,6 +1,8 @@
 package com.redcode.im.androidapp.core.model
 
 import java.time.Instant
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 enum class ChatRoomType {
     Direct,
@@ -32,4 +34,18 @@ data class ChatMessage(
     val text: String,
     val status: MessageStatus,
     val createdAt: Instant,
+    val isDeleted: Boolean = false,
+    val isPinned: Boolean = false,
+    val pinnedAt: Instant? = null,
+    val pinnedBy: String? = null,
+    val reactions: List<MessageReactionSummary> = emptyList(),
+)
+
+@Serializable
+data class MessageReactionSummary(
+    @SerialName("reaction_key")
+    val reactionKey: String,
+    val count: Long,
+    @SerialName("has_self")
+    val hasSelf: Boolean = false,
 )

@@ -94,6 +94,37 @@ class ChatDetailViewModel(
         }
     }
 
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.deleteMessage(roomId = roomId, messageId = messageId)
+            }.onFailure { error ->
+                formState.update { it.copy(errorMessage = error.message ?: "删除消息失败") }
+            }
+        }
+    }
+
+    fun toggleMessagePinned(message: ChatMessage) {
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.setMessagePinned(roomId = roomId, messageId = message.id, pinned = !message.isPinned)
+            }.onFailure { error ->
+                formState.update { it.copy(errorMessage = error.message ?: if (message.isPinned) "取消置顶失败" else "置顶消息失败") }
+            }
+        }
+    }
+
+    fun toggleThumbReaction(message: ChatMessage) {
+        val selected = message.reactions.firstOrNull { it.reactionKey == "👍" }?.hasSelf != true
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.setReaction(roomId = roomId, messageId = message.id, reactionKey = "👍", selected = selected)
+            }.onFailure { error ->
+                formState.update { it.copy(errorMessage = error.message ?: "更新反应失败") }
+            }
+        }
+    }
+
     fun markRead() {
         viewModelScope.launch {
             chatRepository.markRead(roomId)

@@ -6,6 +6,7 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.BackendChatMessage
@@ -180,6 +181,31 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun cachedRemoteChatRepository_persistsMessageActions() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val repository = CachedRemoteChatRepository(remote, MutableStateFlow(session()), local)
+
+            repository.refreshMessages("room-1")
+            repository.setMessagePinned("room-1", "m1", pinned = true)
+            repository.setReaction("room-1", "m1", "👍", selected = true)
+            repository.setMessagePinned("room-1", "m1", pinned = false)
+
+            val message = repository.messages("room-1").first().single()
+            assertEquals(false, message.isPinned)
+            assertEquals(null, message.pinnedBy)
+            assertEquals("👍", message.reactions.single().reactionKey)
+            assertEquals(1L, message.reactions.single().count)
+            assertEquals(true, message.reactions.single().hasSelf)
+            assertEquals(false, remote.pinned)
+            assertEquals("👍", remote.lastReactionKey)
+
+            repository.deleteMessage("room-1", "m1")
+            assertEquals(true, repository.messages("room-1").first().single().isDeleted)
+        }
+
+    @Test
     fun cachedRemoteContactsRepository_persistsRemoteContactsAndRequests() =
         runTest {
             val local = RoomContactsRepository(FakeContactDao())
@@ -277,11 +303,52 @@ private class FakeChatDao : ChatDao {
             )
     }
 
+    override suspend fun updateMessageDeleted(roomId: String, messageId: String, text: String) {
+        messages.value =
+            messages.value +
+            (
+                roomId to
+                    messages.value[roomId].orEmpty().map {
+                        if (it.id == messageId) {
+                            it.copy(text = text, isDeleted = true, isPinned = false, pinnedAtMillis = null, pinnedBy = null)
+                        } else {
+                            it
+                        }
+                    }
+            )
+    }
+
     override suspend fun updateMessageStatus(messageId: String, status: String) {
         messages.value =
             messages.value.mapValues { (_, roomMessages) ->
                 roomMessages.map { if (it.id == messageId) it.copy(status = status) else it }
             }
+    }
+
+    override suspend fun updateMessagePin(roomId: String, messageId: String, isPinned: Boolean, pinnedAtMillis: Long?, pinnedBy: String?) {
+        messages.value =
+            messages.value +
+            (
+                roomId to
+                    messages.value[roomId].orEmpty().map {
+                        if (it.id == messageId) {
+                            it.copy(isPinned = isPinned, pinnedAtMillis = pinnedAtMillis, pinnedBy = pinnedBy)
+                        } else {
+                            it
+                        }
+                    }
+            )
+    }
+
+    override suspend fun updateMessageReactions(roomId: String, messageId: String, reactionsJson: String) {
+        messages.value =
+            messages.value +
+            (
+                roomId to
+                    messages.value[roomId].orEmpty().map {
+                        if (it.id == messageId) it.copy(reactionsJson = reactionsJson) else it
+                    }
+            )
     }
 
     override suspend fun deleteMessage(messageId: String) {
@@ -357,6 +424,8 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     val tokens = mutableListOf<String>()
     var markedReadMessageId = ""
     var failNextSend = false
+    var pinned: Boolean? = null
+    var lastReactionKey = ""
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -415,6 +484,57 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     override suspend fun markMessagesRead(roomId: String, messageId: String, token: String) {
         tokens += token
         markedReadMessageId = messageId
+    }
+
+    override suspend fun deleteMessage(roomId: String, messageId: String, token: String): BackendChatMessage {
+        tokens += token
+        return BackendChatMessage(
+            id = messageId,
+            roomId = roomId,
+            senderId = "user-me",
+            senderUsername = "me",
+            content = "seed",
+            createdAt = "2026-07-04T00:00:00Z",
+            isDeleted = true,
+        )
+    }
+
+    override suspend fun pinMessage(roomId: String, messageId: String, pinned: Boolean, token: String): BackendChatMessage? {
+        tokens += token
+        this.pinned = pinned
+        return BackendChatMessage(
+            id = messageId,
+            roomId = roomId,
+            senderId = "user-a",
+            senderUsername = "alice",
+            content = "seed",
+            createdAt = "2026-07-04T00:00:00Z",
+            isPinned = pinned,
+            pinnedAt = if (pinned) "2026-07-04T00:00:02Z" else null,
+            pinnedBy = if (pinned) "user-me" else null,
+        )
+    }
+
+    override suspend fun addReaction(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        token: String,
+    ): List<MessageReactionSummary> {
+        tokens += token
+        lastReactionKey = reactionKey
+        return listOf(MessageReactionSummary(reactionKey = reactionKey, count = 1L, hasSelf = true))
+    }
+
+    override suspend fun removeReaction(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        token: String,
+    ): List<MessageReactionSummary> {
+        tokens += token
+        lastReactionKey = reactionKey
+        return emptyList()
     }
 }
 

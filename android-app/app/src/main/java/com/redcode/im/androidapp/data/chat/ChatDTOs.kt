@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.data.chat
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import kotlinx.serialization.SerialName
@@ -86,6 +87,12 @@ data class BackendChatMessage(
     val createdAt: String? = null,
     @SerialName("is_deleted")
     val isDeleted: Boolean = false,
+    @SerialName("is_pinned")
+    val isPinned: Boolean = false,
+    @SerialName("pinned_at")
+    val pinnedAt: String? = null,
+    @SerialName("pinned_by")
+    val pinnedBy: String? = null,
 ) {
     fun toDomain(): ChatMessage =
         ChatMessage(
@@ -96,6 +103,10 @@ data class BackendChatMessage(
             text = if (isDeleted) "消息已删除" else content,
             status = status.toMessageStatus(),
             createdAt = parseInstant(createdAt),
+            isDeleted = isDeleted,
+            isPinned = isPinned,
+            pinnedAt = parseNullableInstant(pinnedAt),
+            pinnedBy = pinnedBy?.takeIf { it.isNotBlank() },
         )
 }
 
@@ -113,8 +124,34 @@ data class MarkMessageReadRequest(
 )
 
 @Serializable
+data class AddReactionRequest(
+    @SerialName("reaction_key")
+    val reactionKey: String,
+)
+
+@Serializable
 data class SendMessageResponse(
     val message: BackendChatMessage,
+)
+
+@Serializable
+data class PinMessageResponse(
+    @SerialName("room_id")
+    val roomId: String,
+    @SerialName("is_pinned")
+    val isPinned: Boolean,
+    val message: BackendChatMessage? = null,
+    @SerialName("pinned_at")
+    val pinnedAt: String? = null,
+    @SerialName("pinned_by")
+    val pinnedBy: String? = null,
+)
+
+@Serializable
+data class ReactionResponse(
+    val success: Boolean,
+    val message: String = "",
+    val summaries: List<MessageReactionSummary> = emptyList(),
 )
 
 private fun String?.toRoomType(): ChatRoomType =
@@ -135,6 +172,11 @@ private fun parseInstant(value: String?): Instant =
         ?.takeIf { it.isNotBlank() }
         ?.let { runCatching { Instant.parse(it) }.getOrNull() }
         ?: Instant.EPOCH
+
+private fun parseNullableInstant(value: String?): Instant? =
+    value
+        ?.takeIf { it.isNotBlank() }
+        ?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
 private fun firstNotBlank(vararg values: String?): String =
     values.firstOrNull { !it.isNullOrBlank() }.orEmpty()

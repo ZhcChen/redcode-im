@@ -56,12 +56,24 @@ class RealtimeEventProcessorTest {
 
             processor.handle(event("""{"type":"message_read","room_id":"room-1","reader_id":"user-me"}"""))
             processor.handle(event("""{"type":"message_update","room_id":"room-1","message_id":"m-1","is_deleted":true}"""))
+            processor.handle(
+                event(
+                    """{"type":"pin_update","room_id":"room-1","message_id":"m-1","is_pinned":true,"pinned_at":"2026-07-05T00:00:00Z","pinned_by":"user-me"}""",
+                ),
+            )
+            processor.handle(
+                event(
+                    """{"type":"reaction_update","room_id":"room-1","message_id":"m-1","reaction_key":"👍","user_id":"user-me","action":"add"}""",
+                ),
+            )
             processor.handle(event("""{"type":"room_updated","room_id":"room-1"}"""))
             processor.handle(event("""{"type":"room_history_cleared","room_id":"room-1"}"""))
             processor.handle(event("""{"type":"friend_request_update","pending_count":3}"""))
 
             assertEquals(listOf("room-1"), cache.markReadRooms)
             assertEquals(listOf("room-1:m-1"), cache.deletedMessages)
+            assertEquals(listOf("room-1:m-1:true:user-me"), cache.pinUpdates)
+            assertEquals(listOf("room-1:m-1:👍:user-me:true:user-me"), cache.reactionUpdates)
             assertEquals(1, cache.refreshCount)
             assertEquals(listOf("room-1"), cache.removedRooms)
             assertEquals(1, contacts.refreshFriendRequestsCount)
@@ -115,6 +127,8 @@ private class FakeChatCache(
     val currentUserIds = mutableListOf<String?>()
     val markReadRooms = mutableListOf<String>()
     val deletedMessages = mutableListOf<String>()
+    val pinUpdates = mutableListOf<String>()
+    val reactionUpdates = mutableListOf<String>()
     val removedRooms = mutableListOf<String>()
     var refreshCount = 0
 
@@ -129,6 +143,21 @@ private class FakeChatCache(
 
     override suspend fun markMessageDeleted(roomId: String, messageId: String) {
         deletedMessages += "$roomId:$messageId"
+    }
+
+    override suspend fun updateMessagePin(roomId: String, messageId: String, pinned: Boolean, pinnedAt: java.time.Instant?, pinnedBy: String?) {
+        pinUpdates += "$roomId:$messageId:$pinned:$pinnedBy"
+    }
+
+    override suspend fun applyReactionUpdate(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        userId: String,
+        added: Boolean,
+        currentUserId: String?,
+    ) {
+        reactionUpdates += "$roomId:$messageId:$reactionKey:$userId:$added:$currentUserId"
     }
 
     override suspend fun removeRoom(roomId: String) {

@@ -310,19 +310,43 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 }
             }
             uiState.messages.forEach { message ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${message.senderName}: ${message.text}")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    when (message.status) {
-                        MessageStatus.Pending -> Text("发送中", style = MaterialTheme.typography.bodySmall)
-                        MessageStatus.Failed ->
-                            TextButton(
-                                onClick = { viewModel.resendMessage(message.id) },
-                                modifier = Modifier.testTag("resend-message-${message.id}"),
-                            ) {
-                                Text("发送失败，重试")
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (message.isPinned) {
+                            Text("置顶 ", color = MaterialTheme.colorScheme.primary)
+                        }
+                        Text("${message.senderName}: ${message.text}")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        when (message.status) {
+                            MessageStatus.Pending -> Text("发送中", style = MaterialTheme.typography.bodySmall)
+                            MessageStatus.Failed ->
+                                TextButton(
+                                    onClick = { viewModel.resendMessage(message.id) },
+                                    modifier = Modifier.testTag("resend-message-${message.id}"),
+                                ) {
+                                    Text("发送失败，重试")
+                                }
+                            MessageStatus.Sent -> Unit
+                        }
+                    }
+                    if (message.reactions.isNotEmpty()) {
+                        Text(
+                            text = message.reactions.joinToString(" ") { "${it.reactionKey} ${it.count}" },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (!message.id.startsWith("local-") && !message.isDeleted) {
+                        Row {
+                            TextButton(onClick = { viewModel.deleteMessage(message.id) }) {
+                                Text("删除")
                             }
-                        MessageStatus.Sent -> Unit
+                            TextButton(onClick = { viewModel.toggleMessagePinned(message) }) {
+                                Text(if (message.isPinned) "取消置顶" else "置顶")
+                            }
+                            TextButton(onClick = { viewModel.toggleThumbReaction(message) }) {
+                                Text(if (message.reactions.any { it.reactionKey == "👍" && it.hasSelf }) "取消👍" else "👍")
+                            }
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))

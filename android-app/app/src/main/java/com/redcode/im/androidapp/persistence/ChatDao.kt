@@ -50,8 +50,17 @@ interface ChatDao {
     @Query("UPDATE chat_messages SET text = :text WHERE roomId = :roomId AND id = :messageId")
     suspend fun updateMessageText(roomId: String, messageId: String, text: String)
 
+    @Query("UPDATE chat_messages SET text = :text, isDeleted = 1, isPinned = 0, pinnedAtMillis = NULL, pinnedBy = NULL WHERE roomId = :roomId AND id = :messageId")
+    suspend fun updateMessageDeleted(roomId: String, messageId: String, text: String)
+
     @Query("UPDATE chat_messages SET status = :status WHERE id = :messageId")
     suspend fun updateMessageStatus(messageId: String, status: String)
+
+    @Query("UPDATE chat_messages SET isPinned = :isPinned, pinnedAtMillis = :pinnedAtMillis, pinnedBy = :pinnedBy WHERE roomId = :roomId AND id = :messageId")
+    suspend fun updateMessagePin(roomId: String, messageId: String, isPinned: Boolean, pinnedAtMillis: Long?, pinnedBy: String?)
+
+    @Query("UPDATE chat_messages SET reactionsJson = :reactionsJson WHERE roomId = :roomId AND id = :messageId")
+    suspend fun updateMessageReactions(roomId: String, messageId: String, reactionsJson: String)
 
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: String)

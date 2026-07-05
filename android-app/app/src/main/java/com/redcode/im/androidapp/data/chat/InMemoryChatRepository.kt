@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.data.chat
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import java.util.UUID
@@ -84,6 +85,75 @@ class InMemoryChatRepository(
             summaries.value.map { summary ->
                 if (summary.roomId == roomId) summary.copy(unreadCount = 0) else summary
             }
+    }
+
+    override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage? {
+        var updated: ChatMessage? = null
+        messageState.value =
+            messageState.value + (
+                roomId to
+                    messageState.value[roomId].orEmpty().map { message ->
+                        if (message.id == messageId) {
+                            message.copy(text = "消息已删除", isDeleted = true).also { updated = it }
+                        } else {
+                            message
+                        }
+                    }
+            )
+        return updated
+    }
+
+    override suspend fun setMessagePinned(roomId: String, messageId: String, pinned: Boolean): ChatMessage? {
+        var updated: ChatMessage? = null
+        val now = Instant.now()
+        messageState.value =
+            messageState.value + (
+                roomId to
+                    messageState.value[roomId].orEmpty().map { message ->
+                        if (message.id == messageId) {
+                            message.copy(
+                                isPinned = pinned,
+                                pinnedAt = if (pinned) now else null,
+                                pinnedBy = if (pinned) "local" else null,
+                            ).also { updated = it }
+                        } else {
+                            message
+                        }
+                    }
+            )
+        return updated
+    }
+
+    override suspend fun setReaction(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        selected: Boolean,
+    ): List<MessageReactionSummary> {
+        val current = messageState.value[roomId].orEmpty().firstOrNull { it.id == messageId } ?: return emptyList()
+        val reactions = current.reactions.toMutableList()
+        val index = reactions.indexOfFirst { it.reactionKey == reactionKey }
+        if (selected) {
+            if (index >= 0) {
+                val existing = reactions[index]
+                reactions[index] = existing.copy(count = maxOf(existing.count, 1), hasSelf = true)
+            } else {
+                reactions += MessageReactionSummary(reactionKey = reactionKey, count = 1L, hasSelf = true)
+            }
+        } else if (index >= 0) {
+            val existing = reactions[index]
+            val nextCount = (existing.count - if (existing.hasSelf) 1L else 0L).coerceAtLeast(0L)
+            if (nextCount == 0L) {
+                reactions.removeAt(index)
+            } else {
+                reactions[index] = existing.copy(count = nextCount, hasSelf = false)
+            }
+        }
+        messageState.value =
+            messageState.value + (
+                roomId to messageState.value[roomId].orEmpty().map { if (it.id == messageId) it.copy(reactions = reactions) else it }
+            )
+        return reactions
     }
 
     override suspend fun clearLocalState() {

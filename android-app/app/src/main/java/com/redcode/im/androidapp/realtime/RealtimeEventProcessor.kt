@@ -27,6 +27,8 @@ class RealtimeEventProcessor(
                 "message" -> applyMessage(event.payload)
                 "message_read" -> applyMessageRead(event.payload)
                 "message_update" -> applyMessageUpdate(event.payload)
+                "pin_update" -> applyPinUpdate(event.payload)
+                "reaction_update" -> applyReactionUpdate(event.payload)
                 "room_created", "room_updated" -> chatCache.refreshChats()
                 "room_history_cleared", "group_dissolved" -> removeRoom(event.payload)
                 "friend_request_update" -> contactsRepository.refreshFriendRequests()
@@ -56,6 +58,35 @@ class RealtimeEventProcessor(
         chatCache.markMessageDeleted(roomId = roomId, messageId = messageId)
     }
 
+    private suspend fun applyPinUpdate(payload: JsonObject) {
+        val roomId = payload.string("room_id") ?: return
+        val messageId = payload.string("message_id") ?: return
+        val isPinned = payload.boolean("is_pinned") ?: false
+        chatCache.updateMessagePin(
+            roomId = roomId,
+            messageId = messageId,
+            pinned = isPinned,
+            pinnedAt = if (isPinned) parseInstantOrNull(payload.string("pinned_at")) else null,
+            pinnedBy = if (isPinned) payload.string("pinned_by") else null,
+        )
+    }
+
+    private suspend fun applyReactionUpdate(payload: JsonObject) {
+        val roomId = payload.string("room_id") ?: return
+        val messageId = payload.string("message_id") ?: return
+        val reactionKey = payload.string("reaction_key") ?: return
+        val userId = payload.string("user_id") ?: return
+        val added = payload.string("action") != "remove"
+        chatCache.applyReactionUpdate(
+            roomId = roomId,
+            messageId = messageId,
+            reactionKey = reactionKey,
+            userId = userId,
+            added = added,
+            currentUserId = currentUserIdProvider(),
+        )
+    }
+
     private suspend fun removeRoom(payload: JsonObject) {
         val roomId = payload.string("room_id") ?: return
         chatCache.removeRoom(roomId)
@@ -68,6 +99,17 @@ interface RealtimeChatCache {
     suspend fun markRead(roomId: String)
 
     suspend fun markMessageDeleted(roomId: String, messageId: String)
+
+    suspend fun updateMessagePin(roomId: String, messageId: String, pinned: Boolean, pinnedAt: Instant?, pinnedBy: String?)
+
+    suspend fun applyReactionUpdate(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        userId: String,
+        added: Boolean,
+        currentUserId: String?,
+    )
 
     suspend fun removeRoom(roomId: String)
 
@@ -88,6 +130,34 @@ class RoomRealtimeChatCache(
 
     override suspend fun markMessageDeleted(roomId: String, messageId: String) {
         localRepository.markMessageDeleted(roomId = roomId, messageId = messageId)
+    }
+
+    override suspend fun updateMessagePin(roomId: String, messageId: String, pinned: Boolean, pinnedAt: Instant?, pinnedBy: String?) {
+        localRepository.updateMessagePin(
+            roomId = roomId,
+            messageId = messageId,
+            pinned = pinned,
+            pinnedAt = pinnedAt,
+            pinnedBy = pinnedBy,
+        )
+    }
+
+    override suspend fun applyReactionUpdate(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        userId: String,
+        added: Boolean,
+        currentUserId: String?,
+    ) {
+        localRepository.applyReactionUpdate(
+            roomId = roomId,
+            messageId = messageId,
+            reactionKey = reactionKey,
+            userId = userId,
+            added = added,
+            currentUserId = currentUserId,
+        )
     }
 
     override suspend fun removeRoom(roomId: String) {
@@ -113,6 +183,10 @@ private fun JsonObject.toChatMessage(): ChatMessage? {
         text = if (isDeleted) "消息已删除" else string("content").orEmpty(),
         status = MessageStatus.Sent,
         createdAt = parseInstant(string("timestamp") ?: string("created_at")),
+        isDeleted = isDeleted,
+        isPinned = boolean("is_pinned") == true,
+        pinnedAt = parseInstantOrNull(string("pinned_at")),
+        pinnedBy = string("pinned_by"),
     )
 }
 
@@ -130,6 +204,10 @@ private fun parseInstant(value: String?): Instant =
     value
         ?.let { runCatching { Instant.parse(it) }.getOrNull() }
         ?: Instant.EPOCH
+
+private fun parseInstantOrNull(value: String?): Instant? =
+    value
+        ?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
 private fun firstNotBlank(vararg values: String?): String =
     values.firstOrNull { !it.isNullOrBlank() }.orEmpty()

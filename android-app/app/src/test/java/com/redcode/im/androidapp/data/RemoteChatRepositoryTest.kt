@@ -33,6 +33,18 @@ class RemoteChatRepositoryTest {
     }
 
     @Test
+    fun chatEndpoint_buildsMessageActionPaths() {
+        assertEquals(
+            "http://10.0.2.2:8010/rooms/room-1/messages/m-1",
+            ChatAPIEndpoint.deleteMessage("room-1", "m-1").url(RedCodeEnvironment.localEmulator()),
+        )
+        assertEquals(
+            "http://10.0.2.2:8010/rooms/room-1/messages/m-1/reactions?reaction_key=%F0%9F%91%8D",
+            ChatAPIEndpoint.removeReaction("room-1", "m-1", "👍").url(RedCodeEnvironment.localEmulator()),
+        )
+    }
+
+    @Test
     fun refreshChats_loadsRemoteSummariesWithBearerToken() =
         runTest {
             val transport =
@@ -236,6 +248,77 @@ class RemoteChatRepositoryTest {
             assertEquals(0, repository.chats.first().single().unreadCount)
             assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/read", transport.requests.last().url)
             assertEquals("""{"message_id":"m-1"}""", transport.requests.last().body)
+        }
+
+    @Test
+    fun messageActions_callBackendAndUpdateLocalMessages() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """[{"id":"m-1","room_id":"room-1","sender_id":"user-me","content":"seed","created_at":"2026-07-05T00:00:00Z"}]""",
+                    ),
+                    HttpResponse(
+                        200,
+                        """{"id":"m-1","room_id":"room-1","sender_id":"user-me","content":"","is_deleted":true,"created_at":"2026-07-05T00:00:00Z"}""",
+                    ),
+                    HttpResponse(200, "[]"),
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "room_id":"room-1",
+                          "is_pinned":true,
+                          "pinned_at":"2026-07-05T00:00:02Z",
+                          "pinned_by":"user-me",
+                          "message":{
+                            "id":"m-1",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "content":"seed",
+                            "is_pinned":true,
+                            "pinned_at":"2026-07-05T00:00:02Z",
+                            "pinned_by":"user-me",
+                            "created_at":"2026-07-05T00:00:00Z"
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(
+                        200,
+                        """{"success":true,"message":"反应已添加","summaries":[{"reaction_key":"👍","count":2,"has_self":true}]}""",
+                    ),
+                    HttpResponse(
+                        200,
+                        """{"success":true,"message":"反应已删除","summaries":[]}""",
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshMessages("room-1")
+            val deleted = repository.deleteMessage("room-1", "m-1")
+            val pinned = repository.setMessagePinned("room-1", "m-1", pinned = true)
+            val reactions = repository.setReaction("room-1", "m-1", "👍", selected = true)
+            val emptyReactions = repository.setReaction("room-1", "m-1", "👍", selected = false)
+
+            val message = repository.messages("room-1").first().single()
+            assertEquals(true, deleted?.isDeleted)
+            assertEquals(true, pinned?.isPinned)
+            assertEquals("user-me", pinned?.pinnedBy)
+            assertEquals(2L, reactions.single().count)
+            assertEquals(0, emptyReactions.size)
+            assertEquals(emptyList<Any>(), message.reactions)
+            assertEquals(HTTPMethod.DELETE, transport.requests[1].method)
+            assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/m-1", transport.requests[1].url)
+            assertEquals(HTTPMethod.POST, transport.requests[4].method)
+            assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/m-1/reactions", transport.requests[4].url)
+            assertEquals("""{"reaction_key":"👍"}""", transport.requests[4].body)
+            assertEquals(HTTPMethod.DELETE, transport.requests[5].method)
+            assertEquals(
+                "http://10.0.2.2:8010/rooms/room-1/messages/m-1/reactions?reaction_key=%F0%9F%91%8D",
+                transport.requests[5].url,
+            )
         }
 
     @Test

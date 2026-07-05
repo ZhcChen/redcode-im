@@ -62,6 +62,9 @@ class ChatDTOsMappingTest {
                 content = "deleted",
                 status = "failed",
                 isDeleted = true,
+                isPinned = true,
+                pinnedAt = "2026-07-05T00:00:01Z",
+                pinnedBy = "user-a",
             ).toDomain()
 
         assertEquals("alice", pending.senderName)
@@ -70,5 +73,9 @@ class ChatDTOsMappingTest {
         assertEquals("user-b", failedDeleted.senderName)
         assertEquals(MessageStatus.Failed, failedDeleted.status)
         assertEquals("消息已删除", failedDeleted.text)
+        assertEquals(true, failedDeleted.isDeleted)
+        assertEquals(true, failedDeleted.isPinned)
+        assertEquals("user-a", failedDeleted.pinnedBy)
+        assertEquals(java.time.Instant.parse("2026-07-05T00:00:01Z"), failedDeleted.pinnedAt)
     }
 }

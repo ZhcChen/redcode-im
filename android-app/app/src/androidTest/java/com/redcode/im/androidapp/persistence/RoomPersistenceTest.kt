@@ -7,6 +7,7 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import kotlinx.coroutines.flow.first
@@ -135,8 +136,28 @@ class RoomPersistenceTest {
             assertEquals(2, summary.unreadCount)
             assertEquals(listOf("m-realtime"), repository.messages("room-a").first().map { it.id })
 
+            repository.updateMessagePin(
+                roomId = "room-a",
+                messageId = "m-realtime",
+                pinned = true,
+                pinnedAt = Instant.ofEpochMilli(3),
+                pinnedBy = "user-me",
+            )
+            repository.updateMessageReactions(
+                roomId = "room-a",
+                messageId = "m-realtime",
+                reactions = listOf(MessageReactionSummary(reactionKey = "👍", count = 2L, hasSelf = true)),
+            )
+            val updated = repository.messages("room-a").first().single()
+            assertEquals(true, updated.isPinned)
+            assertEquals("user-me", updated.pinnedBy)
+            assertEquals("👍", updated.reactions.single().reactionKey)
+
             repository.markMessageDeleted(roomId = "room-a", messageId = "m-realtime")
-            assertEquals("消息已删除", repository.messages("room-a").first().single().text)
+            val deleted = repository.messages("room-a").first().single()
+            assertEquals("消息已删除", deleted.text)
+            assertEquals(true, deleted.isDeleted)
+            assertEquals(false, deleted.isPinned)
 
             repository.removeRoom("room-a")
             assertEquals(emptyList<ChatSummary>(), repository.chats.first())

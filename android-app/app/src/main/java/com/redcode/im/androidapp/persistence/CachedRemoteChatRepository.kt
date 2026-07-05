@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.persistence
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.ChatRepository
@@ -81,6 +82,45 @@ class CachedRemoteChatRepository(
         val latest = localRepository.messages(roomId).first().lastOrNull() ?: return
         remoteDataSource.markMessagesRead(roomId = roomId, messageId = latest.id, token = requireToken())
         localRepository.markRead(roomId)
+    }
+
+    override suspend fun deleteMessage(roomId: String, messageId: String): ChatMessage {
+        val deleted =
+            remoteDataSource
+                .deleteMessage(roomId = roomId, messageId = messageId, token = requireToken())
+                .toDomain()
+        localRepository.upsertMessage(deleted)
+        refreshChats()
+        return deleted
+    }
+
+    override suspend fun setMessagePinned(roomId: String, messageId: String, pinned: Boolean): ChatMessage? {
+        val updated =
+            remoteDataSource
+                .pinMessage(roomId = roomId, messageId = messageId, pinned = pinned, token = requireToken())
+                ?.toDomain()
+        if (updated != null) {
+            localRepository.upsertMessage(updated)
+        } else {
+            localRepository.updateMessagePin(roomId = roomId, messageId = messageId, pinned = false, pinnedAt = null, pinnedBy = null)
+        }
+        return updated ?: localRepository.findMessage(messageId)
+    }
+
+    override suspend fun setReaction(
+        roomId: String,
+        messageId: String,
+        reactionKey: String,
+        selected: Boolean,
+    ): List<MessageReactionSummary> {
+        val reactions =
+            if (selected) {
+                remoteDataSource.addReaction(roomId = roomId, messageId = messageId, reactionKey = reactionKey, token = requireToken())
+            } else {
+                remoteDataSource.removeReaction(roomId = roomId, messageId = messageId, reactionKey = reactionKey, token = requireToken())
+            }
+        localRepository.updateMessageReactions(roomId = roomId, messageId = messageId, reactions = reactions)
+        return reactions
     }
 
     override suspend fun clearLocalState() {

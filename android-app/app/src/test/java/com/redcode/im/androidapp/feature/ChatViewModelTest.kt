@@ -99,4 +99,37 @@ class ChatViewModelTest {
             assertEquals(false, viewModel.uiState.value.isLoadingOlder)
             collectJob.cancel()
         }
+
+    @Test
+    fun chatDetail_messageActionsUpdateLocalState() =
+        runTest {
+            val repository = InMemoryChatRepository()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+            val seed = viewModel.uiState.value.messages.single()
+
+            viewModel.toggleMessagePinned(seed)
+            advanceUntilIdle()
+            val pinned = viewModel.uiState.value.messages.single()
+            viewModel.toggleThumbReaction(pinned)
+            advanceUntilIdle()
+            val reacted = viewModel.uiState.value.messages.single()
+            viewModel.deleteMessage(reacted.id)
+            advanceUntilIdle()
+
+            val deleted = viewModel.uiState.value.messages.single()
+            assertEquals(true, pinned.isPinned)
+            assertEquals("👍", reacted.reactions.single().reactionKey)
+            assertEquals(true, reacted.reactions.single().hasSelf)
+            assertEquals(true, deleted.isDeleted)
+            assertEquals("消息已删除", deleted.text)
+            collectJob.cancel()
+        }
 }

@@ -4,6 +4,7 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.Contact
+import com.redcode.im.androidapp.core.model.MessageReactionSummary
 import com.redcode.im.androidapp.core.model.MessageStatus
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -42,6 +43,11 @@ class RoomEntityMappingTest {
                 text = "hello",
                 status = MessageStatus.Pending,
                 createdAt = Instant.ofEpochMilli(5678),
+                isDeleted = true,
+                isPinned = true,
+                pinnedAt = Instant.ofEpochMilli(6789),
+                pinnedBy = "user-2",
+                reactions = listOf(MessageReactionSummary(reactionKey = "👍", count = 2, hasSelf = true)),
             )
 
         val entity = ChatMessageEntity.fromDomain(message)

@@ -54,7 +54,8 @@
 - [x] 历史消息分页基线。
 - [x] 历史消息首屏加载。
 - [x] pending/failed/resend 基线。
-- [ ] 已读、删除、置顶、引用、reaction。
+- [x] 消息删除、消息置顶、reaction 基线。
+- [ ] 引用消息发送和渲染。
 - [ ] 未读数、置顶、免打扰。
 - [ ] 本地搜索索引。
 - [ ] H5/API/Android 聊天互通 smoke。
@@ -66,6 +67,7 @@
 - WebSocket JSON client 已能维持会话房间订阅；消息增量会按消息 ID 去重写入 Room，并同步会话摘要、未读数和本机已读清零。
 - 文本发送已接入乐观 Pending，本地/远端失败会落 Failed 状态，失败消息支持重试后替换为服务端消息。
 - 历史消息已支持使用当前首条消息作为 `before_id` 加载更早消息，并合并写入本地消息流。
+- 消息删除、消息置顶和 `👍` reaction 已接入真实 HTTP 合同、Room v2 缓存、ViewModel/UI 操作入口，并处理 `pin_update` / `reaction_update` WebSocket 增量事件。
 
 ## ANDROID-04 联系人与好友
 
