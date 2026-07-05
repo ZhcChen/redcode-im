@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -34,6 +38,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.feature.auth.AuthMode
 import com.redcode.im.androidapp.feature.auth.AuthViewModel
@@ -50,25 +55,43 @@ enum class MainTab(val label: String) {
 
 @Composable
 fun RedCodeApp(container: AppContainer) {
-    val authViewModel = remember { AuthViewModel(container.authRepository) }
+    val authViewModel =
+        remember {
+            AuthViewModel(
+                authRepository = container.authRepository,
+                userPreferenceStore = container.userPreferenceStore,
+            )
+        }
+    val settingsViewModel = remember { SettingsViewModel(container.settingsRepository) }
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val documentState by settingsViewModel.document.collectAsStateWithLifecycle()
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         if (authState.session == null) {
-            LoginScreen(viewModel = authViewModel)
+            LoginScreen(
+                viewModel = authViewModel,
+                onOpenDocument = settingsViewModel::loadDocument,
+            )
         } else {
             MainShell(
                 container = container,
                 authViewModel = authViewModel,
+                settingsViewModel = settingsViewModel,
                 currentUserId = authState.session!!.user.id,
                 currentUserName = authState.session!!.user.displayName,
+            )
+        }
+        if (documentState.kind != null) {
+            SettingsDocumentDialog(
+                state = documentState,
+                onDismiss = settingsViewModel::dismissDocument,
             )
         }
     }
 }
 
 @Composable
-fun LoginScreen(viewModel: AuthViewModel) {
+fun LoginScreen(viewModel: AuthViewModel, onOpenDocument: (SettingsDocumentKind) -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     Column(
         modifier =
@@ -102,6 +125,31 @@ fun LoginScreen(viewModel: AuthViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
             Text(text = uiState.errorMessage!!, color = MaterialTheme.colorScheme.error)
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = uiState.hasAcceptedTerms,
+                onCheckedChange = viewModel::setAcceptedTerms,
+                modifier = Modifier.testTag("agreement-toggle"),
+            )
+            Column {
+                Text("我已阅读并同意协议", style = MaterialTheme.typography.bodyMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = { onOpenDocument(SettingsDocumentKind.UserAgreement) },
+                        modifier = Modifier.testTag("user-agreement-link"),
+                    ) {
+                        Text("用户协议")
+                    }
+                    TextButton(
+                        onClick = { onOpenDocument(SettingsDocumentKind.PrivacyPolicy) },
+                        modifier = Modifier.testTag("privacy-policy-link"),
+                    ) {
+                        Text("隐私协议")
+                    }
+                }
+            }
+        }
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = viewModel::submit,
@@ -120,6 +168,7 @@ fun LoginScreen(viewModel: AuthViewModel) {
 private fun MainShell(
     container: AppContainer,
     authViewModel: AuthViewModel,
+    settingsViewModel: SettingsViewModel,
     currentUserId: String,
     currentUserName: String,
 ) {
@@ -127,7 +176,6 @@ private fun MainShell(
     var selectedChat by remember { mutableStateOf<ChatSummary?>(null) }
     val chatListViewModel = remember { ChatListViewModel(container.chatRepository) }
     val contactsViewModel = remember { ContactsViewModel(container.contactsRepository) }
-    val settingsViewModel = remember { SettingsViewModel(container.settingsRepository) }
 
     Scaffold(
         bottomBar = {
@@ -282,10 +330,55 @@ fun SettingsScreen(viewModel: SettingsViewModel, authViewModel: AuthViewModel, a
             Text("切换通知")
         }
         Spacer(modifier = Modifier.height(16.dp))
+        TextButton(
+            onClick = { viewModel.loadDocument(SettingsDocumentKind.UserAgreement) },
+            modifier = Modifier.padding(horizontal = 16.dp).testTag("settings-user-agreement"),
+        ) {
+            Text("用户协议")
+        }
+        TextButton(
+            onClick = { viewModel.loadDocument(SettingsDocumentKind.PrivacyPolicy) },
+            modifier = Modifier.padding(horizontal = 16.dp).testTag("settings-privacy-policy"),
+        ) {
+            Text("隐私协议")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = authViewModel::logout, modifier = Modifier.padding(horizontal = 16.dp).testTag("logout")) {
             Text("退出登录")
         }
     }
+}
+
+@Composable
+private fun SettingsDocumentDialog(
+    state: com.redcode.im.androidapp.feature.settings.SettingsDocumentUiState,
+    onDismiss: () -> Unit,
+) {
+    val title = state.document?.title ?: state.kind?.title.orEmpty()
+    val body =
+        when {
+            state.isLoading -> "加载中..."
+            state.errorMessage != null -> state.errorMessage
+            else -> state.document?.content.orEmpty()
+        }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Text(
+                text = body,
+                modifier =
+                    Modifier
+                        .testTag("document-dialog")
+                        .verticalScroll(rememberScrollState()),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("document-close")) {
+                Text("关闭")
+            }
+        },
+    )
 }
 
 @Composable

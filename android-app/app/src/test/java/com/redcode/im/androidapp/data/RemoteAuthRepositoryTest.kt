@@ -65,6 +65,18 @@ class RemoteAuthRepositoryTest {
             assertEquals(emptyList<Pair<String, String>>(), remote.loginCalls)
         }
 
+    @Test
+    fun login_rejectsWeakPasswordBeforeNetwork() =
+        runTest {
+            val remote = FakeAuthRemoteDataSource()
+            val repository = RemoteAuthRepository(remote, InMemoryAuthSessionStore())
+
+            val error = runCatching { repository.login("tester", "123") }.exceptionOrNull()
+
+            assertTrue(error is IllegalArgumentException)
+            assertEquals(emptyList<Pair<String, String>>(), remote.loginCalls)
+        }
+
     private data class RegisterCall(val username: String, val password: String, val nickname: String)
 
     private class FakeAuthRemoteDataSource : AuthRemoteDataSource {

@@ -73,6 +73,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
@@ -122,6 +123,7 @@ tasks.register<JacocoReport>("jacocoDebugUnitTestReport") {
             "**/*Response*.*",
             "**/data/auth/BackendAuth*.*",
             "**/data/auth/AndroidKeystoreKeyValueStore*.*",
+            "**/data/preferences/DataStoreUserPreferenceStore*.*",
             "**/network/APIClient*.*",
             "**/JavaNetHttpTransport*.*",
             "**/HttpTransport*.*",

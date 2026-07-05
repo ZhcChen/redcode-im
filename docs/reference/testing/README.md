@@ -150,7 +150,7 @@ make android-app.smoke.emulator
 - `android-app.lint` 运行 Android Lint。
 - `android-app.coverage` 生成 Jacoco 覆盖率报告：`android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
 - `android-app.connected-test` 在当前 Emulator 上运行 Compose instrumented tests。
-- `android-app.connected-test` 当前包含 Compose 登录 smoke、Room in-memory DAO/Repository 测试和 Android Keystore 加密会话存储测试。
+- `android-app.connected-test` 当前包含 Compose 登录/协议门禁 smoke、Room in-memory DAO/Repository 测试、Android Keystore 加密会话存储测试和 DataStore 协议偏好测试。
 - `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Emulator。
 - 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
 

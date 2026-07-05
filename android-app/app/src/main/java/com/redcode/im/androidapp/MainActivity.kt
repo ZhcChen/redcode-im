@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.data.auth.AndroidKeystoreKeyValueStore
 import com.redcode.im.androidapp.data.auth.SerializedAuthSessionStore
+import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.ui.theme.RedCodeTheme
 
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
                     SerializedAuthSessionStore(
                         AndroidKeystoreKeyValueStore(applicationContext),
                     ),
+                userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {
             RedCodeTheme {

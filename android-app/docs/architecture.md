@@ -63,6 +63,8 @@ MainActivity / Compose App Shell
 - `RemoteAuthRepository`：普通账号密码注册后自动登录、登录会话保存、登出清理。
 - `AuthSessionStore`：提供 in-memory 测试实现和 `SerializedAuthSessionStore`。
 - `AndroidKeystoreKeyValueStore`：Android Keystore 生成不可导出 AES/GCM 密钥，SharedPreferences 只保存密文，App 启动时恢复 `AuthSession`，登出时清理会话密文。
+- `UserPreferenceStore`：协议勾选等非敏感偏好走 Preferences DataStore；测试使用 in-memory 实现。
+- `SettingsRepository`：提供公开协议文档拉取，真实联调时访问 `/settings/privacy-policy` 和 `/settings/user-agreement`，本地模拟时返回内置 mock 文档。
 
 ## 测试策略
 
@@ -70,6 +72,7 @@ MainActivity / Compose App Shell
 - Compose instrumented test 覆盖 Emulator 上的关键 UI flow。
 - Room in-memory instrumented test 覆盖 DAO SQL、Flow 查询和 Repository 持久化行为。
 - Android Keystore instrumented test 覆盖密文落盘、读取恢复、覆盖写、删除和损坏 payload 丢弃。
+- DataStore instrumented test 覆盖协议勾选偏好读写；Compose UI test 覆盖未勾选协议时阻止认证和协议文档弹窗。
 - Jacoco 输出覆盖率报告。
 - 后续 live smoke 统一接入本机 Docker Compose API；Android Emulator 使用 `10.0.2.2` 访问宿主机。
 

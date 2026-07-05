@@ -11,14 +11,19 @@ import com.redcode.im.androidapp.data.chat.ChatRepository
 import com.redcode.im.androidapp.data.chat.InMemoryChatRepository
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
+import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
+import com.redcode.im.androidapp.data.preferences.UserPreferenceStore
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
+import com.redcode.im.androidapp.data.settings.RemoteSettingsRepository
 import com.redcode.im.androidapp.data.settings.SettingsRepository
 import com.redcode.im.androidapp.network.APIClient
 
 class AppContainer(
     val environment: RedCodeEnvironment,
     useRemoteAuth: Boolean = false,
+    useRemoteSettings: Boolean = useRemoteAuth,
     authSessionStore: AuthSessionStore = InMemoryAuthSessionStore(),
+    val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
             RemoteAuthRepository(
@@ -30,5 +35,10 @@ class AppContainer(
         },
     val chatRepository: ChatRepository = InMemoryChatRepository(),
     val contactsRepository: ContactsRepository = InMemoryContactsRepository(),
-    val settingsRepository: SettingsRepository = InMemorySettingsRepository(),
+    val settingsRepository: SettingsRepository =
+        if (useRemoteSettings) {
+            RemoteSettingsRepository(APIClient(environment))
+        } else {
+            InMemorySettingsRepository()
+        },
 )

@@ -19,7 +19,7 @@
 - [x] Token Keystore 持久化。
 - [x] 启动态恢复。
 - [ ] 重置密码。
-- [ ] 用户协议/隐私协议勾选与文档拉取。
+- [x] 用户协议/隐私协议勾选与文档拉取。
 - [ ] 登出清理 Token、WS、Room/DataStore/cache/通知态。
 
 ## ANDROID-02 网络、WebSocket、本地数据底座
@@ -34,6 +34,10 @@
 - [ ] File cache：附件、头像、表情。
 - [x] 测试 fake data source 与 Room in-memory test 分层。
 - [ ] live smoke 分层。
+
+进度备注：
+- 已接入 Preferences DataStore 保存协议勾选状态；聊天设置等非敏感偏好仍在后续阶段扩展。
+- 已接入公开设置文档端点：`/settings/privacy-policy`、`/settings/user-agreement`。
 
 ## ANDROID-03 聊天核心
 
