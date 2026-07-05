@@ -16,7 +16,17 @@ interface SearchRow {
   relevance_score?: number | null;
 }
 
+type SearchMode = 'fts' | 'like';
+
+interface ReadySearchStorage {
+  db: SqlAdapter;
+  mode: SearchMode;
+}
+
 export class MessageSearchStorage {
+  private initializedAdapter: SqlAdapter | null = null;
+  private initializedMode: SearchMode | null = null;
+
   constructor(private readonly adapterFactory: () => Promise<SqlAdapter> = getLocalDatabase) {}
 
   async replaceRoomIndex(params: {
@@ -28,7 +38,7 @@ export class MessageSearchStorage {
     const { roomId, roomName, messages, maxMessages = 200 } = params;
     if (!roomId) return;
 
-    const db = await this.ready();
+    const { db } = await this.ready();
     const trimmed = messages
       .filter((message) => message.id && !message.isDeleted)
       .sort((a, b) => a.timestamp - b.timestamp)
@@ -61,6 +71,7 @@ export class MessageSearchStorage {
   async searchMessages(params: {
     query: string;
     roomId?: string;
+    messageType?: MessageType | string;
     limit?: number;
     offset?: number;
   }): Promise<MessageSearchResponse> {
@@ -70,16 +81,10 @@ export class MessageSearchStorage {
       return emptyResponse(query);
     }
 
-    const db = await this.ready();
+    const { db, mode } = await this.ready();
     const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
     const offset = Math.max(params.offset ?? 0, 0);
-    const where = ['message_search MATCH ?'];
-    const args: (string | number)[] = [processSearchQuery(query)];
-    if (params.roomId) {
-      where.push('room_id = ?');
-      args.push(params.roomId);
-    }
-    const whereClause = where.join(' AND ');
+    const { whereClause, args } = buildSearchWhere(mode, query, params.roomId, params.messageType);
 
     const countRows = await db.query<{ total: number }>(
       `SELECT COUNT(1) AS total FROM message_search WHERE ${whereClause}`,
@@ -120,20 +125,50 @@ export class MessageSearchStorage {
   }
 
   private async ready() {
+    return this.initialize();
+  }
+
+  private async initialize(): Promise<ReadySearchStorage> {
     const db = await this.adapterFactory();
-    await db.execute(`
-      CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
-        id UNINDEXED,
-        room_id UNINDEXED,
-        room_name,
-        sender_id UNINDEXED,
-        sender_name,
-        content,
-        message_type UNINDEXED,
-        timestamp UNINDEXED
-      )
-    `);
-    return db;
+    if (this.initializedAdapter === db && this.initializedMode) {
+      return { db, mode: this.initializedMode };
+    }
+    try {
+      await db.execute(`
+        CREATE VIRTUAL TABLE IF NOT EXISTS message_search USING fts5(
+          id UNINDEXED,
+          room_id UNINDEXED,
+          room_name,
+          sender_id UNINDEXED,
+          sender_name,
+          content,
+          message_type UNINDEXED,
+          timestamp UNINDEXED
+        )
+      `);
+      this.initializedAdapter = db;
+      this.initializedMode = 'fts';
+      return { db, mode: 'fts' };
+    } catch (error) {
+      console.warn('[h5-app] FTS5 消息搜索不可用，降级到 LIKE 查询', error);
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS message_search (
+          id TEXT PRIMARY KEY,
+          room_id TEXT NOT NULL,
+          room_name TEXT NOT NULL,
+          sender_id TEXT NOT NULL,
+          sender_name TEXT NOT NULL,
+          content TEXT NOT NULL,
+          message_type TEXT NOT NULL,
+          timestamp INTEGER NOT NULL
+        )
+      `);
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_message_search_room ON message_search (room_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_message_search_type ON message_search (message_type)');
+      this.initializedAdapter = db;
+      this.initializedMode = 'like';
+      return { db, mode: 'like' };
+    }
   }
 }
 
@@ -162,6 +197,38 @@ const processSearchQuery = (query: string) => {
   if (words.length === 1) return `"${words[0]}"*`;
   return words.map((word) => `"${word}"*`).join(' AND ');
 };
+
+const buildSearchWhere = (
+  mode: SearchMode,
+  query: string,
+  roomId?: string,
+  messageType?: MessageType | string,
+) => {
+  const where: string[] = [];
+  const args: (string | number)[] = [];
+  if (mode === 'fts') {
+    where.push('message_search MATCH ?');
+    args.push(processSearchQuery(query));
+  } else {
+    where.push('(room_name LIKE ? ESCAPE ? OR sender_name LIKE ? ESCAPE ? OR content LIKE ? ESCAPE ?)');
+    const likeQuery = `%${escapeLikeQuery(query)}%`;
+    args.push(likeQuery, '\\', likeQuery, '\\', likeQuery, '\\');
+  }
+  if (roomId) {
+    where.push('room_id = ?');
+    args.push(roomId);
+  }
+  if (messageType) {
+    where.push('message_type = ?');
+    args.push(messageType);
+  }
+  return {
+    whereClause: where.join(' AND '),
+    args,
+  };
+};
+
+const escapeLikeQuery = (query: string) => query.replace(/[\\%_]/g, (match) => `\\${match}`);
 
 const toSearchResult = (row: SearchRow): MessageSearchResult => ({
   id: row.id,

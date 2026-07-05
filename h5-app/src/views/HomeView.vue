@@ -71,6 +71,10 @@ const openChat = async (roomId: string) => {
   await router.push({ name: 'chat-detail', params: { roomId } });
 };
 
+const openMessageSearch = async () => {
+  await router.push({ name: 'message-search' });
+};
+
 const connectionLabel = computed(() => {
   if (chatStore.websocketStatus === 'authenticated') return '实时在线';
   if (chatStore.websocketStatus === 'connecting' || chatStore.websocketStatus === 'connected') {
@@ -141,15 +145,20 @@ onMounted(() => {
       </header>
 
       <section v-if="shellStore.activeTab === 'chat'" class="panel panel--chat">
-        <label class="search-box">
-          <span class="sr-only">搜索</span>
-          <input
-            :value="chatStore.searchKeyword"
-            class="rc-focus-ring"
-            placeholder="搜索"
-            @input="chatStore.setSearchKeyword(($event.target as HTMLInputElement).value)"
-          />
-        </label>
+        <div class="chat-search-row">
+          <label class="search-box">
+            <span class="sr-only">搜索</span>
+            <input
+              :value="chatStore.searchKeyword"
+              class="rc-focus-ring"
+              placeholder="搜索会话"
+              @input="chatStore.setSearchKeyword(($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <button class="message-search-entry rc-focus-ring" type="button" @click="openMessageSearch">
+            搜消息
+          </button>
+        </div>
 
         <p v-if="chatStore.error" class="chat-notice chat-notice--error">{{ chatStore.error }}</p>
         <p v-else-if="chatStore.isOffline" class="chat-notice">WebSocket 未连接，正在使用本地缓存和 HTTP 刷新。</p>
@@ -463,6 +472,21 @@ onMounted(() => {
   background: var(--rc-surface-muted);
   color: var(--rc-text-primary);
   padding: 0 18px;
+}
+
+.chat-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.message-search-entry {
+  min-width: 74px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--rc-primary);
+  color: #fff;
+  font-weight: 700;
 }
 
 .search-box--with-action {

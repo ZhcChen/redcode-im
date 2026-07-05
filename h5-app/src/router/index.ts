@@ -4,6 +4,7 @@ import LoginView from '@/views/LoginView.vue';
 import HomeView from '@/views/HomeView.vue';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
+import MessageSearchView from '@/views/MessageSearchView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -34,6 +35,12 @@ export const router = createRouter({
       path: '/chats/:roomId',
       name: 'chat-detail',
       component: ChatDetailView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/messages/search',
+      name: 'message-search',
+      component: MessageSearchView,
       meta: { requiresAuth: true },
     },
     {

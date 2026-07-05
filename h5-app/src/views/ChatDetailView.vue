@@ -44,6 +44,14 @@ const openGroupSettings = async () => {
   await router.push({ name: 'group-settings', params: { roomId: targetRoomId } });
 };
 
+const openMessageSearch = async () => {
+  const targetRoomId = detailStore.roomId || roomId.value;
+  await router.push({
+    name: 'message-search',
+    query: targetRoomId ? { roomId: targetRoomId } : {},
+  });
+};
+
 const isSelf = (message: ChatMessage) => message.senderId === currentUserId.value;
 
 const messageStatusLabel = (message: ChatMessage) => {
@@ -100,15 +108,25 @@ const resolveRouteChat = () => {
         <h1>{{ detailStore.title }}</h1>
         <p>{{ detailStore.loading ? '同步中' : `${detailStore.messages.length} 条消息` }}</p>
       </div>
-      <button
-        v-if="detailStore.chat?.type === 'group'"
-        class="chat-detail__settings rc-focus-ring"
-        type="button"
-        aria-label="群设置"
-        @click="openGroupSettings"
-      >
-        ⋯
-      </button>
+      <div class="chat-detail__actions">
+        <button
+          class="chat-detail__icon-action rc-focus-ring"
+          type="button"
+          aria-label="搜索消息"
+          @click="openMessageSearch"
+        >
+          ⌕
+        </button>
+        <button
+          v-if="detailStore.chat?.type === 'group'"
+          class="chat-detail__icon-action rc-focus-ring"
+          type="button"
+          aria-label="群设置"
+          @click="openGroupSettings"
+        >
+          ⋯
+        </button>
+      </div>
     </header>
 
     <section ref="listEl" class="message-list" aria-label="聊天消息">
@@ -220,7 +238,7 @@ const resolveRouteChat = () => {
 
 .chat-detail__header {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: 44px 1fr auto;
   align-items: center;
   padding: calc(var(--rc-safe-top) + 10px) 12px 12px;
   background: var(--rc-surface);
@@ -240,7 +258,14 @@ const resolveRouteChat = () => {
   line-height: 1;
 }
 
-.chat-detail__settings {
+.chat-detail__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.chat-detail__icon-action {
   display: grid;
   place-items: center;
   width: 38px;

@@ -127,6 +127,16 @@ test.describe('h5-app browser smoke', () => {
     await page.reload();
     await expect(page.getByText(message)).toBeVisible();
 
+    await page.getByLabel('搜索消息').click();
+    await expect(page).toHaveURL(/\/messages\/search/);
+    await page.getByPlaceholder('输入关键词、联系人或群名').fill(message);
+    await page.getByRole('button', { name: '搜索' }).click();
+    const searchResult = page.locator('.message-search__result').filter({ hasText: message }).first();
+    await expect(searchResult).toBeVisible();
+    await searchResult.click();
+    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}`));
+    await expect(page.getByText(message)).toBeVisible();
+
     await page.getByLabel('群设置').click();
     await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/settings$`));
     await expect(page.getByRole('heading', { name: roomName })).toBeVisible();

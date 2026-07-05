@@ -16,8 +16,8 @@
 
 - 当前主线不再是旧 Admin RBAC 任务；旧 Admin mock / `src/api` 业务依赖清理已收口，不作为当前 P0。
 - Android 当前 P0 媒体切片已完成：头像缓存、权限拒绝恢复、语音播放基线均已收口。
-- 下一步执行 H5 本地消息搜索页面，然后补 H5 头像上传浏览器能力。
-- `h5-app` 已承担 H5/API 联调入口，文档、live smoke 和浏览器 E2E smoke 已收口；剩余是搜索页、头像上传和浏览器存储增强等尾项。
+- 下一步执行 H5 头像上传浏览器能力。
+- `h5-app` 已承担 H5/API 联调入口，文档、live smoke、浏览器 E2E smoke 和本地消息搜索页已收口；剩余是头像上传和浏览器存储增强等尾项。
 - `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录，不阻塞当前主线。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
 - API 性能基线已建立；架构重构和分布式消息总线应在 Android/H5/API 主链路验收后进入独立重构计划。
@@ -28,8 +28,8 @@
   - 已通过 unit、connected-test、lint、debug build、emulator smoke 和 `git diff --check`。
 - [x] 切到 H5 验收入口
   - 已完成 H5 文档入口、live smoke 和浏览器 E2E smoke。
-- [ ] 实现 H5 本地消息搜索页面
-  - 基于已有本地搜索存储补 UI、store、索引同步和结果跳转。
+- [x] 实现 H5 本地消息搜索页面
+  - 已补 UI、store、索引同步、FTS5/LIKE fallback 和结果跳转。
 - [ ] 实现 H5 头像上传浏览器能力
   - 复用 direct upload / commit / avatar cache，使用 `external-mock` 验收。
 
@@ -129,9 +129,8 @@ make android-app.test.interop
   - 刷新页面后从本地缓存恢复。
   - 好友申请闭环。
   - 群设置关键路径。
-- [ ] H5 本地消息搜索页面
-  - 当前已有本地搜索存储测试。
-  - 需要补 store、页面、索引同步、fallback、跳转和真实缓存查询交互。
+- [x] H5 本地消息搜索页面
+  - 已完成 store、页面、聊天详情索引同步、FTS5/LIKE fallback、结果跳转和浏览器 E2E 覆盖。
 - [ ] H5 头像上传浏览器能力
   - 走浏览器文件选择。
   - 复用 direct upload / commit / avatar cache。

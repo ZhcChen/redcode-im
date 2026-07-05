@@ -8,6 +8,7 @@ import type { ChatMessage, ChatMessageQuote, ChatSummary, MessageType } from '@/
 
 import { useAuthStore } from './auth';
 import { useChatStore } from './chat';
+import { useMessageSearchStore } from './message-search';
 
 const messageStorage = new MessageStorage();
 
@@ -269,6 +270,11 @@ export const useChatDetailStore = defineStore('chatDetail', {
       } catch (error) {
         console.warn('[h5-app] 消息本地缓存写入失败，已忽略', error);
       }
+      await useMessageSearchStore().replaceRoomIndex({
+        roomId: this.roomId,
+        roomName: this.chat?.name || useChatStore().chats.find((item) => item.roomId === this.roomId)?.name || '聊天',
+        messages: this.messages,
+      });
     },
 
     async loadCachedMessages(roomId: string) {

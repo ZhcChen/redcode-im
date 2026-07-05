@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { MessageSearchStorage } from '@/storage/message-search-storage';
 import { MessageStorage } from '@/storage/message-storage';
+import type { SqlAdapter, SqlRow, SqlValue } from '@/storage/sql-adapter';
 import type { ChatMessage } from '@/types/chat';
 
 const message = (id: string, roomId: string, timestamp: number, content: string): ChatMessage => ({
@@ -81,4 +82,46 @@ describe('MessageSearchStorage', () => {
 
     expect(result.results).toEqual([]);
   });
+
+  it('filters by message type', async () => {
+    await searchStorage.replaceRoomIndex({
+      roomId: 'r1',
+      roomName: '房间一',
+      messages: [
+        message('m1', 'r1', 1000, 'release plan'),
+        { ...message('m2', 'r1', 2000, 'release image'), type: 'image' },
+      ],
+    });
+
+    const result = await searchStorage.searchMessages({ query: 'release', messageType: 'image' });
+
+    expect(result.results.map((item) => item.id)).toEqual(['m2']);
+  });
+
+  it('falls back to LIKE search when FTS5 is unavailable', async () => {
+    const fallback = new LikeOnlySearchAdapter();
+    const storage = new MessageSearchStorage(async () => fallback);
+
+    await storage.replaceRoomIndex({
+      roomId: 'r1',
+      roomName: '降级房间',
+      messages: [message('m1', 'r1', 1000, 'fallback keyword')],
+    });
+    const result = await storage.searchMessages({ query: 'keyword' });
+
+    expect(result.results.map((item) => item.id)).toEqual(['m1']);
+  });
 });
+
+class LikeOnlySearchAdapter extends MemorySqlAdapter implements SqlAdapter {
+  async execute(sql: string, params: readonly SqlValue[] = []): Promise<void> {
+    if (sql.toLowerCase().includes('using fts5')) {
+      throw new Error('fts5 unavailable');
+    }
+    await super.execute(sql, params);
+  }
+
+  async query<T = SqlRow>(sql: string, params: readonly SqlValue[] = []): Promise<T[]> {
+    return super.query<T>(sql, params);
+  }
+}

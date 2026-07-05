@@ -77,6 +77,7 @@ make h5-app.test.e2e
 
 - UI 普通账号注册后进入聊天 tab
 - 创建/进入群聊、发送消息、刷新页面后恢复消息
+- 本地消息搜索结果跳转回聊天详情
 - 群设置页置顶关键路径
 - 搜索用户、发送好友申请、接受后联系人状态可见
 
@@ -88,7 +89,7 @@ make h5-app.test.e2e
 - Flutter 移动端视觉 token 的 H5 复刻基线
 - 本地存储底座：
   - `MessageStorage` 对齐 Flutter `MessageStorage` 的 room 消息缓存语义，单房间保留最近 200 条
-  - `MessageSearchStorage` 预留 SQLite FTS5 搜索语义
+  - `MessageSearchStorage` 使用 SQLite FTS5 建立本地消息搜索索引，FTS5 不可用时降级到 LIKE 查询
   - 测试环境使用内存 adapter，浏览器环境使用 wa-sqlite + IndexedDB VFS
 - API/service parity 底座：
   - `authService` / `friendService` / `roomService` / `messageService` / `settingsService`
@@ -101,6 +102,7 @@ make h5-app.test.e2e
   - `/chats/:roomId` 支持本地缓存优先、后台拉取历史消息和 WebSocket 消息合并
   - 文本发送支持本地 pending、失败重发、引用消息、服务端回包替换和本地缓存写入
   - 已读同步、消息删除、消息置顶/取消置顶会走 Flutter 等价后端端点并同步本地状态
+  - 聊天详情会同步维护本地消息搜索索引，`/messages/search` 支持关键词、会话、类型过滤和结果跳转
   - wa-sqlite 浏览器运行时缓存异常会降级为静默忽略，不阻断 HTTP/WS 主链路
 - 联系人与群聊：
   - 联系人 tab 支持本地联系人缓存、好友请求 badge、搜索用户和发送好友申请
@@ -117,6 +119,5 @@ make h5-app.test.e2e
 
 后续继续补齐：
 
-- 本地消息搜索页面：关键词、room 过滤、结果跳转
 - 头像上传浏览器能力：用户头像、群头像、失败回退和缓存刷新
 - 浏览器存储增强：wa-sqlite OPFS worker、IndexedDB fallback、FTS5 能力探测、Cache API 配额清理

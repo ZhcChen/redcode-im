@@ -16,10 +16,10 @@
 
 - 当前分支：`feat/core-architecture-performance`。
 - 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，确保核心功能和流程预期正确，再扩展 Android 原生、iOS 原生和全模块回归。
-- 当前下一项：`H5-P1-03 本地消息搜索页面`。
+- 当前下一项：`H5-P1-04 头像上传浏览器能力`。
 - Flutter `app/` 保留，不移除；后续作为行为对照、回滚包和原生切换前的基线。
 - Android 原生 P0 媒体切片已收口：头像缓存、附件缓存、权限恢复、语音播放基线均已完成。
-- H5 已完成联调入口文档、live smoke 和浏览器 E2E smoke；剩余集中在本地消息搜索、头像上传和浏览器存储增强。
+- H5 已完成联调入口文档、live smoke、浏览器 E2E smoke 和本地消息搜索页；剩余集中在头像上传和浏览器存储增强。
 - iOS 原生主要 Flutter parity 已完成；必须依赖 iPhone 真机和真实 APNs 的项按用户要求跳过并记录，不阻塞当前主线。
 - API 已具备 Compose-first 测试栈和性能基线；分布式消息总线、性能矩阵扩展和 Compose profile 扩展作为后续架构重构推进。
 - Google / Apple 登录不再进入当前主线；当前测试默认普通账号密码注册/登录。邮箱注册/登录作为后台配置能力保留，测试阶段不依赖真实邮箱或验证码二次验证。
@@ -29,18 +29,18 @@
 
 ### NOW-01 H5 本地消息搜索页面
 
-状态：待执行
+状态：完成
 
 目标：
 - 给 H5 补完整消息搜索 UI，使 H5 联调端具备 Flutter/原生移动端等价的本地搜索能力。
 
-任务：
-- 基于已有 `MessageSearchStorage` 和 `h5-app/test/message-search-storage.test.ts` 补 Pinia store。
-- 在聊天详情消息持久化后同步写入本地搜索索引。
-- 新增搜索页面和路由，支持关键词、room 过滤、分页和空结果状态。
-- 点击搜索结果跳转到对应聊天详情；精准滚动可后续增强，不作为第一版阻塞。
-- 运行时探测 FTS5；不可用时 fallback 到 LIKE 或服务端搜索。
-- 索引损坏或写入失败不能导致聊天页白屏，应记录并允许重建。
+已完成：
+- 新增 `messageSearch` Pinia store。
+- 聊天详情消息持久化后同步写入本地搜索索引。
+- 新增 `/messages/search` 页面和路由，支持关键词、room 过滤、消息类型过滤、分页和空结果状态。
+- 点击搜索结果跳转到对应聊天详情；精准滚动不作为第一版阻塞。
+- FTS5 不可用时 fallback 到 LIKE 查询。
+- 索引损坏或写入失败不导致聊天页白屏。
 
 验收：
 - `make h5-app.check`
@@ -124,20 +124,21 @@
 
 ### H5-P1-03 本地消息搜索页面
 
-状态：待执行
+状态：完成
 
-任务：
+已完成：
 - 新增搜索 store。
 - 聊天详情同步维护搜索索引。
 - 新增 `/messages/search` 页面和路由。
-- 支持关键词、room 过滤、分页、空结果、错误态。
+- 支持关键词、room 过滤、消息类型过滤、分页、空结果、错误态。
 - 点击结果跳转聊天详情。
-- FTS5 不可用时提供 fallback。
+- FTS5 不可用时提供 LIKE fallback。
 
-测试：
+验证：
 - storage/store 单测覆盖索引写入、查询、过滤、fallback 和损坏隔离。
 - view 单测覆盖输入关键词、展示结果和点击跳转。
 - 浏览器 E2E 覆盖搜索结果跳转。
+- 视觉截图：`docs/reports/h5-app/message-search-smoke.png`。
 
 ### H5-P1-04 头像上传浏览器能力
 
@@ -174,7 +175,7 @@
 状态：待执行
 
 触发条件：
-- H5-P1-03、H5-P1-04、H5-P1-05 完成。
+- H5-P1-04、H5-P1-05 完成。
 
 任务：
 - 回填 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 状态。

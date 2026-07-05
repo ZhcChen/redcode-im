@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
+import { MessageSearchStorage } from '@/storage/message-search-storage';
 import { MessageStorage } from '@/storage/message-storage';
 import { useChatStore } from '@/stores/chat';
 import { mergeMessages, useChatDetailStore } from '@/stores/chat-detail';
@@ -54,6 +55,32 @@ describe('chat detail store', () => {
     await store.enterRoom('r1');
 
     expect(store.messages.map((item) => item.content)).toContain('cached hello');
+  });
+
+  it('updates the local search index when room messages are persisted', async () => {
+    const store = useChatDetailStore();
+    await store.enterRoom('r1', {
+      id: 'r1',
+      roomId: 'r1',
+      name: '搜索项目群',
+      avatar: null,
+      avatarObjectKey: null,
+      lastMessage: '',
+      lastMessageTime: 1,
+      unreadCount: 0,
+      type: 'group',
+      isPinned: false,
+      isMuted: false,
+    });
+    await store.sendText('indexed browser search');
+
+    const result = await new MessageSearchStorage(async () => adapter).searchMessages({ query: 'browser' });
+
+    expect(result.results.at(0)).toMatchObject({
+      roomId: 'r1',
+      roomName: '搜索项目群',
+      content: 'indexed browser search',
+    });
   });
 
   it('sends text, persists it and updates chat summary in mock mode', async () => {

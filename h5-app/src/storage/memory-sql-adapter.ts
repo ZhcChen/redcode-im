@@ -179,16 +179,27 @@ export class MemorySqlAdapter implements SqlAdapter {
   }
 
   private querySearch<T>(normalized: string, params: readonly SqlValue[]) {
-    const query = String(params[0] ?? '').trim().toLowerCase();
-    const roomId = normalized.includes('room_id = ?') ? String(params[1] ?? '') : '';
+    const usesFts = normalized.includes('message_search match ?');
+    const usesLike = normalized.includes(' like ?');
+    const hasRoomFilter = normalized.includes('room_id = ?');
+    const hasTypeFilter = normalized.includes('message_type = ?');
+    let paramIndex = 0;
+    const query = cleanSearchQuery(String(params[paramIndex] ?? ''));
+    paramIndex += usesLike ? 6 : 1;
+    const roomId = hasRoomFilter ? String(params[paramIndex++] ?? '') : '';
+    const messageType = hasTypeFilter ? String(params[paramIndex++] ?? '') : '';
     const offset = Number(params.at(-1) ?? 0);
     const limit = Number(params.at(-2) ?? 50);
     const matched = [...this.searchRows.values()]
       .filter((row) => !roomId || row.room_id === roomId)
+      .filter((row) => !messageType || row.message_type === messageType)
       .filter((row) => {
         if (!query) return false;
         const haystack = `${row.room_name} ${row.sender_name} ${row.content}`.toLowerCase();
-        return haystack.includes(query.replaceAll('"', '').replaceAll('*', ''));
+        if (usesFts) {
+          return query.split(/\s+and\s+/).every((word) => haystack.includes(word));
+        }
+        return haystack.includes(query);
       })
       .sort((a, b) => b.timestamp - a.timestamp);
 
@@ -205,3 +216,10 @@ export class MemorySqlAdapter implements SqlAdapter {
 }
 
 const normalizeSql = (sql: string) => sql.replace(/\s+/g, ' ').trim().toLowerCase();
+
+const cleanSearchQuery = (query: string) => query
+  .trim()
+  .toLowerCase()
+  .replaceAll('"', '')
+  .replaceAll('*', '')
+  .replaceAll('%', '');
