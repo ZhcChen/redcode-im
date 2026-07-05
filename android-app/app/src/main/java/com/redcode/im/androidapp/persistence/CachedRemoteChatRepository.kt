@@ -40,6 +40,20 @@ class CachedRemoteChatRepository(
         localRepository.replaceMessages(roomId, messages)
     }
 
+    override suspend fun loadOlderMessages(roomId: String, limit: Int): Boolean {
+        val currentMessages = localRepository.messages(roomId).first()
+        val beforeId = currentMessages.firstOrNull()?.id ?: return false
+        val existingIds = currentMessages.map { it.id }.toSet()
+        val older =
+            remoteDataSource
+                .loadMessages(roomId = roomId, token = requireToken(), limit = limit, beforeId = beforeId)
+                .map { it.toDomain() }
+                .filterNot { it.id in existingIds }
+        if (older.isEmpty()) return false
+        older.sortedBy { it.createdAt }.forEach { localRepository.upsertMessage(it) }
+        return true
+    }
+
     override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }

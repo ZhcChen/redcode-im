@@ -126,6 +126,96 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun loadOlderMessages_usesFirstMessageAsBeforeCursorAndMergesResults() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-2",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "content":"newer",
+                            "created_at":"2026-07-05T00:00:02Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-1",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "content":"older",
+                            "created_at":"2026-07-05T00:00:01Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshMessages("room-1")
+            val loaded = repository.loadOlderMessages("room-1")
+
+            assertEquals(true, loaded)
+            assertEquals(listOf("m-1", "m-2"), repository.messages("room-1").first().map { it.id })
+            assertEquals(
+                "http://10.0.2.2:8010/rooms/room-1/messages?limit=50&before_id=m-2",
+                transport.requests[1].url,
+            )
+        }
+
+    @Test
+    fun loadOlderMessages_returnsFalseWhenOlderPageContainsOnlyCachedDuplicates() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-2",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "content":"newer",
+                            "created_at":"2026-07-05T00:00:02Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(
+                        200,
+                        """
+                        [
+                          {
+                            "id":"m-2",
+                            "room_id":"room-1",
+                            "sender_id":"user-a",
+                            "content":"newer",
+                            "created_at":"2026-07-05T00:00:02Z"
+                          }
+                        ]
+                        """.trimIndent(),
+                    ),
+                )
+            val repository = repository(transport)
+
+            repository.refreshMessages("room-1")
+            val loaded = repository.loadOlderMessages("room-1")
+
+            assertEquals(false, loaded)
+            assertEquals(listOf("m-2"), repository.messages("room-1").first().map { it.id })
+        }
+
+    @Test
     fun markRead_callsBackendAndClearsUnreadCount() =
         runTest {
             val transport =

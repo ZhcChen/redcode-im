@@ -300,6 +300,15 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
         }
         HorizontalDivider()
         Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+            if (uiState.messages.isNotEmpty() && uiState.hasOlderMessages) {
+                TextButton(
+                    onClick = viewModel::loadOlderMessages,
+                    enabled = !uiState.isLoadingOlder,
+                    modifier = Modifier.testTag("load-older-messages"),
+                ) {
+                    Text(if (uiState.isLoadingOlder) "加载中" else "加载更早")
+                }
+            }
             uiState.messages.forEach { message ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("${message.senderName}: ${message.text}")

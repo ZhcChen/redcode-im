@@ -166,6 +166,20 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun cachedRemoteChatRepository_loadOlderIgnoresDuplicateRemotePage() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val repository = CachedRemoteChatRepository(remote, MutableStateFlow(session()), local)
+
+            repository.refreshMessages("room-1")
+            val loaded = repository.loadOlderMessages("room-1")
+
+            assertEquals(false, loaded)
+            assertEquals(listOf("m1"), repository.messages("room-1").first().map { it.id })
+        }
+
+    @Test
     fun cachedRemoteContactsRepository_persistsRemoteContactsAndRequests() =
         runTest {
             val local = RoomContactsRepository(FakeContactDao())

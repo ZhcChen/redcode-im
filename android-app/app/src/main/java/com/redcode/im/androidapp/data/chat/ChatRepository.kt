@@ -13,6 +13,8 @@ interface ChatRepository {
 
     suspend fun refreshMessages(roomId: String, limit: Int = 50) = Unit
 
+    suspend fun loadOlderMessages(roomId: String, limit: Int = 50): Boolean = false
+
     suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage
 
     suspend fun resendMessage(messageId: String): ChatMessage? = null

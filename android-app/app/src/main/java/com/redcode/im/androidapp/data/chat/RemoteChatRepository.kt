@@ -40,6 +40,24 @@ class RemoteChatRepository(
         messageState.value = messageState.value + (roomId to messages)
     }
 
+    override suspend fun loadOlderMessages(roomId: String, limit: Int): Boolean {
+        val currentMessages = messageState.value[roomId].orEmpty()
+        val beforeId = currentMessages.firstOrNull()?.id ?: return false
+        val existingIds = currentMessages.map { it.id }.toSet()
+        val older =
+            remoteDataSource
+                .loadMessages(roomId = roomId, token = requireToken(), limit = limit, beforeId = beforeId)
+                .map { it.toDomain() }
+                .filterNot { it.id in existingIds }
+        if (older.isEmpty()) return false
+        val merged =
+            (older + currentMessages)
+                .distinctBy { it.id }
+                .sortedBy { it.createdAt }
+        messageState.value = messageState.value + (roomId to merged)
+        return true
+    }
+
     override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }

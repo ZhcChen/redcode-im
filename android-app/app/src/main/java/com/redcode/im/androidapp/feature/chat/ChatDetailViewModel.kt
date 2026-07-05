@@ -15,12 +15,16 @@ import kotlinx.coroutines.launch
 data class ChatDetailFormState(
     val draft: String = "",
     val errorMessage: String? = null,
+    val isLoadingOlder: Boolean = false,
+    val hasOlderMessages: Boolean = true,
 )
 
 data class ChatDetailUiState(
     val messages: List<ChatMessage> = emptyList(),
     val draft: String = "",
     val errorMessage: String? = null,
+    val isLoadingOlder: Boolean = false,
+    val hasOlderMessages: Boolean = true,
 )
 
 class ChatDetailViewModel(
@@ -32,7 +36,13 @@ class ChatDetailViewModel(
     private val formState = MutableStateFlow(ChatDetailFormState())
     val uiState: StateFlow<ChatDetailUiState> =
         combine(chatRepository.messages(roomId), formState) { messages, form ->
-            ChatDetailUiState(messages = messages, draft = form.draft, errorMessage = form.errorMessage)
+            ChatDetailUiState(
+                messages = messages,
+                draft = form.draft,
+                errorMessage = form.errorMessage,
+                isLoadingOlder = form.isLoadingOlder,
+                hasOlderMessages = form.hasOlderMessages,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
     init {
@@ -45,6 +55,20 @@ class ChatDetailViewModel(
 
     fun onDraftChange(value: String) {
         formState.update { it.copy(draft = value, errorMessage = null) }
+    }
+
+    fun loadOlderMessages() {
+        if (formState.value.isLoadingOlder || !formState.value.hasOlderMessages) return
+        viewModelScope.launch {
+            formState.update { it.copy(isLoadingOlder = true, errorMessage = null) }
+            runCatching {
+                chatRepository.loadOlderMessages(roomId)
+            }.onSuccess { loaded ->
+                formState.update { it.copy(isLoadingOlder = false, hasOlderMessages = loaded) }
+            }.onFailure { error ->
+                formState.update { it.copy(isLoadingOlder = false, errorMessage = error.message ?: "加载历史消息失败") }
+            }
+        }
     }
 
     fun sendDraft() {

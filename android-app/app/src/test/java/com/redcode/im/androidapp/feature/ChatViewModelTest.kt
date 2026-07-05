@@ -78,4 +78,25 @@ class ChatViewModelTest {
             assertEquals(0, repository.chats.first().single().unreadCount)
             collectJob.cancel()
         }
+
+    @Test
+    fun chatDetail_loadOlderDisablesWhenRepositoryHasNoMoreMessages() =
+        runTest {
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.loadOlderMessages()
+            advanceUntilIdle()
+
+            assertEquals(false, viewModel.uiState.value.hasOlderMessages)
+            assertEquals(false, viewModel.uiState.value.isLoadingOlder)
+            collectJob.cancel()
+        }
 }
