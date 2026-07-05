@@ -65,23 +65,21 @@
 
 ### H5-P1-01 全量验收与文档收口
 
-状态：待执行
+状态：完成
 
 任务：
-- 完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` 的 Unit 8。
-- `h5-app/README.md` 明确 H5 是 Flutter App 的 Web parity 模块和联调优先入口。
-- `docs/reference/testing/README.md` 补齐 H5 从零启动、API 依赖、端口、环境变量和验收命令。
-- 检查 Makefile 入口：`h5-app.check`、`h5-app.test.unit`、`h5-app.test.live`、`h5-app.up`、`h5-app.wait`。
+- 已完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 中的文档和 live smoke 入口收口；浏览器 E2E、搜索跳转和头像上传继续由 H5-P1-02/H5-P1-03/H5-P1-04 执行。
+- `h5-app/README.md` 已明确 H5 是 Flutter App 的 Web parity 模块和联调优先入口。
+- `docs/reference/testing/README.md` 已补齐 H5 从零启动、API 依赖、端口、环境变量和验收命令。
+- 已检查 Makefile 入口：`h5-app.check`、`h5-app.test.unit`、`h5-app.test.live`、`h5-app.up`、`h5-app.wait`。
 - H5 端口固定 `8016`，API 端口固定 `8010`。
 
 验收：
-```bash
-make h5-app.check
-make h5-app.test.unit
-make api.up
-make api.wait
-make h5-app.test.live
-```
+- `make h5-app.check`
+- `make h5-app.test.unit`
+- `make api.up`
+- `make api.wait`
+- `make h5-app.test.live`
 
 ### H5-P1-02 浏览器 E2E / smoke 扩展
 

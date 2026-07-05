@@ -1,6 +1,6 @@
 # h5-app
 
-`h5-app` 是 Flutter `app/` 的 H5 Web 版本，目标是复用移动端视觉语言并优先作为后续前端联调验收入口。
+`h5-app` 是 Flutter `app/` 的 H5 Web 版本，目标是复用移动端视觉语言，并作为当前 backend + frontend 联调的优先验收入口。
 
 ## 技术栈
 
@@ -17,12 +17,20 @@
 ## 本地开发
 
 ```bash
+make api.up
+make api.wait
 make h5-app.install
 make h5-app.up
+make h5-app.wait
 make h5-app.logs
 ```
 
-默认端口：`8016`。
+默认端口：
+
+- H5 dev server：`http://127.0.0.1:8016`
+- API：`http://127.0.0.1:8010`
+
+本地联调依赖由 Docker Compose 创建；对象存储、Push 和 IPInfo 使用 `external-mock`，不访问线上服务。
 
 ## 测试
 
@@ -31,9 +39,26 @@ make h5-app.check
 make h5-app.test.unit
 ```
 
-真实后端普通账号注册/登录、服务层和 H5/iOS 聊天互发 smoke：
+真实后端 smoke：
 
 ```bash
+make api.up
+make api.wait
+make h5-app.test.live
+```
+
+`make h5-app.test.live` 当前覆盖：
+
+- 普通账号密码注册、登录和 `/auth/me`
+- service 层认证、资料更新、settings、好友搜索、建群、文本消息发送、已读和聊天列表
+- H5/iOS-compatible HTTP 合同互通
+- 富媒体 mock 对象存储直传、commit、发送和下载 URL 读取
+
+发布或联调前推荐顺序：
+
+```bash
+make h5-app.check
+make h5-app.test.unit
 make api.up
 make api.wait
 make h5-app.test.live
@@ -74,4 +99,9 @@ make h5-app.test.live
   - 用户头像、群头像、消息附件和表情图片统一用 `objectKey -> objectUrl`，不依赖手机本机路径
   - 消息 `parts` 会映射为 H5 `attachments`，HTTP 历史消息和 WebSocket 实时消息都能渲染附件预览
 
-后续可继续补本地消息搜索页面和头像上传浏览器能力。
+后续继续补齐：
+
+- 浏览器 E2E / smoke：注册登录、聊天发送、刷新缓存恢复、好友申请闭环、群设置关键路径
+- 本地消息搜索页面：关键词、room 过滤、结果跳转
+- 头像上传浏览器能力：用户头像、群头像、失败回退和缓存刷新
+- 浏览器存储增强：wa-sqlite OPFS worker、IndexedDB fallback、FTS5 能力探测、Cache API 配额清理

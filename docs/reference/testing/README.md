@@ -93,6 +93,39 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
 - `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 
+### H5 App 自测
+```bash
+make h5-app.check
+make h5-app.test.unit
+make api.up
+make api.wait
+make h5-app.test.live
+```
+
+说明：
+- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，也是当前 backend + frontend 联调优先入口。
+- H5 dev server 固定端口为 `8016`，API 固定端口为 `8010`。
+- 本地联调依赖由 `api/docker/dev/docker-compose.yml` 创建；PostgreSQL、Redis、external-mock 随 API dev 栈启动。
+- 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上 B2、FCM 或 APNs。
+- 当前 H5 默认普通账号密码注册/登录；邮箱注册/登录只作为后台配置能力保留，不要求真实邮箱验证码二次验证。
+- `h5-app.check` 执行 `vue-tsc --noEmit`。
+- `h5-app.test.unit` 执行 mock 模式 Vitest，覆盖 service、Pinia store、本地 SQLite/IndexedDB adapter、Cache API 包装、页面状态和组件。
+- `h5-app.test.live` 需要本机 Compose API 已启动，覆盖普通账号注册/登录、`/auth/me`、资料更新、settings、好友搜索、建群、文本消息、已读、聊天列表、H5/iOS-compatible HTTP 合同和富媒体 mock 对象存储链路。
+- 浏览器 E2E / smoke、搜索页面跳转和头像上传浏览器能力仍作为 H5 后续 P1 子项推进；未完成前不要把它们标为发布级浏览器回归已覆盖。
+
+从零联调顺序：
+
+```bash
+make api.up
+make api.wait
+make h5-app.install
+make h5-app.up
+make h5-app.wait
+make h5-app.check
+make h5-app.test.unit
+make h5-app.test.live
+```
+
 ### iOS 原生 App 自测
 ```bash
 make ios-app.check

@@ -118,8 +118,8 @@ make android-app.test.interop
 
 目标：保证后续先用 `h5-app` 与 API 联调，作为 Android/iOS 原生迁移的浏览器基准端。
 
-- [ ] H5 全量验收与文档收口
-  - 完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` 的 Unit 8。
+- [x] H5 全量验收与文档收口
+  - 完成 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 中的文档和 live smoke 入口收口；浏览器 E2E、搜索跳转和头像上传继续作为独立 H5 P1 子项执行。
   - 明确 H5 是 backend + frontend 联调优先入口。
   - 保持 `make h5-app.test.live` 可覆盖 auth、chat、contacts、settings、富媒体。
 - [ ] 浏览器 E2E / smoke 扩展
