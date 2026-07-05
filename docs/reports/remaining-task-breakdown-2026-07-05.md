@@ -1,10 +1,31 @@
 # RedCode IM 剩余任务总账
 
-整理时间：2026-07-05
+重整时间：2026-07-05
 
-本文档是当前仓库剩余任务的本地执行总账，作为 `docs/reports/task-list.md` 的详细版。执行时优先按本文档顺序推进；模块内更细任务继续以对应模块文档为准。
+本文档是当前仓库剩余任务的本地执行总账，作为 `docs/reports/task-list.md` 的详细版。执行时以本文档顺序推进；模块内更细执行细节继续参考对应模块文档。
 
-## 0. 状态口径
+## 0. 本次重整口径
+
+- 当前分支：`feat/core-architecture-performance`。
+- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，确认核心功能与流程正确，再继续 Android 原生补齐、全模块回归和底层架构重构。
+- 当前立即任务：收口 `H5-P1-04 头像上传浏览器能力`。
+- 当前工作区已有 H5 头像上传未提交实现草稿，涉及：
+  - `h5-app/src/services/avatar-upload-service.ts`
+  - `h5-app/src/stores/settings.ts`
+  - `h5-app/src/stores/group-settings.ts`
+  - `h5-app/src/views/settings/ProfileSettingsView.vue`
+  - `h5-app/src/views/GroupSettingsView.vue`
+  - `h5-app/src/types/room.ts`
+  - `h5-app/src/services/mappers.ts`
+- 上述 H5 头像上传草稿未完成测试、文档、提交和推送；本文按 `进行中` 记录，不视为完成。
+- Flutter `app/` 保留，不移除；当前只作为行为对照、回滚包和原生迁移基线。
+- Google / Apple 登录不进入当前主线；当前默认普通账号密码注册/登录。
+- 邮箱注册/登录作为后台配置能力保留；当前自动化测试不依赖真实邮箱资源，也不要求邮箱验证码二次验证。
+- 对象存储、Push、IPInfo 在本地测试中继续走 `external-mock`，禁止为了测试访问线上 B2、FCM、APNs。
+- API、PG、Redis、external-mock、性能压测坚持 Compose-first；测试栈 PG/Redis/external-mock 不映射宿主端口。
+- Android 真机、iPhone 真机、真实 APNs/FCM/厂商 ROM 行为按用户要求跳过并记录，不伪造通过。
+
+## 1. 状态定义
 
 - `待执行`：尚未开始当前切片实现。
 - `进行中`：已有局部实现或分析，但还没有完成测试、文档、提交和推送。
@@ -12,77 +33,85 @@
 - `完成`：实现、测试、文档、提交和推送均已收口。
 - `非当前主线`：保留入口，不主动展开，除非用户重新激活。
 
-## 1. 当前结论
+## 2. 当前优先执行顺序
 
-- 当前分支：`feat/core-architecture-performance`。
-- 当前主线：先用 `h5-app` 与 Compose API 做 backend + frontend 联调，确保核心功能和流程预期正确，再扩展 Android 原生、iOS 原生和全模块回归。
-- 当前下一项：`H5-P1-04 头像上传浏览器能力`。
-- Flutter `app/` 保留，不移除；后续作为行为对照、回滚包和原生切换前的基线。
-- Android 原生 P0 媒体切片已收口：头像缓存、附件缓存、权限恢复、语音播放基线均已完成。
-- H5 已完成联调入口文档、live smoke、浏览器 E2E smoke 和本地消息搜索页；剩余集中在头像上传和浏览器存储增强。
-- iOS 原生主要 Flutter parity 已完成；必须依赖 iPhone 真机和真实 APNs 的项按用户要求跳过并记录，不阻塞当前主线。
-- API 已具备 Compose-first 测试栈和性能基线；分布式消息总线、性能矩阵扩展和 Compose profile 扩展作为后续架构重构推进。
-- Google / Apple 登录不再进入当前主线；当前测试默认普通账号密码注册/登录。邮箱注册/登录作为后台配置能力保留，测试阶段不依赖真实邮箱或验证码二次验证。
-- 本地对象存储、Push、IPInfo 继续走 `external-mock`，禁止为了测试访问线上 B2、FCM、APNs。
+### NOW-01 H5 头像上传浏览器能力
 
-## 2. 立即执行队列
-
-### NOW-01 H5 本地消息搜索页面
-
-状态：完成
+状态：进行中
 
 目标：
-- 给 H5 补完整消息搜索 UI，使 H5 联调端具备 Flutter/原生移动端等价的本地搜索能力。
+- 在浏览器端补齐用户头像和群头像上传，使 H5 资料链路可完整验收。
 
-已完成：
-- 新增 `messageSearch` Pinia store。
-- 聊天详情消息持久化后同步写入本地搜索索引。
-- 新增 `/messages/search` 页面和路由，支持关键词、room 过滤、消息类型过滤、分页和空结果状态。
-- 点击搜索结果跳转到对应聊天详情；精准滚动不作为第一版阻塞。
-- FTS5 不可用时 fallback 到 LIKE 查询。
-- 索引损坏或写入失败不导致聊天页白屏。
+当前已开始但未收口：
+- 已有 direct upload / signed URL PUT / commit 服务草稿。
+- 已有用户头像上传入口草稿。
+- 已有群头像上传入口草稿。
+- 已有 room `avatarObjectKey` 映射草稿。
+
+剩余收口：
+- 修复群头像上传失败回滚，避免使用可变引用作为历史状态。
+- 确认用户头像上传成功后刷新 `auth` session、当前用户资料、联系人/会话摘要展示和头像缓存。
+- 确认群头像上传成功后刷新群资料、会话摘要、群设置页和头像缓存。
+- 上传失败时保留旧头像、旧 session 和旧会话摘要。
+- 补 service/store/view/live/E2E 覆盖。
+- 生成头像上传入口视觉截图。
+- 更新 `h5-app/README.md`、`docs/reference/testing/README.md` 和本文档。
+- 通过测试后仅提交本切片相关文件并推送。
 
 验收：
 - `make h5-app.check`
 - `make h5-app.test.unit`
-- `make h5-app.test.e2e`
-- `make h5-app.test.live`
 - `make h5-app.build`
+- `make api.up`
+- `make api.wait`
+- `make h5-app.test.live`
+- `make h5-app.test.e2e`
 - `git diff --check`
 
-完成后更新：
-- `h5-app/README.md`
-- `docs/reports/task-list.md`
-- `docs/reports/remaining-task-breakdown-2026-07-05.md`
-
-### NOW-02 H5 头像上传浏览器能力
+### NOW-02 H5 浏览器存储增强
 
 状态：待执行
 
 目标：
-- 补齐 H5 用户头像和群头像上传，使资料链路可在浏览器端完整验收。
+- 把 H5 本地数据库和缓存能力从当前可用基线增强到更接近正式浏览器运行口径。
 
 任务：
-- 用户头像浏览器文件选择。
-- 群头像浏览器文件选择。
-- 复用 direct upload / commit / avatar cache 链路。
-- 上传失败时保留旧头像和旧 session 展示。
-- 成功后刷新当前用户、联系人、会话摘要、群资料和头像缓存。
+- wa-sqlite OPFS worker 化。
+- IndexedDB VFS 作为 fallback。
+- 增加运行时能力探测：OPFS、IndexedDB、FTS5、Cache API。
+- 附件、头像、表情 Cache API 配额、过期和清理策略文档化。
+- 旧浏览器降级时保证登录、聊天和基础缓存不白屏。
 
 验收：
-- service/store 单测覆盖上传成功、上传失败、commit 失败、缓存刷新。
-- H5 live smoke 使用 `external-mock` 完成头像上传，不访问线上 B2。
-- 浏览器 E2E 至少覆盖用户头像上传成功或 mock 成功路径。
+- `make h5-app.check`
+- `make h5-app.test.unit`
+- `make h5-app.build`
+- `make h5-app.test.live`
+- `make h5-app.test.e2e`
+- 单测覆盖 fallback 选择、FTS/LIKE 降级和清理策略。
 
-### NOW-03 H5/API/Android 联调脚本扩展
+### NOW-03 H5 parity Unit 8 最终勾选
+
+状态：待执行
+
+触发条件：
+- `H5-P1-04` 和 `H5-P1-05` 完成。
+
+任务：
+- 回填 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 状态。
+- 更新 `h5-app/README.md` 能力矩阵。
+- 更新 `docs/reference/testing/README.md` H5 验收矩阵。
+- 确认 H5 当前可作为 backend + frontend 联调优先入口。
+
+### NOW-04 H5/API/Android 联调脚本扩展
 
 状态：待执行
 
 目标：
-- 把 H5 作为浏览器基准端，扩展 Android 原生联调，让同一 Compose API 上的核心流程可重复验收。
+- 让 H5 和 Android 原生在同一 Compose API 上完成核心流程互通验收。
 
 任务：
-- 扩展 `make android-app.test.interop` 覆盖 H5 live smoke 与 Android live smoke。
+- 扩展 `make android-app.test.interop`，串联 H5 live smoke 与 Android live smoke。
 - 覆盖普通账号注册/登录、联系人、好友申请、建群、文本消息、富媒体附件、头像缓存、权限降级可测入口、语音播放可测入口。
 - API、PG、Redis、external-mock 全部由 Docker Compose 创建。
 - 失败时明确提示 API 容器日志、H5 live 日志和 Android Gradle 测试报告路径。
@@ -97,94 +126,33 @@
 
 目标：让 `h5-app` 成为后续 API、Android、iOS 功能联调的浏览器基准端。
 
-### H5-P1-01 全量验收与文档收口
-
-状态：完成
-
 已完成：
-- `h5-app/README.md` 已明确 H5 是 Flutter App 的 Web parity 模块和联调优先入口。
-- `docs/reference/testing/README.md` 已补齐 H5 从零启动、API 依赖、端口、环境变量和验收命令。
-- 已检查 Makefile 入口：`h5-app.check`、`h5-app.test.unit`、`h5-app.test.live`、`h5-app.up`、`h5-app.wait`。
-- H5 端口固定 `8016`，API 端口固定 `8010`。
+- `H5-P1-01 全量验收与文档收口`
+  - H5 已明确为 Flutter App 的 Web parity 模块和当前联调优先入口。
+  - `h5-app/README.md`、`docs/reference/testing/README.md` 已记录从零启动、端口、API 依赖、环境变量和验收命令。
+  - H5 端口固定 `8016`，API 端口固定 `8010`。
+- `H5-P1-02 浏览器 E2E / smoke 扩展`
+  - Playwright smoke 覆盖注册登录、进入聊天 tab、群聊、发送消息、刷新缓存恢复、群设置、好友申请闭环。
+- `H5-P1-03 本地消息搜索页面`
+  - 已完成搜索 store、聊天详情索引同步、`/messages/search` 页面、FTS5/LIKE fallback、结果跳转和浏览器 E2E。
+  - 视觉截图：`docs/reports/h5-app/message-search-smoke.png`。
 
-保留说明：
-- `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` 的 Unit 8 仍不整体勾选，因为搜索跳转和头像上传已拆为独立尾项。
-
-### H5-P1-02 浏览器 E2E / smoke 扩展
-
-状态：完成
-
-已完成：
-- 新增 `h5-app/test/e2e/h5-app-smoke.spec.ts` 和 `h5-app/playwright.config.ts`。
-- 新增 `make h5-app.test.e2e`。
-- 覆盖普通账号注册/登录后进入聊天 tab。
-- 覆盖创建/进入群聊、发送消息、刷新页面后从本地缓存恢复。
-- 覆盖好友申请闭环。
-- 覆盖群设置关键路径。
-
-### H5-P1-03 本地消息搜索页面
-
-状态：完成
-
-已完成：
-- 新增搜索 store。
-- 聊天详情同步维护搜索索引。
-- 新增 `/messages/search` 页面和路由。
-- 支持关键词、room 过滤、消息类型过滤、分页、空结果、错误态。
-- 点击结果跳转聊天详情。
-- FTS5 不可用时提供 LIKE fallback。
-
-验证：
-- storage/store 单测覆盖索引写入、查询、过滤、fallback 和损坏隔离。
-- view 单测覆盖输入关键词、展示结果和点击跳转。
-- 浏览器 E2E 覆盖搜索结果跳转。
-- 视觉截图：`docs/reports/h5-app/message-search-smoke.png`。
-
-### H5-P1-04 头像上传浏览器能力
-
-状态：待执行
-
-任务：
-- 用户头像上传。
-- 群头像上传。
-- direct upload / commit / avatar cache 复用。
-- 失败保留旧头像。
-- 成功刷新用户、联系人、会话、群资料与缓存。
-
-测试：
-- service/store 单测覆盖成功、失败、commit 失败和缓存刷新。
-- live smoke 使用 `external-mock`。
-
-### H5-P1-05 浏览器存储增强
-
-状态：待执行
-
-任务：
-- wa-sqlite OPFS worker 化。
-- IndexedDB VFS 作为 fallback。
-- 增加运行时能力探测：OPFS、IndexedDB、FTS5、Cache API。
-- 附件、头像、表情 Cache API 配额、过期和清理策略文档化。
-- 旧浏览器降级时保证登录、聊天和基础缓存不白屏。
-
-验收：
-- `make h5-app.build` 不被 WASM/worker 打包破坏。
-- 单测覆盖 fallback 选择和清理策略。
-
-### H5-P1-06 H5 parity Unit 8 最终勾选
-
-状态：待执行
-
-触发条件：
-- H5-P1-04、H5-P1-05 完成。
-
-任务：
-- 回填 `docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md` Unit 8 状态。
-- 更新 `h5-app/README.md` 的能力矩阵。
-- 更新 `docs/reference/testing/README.md` 的 H5 验收矩阵。
+剩余：
+- `H5-P1-04 头像上传浏览器能力`：进行中，见 `NOW-01`。
+- `H5-P1-05 浏览器存储增强`：待执行，见 `NOW-02`。
+- `H5-P1-06 H5 parity Unit 8 最终勾选`：待执行，见 `NOW-03`。
 
 ## 4. Android P1：原生 parity 后续能力
 
 目标：补齐 Android 原生替代 Flutter Android 的剩余可测能力。
+
+当前已完成基线：
+- 原生 Android 工程骨架、Compose App Shell、测试和覆盖率入口。
+- 普通账号密码认证、本地模拟认证和真实 API 认证合同。
+- Chat / Contacts / Rooms 真实 API、Room 缓存、WebSocket JSON 增量、群管理。
+- 附件选择、mock 对象存储直传、富媒体消息、附件本地文件缓存。
+- 用户头像缓存、群头像缓存、权限拒绝恢复、语音播放基线。
+- 已验证入口包括 unit、live、interop、coverage、lint、debug build、connected test、emulator smoke。
 
 ### ANDROID-P1-01 聊天扩展
 
@@ -203,6 +171,7 @@
 - Compose UI test 覆盖输入区、表情入口、贴纸发送可测路径。
 - `make android-app.test.unit`
 - `make android-app.connected-test`
+- `make android-app.smoke.emulator`
 
 ### ANDROID-P1-02 设置、账号和配置
 
@@ -221,6 +190,9 @@
 验收：
 - 设置域单测覆盖成功、失败、缓存回退和登出清理。
 - 与 H5/API 的资料、配置、版本字段保持一致。
+- `make android-app.test.unit`
+- `make android-app.test.live`
+- `make android-app.connected-test`
 
 ### ANDROID-P1-03 全量对照和覆盖率提升
 
@@ -295,7 +267,30 @@
 - 单测覆盖每类偏好读写和清理。
 - Makefile 或 Gradle 参数可单独跑 live smoke 子集。
 
-## 6. API P2：性能与核心架构重构
+## 6. iOS：已收口与待补验
+
+状态：主链路完成，真机/APNs 待补验
+
+已完成：
+- `ios-app` 主要 Flutter parity 已完成，采用 Swift/SwiftUI 原生实现。
+- 已通过 SwiftPM 单测、H5/API/iOS live smoke、H5/iOS 富媒体互通、媒体 mock 回归、本机 iOS Simulator smoke 和 XCUITest。
+- 当前未发现阻断 H5/API/iOS 主链路联调的 P0/P1 功能缺口。
+
+保留待补验：
+- iPhone 真机签名、安装和启动。
+- APNs token 获取。
+- Apple APNs 真实离线系统通知。
+- 系统通知点击唤醒。
+- 冷启动通知深链。
+
+恢复入口：
+
+```bash
+IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
+IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
+```
+
+## 7. API P2：性能与核心架构重构
 
 目标：在 H5/API/Android 主链路稳定后，进入可度量、可回滚的底层架构优化。
 
@@ -363,13 +358,15 @@
 - 新性能报告写入 `docs/reports/performance/`。
 - 报告包含可复现实验条件和回滚说明。
 
-## 7. iOS 待补验
+## 8. 真机待补验
+
+### iOS 真机/APNs
 
 状态：待补验
 
 说明：
-- `ios-app` 主要 Flutter parity 已完成；当前未发现阻断 H5/API/iOS 主链路联调的 P0/P1 功能缺口。
-- 以下项必须依赖 iPhone 真机和 Apple APNs 凭据，按用户要求跳过，不伪造通过。
+- 当前已按用户要求跳过，不阻塞主线。
+- Simulator/单测只能覆盖本地通知调度、payload 导航和登出通知态清理，不能替代真实 APNs 离线投递。
 
 任务：
 - iPhone 真机签名、安装和启动。
@@ -378,14 +375,7 @@
 - 系统通知点击唤醒。
 - 冷启动通知深链。
 
-恢复入口：
-
-```bash
-IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
-IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
-```
-
-## 8. Android 待补验
+### Android 真机/FCM/厂商行为
 
 状态：待补验
 
@@ -455,6 +445,7 @@ git diff --check
 
 - Admin：当前不是 P0；保留 route smoke、真实后端 smoke 和 RBAC 回归入口。
 - Desktop / Website：当前不是 P0；保留单测、真实后端 smoke 和下载逻辑测试。
+- Flutter `app/`：保留，不移除；后续作为回滚包、行为对照和原生切换前基线。
 - 端到端加密：已有 `docs/reference/architecture/end-to-end-encryption-design.md`，尚未进入实现主线；需要独立威胁模型和迁移计划。
 - H5 安全加固：token 后续可评估 httpOnly SameSite Cookie 或短生命周期 token 策略。
 - 历史 `docs/plans/2026-03-*` 中仍有未勾选项，不自动纳入当前主线；只有用户重新激活对应计划时再复核并迁移到本文档。
@@ -467,6 +458,7 @@ git diff --check
 - 真机项只记录 SKIPPED，不伪造通过。
 - 执行对应模块验证命令和 `git diff --check`。
 - 通过后使用 Conventional Commits 提交并推送。
+- 只 stage 本轮相关文件，避免混入用户或历史无关改动。
 - API、PG、Redis、external-mock、性能压测保持 Docker Compose-first。
 
 ## 12. 主要依据文档
@@ -476,6 +468,7 @@ git diff --check
 - `docs/plans/2026-07-04-002-feat-android-app-native-migration-plan.md`
 - `android-app/docs/remaining-migration-tasks.md`
 - `android-app/docs/full-migration-task-tree.md`
+- `docs/plans/2026-07-04-001-ios-app-remaining-parity-execution-list.md`
 - `ios-app/docs/full-migration-task-tree.md`
 - `docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
 - `docs/reports/performance/api-compose-baseline-2026-07-01.md`
