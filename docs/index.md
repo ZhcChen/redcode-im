@@ -9,6 +9,7 @@
 | [需求/方向讨论](brainstorms/) | `ce:brainstorm` 产出目录 |
 | [规划文档目录](plans/) | `ce:plan` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
+| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
 | [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 当前移动端 Android 原生迁移计划 |
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
@@ -106,6 +107,7 @@
 | 文档 | 说明 |
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
+| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行顺序、验收命令与跳过项 |
 | [iOS 原生 parity 收口报告](reports/2026-07-04-ios-app-parity-cutover-readiness.md) | iOS 原生迁移完成度、跳过项与切换条件 |
 | [API Compose 性能基线](reports/performance/api-compose-baseline-2026-07-01.md) | API Compose-first 性能指标与后续优化方向 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |

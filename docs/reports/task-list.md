@@ -4,6 +4,7 @@
 
 本文档是当前仓库剩余任务的总入口。细节任务仍以对应模块文档为准：
 
+- 剩余任务完整执行分解：`docs/reports/remaining-task-breakdown-2026-07-05.md`
 - Android 原生迁移执行清单：`android-app/docs/remaining-migration-tasks.md`
 - Android 全量迁移任务树：`android-app/docs/full-migration-task-tree.md`
 - iOS 原生 parity 收口报告：`docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
@@ -46,12 +47,12 @@
   - 播放、暂停、错误状态。
   - 不依赖麦克风录音即可在 Emulator 验证。
 
-建议第一刀：
+下一步执行：
 
-1. 建立 Android 文件缓存底座，供头像、附件、表情复用。
-2. 增加通用 download bytes 能力。
-3. 先落附件 cache，再复用到用户头像和群头像。
-4. 补 JVM 单测和必要的 instrumented cache 测试。
+1. 复用已完成的 Android `FileResourceCache` 与通用 download bytes 能力。
+2. 先落用户头像缓存和群头像缓存。
+3. 补 DTO mapping、cache repository、ViewModel/UI 状态和 JVM 单测。
+4. 通过后继续权限拒绝恢复路径和语音播放基线。
 
 P0 验证入口：
 
