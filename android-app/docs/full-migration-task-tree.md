@@ -1,5 +1,7 @@
 # android-app 完整迁移任务树
 
+剩余任务的执行版清单见 `android-app/docs/remaining-migration-tasks.md`。
+
 ## ANDROID-00 方案与骨架
 
 - [x] 创建原生 Android 模块目录。
