@@ -1,10 +1,19 @@
 package com.redcode.im.androidapp
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -61,6 +70,9 @@ import com.redcode.im.androidapp.feature.auth.AuthViewModel
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
+import com.redcode.im.androidapp.feature.permissions.PermissionRecoveryPrompt
+import com.redcode.im.androidapp.feature.permissions.PermissionRecoveryState
+import com.redcode.im.androidapp.feature.permissions.RuntimePermissionKind
 import com.redcode.im.androidapp.feature.rooms.GroupManagementScreen
 import com.redcode.im.androidapp.feature.rooms.GroupManagementViewModel
 import com.redcode.im.androidapp.feature.settings.SettingsViewModel
@@ -375,10 +387,31 @@ fun ChatListScreen(
 fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
     val scope = rememberCoroutineScope()
+    var microphonePermissionState by remember { mutableStateOf(PermissionRecoveryState()) }
+    val microphonePermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            microphonePermissionState =
+                if (granted) {
+                    viewModel.showError("语音录制将在真机补验阶段启用")
+                    microphonePermissionState.onGranted()
+                } else {
+                    microphonePermissionState.onDenied(
+                        kind = RuntimePermissionKind.Microphone,
+                        shouldShowRationale =
+                            activity?.let {
+                                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.RECORD_AUDIO)
+                            } ?: false,
+                    )
+                }
+        }
     val attachmentLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri ?: return@rememberLauncherForActivityResult
+            if (uri == null) {
+                viewModel.onAttachmentPickerCancelled()
+                return@rememberLauncherForActivityResult
+            }
             scope.launch {
                 runCatching {
                     readPickedAttachment(context, uri)
@@ -534,6 +567,22 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 modifier = Modifier.padding(horizontal = 16.dp),
             )
         }
+        microphonePermissionState.prompt?.let { prompt ->
+            PermissionRecoveryBanner(
+                prompt = prompt,
+                testTagPrefix = "microphone-permission",
+                onAction = {
+                    if (prompt.opensAppSettings) {
+                        context.openAppSettings()
+                    } else {
+                        microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onDismiss = {
+                    microphonePermissionState = microphonePermissionState.dismissPrompt()
+                },
+            )
+        }
         uiState.quotedMessage?.let { quote ->
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -560,6 +609,19 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 modifier = Modifier.testTag("pick-attachment"),
             ) {
                 Text(if (uiState.isUploadingAttachment) "上传中" else "附件")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        viewModel.showError("语音录制将在真机补验阶段启用")
+                    } else {
+                        microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                modifier = Modifier.testTag("request-microphone-permission"),
+            ) {
+                Text("语音")
             }
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = viewModel::sendDraft, modifier = Modifier.testTag("send-message")) {
@@ -786,6 +848,25 @@ fun SettingsScreen(
     avatarCacheRepository: com.redcode.im.androidapp.data.media.AvatarCacheRepository?,
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
+    var notificationPermissionState by remember { mutableStateOf(PermissionRecoveryState()) }
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            notificationPermissionState =
+                if (granted) {
+                    viewModel.toggleNotification()
+                    notificationPermissionState.onGranted()
+                } else {
+                    notificationPermissionState.onDenied(
+                        kind = RuntimePermissionKind.Notifications,
+                        shouldShowRationale =
+                            activity?.let {
+                                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
+                            } ?: false,
+                    )
+                }
+        }
     Column(modifier = Modifier.fillMaxSize().testTag("settings-screen")) {
         Header(title = "设置")
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -806,7 +887,36 @@ fun SettingsScreen(
         }
         Text("API: $apiBaseUrl", modifier = Modifier.padding(16.dp))
         Text("通知: ${if (settings.notificationEnabled) "已开启" else "已关闭"}", modifier = Modifier.padding(16.dp))
-        Button(onClick = viewModel::toggleNotification, modifier = Modifier.padding(horizontal = 16.dp)) {
+        notificationPermissionState.prompt?.let { prompt ->
+            PermissionRecoveryBanner(
+                prompt = prompt,
+                testTagPrefix = "notification-permission",
+                onAction = {
+                    if (prompt.opensAppSettings) {
+                        context.openAppSettings()
+                    } else {
+                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                },
+                onDismiss = {
+                    notificationPermissionState = notificationPermissionState.dismissPrompt()
+                },
+            )
+        }
+        Button(
+            onClick = {
+                if (
+                    settings.notificationEnabled ||
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    viewModel.toggleNotification()
+                } else {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+            modifier = Modifier.padding(horizontal = 16.dp).testTag("toggle-notification"),
+        ) {
             Text("切换通知")
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -886,6 +996,48 @@ private fun formatBytes(value: Long): String =
         value >= 1024L -> "${value / 1024L} KB"
         else -> "$value B"
     }
+
+@Composable
+fun PermissionRecoveryBanner(
+    prompt: PermissionRecoveryPrompt,
+    testTagPrefix: String,
+    onAction: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("$testTagPrefix-banner"),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = prompt.message,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onAction, modifier = Modifier.testTag("$testTagPrefix-action")) {
+                Text(prompt.actionLabel)
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.testTag("$testTagPrefix-dismiss")) {
+                Text("关闭")
+            }
+        }
+    }
+}
+
+private fun Context.findActivity(): Activity? =
+    when (this) {
+        is Activity -> this
+        is ContextWrapper -> baseContext.findActivity()
+        else -> null
+    }
+
+private fun Context.openAppSettings() {
+    startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.fromParts("package", packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+}
 
 private suspend fun readPickedAttachment(context: Context, uri: Uri): AttachmentUploadPayload =
     withContext(Dispatchers.IO) {

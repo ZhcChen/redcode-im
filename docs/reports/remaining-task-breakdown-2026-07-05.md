@@ -14,14 +14,15 @@
 ## 1. 当前总体结论
 
 - 当前主线：`android-app` 原生迁移补齐，优先完成 Emulator 可测能力。
-- 当前已完成切片：用户头像缓存 + 群头像缓存。
-- 当前下一刀：权限拒绝和恢复路径。
+- 当前已完成切片：用户头像缓存 + 群头像缓存 + 权限拒绝和恢复路径。
+- 当前下一刀：语音播放基线。
 - H5 已是 backend + frontend 联调优先入口，剩余集中在全量验收文档、浏览器 E2E、本地搜索页、头像上传和浏览器存储增强。
 - iOS 原生 Flutter parity 已完成主链路；必须 iPhone 真机/APNs 的项已按要求跳过并记录，不阻塞当前主线。
 - Flutter `app/` 保留，不移除，作为行为对照和回滚基线。
 - API 已有 Compose-first 性能基线；核心架构重构应在 Android/H5/API 主链路稳定后单独推进。
 - 当前没有影响本地 H5/API/iOS/Android smoke 的新增外部服务依赖。对象存储、Push、IPInfo 走本地 `external-mock`。
-- Android 头像缓存相关实现已通过 unit/lint/build/connected/live/interop 验证；本轮提交后进入权限拒绝和恢复路径。
+- Android 头像缓存相关实现已通过 unit/lint/build/connected/live/interop 验证。
+- Android 权限拒绝和恢复路径已通过 unit/connected/lint/build/emulator smoke 验证。
 
 ## 2. 当前工作区快照
 
@@ -49,7 +50,7 @@ git status --short --branch
 
 按下面顺序推进，不再并行展开无关大项：
 
-1. `ANDROID-P0`：头像缓存已完成，继续推进权限拒绝恢复、语音播放基线。
+1. `ANDROID-P0`：头像缓存、权限拒绝恢复已完成，继续推进语音播放基线。
 2. `H5-P1`：H5 全量验收与浏览器 E2E 收口。
 3. `INTEROP-P1`：H5/API/Android 联调扩展和回归稳定。
 4. `ANDROID-P1`：聊天扩展、设置账号、配置版本。
@@ -115,7 +116,7 @@ git status --short --branch
 
 ### ANDROID-P0-03 权限拒绝和恢复路径
 
-状态：待执行
+状态：完成（待本轮提交推送）
 
 任务：
 - 文件选择器取消选择不报错、不污染 draft。
@@ -124,10 +125,17 @@ git status --short --branch
 - 二次拒绝或系统不再询问时引导打开系统设置。
 - 真机差异不在 Emulator 阶段伪造通过，只记录 SKIPPED。
 
+当前结果：
+- 文件选择器取消选择会显式回到 ViewModel，不报错、不清空 draft、不进入上传态。
+- 麦克风和通知权限拒绝后显示可恢复提示；首次可恢复拒绝提供“重新授权”，二次拒绝或系统不再询问提供“打开设置”。
+- 真实硬件/ROM 权限差异仍按真机补验清单跳过，不在 Emulator 阶段伪造通过。
+
 验收：
 - ViewModel/permission state 单测覆盖 allow/deny/permanently denied。
 - Compose UI test 覆盖拒绝提示入口。
 - 真机项写入跳过清单。
+
+验证结果：`make android-app.test.unit`、`make android-app.connected-test`、`make android-app.lint`、`make android-app.build.debug`、`make android-app.smoke.emulator`、`git diff --check` 均已通过。
 
 ### ANDROID-P0-04 语音播放基线
 

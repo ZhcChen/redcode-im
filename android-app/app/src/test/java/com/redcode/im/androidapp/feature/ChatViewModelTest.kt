@@ -116,6 +116,29 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun chatDetail_attachmentPickerCancellationDoesNotPolluteDraft() =
+        runTest {
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.onDraftChange("keep me")
+            viewModel.onAttachmentPickerCancelled()
+            advanceUntilIdle()
+
+            assertEquals("keep me", viewModel.uiState.value.draft)
+            assertEquals(null, viewModel.uiState.value.errorMessage)
+            assertEquals(false, viewModel.uiState.value.isUploadingAttachment)
+            collectJob.cancel()
+        }
+
+    @Test
     fun chatDetail_blankDraftShowsErrorAndMarkReadClearsUnread() =
         runTest {
             val repository = InMemoryChatRepository()

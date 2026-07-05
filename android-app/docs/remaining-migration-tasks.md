@@ -10,7 +10,7 @@
 - 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
 - 当前测试设备：本机 Android Emulator，最近验收设备为 `emulator-5554` / `Pixel_8_Pro(AVD) - 15`。
 - 真机依赖策略：需要相机、麦克风、FCM 云投递、厂商 ROM 行为的项不阻塞 Emulator 阶段，记录为 SKIPPED，后续真机补验。
-- 最新进度：用户头像缓存和群头像缓存已完成，包含 `AvatarCacheRepository`、avatar remote data source、`CachedAvatarBadge`、`avatarObjectKey` DTO/model/Room mapping 和相关测试；已通过 unit/lint/build/connected/emulator smoke/live/interop 验证。
+- 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径已完成。头像缓存已通过 unit/lint/build/connected/emulator smoke/live/interop 验证；权限恢复已通过 unit/connected/lint/build/emulator smoke 验证。
 
 ## 优先级队列
 
@@ -44,10 +44,15 @@
   - 发送附件成功后会保存上传 bytes 并把 `localPath` 回写消息 parts。
   - 聊天附件支持手动缓存；二次缓存优先命中本地文件，缓存文件缺失或大小不匹配时重新获取 download URL。
   - 已覆盖缓存命中、下载失败不污染缓存、损坏清理、上传后保留 localPath、下载后二次命中。
-- [ ] 权限拒绝和恢复路径
+- [x] 权限拒绝和恢复路径
   - 文件选择器取消选择不报错。
   - 麦克风/通知权限拒绝时 UI 给出可恢复提示。
   - 权限二次拒绝时引导到系统设置。
+  当前结果：
+  - 文件选择器取消选择不报错、不清空 draft、不进入上传态。
+  - 已新增权限恢复状态模型，覆盖首次拒绝、二次拒绝、系统不再询问、授权恢复。
+  - 聊天页麦克风权限和设置页通知权限均接入可恢复提示；永久拒绝引导打开系统设置。
+  - Compose UI test 覆盖恢复提示展示、操作和关闭。
 - [ ] 语音播放基线
   - 已上传 audio part 的播放入口。
   - 播放/暂停/错误状态。
@@ -189,7 +194,7 @@
 
 ## 建议执行顺序
 
-1. ANDROID-06：继续推进权限拒绝恢复、语音播放基线。
+1. ANDROID-06：继续推进语音播放基线。
 2. ANDROID-07：emoji、表情包、贴纸、聊天设置。
 3. ANDROID-08：个人资料、账号安全、反馈、配置、版本。
 4. ANDROID-09：通知权限、本地通知、通知导航、FCM mock 链路。

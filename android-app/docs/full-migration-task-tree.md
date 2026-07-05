@@ -115,7 +115,7 @@
 - [x] 图片/视频/附件元数据预览基线。
 - [x] 用户头像和群头像缓存。
 - [ ] 语音录制、发送、播放。
-- [ ] 权限拒绝和恢复路径。
+- [x] 权限拒绝和恢复路径。
 - [x] H5/API/Android 富媒体互通 smoke 基线。
 - [ ] SKIPPED 真机补验：相机、麦克风硬件差异、厂商 ROM 文件选择差异。
 
@@ -128,7 +128,8 @@
 - `AndroidChatLiveSmokeTest` 已覆盖文本互发、Android image attachment mock 直传/commit/发送，以及 H5-compatible HTTP / Android HTTP 双方可见和下载 URL 可生成。
 - 已新增附件本地 cache 底座：上传成功后保存 bytes 到 app cache，附件手动缓存时优先命中本地文件，缺失或大小不匹配时重新拉 download URL，并把 `localPath` 持久化到消息 parts。
 - 用户头像和群头像缓存已完成：当前包含 avatar download URL、avatar cache repository、`CachedAvatarBadge`、`avatarObjectKey` DTO/model/Room mapping 和单测；已通过 unit/lint/build/connected/emulator smoke/live/interop 验证。
-- 当前未接相机、麦克风和语音播放链路；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
+- 权限拒绝和恢复路径已完成：文件选择器取消不污染 draft，麦克风/通知权限拒绝可重新授权，二次拒绝或系统不再询问引导打开系统设置；真机差异项保持 SKIPPED。
+- 当前未接相机、麦克风录音和语音播放链路；这些能力按 Emulator 可测部分继续推进，真机差异项保持 SKIPPED。
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展
 

@@ -223,6 +223,10 @@ class ChatDetailViewModel(
         }
     }
 
+    fun onAttachmentPickerCancelled() {
+        formState.update { it.copy(isUploadingAttachment = false) }
+    }
+
     fun cacheAttachment(attachment: MessageAttachment) {
         viewModelScope.launch {
             formState.update {
