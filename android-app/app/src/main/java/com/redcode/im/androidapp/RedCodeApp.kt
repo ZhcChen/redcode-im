@@ -67,6 +67,8 @@ import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.feature.auth.AuthMode
 import com.redcode.im.androidapp.feature.auth.AuthViewModel
+import com.redcode.im.androidapp.feature.chat.AndroidAudioPlaybackController
+import com.redcode.im.androidapp.feature.chat.AudioPlaybackPhase
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import com.redcode.im.androidapp.feature.contacts.ContactsViewModel
@@ -263,6 +265,7 @@ private fun MainShell(
                                 roomId = selectedChat!!.roomId,
                                 currentUserId = currentUser.id,
                                 currentUserName = currentUser.displayName,
+                                audioPlaybackController = AndroidAudioPlaybackController(),
                             )
                         },
                     onBack = { selectedChat = null },
@@ -428,6 +431,9 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
     LaunchedEffect(Unit) {
         viewModel.markRead()
     }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.releaseAudio() }
+    }
     Column(modifier = Modifier.fillMaxSize().testTag("chat-detail")) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("返回") }
@@ -531,12 +537,31 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                                         color = MaterialTheme.colorScheme.secondary,
                                     )
                                 }
+                                if (part.type == MessagePartType.Audio) {
+                                    val playback = uiState.audioPlaybackStatus[attachment.key]
+                                    Text(
+                                        text = playback?.label ?: "未播放",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.testTag("audio-playback-status-${attachment.key.hashCode()}"),
+                                    )
+                                }
                             }
                             TextButton(
                                 onClick = { viewModel.cacheAttachment(attachment) },
                                 modifier = Modifier.testTag("cache-attachment-${attachment.key.hashCode()}"),
                             ) {
                                 Text(if (attachment.localPath.isNullOrBlank()) "缓存" else "刷新")
+                            }
+                            if (part.type == MessagePartType.Audio) {
+                                val playback = uiState.audioPlaybackStatus[attachment.key]
+                                TextButton(
+                                    onClick = { viewModel.playOrPauseAudio(attachment) },
+                                    enabled = playback?.phase != AudioPlaybackPhase.Loading,
+                                    modifier = Modifier.testTag("play-audio-${attachment.key.hashCode()}"),
+                                ) {
+                                    Text(playback?.actionLabel ?: "播放")
+                                }
                             }
                         }
                     }

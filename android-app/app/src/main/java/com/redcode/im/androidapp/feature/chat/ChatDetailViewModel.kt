@@ -27,6 +27,7 @@ data class ChatDetailFormState(
     val isSearching: Boolean = false,
     val isUploadingAttachment: Boolean = false,
     val attachmentCacheStatus: Map<String, String> = emptyMap(),
+    val audioPlaybackStatus: Map<String, AudioPlaybackState> = emptyMap(),
 )
 
 data class ChatDetailUiState(
@@ -41,6 +42,7 @@ data class ChatDetailUiState(
     val isSearching: Boolean = false,
     val isUploadingAttachment: Boolean = false,
     val attachmentCacheStatus: Map<String, String> = emptyMap(),
+    val audioPlaybackStatus: Map<String, AudioPlaybackState> = emptyMap(),
 )
 
 class ChatDetailViewModel(
@@ -48,6 +50,7 @@ class ChatDetailViewModel(
     private val roomId: String,
     private val currentUserId: String,
     private val currentUserName: String,
+    private val audioPlaybackController: AudioPlaybackController = NoopAudioPlaybackController,
 ) : ViewModel() {
     private val formState = MutableStateFlow(ChatDetailFormState())
     val uiState: StateFlow<ChatDetailUiState> =
@@ -64,6 +67,7 @@ class ChatDetailViewModel(
                 isSearching = form.isSearching,
                 isUploadingAttachment = form.isUploadingAttachment,
                 attachmentCacheStatus = form.attachmentCacheStatus,
+                audioPlaybackStatus = form.audioPlaybackStatus,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -255,6 +259,53 @@ class ChatDetailViewModel(
         }
     }
 
+    fun playOrPauseAudio(attachment: MessageAttachment) {
+        val current = formState.value.audioPlaybackStatus[attachment.key]
+        if (current?.phase == AudioPlaybackPhase.Playing) {
+            audioPlaybackController.pause()
+            updateAudioState(attachment.key, current.copy(phase = AudioPlaybackPhase.Paused, message = "已暂停"))
+            return
+        }
+        viewModelScope.launch {
+            updateAudioState(attachment.key, AudioPlaybackState(phase = AudioPlaybackPhase.Loading, localPath = current?.localPath))
+            runCatching {
+                val localPath =
+                    current?.localPath?.takeIf { it.isNotBlank() }
+                        ?: attachment.localPath?.takeIf { it.isNotBlank() }
+                        ?: chatRepository.downloadAndCacheAttachment(roomId = roomId, attachment = attachment).localPath
+                        ?: error("音频文件不可用")
+                audioPlaybackController.play(localPath) {
+                    updateAudioState(
+                        attachment.key,
+                        AudioPlaybackState(phase = AudioPlaybackPhase.Paused, localPath = localPath, message = "播放完成"),
+                    )
+                }
+                updateAudioState(attachment.key, AudioPlaybackState(phase = AudioPlaybackPhase.Playing, localPath = localPath))
+            }.onFailure { error ->
+                updateAudioState(
+                    attachment.key,
+                    AudioPlaybackState(phase = AudioPlaybackPhase.Failed, localPath = current?.localPath, message = error.message ?: "播放失败"),
+                )
+            }
+        }
+    }
+
+    fun releaseAudio() {
+        audioPlaybackController.stop()
+        formState.update { state ->
+            state.copy(
+                audioPlaybackStatus =
+                    state.audioPlaybackStatus.mapValues { (_, playback) ->
+                        if (playback.phase == AudioPlaybackPhase.Playing) {
+                            playback.copy(phase = AudioPlaybackPhase.Paused, message = "已暂停")
+                        } else {
+                            playback
+                        }
+                    },
+            )
+        }
+    }
+
     fun resendMessage(messageId: String) {
         viewModelScope.launch {
             runCatching {
@@ -299,6 +350,12 @@ class ChatDetailViewModel(
     fun markRead() {
         viewModelScope.launch {
             chatRepository.markRead(roomId)
+        }
+    }
+
+    private fun updateAudioState(key: String, playback: AudioPlaybackState) {
+        formState.update { state ->
+            state.copy(audioPlaybackStatus = state.audioPlaybackStatus + (key to playback))
         }
     }
 }

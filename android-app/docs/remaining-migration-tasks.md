@@ -10,7 +10,7 @@
 - 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
 - 当前测试设备：本机 Android Emulator，最近验收设备为 `emulator-5554` / `Pixel_8_Pro(AVD) - 15`。
 - 真机依赖策略：需要相机、麦克风、FCM 云投递、厂商 ROM 行为的项不阻塞 Emulator 阶段，记录为 SKIPPED，后续真机补验。
-- 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径已完成。头像缓存已通过 unit/lint/build/connected/emulator smoke/live/interop 验证；权限恢复已通过 unit/connected/lint/build/emulator smoke 验证。
+- 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径、语音播放基线已完成并验证。头像缓存已通过 unit/lint/build/connected/emulator smoke/live/interop 验证；权限恢复已通过 unit/connected/lint/build/emulator smoke 验证；语音播放已通过 unit/connected/lint/build/emulator smoke 验证。
 
 ## 优先级队列
 
@@ -53,10 +53,16 @@
   - 已新增权限恢复状态模型，覆盖首次拒绝、二次拒绝、系统不再询问、授权恢复。
   - 聊天页麦克风权限和设置页通知权限均接入可恢复提示；永久拒绝引导打开系统设置。
   - Compose UI test 覆盖恢复提示展示、操作和关闭。
-- [ ] 语音播放基线
+- [x] 语音播放基线
   - 已上传 audio part 的播放入口。
   - 播放/暂停/错误状态。
   - 不依赖麦克风录音即可在 Emulator 验证。
+  当前结果：
+  - 已新增音频播放状态机和 Android `MediaPlayer` 适配器。
+  - 聊天详情页 audio part 支持加载本地缓存、播放、暂停、播放失败状态。
+  - Compose UI test 已打开包含 audio part 的聊天详情并触发播放/暂停路径。
+  - 已修复播放器初始化失败时旧 `MediaPlayer` 引用未清空的问题。
+  - 语音录制和硬件音频质量仍留到真机补验。
 
 ### P1：聊天扩展能力
 
@@ -194,11 +200,10 @@
 
 ## 建议执行顺序
 
-1. ANDROID-06：继续推进语音播放基线。
-2. ANDROID-07：emoji、表情包、贴纸、聊天设置。
-3. ANDROID-08：个人资料、账号安全、反馈、配置、版本。
-4. ANDROID-09：通知权限、本地通知、通知导航、FCM mock 链路。
-5. ANDROID-10：全量对照、联调脚本、覆盖率提升、切换准备。
+1. ANDROID-07：emoji、表情包、贴纸、聊天设置。
+2. ANDROID-08：个人资料、账号安全、反馈、配置、版本。
+3. ANDROID-09：通知权限、本地通知、通知导航、FCM mock 链路。
+4. ANDROID-10：全量对照、联调脚本、覆盖率提升、切换准备。
 
 每个阶段完成后继续执行：
 

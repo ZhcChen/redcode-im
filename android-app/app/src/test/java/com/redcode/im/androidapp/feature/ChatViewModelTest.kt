@@ -2,8 +2,11 @@ package com.redcode.im.androidapp.feature
 
 import com.redcode.im.androidapp.MainDispatcherRule
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
+import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.chat.InMemoryChatRepository
+import com.redcode.im.androidapp.feature.chat.AudioPlaybackController
+import com.redcode.im.androidapp.feature.chat.AudioPlaybackPhase
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -139,6 +142,75 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun chatDetail_audioPlaybackLoadsPlaysAndPauses() =
+        runTest {
+            val audioPlayer = FakeAudioPlaybackController()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    audioPlaybackController = audioPlayer,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            val attachment =
+                MessageAttachment(
+                    key = "messages/room-general/audio.m4a",
+                    name = "audio.m4a",
+                    mime = "audio/mp4",
+                    localPath = "/tmp/audio.m4a",
+                )
+            advanceUntilIdle()
+
+            viewModel.playOrPauseAudio(attachment)
+            advanceUntilIdle()
+
+            val playing = viewModel.uiState.value.audioPlaybackStatus.getValue(attachment.key)
+            assertEquals(AudioPlaybackPhase.Playing, playing.phase)
+            assertEquals("/tmp/audio.m4a", playing.localPath)
+            assertEquals(listOf("/tmp/audio.m4a"), audioPlayer.playedPaths)
+
+            viewModel.playOrPauseAudio(attachment)
+            advanceUntilIdle()
+
+            val paused = viewModel.uiState.value.audioPlaybackStatus.getValue(attachment.key)
+            assertEquals(AudioPlaybackPhase.Paused, paused.phase)
+            assertEquals(1, audioPlayer.pauseCount)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_audioPlaybackFailureShowsFailedState() =
+        runTest {
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    audioPlaybackController = FakeAudioPlaybackController(shouldFail = true),
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            val attachment =
+                MessageAttachment(
+                    key = "messages/room-general/audio.m4a",
+                    name = "audio.m4a",
+                    mime = "audio/mp4",
+                    localPath = "/tmp/audio.m4a",
+                )
+            advanceUntilIdle()
+
+            viewModel.playOrPauseAudio(attachment)
+            advanceUntilIdle()
+
+            val playback = viewModel.uiState.value.audioPlaybackStatus.getValue(attachment.key)
+            assertEquals(AudioPlaybackPhase.Failed, playback.phase)
+            assertEquals("fake playback failure", playback.message)
+            collectJob.cancel()
+        }
+
+    @Test
     fun chatDetail_blankDraftShowsErrorAndMarkReadClearsUnread() =
         runTest {
             val repository = InMemoryChatRepository()
@@ -243,4 +315,22 @@ class ChatViewModelTest {
             assertEquals("消息已删除", deleted.text)
             collectJob.cancel()
         }
+
+    private class FakeAudioPlaybackController(
+        private val shouldFail: Boolean = false,
+    ) : AudioPlaybackController {
+        val playedPaths = mutableListOf<String>()
+        var pauseCount = 0
+
+        override suspend fun play(localPath: String, onCompleted: () -> Unit) {
+            if (shouldFail) error("fake playback failure")
+            playedPaths += localPath
+        }
+
+        override fun pause() {
+            pauseCount += 1
+        }
+
+        override fun stop() = Unit
+    }
 }

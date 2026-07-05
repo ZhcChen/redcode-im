@@ -2,7 +2,7 @@
 
 更新时间：2026-07-05
 
-本文档是当前仓库剩余任务的总入口。细节任务仍以对应模块文档为准：
+本文档是当前仓库剩余任务的总入口。细节任务仍以对应模块文档为准；完整执行顺序以 `docs/reports/remaining-task-breakdown-2026-07-05.md` 为准。
 
 - 剩余任务完整执行分解：`docs/reports/remaining-task-breakdown-2026-07-05.md`
 - Android 原生迁移执行清单：`android-app/docs/remaining-migration-tasks.md`
@@ -15,11 +15,22 @@
 ## 当前结论
 
 - 当前主线不再是旧 Admin RBAC 任务；旧 Admin mock / `src/api` 业务依赖清理已收口，不作为当前 P0。
-- 当前 P0 是 `android-app` 原生迁移剩余能力；头像缓存和权限拒绝恢复已完成，下一步补齐语音播放基线。
+- Android 当前 P0 媒体切片已完成：头像缓存、权限拒绝恢复、语音播放基线均已收口。
+- 下一步进入 H5 全量验收与浏览器 E2E。
 - `h5-app` 已承担 H5/API 联调入口，核心功能已完成；剩余是全量验收、E2E 文档收口、搜索页和头像上传等尾项。
 - `ios-app` 主要 Flutter parity 已完成；必须 iPhone 真机和 APNs 凭据才能验证的项按用户要求跳过并记录，不阻塞当前主线。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
 - API 性能基线已建立；架构重构和分布式消息总线应在 Android/H5/API 主链路验收后进入独立重构计划。
+
+## 当前立即任务
+
+- [x] 收口 Android 语音播放基线
+  - 已通过 unit、connected-test、lint、debug build、emulator smoke 和 `git diff --check`。
+- [ ] 切到 H5 验收入口
+  - `make api.up && make api.wait`
+  - `make h5-app.check`
+  - `make h5-app.test.unit`
+  - `make h5-app.test.live`
 
 ## P0：Android 原生迁移当前切片
 
@@ -42,15 +53,15 @@
   - 文件选择器取消选择不报错。
   - 麦克风/通知权限拒绝时给出可恢复提示。
   - 二次拒绝时引导到系统设置。
-- [ ] 语音播放基线
+- [x] 语音播放基线
   - 已上传 audio part 的播放入口。
   - 播放、暂停、错误状态。
   - 不依赖麦克风录音即可在 Emulator 验证。
 
 下一步执行：
 
-1. 完成语音播放基线：已有 audio part 播放、暂停、加载失败状态。
-2. 扩展 Android P0 验证后继续 H5 全量验收和浏览器 E2E。
+1. 进入 H5 全量验收和浏览器 E2E。
+2. 继续扩展 H5/API/Android 联调脚本。
 
 P0 验证入口：
 
