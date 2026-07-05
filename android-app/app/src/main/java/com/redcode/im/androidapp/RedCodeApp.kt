@@ -43,6 +43,7 @@ import com.redcode.im.androidapp.core.model.ChatRoomType
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.FriendRequest
 import com.redcode.im.androidapp.core.model.FriendRequestStatus
+import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.SettingsDocumentKind
 import com.redcode.im.androidapp.di.AppContainer
 import com.redcode.im.androidapp.feature.auth.AuthMode
@@ -300,7 +301,21 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
         HorizontalDivider()
         Column(modifier = Modifier.weight(1f).padding(16.dp)) {
             uiState.messages.forEach { message ->
-                Text("${message.senderName}: ${message.text}")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${message.senderName}: ${message.text}")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    when (message.status) {
+                        MessageStatus.Pending -> Text("发送中", style = MaterialTheme.typography.bodySmall)
+                        MessageStatus.Failed ->
+                            TextButton(
+                                onClick = { viewModel.resendMessage(message.id) },
+                                modifier = Modifier.testTag("resend-message-${message.id}"),
+                            ) {
+                                Text("发送失败，重试")
+                            }
+                        MessageStatus.Sent -> Unit
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }

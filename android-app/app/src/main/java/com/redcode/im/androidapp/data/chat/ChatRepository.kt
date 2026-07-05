@@ -15,6 +15,8 @@ interface ChatRepository {
 
     suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage
 
+    suspend fun resendMessage(messageId: String): ChatMessage? = null
+
     suspend fun markRead(roomId: String)
 
     suspend fun clearLocalState() = Unit

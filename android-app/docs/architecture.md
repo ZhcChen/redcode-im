@@ -68,6 +68,7 @@ MainActivity / Compose App Shell
 - `RemoteChatRepository`：在真实认证构建下接入 `/chats`、`/rooms/{room_id}/messages`、文本发送和已读标记；本地默认仍使用 in-memory 数据便于无后端 UI smoke。
 - `RemoteContactsRepository`：在真实认证构建下接入用户搜索、好友列表、好友申请/响应和打开私聊；Compose 联系人页已覆盖搜索添加、好友申请处理、联系人详情和私聊入口；本地默认仍使用 in-memory 联系人数据。
 - `CachedRemoteChatRepository` / `CachedRemoteContactsRepository`：真实 API 构建下优先以 HTTP 刷新远端数据，并将会话、消息、联系人写入 Room；UI 订阅 Room Flow，后续 WebSocket 增量事件会复用同一缓存入口。
+- `ChatRepository.resendMessage`：文本发送先落本地 `Pending`；远端失败更新为 `Failed`，详情页提供重试，成功后删除本地临时消息并写入服务端消息。
 - `RedCodeWebSocketClient`：真实 API 构建下连接后端 `/ws?format=json`，登录后发送 `auth`，会话列表变化后维护 `join` / `leave` 房间订阅，已支持 `ping`、`typing`、断线重连、重复订阅保护和旧连接回调隔离。
 - `RealtimeEventProcessor`：消费 WebSocket JSON 服务端事件，已把 `message`、`message_read`、`message_update`、`room_created`、`room_updated`、`room_history_cleared`、`group_dissolved`、`friend_request_update` 接到 Room/Repository；protobuf 二进制帧在后续切片补齐。
 - `AppContainer.clearLocalSessionState`：登出时断开 WebSocket，并通过 Repository `clearLocalState` 清理 Room Chat/Contacts 缓存和内存态；文件 cache 和通知态清理留到对应能力接入后补齐。

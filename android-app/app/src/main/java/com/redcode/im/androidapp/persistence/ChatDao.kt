@@ -44,8 +44,17 @@ interface ChatDao {
     @Query("SELECT EXISTS(SELECT 1 FROM chat_messages WHERE id = :messageId)")
     suspend fun hasMessage(messageId: String): Boolean
 
+    @Query("SELECT * FROM chat_messages WHERE id = :messageId LIMIT 1")
+    suspend fun findMessage(messageId: String): ChatMessageEntity?
+
     @Query("UPDATE chat_messages SET text = :text WHERE roomId = :roomId AND id = :messageId")
     suspend fun updateMessageText(roomId: String, messageId: String, text: String)
+
+    @Query("UPDATE chat_messages SET status = :status WHERE id = :messageId")
+    suspend fun updateMessageStatus(messageId: String, status: String)
+
+    @Query("DELETE FROM chat_messages WHERE id = :messageId")
+    suspend fun deleteMessage(messageId: String)
 
     @Query("UPDATE chat_summaries SET unreadCount = 0 WHERE roomId = :roomId")
     suspend fun markRead(roomId: String)

@@ -3,6 +3,7 @@ package com.redcode.im.androidapp.data
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.ChatAPIEndpoint
 import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
@@ -145,6 +146,43 @@ class RemoteChatRepositoryTest {
             assertEquals(0, repository.chats.first().single().unreadCount)
             assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/read", transport.requests.last().url)
             assertEquals("""{"message_id":"m-1"}""", transport.requests.last().body)
+        }
+
+    @Test
+    fun failedSend_isKeptForResendAndResendReplacesLocalMessage() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(500, """{"message":"network down"}"""),
+                    HttpResponse(
+                        200,
+                        """
+                        {
+                          "message":{
+                            "id":"m-retry",
+                            "room_id":"room-1",
+                            "sender_id":"user-me",
+                            "sender_nickname":"Me",
+                            "content":"retry me",
+                            "status":"sent",
+                            "created_at":"2026-07-05T00:00:02Z"
+                          }
+                        }
+                        """.trimIndent(),
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport)
+
+            val error = runCatching { repository.sendText("room-1", "user-me", "Me", " retry me ") }.exceptionOrNull()
+            val failed = repository.messages("room-1").first().single()
+            val resent = repository.resendMessage(failed.id)
+
+            assertEquals("network down", error?.message)
+            assertEquals(MessageStatus.Failed, failed.status)
+            assertEquals("m-retry", resent?.id)
+            assertEquals(listOf("m-retry"), repository.messages("room-1").first().map { it.id })
+            assertEquals(MessageStatus.Sent, repository.messages("room-1").first().single().status)
         }
 
     @Test

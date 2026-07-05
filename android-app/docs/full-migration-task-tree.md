@@ -53,7 +53,7 @@
 - [x] 真实会话列表。
 - [ ] 历史消息分页。
 - [x] 历史消息首屏加载。
-- [ ] pending/failed/resend。
+- [x] pending/failed/resend 基线。
 - [ ] 已读、删除、置顶、引用、reaction。
 - [ ] 未读数、置顶、免打扰。
 - [ ] 本地搜索索引。
@@ -64,6 +64,7 @@
 - 当前 Android UI 会在进入会话列表和聊天详情时触发一次 HTTP 刷新；真正的分页、失败重试、WebSocket 增量同步仍在后续阶段。
 - 真实 API 构建下，Chat/Contacts 远端刷新结果已经写入 Room，UI 订阅 Room Flow；后续 WebSocket 增量同步会写入同一缓存层。
 - WebSocket JSON client 已能维持会话房间订阅；消息增量会按消息 ID 去重写入 Room，并同步会话摘要、未读数和本机已读清零。
+- 文本发送已接入乐观 Pending，本地/远端失败会落 Failed 状态，失败消息支持重试后替换为服务端消息。
 
 ## ANDROID-04 联系人与好友
 

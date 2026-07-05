@@ -3,6 +3,9 @@ package com.redcode.im.androidapp.data.chat
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatSummary
+import com.redcode.im.androidapp.core.model.MessageStatus
+import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,14 +43,29 @@ class RemoteChatRepository(
     override suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage {
         val normalized = text.trim()
         require(normalized.isNotBlank()) { "消息不能为空" }
-        val sent =
-            remoteDataSource
-                .sendTextMessage(roomId = roomId, content = normalized, token = requireToken())
-                .toDomain()
-        val nextMessages = messageState.value[roomId].orEmpty() + sent
-        messageState.value = messageState.value + (roomId to nextMessages.sortedBy { it.createdAt })
-        refreshChats()
-        return sent
+        val pending =
+            ChatMessage(
+                id = "local-${UUID.randomUUID()}",
+                roomId = roomId,
+                senderId = senderId,
+                senderName = senderName,
+                text = normalized,
+                status = MessageStatus.Pending,
+                createdAt = Instant.now(),
+            )
+        upsertLocalMessage(pending)
+        return sendPending(pending)
+    }
+
+    override suspend fun resendMessage(messageId: String): ChatMessage? {
+        val failed =
+            messageState.value.values
+                .flatten()
+                .firstOrNull { it.id == messageId && it.status == MessageStatus.Failed }
+                ?: return null
+        val pending = failed.copy(status = MessageStatus.Pending, createdAt = Instant.now())
+        upsertLocalMessage(pending)
+        return sendPending(pending)
     }
 
     override suspend fun markRead(roomId: String) {
@@ -59,6 +77,40 @@ class RemoteChatRepository(
     override suspend fun clearLocalState() {
         summaryState.value = emptyList()
         messageState.value = emptyMap()
+    }
+
+    private suspend fun sendPending(pending: ChatMessage): ChatMessage {
+        return runCatching {
+            remoteDataSource
+                .sendTextMessage(roomId = pending.roomId, content = pending.text, token = requireToken())
+                .toDomain()
+        }.fold(
+            onSuccess = { sent ->
+                removeLocalMessage(pending.roomId, pending.id)
+                upsertLocalMessage(sent)
+                refreshChats()
+                sent
+            },
+            onFailure = { error ->
+                upsertLocalMessage(pending.copy(status = MessageStatus.Failed))
+                throw error
+            },
+        )
+    }
+
+    private fun upsertLocalMessage(message: ChatMessage) {
+        val nextMessages =
+            (
+                messageState.value[message.roomId].orEmpty().filterNot { it.id == message.id } +
+                    message
+            ).sortedBy { it.createdAt }
+        messageState.value = messageState.value + (message.roomId to nextMessages)
+    }
+
+    private fun removeLocalMessage(roomId: String, messageId: String) {
+        messageState.value =
+            messageState.value +
+            (roomId to messageState.value[roomId].orEmpty().filterNot { it.id == messageId })
     }
 
     private fun requireToken(): String =

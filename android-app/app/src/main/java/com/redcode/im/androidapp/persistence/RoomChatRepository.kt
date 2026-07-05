@@ -67,6 +67,17 @@ class RoomChatRepository(
         chatDao.pruneMessages(message.roomId, maxMessagesPerRoom)
     }
 
+    suspend fun findMessage(messageId: String): ChatMessage? =
+        chatDao.findMessage(messageId)?.toDomain()
+
+    suspend fun updateMessageStatus(messageId: String, status: MessageStatus) {
+        chatDao.updateMessageStatus(messageId = messageId, status = status.name)
+    }
+
+    suspend fun removeMessage(messageId: String) {
+        chatDao.deleteMessage(messageId)
+    }
+
     suspend fun applyIncomingMessage(message: ChatMessage, currentUserId: String?) {
         val alreadyCached = chatDao.hasMessage(message.id)
         chatDao.upsertMessage(ChatMessageEntity.fromDomain(message))
@@ -105,6 +116,13 @@ class RoomChatRepository(
 
     suspend fun markMessageDeleted(roomId: String, messageId: String) {
         chatDao.updateMessageText(roomId = roomId, messageId = messageId, text = "消息已删除")
+    }
+
+    override suspend fun resendMessage(messageId: String): ChatMessage? {
+        val failed = findMessage(messageId)?.takeIf { it.status == MessageStatus.Failed } ?: return null
+        val sent = failed.copy(status = MessageStatus.Sent, createdAt = Instant.now())
+        applyIncomingMessage(sent, currentUserId = failed.senderId)
+        return sent
     }
 
     suspend fun replaceMessages(roomId: String, messages: List<ChatMessage>) {

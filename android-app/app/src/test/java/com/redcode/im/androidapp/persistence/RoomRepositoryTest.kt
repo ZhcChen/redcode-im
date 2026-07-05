@@ -148,6 +148,24 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun cachedRemoteChatRepository_marksFailedAndResendsFromRoomCache() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val repository = CachedRemoteChatRepository(remote, MutableStateFlow(session()), local)
+            remote.failNextSend = true
+
+            val error = runCatching { repository.sendText("room-1", "user-me", "Me", " retry ") }.exceptionOrNull()
+            val failed = repository.messages("room-1").first().single()
+            val resent = repository.resendMessage(failed.id)
+
+            assertEquals("send failed", error?.message)
+            assertEquals(MessageStatus.Failed, failed.status)
+            assertEquals("m2", resent?.id)
+            assertEquals(listOf("m2"), repository.messages("room-1").first().map { it.id })
+        }
+
+    @Test
     fun cachedRemoteContactsRepository_persistsRemoteContactsAndRequests() =
         runTest {
             val local = RoomContactsRepository(FakeContactDao())
@@ -231,6 +249,9 @@ private class FakeChatDao : ChatDao {
     override suspend fun hasMessage(messageId: String): Boolean =
         messages.value.values.any { roomMessages -> roomMessages.any { it.id == messageId } }
 
+    override suspend fun findMessage(messageId: String): ChatMessageEntity? =
+        messages.value.values.flatten().firstOrNull { it.id == messageId }
+
     override suspend fun updateMessageText(roomId: String, messageId: String, text: String) {
         messages.value =
             messages.value +
@@ -240,6 +261,20 @@ private class FakeChatDao : ChatDao {
                         if (it.id == messageId) it.copy(text = text) else it
                     }
             )
+    }
+
+    override suspend fun updateMessageStatus(messageId: String, status: String) {
+        messages.value =
+            messages.value.mapValues { (_, roomMessages) ->
+                roomMessages.map { if (it.id == messageId) it.copy(status = status) else it }
+            }
+    }
+
+    override suspend fun deleteMessage(messageId: String) {
+        messages.value =
+            messages.value.mapValues { (_, roomMessages) ->
+                roomMessages.filterNot { it.id == messageId }
+            }
     }
 
     override suspend fun markRead(roomId: String) {
@@ -307,6 +342,7 @@ private class FakeContactDao : ContactDao {
 private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     val tokens = mutableListOf<String>()
     var markedReadMessageId = ""
+    var failNextSend = false
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -348,6 +384,10 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
         quotedMessageId: String?,
     ): BackendChatMessage {
         tokens += token
+        if (failNextSend) {
+            failNextSend = false
+            error("send failed")
+        }
         return BackendChatMessage(
             id = "m2",
             roomId = roomId,

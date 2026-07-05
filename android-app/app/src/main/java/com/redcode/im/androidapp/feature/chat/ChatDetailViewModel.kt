@@ -60,6 +60,16 @@ class ChatDetailViewModel(
         }
     }
 
+    fun resendMessage(messageId: String) {
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.resendMessage(messageId)
+            }.onFailure { error ->
+                formState.update { it.copy(errorMessage = error.message ?: "重试失败") }
+            }
+        }
+    }
+
     fun markRead() {
         viewModelScope.launch {
             chatRepository.markRead(roomId)
