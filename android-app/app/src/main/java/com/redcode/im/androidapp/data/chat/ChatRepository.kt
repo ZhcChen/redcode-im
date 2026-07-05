@@ -9,6 +9,10 @@ interface ChatRepository {
 
     fun messages(roomId: String): Flow<List<ChatMessage>>
 
+    suspend fun refreshChats() = Unit
+
+    suspend fun refreshMessages(roomId: String, limit: Int = 50) = Unit
+
     suspend fun sendText(roomId: String, senderId: String, senderName: String, text: String): ChatMessage
 
     suspend fun markRead(roomId: String)

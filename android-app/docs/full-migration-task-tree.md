@@ -26,6 +26,7 @@
 
 - [ ] HTTP client 与统一错误模型。
 - [x] HTTP client 基线、JSON 编解码、Bearer token、错误消息提取。
+- [x] Chat HTTP API 基线：`/chats`、`/rooms/{room_id}/messages`、文本发送、已读标记。
 - [ ] WebSocket client：鉴权、订阅、重连、去重。
 - [x] Room schema：会话、消息、联系人。
 - [x] Room Chat/Contacts DAO、Repository 与 Emulator in-memory 验证。
@@ -44,13 +45,18 @@
 - [x] In-memory 会话列表和文本发送基线。
 - [x] 每 room 最近消息保留策略单测。
 - [x] Room 会话摘要、消息缓存与每 room 最近消息保留策略。
-- [ ] 真实会话列表。
+- [x] 真实会话列表。
 - [ ] 历史消息分页。
+- [x] 历史消息首屏加载。
 - [ ] pending/failed/resend。
 - [ ] 已读、删除、置顶、引用、reaction。
 - [ ] 未读数、置顶、免打扰。
 - [ ] 本地搜索索引。
 - [ ] H5/API/Android 聊天互通 smoke。
+
+进度备注：
+- `RemoteChatRepository` 已接入真实 HTTP 合同，并在 `ANDROID_APP_USE_REMOTE_AUTH=true` 时随真实认证链路启用。
+- 当前 Android UI 会在进入会话列表和聊天详情时触发一次 HTTP 刷新；真正的分页、失败重试、WebSocket 增量同步仍在后续阶段。
 
 ## ANDROID-04 联系人与好友
 

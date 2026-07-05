@@ -35,6 +35,14 @@ class ChatDetailViewModel(
             ChatDetailUiState(messages = messages, draft = form.draft, errorMessage = form.errorMessage)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
+    init {
+        viewModelScope.launch {
+            runCatching {
+                chatRepository.refreshMessages(roomId)
+            }
+        }
+    }
+
     fun onDraftChange(value: String) {
         formState.update { it.copy(draft = value, errorMessage = null) }
     }
