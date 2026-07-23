@@ -136,6 +136,16 @@ impl TestApp {
         self.send("POST", uri, Some(token), Body::from(json.to_owned()), true)
             .await
     }
+
+    pub async fn put_json_authed(
+        &self,
+        uri: &str,
+        token: &str,
+        json: &str,
+    ) -> (StatusCode, Vec<u8>) {
+        self.send("PUT", uri, Some(token), Body::from(json.to_owned()), true)
+            .await
+    }
 }
 
 /// 把响应体字节解析为 JSON Value（测试断言用）。
@@ -154,6 +164,23 @@ pub fn unique_username(prefix: &str) -> String {
         .chars()
         .take(20)
         .collect()
+}
+
+pub async fn bootstrap_admin_token(app: &TestApp) -> String {
+    let bootstrap_body = r#"{"username":"admin","password":"adminpass123","display_name":"Admin"}"#;
+    let (status, body) = app
+        .post_json("/api/admin/bootstrap/init", bootstrap_body)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "bootstrap: {}",
+        String::from_utf8_lossy(&body)
+    );
+    body_json(&body)["token"]
+        .as_str()
+        .expect("bootstrap token")
+        .to_string()
 }
 
 impl Drop for TestApp {

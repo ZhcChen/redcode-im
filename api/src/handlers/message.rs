@@ -7,7 +7,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use crate::database::{
@@ -534,8 +534,229 @@ fn is_valid_message_attachment_object_key(key: &str) -> bool {
         return false;
     }
 
-    // 消息附件统一放在 messages/ 命名空间下（支持跨房间复用历史附件）
+    // 消息附件统一放在 messages/ 命名空间下。
     trimmed.starts_with("messages/")
+}
+
+fn is_message_attachment_object_key_for_room(room_id: &Uuid, key: &str) -> bool {
+    let prefix = format!("messages/{}/", room_id);
+    is_valid_message_attachment_object_key(key) && key.trim().starts_with(&prefix)
+}
+
+fn relay_only_attachment_key_forbidden() -> AppError {
+    AppError::ValidationError(
+        "relay_only 模式附件 key 必须属于当前房间，请重新获取上传签名".to_string(),
+    )
+}
+
+fn relay_only_attachment_grant_ttl_seconds() -> u64 {
+    std::env::var("MESSAGE_RELAY_ATTACHMENT_GRANT_TTL_SECONDS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(86_400)
+        .clamp(60, 604_800)
+}
+
+fn relay_only_attachment_grant_key(room_id: &Uuid, object_key: &str) -> String {
+    format!(
+        "relay_only:attachment_grant:{}:{}",
+        room_id,
+        object_key.trim()
+    )
+}
+
+struct RelayOnlyAttachmentGrant {
+    object_key: String,
+    owner: String,
+}
+
+fn collect_relay_only_attachment_keys(parts: &[MessagePart]) -> Vec<String> {
+    let mut keys = Vec::new();
+    for part in parts {
+        if let Some(key) = part.attachment_key.as_deref() {
+            let trimmed = key.trim();
+            if !trimmed.is_empty() {
+                keys.push(trimmed.to_string());
+            }
+        }
+        if let Some(key) = part.thumbnail_key.as_deref() {
+            let trimmed = key.trim();
+            if !trimmed.is_empty() {
+                keys.push(trimmed.to_string());
+            }
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    keys
+}
+
+async fn register_relay_only_attachment_grants(
+    state: &AppState,
+    room_id: Uuid,
+    owner: &str,
+    parts: &[MessagePart],
+) -> Result<Vec<RelayOnlyAttachmentGrant>, AppError> {
+    let object_keys = collect_relay_only_attachment_keys(parts);
+    if object_keys.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let ttl = relay_only_attachment_grant_ttl_seconds();
+    let mut conn = state.redis.get_cache_connection();
+    let mut granted_keys = Vec::new();
+    for object_key in &object_keys {
+        let grant_key = relay_only_attachment_grant_key(&room_id, object_key);
+        let set_result: Result<Option<String>, redis::RedisError> = redis::cmd("SET")
+            .arg(&grant_key)
+            .arg(owner)
+            .arg("EX")
+            .arg(ttl)
+            .arg("NX")
+            .query_async(&mut conn)
+            .await;
+        match set_result {
+            Ok(Some(_)) => granted_keys.push(RelayOnlyAttachmentGrant {
+                object_key: object_key.clone(),
+                owner: owner.to_string(),
+            }),
+            Ok(None) => {}
+            Err(e) => {
+                revoke_relay_only_attachment_grants(state, room_id, &granted_keys).await;
+                return Err(relay_only_attachment_grant_unavailable(e));
+            }
+        }
+    }
+
+    Ok(granted_keys)
+}
+
+async fn revoke_relay_only_attachment_grants(
+    state: &AppState,
+    room_id: Uuid,
+    grants: &[RelayOnlyAttachmentGrant],
+) {
+    if grants.is_empty() {
+        return;
+    }
+
+    let mut conn = state.redis.get_cache_connection();
+    for grant in grants {
+        let grant_key = relay_only_attachment_grant_key(&room_id, &grant.object_key);
+        let result: Result<i64, redis::RedisError> = redis::cmd("EVAL")
+            .arg(
+                "if redis.call('GET', KEYS[1]) == ARGV[1] then \
+                 return redis.call('DEL', KEYS[1]) else return 0 end",
+            )
+            .arg(1)
+            .arg(&grant_key)
+            .arg(&grant.owner)
+            .query_async(&mut conn)
+            .await;
+        if let Err(e) = result {
+            warn!("回滚 relay_only 附件下载授权失败: {}", e);
+        }
+    }
+}
+
+fn relay_only_attachment_grant_unavailable(err: impl std::fmt::Display) -> AppError {
+    AppError::ServiceUnavailable(format!("relay_only 附件下载授权服务暂不可用: {}", err))
+}
+
+enum MessageAttachmentAccess {
+    PersistReference,
+    RelayGrant { remaining_seconds: u32 },
+}
+
+async fn relay_only_attachment_grant_remaining_seconds(
+    state: &AppState,
+    room_id: Uuid,
+    object_key: &str,
+) -> Result<Option<u32>, AppError> {
+    let grant_key = relay_only_attachment_grant_key(&room_id, object_key);
+    let mut conn = state.redis.get_cache_connection();
+    let ttl_ms: i64 = redis::cmd("PTTL")
+        .arg(&grant_key)
+        .query_async(&mut conn)
+        .await
+        .map_err(relay_only_attachment_grant_unavailable)?;
+    if ttl_ms <= 0 {
+        return Ok(None);
+    }
+
+    let ttl_seconds = ((ttl_ms as u64) + 999) / 1000;
+    Ok(Some(ttl_seconds.min(u32::MAX as u64) as u32))
+}
+
+fn ensure_relay_only_attachment_keys_belong_to_room(
+    room_id: Uuid,
+    parts: &[NewMessagePart],
+) -> Result<(), AppError> {
+    for part in parts {
+        if part.part_type == MessagePartType::Text {
+            continue;
+        }
+        if let Some(key) = &part.attachment_key {
+            if !is_message_attachment_object_key_for_room(&room_id, key) {
+                return Err(relay_only_attachment_key_forbidden());
+            }
+        }
+        if let Some(key) = &part.thumbnail_key {
+            if !is_message_attachment_object_key_for_room(&room_id, key) {
+                return Err(relay_only_attachment_key_forbidden());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn ensure_relay_only_attachment_keys_are_committed(
+    state: &AppState,
+    room_id: Uuid,
+    parts: &[NewMessagePart],
+) -> Result<(), AppError> {
+    ensure_relay_only_attachment_keys_belong_to_room(room_id, parts)?;
+
+    let mut keys = Vec::new();
+    for part in parts {
+        if part.part_type == MessagePartType::Text {
+            continue;
+        }
+        if let Some(key) = part.attachment_key.as_deref() {
+            let trimmed = key.trim();
+            if !trimmed.is_empty() {
+                keys.push(trimmed.to_string());
+            }
+        }
+        if let Some(key) = part.thumbnail_key.as_deref() {
+            let trimmed = key.trim();
+            if !trimmed.is_empty() {
+                keys.push(trimmed.to_string());
+            }
+        }
+    }
+    keys.sort();
+    keys.dedup();
+    if keys.is_empty() {
+        return Ok(());
+    }
+
+    let provider = load_default_storage_provider(state).await?;
+    let upload_store = FileUploadStore::new(state.database.clone());
+    for key in keys {
+        if !upload_store
+            .has_completed_by_key(&provider.id, &key)
+            .await
+            .map_err(AppError::from)?
+        {
+            return Err(AppError::ValidationError(
+                "relay_only 模式附件必须先完成上传提交，请重新上传附件".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn is_hex_32(value: &str) -> bool {
@@ -911,6 +1132,9 @@ pub async fn send_message(
             }
         }
     }
+    if relay_only_runtime {
+        ensure_relay_only_attachment_keys_are_committed(&state, room_id, &db_parts).await?;
+    }
 
     // 兜底：即使客户端未走 commit（仅引用 key），也要确保进入审核队列
     // 说明：违规文件会在后台被删除；这里只负责“入队记录”。
@@ -1002,16 +1226,21 @@ pub async fn send_message(
         let runtime_parts = build_runtime_message_parts(runtime_message_id, now, &db_parts);
         let mut part_map = HashMap::new();
         part_map.insert(runtime_message.id, runtime_parts.clone());
+        let relay_attachment_grants = register_relay_only_attachment_grants(
+            &state,
+            room_id,
+            &runtime_message.id.to_string(),
+            &runtime_parts,
+        )
+        .await?;
 
         if let Err(e) = broadcast_message_to_room(&state, &runtime_message, &part_map).await {
+            revoke_relay_only_attachment_grants(&state, room_id, &relay_attachment_grants).await;
             error!("广播 relay_only 消息失败: {}", e);
+            return Err(AppError::ServiceUnavailable(
+                "relay_only 消息实时广播失败，请稍后重试".to_string(),
+            ));
         }
-
-        crate::services::push::enqueue_new_message(
-            &state,
-            PushMessageSnapshot::from_message(&runtime_message, &runtime_parts),
-        )
-        .await;
 
         let api_message = db_message_to_api_message_info(
             &runtime_message,
@@ -1207,16 +1436,21 @@ pub async fn send_encrypted_message(
         let runtime_parts = build_runtime_message_parts(runtime_message_id, now, &db_parts);
         let mut part_map = HashMap::new();
         part_map.insert(runtime_message.id, runtime_parts.clone());
+        let relay_attachment_grants = register_relay_only_attachment_grants(
+            &state,
+            room_id,
+            &runtime_message.id.to_string(),
+            &runtime_parts,
+        )
+        .await?;
 
         if let Err(e) = broadcast_message_to_room(&state, &runtime_message, &part_map).await {
+            revoke_relay_only_attachment_grants(&state, room_id, &relay_attachment_grants).await;
             error!("广播 relay_only 加密消息失败: {}", e);
+            return Err(AppError::ServiceUnavailable(
+                "relay_only 加密消息实时广播失败，请稍后重试".to_string(),
+            ));
         }
-
-        crate::services::push::enqueue_new_message(
-            &state,
-            PushMessageSnapshot::from_message(&runtime_message, &runtime_parts),
-        )
-        .await;
 
         let api_message = db_message_to_api_message_info(
             &runtime_message,
@@ -2135,6 +2369,10 @@ pub async fn clear_room_messages(
         ));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Err(relay_only_unsupported("清空聊天记录"));
+    }
+
     let room = room_store
         .get_room(room_id)
         .await
@@ -2255,6 +2493,11 @@ pub async fn generate_message_attachment_signature(
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
+    let reusable_attachment_prefix = if is_relay_only_runtime(&state).await? {
+        format!("messages/{room_id}/")
+    } else {
+        "messages/".to_string()
+    };
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的 object_key
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
@@ -2267,7 +2510,7 @@ pub async fn generate_message_attachment_signature(
                     hash_alg,
                     hash_value,
                     file_size as i64,
-                    Some("messages/"),
+                    Some(reusable_attachment_prefix.as_str()),
                 )
                 .await
                 .map_err(AppError::from)?
@@ -2416,6 +2659,11 @@ pub async fn initiate_message_attachment_multipart_upload(
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
+    let reusable_attachment_prefix = if is_relay_only_runtime(&state).await? {
+        format!("messages/{room_id}/")
+    } else {
+        "messages/".to_string()
+    };
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的附件
     if let Some(ref hash_value) = req.hash_value {
@@ -2429,7 +2677,7 @@ pub async fn initiate_message_attachment_multipart_upload(
                     hash_alg,
                     hash_value_trimmed,
                     req.file_size as i64,
-                    Some("messages/"),
+                    Some(reusable_attachment_prefix.as_str()),
                 )
                 .await
                 .map_err(AppError::from)?
@@ -2560,16 +2808,38 @@ pub async fn generate_message_attachment_download_url(
         return Err(message_validation_error("message.attachment_key_invalid"));
     }
 
-    // 访问控制：必须是当前房间的消息已引用过的 object_key（附件或缩略图）
-    if !store
-        .room_has_message_object_key(room_id, key)
-        .await
-        .map_err(AppError::from)?
-    {
-        return Err(message_not_found_error("message.attachment_not_found"));
-    }
+    let relay_only_runtime = is_relay_only_runtime(&state).await?;
+    // 访问控制：relay_only 当前模式只认发送时写入的 Redis TTL 授权；切回 persist 后，
+    // 同时认持久化消息分片和未过期 grant，避免本地 relay-only 附件立即失效。
+    let access = if relay_only_runtime {
+        match relay_only_attachment_grant_remaining_seconds(&state, room_id, key).await? {
+            Some(remaining_seconds) => MessageAttachmentAccess::RelayGrant { remaining_seconds },
+            None => return Err(message_not_found_error("message.attachment_not_found")),
+        }
+    } else {
+        let has_persist_reference = store
+            .room_has_message_object_key(room_id, key)
+            .await
+            .map_err(AppError::from)?;
+        if has_persist_reference {
+            MessageAttachmentAccess::PersistReference
+        } else {
+            match relay_only_attachment_grant_remaining_seconds(&state, room_id, key).await? {
+                Some(remaining_seconds) => {
+                    MessageAttachmentAccess::RelayGrant { remaining_seconds }
+                }
+                None => return Err(message_not_found_error("message.attachment_not_found")),
+            }
+        }
+    };
 
-    let expires = query.expires_in_seconds.unwrap_or(600).clamp(60, 86_400);
+    let requested_expires = query.expires_in_seconds.unwrap_or(600).clamp(60, 86_400);
+    let expires = match access {
+        MessageAttachmentAccess::PersistReference => requested_expires,
+        MessageAttachmentAccess::RelayGrant { remaining_seconds } => {
+            requested_expires.min(remaining_seconds)
+        }
+    };
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
@@ -2590,8 +2860,9 @@ pub async fn generate_message_attachment_download_url(
                 .generate_download_url(key, Some(expires))
                 .await?;
 
-            // 缓存URL，过期时间为URL有效期的90%
-            let cache_ttl = (expires as f64 * 0.9) as u64;
+            // 缓存 URL，过期时间为 URL 有效期的 90%；relay grant 路径下 expires
+            // 已被收窄到 Redis 剩余 TTL，不会把临时授权放大成更长缓存。
+            let cache_ttl = ((expires as f64 * 0.9) as u64).max(1);
 
             if let Err(e) = cache_manager
                 .cache_download_url(&cache_key, &url, cache_ttl)
@@ -2634,6 +2905,11 @@ pub async fn commit_message_attachment_upload(
     }
 
     if !is_valid_message_attachment_object_key(key) {
+        return Err(message_validation_error("message.attachment_key_invalid"));
+    }
+    if is_relay_only_runtime(&state).await?
+        && !is_message_attachment_object_key_for_room(&room_id, key)
+    {
         return Err(message_validation_error("message.attachment_key_invalid"));
     }
 
@@ -2710,8 +2986,26 @@ pub async fn commit_message_attachment_upload(
                 .map_err(AppError::from)?;
         }
     }
+    if upload_store
+        .get_by_key(&provider.id, key)
+        .await
+        .map_err(AppError::from)?
+        .is_none()
+    {
+        let _ = upload_store
+            .create_pending_record(
+                &provider.id,
+                key,
+                0,
+                key,
+                req.file_size.map(|value| value as i64),
+                None,
+            )
+            .await
+            .map_err(AppError::from)?;
+    }
 
-    // 尝试将已有记录标记为完成；如果不存在记录，暂时忽略（说明生成签名时可能未带 hash）
+    // 标记完成；前面已经保证即使客户端不带 hash，也有可追踪的上传记录。
     let _ = upload_store
         .mark_completed_by_key(&provider.id, key)
         .await

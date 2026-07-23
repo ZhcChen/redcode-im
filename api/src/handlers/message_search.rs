@@ -305,6 +305,10 @@ pub async fn get_search_suggestions(
         return Ok(Json(Vec::new()));
     }
 
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(Vec::new()));
+    }
+
     let limit = params.limit.unwrap_or(10).min(20);
 
     let sql = r#"
@@ -350,6 +354,10 @@ pub async fn get_trending_keywords(
 ) -> Result<Json<Vec<TrendingKeyword>>, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    if is_relay_only_runtime(&state).await? {
+        return Ok(Json(Vec::new()));
+    }
 
     let sql = r#"
         SELECT

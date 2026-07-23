@@ -156,6 +156,34 @@ impl SettingsStore {
         Ok(record)
     }
 
+    pub async fn upsert_general_settings_atomic(
+        &self,
+        settings: &[(&str, &str, &str)],
+        updated_by: Option<Uuid>,
+    ) -> Result<(), Error> {
+        let mut tx = self.database.pool.begin().await?;
+        for (key, value, description) in settings {
+            sqlx::query(
+                r#"
+                INSERT INTO general_settings (key, value, description, updated_at, updated_by)
+                VALUES ($1, $2, $3, NOW(), $4)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    description = EXCLUDED.description,
+                    updated_at = NOW(),
+                    updated_by = EXCLUDED.updated_by
+                "#,
+            )
+            .bind(key)
+            .bind(value)
+            .bind(description)
+            .bind(updated_by)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await
+    }
+
     pub async fn is_email_auth_enabled(&self) -> Result<bool, Error> {
         let record = self.get_general_setting(AUTH_EMAIL_ENABLED_KEY).await?;
         Ok(record

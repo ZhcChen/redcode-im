@@ -412,6 +412,76 @@ impl<'a> RoomStore<'a> {
         Ok(rows)
     }
 
+    pub async fn list_chat_summaries_without_message_state(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<ChatSummaryRow>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, ChatSummaryRow>(
+            r#"
+            SELECT
+                r.id AS room_id,
+                r.name AS room_name,
+                r.room_type AS room_type,
+                r.description AS room_description,
+                r.avatar_url AS room_avatar_url,
+                r.avatar_object_key AS room_avatar_object_key,
+                CASE WHEN urp.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_pinned,
+                NULL::uuid AS last_message_id,
+                NULL::text AS last_message_content,
+                NULL::int2 AS last_message_type,
+                NULL::timestamptz AS last_message_created_at,
+                NULL::uuid AS last_message_sender_id,
+                NULL::text AS last_message_sender_username,
+                NULL::text AS last_message_sender_nickname,
+                0::bigint AS unread_count,
+                NULL::uuid AS last_read_message_id,
+                NULL::timestamptz AS last_read_at,
+                rm.notification_settings AS notification_settings,
+                fu.friend_user_id AS friend_user_id,
+                fu.friend_nickname AS friend_nickname,
+                fu.friend_username AS friend_username,
+                fu.friend_remark AS friend_remark,
+                fu.friend_avatar_object_key AS friend_avatar_object_key
+            FROM room_members rm
+            JOIN rooms r ON rm.room_id = r.id
+            LEFT JOIN user_room_pins urp
+                ON urp.user_id = rm.user_id AND urp.room_id = r.id
+            LEFT JOIN LATERAL (
+                SELECT
+                    rm2.user_id AS friend_user_id,
+                    u2.nickname AS friend_nickname,
+                    u2.username AS friend_username,
+                    u2.avatar_object_key AS friend_avatar_object_key,
+                    ufr.remark AS friend_remark
+                FROM room_members rm2
+                JOIN users u2 ON u2.id = rm2.user_id
+                LEFT JOIN user_friend_remarks ufr
+                    ON ufr.user_id = rm.user_id
+                   AND ufr.friend_user_id = rm2.user_id
+                WHERE rm2.room_id = r.id
+                  AND rm2.user_id != $1
+                  AND rm2.deleted_at IS NULL
+                  AND r.room_type = $3
+                LIMIT 1
+            ) fu ON TRUE
+            WHERE rm.user_id = $1
+              AND rm.deleted_at IS NULL
+              AND r.deleted_at IS NULL
+            ORDER BY
+                CASE WHEN urp.id IS NULL THEN 1 ELSE 0 END,
+                CASE WHEN r.room_type = $2 THEN 0 ELSE 1 END,
+                COALESCE(r.updated_at, r.created_at) DESC
+            "#,
+        )
+        .bind(user_id)
+        .bind(RoomType::Favorite)
+        .bind(RoomType::Private)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
     pub async fn update_notification_settings(
         &self,
         room_id: Uuid,

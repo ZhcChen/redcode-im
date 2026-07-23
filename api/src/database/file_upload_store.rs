@@ -45,6 +45,29 @@ impl FileUploadStore {
         .await
     }
 
+    pub async fn has_completed_by_key(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+    ) -> Result<bool, Error> {
+        let exists: Option<(i32,)> = sqlx::query_as(
+            r#"
+            SELECT 1
+            FROM file_upload_records
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+              AND status = 1
+            LIMIT 1
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .fetch_optional(self.pool())
+        .await?;
+
+        Ok(exists.is_some())
+    }
+
     /// 查找已完成上传、且匹配指定 hash 和文件大小的记录
     ///
     /// 如果提供前缀，则仅匹配 object_key 以该前缀开头的记录

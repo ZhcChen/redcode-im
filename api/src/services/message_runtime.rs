@@ -153,18 +153,19 @@ pub async fn update_message_runtime_settings(
     updated_by: Option<Uuid>,
 ) -> Result<MessageRuntimeSettings, AppError> {
     store
-        .upsert_general_setting(
-            MESSAGE_SERVER_STORAGE_MODE_KEY,
-            server_storage_mode.as_str(),
-            "消息服务器存储模式（persist=落库，relay_only=仅转发）",
-            updated_by,
-        )
-        .await?;
-    store
-        .upsert_general_setting(
-            MESSAGE_CONTENT_AUDIT_MODE_KEY,
-            content_audit_mode.as_str(),
-            "消息内容审计模式（plaintext=明文可审计，e2ee=端侧加密）",
+        .upsert_general_settings_atomic(
+            &[
+                (
+                    MESSAGE_SERVER_STORAGE_MODE_KEY,
+                    server_storage_mode.as_str(),
+                    "消息服务器存储模式（persist=落库，relay_only=仅转发）",
+                ),
+                (
+                    MESSAGE_CONTENT_AUDIT_MODE_KEY,
+                    content_audit_mode.as_str(),
+                    "消息内容审计模式（plaintext=明文可审计，e2ee=端侧加密）",
+                ),
+            ],
             updated_by,
         )
         .await?;

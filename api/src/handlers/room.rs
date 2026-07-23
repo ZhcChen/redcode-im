@@ -307,20 +307,13 @@ pub async fn list_chat_summaries(
     let store = RoomStore::new(state.database.pool());
     store.ensure_favorite_room(user_id).await?;
     let relay_only_runtime = is_relay_only_runtime(&state).await?;
-    let mut rows = store.list_chat_summaries(user_id).await?;
-
-    if relay_only_runtime {
-        for row in &mut rows {
-            row.last_message_id = None;
-            row.last_message_content = None;
-            row.last_message_type = None;
-            row.last_message_created_at = None;
-            row.last_message_sender_id = None;
-            row.last_message_sender_username = None;
-            row.last_message_sender_nickname = None;
-            row.unread_count = 0;
-        }
-    }
+    let rows = if relay_only_runtime {
+        store
+            .list_chat_summaries_without_message_state(user_id)
+            .await?
+    } else {
+        store.list_chat_summaries(user_id).await?
+    };
 
     let summaries = rows
         .into_iter()

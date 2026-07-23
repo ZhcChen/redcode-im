@@ -2,7 +2,7 @@ mod support;
 
 use axum::body::Body;
 use axum::http::StatusCode;
-use support::{body_json, spawn_test_app};
+use support::{body_json, bootstrap_admin_token, spawn_test_app};
 
 const TEST_APNS_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg1gsW8p7m26JzSzqh
@@ -36,21 +36,7 @@ async fn admin_users_without_token_is_unauthorized() {
 #[tokio::test]
 async fn user_account_limit_update_without_email_auth_preserves_current_switch() {
     let app = spawn_test_app().await;
-
-    let bootstrap_body = r#"{"username":"admin","password":"adminpass123","display_name":"Admin"}"#;
-    let (status, body) = app
-        .post_json("/api/admin/bootstrap/init", bootstrap_body)
-        .await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "bootstrap: {}",
-        String::from_utf8_lossy(&body)
-    );
-    let token = body_json(&body)["token"]
-        .as_str()
-        .expect("bootstrap token")
-        .to_string();
+    let token = bootstrap_admin_token(&app).await;
 
     sqlx::query(
         r#"
@@ -98,23 +84,285 @@ async fn user_account_limit_update_without_email_auth_preserves_current_switch()
 }
 
 #[tokio::test]
-async fn push_settings_supports_apns_provider_config() {
+async fn message_runtime_settings_can_be_updated_and_read_publicly() {
     let app = spawn_test_app().await;
+    let token = bootstrap_admin_token(&app).await;
 
-    let bootstrap_body = r#"{"username":"admin","password":"adminpass123","display_name":"Admin"}"#;
     let (status, body) = app
-        .post_json("/api/admin/bootstrap/init", bootstrap_body)
+        .get_authed("/api/admin/settings/message-runtime", &token)
         .await;
     assert_eq!(
         status,
         StatusCode::OK,
-        "bootstrap: {}",
+        "admin settings default: {}",
         String::from_utf8_lossy(&body)
     );
-    let token = body_json(&body)["token"]
-        .as_str()
-        .expect("bootstrap token")
-        .to_string();
+    let admin_default = body_json(&body);
+    assert_eq!(
+        admin_default["server_storage_mode"].as_str(),
+        Some("persist")
+    );
+    assert_eq!(
+        admin_default["content_audit_mode"].as_str(),
+        Some("plaintext")
+    );
+
+    let (status, body) = app.get("/settings/general").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "public settings default: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let public = body_json(&body);
+    assert_eq!(
+        public["message_runtime"]["server_storage_mode"].as_str(),
+        Some("persist")
+    );
+    assert_eq!(
+        public["message_runtime"]["content_audit_mode"].as_str(),
+        Some("plaintext")
+    );
+
+    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"e2ee"}"#;
+    let (status, body) = app
+        .send(
+            "PUT",
+            "/api/admin/settings/message-runtime",
+            None,
+            Body::from(relay_payload),
+            true,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "message runtime update should require admin token: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .put_json_authed("/api/admin/settings/message-runtime", &token, relay_payload)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "update message runtime: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let updated = body_json(&body);
+    assert_eq!(updated["server_storage_mode"].as_str(), Some("relay_only"));
+    assert_eq!(updated["content_audit_mode"].as_str(), Some("e2ee"));
+    assert!(updated["updated_at"].as_str().is_some());
+    assert!(updated["updated_by"].as_str().is_some());
+
+    let (status, body) = app.get("/settings/general").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "public settings after update: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let public = body_json(&body);
+    assert_eq!(
+        public["message_runtime"]["server_storage_mode"].as_str(),
+        Some("relay_only")
+    );
+    assert_eq!(
+        public["message_runtime"]["content_audit_mode"].as_str(),
+        Some("e2ee")
+    );
+
+    let (status, body) = app
+        .get_authed("/api/admin/settings/message-runtime", &token)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "admin settings after update: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let admin_updated = body_json(&body);
+    assert_eq!(
+        admin_updated["server_storage_mode"].as_str(),
+        Some("relay_only")
+    );
+    assert_eq!(admin_updated["content_audit_mode"].as_str(), Some("e2ee"));
+
+    let invalid_payload = r#"{"server_storage_mode":"archive","content_audit_mode":"plaintext"}"#;
+    let (status, body) = app
+        .put_json_authed(
+            "/api/admin/settings/message-runtime",
+            &token,
+            invalid_payload,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "invalid runtime should be rejected: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let invalid_payload = r#"{"server_storage_mode":"persist","content_audit_mode":"unknown"}"#;
+    let (status, body) = app
+        .put_json_authed(
+            "/api/admin/settings/message-runtime",
+            &token,
+            invalid_payload,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "invalid audit mode should be rejected: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .get_authed("/api/admin/settings/message-runtime", &token)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "admin settings after invalid updates: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let after_invalid = body_json(&body);
+    assert_eq!(
+        after_invalid["server_storage_mode"].as_str(),
+        Some("relay_only")
+    );
+    assert_eq!(after_invalid["content_audit_mode"].as_str(), Some("e2ee"));
+
+    let (status, body) = app.get("/settings/general").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "public settings after invalid updates: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let public_after_invalid = body_json(&body);
+    assert_eq!(
+        public_after_invalid["message_runtime"]["server_storage_mode"].as_str(),
+        Some("relay_only")
+    );
+    assert_eq!(
+        public_after_invalid["message_runtime"]["content_audit_mode"].as_str(),
+        Some("e2ee")
+    );
+}
+
+#[tokio::test]
+async fn message_runtime_settings_update_rolls_back_on_partial_db_failure() {
+    let app = spawn_test_app().await;
+    let token = bootstrap_admin_token(&app).await;
+
+    sqlx::query(
+        r#"
+        INSERT INTO general_settings (key, value, description)
+        VALUES
+            ('message_server_storage_mode', 'persist', 'original server storage mode'),
+            ('message_content_audit_mode', 'plaintext', 'original content audit mode')
+        "#,
+    )
+    .execute(&app.pool)
+    .await
+    .expect("seed original message runtime settings");
+
+    sqlx::query(
+        r#"
+        CREATE OR REPLACE FUNCTION fail_message_content_audit_mode_for_test()
+        RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+        BEGIN
+            IF NEW.key = 'message_content_audit_mode' THEN
+                RAISE EXCEPTION 'forced message runtime failure';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        "#,
+    )
+    .execute(&app.pool)
+    .await
+    .expect("install forced failure function");
+    sqlx::query(
+        r#"
+        CREATE TRIGGER fail_message_content_audit_mode_for_test
+        BEFORE INSERT OR UPDATE ON general_settings
+        FOR EACH ROW
+        EXECUTE FUNCTION fail_message_content_audit_mode_for_test();
+        "#,
+    )
+    .execute(&app.pool)
+    .await
+    .expect("install forced failure trigger");
+
+    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"e2ee"}"#;
+    let (status, body) = app
+        .put_json_authed("/api/admin/settings/message-runtime", &token, relay_payload)
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "forced second setting failure should fail the update: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    sqlx::query("DROP TRIGGER fail_message_content_audit_mode_for_test ON general_settings")
+        .execute(&app.pool)
+        .await
+        .expect("drop forced failure trigger");
+    sqlx::query("DROP FUNCTION fail_message_content_audit_mode_for_test()")
+        .execute(&app.pool)
+        .await
+        .expect("drop forced failure function");
+
+    let server_storage_value: String = sqlx::query_scalar(
+        "SELECT value FROM general_settings WHERE key = 'message_server_storage_mode'",
+    )
+    .fetch_one(&app.pool)
+    .await
+    .expect("load server storage mode setting");
+    assert_eq!(
+        server_storage_value, "persist",
+        "事务回滚后不应部分覆盖 server_storage_mode"
+    );
+    let content_audit_value: String = sqlx::query_scalar(
+        "SELECT value FROM general_settings WHERE key = 'message_content_audit_mode'",
+    )
+    .fetch_one(&app.pool)
+    .await
+    .expect("load content audit mode setting");
+    assert_eq!(
+        content_audit_value, "plaintext",
+        "事务回滚后不应部分覆盖 content_audit_mode"
+    );
+
+    let (status, body) = app.get("/settings/general").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "public settings after failed transaction: {}",
+        String::from_utf8_lossy(&body)
+    );
+    let public = body_json(&body);
+    assert_eq!(
+        public["message_runtime"]["server_storage_mode"].as_str(),
+        Some("persist")
+    );
+    assert_eq!(
+        public["message_runtime"]["content_audit_mode"].as_str(),
+        Some("plaintext")
+    );
+}
+
+#[tokio::test]
+async fn push_settings_supports_apns_provider_config() {
+    let app = spawn_test_app().await;
+    let token = bootstrap_admin_token(&app).await;
 
     let payload = serde_json::json!({
         "enabled": true,
