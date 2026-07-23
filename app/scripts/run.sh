@@ -11,7 +11,7 @@
 
 set -e
 
-# 切换到 frontend 根目录
+# 切换到 Flutter app 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 
@@ -59,7 +59,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ "$DEVICE_EXPLICIT" = "0" ]; then
-    DEVICE_ID="$(resolve_frontend_acceptance_device "$DEVICE_ID")"
+    DEVICE_ID="$(resolve_app_acceptance_device "$DEVICE_ID")"
 fi
 
 echo -e "${BLUE}🚀 Flutter 运行脚本${NC}"
@@ -74,8 +74,8 @@ DART_DEFINES=$(load_env_as_dart_defines "$ENV_FILE")
 
 ENV_NAME="$(get_env_value "ENV" "development" "$ENV_FILE")"
 if [ "$ENV_NAME" = "development" ]; then
-    LOCAL_BACKEND_DEFINES="$(build_local_backend_dart_defines "$DEVICE_ID")"
-    DART_DEFINES="$DART_DEFINES$LOCAL_BACKEND_DEFINES"
+    LOCAL_API_DEFINES="$(build_local_api_dart_defines "$DEVICE_ID")"
+    DART_DEFINES="$DART_DEFINES$LOCAL_API_DEFINES"
 fi
 
 # 获取依赖

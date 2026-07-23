@@ -14,7 +14,7 @@
 
 set -e
 
-# 切换到 frontend 根目录
+# 切换到 Flutter app 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 

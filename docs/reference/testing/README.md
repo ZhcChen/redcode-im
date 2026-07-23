@@ -47,22 +47,23 @@ make tests.mocks.external
 ```bash
 cd app && flutter analyze
 cd app && flutter test
+make app.test.scripts
 make app.test.integration.smoke
 ```
 
 默认 app 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
-设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以先走默认 `macos` target。
+设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以显式指定 `APP_TEST_DEVICE=macos` 作为临时兜底。
 推荐使用 Makefile 入口自动完成：
 
 ```bash
 # 不访问真实 api，快速验证 integration harness
 make app.test.integration.smoke
 
-# 本机 api 联通性验证（默认 macos + http://127.0.0.1:8010）
+# 本机 api 联通性验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
 make app.test.integration.network
 
-# 真实账号密码注册/登录验证（默认 macos + http://127.0.0.1:8010）
+# 真实账号密码注册/登录验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
 make app.test.integration.auth
 
 # 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
@@ -74,7 +75,7 @@ make app.test.integration.device.reverse
 make app.test.integration.device.auth.reverse
 ```
 
-`FLUTTER_DEVICE` 默认为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
+`APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make app.test.integration.network APP_TEST_DEVICE=3A091FDJG001DN` 或 `make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
 
 ### App Patrol
 ```bash
@@ -104,7 +105,7 @@ make h5-app.test.e2e
 ```
 
 说明：
-- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，也是当前 backend + frontend 联调优先入口。
+- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，也是当前 API + App 端联调优先入口。
 - H5 dev server 固定端口为 `8016`，API 固定端口为 `8010`。
 - 本地联调依赖由 `api/docker/dev/docker-compose.yml` 创建；PostgreSQL、Redis、external-mock 随 API dev 栈启动。
 - 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上 B2、FCM 或 APNs。
@@ -441,7 +442,7 @@ make api.test          # Compose 内 Rust 单元 + 集成（自动拉起 pg/redi
 - admin route / core flow smoke
 - app integration smoke
 - api + app 联调时先启动 api，再跑 `make app.test.integration.network`；设备联调用 `make app.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
-- backend + frontend/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth、admin live backend、desktop live backend smoke。
+- API + app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth、admin live backend、desktop live backend smoke。
 
 ---
 

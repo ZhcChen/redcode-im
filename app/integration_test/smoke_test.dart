@@ -8,7 +8,9 @@ import 'package:app/core/storage/attachment_url_cache.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('frontend integration smoke: auth bus can emit state', (tester) async {
+  testWidgets('flutter app integration smoke: auth bus can emit state', (
+    tester,
+  ) async {
     final completer = Completer<AuthState>();
     final sub = AuthStateBus.stream.listen((state) {
       if (!completer.isCompleted) {
@@ -23,7 +25,9 @@ void main() {
     await sub.cancel();
   });
 
-  testWidgets('frontend integration smoke: attachment cache in async flow', (tester) async {
+  testWidgets('flutter app integration smoke: attachment cache in async flow', (
+    tester,
+  ) async {
     final cache = AttachmentUrlCache.instance;
     cache.clear();
 

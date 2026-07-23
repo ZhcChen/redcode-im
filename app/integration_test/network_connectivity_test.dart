@@ -14,7 +14,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'frontend integration network: backend healthz reachable via API_BASE_URL',
+    'flutter app integration network: api healthz reachable via API_BASE_URL',
     (tester) async {
       final uri = Uri.parse('${EnvironmentConfig.apiBaseUrl}/healthz');
       final client = HttpClient()
@@ -40,7 +40,7 @@ void main() {
   );
 
   testWidgets(
-    'frontend integration network: websocket handshake reachable via WS_URL',
+    'flutter app integration network: websocket handshake reachable via WS_URL',
     (tester) async {
       final socket = await WebSocket.connect(
         EnvironmentConfig.wsUrl,

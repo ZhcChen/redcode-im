@@ -1,105 +1,64 @@
-# app
+# RedCode IM Flutter App
 
-A new Flutter project.
+`app/` 是当前保留维护的 Flutter 移动端模块。它不再作为新原生迁移的唯一实现来源，但必须持续对齐当前已闭合的 `api/` 合同，作为行为对照、回滚包和跨端回归入口。
 
-## Getting Started
+## 当前维护口径
 
-This project is a starting point for a Flutter application.
+- 默认认证链路：普通账号密码注册/登录。
+- 邮箱注册/登录：仅作为后台配置兼容能力保留，当前自动化不依赖真实邮箱资源。
+- 短信验证码登录/重置密码：保留接口入口，不作为当前默认验收主线。
+- Google / Apple 登录：不进入当前主线。
+- 对象存储、Push、IPInfo：本地联调必须走 Compose API dev 栈内的 `external-mock`，不得访问线上 B2、FCM、APNs。
+- 设备验收：优先 `Pixel 8 Pro (3A091FDJG001DN)`；未连接时回退本机 iOS Simulator；真机前必须重新检测本机 LAN IP。
 
-A few resources to get you started if this's your first Flutter project:
+## 常用命令
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
-
-## Build Commands
-
-### Development
 ```bash
-# Install dependencies
-flutter pub get
+make app.install
+make app.check
+make app.test.scripts
+make app.test.unit
+make app.test.integration.smoke
 
-# Run in debug mode
-flutter run
-
-# Run tests
-flutter test
+# 真实 API 联调：先启动 Compose API dev 栈
+make api.up
+make api.wait
+make app.test.integration.auth
 ```
 
-### iOS Build
+设备联调同样需要先启动并等待 API dev 栈：
+
 ```bash
-# Build for iOS simulator (debug only)
-flutter build ios --debug --simulator
-
-# Build for iOS device without code signing (for third-party signing)
-export LANG=en_US.UTF-8
-export LC_ALL=en_US.UTF-8
-flutter build ios --release --no-codesign
-
-# Create IPA file for third-party signing
-cd build/ios/iphoneos
-zip -r ../../ipa/runner.ipa Runner.app
+make api.up
+make api.wait
+make app.test.integration.device
+make app.test.integration.device.auth
 ```
 
-### Android Build
-```bash
-# 使用构建脚本（推荐）
-./build_android.sh
+## API 合同基线
 
-# 手动构建 APK
-flutter build apk --release
+Flutter 当前直接对接 `api/` 的 REST 和 WebSocket JSON 合同；核心入口包括但不限于：
 
-# 手动构建 App Bundle (for Google Play)
-flutter build appbundle --release
-```
+- `/auth/register`、`/auth/login`、`/auth/login/sms`、`/auth/me`、`/auth/refresh`
+- `/auth/sms/send`、`/auth/password/reset`
+- `/users/me`、`/users/me/password`、`/users/me/avatar/*`
+- `/users/search`、`/users/{user_id}`、`/friends/*`
+- `/chats`、`/chats/{room_id}`、`/rooms/*`
+- `/rooms/{room_id}/messages/*`
+- `/rooms/{room_id}/messages/attachments/*`
+- `/uploads/multipart/*`
+- `/messages/search`
+- `/emoji-packs/*`
+- `/settings/*`
+- `/versions/*`
+- `/feedbacks`、`/reports/*`
+- `/push/devices`
+- `/system/upload-policy`
 
-### Build Scripts
-```bash
-# iOS IPA 构建（用于超级签名）
-./build_ipa.sh
+API 侧闭合验证入口为 `make api.test`；Flutter 侧维护变更至少跑 `make app.check` 和 `make app.test.unit`。涉及真实 API 合同的变更还要跑 `make app.test.integration.auth` 或对应 integration 入口。
 
-# Android APK/AAB 构建（交互式菜单）
-./build_android.sh
-```
+## 文档入口
 
-### Other Platforms
-```bash
-# Web
-flutter build web --release
-
-# macOS
-flutter build macos --release
-
-# Windows
-flutter build windows --release
-
-# Linux
-flutter build linux --release
-```
-
-## Environment Setup
-
-### iOS Development
-1. Set UTF-8 locale (required for CocoaPods):
-   ```bash
-   export LANG=en_US.UTF-8
-   export LC_ALL=en_US.UTF-8
-   ```
-
-2. Install iOS dependencies:
-   ```bash
-   cd ios && pod install && cd ..
-   ```
-
-3. For device deployment, configure signing in Xcode:
-   ```bash
-   open ios/Runner.xcworkspace
-   ```
-
-### Troubleshooting
-- If encountering permission errors, run `flutter clean` and rebuild
-- For iOS signing issues, use `--no-codesign` flag for third-party signing services
-- Ensure Xcode command line tools are installed: `xcode-select --install`
+- 脚本说明：`app/scripts/README.md`
+- 测试总览：`docs/reference/testing/README.md`
+- 剩余任务总账：`docs/reports/task-list.md`

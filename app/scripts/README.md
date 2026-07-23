@@ -95,13 +95,13 @@ vim .env.development.local
 统一 app integration 入口，Makefile 已封装常用命令：
 
 ```bash
-# 不访问真实 backend，快速验证 integration harness
+# 不访问真实 api，快速验证 integration harness
 make app.test.integration.smoke
 
-# 访问本机 backend，默认 macos + http://127.0.0.1:8010
+# 访问本机 api，默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1
 make app.test.integration.network
 
-# 真实普通账号注册/登录，默认 macos + http://127.0.0.1:8010
+# 真实普通账号注册/登录，默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1
 make app.test.integration.auth
 
 # 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
@@ -118,7 +118,7 @@ make app.test.integration.device.auth
 ./scripts/test_integration.sh device --device 3A091FDJG001DN
 ```
 
-`device` 模式优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
+`smoke`、`network`、`auth` 与 `device` 模式默认都优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
 
 ```bash
 API_BASE_URL=http://<LAN_IP>:8010
@@ -132,9 +132,10 @@ API_BASE_URL=http://127.0.0.1:8010
 WS_URL=ws://127.0.0.1:8010/ws
 ```
 
-Makefile 中 `FLUTTER_DEVICE` 默认为空，脚本会自行按验收顺序选择设备；需要强制指定时再传入，例如：
+Makefile 中 `APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都可用于强制指定设备；都为空时脚本会自行按验收顺序选择设备，例如：
 
 ```bash
+make app.test.integration.network APP_TEST_DEVICE=3A091FDJG001DN
 make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN
 ```
 
@@ -194,7 +195,7 @@ scripts/
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
 ├── run_flutter.sh           # 基础运行脚本（传统，默认 Pixel 8 Pro）
-├── test_integration.sh      # integration smoke / backend 联通 / 设备联调测试
+├── test_integration.sh      # integration smoke / api 联通 / 设备联调测试
 │
 ├── build_android.sh         # Android 打包（传统）
 ├── build_ipa.sh             # iOS 打包（传统）

@@ -230,7 +230,7 @@ find_first_ios_simulator_device_from_simctl() {
     '
 }
 
-resolve_frontend_acceptance_device() {
+resolve_app_acceptance_device() {
     local requested_device_id="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
     local simulator_id=""
 
@@ -357,7 +357,11 @@ ensure_ios_simulator_ready() {
     fi
 }
 
-build_local_backend_dart_defines() {
+resolve_frontend_acceptance_device() {
+    resolve_app_acceptance_device "$@"
+}
+
+build_local_api_dart_defines() {
     local device_id="$1"
     local lan_ip=""
 
@@ -380,6 +384,10 @@ build_local_backend_dart_defines() {
 
     echo "📡 检测到当前局域网 IP: ${lan_ip}" >&2
     echo " --dart-define=API_BASE_URL=http://${lan_ip}:8010 --dart-define=WS_URL=ws://${lan_ip}:8010/ws"
+}
+
+build_local_backend_dart_defines() {
+    build_local_api_dart_defines "$@"
 }
 
 describe_flutter_device() {

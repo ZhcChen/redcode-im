@@ -13,11 +13,11 @@
   重构 -> 全模块回归与发布准备。
 - 当前立即任务：`ANDROID-P1-02 设置、账号和配置`。
 - `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，待本切片提交推送后进入归档。
-- `h5-app` 已完成 Flutter parity P1，是当前 backend + frontend 联调优先入口。
+- `h5-app` 已完成 Flutter parity P1，是当前 API + App 端联调优先入口。
 - `ios-app` 主链路已完成；只保留 iPhone 真机/APNs 补验项。
 - `android-app` 已完成 P0 媒体切片、聊天扩展和 H5/API/Android 基础联调脚本；
   剩余集中在设置账号配置、通知 mock、底座协议和最终切换准备。
-- Flutter `app/` 保留，不移除；后续只作为行为对照、回滚包和原生迁移基线。
+- Flutter `app/` 保留并继续维护，按当前已闭合 API 合同作为行为对照、回滚包和原生迁移基线。
 - 当前默认普通账号密码注册/登录；Google / Apple 登录不进入当前主线。
 - 邮箱注册/登录只作为后台配置能力保留；当前测试不依赖真实邮箱资源，也不要求
   邮箱验证码二次验证。
@@ -414,7 +414,7 @@
 - Android 原生切换条件：Android P0/P1 完成、interop 通过、真机必要项按发布要求
   补验或明确豁免。
 - iOS 原生切换条件：当前主链路已完成；正式上架如要求 APNs/真机则恢复补验。
-- H5 保持 backend + frontend 联调基准端。
+- H5 保持 API + App 端联调基准端。
 
 ### RELEASE-P3-03 发布与回滚文档
 

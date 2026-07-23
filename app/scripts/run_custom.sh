@@ -22,7 +22,7 @@ echo -e "  ./run_custom.sh http://192.168.1.100:8010 3A091FDJG001DN"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010 emulator-5554"
 echo ""
 
-# 切换到 frontend 根目录
+# 切换到 Flutter app 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/common.sh"

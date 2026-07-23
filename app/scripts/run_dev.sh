@@ -13,7 +13,7 @@ NC='\033[0m'
 echo -e "${BLUE}🚀 开发环境运行 Flutter 应用...${NC}"
 echo ""
 
-# 切换到 frontend 根目录
+# 切换到 Flutter app 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/common.sh"
@@ -28,12 +28,12 @@ echo -e "${GREEN}2. 检查可用设备...${NC}"
 if [ -n "${1:-}" ]; then
     DEVICE_ID="$1"
 else
-    DEVICE_ID="$(resolve_frontend_acceptance_device "$DEFAULT_FLUTTER_DEVICE_ID")"
+    DEVICE_ID="$(resolve_app_acceptance_device "$DEFAULT_FLUTTER_DEVICE_ID")"
 fi
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 show_and_verify_flutter_devices "$DEVICE_ID"
 
-LOCAL_BACKEND_DEFINES="$(build_local_backend_dart_defines "$DEVICE_ID")"
+LOCAL_API_DEFINES="$(build_local_api_dart_defines "$DEVICE_ID")"
 LAN_IP=""
 if is_real_mobile_device "$DEVICE_ID"; then
     LAN_IP="$(get_current_lan_ip)"
@@ -55,5 +55,5 @@ echo -e "   设备: $DEVICE_LABEL"
 echo ""
 flutter run -d "$DEVICE_ID" \
     --dart-define=ENV=development \
-    $LOCAL_BACKEND_DEFINES \
+    $LOCAL_API_DEFINES \
     --dart-define=ENABLE_DEBUG_LOG=true

@@ -66,11 +66,13 @@ DESKTOP_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 APP_DIR := $(ROOT_DIR)/app
 APP_ENV ?= .env.development
 FLUTTER_DEVICE ?=
-APP_TEST_DEVICE ?= macos
+APP_TEST_DEVICE ?=
+FRONTEND_TEST_DEVICE ?=
+APP_SELECTED_TEST_DEVICE := $(strip $(or $(APP_TEST_DEVICE),$(FRONTEND_TEST_DEVICE),$(FLUTTER_DEVICE)))
 APP_ANDROID_ENV ?= production
 APP_IOS_ENV ?= production
-APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
-APP_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
+APP_API_BASE_URL ?=
+APP_WS_URL ?=
 PATROL_IOS_DEVICE ?= iPhone 17 Pro
 PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
@@ -141,7 +143,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -194,6 +196,7 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) api.test.smoke
 	@$(MAKE) api.migration.guard
 	@$(MAKE) app.check
+	@$(MAKE) app.test.scripts
 	@$(MAKE) app.test.unit
 	@$(MAKE) app.test.integration.smoke
 	@$(MAKE) admin.check
@@ -614,6 +617,9 @@ app.test.unit: ## 执行 app 全量 Flutter test
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && $(FLUTTER) test
 
+app.test.scripts: ## 执行 app shell 脚本契约测试
+	@cd "$(APP_DIR)" && ./scripts/test_integration_contract_test.sh
+
 app.test.core: ## 执行 app core 测试
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && $(FLUTTER) test test/core
@@ -632,31 +638,31 @@ app.test.features: ## 执行 app features 模型测试
 
 app.test.integration.smoke: ## 执行 app integration smoke（不访问真实 api）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && ./scripts/test_integration.sh smoke
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh smoke
 
-app.test.integration.network: ## 执行 app network integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
+app.test.integration.network: ## 执行 app network integration（默认验收设备；非真机可覆盖 APP_API_BASE_URL / APP_WS_URL）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh network --device "$(APP_TEST_DEVICE)"
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh network
 
-app.test.integration.auth: ## 执行 app 真实普通账号注册/登录 integration（默认 macos + 127.0.0.1:8010，可覆盖 APP_TEST_DEVICE / APP_API_BASE_URL / APP_WS_URL）
+app.test.integration.auth: ## 执行 app 真实普通账号注册/登录 integration（默认验收设备；非真机可覆盖 APP_API_BASE_URL / APP_WS_URL）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth --device "$(APP_TEST_DEVICE)"
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth
 
 app.test.integration.device: ## 执行 app 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device; fi
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device
 
 app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart; fi
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart
 
 app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse; fi
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse
 
 app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普通账号注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart --device "$(FLUTTER_DEVICE)"; else ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart; fi
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart
 
 app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))

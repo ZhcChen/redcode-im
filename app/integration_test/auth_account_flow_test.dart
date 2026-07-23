@@ -12,14 +12,14 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'frontend integration auth: account register and password login',
+    'flutter app integration auth: account register and password login',
     (tester) async {
       final storage = TokenStorage();
       await storage.clear();
 
       final repository = AuthRepository(storage: storage);
       final timestamp = DateTime.now().microsecondsSinceEpoch;
-      final account = 'frontend$timestamp'.substring(0, 20);
+      final account = 'flutter$timestamp'.substring(0, 20);
       const password = 'pass123456';
 
       final registered = await repository.register(

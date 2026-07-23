@@ -14,7 +14,7 @@ NC='\033[0m'
 echo -e "${BLUE}🚀 生产环境运行 Flutter 应用...${NC}"
 echo ""
 
-# 切换到 frontend 根目录
+# 切换到 Flutter app 根目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/common.sh"
