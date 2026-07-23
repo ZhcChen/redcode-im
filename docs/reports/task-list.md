@@ -20,10 +20,11 @@
 
 - 当前主线：Android 原生 P1 parity -> Android P2
   底座/通知 -> API 架构和性能重构 -> 全模块回归与发布准备。
-- 当前立即任务：`ANDROID-P1-01 聊天扩展`。
+- 当前立即任务：`ANDROID-P1-02 设置、账号和配置`。
+- `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，待本切片提交推送后进入归档。
 - `h5-app` 已完成 Flutter parity P1，是当前 backend + frontend 联调优先入口。
 - `ios-app` 主链路已完成；仅保留 iPhone 真机/APNs 补验。
-- `android-app` 已完成 P0 媒体切片；剩余集中在聊天扩展、设置账号配置、通知
+- `android-app` 已完成 P0 媒体切片和聊天扩展；剩余集中在设置账号配置、通知
   mock、底座协议和最终切换准备。
 - Flutter `app/` 保留，不移除；后续只作为回滚和对照基线。
 - Google / Apple 登录不进入当前主线；默认普通账号密码注册/登录。
@@ -42,8 +43,12 @@
   - 已串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
   - 已覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限恢复状态机和
     语音播放状态机。
-- [ ] `ANDROID-P1-01` 聊天扩展
+- [x] `ANDROID-P1-01` 聊天扩展
   - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
+  - 已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
+- [ ] `ANDROID-P1-02` 设置、账号和配置
+  - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、
+    反馈、配置、版本检查。
 
 ## H5 剩余任务
 
@@ -58,8 +63,9 @@
 
 ## Android 剩余任务
 
-- [ ] `ANDROID-P1-01` 聊天扩展
+- [x] `ANDROID-P1-01` 聊天扩展
   - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
+  - 已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
 - [ ] `ANDROID-P1-02` 设置、账号和配置
   - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、
     反馈、配置、版本检查。
@@ -102,6 +108,9 @@ IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios
   - 分布式 profile 引入 NATS Core。
   - 需要持久化、重放、消费者 ack 时再引入 NATS JetStream。
   - Kafka 暂不作为 IM 实时消息主链路。
+- [ ] `API-SEC-P2-01` 表情下载 URL 授权补齐
+  - `/emoji-packs/download-url` 校验 object key 是否属于当前用户已拥有或可访问的表情包。
+  - 拒绝仅满足 `emoji-items/` / `emoji-packs/` 前缀但无授权关系的 key。
 - [ ] `ARCH-P2-03` Compose-first 环境扩展
   - 新增中间件同步 dev/test/perf profile。
   - 测试栈 PG/Redis/external-mock 不映射宿主端口。

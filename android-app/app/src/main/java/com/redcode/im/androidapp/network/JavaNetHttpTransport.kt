@@ -7,9 +7,17 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.time.Duration
 
 class JavaNetHttpTransport : HttpTransport {
-    private val client = OkHttpClient()
+    private val client =
+        OkHttpClient
+            .Builder()
+            .connectTimeout(DEFAULT_TIMEOUT)
+            .readTimeout(DEFAULT_TIMEOUT)
+            .writeTimeout(DEFAULT_TIMEOUT)
+            .callTimeout(CALL_TIMEOUT)
+            .build()
 
     override suspend fun execute(request: HttpRequest): HttpResponse =
         withContext(Dispatchers.IO) {
@@ -43,7 +51,18 @@ class JavaNetHttpTransport : HttpTransport {
                     .build()
 
             client.newCall(okHttpRequest).execute().use { response ->
-                val bytes = response.body?.bytes() ?: ByteArray(0)
+                val bytes =
+                    response.body?.let { body ->
+                        request.maxResponseBytes?.let { maxBytes ->
+                            val contentLength = body.contentLength()
+                            if (contentLength > maxBytes) {
+                                throw NetworkFailure(statusCode = response.code, message = "响应体超过大小限制")
+                            }
+                            body.byteStream().use { stream ->
+                                stream.readLimited(maxBytes)
+                            }
+                        } ?: body.bytes()
+                    } ?: ByteArray(0)
                 HttpResponse(
                     statusCode = response.code,
                     body = bytes.toString(Charsets.UTF_8),
@@ -52,7 +71,25 @@ class JavaNetHttpTransport : HttpTransport {
             }
         }
 
+    private fun java.io.InputStream.readLimited(maxBytes: Long): ByteArray {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        val output = java.io.ByteArrayOutputStream()
+        var total = 0L
+        while (true) {
+            val read = read(buffer)
+            if (read == -1) break
+            total += read
+            if (total > maxBytes) {
+                throw NetworkFailure(message = "响应体超过大小限制")
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
+    }
+
     private companion object {
+        val DEFAULT_TIMEOUT: Duration = Duration.ofSeconds(15)
+        val CALL_TIMEOUT: Duration = Duration.ofSeconds(30)
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         val BINARY_MEDIA_TYPE = "application/octet-stream".toMediaType()
     }

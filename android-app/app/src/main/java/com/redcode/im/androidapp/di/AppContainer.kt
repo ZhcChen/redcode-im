@@ -15,6 +15,10 @@ import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.data.contacts.HttpFriendRemoteDataSource
 import com.redcode.im.androidapp.data.contacts.InMemoryContactsRepository
 import com.redcode.im.androidapp.data.contacts.RemoteContactsRepository
+import com.redcode.im.androidapp.data.emoji.EmojiRepository
+import com.redcode.im.androidapp.data.emoji.HttpEmojiRemoteDataSource
+import com.redcode.im.androidapp.data.emoji.InMemoryEmojiRepository
+import com.redcode.im.androidapp.data.emoji.RemoteEmojiRepository
 import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.media.AvatarCacheRepository
 import com.redcode.im.androidapp.data.media.HttpAvatarRemoteDataSource
@@ -51,6 +55,7 @@ class AppContainer(
     private val localRoomRepository: RoomGroupRepository? = null,
     private val attachmentFileCache: FileResourceCache? = null,
     private val avatarFileCache: FileResourceCache? = null,
+    private val emojiFileCache: FileResourceCache? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -114,6 +119,16 @@ class AppContainer(
         } else {
             InMemorySettingsRepository()
         },
+    val emojiRepository: EmojiRepository =
+        if (useRemoteChat && emojiFileCache != null) {
+            RemoteEmojiRepository(
+                remoteDataSource = HttpEmojiRemoteDataSource(APIClient(environment)),
+                session = authRepository.session,
+                cache = emojiFileCache,
+            )
+        } else {
+            InMemoryEmojiRepository()
+        },
     val avatarCacheRepository: AvatarCacheRepository? =
         avatarFileCache?.let { cache ->
             AvatarCacheRepository(
@@ -143,11 +158,20 @@ class AppContainer(
         },
 ) {
     suspend fun clearLocalSessionState() {
-        webSocketClient?.disconnect()
-        chatRepository.clearLocalState()
-        contactsRepository.clearLocalState()
-        roomRepository.clearLocalState()
-        attachmentFileCache?.clear()
-        avatarCacheRepository?.clear()
+        val errors =
+            listOf(
+                suspend { webSocketClient?.disconnect() },
+                suspend { chatRepository.clearLocalState() },
+                suspend { contactsRepository.clearLocalState() },
+                suspend { roomRepository.clearLocalState() },
+                suspend { attachmentFileCache?.clear() },
+                suspend { avatarCacheRepository?.clear() },
+                suspend { emojiRepository.clearLocalState() },
+            ).mapNotNull { cleanup ->
+                runCatching { cleanup() }.exceptionOrNull()
+            }
+        if (errors.isNotEmpty()) {
+            throw IllegalStateException("本地会话清理部分失败", errors.first())
+        }
     }
 }

@@ -111,9 +111,11 @@ ANDROID_GRADLE ?= $(shell command -v gradle 2>/dev/null || find "$$HOME/.gradle/
 ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
 ANDROID_HOME ?= $(ANDROID_SDK_ROOT)
 ADB ?= $(ANDROID_HOME)/platform-tools/adb
-ANDROID_APP_DEVICE ?= emulator-5554
-ANDROID_APP_API_BASE_URL ?= http://10.0.2.2:$(API_PORT)
-ANDROID_APP_WS_URL ?= ws://10.0.2.2:$(API_PORT)/ws
+ANDROID_APP_PREFERRED_DEVICE ?= 3A091FDJG001DN
+ANDROID_APP_DEVICE ?= $(shell if [ -x "$(ADB)" ]; then "$(ADB)" devices | awk -v preferred="$(ANDROID_APP_PREFERRED_DEVICE)" 'NR > 1 && $$2 == "device" { if ($$1 == preferred) { print $$1; found = 1; exit } if ($$1 ~ /^emulator-/ && emulator == "") emulator = $$1; if (first == "") first = $$1 } END { if (!found) print (emulator != "" ? emulator : (first != "" ? first : "emulator-5554")) }'; else printf "%s" "emulator-5554"; fi)
+ANDROID_APP_LAN_IP ?= $(shell iface="$$(route get default 2>/dev/null | awk '/interface:/{print $$2; exit}')"; if [ -n "$$iface" ]; then ipconfig getifaddr "$$iface" 2>/dev/null; fi)
+ANDROID_APP_API_BASE_URL ?= $(shell device="$(ANDROID_APP_DEVICE)"; lan_ip="$(ANDROID_APP_LAN_IP)"; if printf "%s" "$$device" | grep -q '^emulator-'; then printf "http://10.0.2.2:$(API_PORT)"; elif [ -n "$$lan_ip" ]; then printf "http://%s:$(API_PORT)" "$$lan_ip"; else printf "__ANDROID_APP_LAN_IP_REQUIRED__"; fi)
+ANDROID_APP_WS_URL ?= $(shell device="$(ANDROID_APP_DEVICE)"; lan_ip="$(ANDROID_APP_LAN_IP)"; if printf "%s" "$$device" | grep -q '^emulator-'; then printf "ws://10.0.2.2:$(API_PORT)/ws"; elif [ -n "$$lan_ip" ]; then printf "ws://%s:$(API_PORT)/ws" "$$lan_ip"; else printf "__ANDROID_APP_LAN_IP_REQUIRED__"; fi)
 ANDROID_APP_USE_REMOTE_AUTH ?= false
 ANDROID_APP_LIVE_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 ANDROID_APP_LIVE_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
@@ -124,13 +126,20 @@ define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
+define require_android_app_network
+if [ "$(ANDROID_APP_API_BASE_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ] || [ "$(ANDROID_APP_WS_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ]; then \
+	echo "[android-app] 当前目标设备是物理设备，但未能解析本机 LAN IP；请设置 ANDROID_APP_LAN_IP=<LAN_IP>" >&2; \
+	exit 66; \
+fi
+endef
+
 .PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs \
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
-	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.install android-app.smoke.emulator \
+	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -865,9 +874,10 @@ android-app.test.live: ## 执行 android-app 真实后端聊天/好友 smoke（�
 
 android-app.test.interop.support: ## 执行 H5/API/Android 联调所需的 Android 本地能力定向测试
 	@$(call require_cmd,$(ANDROID_GRADLE))
-	@echo "[android-app] interop support: avatar cache + permission recovery + audio playback"
+	@echo "[android-app] interop support: avatar cache + emoji cache + permission recovery + audio playback"
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks \
 		--tests 'com.redcode.im.androidapp.data.AvatarCacheRepositoryTest' \
+		--tests 'com.redcode.im.androidapp.data.EmojiRepositoryTest' \
 		--tests 'com.redcode.im.androidapp.feature.PermissionRecoveryTest' \
 		--tests 'com.redcode.im.androidapp.feature.ChatViewModelTest'
 
@@ -890,8 +900,9 @@ android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" coverageDebugUnitTest
 	@echo "[android-app] coverage: $(ANDROID_APP_DIR)/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html"
 
-android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android Emulator 的 10.0.2.2）
+android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android Emulator 的 10.0.2.2，可传真机 LAN API/WS）
 	@$(call require_cmd,$(ANDROID_GRADLE))
+	@$(require_android_app_network)
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
 		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
 		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
@@ -902,15 +913,23 @@ android-app.lint: ## 运行 android-app Android Lint
 	@$(call require_cmd,$(ANDROID_GRADLE))
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" lintDebug
 
-android-app.resolve.device: ## 输出当前 Android Emulator 设备 ID
+android-app.resolve.device: ## 输出当前 Android 设备 ID（优先 Pixel 8 Pro，缺失时回退 Emulator）
 	@$(call require_cmd,$(ADB))
-	@DEVICE_ID="$$( "$(ADB)" devices | awk 'NR > 1 && $$2 == "device" && $$1 ~ /^emulator-/ { print $$1; exit }' )"; \
-	if [ -z "$$DEVICE_ID" ]; then echo "[android-app] 未找到已连接 Android Emulator" >&2; exit 66; fi; \
+	@DEVICE_ID="$$( "$(ADB)" devices | awk -v preferred="$(ANDROID_APP_PREFERRED_DEVICE)" 'NR > 1 && $$2 == "device" { if ($$1 == preferred) { print $$1; found = 1; exit } if ($$1 ~ /^emulator-/ && emulator == "") emulator = $$1; if (first == "") first = $$1 } END { if (!found) print (emulator != "" ? emulator : first) }' )"; \
+	if [ -z "$$DEVICE_ID" ]; then echo "[android-app] 未找到已连接 Android 设备" >&2; exit 66; fi; \
 	echo "$$DEVICE_ID"
 
-android-app.connected-test: ## 在当前 Android Emulator 上运行 Compose instrumented tests
+android-app.resolve.network: ## 输出当前 android-app 设备和 API/WS 地址
+	@$(require_android_app_network)
+	@echo "ANDROID_APP_DEVICE=$(ANDROID_APP_DEVICE)"
+	@echo "ANDROID_APP_LAN_IP=$(ANDROID_APP_LAN_IP)"
+	@echo "ANDROID_APP_API_BASE_URL=$(ANDROID_APP_API_BASE_URL)"
+	@echo "ANDROID_APP_WS_URL=$(ANDROID_APP_WS_URL)"
+
+android-app.connected-test: ## 在当前 Android 设备上运行 Compose instrumented tests
 	@$(call require_cmd,$(ANDROID_GRADLE))
 	@$(call require_cmd,$(ADB))
+	@$(require_android_app_network)
 	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
 		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
@@ -918,12 +937,12 @@ android-app.connected-test: ## 在当前 Android Emulator 上运行 Compose inst
 		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
 		connectedDebugAndroidTest
 
-android-app.install: android-app.build.debug ## 安装 android-app Debug APK 到当前 Android Emulator
+android-app.install: android-app.build.debug ## 安装 android-app Debug APK 到当前 Android 设备
 	@$(call require_cmd,$(ADB))
 	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
 	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" install -r "$(ANDROID_APP_APK)"
 
-android-app.smoke.emulator: android-app.install ## 安装并启动 android-app 到当前 Android Emulator
+android-app.smoke.emulator: android-app.install ## 安装并启动 android-app 到当前 Android 设备
 	@$(call require_cmd,$(ADB))
 	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" shell am start -n "$(ANDROID_APP_PACKAGE)/.MainActivity"
 	@echo "[android-app] launched on $(ANDROID_APP_DEVICE)"

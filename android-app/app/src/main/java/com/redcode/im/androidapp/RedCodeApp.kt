@@ -12,6 +12,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
@@ -48,14 +49,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.redcode.im.androidapp.core.model.ChatBackgroundOption
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.StickerPack
+import com.redcode.im.androidapp.core.model.chatBackgroundOptions
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.AuthUser
@@ -266,6 +275,8 @@ private fun MainShell(
                                 currentUserId = currentUser.id,
                                 currentUserName = currentUser.displayName,
                                 audioPlaybackController = AndroidAudioPlaybackController(),
+                                chatPreferenceStore = container.userPreferenceStore,
+                                emojiRepository = container.emojiRepository,
                             )
                         },
                     onBack = { selectedChat = null },
@@ -434,7 +445,21 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
     DisposableEffect(viewModel) {
         onDispose { viewModel.releaseAudio() }
     }
-    Column(modifier = Modifier.fillMaxSize().testTag("chat-detail")) {
+    val messageFontSize = (14f * uiState.chatPreferences.fontScale).sp
+    val backgroundOption = chatBackgroundOption(uiState.chatPreferences.backgroundKey)
+    val backgroundColor = backgroundOption?.colorArgb?.let(::Color) ?: Color.Transparent
+    LaunchedEffect(uiState.messages, uiState.chatPreferences.autoDownloadMedia) {
+        if (uiState.chatPreferences.autoDownloadMedia) {
+            viewModel.autoDownloadMissingAttachments(uiState.messages.flatMap { it.parts }.mapNotNull { it.attachment })
+        }
+    }
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .testTag("chat-detail")
+                .semantics { testTagsAsResourceId = true },
+    ) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onBack) { Text("返回") }
             Text(summary.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -477,7 +502,17 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
             }
             HorizontalDivider()
         }
-        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+        ChatSettingsBar(
+            backgroundLabel = backgroundOption?.label ?: "默认",
+            fontScale = uiState.chatPreferences.fontScale,
+            enterToSend = uiState.chatPreferences.enterToSend,
+            autoDownloadMedia = uiState.chatPreferences.autoDownloadMedia,
+            onCycleBackground = viewModel::cycleChatBackground,
+            onCycleFontScale = viewModel::cycleFontScale,
+            onToggleEnterToSend = viewModel::toggleEnterToSend,
+            onToggleAutoDownloadMedia = viewModel::toggleAutoDownloadMedia,
+        )
+        Column(modifier = Modifier.weight(1f).background(backgroundColor).padding(16.dp)) {
             if (uiState.messages.isNotEmpty() && uiState.hasOlderMessages) {
                 TextButton(
                     onClick = viewModel::loadOlderMessages,
@@ -493,7 +528,7 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                         if (message.isPinned) {
                             Text("置顶 ", color = MaterialTheme.colorScheme.primary)
                         }
-                        Text("${message.senderName}: ${message.text}")
+                        Text("${message.senderName}: ${message.text}", fontSize = messageFontSize)
                         Spacer(modifier = Modifier.width(8.dp))
                         when (message.status) {
                             MessageStatus.Pending -> Text("发送中", style = MaterialTheme.typography.bodySmall)
@@ -620,10 +655,37 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
                 }
             }
         }
+        ChatExtensionBar(
+            isEmojiPanelVisible = uiState.isEmojiPanelVisible,
+            isStickerPanelVisible = uiState.isStickerPanelVisible,
+            isLoadingStickers = uiState.isLoadingStickers,
+            onToggleEmoji = viewModel::toggleEmojiPanel,
+            onToggleSticker = viewModel::toggleStickerPanel,
+        )
+        if (uiState.isEmojiPanelVisible) {
+            BuiltInEmojiPanel(
+                emoji = uiState.builtInEmoji,
+                onSelect = viewModel::insertEmoji,
+            )
+        }
+        if (uiState.isStickerPanelVisible) {
+            StickerPanel(
+                packs = uiState.stickerPacks,
+                isLoading = uiState.isLoadingStickers,
+                onSelect = viewModel::sendSticker,
+            )
+        }
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = uiState.draft,
-                onValueChange = viewModel::onDraftChange,
+                onValueChange = { value ->
+                    if (uiState.chatPreferences.enterToSend && value.endsWith("\n")) {
+                        viewModel.onDraftChange(value.trimEnd('\n'))
+                        viewModel.sendDraft()
+                    } else {
+                        viewModel.onDraftChange(value)
+                    }
+                },
                 label = { Text("输入消息") },
                 modifier = Modifier.weight(1f).testTag("message-input"),
             )
@@ -655,6 +717,132 @@ fun ChatDetailScreen(summary: ChatSummary, viewModel: ChatDetailViewModel, onBac
         }
     }
 }
+
+@Composable
+private fun ChatSettingsBar(
+    backgroundLabel: String,
+    fontScale: Float,
+    enterToSend: Boolean,
+    autoDownloadMedia: Boolean,
+    onCycleBackground: () -> Unit,
+    onCycleFontScale: () -> Unit,
+    onToggleEnterToSend: () -> Unit,
+    onToggleAutoDownloadMedia: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).testTag("chat-settings-bar")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                onClick = onCycleBackground,
+                modifier = Modifier.agentAction("chat-background-cycle", "切换聊天背景"),
+            ) {
+                Text("背景：$backgroundLabel")
+            }
+            TextButton(
+                onClick = onCycleFontScale,
+                modifier = Modifier.agentAction("chat-font-cycle", "切换聊天字体大小"),
+            ) {
+                Text("字体：${(fontScale * 100).toInt()}%")
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                onClick = onToggleEnterToSend,
+                modifier = Modifier.agentAction("chat-enter-to-send-toggle", "切换回车发送"),
+            ) {
+                Text("回车发送：${if (enterToSend) "开" else "关"}")
+            }
+            TextButton(
+                onClick = onToggleAutoDownloadMedia,
+                modifier = Modifier.agentAction("chat-auto-download-toggle", "切换媒体自动下载"),
+            ) {
+                Text("自动下载：${if (autoDownloadMedia) "开" else "关"}")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatExtensionBar(
+    isEmojiPanelVisible: Boolean,
+    isStickerPanelVisible: Boolean,
+    isLoadingStickers: Boolean,
+    onToggleEmoji: () -> Unit,
+    onToggleSticker: () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+            onClick = onToggleEmoji,
+            modifier = Modifier.agentAction("emoji-toggle", if (isEmojiPanelVisible) "收起 Emoji 面板" else "打开 Emoji 面板"),
+        ) {
+            Text(if (isEmojiPanelVisible) "收起 Emoji" else "Emoji")
+        }
+        TextButton(
+            onClick = onToggleSticker,
+            modifier = Modifier.agentAction("sticker-toggle", if (isStickerPanelVisible) "收起贴纸面板" else "打开贴纸面板"),
+        ) {
+            Text(
+                when {
+                    isLoadingStickers -> "贴纸加载中"
+                    isStickerPanelVisible -> "收起贴纸"
+                    else -> "贴纸"
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun BuiltInEmojiPanel(emoji: List<String>, onSelect: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag("emoji-panel")) {
+        emoji.chunked(8).forEachIndexed { rowIndex, row ->
+            Row {
+                row.forEachIndexed { columnIndex, item ->
+                    val index = rowIndex * 8 + columnIndex
+                    TextButton(
+                        onClick = { onSelect(item) },
+                        modifier = Modifier.agentAction("emoji-item-$index", "插入 Emoji $item"),
+                    ) {
+                        Text(item, fontSize = 22.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StickerPanel(
+    packs: List<StickerPack>,
+    isLoading: Boolean,
+    onSelect: (com.redcode.im.androidapp.core.model.StickerItem) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag("sticker-panel")) {
+        if (isLoading) {
+            Text("贴纸加载中", style = MaterialTheme.typography.bodySmall)
+        }
+        packs.forEach { pack ->
+            Text(pack.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            pack.items.chunked(4).forEach { row ->
+                Row {
+                    row.forEach { item ->
+                        TextButton(
+                            onClick = { onSelect(item) },
+                            modifier = Modifier.agentAction("sticker-item-${item.id}", "发送贴纸 ${item.label}"),
+                        ) {
+                            Text(item.label)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun chatBackgroundOption(backgroundKey: String): ChatBackgroundOption? =
+    chatBackgroundOptions.firstOrNull { it.key == backgroundKey }
+
+private fun Modifier.agentAction(tag: String, description: String): Modifier =
+    testTag(tag).semantics { contentDescription = description }
 
 @Composable
 fun ContactsScreen(

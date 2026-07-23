@@ -3,11 +3,21 @@ package com.redcode.im.androidapp.feature.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
-import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatRoomPreferences
+import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
+import com.redcode.im.androidapp.core.model.StickerItem
+import com.redcode.im.androidapp.core.model.StickerPack
+import com.redcode.im.androidapp.core.model.attachmentFileName
+import com.redcode.im.androidapp.core.model.chatBackgroundOptions
+import com.redcode.im.androidapp.core.model.redCodeBuiltInEmoji
+import com.redcode.im.androidapp.core.model.redCodeDefaultStickerPacks
 import com.redcode.im.androidapp.data.chat.ChatRepository
+import com.redcode.im.androidapp.data.emoji.EmojiRepository
+import com.redcode.im.androidapp.data.preferences.ChatPreferenceStore
+import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +38,10 @@ data class ChatDetailFormState(
     val isUploadingAttachment: Boolean = false,
     val attachmentCacheStatus: Map<String, String> = emptyMap(),
     val audioPlaybackStatus: Map<String, AudioPlaybackState> = emptyMap(),
+    val isEmojiPanelVisible: Boolean = false,
+    val isStickerPanelVisible: Boolean = false,
+    val isLoadingStickers: Boolean = false,
+    val stickerPacks: List<StickerPack> = redCodeDefaultStickerPacks,
 )
 
 data class ChatDetailUiState(
@@ -43,6 +57,12 @@ data class ChatDetailUiState(
     val isUploadingAttachment: Boolean = false,
     val attachmentCacheStatus: Map<String, String> = emptyMap(),
     val audioPlaybackStatus: Map<String, AudioPlaybackState> = emptyMap(),
+    val isEmojiPanelVisible: Boolean = false,
+    val isStickerPanelVisible: Boolean = false,
+    val isLoadingStickers: Boolean = false,
+    val builtInEmoji: List<String> = redCodeBuiltInEmoji,
+    val stickerPacks: List<StickerPack> = redCodeDefaultStickerPacks,
+    val chatPreferences: ChatRoomPreferences = ChatRoomPreferences(),
 )
 
 class ChatDetailViewModel(
@@ -51,10 +71,16 @@ class ChatDetailViewModel(
     private val currentUserId: String,
     private val currentUserName: String,
     private val audioPlaybackController: AudioPlaybackController = NoopAudioPlaybackController,
+    private val chatPreferenceStore: ChatPreferenceStore = InMemoryUserPreferenceStore(),
+    private val emojiRepository: EmojiRepository? = null,
 ) : ViewModel() {
     private val formState = MutableStateFlow(ChatDetailFormState())
+    private val autoDownloadInFlight = mutableSetOf<String>()
+    private val chatPreferences =
+        chatPreferenceStore.chatPreferences(roomId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatRoomPreferences())
     val uiState: StateFlow<ChatDetailUiState> =
-        combine(chatRepository.messages(roomId), formState) { messages, form ->
+        combine(chatRepository.messages(roomId), formState, chatPreferences) { messages, form, preferences ->
             ChatDetailUiState(
                 messages = messages,
                 draft = form.draft,
@@ -68,6 +94,11 @@ class ChatDetailViewModel(
                 isUploadingAttachment = form.isUploadingAttachment,
                 attachmentCacheStatus = form.attachmentCacheStatus,
                 audioPlaybackStatus = form.audioPlaybackStatus,
+                isEmojiPanelVisible = form.isEmojiPanelVisible,
+                isStickerPanelVisible = form.isStickerPanelVisible,
+                isLoadingStickers = form.isLoadingStickers,
+                stickerPacks = form.stickerPacks,
+                chatPreferences = preferences,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatDetailUiState())
 
@@ -81,6 +112,174 @@ class ChatDetailViewModel(
 
     fun onDraftChange(value: String) {
         formState.update { it.copy(draft = value, errorMessage = null) }
+    }
+
+    fun toggleEmojiPanel() {
+        formState.update {
+            it.copy(
+                isEmojiPanelVisible = !it.isEmojiPanelVisible,
+                isStickerPanelVisible = false,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun toggleStickerPanel() {
+        val shouldLoad = !formState.value.isStickerPanelVisible
+        formState.update {
+            it.copy(
+                isStickerPanelVisible = !it.isStickerPanelVisible,
+                isEmojiPanelVisible = false,
+                errorMessage = null,
+            )
+        }
+        if (shouldLoad) loadStickerPacks()
+    }
+
+    fun insertEmoji(emoji: String) {
+        if (emoji !in redCodeBuiltInEmoji) return
+        formState.update { state ->
+            state.copy(draft = state.draft + emoji, errorMessage = null)
+        }
+    }
+
+    fun sendSticker(sticker: StickerItem) {
+        if (formState.value.isUploadingAttachment) return
+        val text = formState.value.draft.takeIf { it.isNotBlank() }
+        val quotedMessageId = formState.value.quotedMessage?.id
+        viewModelScope.launch {
+            formState.update {
+                it.copy(isStickerPanelVisible = false, isUploadingAttachment = true, errorMessage = null)
+            }
+            runCatching {
+                val upload = emojiRepository?.prepareStickerUpload(sticker)
+                if (upload != null) {
+                    chatRepository.uploadAndSendAttachment(
+                        roomId = roomId,
+                        senderId = currentUserId,
+                        senderName = currentUserName,
+                        file = upload,
+                        type = MessagePartType.Image,
+                        text = text,
+                        quotedMessageId = quotedMessageId,
+                    )
+                } else {
+                    val objectKey = sticker.imageObjectKey?.takeIf { it.isNotBlank() } ?: error("贴纸资源不可用")
+                    chatRepository.sendAttachmentReference(
+                        roomId = roomId,
+                        senderId = currentUserId,
+                        senderName = currentUserName,
+                        text = text,
+                        parts =
+                            listOf(
+                                MessagePart(
+                                    position = 0,
+                                    type = MessagePartType.Image,
+                                    attachment =
+                                        MessageAttachment(
+                                            key = objectKey,
+                                            name = sticker.attachmentFileName(),
+                                            mime = sticker.mime,
+                                        ),
+                                ),
+                            ),
+                        quotedMessageId = quotedMessageId,
+                    )
+                }
+            }.onSuccess {
+                formState.update {
+                    it.copy(draft = "", quotedMessage = null, errorMessage = null, isUploadingAttachment = false)
+                }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(errorMessage = error.message ?: "发送贴纸失败", isUploadingAttachment = false)
+                }
+            }
+        }
+    }
+
+    fun loadStickerPacks(force: Boolean = false) {
+        if (formState.value.isLoadingStickers) return
+        if (!force && formState.value.stickerPacks != redCodeDefaultStickerPacks) return
+        viewModelScope.launch {
+            formState.update { it.copy(isLoadingStickers = true, errorMessage = null) }
+            runCatching {
+                emojiRepository?.loadStickerPacks().orEmpty().ifEmpty { redCodeDefaultStickerPacks }
+            }.onSuccess { packs ->
+                formState.update {
+                    it.copy(stickerPacks = packs, isLoadingStickers = false)
+                }
+            }.onFailure { error ->
+                formState.update {
+                    it.copy(
+                        stickerPacks = redCodeDefaultStickerPacks,
+                        isLoadingStickers = false,
+                        errorMessage = error.message ?: "表情包加载失败，已使用默认贴纸",
+                    )
+                }
+            }
+        }
+    }
+
+    fun setChatBackground(backgroundKey: String) {
+        updateChatPreferences {
+            it.copy(backgroundKey = backgroundKey).normalized()
+        }
+    }
+
+    fun cycleChatBackground() {
+        val options = chatBackgroundOptions.map { it.key }
+        val current = chatPreferences.value.backgroundKey
+        val next = options[(options.indexOf(current).takeIf { it >= 0 } ?: 0).let { (it + 1) % options.size }]
+        setChatBackground(next)
+    }
+
+    fun setFontScale(fontScale: Float) {
+        updateChatPreferences {
+            it.copy(fontScale = fontScale).normalized()
+        }
+    }
+
+    fun cycleFontScale() {
+        val current = chatPreferences.value.fontScale
+        val next =
+            when {
+                current < 0.95f -> 1.0f
+                current < 1.15f -> 1.2f
+                else -> 0.9f
+            }
+        setFontScale(next)
+    }
+
+    fun toggleEnterToSend() {
+        updateChatPreferences {
+            it.copy(enterToSend = !it.enterToSend)
+        }
+    }
+
+    fun toggleAutoDownloadMedia() {
+        updateChatPreferences {
+            it.copy(autoDownloadMedia = !it.autoDownloadMedia)
+        }
+    }
+
+    fun autoDownloadMissingAttachments(attachments: List<MessageAttachment>) {
+        val pending =
+            attachments
+                .filter { it.localPath.isNullOrBlank() }
+                .distinctBy { it.key }
+                .filter { it.key !in autoDownloadInFlight && formState.value.attachmentCacheStatus[it.key] == null }
+        if (pending.isEmpty()) return
+        viewModelScope.launch {
+            pending.forEach { attachment ->
+                autoDownloadInFlight += attachment.key
+                try {
+                    cacheAttachmentNow(attachment)
+                } finally {
+                    autoDownloadInFlight -= attachment.key
+                }
+            }
+        }
     }
 
     fun showError(message: String) {
@@ -233,29 +432,7 @@ class ChatDetailViewModel(
 
     fun cacheAttachment(attachment: MessageAttachment) {
         viewModelScope.launch {
-            formState.update {
-                it.copy(
-                    attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存中"),
-                    errorMessage = null,
-                )
-            }
-            runCatching {
-                chatRepository.downloadAndCacheAttachment(roomId = roomId, attachment = attachment)
-            }.onSuccess { cached ->
-                formState.update {
-                    it.copy(
-                        attachmentCacheStatus =
-                            it.attachmentCacheStatus + (attachment.key to (cached.localPath ?: "已缓存")),
-                    )
-                }
-            }.onFailure { error ->
-                formState.update {
-                    it.copy(
-                        attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存失败"),
-                        errorMessage = error.message ?: "附件缓存失败",
-                    )
-                }
-            }
+            cacheAttachmentNow(attachment)
         }
     }
 
@@ -356,6 +533,38 @@ class ChatDetailViewModel(
     private fun updateAudioState(key: String, playback: AudioPlaybackState) {
         formState.update { state ->
             state.copy(audioPlaybackStatus = state.audioPlaybackStatus + (key to playback))
+        }
+    }
+
+    private suspend fun cacheAttachmentNow(attachment: MessageAttachment) {
+        formState.update {
+            it.copy(
+                attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存中"),
+                errorMessage = null,
+            )
+        }
+        runCatching {
+            chatRepository.downloadAndCacheAttachment(roomId = roomId, attachment = attachment)
+        }.onSuccess { cached ->
+            formState.update {
+                it.copy(
+                    attachmentCacheStatus =
+                        it.attachmentCacheStatus + (attachment.key to (cached.localPath ?: "已缓存")),
+                )
+            }
+        }.onFailure { error ->
+            formState.update {
+                it.copy(
+                    attachmentCacheStatus = it.attachmentCacheStatus + (attachment.key to "缓存失败"),
+                    errorMessage = error.message ?: "附件缓存失败",
+                )
+            }
+        }
+    }
+
+    private fun updateChatPreferences(transform: (ChatRoomPreferences) -> ChatRoomPreferences) {
+        viewModelScope.launch {
+            chatPreferenceStore.updateChatPreferences(roomId, transform)
         }
     }
 }

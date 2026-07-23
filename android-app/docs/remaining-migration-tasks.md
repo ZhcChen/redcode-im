@@ -6,11 +6,11 @@
 
 ## 当前状态
 
-- 已完成：原生 Android 工程骨架、账号密码认证、Chat/Contacts/Rooms 真实 API、WebSocket JSON 增量、Room 缓存、群管理、附件选择、mock 对象存储直传、富媒体消息基线。
+- 已完成：原生 Android 工程骨架、账号密码认证、Chat/Contacts/Rooms 真实 API、WebSocket JSON 增量、Room 缓存、群管理、附件选择、mock 对象存储直传、富媒体消息基线、聊天扩展能力。
 - 已验证：`android-app.test.unit`、`android-app.test.live`、`android-app.test.interop`、`android-app.test.interop.support`、`android-app.coverage`、`android-app.lint`、`android-app.build.debug`、`android-app.connected-test`、`android-app.smoke.emulator`。
-- 当前测试设备：本机 Android Emulator，最近验收设备为 `emulator-5554` / `Pixel_8_Pro(AVD) - 15`。
+- 当前测试设备：最近验收设备为 `Pixel 8 Pro (3A091FDJG001DN)` / Android 17 (SDK 37)；无真机时回退本机 Android Emulator。
 - 真机依赖策略：需要相机、麦克风、FCM 云投递、厂商 ROM 行为的项不阻塞 Emulator 阶段，记录为 SKIPPED，后续真机补验。
-- 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径、语音播放基线已完成并验证。头像缓存已通过 unit/lint/build/connected/emulator smoke/live/interop 验证；权限恢复已通过 unit/connected/lint/build/emulator smoke 验证；语音播放已通过 unit/connected/lint/build/emulator smoke 验证。
+- 最新进度：用户头像缓存、群头像缓存、权限拒绝和恢复路径、语音播放基线、聊天扩展已完成并验证。聊天扩展已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
 
 ## 优先级队列
 
@@ -68,27 +68,35 @@
 
 目标：完成 ANDROID-07。
 
-- [ ] 内置 emoji 面板
+- [x] 内置 emoji 面板
   - 聊天输入区增加 emoji 入口。
   - 支持插入到 draft。
   - 单测覆盖输入状态。
-- [ ] 表情包列表和表情项加载
+- [x] 表情包列表和表情项加载
   - 接入后端表情包 API。
   - Room 或 DataStore 缓存必要元数据。
   - H5/API/Android 表情列表互通 smoke。
-- [ ] 表情资源缓存
+- [x] 表情资源缓存
   - 使用 download URL 下载表情资源。
   - 保存到 app cache。
   - 缓存命中、失效、清理测试。
-- [ ] 贴纸发送
+- [x] 贴纸发送
   - 贴纸按图片附件链路发送。
   - 消息展示贴纸元数据/预览。
-- [ ] 聊天背景
+- [x] 聊天背景
   - DataStore 保存每 room 背景配置。
   - Compose 聊天详情渲染背景。
-- [ ] 聊天设置
+- [x] 聊天设置
   - 字体大小、回车发送、媒体自动下载等本地偏好。
   - 与已有 DataStore 偏好层合并。
+
+  当前结果：
+  - 已新增聊天扩展模型、内置 emoji、默认 sticker pack、每 room 聊天偏好。
+  - Compose 聊天详情已接入 emoji/sticker 面板、emoji 插入、贴纸发送、背景切换、字体切换、回车发送和媒体自动下载开关。
+  - 远端表情包加载接入 `/emoji-packs/my` 与 `/emoji-packs/download-url`；空账号或远端无包时稳定降级到默认 sticker pack。
+  - 贴纸发送按 iOS 方案先下载/cache 表情资源，再复用图片附件上传链路；本地 default sticker 走附件引用 fallback 便于无后端 UI smoke。
+  - `FileResourceCache` 已复用于 emoji cache，登出或清理本地 session 时会清理表情缓存。
+  - 已覆盖 ViewModel、Repository、DataStore 和 Compose UI 测试；Pixel 8 Pro Android 17 connected test 已通过。
 
 ### P1：设置、账号和配置
 
@@ -168,7 +176,7 @@
 - [x] H5/API/Android 基础联调脚本
   - `make android-app.test.interop` 会自动启动并等待 Compose API dev 栈。
   - 串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
-  - 当前覆盖认证、联系人、好友、群、文本、富媒体、头像缓存、权限恢复状态机和语音播放状态机。
+  - 当前覆盖认证、联系人、好友、群、文本、富媒体、表情列表 fallback、表情资源缓存、头像缓存、权限恢复状态机和语音播放状态机。
   - 设置域、通知域完整联调仍留在 ANDROID-08/09 完成后扩展。
 - [ ] Emulator smoke 扩展
   - 覆盖主要 Compose UI 入口。

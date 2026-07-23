@@ -134,12 +134,19 @@
 
 ## ANDROID-07 表情、贴纸、搜索和聊天扩展
 
-- [ ] 内置 emoji。
-- [ ] 表情包列表和表情项加载。
-- [ ] 表情资源缓存。
-- [ ] 贴纸管理。
-- [ ] 聊天背景。
-- [ ] 聊天设置。
+- [x] 内置 emoji。
+- [x] 表情包列表和表情项加载。
+- [x] 表情资源缓存。
+- [x] 贴纸管理。
+- [x] 聊天背景。
+- [x] 聊天设置。
+
+进度备注：
+- Android 聊天详情已接入 emoji/sticker 面板、内置 emoji 插入、默认 sticker pack、每 room 背景/字体/回车发送/媒体自动下载偏好。
+- 远端表情包加载已对齐 H5/iOS 合同，接入 `/emoji-packs/my` 与 `/emoji-packs/download-url`；空账号或远端无包时降级到默认 sticker pack。
+- 贴纸发送优先按 iOS 方案下载/cache 表情图，再复用图片附件上传链路；本地 default sticker 保留附件引用 fallback 便于无后端 UI smoke。
+- `FileResourceCache` 已复用于 emoji cache，登出或清理本地 session 时清理表情缓存。
+- 已通过 `make android-app.test.unit`、`make android-app.connected-test ANDROID_APP_DEVICE=3A091FDJG001DN`、`make android-app.lint`、`make android-app.build.debug`、`make android-app.smoke.emulator ANDROID_APP_DEVICE=3A091FDJG001DN`、`make android-app.test.live`、`make android-app.test.interop` 和 `make android-app.coverage`。
 
 ## ANDROID-08 设置、账号、文档、反馈、配置和版本
 

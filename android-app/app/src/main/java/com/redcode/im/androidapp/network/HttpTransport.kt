@@ -7,6 +7,7 @@ data class HttpRequest(
     val body: String? = null,
     val bodyBytes: ByteArray? = null,
     val contentType: String? = null,
+    val maxResponseBytes: Long? = null,
 )
 
 data class HttpResponse(

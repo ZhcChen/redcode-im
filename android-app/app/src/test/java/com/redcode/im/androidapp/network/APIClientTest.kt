@@ -136,6 +136,18 @@ class APIClientTest {
             assertEquals(bytes.toList(), downloaded.toList())
         }
 
+    @Test
+    fun downloadBytes_passesMaxResponseBytesToTransport() =
+        runTest {
+            val bytes = byteArrayOf(0, 1, 2, 3)
+            val transport = RecordingTransport(HttpResponse(statusCode = 200, body = "", bodyBytes = bytes))
+            val client = APIClient(RedCodeEnvironment.localEmulator(), transport)
+
+            client.downloadBytes("http://127.0.0.1:19080/mock-bucket/a.bin", maxBytes = 1024)
+
+            assertEquals(1024L, transport.lastRequest.maxResponseBytes)
+        }
+
     @Serializable
     private data class TestRequest(val name: String)
 

@@ -2,16 +2,27 @@ package com.redcode.im.androidapp.feature
 
 import com.redcode.im.androidapp.MainDispatcherRule
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
+import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.ChatRoomPreferences
+import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePartType
+import com.redcode.im.androidapp.core.model.StickerItem
+import com.redcode.im.androidapp.core.model.StickerPack
+import com.redcode.im.androidapp.core.model.redCodeDefaultStickerPacks
+import com.redcode.im.androidapp.data.chat.ChatRepository
 import com.redcode.im.androidapp.data.chat.InMemoryChatRepository
+import com.redcode.im.androidapp.data.emoji.EmojiRepository
+import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import com.redcode.im.androidapp.feature.chat.AudioPlaybackController
 import com.redcode.im.androidapp.feature.chat.AudioPlaybackPhase
 import com.redcode.im.androidapp.feature.chat.ChatDetailViewModel
 import com.redcode.im.androidapp.feature.chat.ChatListViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -284,6 +295,277 @@ class ChatViewModelTest {
         }
 
     @Test
+    fun chatDetail_emojiPanelInsertsDraftAndPanelsAreExclusive() =
+        runTest {
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.toggleEmojiPanel()
+            viewModel.insertEmoji("😀")
+            viewModel.toggleStickerPanel()
+            advanceUntilIdle()
+
+            assertEquals("😀", viewModel.uiState.value.draft)
+            assertEquals(false, viewModel.uiState.value.isEmojiPanelVisible)
+            assertEquals(true, viewModel.uiState.value.isStickerPanelVisible)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_loadsStickerPacksWhenStickerPanelOpens() =
+        runTest {
+            val emojiRepository =
+                FakeEmojiRepository(
+                    packs =
+                        listOf(
+                            StickerPack(
+                                id = "remote-pack",
+                                name = "远端贴纸",
+                                items =
+                                    listOf(
+                                        StickerItem(id = "remote-ok", label = "OK", imageObjectKey = "emoji-items/remote-ok.gif"),
+                                    ),
+                            ),
+                        ),
+                )
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    emojiRepository = emojiRepository,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.toggleStickerPanel()
+            advanceUntilIdle()
+
+            assertEquals(1, emojiRepository.loadCount)
+            assertEquals("remote-pack", viewModel.uiState.value.stickerPacks.single().id)
+            assertEquals(false, viewModel.uiState.value.isLoadingStickers)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_loadStickerPacksFailureFallsBackToDefaultStickers() =
+        runTest {
+            val emojiRepository = FakeEmojiRepository(loadError = IllegalStateException("remote emoji unavailable"))
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    emojiRepository = emojiRepository,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.toggleStickerPanel()
+            advanceUntilIdle()
+
+            assertEquals(redCodeDefaultStickerPacks, viewModel.uiState.value.stickerPacks)
+            assertEquals(false, viewModel.uiState.value.isLoadingStickers)
+            assertEquals("remote emoji unavailable", viewModel.uiState.value.errorMessage)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_sendStickerUsesCachedEmojiUploadPath() =
+        runTest {
+            val repository = InMemoryChatRepository()
+            val sticker = StickerItem(id = "remote-ok", label = "OK", imageObjectKey = "emoji-items/remote-ok.gif")
+            val emojiRepository =
+                FakeEmojiRepository(
+                    uploadPayload =
+                        AttachmentUploadPayload(
+                            bytes = "gif".encodeToByteArray(),
+                            fileName = "remote-ok.gif",
+                            mime = "image/gif",
+                        ),
+                )
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    emojiRepository = emojiRepository,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.onDraftChange("caption")
+            viewModel.sendSticker(sticker)
+            advanceUntilIdle()
+
+            val sent = viewModel.uiState.value.messages.last()
+            assertEquals(listOf(sticker), emojiRepository.preparedStickers)
+            assertEquals("", viewModel.uiState.value.draft)
+            assertEquals(false, viewModel.uiState.value.isUploadingAttachment)
+            assertEquals("caption [图片]", sent.text)
+            assertEquals("local/remote-ok.gif", sent.parts.single { it.type == MessagePartType.Image }.attachment?.key)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_sendStickerFailureRestoresUploadingAndKeepsDraft() =
+        runTest {
+            val repository = InMemoryChatRepository()
+            val sticker = StickerItem(id = "remote-ok", label = "OK", imageObjectKey = "emoji-items/remote-ok.gif")
+            val emojiRepository = FakeEmojiRepository(prepareError = IllegalStateException("download failed"))
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    emojiRepository = emojiRepository,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            val originalMessages = viewModel.uiState.value.messages.size
+            viewModel.onDraftChange("caption")
+            viewModel.sendSticker(sticker)
+            advanceUntilIdle()
+
+            assertEquals("caption", viewModel.uiState.value.draft)
+            assertEquals(false, viewModel.uiState.value.isUploadingAttachment)
+            assertEquals("download failed", viewModel.uiState.value.errorMessage)
+            assertEquals(originalMessages, viewModel.uiState.value.messages.size)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_sendStickerWithoutResourceKeepsDraftAndShowsError() =
+        runTest {
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.onDraftChange("caption")
+            viewModel.sendSticker(StickerItem(id = "broken", label = "Broken"))
+            advanceUntilIdle()
+
+            assertEquals("caption", viewModel.uiState.value.draft)
+            assertEquals(false, viewModel.uiState.value.isUploadingAttachment)
+            assertEquals("贴纸资源不可用", viewModel.uiState.value.errorMessage)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_chatPreferencesPersistPerRoom() =
+        runTest {
+            val store = InMemoryUserPreferenceStore()
+            val roomA =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-a",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    chatPreferenceStore = store,
+                )
+            val roomB =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-b",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    chatPreferenceStore = store,
+                )
+            val collectA = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { roomA.uiState.collect() }
+            val collectB = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { roomB.uiState.collect() }
+            advanceUntilIdle()
+
+            roomA.setChatBackground("warm")
+            roomA.setFontScale(2.0f)
+            roomA.toggleEnterToSend()
+            roomA.toggleAutoDownloadMedia()
+            advanceUntilIdle()
+
+            val preferences = roomA.uiState.value.chatPreferences
+            assertEquals("warm", preferences.backgroundKey)
+            assertEquals(ChatRoomPreferences.MAX_FONT_SCALE, preferences.fontScale)
+            assertEquals(true, preferences.enterToSend)
+            assertEquals(true, preferences.autoDownloadMedia)
+            assertEquals(ChatRoomPreferences(), roomB.uiState.value.chatPreferences)
+            collectA.cancel()
+            collectB.cancel()
+        }
+
+    @Test
+    fun chatDetail_chatPreferencesMergeRapidUpdates() =
+        runTest {
+            val store = InMemoryUserPreferenceStore()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = InMemoryChatRepository(),
+                    roomId = "room-a",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                    chatPreferenceStore = store,
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            advanceUntilIdle()
+
+            viewModel.setChatBackground("warm")
+            viewModel.setFontScale(1.2f)
+            viewModel.toggleEnterToSend()
+            viewModel.toggleAutoDownloadMedia()
+            advanceUntilIdle()
+
+            val preferences = viewModel.uiState.value.chatPreferences
+            assertEquals("warm", preferences.backgroundKey)
+            assertEquals(1.2f, preferences.fontScale, 0.001f)
+            assertEquals(true, preferences.enterToSend)
+            assertEquals(true, preferences.autoDownloadMedia)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun chatDetail_autoDownloadDeduplicatesAttachments() =
+        runTest {
+            val repository = CountingCacheChatRepository()
+            val viewModel =
+                ChatDetailViewModel(
+                    chatRepository = repository,
+                    roomId = "room-general",
+                    currentUserId = "user-me",
+                    currentUserName = "Me",
+                )
+            val collectJob = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect() }
+            val attachment =
+                MessageAttachment(
+                    key = "messages/room-general/a.png",
+                    name = "a.png",
+                    mime = "image/png",
+                )
+            advanceUntilIdle()
+
+            viewModel.autoDownloadMissingAttachments(listOf(attachment, attachment, attachment.copy(localPath = "/tmp/a.png")))
+            advanceUntilIdle()
+
+            assertEquals(listOf("messages/room-general/a.png"), repository.cachedKeys)
+            collectJob.cancel()
+        }
+
+    @Test
     fun chatDetail_messageActionsUpdateLocalState() =
         runTest {
             val repository = InMemoryChatRepository()
@@ -332,5 +614,55 @@ class ChatViewModelTest {
         }
 
         override fun stop() = Unit
+    }
+
+    private class FakeEmojiRepository(
+        private val packs: List<StickerPack> = emptyList(),
+        private val uploadPayload: AttachmentUploadPayload? = null,
+        private val loadError: Throwable? = null,
+        private val prepareError: Throwable? = null,
+    ) : EmojiRepository {
+        var loadCount = 0
+        val preparedStickers = mutableListOf<StickerItem>()
+
+        override suspend fun loadStickerPacks(): List<StickerPack> {
+            loadCount += 1
+            loadError?.let { throw it }
+            return packs
+        }
+
+        override suspend fun prepareStickerUpload(sticker: StickerItem): AttachmentUploadPayload? {
+            preparedStickers += sticker
+            prepareError?.let { throw it }
+            return uploadPayload
+        }
+    }
+
+    private class CountingCacheChatRepository : ChatRepository {
+        val cachedKeys = mutableListOf<String>()
+        override val chats: Flow<List<ChatSummary>> = flowOf(emptyList())
+
+        override fun messages(roomId: String): Flow<List<ChatMessage>> =
+            flowOf(emptyList())
+
+        override suspend fun sendText(
+            roomId: String,
+            senderId: String,
+            senderName: String,
+            text: String,
+            quotedMessageId: String?,
+        ): ChatMessage =
+            error("not used")
+
+        override suspend fun downloadAndCacheAttachment(
+            roomId: String,
+            attachment: MessageAttachment,
+            forceRefresh: Boolean,
+        ): MessageAttachment {
+            cachedKeys += attachment.key
+            return attachment.copy(localPath = "/tmp/${attachment.displayName}")
+        }
+
+        override suspend fun markRead(roomId: String) = Unit
     }
 }

@@ -183,18 +183,19 @@ make android-app.test.interop.support
 
 说明：
 - `android-app` 使用 Kotlin + Jetpack Compose + ViewModel + Repository/Flow 的 Android 官方推荐架构。
-- 当前默认使用本机 Android Studio Emulator，设备 ID 默认为 `emulator-5554`，可用 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
+- 当前优先使用已授权的 `Pixel 8 Pro (3A091FDJG001DN)` 真机；无该真机时回退本机 Android Studio Emulator，设备 ID 可用 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
 - Android Emulator 访问宿主机 Compose API 使用 `10.0.2.2:8010`，默认 `ANDROID_APP_API_BASE_URL=http://10.0.2.2:8010`、`ANDROID_APP_WS_URL=ws://10.0.2.2:8010/ws`。
+- Android 真机访问宿主机 Compose API 时，必须每次测试前重新检测本机局域网 IPv4，并使用 `ANDROID_APP_API_BASE_URL=http://<LAN_IP>:8010`、`ANDROID_APP_WS_URL=ws://<LAN_IP>:8010/ws`；Makefile 默认检测到非 Emulator 设备时会自动生成当前 LAN API/WS，可用 `make android-app.resolve.network` 查看，禁止复用历史 LAN IP。
 - Android 原生 App 默认使用本地模拟认证；需要真实 `/auth/register`、`/auth/login`、`/auth/me` 合同时传 `ANDROID_APP_USE_REMOTE_AUTH=true` 构建或运行。
 - `android-app.test.unit` 运行 JVM 单元测试，不需要启动 API。
 - `android-app.lint` 运行 Android Lint。
 - `android-app.coverage` 生成 Jacoco 覆盖率报告：`android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
-- `android-app.connected-test` 在当前 Emulator 上运行 Compose instrumented tests。
-- `android-app.connected-test` 当前包含 Compose 登录/协议门禁 smoke、权限恢复 banner、语音播放 UI smoke、Room in-memory DAO/Repository 测试、Android Keystore 加密会话存储测试和 DataStore 协议偏好测试。
-- `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Emulator。
-- `android-app.test.live` 需要本机 Compose API 已启动，使用 Android APIClient/Auth/Chat/Contacts/Rooms 数据层覆盖注册、建群、双向文本互发、附件签名/mock 对象存储直传/commit/双方可见/下载 URL、已读、好友申请/接受、私聊消息和群管理 live smoke；该入口强制 `--rerun-tasks`，避免 Gradle 缓存跳过真实联调。
-- `android-app.test.interop` 会自动启动并等待本机 Compose API dev 栈，然后串联 `h5-app.test.live`、`android-app.test.live` 与 `android-app.test.interop.support`，作为 H5/API/Android 聊天、富媒体附件、好友、群管理、头像缓存、权限降级状态机和语音播放状态机互通 smoke 入口。
-- `android-app.test.interop.support` 是不依赖 API 的定向 JVM 测试集合，覆盖头像缓存、权限恢复状态机和语音播放 ViewModel 状态机；失败时查看 `android-app/app/build/reports/tests/testDebugUnitTest/index.html` 与 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
+- `android-app.connected-test` 在当前 Android 设备上运行 Compose instrumented tests；Android 17 / SDK 37 真机依赖 AndroidX Test/Espresso 3.7.x，避免旧版 Espresso 反射 `InputManager.getInstance` 失败。
+- `android-app.connected-test` 当前包含 Compose 登录/协议门禁 smoke、聊天扩展 UI smoke、权限恢复 banner、语音播放 UI smoke、Room in-memory DAO/Repository 测试、Android Keystore 加密会话存储测试和 DataStore 协议/聊天偏好测试。
+- `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Android 设备；目标名保留历史命名，真机可通过 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
+- `android-app.test.live` 需要本机 Compose API 已启动，使用 Android APIClient/Auth/Chat/Contacts/Rooms/Emoji 数据层覆盖注册、建群、双向文本互发、附件签名/mock 对象存储直传/commit/双方可见/下载 URL、已读、好友申请/接受、私聊消息、群管理和表情列表 fallback live smoke；若测试账号实际拥有远端表情包，还会覆盖表情 download URL、下载和本地 cache 命中。该入口强制 `--rerun-tasks`，避免 Gradle 缓存跳过真实联调。
+- `android-app.test.interop` 会自动启动并等待本机 Compose API dev 栈，然后串联 `h5-app.test.live`、`android-app.test.live` 与 `android-app.test.interop.support`，作为 H5/API/Android 聊天、富媒体附件、好友、群管理、表情列表 fallback/缓存单测、头像缓存、权限降级状态机和语音播放状态机互通 smoke 入口。
+- `android-app.test.interop.support` 是不依赖 API 的定向 JVM 测试集合，覆盖头像缓存、表情资源缓存、权限恢复状态机和语音播放 ViewModel 状态机；失败时查看 `android-app/app/build/reports/tests/testDebugUnitTest/index.html` 与 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
 - 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、系统相册/文件选择器厂商差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
 
 ### Admin 自测

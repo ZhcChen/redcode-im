@@ -89,13 +89,18 @@ class APIClient(
         }
     }
 
-    suspend fun downloadBytes(url: String, headers: Map<String, String> = emptyMap()): ByteArray {
+    suspend fun downloadBytes(
+        url: String,
+        headers: Map<String, String> = emptyMap(),
+        maxBytes: Long? = null,
+    ): ByteArray {
         val response =
             transport.execute(
                 HttpRequest(
                     method = HTTPMethod.GET,
                     url = url,
                     headers = headers,
+                    maxResponseBytes = maxBytes,
                 ),
             )
         if (response.statusCode !in 200..299) {

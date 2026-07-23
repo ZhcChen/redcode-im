@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
                 localRoomRepository = RoomGroupRepository(database.roomDao()),
                 attachmentFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/attachments")),
                 avatarFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/avatars")),
+                emojiFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/emoji")),
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {
