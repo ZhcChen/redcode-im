@@ -62,19 +62,27 @@ android {
         val keystorePassword = prop("KEYSTORE_PASSWORD")
         val keyAlias = prop("KEY_ALIAS")
         val keyPassword = prop("KEY_PASSWORD")
+        val releaseKeystoreFile = if (keystoreFile.isNotBlank()) rootProject.file(keystoreFile) else null
 
         if (
-            keystoreFile.isNotBlank() &&
+            releaseKeystoreFile?.exists() == true &&
             keystorePassword.isNotBlank() &&
             keyAlias.isNotBlank() &&
             keyPassword.isNotBlank()
         ) {
             create("release") {
-                storeFile = rootProject.file(keystoreFile)
+                storeFile = releaseKeystoreFile
                 storePassword = keystorePassword
                 this.keyAlias = keyAlias
                 this.keyPassword = keyPassword
             }
+        } else if (
+            keystoreFile.isNotBlank() ||
+            keystorePassword.isNotBlank() ||
+            keyAlias.isNotBlank() ||
+            keyPassword.isNotBlank()
+        ) {
+            println("[signing] release signing config incomplete or keystore missing, use debug signing")
         }
     }
 
