@@ -1,6 +1,6 @@
 # RedCode IM 剩余任务清单
 
-更新时间：2026-07-05
+更新时间：2026-07-23
 
 本文档是当前仓库剩余任务的总入口。完整执行顺序、验收标准和跳过项以
 `docs/reports/remaining-task-breakdown-2026-07-05.md` 为准。
@@ -18,15 +18,16 @@
 
 ## 当前结论
 
-- 当前主线：Android 原生 P1 parity -> Android P2
-  底座/通知 -> API 架构和性能重构 -> 全模块回归与发布准备。
-- 当前立即任务：`ANDROID-P1-02 设置、账号和配置`。
-- `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，待本切片提交推送后进入归档。
-- `h5-app` 已完成 Flutter parity P1，是当前 API + App 端联调优先入口。
+- 当前主线：Flutter `app/` 首版发布准备 -> API 架构和性能重构 -> 横向回归与发布准备。
+- 当前立即任务：Flutter 首版发布前横向回归与发布准备。
+- `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，现作为原生恢复时的归档基线。
+- `h5-app` 已完成 Flutter parity P1，保留为 Web parity 与 API 联调辅助入口。
 - `ios-app` 主链路已完成；仅保留 iPhone 真机/APNs 补验。
 - `android-app` 已完成 P0 媒体切片和聊天扩展；剩余集中在设置账号配置、通知
   mock、底座协议和最终切换准备。
-- Flutter `app/` 保留并继续维护，按当前已闭合 API 合同作为回滚和行为对照基线。
+- Flutter `app/` 保留并继续维护，当前作为第一个版本正式移动端主线，按已闭合
+  API 合同作为发布、回滚和行为对照基线。
+- Android / iOS 原生开发暂时暂停；不删除代码和文档，后续用户重新激活时再恢复。
 - Google / Apple 登录不进入当前主线；默认普通账号密码注册/登录。
 - 邮箱注册/登录只作为后台配置能力保留；当前自动化不依赖真实邮箱资源或邮箱
   验证码二次验证。
@@ -38,6 +39,12 @@
 
 ## 当前立即队列
 
+- [x] `FLUTTER-P0-01` Flutter 首版 API 合同联调收口
+  - 已新增 Flutter contract integration 入口。
+  - 已完成 Flutter REST path 与 `api/src/routes.rs` 机械化对照：85/85 闭合。
+  - 已新增可复跑入口：`make app.test.api-paths`。
+  - 已通过 Pixel 8 Pro 真实 API auth、network、contract 联调。
+  - 验收报告：`docs/reports/flutter-first-release-readiness-2026-07-23.md`。
 - [x] `CROSS-P1-01` H5/API/Android 联调脚本扩展
   - `make android-app.test.interop` 已自动启动并等待 Compose API dev 栈。
   - 已串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
@@ -63,6 +70,8 @@
 
 ## Android 剩余任务
 
+状态：暂时暂停；保留任务清单，不进入当前首版执行队列。
+
 - [x] `ANDROID-P1-01` 聊天扩展
   - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
   - 已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
@@ -81,6 +90,8 @@
   - 聊天/通知/外观偏好、live 子集、登出清理文件 cache/通知态/DataStore。
 
 ## iOS 剩余任务
+
+状态：暂时暂停；保留真机/APNs 补验入口，不进入当前首版执行队列。
 
 当前无阻塞 H5/API/iOS 主链路的 P0/P1 功能缺口。
 
@@ -137,17 +148,24 @@ iOS 真机待补验见上方 iOS 剩余任务。
 
 - [ ] `RELEASE-P3-01` 全模块回归
   - `make api.test`
+  - `make app.check`
+  - `make app.test.api-paths`
+  - `make app.test.unit`
+  - `make app.test.integration.network`
+  - `make app.test.integration.auth`
+  - `make app.test.integration.contract`
   - `make h5-app.check`
   - `make h5-app.test.unit`
   - `make h5-app.test.live`
   - `make h5-app.test.e2e`
-  - `make android-app.test.interop`
-  - `make ios-app.test.interop`
+  - `make android-app.test.interop`（原生恢复专项，不属于 Flutter 首版门禁）
+  - `make ios-app.test.interop`（原生恢复专项，不属于 Flutter 首版门禁）
   - `cd admin && bun run type:check`
   - `cd desktop && bun run test`
   - `cd website && bun run test`
 - [ ] `RELEASE-P3-02` 原生切换条件
   - Flutter `app/` 不移除。
+  - 首版发布以 Flutter `app/` 为准，Android/iOS 原生切换条件暂不作为当前版本门禁。
   - Android 原生 P0/P1 完成、interop 通过、真机必要项补验或明确豁免。
   - iOS 原生主链路已完成；正式上架如要求 APNs/真机则恢复补验。
 - [ ] `RELEASE-P3-03` 发布与回滚文档

@@ -143,7 +143,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.device app.test.integration.device.auth app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -205,26 +205,22 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) desktop.test.unit
 	@$(MAKE) h5-app.check
 	@$(MAKE) h5-app.test.unit
-	@$(MAKE) ios-app.check
-	@$(MAKE) android-app.check
 	@$(MAKE) website.test.unit
 	@$(MAKE) tests.compose.config
 	@$(MAKE) tests.mocks.external
 	@$(MAKE) tests.tooling
 	@$(MAKE) tests.perf.check
 
-test.live: ## 启动 api/admin dev 并运行 app/admin/desktop/h5-app/ios-app 真实后端联调 smoke
+test.live: ## 启动 api/admin dev 并运行 Flutter app/admin/desktop 真实后端联调 smoke
 	@$(MAKE) api.up
 	@$(MAKE) api.wait
 	@$(MAKE) admin.up
 	@$(MAKE) admin.wait
 	@$(MAKE) app.test.integration.network
 	@$(MAKE) app.test.integration.auth
+	@$(MAKE) app.test.integration.contract
 	@$(MAKE) admin.test.live
 	@$(MAKE) desktop.test.live
-	@$(MAKE) h5-app.test.live
-	@$(MAKE) android-app.test.live
-	@$(MAKE) ios-app.test.live
 
 dev.up: ## 启动常用开发链路（api + admin + h5-app + website）
 	@$(MAKE) api.up
@@ -619,6 +615,10 @@ app.test.unit: ## 执行 app 全量 Flutter test
 
 app.test.scripts: ## 执行 app shell 脚本契约测试
 	@cd "$(APP_DIR)" && ./scripts/test_integration_contract_test.sh
+	@$(MAKE) app.test.api-paths
+
+app.test.api-paths: ## 校验 Flutter REST path 均已在 API routes.rs 注册
+	@python3 "$(APP_DIR)/scripts/verify_api_paths.py"
 
 app.test.core: ## 执行 app core 测试
 	@$(call require_cmd,$(FLUTTER))
@@ -648,6 +648,10 @@ app.test.integration.auth: ## 执行 app 真实普通账号注册/登录 integra
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth
 
+app.test.integration.contract: ## 执行 app 真实 API 合同 integration（认证/好友/群/消息/设置）
+	@$(call require_cmd,$(FLUTTER))
+	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh contract
+
 app.test.integration.device: ## 执行 app 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device
@@ -655,6 +659,8 @@ app.test.integration.device: ## 执行 app 设备 network integration（默认 P
 app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart
+
+app.test.integration.device.contract: app.test.integration.contract ## app.test.integration.contract 的设备联调别名
 
 app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
 	@$(call require_cmd,$(FLUTTER))

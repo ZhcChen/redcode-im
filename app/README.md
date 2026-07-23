@@ -1,6 +1,6 @@
 # RedCode IM Flutter App
 
-`app/` 是当前保留维护的 Flutter 移动端模块。它不再作为新原生迁移的唯一实现来源，但必须持续对齐当前已闭合的 `api/` 合同，作为行为对照、回滚包和跨端回归入口。
+`app/` 是当前第一个版本的正式移动端主线模块。`ios-app` / `android-app` 原生迁移暂时暂停，Flutter 必须持续对齐当前已闭合的 `api/` 合同，作为首版发布、行为对照、回滚包和跨端回归入口。
 
 ## 当前维护口径
 
@@ -17,6 +17,7 @@
 make app.install
 make app.check
 make app.test.scripts
+make app.test.api-paths
 make app.test.unit
 make app.test.integration.smoke
 
@@ -24,6 +25,7 @@ make app.test.integration.smoke
 make api.up
 make api.wait
 make app.test.integration.auth
+make app.test.integration.contract
 ```
 
 设备联调同样需要先启动并等待 API dev 栈：
@@ -33,6 +35,7 @@ make api.up
 make api.wait
 make app.test.integration.device
 make app.test.integration.device.auth
+make app.test.integration.device.contract
 ```
 
 ## API 合同基线
@@ -55,7 +58,9 @@ Flutter 当前直接对接 `api/` 的 REST 和 WebSocket JSON 合同；核心入
 - `/push/devices`
 - `/system/upload-policy`
 
-API 侧闭合验证入口为 `make api.test`；Flutter 侧维护变更至少跑 `make app.check` 和 `make app.test.unit`。涉及真实 API 合同的变更还要跑 `make app.test.integration.auth` 或对应 integration 入口。
+API 侧闭合验证入口为 `make api.test`；Flutter 侧维护变更至少跑 `make app.check`、`make app.test.unit` 和 `make app.test.api-paths`。涉及真实 API 合同的变更还要跑 `make app.test.integration.contract`；只改认证页或账号密码链路时可补跑 `make app.test.integration.auth`。
+
+当前首版 API 合同验收报告：`docs/reports/flutter-first-release-readiness-2026-07-23.md`。
 
 ## 文档入口
 

@@ -79,6 +79,7 @@ func TestRootMakefileExposesUnifiedModuleTargets(t *testing.T) {
 		"app.check:",
 		"app.test:",
 		"app.test.unit:",
+		"app.test.api-paths:",
 		"app.test.core:",
 		"app.test.chat:",
 		"app.test.widgets:",
@@ -104,6 +105,87 @@ func TestRootMakefileExposesUnifiedModuleTargets(t *testing.T) {
 	for _, target := range requiredTargets {
 		if !strings.Contains(makefile, target) {
 			t.Fatalf("expected Makefile to contain target %q", target)
+		}
+	}
+}
+
+func makeTargetBody(makefile, target string) string {
+	startMarker := target + ":"
+	start := strings.Index(makefile, startMarker)
+	if start == -1 {
+		return ""
+	}
+
+	remaining := makefile[start+len(startMarker):]
+	lines := strings.Split(remaining, "\n")
+	var body []string
+	for _, line := range lines {
+		if line == "" {
+			body = append(body, line)
+			continue
+		}
+		if !strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
+			break
+		}
+		body = append(body, line)
+	}
+	return strings.Join(body, "\n")
+}
+
+func TestFlutterFirstReleaseGatesExcludePausedNativeChecks(t *testing.T) {
+	makefile := readRepoFile(t, "Makefile")
+
+	testAll := makeTargetBody(makefile, "test.all")
+	if testAll == "" {
+		t.Fatal("expected Makefile to contain test.all target body")
+	}
+	forbiddenTestAll := []string{
+		"ios-app.check",
+		"android-app.check",
+		"ios-app.test",
+		"android-app.test",
+	}
+	for _, snippet := range forbiddenTestAll {
+		if strings.Contains(testAll, snippet) {
+			t.Fatalf("expected test.all to exclude paused native gate %q", snippet)
+		}
+	}
+	requiredTestAll := []string{
+		"app.check",
+		"app.test.scripts",
+		"app.test.unit",
+		"app.test.integration.smoke",
+	}
+	for _, snippet := range requiredTestAll {
+		if !strings.Contains(testAll, snippet) {
+			t.Fatalf("expected test.all to keep Flutter gate %q", snippet)
+		}
+	}
+
+	testLive := makeTargetBody(makefile, "test.live")
+	if testLive == "" {
+		t.Fatal("expected Makefile to contain test.live target body")
+	}
+	forbiddenTestLive := []string{
+		"h5-app.test.live",
+		"ios-app.test.live",
+		"android-app.test.live",
+		"ios-app.test.interop",
+		"android-app.test.interop",
+	}
+	for _, snippet := range forbiddenTestLive {
+		if strings.Contains(testLive, snippet) {
+			t.Fatalf("expected test.live to exclude non-Flutter first-release gate %q", snippet)
+		}
+	}
+	requiredTestLive := []string{
+		"app.test.integration.network",
+		"app.test.integration.auth",
+		"app.test.integration.contract",
+	}
+	for _, snippet := range requiredTestLive {
+		if !strings.Contains(testLive, snippet) {
+			t.Fatalf("expected test.live to keep Flutter live gate %q", snippet)
 		}
 	}
 }

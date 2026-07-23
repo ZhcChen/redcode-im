@@ -177,7 +177,9 @@ class GroupAdmin {
       appointedBy: json['appointed_by'] as String? ?? '',
       role: json['role'] as String? ?? 'admin',
       permissions: (json['permissions'] as List?)?.cast<String>(),
-      appointedAt: DateTime.tryParse(json['appointed_at'] as String? ?? '') ?? DateTime.now(),
+      appointedAt:
+          DateTime.tryParse(json['appointed_at'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -210,7 +212,9 @@ class JoinRequest {
     final statusRaw = json['status'];
     String status = 'pending';
     if (statusRaw is int) {
-      status = statusRaw == 1 ? 'approved' : (statusRaw == 2 ? 'rejected' : 'pending');
+      status = statusRaw == 1
+          ? 'approved'
+          : (statusRaw == 2 ? 'rejected' : 'pending');
     } else if (statusRaw is String) {
       status = statusRaw;
     }
@@ -223,7 +227,9 @@ class JoinRequest {
       status: status,
       reviewerId: json['reviewer_id'] as String?,
       reviewMessage: json['review_message'] as String?,
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
       reviewedAt: json['reviewed_at'] != null
           ? DateTime.tryParse(json['reviewed_at'] as String)
           : null,
@@ -258,7 +264,8 @@ class GroupMute {
   final DateTime? muteUntil;
 
   factory GroupMute.fromJson(Map<String, dynamic> json) {
-    final mutedAt = DateTime.tryParse(json['muted_at'] as String? ?? '') ?? DateTime.now();
+    final mutedAt =
+        DateTime.tryParse(json['muted_at'] as String? ?? '') ?? DateTime.now();
     final durationHours = json['mute_duration_hours'] as int? ?? 0;
     DateTime? muteUntil;
     if (durationHours > 0) {
@@ -315,8 +322,12 @@ class GroupRule {
       creatorId: json['creator_id'] as String? ?? '',
       orderIndex: json['order_index'] as int? ?? 0,
       isActive: json['is_active'] as bool? ?? true,
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updated_at'] as String? ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt:
+          DateTime.tryParse(json['updated_at'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -349,7 +360,9 @@ class GroupOperationLog {
       targetUserId: json['target_user_id'] as String?,
       operationType: json['operation_type'] as String? ?? '',
       operationData: json['operation_data'] as Map<String, dynamic>?,
-      createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
+      createdAt:
+          DateTime.tryParse(json['created_at'] as String? ?? '') ??
+          DateTime.now(),
     );
   }
 }
@@ -436,6 +449,9 @@ class RoomService {
     return null;
   }
 
+  bool _isSuccessStatus(int statusCode) =>
+      statusCode == 200 || statusCode == 204;
+
   Future<GroupSettingsInfo> fetchGroupSettings(String roomId) async {
     if (roomId.isEmpty) {
       throw RoomServiceException('无效的群组 ID');
@@ -449,7 +465,11 @@ class RoomService {
       if (decoded is Map<String, dynamic>) {
         final settings = decoded['settings'];
         if (settings is Map<String, dynamic>) {
-          return GroupSettingsInfo.fromJson(settings);
+          final payload = Map<String, dynamic>.from(settings);
+          if (decoded.containsKey('my_mute')) {
+            payload['my_mute'] = decoded['my_mute'];
+          }
+          return GroupSettingsInfo.fromJson(payload);
         }
       }
       throw RoomServiceException('群设置返回数据异常');
@@ -485,7 +505,7 @@ class RoomService {
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '更新群禁言状态失败',
       );
@@ -500,7 +520,7 @@ class RoomService {
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId');
     final response = await _client.delete(uri, headers: headers);
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '解散群聊失败',
       );
@@ -522,7 +542,7 @@ class RoomService {
       body: jsonEncode({'new_owner_id': newOwnerId.trim()}),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '转让群主失败',
       );
@@ -593,10 +613,7 @@ class RoomService {
     }
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/admins');
-    final payload = <String, dynamic>{
-      'user_id': userId,
-      'role': role,
-    };
+    final payload = <String, dynamic>{'user_id': userId, 'role': role};
     if (permissions != null && permissions.isNotEmpty) {
       payload['permissions'] = permissions;
     }
@@ -607,7 +624,7 @@ class RoomService {
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '任命管理员失败',
       );
@@ -623,10 +640,12 @@ class RoomService {
       throw RoomServiceException('参数不完整');
     }
     final headers = await _authHeaders();
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/admins/$userId');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/admins/$userId',
+    );
     final response = await _client.delete(uri, headers: headers);
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '移除管理员失败',
       );
@@ -641,7 +660,9 @@ class RoomService {
       throw RoomServiceException('无效的群组 ID');
     }
     final headers = await _authHeaders();
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/join-requests');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/join-requests',
+    );
     final response = await _client.get(uri, headers: headers);
 
     if (response.statusCode == 200) {
@@ -687,7 +708,7 @@ class RoomService {
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '审核入群申请失败',
       );
@@ -749,10 +770,8 @@ class RoomService {
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
-      throw RoomServiceException(
-        _extractErrorMessage(response.body) ?? '禁言失败',
-      );
+    if (!_isSuccessStatus(response.statusCode)) {
+      throw RoomServiceException(_extractErrorMessage(response.body) ?? '禁言失败');
     }
   }
 
@@ -765,10 +784,12 @@ class RoomService {
       throw RoomServiceException('参数不完整');
     }
     final headers = await _authHeaders();
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/mutes/$userId');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/mutes/$userId',
+    );
     final response = await _client.delete(uri, headers: headers);
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '解除禁言失败',
       );
@@ -799,9 +820,7 @@ class RoomService {
       }
       return [];
     }
-    throw RoomServiceException(
-      _extractErrorMessage(response.body) ?? '获取群规失败',
-    );
+    throw RoomServiceException(_extractErrorMessage(response.body) ?? '获取群规失败');
   }
 
   /// 创建群规
@@ -838,9 +857,7 @@ class RoomService {
       }
       throw RoomServiceException('创建群规返回数据异常');
     }
-    throw RoomServiceException(
-      _extractErrorMessage(response.body) ?? '创建群规失败',
-    );
+    throw RoomServiceException(_extractErrorMessage(response.body) ?? '创建群规失败');
   }
 
   /// 更新群规
@@ -856,20 +873,22 @@ class RoomService {
       throw RoomServiceException('参数不完整');
     }
     final headers = await _authHeaders();
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId',
+    );
     final payload = <String, dynamic>{};
     if (title != null) payload['title'] = title.trim();
     if (content != null) payload['content'] = content.trim();
     if (orderIndex != null) payload['order_index'] = orderIndex;
     if (isActive != null) payload['is_active'] = isActive;
 
-    final response = await _client.put(
+    final response = await _client.patch(
       uri,
       headers: headers,
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '更新群规失败',
       );
@@ -885,10 +904,12 @@ class RoomService {
       throw RoomServiceException('参数不完整');
     }
     final headers = await _authHeaders();
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId');
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/rooms/$roomId/rules/$ruleId',
+    );
     final response = await _client.delete(uri, headers: headers);
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '删除群规失败',
       );
@@ -955,13 +976,13 @@ class RoomService {
       payload['max_members'] = maxMembers;
     }
 
-    final response = await _client.put(
+    final response = await _client.patch(
       uri,
       headers: headers,
       body: jsonEncode(payload),
     );
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '更新群设置失败',
       );
@@ -1048,9 +1069,7 @@ class RoomService {
       throw RoomServiceException('添加成员返回数据异常');
     }
 
-    throw RoomServiceException(
-      _extractErrorMessage(response.body) ?? '添加成员失败',
-    );
+    throw RoomServiceException(_extractErrorMessage(response.body) ?? '添加成员失败');
   }
 
   Future<void> removeMember({
@@ -1067,7 +1086,7 @@ class RoomService {
     );
     final response = await _client.delete(uri, headers: headers);
 
-    if (response.statusCode != 200) {
+    if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '移除成员失败',
       );

@@ -4,6 +4,7 @@
 # - smoke: 不访问真实 api，适合日常快速验证。
 # - network: 访问本机 api，默认按目标设备生成 API/WS 地址。
 # - auth: 访问真实 api，验证普通账号注册/登录链路。
+# - contract: 访问真实 api，验证 Flutter 首版核心 API 合同链路。
 # - device: 优先真机；默认真机未连接时切换本机 iOS Simulator。
 # - device-reverse: Android USB 真机通过 adb reverse 访问本机 api。
 
@@ -28,12 +29,12 @@ TARGET=""
 usage() {
     cat <<'USAGE'
 用法：
-  ./scripts/test_integration.sh [smoke|network|auth|device|device-reverse] [选项]
+  ./scripts/test_integration.sh [smoke|network|auth|contract|device|device-reverse] [选项]
 
 选项：
   --device DEVICE_ID       目标设备，默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
-  --api-base-url URL       network/auth 非真机模式 API 地址，默认按设备生成
-  --ws-url URL             network/auth 非真机模式 WS 地址，默认按设备生成
+  --api-base-url URL       network/auth/contract 非真机模式 API 地址，默认按设备生成
+  --ws-url URL             network/auth/contract 非真机模式 WS 地址，默认按设备生成
   --target FILE            覆盖 integration_test 目标文件
   -h, --help               显示帮助
 
@@ -168,6 +169,20 @@ case "$MODE" in
         echo "🌐 WS_URL=${WS_URL}" >&2
         show_and_verify_flutter_devices "$DEVICE_ID"
         flutter test -d "$DEVICE_ID" "$TARGET" \
+            --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
+            --dart-define=API_BASE_URL="$API_BASE_URL" \
+            --dart-define=WS_URL="$WS_URL"
+        ;;
+    contract)
+        TARGET="${TARGET:-integration_test/api_contract_flow_test.dart}"
+        DEVICE_ID="$(resolve_integration_device)"
+        configure_api_urls_for_device "$DEVICE_ID"
+        echo "🌐 API_BASE_URL=${API_BASE_URL}" >&2
+        echo "🌐 WS_URL=${WS_URL}" >&2
+        show_and_verify_flutter_devices "$DEVICE_ID"
+        flutter test -d "$DEVICE_ID" "$TARGET" \
+            --dart-define=ENABLE_REAL_CONTRACT_INTEGRATION=true \
+            --dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true \
             --dart-define=ENABLE_REAL_AUTH_INTEGRATION=true \
             --dart-define=API_BASE_URL="$API_BASE_URL" \
             --dart-define=WS_URL="$WS_URL"

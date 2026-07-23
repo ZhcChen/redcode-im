@@ -17,7 +17,7 @@ RedCode IM 的测试策略调整为：
 ### 模块内测试
 - `api/tests/`：Rust 集成测试（axum oneshot 进程内 + 共享 harness `api/tests/support`）
 - `app/test/`：Flutter 单元 / widget 测试
-- `app/integration_test/`：Flutter integration smoke
+- `app/integration_test/`：Flutter integration smoke / network / auth / API contract
 - `admin/playwright-tests/`：Admin E2E / smoke
 - `desktop/test/`：Desktop 模块测试
 - `website/test/`：Website 模块测试
@@ -51,6 +51,8 @@ make app.test.scripts
 make app.test.integration.smoke
 ```
 
+当前第一个版本以 Flutter `app/` 作为正式移动端主线；`ios-app` / `android-app` 原生迁移暂时暂停，只保留后续恢复入口。
+
 默认 app 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以显式指定 `APP_TEST_DEVICE=macos` 作为临时兜底。
@@ -66,9 +68,16 @@ make app.test.integration.network
 # 真实账号密码注册/登录验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
 make app.test.integration.auth
 
+# Flutter 首版核心 API 合同验证（认证/好友/群/消息/设置/Push device mock）
+make app.test.integration.contract
+
+# Flutter REST path 与 api/src/routes.rs 机械化对照
+make app.test.api-paths
+
 # 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make app.test.integration.device
 make app.test.integration.device.auth
+make app.test.integration.device.contract
 
 # Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
 make app.test.integration.device.reverse
@@ -105,7 +114,7 @@ make h5-app.test.e2e
 ```
 
 说明：
-- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，也是当前 API + App 端联调优先入口。
+- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，保留为 Web 端 parity 与 API 联调辅助入口；当前移动端首版以 Flutter `app/` 为准。
 - H5 dev server 固定端口为 `8016`，API 固定端口为 `8010`。
 - 本地联调依赖由 `api/docker/dev/docker-compose.yml` 创建；PostgreSQL、Redis、external-mock 随 API dev 栈启动。
 - 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上 B2、FCM 或 APNs。
@@ -385,6 +394,8 @@ make app.test.features
 make app.test.integration.smoke
 make app.test.integration.network
 make app.test.integration.auth
+make app.test.integration.contract
+make app.test.api-paths
 make app.test.integration.device
 make app.test.integration.device.auth
 make app.test.patrol.harness
@@ -441,16 +452,16 @@ make api.test          # Compose 内 Rust 单元 + 集成（自动拉起 pg/redi
 - api contract
 - admin route / core flow smoke
 - app integration smoke
-- api + app 联调时先启动 api，再跑 `make app.test.integration.network`；设备联调用 `make app.test.integration.device`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
-- API + app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth、admin live backend、desktop live backend smoke。
+- api + app 联调时先启动 api，再跑 `make app.test.integration.network` 与 `make app.test.integration.contract`；设备联调用 `make app.test.integration.device.contract`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
+- API + Flutter app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth/contract、admin live backend、desktop live backend smoke。H5 保留独立 `make h5-app.test.live`；Android/iOS 原生迁移暂时暂停，不进入当前 `test.live` 门禁。
 
 ---
 
 ## 5. 当前约定
 
 - `make api.test` = api Rust 单元（Compose 内 `cargo test --lib`）+ 集成（Compose 内 `cargo test --tests`，axum oneshot 对单一临时测试库）
-- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose test/smoke/迁移守护、app check/unit/smoke、admin check/routes、desktop check/unit、website unit、Compose config、tooling、perf Go 自检。
-- `make test.live` = 真实后端联调入口；会启动 `api/docker/dev/docker-compose.yml` 与 admin dev，并跑 app/admin/desktop live smoke。
+- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose test/smoke/迁移守护、app check/unit/scripts/api-paths/smoke、admin check/routes、desktop check/unit、website unit、Compose config、tooling、perf Go 自检；Android/iOS 原生迁移暂时暂停，不进入当前首版门禁。
+- `make test.live` = 真实后端联调入口；会启动 `api/docker/dev/docker-compose.yml` 与 admin dev，并跑 app network/auth/contract、admin live backend、desktop live backend smoke。
 - `tests/` 不承载 app / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
 - 仓库根目录 `make test.all` / `make test.live` 是本地回归与联调编排入口，内部仍调用各模块自己的测试命令。

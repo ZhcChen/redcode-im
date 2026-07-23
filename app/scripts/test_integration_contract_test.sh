@@ -122,6 +122,17 @@ assert_log_contains "-d 3A091FDJG001DN"
 assert_log_contains "--dart-define=API_BASE_URL=http://192.0.2.10:8010"
 assert_log_contains "--dart-define=WS_URL=ws://192.0.2.10:8010/ws"
 
+run_case "contract 模式启用真实 API 合同测试开关" \
+    env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= \
+    ./scripts/test_integration.sh contract
+assert_log_contains "-d 3A091FDJG001DN"
+assert_log_contains "integration_test/api_contract_flow_test.dart"
+assert_log_contains "--dart-define=ENABLE_REAL_CONTRACT_INTEGRATION=true"
+assert_log_contains "--dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true"
+assert_log_contains "--dart-define=ENABLE_REAL_AUTH_INTEGRATION=true"
+assert_log_contains "--dart-define=API_BASE_URL=http://192.0.2.10:8010"
+assert_log_contains "--dart-define=WS_URL=ws://192.0.2.10:8010/ws"
+
 run_case "Android 真机忽略显式旧地址并使用当前 LAN IP" \
     env APP_TEST_DEVICE= API_BASE_URL=http://198.51.100.9:8010 WS_URL=ws://198.51.100.9:8010/ws \
     ./scripts/test_integration.sh network
@@ -152,3 +163,13 @@ dry_run="$(make -n -C "$APP_DIR/.." app.test.integration.device APP_TEST_DEVICE=
 assert_text_contains "$dry_run" 'APP_TEST_DEVICE="app-device"'
 assert_text_contains "$dry_run" './scripts/test_integration.sh device'
 echo "ok - Makefile device 入口支持 APP_TEST_DEVICE"
+
+dry_run="$(make -n -C "$APP_DIR/.." app.test.integration.contract APP_TEST_DEVICE=app-device)"
+assert_text_contains "$dry_run" 'APP_TEST_DEVICE="app-device"'
+assert_text_contains "$dry_run" './scripts/test_integration.sh contract'
+echo "ok - Makefile contract 入口支持 APP_TEST_DEVICE"
+
+dry_run="$(make -n -C "$APP_DIR/.." app.test.integration.device.contract APP_TEST_DEVICE=app-device)"
+assert_text_contains "$dry_run" 'APP_TEST_DEVICE="app-device"'
+assert_text_contains "$dry_run" './scripts/test_integration.sh contract'
+echo "ok - Makefile device contract 入口支持 APP_TEST_DEVICE"

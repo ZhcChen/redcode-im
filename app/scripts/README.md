@@ -104,9 +104,16 @@ make app.test.integration.network
 # 真实普通账号注册/登录，默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1
 make app.test.integration.auth
 
+# Flutter 首版核心 API 合同，覆盖认证/好友/群/消息/设置/Push device mock
+make app.test.integration.contract
+
+# Flutter REST path 与 api/src/routes.rs 机械化对照
+make app.test.api-paths
+
 # 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
 make app.test.integration.device
 make app.test.integration.device.auth
+make app.test.integration.device.contract
 ```
 
 也可直接调用脚本：
@@ -115,10 +122,11 @@ make app.test.integration.device.auth
 ./scripts/test_integration.sh smoke
 ./scripts/test_integration.sh network --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
 ./scripts/test_integration.sh auth --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
+./scripts/test_integration.sh contract --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
 ./scripts/test_integration.sh device --device 3A091FDJG001DN
 ```
 
-`smoke`、`network`、`auth` 与 `device` 模式默认都优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
+`smoke`、`network`、`auth`、`contract` 与 `device` 模式默认都优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
 
 ```bash
 API_BASE_URL=http://<LAN_IP>:8010
