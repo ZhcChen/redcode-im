@@ -83,6 +83,7 @@
 | [部署环境](reference/operations/deployment-env.md) | 环境配置说明 |
 | [开发与构建](reference/operations/dev-and-build.md) | 本地开发指南 |
 | [Docker 部署](reference/operations/docker-deploy.md) | 容器化部署 |
+| [GitHub Actions 构建发布](reference/operations/github-actions-build.md) | app / desktop / api 发布产物构建流程 |
 | [故障排查手册](reference/operations/troubleshooting.md) | 常见问题排查 |
 | [备份与恢复](reference/operations/backup-restore.md) | 数据备份策略 |
 | [升级与迁移](reference/operations/upgrade-migration.md) | 版本升级指南 |
