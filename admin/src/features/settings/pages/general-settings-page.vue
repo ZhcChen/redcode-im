@@ -350,8 +350,9 @@
               :closable="false"
               style="margin-bottom: 20px"
             >
-              relay-only
-              尚未切换完整消息主链路；当前先固化配置面与公开设置返回，后续再逐步切行为。
+              切换服务器存储模式会影响全局消息能力：persist
+              会保留服务端历史，relay_only
+              只做实时转发，不保存消息历史，也不生成离线 Push 消息快照。
             </a-alert>
 
             <a-form-item field="server_storage_mode" label="服务器存储模式">
@@ -361,7 +362,7 @@
               </a-radio-group>
               <template #help>
                 切到 relay_only
-                后，历史消息、搜索、审计、引用转发等链路都需要按模式降级。
+                后，依赖服务端消息记录的能力会降级或不可用；附件对象与审核元数据仍按上传链路处理，完整边界见消息运行模式参考文档。
               </template>
             </a-form-item>
 
