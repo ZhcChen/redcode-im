@@ -420,26 +420,40 @@ Authorization: Bearer <your-jwt-token>
 
 ### 消息发送与获取
 
+消息接口受全局消息运行模式影响。默认 `persist` 模式会服务端落库；`relay_only` 模式只实时转发，不写 `messages` / `message_parts`，且不把消息快照写入离线 Push 队列；历史、搜索、已读和消息变更类能力会降级。详细边界见 `docs/reference/architecture/message-runtime-modes.md`。
+
 #### 1. 发送消息
 - **接口**: `POST /rooms/:room_id/messages`
 - **权限**: 需要认证
-- **功能**: 在指定房间发送消息
+- **功能**: 在指定房间发送消息；`persist` 模式写入服务端历史，`relay_only` 模式返回运行时消息快照并通过 WebSocket 实时广播
 - **Handler**: `message::send_message`
+- **请求体**: `content` 可选、`parts` 可选、`quoted_message_id` 可选；当 `parts` 为空时必须提供非空 `content`。消息类型由 `parts` 归一化推导，纯 `content` 为文本消息。`relay_only` 下不支持 `quoted_message_id`，附件 key 必须属于当前房间前缀 `messages/{room_id}/`。
+- **错误**: `relay_only` 实时广播失败或附件授权服务不可用时返回 HTTP 503 ErrorResponse（`code=50302`），客户端应保持未发送/可重试状态。
+
+#### 1.1 发送加密消息
+- **接口**: `POST /rooms/:room_id/messages/encrypted`
+- **权限**: 需要认证
+- **功能**: 发送 Base64 编码密文消息；`persist` 模式写入密文历史，`relay_only` 模式仅实时广播运行时快照，不写服务端历史或离线 Push 消息快照
+- **Handler**: `message::send_encrypted_message`
+- **请求体**: `content_summary` 可选、`encrypted_content` 必填 Base64、`encryption_metadata` 可选、`quoted_message_id` 可选；`relay_only` 下不支持 `quoted_message_id`。
+- **错误**: 非法 Base64 返回 HTTP 400；`relay_only` 引用消息返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）；实时广播失败返回 HTTP 503 ErrorResponse（`code=50302`）。
 
 #### 2. 获取消息列表
 - **接口**: `GET /rooms/:room_id/messages`
 - **权限**: 需要认证
-- **功能**: 分页获取房间的历史消息
+- **功能**: 分页获取房间的历史消息；`relay_only` 模式返回 HTTP 200 空列表
 - **Handler**: `message::list_messages`
-- **查询参数**: `?cursor=xxx&limit=50`
+- **查询参数**: `?before_id=xxx&limit=50` 或 `?since_id=xxx&limit=50`；`before_id` 与 `since_id` 互斥，`limit` 范围 1-200。
 
 #### 3. 清空房间消息
 - **接口**: `DELETE /rooms/:room_id/messages`
 - **权限**: 需要认证（需要管理员权限）
-- **功能**: 清空房间的所有消息历史
+- **功能**: 清空房间的所有消息历史；`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
 - **Handler**: `message::clear_room_messages`
 
 ### 消息操作
+
+> `relay_only` 下，删除、置顶、取消置顶、转发、编辑和 reaction 类消息变更接口返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）。
 
 #### 3. 删除消息
 - **接口**: `DELETE /rooms/:room_id/messages/:message_id`
@@ -624,8 +638,8 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **权限**: 需要认证
 - **功能**: 获取消息附件的临时下载链接
 - **Handler**: `message::generate_message_attachment_download_url`
-- **查询参数**: `?key=xxx`
-- **说明**：后端会校验该 `key` 必须已被当前房间的消息引用（附件或缩略图），否则返回 404。
+- **查询参数**: `?key=xxx&expires_in_seconds=600`
+- **说明**：`persist` 优先校验该 `key` 必须已被当前房间的持久化消息分片引用（附件或缩略图），否则 fallback 检查未过期 relay-only 临时授权；`relay_only` 校验发送时写入的 Redis TTL 临时授权，且附件 key 必须属于当前房间前缀 `messages/{room_id}/` 并已完成上传提交。授权缺失/过期返回 HTTP 404，Redis 授权服务不可用返回 HTTP 503；relay-only 临时授权生成的下载 URL 有效期不会超过 Redis grant 剩余 TTL。
 
 ---
 
@@ -636,13 +650,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 #### 1. 标记单条消息已读
 - **接口**: `POST /rooms/:room_id/messages/read`
 - **权限**: 需要认证
-- **功能**: 标记指定消息为已读
+- **功能**: 标记指定消息为已读；`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
 - **Handler**: `message_read::mark_message_read`
 
 #### 2. 标记消息已读至
 - **接口**: `POST /rooms/:room_id/messages/read_until`
 - **权限**: 需要认证
-- **功能**: 标记从某条消息之前的所有消息为已读
+- **功能**: 标记从某条消息之前的所有消息为已读；`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
 - **Handler**: `message_read::mark_messages_read_until`
 
 ### 未读计数
@@ -650,13 +664,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 #### 3. 获取房间未读数
 - **接口**: `GET /rooms/:room_id/unread_count`
 - **权限**: 需要认证
-- **功能**: 获取指定房间的未读消息数量
+- **功能**: 获取指定房间的未读消息数量；`relay_only` 下返回 0，已读游标为 `null`
 - **Handler**: `message_read::get_unread_count`
 
 #### 4. 获取所有未读数
 - **接口**: `GET /unread_counts`
 - **权限**: 需要认证
-- **功能**: 获取所有房间的未读消息数量
+- **功能**: 获取所有房间的未读消息数量；`relay_only` 下所有房间返回 0，已读游标为 `null`
 - **Handler**: `message_read::get_all_unread_counts`
 
 ### 已读回执
@@ -664,7 +678,7 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 #### 5. 获取消息已读列表
 - **接口**: `GET /rooms/:room_id/messages/:message_id/reads`
 - **权限**: 需要认证
-- **功能**: 获取消息的已读用户列表
+- **功能**: 获取消息的已读用户列表；`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
 - **Handler**: `message_read::get_message_read_list`
 
 ---
@@ -676,14 +690,14 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **权限**: 需要认证
 - **功能**: 全文搜索消息内容
 - **Handler**: `message_search::search_messages`
-- **查询参数**: `?q=keyword&room_id=xxx&limit=20`
+- **查询参数**: `?query=keyword&room_id=xxx&limit=20`
 
 #### 2. 获取搜索建议
 - **接口**: `GET /messages/search/suggestions`
 - **权限**: 需要认证
 - **功能**: 根据输入获取搜索关键词建议
 - **Handler**: `message_search::get_search_suggestions`
-- **查询参数**: `?q=keyword`
+- **查询参数**: `?prefix=keyword&limit=10`
 
 #### 3. 获取热门关键词
 - **接口**: `GET /messages/search/trending`
@@ -1483,7 +1497,7 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 #### 7. 获取通用设置（公开）
 - **接口**: `GET /settings/general`
 - **权限**: 公开
-- **功能**: 获取系统通用配置（如功能开关）
+- **功能**: 获取系统通用配置（如功能开关）；返回 `message_runtime.server_storage_mode` 和 `message_runtime.content_audit_mode`
 - **Handler**: `settings::get_general_settings`
 
 #### 8. 获取应用名称（公开）
@@ -1498,21 +1512,46 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **功能**: 更新应用显示名称
 - **Handler**: `settings::update_app_name`
 
+#### 10. 获取消息运行模式（管理员）
+- **接口**: `GET /api/admin/settings/message-runtime`
+- **权限**: 管理员
+- **功能**: 获取全局消息运行模式配置
+- **Handler**: `settings::get_message_runtime_settings_admin`
+- **响应字段**:
+  - `server_storage_mode`: `persist` 或 `relay_only`
+  - `content_audit_mode`: `plaintext` 或 `e2ee`
+  - `updated_at`: 最近更新时间，可为 `null`
+  - `updated_by`: 最近更新管理员 ID，可为 `null`
+
+#### 11. 更新消息运行模式
+- **接口**: `PUT /api/admin/settings/message-runtime`
+- **权限**: 管理员
+- **功能**: 更新全局消息运行模式
+- **Handler**: `settings::update_message_runtime_settings_admin`
+- **请求体**:
+```json
+{
+  "server_storage_mode": "relay_only",
+  "content_audit_mode": "plaintext"
+}
+```
+- **说明**: `server_storage_mode` 仅支持 `persist` / `relay_only`；`content_audit_mode` 仅支持 `plaintext` / `e2ee`。非法值返回 HTTP 400 ErrorResponse（`code=42201`）。
+
 ### 验证码设置
 
-#### 10. 获取验证码设置（公开）
+#### 12. 获取验证码设置（公开）
 - **接口**: `GET /settings/captcha`
 - **权限**: 公开
 - **功能**: 获取验证码配置（是否启用等）
 - **Handler**: `settings::get_captcha_setting_public`
 
-#### 11. 获取验证码设置（管理员）
+#### 13. 获取验证码设置（管理员）
 - **接口**: `GET /api/admin/settings/captcha`
 - **权限**: 管理员
 - **功能**: 获取验证码完整配置
 - **Handler**: `admin::get_captcha_setting`
 
-#### 12. 更新验证码设置
+#### 14. 更新验证码设置
 - **接口**: `POST /api/admin/settings/captcha`
 - **权限**: 管理员
 - **功能**: 修改验证码配置
@@ -1520,13 +1559,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 用户账户限制
 
-#### 13. 获取用户账户限制
+#### 15. 获取用户账户限制
 - **接口**: `GET /api/admin/settings/user-account-limit`
 - **权限**: 管理员
 - **功能**: 获取用户账户相关限制配置和邮箱注册/登录兼容开关
 - **Handler**: `settings::get_user_account_limit`
 
-#### 14. 更新用户账户限制
+#### 16. 更新用户账户限制
 - **接口**: `PUT /api/admin/settings/user-account-limit`
 - **权限**: 管理员
 - **功能**: 更新用户账户限制配置和邮箱注册/登录兼容开关
@@ -1534,19 +1573,19 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 上传策略配置
 
-#### 15. 获取上传策略（用户）
+#### 17. 获取上传策略（用户）
 - **接口**: `GET /system/upload-policy`
 - **权限**: 需要认证
 - **功能**: 获取当前文件上传策略（大小限制、类型限制等）
 - **Handler**: `upload_policy::get_upload_policy_user`
 
-#### 16. 获取上传策略（管理员）
+#### 18. 获取上传策略（管理员）
 - **接口**: `GET /api/admin/settings/upload-policy`
 - **权限**: 管理员
 - **功能**: 获取完整上传策略配置
 - **Handler**: `upload_policy::get_upload_policy_admin`
 
-#### 17. 更新上传策略
+#### 19. 更新上传策略
 - **接口**: `PUT /api/admin/settings/upload-policy`
 - **权限**: 管理员
 - **功能**: 更新上传策略配置
@@ -1554,25 +1593,25 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### Push 平台配置
 
-#### 18. 获取 Push 设置
+#### 20. 获取 Push 设置
 - **接口**: `GET /api/admin/settings/push`
 - **权限**: 管理员
 - **功能**: 获取推送服务配置
 - **Handler**: `push_settings::get_push_settings_admin`
 
-#### 19. 更新 Push 设置
+#### 21. 更新 Push 设置
 - **接口**: `PUT /api/admin/settings/push`
 - **权限**: 管理员
 - **功能**: 更新推送服务配置
 - **Handler**: `push_settings::update_push_settings_admin`
 
-#### 20. 更新 Push 提供商配置
+#### 22. 更新 Push 提供商配置
 - **接口**: `PUT /api/admin/settings/push/providers/:provider`
 - **权限**: 管理员
 - **功能**: 更新指定推送提供商（fcm/apns）的配置
 - **Handler**: `push_settings::upsert_push_provider_admin`
 
-#### 21. 测试 Push 发送
+#### 23. 测试 Push 发送
 - **接口**: `POST /api/admin/settings/push/test`
 - **权限**: 管理员
 - **功能**: 发送测试推送消息

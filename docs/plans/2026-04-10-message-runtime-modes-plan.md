@@ -1,8 +1,10 @@
 # 消息运行模式与服务器存储开关计划
 
-- status: active
+- status: completed
 - date: 2026-04-10
 - owner: codex
+
+> 说明：第 1-8 节保留原计划与历史决策语境；当前完成事实以第 9 节和 `docs/reference/architecture/message-runtime-modes.md` 为准。
 
 ## 1. 问题定义
 当前消息链路默认假设“服务端持久化消息”，`send_message` / `send_encrypted_message` 都直接写入 `messages` 与 `message_parts`。这与目标能力存在差距：
@@ -187,3 +189,34 @@
   - 新增或扩展 Playwright admin settings 用例
 - Manual:
   - admin 修改设置后，公开 `/settings/general` 返回值同步变化
+
+## 9. 收口结果（2026-07-23）
+
+本计划已按 Flutter 首版服务端能力完成收口：
+
+- `persist` 为默认完整持久化模式：消息写入 PostgreSQL，并通过 Redis Pub/Sub 实时广播。
+- `relay_only` 为仅实时转发模式：发送成功时返回运行时消息快照，通过 Redis Pub/Sub 广播，但不写 `messages` / `message_parts`，也不写 message 类型离线 Push 队列。
+- 读侧与变更侧按模式降级：
+  - 房间历史消息返回空列表。
+  - 消息搜索、搜索建议、热门关键词返回空结果。
+  - 后台聊天记录不返回服务端历史。
+  - 聊天摘要不展示服务端最后一条消息，未读数与已读游标归零。
+  - 引用、转发、编辑、删除、清空聊天记录、置顶、reaction、已读回执返回 `relay_only` 不支持。
+- Push 队列已使用 `PushMessageSnapshot` 支撑 `persist` 消息离线通知；`relay_only` 不生成该队列任务，避免把消息正文或预览短期落库。
+- `relay_only` 附件发送要求 key 属于当前房间前缀并已完成上传提交；下载依赖 Redis TTL grant，生成的对象存储下载 URL 不超过 grant 剩余 TTL。
+- Flutter 已读取公开 `message_runtime`，并在 `relay_only` 下跳过服务端历史、隐藏不支持动作、提示仅本地缓存。
+- Admin “消息运行模式”页已更新为正式能力说明，不再提示“尚未切完整主链路”。
+- 正式参考文档见 `docs/reference/architecture/message-runtime-modes.md`。
+
+主回归入口：
+
+```bash
+make api.test
+```
+
+关键 API 合同可用以下 Compose 内定向用例补充验证：
+
+```bash
+docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --test admin_integration message_runtime_settings_can_be_updated_and_read_publicly
+docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --test websocket_integration relay_only_message_broadcasts_without_server_persistence
+```

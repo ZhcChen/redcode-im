@@ -1,8 +1,10 @@
 # 消息接口
 
+> 消息接口受全局消息运行模式影响。默认 `persist` 模式会服务端落库；`relay_only` 模式只实时转发，不写 `messages` / `message_parts`，且不把消息快照写入离线 Push 队列。历史、搜索、已读和消息变更类能力在 `relay_only` 下会降级，详见 `docs/reference/architecture/message-runtime-modes.md`。
+
 ## POST /rooms/:room_id/messages — 发送消息
 
-向指定房间发送消息。需要认证。可选 message_type: text/image/file/system（默认 text）。
+向指定房间发送消息。需要认证。消息类型由 `parts` 归一化推导；纯 `content` 会作为文本消息发送。`persist` 模式写入服务端历史，`relay_only` 模式返回运行时消息快照并通过 WebSocket 实时广播；实时广播失败时返回 HTTP 503，客户端应保持未发送/可重试状态。
 
 - 需要认证：是
 - 标识：sendMessage
@@ -13,19 +15,47 @@
 ```json
 {
   "type": "object",
-  "required": [
-    "content"
-  ],
   "properties": {
     "content": {
       "type": "string",
-      "description": "消息内容",
+      "description": "文本消息内容；当 parts 为空时必须提供非空 content",
       "example": "大家好"
     },
-    "message_type": {
+    "parts": {
+      "type": "array",
+      "description": "消息分片。支持 type=text/image/video/audio/file；附件 key 必须来自消息附件上传签名或提交链路；relay_only 下附件 key 必须属于当前房间前缀 messages/{room_id}/",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["type", "text"],
+            "properties": {
+              "type": { "const": "text" },
+              "text": { "type": "string" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["type", "key"],
+            "properties": {
+              "type": { "enum": ["image", "video", "audio", "file"] },
+              "key": { "type": "string" },
+              "name": { "type": "string" },
+              "mime": { "type": "string" },
+              "size": { "type": "integer" },
+              "width": { "type": "integer" },
+              "height": { "type": "integer" },
+              "duration_ms": { "type": "integer" },
+              "thumbnail_key": { "type": "string" }
+            }
+          }
+        ]
+      }
+    },
+    "quoted_message_id": {
       "type": "string",
-      "description": "消息类型，可选 text/image/file/system",
-      "example": "text"
+      "format": "uuid",
+      "description": "可选引用消息 ID；relay_only 模式下不支持引用"
     }
   }
 }
@@ -33,24 +63,51 @@
 - 示例：
 ```json
 {
-  "content": "大家好",
-  "message_type": "text"
+  "content": "大家好"
+}
+```
+- 附件/多分片示例：
+```json
+{
+  "parts": [
+    {
+      "type": "text",
+      "text": "看这张图"
+    },
+    {
+      "type": "image",
+      "key": "messages/{room-id}/images_20261010/abcdef01.png",
+      "name": "demo.png",
+      "mime": "image/png",
+      "size": 12345,
+      "width": 800,
+      "height": 600
+    }
+  ]
 }
 ```
 
 ### 响应
 #### HTTP 200
-发送成功，返回消息对象
+发送成功，返回消息对象。`relay_only` 下响应结构相同，`message` 为运行时消息快照。
 示例：
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "room_id": "11111111-2222-3333-4444-555555555555",
-  "sender_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-  "content": "大家好",
-  "message_type": "text",
-  "created_at": "2024-10-10T10:00:00Z",
-  "updated_at": "2024-10-10T10:00:00Z"
+  "message": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "room_id": "11111111-2222-3333-4444-555555555555",
+    "sender_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "sender_username": "alice",
+    "sender_nickname": "Alice",
+    "content": "大家好",
+    "message_type": "text",
+    "status": "sent",
+    "created_at": "2024-10-10T10:00:00Z",
+    "is_deleted": false,
+    "is_edited": false,
+    "is_pinned": false,
+    "parts": []
+  }
 }
 ```
 
@@ -72,9 +129,42 @@
 }
 ```
 
+#### HTTP 503
+`relay_only` 实时广播失败或附件授权服务不可用。
+示例：
+```json
+{
+  "code": 50302,
+  "message": "relay_only 消息实时广播失败，请稍后重试"
+}
+```
+
+## POST /rooms/:room_id/messages/encrypted — 发送加密消息
+
+向指定房间发送加密消息。需要认证。`encrypted_content` 必须是 Base64 编码；`content_summary` 用于列表摘要和旧客户端占位。`persist` 模式写入密文历史；`relay_only` 模式只返回运行时快照并通过 WebSocket 透传密文，不写服务端历史或离线 Push 消息快照。
+
+### 请求体
+```json
+{
+  "content_summary": "[加密消息]",
+  "encrypted_content": "aGVsbG8=",
+  "encryption_metadata": {
+    "alg": "test",
+    "iv": "iv1"
+  },
+  "quoted_message_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+- `quoted_message_id` 可选；`relay_only` 下不支持，返回 HTTP 400 ErrorResponse，`code=42201`，`message` 包含 `relay_only`。
+- `relay_only` 实时广播失败返回 HTTP 503 ErrorResponse，`code=50302`。
+
+### 响应
+成功时返回与普通发送相同的 `{"message": ...}` 结构，`message.encrypted_content` 与 `message.encryption_metadata` 会按服务端消息模型返回。
+
 ## GET /rooms/:room_id/messages?limit=50 — 获取消息列表
 
-按时间倒序获取房间最近消息。支持查询参数 limit(1-200)，默认50。需要认证。
+按时间倒序获取房间最近消息。支持查询参数 `limit`(1-200，默认50)、`before_id`、`since_id`；`before_id` 与 `since_id` 互斥。需要认证。`relay_only` 模式返回 HTTP 200 空列表。
 
 - 需要认证：是
 - 标识：listMessages
@@ -224,3 +314,17 @@
 
 - commit 接口用于将 `file_upload_records` 中的记录标记为 `status=1`（上传完成），使得同一哈希的文件在后续可以被复用；
 - 若签名阶段未提供 `hash_value/file_size`，记录可能不存在，此时 commit 仍会返回成功，但该文件无法参与哈希去重。
+
+### 3. 获取附件下载链接
+
+- **方法**: `GET`
+- **路径**: `/rooms/:room_id/messages/attachments/download`
+- **认证**: Bearer Token
+- **查询参数**: `key` 必填，`expires_in_seconds` 可选（默认 600 秒，持久化引用路径最大 86400 秒）
+
+说明：
+
+- `persist`：优先校验 `key` 必须已被当前房间的持久化消息分片引用（附件或缩略图），否则 fallback 检查未过期 relay-only 临时授权；两者均不存在返回 404，Redis 授权服务不可用返回 503。
+- `relay_only`：校验发送时写入的 Redis TTL 临时授权；授权缺失/过期返回 404，Redis 授权服务不可用返回 503。
+- `relay_only` 下附件 key 必须属于当前房间前缀 `messages/{room_id}/`，且发送前必须已经完成附件上传提交；跨房间或未提交的 object key 不会生成下载授权。
+- 通过 relay-only 临时授权生成下载 URL 时，实际 `expires_in_seconds` 不会超过 Redis grant 剩余 TTL；切回 `persist` 后，TTL 内的 relay-only 附件仍可下载。

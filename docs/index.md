@@ -54,6 +54,7 @@
 | [推送通知设计](reference/architecture/push-notification-design.md) | FCM/APNs 推送方案 |
 | [推送配置需求](reference/architecture/push-provider-config-requirements.md) | Push 凭据后台化 |
 | [端到端加密设计](reference/architecture/end-to-end-encryption-design.md) | E2EE 方案（设计完成，待实现） |
+| [消息运行模式](reference/architecture/message-runtime-modes.md) | 消息服务端持久化与 relay-only 模式 |
 | [消息搜索设计](reference/architecture/message-search-design.md) | 搜索实现方案 |
 | [Redis 配置](reference/architecture/redis-setup.md) | Redis 部署指南 |
 | [Redis 安全](reference/architecture/redis-security.md) | Redis 安全配置 |
@@ -136,4 +137,4 @@
 
 ---
 
-**文档最后更新**: 2026-07-05
+**文档最后更新**: 2026-07-23
