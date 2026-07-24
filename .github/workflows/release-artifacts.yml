@@ -294,11 +294,6 @@ jobs:
             slug: windows-x86_64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
-          - name: Windows
-            arch: arm64
-            slug: windows-arm64
-            runner: windows-11-arm
-            target: aarch64-pc-windows-msvc
           - name: Linux
             arch: x86_64
             slug: linux-x86_64
@@ -402,7 +397,14 @@ jobs:
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
-        run: bunx tauri build --target "$TARGET"
+        run: |
+          set -euo pipefail
+
+          if [ "$TARGET" = "x86_64-pc-windows-msvc" ]; then
+            bunx tauri build --target "$TARGET" --config src-tauri/tauri.windows.ci.conf.json
+          else
+            bunx tauri build --target "$TARGET"
+          fi
 
       - name: Collect desktop artifacts
         shell: bash
