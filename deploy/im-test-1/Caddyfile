@@ -1,9 +1,18 @@
 im-test-1.codelib.cc {
     encode gzip zstd
-    reverse_proxy 127.0.0.1:8010
+
+    # 如果你修改了 .env 里的 bucket 名，请同步更新这里的路径前缀。
+    @rustfs path /redcode-im-private /redcode-im-private/* /redcode-im-public /redcode-im-public/*
+    handle @rustfs {
+        reverse_proxy 172.29.240.12:9000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8010
+    }
 }
 
 im-test-admin-1.codelib.cc {
     encode gzip zstd
-    reverse_proxy 127.0.0.1:8011
+    reverse_proxy 172.29.240.13:80
 }

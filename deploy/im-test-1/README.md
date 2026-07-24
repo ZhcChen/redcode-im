@@ -6,6 +6,7 @@
 
 - PostgreSQL
 - Redis
+- RustFS（S3 兼容对象存储）
 - API
 - Admin
 
@@ -13,7 +14,6 @@
 
 - NATS
 - external-mock
-- reverse proxy
 
 当前 API 运行时仍然使用 Redis Pub/Sub 做跨连接 fanout，所以这里先保持最小栈。
 
@@ -76,10 +76,22 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
 
    - `POSTGRES_PASSWORD`
    - `REDIS_PASSWORD`
+   - `RUSTFS_ACCESS_KEY`
+   - `RUSTFS_SECRET_KEY`
    - `JWT_SECRET`
    - `DATA_ENCRYPTION_KEY`
 
    这些值建议都用 URL-safe 随机串，避免拼接出来的 PostgreSQL / Redis 连接串失效。
+   `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` 在卷里已有数据后不要随意更换。
+
+   如果你改了：
+
+   - `API_PUBLIC_HOST`
+   - `RUSTFS_PRIVATE_BUCKET`
+   - `RUSTFS_PUBLIC_BUCKET`
+
+   记得同步修改 `Caddyfile` 里的站点域名和 bucket 路径前缀。
+   如果你还改了 compose 里给 `rustfs` / `admin` 预留的固定桥接 IP，也要同步改 `Caddyfile`。
 
 5. 从目标正式版 Release 下载 API Docker 镜像产物。
 
@@ -133,15 +145,17 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
     docker compose ps
     docker compose logs -f api
     docker compose logs -f admin
+    docker compose logs -f rustfs
     curl http://127.0.0.1:8010/healthz
     curl https://im-test-1.codelib.cc/healthz
     curl -I https://im-test-admin-1.codelib.cc
+    curl -I https://im-test-1.codelib.cc/redcode-im-private
    ```
 
 ## 升级
 
 1. 下载新的正式版 API 镜像产物，或重新构建并导出新的 Admin 镜像产物。
-2. 对照新的 `.env.example` 检查 `.env` 是否缺少新增变量；如果你的老环境文件里还没有 `ADMIN_IMAGE` / `ADMIN_BIND_IP` / `ADMIN_PORT`，请先补齐，或者确认继续使用 compose 里的默认值。
+2. 对照新的 `.env.example` 检查 `.env` 是否缺少新增变量；如果你的老环境文件里还没有 `API_PUBLIC_HOST`、`RUSTFS_*` 或 `ADMIN_IMAGE`，请先补齐。
 3. 先做一次配置体检：
 
    ```bash
@@ -154,6 +168,13 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
    ```bash
    docker compose up -d --force-recreate api
    docker compose up -d --force-recreate admin
+   ```
+
+   如果这次还改了 `RUSTFS_*` 或 RustFS 镜像版本，再额外执行：
+
+   ```bash
+   docker compose up -d --force-recreate rustfs
+   docker compose up -d rustfs-init
    ```
 
 6. 再次检查 `healthz`、Admin 首页和日志。
@@ -172,8 +193,13 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
 ## 说明
 
 - PostgreSQL 和 Redis 都只在容器网络内使用，不暴露宿主机端口。
+- RustFS 也只在容器网络内使用，不映射宿主机端口。
 - API 暴露为 `${API_BIND_IP}:${API_PORT}`，容器内端口固定是 `8010`。
-- Admin 暴露为 `${ADMIN_BIND_IP}:${ADMIN_PORT}`，容器内端口固定是 `80`。
-- 当前推荐由 Caddy 对外承接 `80/443`，再分别反代到 `127.0.0.1:8010` 和 `127.0.0.1:8011`。
+- Admin 不映射宿主机端口，由宿主机 Caddy 直接反代到容器桥接网段固定 IP。
+- 当前推荐由宿主机 Caddy 对外承接 `80/443`：
+  - `im-test-1.codelib.cc` -> `127.0.0.1:8010`（API）
+  - `im-test-1.codelib.cc/{bucket}/...` -> `172.29.240.12:9000`（RustFS）
+  - `im-test-admin-1.codelib.cc` -> `172.29.240.13:80`（Admin）
 - 数据库迁移仍然由 API 启动时自动执行。
-- Push provider、对象存储等能力不在这套基础 profile 里；后面测试范围真的需要时再补。
+- RustFS bucket 会由 `rustfs-init` 一次性初始化；如果两个 bucket 同名，则只会创建一次。
+- 目前管理端“对象存储配置探测 / authorize_account”逻辑仍然面向 Backblaze B2。测试环境已直接走 S3 兼容读写链路，因此不要用该探测结果判断 RustFS 是否可用。

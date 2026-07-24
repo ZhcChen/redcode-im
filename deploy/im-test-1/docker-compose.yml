@@ -11,6 +11,8 @@ services:
       TZ: ${TZ}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - im-test-1-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 10s
@@ -43,11 +45,86 @@ services:
       - ${REDIS_MAXMEMORY_POLICY}
     volumes:
       - redis_data:/data
+    networks:
+      - im-test-1-network
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
+
+  rustfs-volume-permissions:
+    image: alpine:3.22
+    restart: "no"
+    command:
+      - sh
+      - -ec
+      - chown -R 10001:10001 /data/rustfs0 /data/rustfs1 /data/rustfs2 /data/rustfs3
+    volumes:
+      - rustfs_data_0:/data/rustfs0
+      - rustfs_data_1:/data/rustfs1
+      - rustfs_data_2:/data/rustfs2
+      - rustfs_data_3:/data/rustfs3
+    networks:
+      - im-test-1-network
+
+  rustfs:
+    image: ${RUSTFS_IMAGE}
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY}
+      RUSTFS_DEFAULT_REGION: ${RUSTFS_REGION}
+      RUSTFS_VOLUMES: /data/rustfs{0...3}
+      RUSTFS_UNSAFE_BYPASS_DISK_CHECK: ${RUSTFS_UNSAFE_BYPASS_DISK_CHECK}
+    volumes:
+      - rustfs_data_0:/data/rustfs0
+      - rustfs_data_1:/data/rustfs1
+      - rustfs_data_2:/data/rustfs2
+      - rustfs_data_3:/data/rustfs3
+    depends_on:
+      rustfs-volume-permissions:
+        condition: service_completed_successfully
+    networks:
+      im-test-1-network:
+        ipv4_address: 172.29.240.12
+    healthcheck:
+      test: ["CMD", "sh", "-ec", "curl -fsS http://127.0.0.1:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  rustfs-init:
+    image: minio/mc:latest
+    restart: "no"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        mc alias set rustfs http://rustfs:9000 "${RUSTFS_ACCESS_KEY}" "${RUSTFS_SECRET_KEY}"
+        ensure_bucket() {
+          bucket="$$1"
+          if mc ls "rustfs/$$bucket" >/dev/null 2>&1; then
+            echo "bucket already exists: $$bucket"
+            return 0
+          fi
+          mc mb "rustfs/$$bucket"
+        }
+        ensure_bucket "${RUSTFS_PRIVATE_BUCKET}"
+        if [ "${RUSTFS_PUBLIC_BUCKET}" != "${RUSTFS_PRIVATE_BUCKET}" ]; then
+          ensure_bucket "${RUSTFS_PUBLIC_BUCKET}"
+        fi
+    depends_on:
+      rustfs:
+        condition: service_healthy
+    networks:
+      - im-test-1-network
 
   api:
     image: ${API_IMAGE}
@@ -66,6 +143,15 @@ services:
       REDIS_SESSION_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       REDIS_PUBSUB_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       REDIS_CACHE_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDCODE_IM_STORAGE_SCHEME: https
+      REDCODE_IM_B2_ENDPOINT: https://${API_PUBLIC_HOST}
+      REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: https://${API_PUBLIC_HOST}
+      REDCODE_IM_B2_REGION: ${RUSTFS_REGION}
+      REDCODE_IM_B2_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      REDCODE_IM_B2_APPLICATION_KEY: ${RUSTFS_SECRET_KEY}
+      REDCODE_IM_B2_PRIVATE_BUCKET: ${RUSTFS_PRIVATE_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BUCKET: ${RUSTFS_PUBLIC_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BASE_URL: https://${API_PUBLIC_HOST}/${RUSTFS_PUBLIC_BUCKET}
       JWT_SECRET: ${JWT_SECRET}
       DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
       WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE}
@@ -74,11 +160,19 @@ services:
       METRICS_FLUSH_BATCH_SIZE: ${METRICS_FLUSH_BATCH_SIZE}
       METRICS_FLUSH_INTERVAL_SECONDS: ${METRICS_FLUSH_INTERVAL_SECONDS}
       METRICS_SAMPLE_RATE: ${METRICS_SAMPLE_RATE}
+    extra_hosts:
+      - "${API_PUBLIC_HOST}:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      rustfs-init:
+        condition: service_completed_successfully
+    networks:
+      - im-test-1-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
       interval: 30s
@@ -90,8 +184,9 @@ services:
     image: ${ADMIN_IMAGE:-redcode-im-admin:im-test-1}
     pull_policy: never
     restart: unless-stopped
-    ports:
-      - "${ADMIN_BIND_IP:-127.0.0.1}:${ADMIN_PORT:-8011}:80"
+    networks:
+      im-test-1-network:
+        ipv4_address: 172.29.240.13
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
       interval: 30s
@@ -102,3 +197,15 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  rustfs_data_0:
+  rustfs_data_1:
+  rustfs_data_2:
+  rustfs_data_3:
+
+networks:
+  im-test-1-network:
+    name: im-test-1-network
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.240.0/24
