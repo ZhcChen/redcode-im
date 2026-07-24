@@ -1,0 +1,91 @@
+name: im-test-1
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --port
+      - "6379"
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "yes"
+      - --save
+      - "900"
+      - "1"
+      - --save
+      - "300"
+      - "10"
+      - --save
+      - "60"
+      - "10000"
+      - --maxmemory
+      - ${REDIS_MAXMEMORY}
+      - --maxmemory-policy
+      - ${REDIS_MAXMEMORY_POLICY}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  api:
+    image: ${API_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    ports:
+      - "${API_BIND_IP}:${API_PORT}:8010"
+    environment:
+      PORT: "8010"
+      TZ: ${TZ}
+      RUST_LOG: ${RUST_LOG}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS}
+      DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS}
+      DATABASE_ACQUIRE_TIMEOUT_SECONDS: ${DATABASE_ACQUIRE_TIMEOUT_SECONDS}
+      REDIS_SESSION_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_PUBSUB_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_CACHE_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE}
+      METRICS_ENABLED: ${METRICS_ENABLED}
+      METRICS_CHANNEL_CAPACITY: ${METRICS_CHANNEL_CAPACITY}
+      METRICS_FLUSH_BATCH_SIZE: ${METRICS_FLUSH_BATCH_SIZE}
+      METRICS_FLUSH_INTERVAL_SECONDS: ${METRICS_FLUSH_INTERVAL_SECONDS}
+      METRICS_SAMPLE_RATE: ${METRICS_SAMPLE_RATE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_data:
+  redis_data:
