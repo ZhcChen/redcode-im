@@ -82,6 +82,9 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -99,19 +102,9 @@ jobs:
         run: flutter test
 
   app-build:
-    name: Build Flutter app ${{ matrix.name }}
+    name: Build Flutter Android app
     needs: app-check
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Android
-            target: android
-            runner: ubuntu-latest
-          - name: iOS unsigned
-            target: ios
-            runner: macos-latest
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
@@ -120,11 +113,13 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Java
-        if: matrix.target == 'android'
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -137,7 +132,6 @@ jobs:
         run: flutter pub get
 
       - name: Build Android APK and AAB
-        if: matrix.target == 'android'
         run: |
           set -euo pipefail
           flutter build apk --release --dart-define=ENV=production
@@ -147,26 +141,27 @@ jobs:
           cp build/app/outputs/flutter-apk/app-release.apk ../.artifacts/app/android/redcode-im-app-android-release.apk
           cp build/app/outputs/bundle/release/app-release.aab ../.artifacts/app/android/redcode-im-app-android-release.aab
 
-      - name: Build unsigned iOS IPA
-        if: matrix.target == 'ios'
-        run: |
-          set -euo pipefail
-          flutter build ios --release --no-codesign --dart-define=ENV=production
-
-          rm -rf build/ios/ipa
-          mkdir -p build/ios/ipa/Payload ../.artifacts/app/ios
-          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
-          (
-            cd build/ios/ipa
-            zip -qry redcode-im-app-ios-nosign.ipa Payload
-          )
-          cp build/ios/ipa/redcode-im-app-ios-nosign.ipa ../.artifacts/app/ios/
+      # 暂时停用 iOS release 构建，后续恢复时可直接还原以下步骤。
+      #
+      # - name: Build unsigned iOS IPA
+      #   run: |
+      #     set -euo pipefail
+      #     flutter build ios --release --no-codesign --dart-define=ENV=production
+      #
+      #     rm -rf build/ios/ipa
+      #     mkdir -p build/ios/ipa/Payload ../.artifacts/app/ios
+      #     cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+      #     (
+      #       cd build/ios/ipa
+      #       zip -qry redcode-im-app-ios-nosign.ipa Payload
+      #     )
+      #     cp build/ios/ipa/redcode-im-app-ios-nosign.ipa ../.artifacts/app/ios/
 
       - name: Upload Flutter app artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: app-${{ matrix.target }}-release
-          path: .artifacts/app/${{ matrix.target }}/*
+          name: app-android-release
+          path: .artifacts/app/android/*
           if-no-files-found: error
           include-hidden-files: true
 
@@ -241,6 +236,7 @@ jobs:
           include-hidden-files: true
 
   desktop-check:
+    if: false # 暂时停用 desktop release 检查，仅保留定义便于后续恢复
     name: Desktop check
     needs: validate-release-inputs
     runs-on: ubuntu-latest
@@ -272,6 +268,7 @@ jobs:
         run: bun run test
 
   desktop-build:
+    if: false # 暂时停用 desktop release 构建，仅保留定义便于后续恢复
     name: Build desktop ${{ matrix.name }} ${{ matrix.arch }}
     needs: desktop-check
     runs-on: ${{ matrix.runner }}
@@ -447,7 +444,7 @@ jobs:
       - validate-release-inputs
       - app-build
       - api-build
-      - desktop-build
+      # - desktop-build
     runs-on: ubuntu-latest
     permissions:
       contents: write

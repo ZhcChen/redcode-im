@@ -19,8 +19,12 @@ android {
     val androidConfigProps = Properties()
     val configDir = rootProject.projectDir.parentFile.resolve("config/android")
     val configFile = configDir.resolve("app_config.properties")
+    val localConfigFile = configDir.resolve("app_config.local.properties")
     if (configFile.exists()) {
         configFile.inputStream().use { androidConfigProps.load(it) }
+    }
+    if (localConfigFile.exists()) {
+        localConfigFile.inputStream().use { androidConfigProps.load(it) }
     }
 
     fun prop(key: String, default: String = ""): String =
