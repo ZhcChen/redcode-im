@@ -230,7 +230,9 @@ void main() {
     expect(find.text('删除'), findsNothing);
   });
 
-  testWidgets('shows audit mode hint for e2ee runtime', (tester) async {
+  testWidgets('chat input area does not show runtime notice block', (
+    tester,
+  ) async {
     final websocketService = _FakeWebSocketService();
     final provider = _buildProvider(
       websocketService,
@@ -254,8 +256,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('当前配置目标：端到端加密'), findsOneWidget);
-    expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsOneWidget);
+    expect(find.text('当前配置目标：端到端加密'), findsNothing);
+    expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsNothing);
   });
 
   testWidgets(

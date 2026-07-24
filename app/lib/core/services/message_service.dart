@@ -60,6 +60,7 @@ class MessageAttachmentDraft {
     required this.file,
     this.displayName,
     this.mime,
+    this.size,
     this.width,
     this.height,
     this.durationMs,
@@ -70,6 +71,7 @@ class MessageAttachmentDraft {
   final File file;
   final String? displayName;
   final String? mime;
+  final int? size;
   final int? width;
   final int? height;
   final int? durationMs;
@@ -905,13 +907,16 @@ class MessageService with ChangeNotifier {
         throw Exception('User not authenticated');
       }
 
-      final payload = _pendingPayloads[messageId];
-      // 使用 payload 中的内容，不回退到 message.content（可能是占位符如 [语音]）
+      final payload = await _preparePendingPayloadForSend(
+        messageId: messageId,
+        message: message,
+        token: session.token,
+      );
       final response = await _sendMessageAPI(
-        payload?.roomId ?? message.roomId,
-        content: payload?.content,
-        parts: payload?.parts ?? const <Map<String, dynamic>>[],
-        quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
+        payload.roomId,
+        content: payload.content,
+        parts: payload.parts,
+        quotedMessageId: payload.quotedMessageId,
       );
 
       final updated = _messageFromResponse(
@@ -1239,7 +1244,9 @@ class MessageService with ChangeNotifier {
     if (messages != null && messages.isNotEmpty) {
       final index = messages.indexWhere((m) => m.id == messageId);
       if (index >= 0) {
-        messages[index] = messages[index].copyWith(reactions: response.summaries);
+        messages[index] = messages[index].copyWith(
+          reactions: response.summaries,
+        );
         notifyListeners();
         unawaited(_persistMessages(roomId));
       }
@@ -1921,10 +1928,7 @@ class MessageService with ChangeNotifier {
   }) async {
     // 重新获取反应列表以更新 UI
     try {
-      await getReactions(
-        roomId: roomId,
-        messageId: messageId,
-      );
+      await getReactions(roomId: roomId, messageId: messageId);
     } catch (e) {
       debugPrint('Failed to handle reaction update: $e');
     }
@@ -2542,7 +2546,31 @@ class MessageService with ChangeNotifier {
     for (var index = 0; index < attachments.length; index++) {
       final draft = attachments[index];
       if (draft.hasExistingKey) {
-        throw StateError('暂不支持复用已存在的附件 key');
+        plans.add(
+          _AttachmentUploadPlan(
+            index: index,
+            messageId: messageId,
+            roomId: roomId,
+            draft: draft,
+            key: draft.existingKey!,
+            signature: null,
+            multipartSessionId: null,
+            multipartPartSize: null,
+            multipartTotalParts: null,
+            hashValue: null,
+            hashAlg: null,
+            contentType: draft.mime?.trim().isNotEmpty == true
+                ? draft.mime!.trim()
+                : 'application/octet-stream',
+            file: draft.file,
+            size: draft.size ?? 0,
+            width: draft.width,
+            height: draft.height,
+            durationMs: draft.durationMs,
+            reuseExistingObject: true,
+          ),
+        );
+        continue;
       }
 
       final contentType =
@@ -2851,17 +2879,19 @@ class MessageService with ChangeNotifier {
 
     // 若命中哈希去重（后端未返回签名/会话），无需上传，仅更新本地状态
     if (plan.signature == null) {
-      final savedPath = await AttachmentCache.instance.saveFile(
-        objectKey: plan.key,
-        source: plan.file,
-      );
+      if (!plan.reuseExistingObject) {
+        final savedPath = await AttachmentCache.instance.saveFile(
+          objectKey: plan.key,
+          source: plan.file,
+        );
 
-      await _updateAttachmentLocalPath(
-        roomId: plan.roomId,
-        messageId: plan.messageId,
-        key: plan.key,
-        localPath: savedPath,
-      );
+        await _updateAttachmentLocalPath(
+          roomId: plan.roomId,
+          messageId: plan.messageId,
+          key: plan.key,
+          localPath: savedPath,
+        );
+      }
       await _updateAttachmentUploadProgress(
         roomId: plan.roomId,
         messageId: plan.messageId,
@@ -3710,13 +3740,16 @@ class MessageService with ChangeNotifier {
         throw Exception('User not authenticated');
       }
 
-      final payload = _pendingPayloads[messageId];
-      // 使用 payload 中的内容，不回退到 message.content（可能是占位符如 [语音]）
+      final payload = await _preparePendingPayloadForSend(
+        messageId: messageId,
+        message: message,
+        token: session.token,
+      );
       final response = await _sendMessageAPI(
-        payload?.roomId ?? message.roomId,
-        content: payload?.content,
-        parts: payload?.parts ?? const <Map<String, dynamic>>[],
-        quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
+        payload.roomId,
+        content: payload.content,
+        parts: payload.parts,
+        quotedMessageId: payload.quotedMessageId,
       );
 
       final updated = _messageFromResponse(
@@ -3734,6 +3767,199 @@ class MessageService with ChangeNotifier {
       // 保持 sending 状态，继续调度下一次重试
       _scheduleRetry(messageId);
     }
+  }
+
+  Future<_PendingMessagePayload> _preparePendingPayloadForSend({
+    required String messageId,
+    required Message message,
+    required String token,
+  }) async {
+    final existingPayload = _pendingPayloads[messageId];
+    final content =
+        existingPayload?.content ?? _extractPendingMessageText(message);
+    final quotedMessageId =
+        existingPayload?.quotedMessageId ?? message.quotedMessage?.id;
+
+    if (!_pendingMessageNeedsAttachmentUpload(message)) {
+      final payload =
+          existingPayload ??
+          _PendingMessagePayload(
+            roomId: message.roomId,
+            content: content,
+            parts: _extractAttachmentPartsPayload(message),
+            quotedMessageId: quotedMessageId,
+          );
+      _pendingPayloads[messageId] = payload;
+      return payload;
+    }
+
+    final attachments = _buildRetryAttachmentDrafts(message);
+    final policy = await UploadPolicyService.instance.getPolicy();
+    final plans = await _prepareAttachmentUploads(
+      roomId: message.roomId,
+      messageId: messageId,
+      attachments: attachments,
+      token: token,
+      policy: policy,
+    );
+
+    _applyAttachmentPlansToPendingMessage(
+      messageId: messageId,
+      message: message,
+      plans: plans,
+    );
+
+    for (final plan in plans) {
+      await _executeAttachmentUpload(plan);
+    }
+
+    final payload = _PendingMessagePayload(
+      roomId: message.roomId,
+      content: content,
+      parts: _buildPartsPayload(
+        text: content,
+        attachments: attachments,
+        plans: plans,
+      ),
+      quotedMessageId: quotedMessageId,
+    );
+    _pendingPayloads[messageId] = payload;
+    return payload;
+  }
+
+  bool _pendingMessageNeedsAttachmentUpload(Message message) {
+    for (final part in message.parts) {
+      final attachment = part.attachment;
+      if (attachment?.uploadProgress != null) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  String? _extractPendingMessageText(Message message) {
+    for (final part in message.parts) {
+      final text = part.text?.trim();
+      if (part.type == MessagePartType.text &&
+          text != null &&
+          text.isNotEmpty) {
+        return text;
+      }
+    }
+    return null;
+  }
+
+  List<Map<String, dynamic>> _extractAttachmentPartsPayload(Message message) {
+    final parts = <Map<String, dynamic>>[];
+    for (final part in message.parts) {
+      final attachment = part.attachment;
+      if (attachment == null) {
+        continue;
+      }
+      parts.add({
+        'type': _mapPartTypeName(part.type),
+        'key': attachment.key,
+        if (attachment.name != null) 'name': attachment.name,
+        if (attachment.mime != null) 'mime': attachment.mime,
+        if (attachment.size != null) 'size': attachment.size,
+        if (attachment.width != null) 'width': attachment.width,
+        if (attachment.height != null) 'height': attachment.height,
+        if (attachment.durationMs != null) 'duration_ms': attachment.durationMs,
+        if (attachment.thumbnailKey != null)
+          'thumbnail_key': attachment.thumbnailKey,
+      });
+    }
+    return parts;
+  }
+
+  List<MessageAttachmentDraft> _buildRetryAttachmentDrafts(Message message) {
+    final drafts = <MessageAttachmentDraft>[];
+
+    for (final part in message.parts) {
+      final attachment = part.attachment;
+      if (attachment == null) {
+        continue;
+      }
+
+      final localPath = attachment.localPath?.trim() ?? '';
+      final needsUpload = attachment.uploadProgress != null;
+
+      if (needsUpload) {
+        if (localPath.isEmpty || !File(localPath).existsSync()) {
+          throw StateError('附件本地文件不存在，无法重新上传');
+        }
+      }
+
+      drafts.add(
+        MessageAttachmentDraft(
+          type: part.type,
+          file: File(localPath),
+          displayName:
+              attachment.name ??
+              (attachment.key.isNotEmpty ? p.basename(attachment.key) : null),
+          mime: attachment.mime,
+          size: attachment.size,
+          width: attachment.width,
+          height: attachment.height,
+          durationMs: attachment.durationMs,
+          existingKey: needsUpload ? null : attachment.key,
+        ),
+      );
+    }
+
+    return drafts;
+  }
+
+  void _applyAttachmentPlansToPendingMessage({
+    required String messageId,
+    required Message message,
+    required List<_AttachmentUploadPlan> plans,
+  }) {
+    if (plans.isEmpty) {
+      return;
+    }
+
+    final sortedPlans = plans.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    var attachmentIndex = 0;
+    final updatedParts = <MessagePart>[];
+
+    for (final part in message.parts) {
+      final attachment = part.attachment;
+      if (attachment == null) {
+        updatedParts.add(part);
+        continue;
+      }
+
+      if (attachmentIndex >= sortedPlans.length) {
+        updatedParts.add(part);
+        continue;
+      }
+
+      final plan = sortedPlans[attachmentIndex++];
+      updatedParts.add(
+        part.copyWith(
+          attachment: attachment.copyWith(
+            key: plan.key,
+            name: plan.draft.displayName ?? attachment.name,
+            mime: plan.contentType,
+            size: plan.size > 0 ? plan.size : attachment.size,
+            width: plan.width,
+            height: plan.height,
+            durationMs: plan.durationMs,
+            localPath: attachment.localPath ?? plan.file.path,
+            uploadProgress: 0.0,
+          ),
+        ),
+      );
+    }
+
+    final updatedMessage = message.copyWith(
+      parts: updatedParts,
+      status: MessageStatus.sending,
+    );
+    _pendingMessages[messageId] = updatedMessage;
+    _replaceMessage(messageId, updatedMessage);
   }
 
   /// 取消消息重试
@@ -5096,6 +5322,7 @@ class _AttachmentUploadPlan {
     required this.contentType,
     required this.file,
     required this.size,
+    this.reuseExistingObject = false,
     this.width,
     this.height,
     this.durationMs,
@@ -5115,6 +5342,7 @@ class _AttachmentUploadPlan {
   final String contentType;
   final File file;
   final int size;
+  final bool reuseExistingObject;
   final int? width;
   final int? height;
   final int? durationMs;

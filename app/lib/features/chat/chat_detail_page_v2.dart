@@ -1477,7 +1477,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   Widget _buildInputArea() {
     final theme = Theme.of(context);
     final typingText = _typingIndicatorText;
-    final runtime = _chatProvider.currentMessageRuntime;
 
     return Container(
       key: _inputAreaKey,
@@ -1491,35 +1490,6 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    runtime.runtimeNoticeTitle,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    runtime.runtimeNoticeDescription,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // 优化 AnimatedSwitcher：使用更简单的动画，减少键盘动画期间的性能开销
             // 移除 ClipRect 以减少额外的裁剪计算
             AnimatedSwitcher(
