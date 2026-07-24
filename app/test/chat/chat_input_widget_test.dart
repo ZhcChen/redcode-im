@@ -84,6 +84,41 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
 
+    testWidgets('整行输入区保持垂直居中对齐', (tester) async {
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final provider = _StubChatProvider();
+
+      addTearDown(() {
+        controller.dispose();
+        focusNode.dispose();
+        provider.dispose();
+      });
+
+      await tester.pumpWidget(
+        _buildHost(
+          controller: controller,
+          focusNode: focusNode,
+          onSendMessage: () {},
+          onToggleVoice: () {},
+          onToggleEmoji: () {},
+          onToggleMore: () {},
+          provider: provider,
+        ),
+      );
+
+      final inputRow = tester.widget<Row>(
+        find
+            .descendant(
+              of: find.byType(ChatInputWidget),
+              matching: find.byType(Row),
+            )
+            .first,
+      );
+
+      expect(inputRow.crossAxisAlignment, CrossAxisAlignment.center);
+    });
+
     testWidgets('输入文本后显示发送按钮并触发发送回调', (tester) async {
       final controller = TextEditingController();
       final focusNode = FocusNode();

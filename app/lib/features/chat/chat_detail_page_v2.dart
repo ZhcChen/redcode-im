@@ -1928,7 +1928,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       debugPrint('[跳转] 消息未找到');
       messenger?.showSnackBar(
         SnackBar(
-          content: Text(_chatProvider.currentMessageRuntime.messageLocateMissNotice),
+          content: Text(
+            _chatProvider.currentMessageRuntime.messageLocateMissNotice,
+          ),
         ),
       );
     }
@@ -4942,7 +4944,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start, // 顶部对齐，让输入框可以扩展
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 语音按钮
         _buildVoiceButton(),

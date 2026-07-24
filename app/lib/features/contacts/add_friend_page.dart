@@ -16,10 +16,20 @@ class AddFriendPage extends StatefulWidget {
     super.key,
     this.existingFriendIds = const <String>{},
     this.showRequestsFirst = false,
+    this.skipInitialLoad = false,
+    this.initialSearchResults = const <AuthUser>[],
+    this.initialIncomingRequests = const <FriendRequestInfo>[],
+    this.initialOutgoingRequests = const <FriendRequestInfo>[],
+    this.initialCurrentUser,
   });
 
   final Set<String> existingFriendIds;
   final bool showRequestsFirst;
+  final bool skipInitialLoad;
+  final List<AuthUser> initialSearchResults;
+  final List<FriendRequestInfo> initialIncomingRequests;
+  final List<FriendRequestInfo> initialOutgoingRequests;
+  final AuthUser? initialCurrentUser;
 
   @override
   State<AddFriendPage> createState() => _AddFriendPageState();
@@ -50,6 +60,18 @@ class _AddFriendPageState extends State<AddFriendPage> {
   void initState() {
     super.initState();
     _friendIds = {...widget.existingFriendIds};
+    _searchResults = List<AuthUser>.of(widget.initialSearchResults);
+    _incoming = List<FriendRequestInfo>.of(widget.initialIncomingRequests);
+    _outgoing = List<FriendRequestInfo>.of(widget.initialOutgoingRequests);
+    _currentUser = widget.initialCurrentUser;
+    _currentUserId = widget.initialCurrentUser?.id;
+    _hasSearched = _searchResults.isNotEmpty;
+    _loadingRequests = !widget.skipInitialLoad;
+
+    if (widget.skipInitialLoad) {
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializePage();
     });
@@ -183,60 +205,86 @@ class _AddFriendPageState extends State<AddFriendPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('发送好友请求时附带一句话：'),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                _UserAvatar(user: user, size: 44),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.displayName,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _buildUserSubtitle(user),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '附言',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '向对方简单介绍自己，方便更快通过。',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: controller,
             maxLength: 120,
-            decoration: const InputDecoration(
+            minLines: 3,
+            maxLines: 4,
+            style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+            decoration: InputDecoration(
               hintText: '请输入打招呼内容，可留空',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                backgroundImage:
-                    (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-                    ? NetworkImage(user.avatarUrl!)
-                    : null,
-                child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-                    ? Text(
-                        user.displayName.isNotEmpty
-                            ? user.displayName[0].toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    : null,
+              hintStyle: const TextStyle(color: AppColors.textTertiary),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.divider),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      user.displayName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Text(
-                      user.email ?? '账号：${user.username}',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: AppColors.divider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: AppColors.primary,
+                  width: 1.5,
                 ),
               ),
-            ],
+              contentPadding: const EdgeInsets.all(14),
+            ),
           ),
         ],
       ),
@@ -394,6 +442,35 @@ class _AddFriendPageState extends State<AddFriendPage> {
     return '你好，我是$currentName，想添加你为好友';
   }
 
+  String _buildUserSubtitle(AuthUser user) {
+    final email = user.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      return email;
+    }
+    return '账号：${user.username}';
+  }
+
+  String _buildRequestMessage(
+    FriendRequestInfo request, {
+    required bool incoming,
+  }) {
+    final message = request.message?.trim();
+    if (message != null && message.isNotEmpty) {
+      return message;
+    }
+    return incoming ? '对方暂未填写附言' : '已发送好友申请，等待对方确认';
+  }
+
+  String _formatRequestTime(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return '刚刚';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+    if (diff.inHours < 24) return '${diff.inHours} 小时前';
+    if (diff.inDays < 7) return '${diff.inDays} 天前';
+    return '${date.month}/${date.day}';
+  }
+
   bool _isSelf(AuthUser user) =>
       _currentUserId != null && user.id == _currentUserId;
 
@@ -415,6 +492,53 @@ class _AddFriendPageState extends State<AddFriendPage> {
       }
     }
     return null;
+  }
+
+  Widget _buildHintPanel(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 13,
+          color: AppColors.textSecondary,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultStatePanel({required String label, required String hint}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              hint,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          _StatusTag(label: label),
+        ],
+      ),
+    );
   }
 
   @override
@@ -650,36 +774,55 @@ class _AddFriendPageState extends State<AddFriendPage> {
     final pendingIncoming = _pendingIncomingRequest(user);
     final pendingOutgoing = _hasPendingOutgoing(user);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-          backgroundImage:
-              (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-              ? NetworkImage(user.avatarUrl!)
-              : null,
-          child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-              ? Text(
-                  user.displayName.isNotEmpty
-                      ? user.displayName[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : null,
-        ),
-        title: Text(user.displayName),
-        subtitle: Text(user.email ?? '账号：${user.username}'),
-        trailing: _buildResultActions(
-          user,
-          isSelf: isSelf,
-          isFriend: isFriend,
-          pendingIncoming: pendingIncoming,
-          pendingOutgoing: pendingOutgoing,
-        ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _UserAvatar(user: user, size: 48),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _buildUserSubtitle(user),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildResultActions(
+            user,
+            isSelf: isSelf,
+            isFriend: isFriend,
+            pendingIncoming: pendingIncoming,
+            pendingOutgoing: pendingOutgoing,
+          ),
+        ],
       ),
     );
   }
@@ -692,90 +835,69 @@ class _AddFriendPageState extends State<AddFriendPage> {
     required bool pendingOutgoing,
   }) {
     if (isSelf) {
-      return const _StatusTag(label: '本人');
+      return _buildResultStatePanel(label: '本人', hint: '这是你当前登录的账号');
     }
 
     if (isFriend) {
-      return const _StatusTag(label: '已添加');
+      return _buildResultStatePanel(label: '已添加', hint: '你们已经是好友了');
     }
 
     if (pendingOutgoing) {
-      return const _StatusTag(label: '等待确认');
+      return _buildResultStatePanel(label: '等待确认', hint: '好友申请已发出，等待对方确认。');
     }
 
     if (pendingIncoming != null) {
-      // 修复：限制宽度，使用更紧凑的按钮布局
-      return SizedBox(
-        width: 140,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _respondRequest(
-                  pendingIncoming,
-                  FriendRequestAction.accept,
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  minimumSize: const Size(0, 32),
-                ),
-                child: const Text('同意', style: TextStyle(fontSize: 12)),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () => _respondRequest(
-                  pendingIncoming,
-                  FriendRequestAction.decline,
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 8,
-                  ),
-                  minimumSize: const Size(0, 32),
-                ),
-                child: const Text('拒绝', style: TextStyle(fontSize: 12)),
-              ),
-            ),
-          ],
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHintPanel('对方已向你发来好友申请，处理后会自动建立单聊会话。'),
+          const SizedBox(height: 12),
+          _IncomingRequestActions(
+            onAccept: () =>
+                _respondRequest(pendingIncoming, FriendRequestAction.accept),
+            onDecline: () =>
+                _respondRequest(pendingIncoming, FriendRequestAction.decline),
+          ),
+        ],
       );
     }
 
-    return SizedBox(
-      width: 70,
-      child: ElevatedButton(
-        onPressed: _requestingUserIds.contains(user.id)
-            ? null
-            : () => _sendRequest(user),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          minimumSize: const Size(0, 32),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHintPanel('发送申请时可附上一句打招呼内容，方便对方更快识别你。'),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _requestingUserIds.contains(user.id)
+                ? null
+                : () => _sendRequest(user),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              minimumSize: const Size(0, 40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _requestingUserIds.contains(user.id)
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text(
+                    '添加好友',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  ),
+          ),
         ),
-        child: _requestingUserIds.contains(user.id)
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text('添加', style: TextStyle(fontSize: 12)),
-      ),
+      ],
     );
   }
 
@@ -838,41 +960,134 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
   Widget _buildRequestTile(FriendRequestInfo request, bool incoming) {
     final user = request.counterparty;
-    final subtitle = user.email ?? '账号：${user.username}';
-
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-          backgroundImage:
-              (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
-              ? NetworkImage(user.avatarUrl!)
-              : null,
-          child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
-              ? Text(
-                  user.displayName.isNotEmpty
-                      ? user.displayName[0].toUpperCase()
-                      : '?',
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                )
-              : null,
-        ),
-        title: Text(user.displayName),
-        subtitle: Text(subtitle),
-        trailing: incoming
-            ? _IncomingRequestActions(
-                onAccept: () =>
-                    _respondRequest(request, FriendRequestAction.accept),
-                onDecline: () =>
-                    _respondRequest(request, FriendRequestAction.decline),
-              )
-            : const _StatusTag(label: '等待确认'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(16),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _UserAvatar(user: user, size: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.displayName,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _buildUserSubtitle(user),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (!incoming) const _StatusTag(label: '等待确认'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.divider),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      incoming ? '对方附言' : '我的附言',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      _formatRequestTime(request.createdAt),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _buildRequestMessage(request, incoming: incoming),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textPrimary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (incoming) ...[
+            const SizedBox(height: 12),
+            _IncomingRequestActions(
+              onAccept: () =>
+                  _respondRequest(request, FriendRequestAction.accept),
+              onDecline: () =>
+                  _respondRequest(request, FriendRequestAction.decline),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  const _UserAvatar({required this.user, this.size = 46});
+
+  final AuthUser user;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = user.displayName.isNotEmpty
+        ? user.displayName[0].toUpperCase()
+        : '?';
+
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+      backgroundImage: (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+          ? NetworkImage(user.avatarUrl!)
+          : null,
+      child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+          ? Text(
+              initial,
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: size * 0.32,
+              ),
+            )
+          : null,
     );
   }
 }
@@ -889,11 +1104,22 @@ class _IncomingRequestActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        _ActionButton(label: '同意', color: Colors.green, onPressed: onAccept),
-        const SizedBox(width: 6),
-        _ActionButton(label: '拒绝', color: Colors.grey, onPressed: onDecline),
+        Expanded(
+          child: _ActionButton(
+            label: '同意',
+            color: AppColors.primary,
+            onPressed: onAccept,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _ActionButton(
+            label: '拒绝',
+            color: const Color(0xFFB7BEC8),
+            onPressed: onDecline,
+          ),
+        ),
       ],
     );
   }
@@ -912,17 +1138,19 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 68,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: color,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          minimumSize: const Size(0, 32),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 12)),
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        minimumSize: const Size(0, 40),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -938,12 +1166,16 @@ class _StatusTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        style: const TextStyle(
+          fontSize: 12,
+          color: AppColors.primary,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
