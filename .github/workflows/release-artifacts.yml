@@ -479,14 +479,15 @@ jobs:
           done
 
       - name: Generate release notes
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          {
-            echo "# RedCode IM ${RELEASE_TAG}"
-            echo
-            echo "## Artifacts"
-            find .artifacts/publish-assets -type f -printf "- %f\n" | sort
-          } > .artifacts/release-notes.md
+          bash .github/scripts/generate-release-notes.sh \
+            "${RELEASE_TAG}" \
+            "${GITHUB_REPOSITORY}" \
+            .artifacts/publish-assets \
+            .artifacts/release-notes.md
 
       - name: Create or update GitHub release
         env:
