@@ -24,6 +24,7 @@
 - `.env.example`：环境变量模板
 - `load-api-image.sh`：从 GitHub Release 产物加载并重打 API Docker 镜像标签
 - `load-admin-image.sh`：加载并重打 Admin Docker 镜像标签
+- `load-rustfs-image.sh`：加载并重打 RustFS Docker 镜像标签
 
 ## 前置条件
 
@@ -32,8 +33,11 @@
 - 已安装 Caddy
 - 一个名为 `redcode-im-api-linux-x86_64.docker.tar.gz` 的正式版 API 镜像产物
 - 一个本地构建并导出的 Admin Docker 镜像产物（例如 `redcode-im-admin-im-test-1.docker.tar.gz`）
+- 一个本地导出的 RustFS Docker 镜像产物（例如 `rustfs-rustfs-1.0.0-beta.11.docker.tar.gz`）
 - `im-test-1.codelib.cc` 已解析到该服务器公网 IP
 - `im-test-admin-1.codelib.cc` 已解析到该服务器公网 IP
+
+> 截至 2026-07-24，在 `im-test-1` 服务器上实测 `docker pull rustfs/rustfs:1.0.0-beta.11` 会开始下载，但无法稳定完成落盘，因此这里默认按离线加载 RustFS 镜像设计。
 
 如果目标服务器是 `x86_64`，本地构建 Admin 镜像时要显式指定：
 
@@ -53,6 +57,13 @@ docker buildx build \
 
 ```bash
 docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.docker.tar.gz
+```
+
+本地准备 RustFS 镜像时，建议固定到已验证版本：
+
+```bash
+docker pull rustfs/rustfs:1.0.0-beta.11
+docker save rustfs/rustfs:1.0.0-beta.11 | gzip -c > rustfs-rustfs-1.0.0-beta.11.docker.tar.gz
 ```
 
 ## 首次部署
@@ -133,13 +144,29 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
 
    如果用了自定义标签，记得把 `.env` 里的 `ADMIN_IMAGE` 一并改成同一个值。
 
-10. 启动整套服务：
+10. 把本地导出的 RustFS 镜像归档上传到服务器。
+
+11. 加载 RustFS 镜像：
+
+   ```bash
+   ./load-rustfs-image.sh /path/to/rustfs-rustfs-1.0.0-beta.11.docker.tar.gz
+   ```
+
+   如果你想在服务器上改成本地自定义标签：
+
+   ```bash
+   RUSTFS_IMAGE_TARGET=rustfs/rustfs:im-test-1 ./load-rustfs-image.sh /path/to/rustfs-rustfs-1.0.0-beta.11.docker.tar.gz
+   ```
+
+   如果用了自定义标签，记得把 `.env` 里的 `RUSTFS_IMAGE` 一并改成同一个值。
+
+12. 启动整套服务：
 
    ```bash
    docker compose up -d
    ```
 
-11. 验证：
+13. 验证：
 
    ```bash
     docker compose ps
@@ -154,7 +181,7 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
 
 ## 升级
 
-1. 下载新的正式版 API 镜像产物，或重新构建并导出新的 Admin 镜像产物。
+1. 下载新的正式版 API 镜像产物，或重新构建并导出新的 Admin / RustFS 镜像产物。
 2. 对照新的 `.env.example` 检查 `.env` 是否缺少新增变量；如果你的老环境文件里还没有 `API_PUBLIC_HOST`、`RUSTFS_*` 或 `ADMIN_IMAGE`，请先补齐。
 3. 先做一次配置体检：
 
@@ -162,7 +189,7 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
    docker compose --env-file .env config >/tmp/im-test-1-compose.check
    ```
 
-4. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` 加载并覆盖本地标签。
+4. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` / `./load-rustfs-image.sh ...` 加载并覆盖本地标签。
 5. 按需重建对应容器：
 
    ```bash
@@ -181,8 +208,8 @@ docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.do
 
 ## 回滚
 
-1. 保留上一个 API / Admin 镜像产物。
-2. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` 重新加载旧版本。
+1. 保留上一个 API / Admin / RustFS 镜像产物。
+2. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` / `./load-rustfs-image.sh ...` 重新加载旧版本。
 3. 重建对应容器：
 
    ```bash
