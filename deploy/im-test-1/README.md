@@ -19,6 +19,7 @@
 ## 文件说明
 
 - `docker-compose.yml`：单机部署 compose
+- `Caddyfile`：`im-test-1.codelib.cc` 的反向代理配置
 - `.env.example`：环境变量模板
 - `load-api-image.sh`：从 GitHub Release 产物加载并重打 API Docker 镜像标签
 
@@ -26,7 +27,9 @@
 
 - Docker Engine
 - Docker Compose 插件（`docker compose`）
+- 已安装 Caddy
 - 一个名为 `redcode-im-api-linux-x86_64.docker.tar.gz` 的正式版 API 镜像产物
+- `im-test-1.codelib.cc` 已解析到该服务器公网 IP
 
 ## 首次部署
 
@@ -70,18 +73,27 @@
 
    如果用了自定义标签，记得把 `.env` 里的 `API_IMAGE` 一并改成同一个值。
 
-7. 启动整套服务：
+7. 安装 Caddy 站点配置：
+
+   ```bash
+   cp Caddyfile /etc/caddy/Caddyfile
+   caddy validate --config /etc/caddy/Caddyfile
+   systemctl restart caddy
+   ```
+
+8. 启动整套服务：
 
    ```bash
    docker compose up -d
    ```
 
-8. 验证：
+9. 验证：
 
    ```bash
-   docker compose ps
-   docker compose logs -f api
-   curl http://127.0.0.1:8010/healthz
+    docker compose ps
+    docker compose logs -f api
+    curl http://127.0.0.1:8010/healthz
+    curl https://im-test-1.codelib.cc/healthz
    ```
 
 ## 升级
@@ -110,5 +122,6 @@
 
 - PostgreSQL 和 Redis 都只在容器网络内使用，不暴露宿主机端口。
 - API 暴露为 `${API_BIND_IP}:${API_PORT}`，容器内端口固定是 `8010`。
+- 当前推荐由 Caddy 对外承接 `80/443`，再反代到 `127.0.0.1:8010`。
 - 数据库迁移仍然由 API 启动时自动执行。
 - Push provider、对象存储等能力不在这套基础 profile 里；后面测试范围真的需要时再补。

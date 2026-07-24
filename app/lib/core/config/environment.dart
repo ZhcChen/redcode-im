@@ -54,13 +54,14 @@ class EnvironmentConfig {
   static const String devApiBaseUrl = 'http://127.0.0.1:8010';
   static const String devWsUrl = 'ws://127.0.0.1:8010/ws';
 
-  /// 测试环境 API 地址
-  static const String stagingApiBaseUrl = 'https://staging-api.chatlyme.com';
-  static const String stagingWsUrl = 'wss://staging-api.chatlyme.com/ws';
+  /// 当前测试/正式构建统一先指向 im-test-1。
+  /// 后续有独立正式域名时再拆分 staging / production。
+  static const String stagingApiBaseUrl = 'https://im-test-1.codelib.cc';
+  static const String stagingWsUrl = 'wss://im-test-1.codelib.cc/ws';
 
   /// 生产环境 API 地址
-  static const String prodApiBaseUrl = 'https://api.chatlyme.com';
-  static const String prodWsUrl = 'wss://api.chatlyme.com/ws';
+  static const String prodApiBaseUrl = 'https://im-test-1.codelib.cc';
+  static const String prodWsUrl = 'wss://im-test-1.codelib.cc/ws';
 
   /// 获取当前环境的 API 基础地址
   static String get apiBaseUrl {

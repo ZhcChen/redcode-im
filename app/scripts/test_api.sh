@@ -2,7 +2,7 @@
 
 # 测试前端是否能访问后端 API
 
-API_BASE="https://api.chatlyme.com"
+API_BASE="https://im-test-1.codelib.cc"
 echo "测试前端 API 访问..."
 echo ""
 

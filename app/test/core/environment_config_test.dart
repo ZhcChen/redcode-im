@@ -20,6 +20,25 @@ void main() {
       },
     );
 
+    test('staging and production defaults point to im-test-1 domain', () {
+      expect(
+        EnvironmentConfig.stagingApiBaseUrl,
+        'https://im-test-1.codelib.cc',
+      );
+      expect(
+        EnvironmentConfig.stagingWsUrl,
+        'wss://im-test-1.codelib.cc/ws',
+      );
+      expect(
+        EnvironmentConfig.prodApiBaseUrl,
+        'https://im-test-1.codelib.cc',
+      );
+      expect(
+        EnvironmentConfig.prodWsUrl,
+        'wss://im-test-1.codelib.cc/ws',
+      );
+    });
+
     test('envName and flags are consistent', () {
       expect(EnvironmentConfig.envName, '开发环境');
       expect(EnvironmentConfig.enableDebugLog, isTrue);

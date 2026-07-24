@@ -234,8 +234,8 @@ flutter run -d 3A091FDJG001DN \
 # 构建
 flutter build apk --release \
     --dart-define=ENV=production \
-    --dart-define=API_BASE_URL=https://api.chatlyme.com \
-    --dart-define=WS_URL=wss://api.chatlyme.com/ws
+    --dart-define=API_BASE_URL=https://im-test-1.codelib.cc \
+    --dart-define=WS_URL=wss://im-test-1.codelib.cc/ws
 ```
 
 ---
