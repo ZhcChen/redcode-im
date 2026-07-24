@@ -49,11 +49,7 @@ class _InMemoryMessageStorage extends MessageStorage {
   }
 }
 
-class _PassthroughHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) =>
-      super.createHttpClient(context);
-}
+class _PassthroughHttpOverrides extends HttpOverrides {}
 
 class _UploadTestBackend {
   _UploadTestBackend({required this.signatureKeys});
