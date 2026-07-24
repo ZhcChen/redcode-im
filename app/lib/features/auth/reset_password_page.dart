@@ -259,7 +259,8 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
             // 验证码输入
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              key: const Key('reset-password-code-row'),
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
                   child: TextField(

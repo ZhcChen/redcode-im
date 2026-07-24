@@ -377,6 +377,7 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
                         child: TextField(
                           controller: _searchController,
                           onChanged: widget.onSearchChanged,
+                          textAlignVertical: TextAlignVertical.center,
                           style: const TextStyle(
                             fontSize: 14,
                             color: AppColors.textPrimary,

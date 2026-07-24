@@ -798,6 +798,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
                         onChanged: _onQueryChanged,
                         onSubmitted: (_) => unawaited(_runSearch(reset: true)),
                         textInputAction: TextInputAction.search,
+                        textAlignVertical: TextAlignVertical.center,
                         decoration: const InputDecoration(
                           hintText: '搜索消息内容',
                           border: InputBorder.none,

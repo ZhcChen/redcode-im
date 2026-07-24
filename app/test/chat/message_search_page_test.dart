@@ -93,6 +93,45 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
+  testWidgets('search input keeps text vertically centered', (tester) async {
+    final searchStorage = _FakeMessageSearchStorage(
+      response: MessageSearchResponse(
+        results: const <MessageSearchResult>[],
+        stats: const MessageSearchStats(
+          totalResults: 0,
+          searchTimeMs: 1,
+          query: '',
+        ),
+        hasMore: false,
+      ),
+    );
+    const messageStorage = _FakeMessageStorage();
+    final messageService = _FakeSearchMessageService(seedChats: const <Chat>[]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MessageSearchPage(
+          searchStorage: searchStorage,
+          messageStorage: messageStorage,
+          messageService: messageService,
+          appConfigService: _FakeAppConfigService(
+            runtime: const MessageRuntimeSettings(
+              serverStorageMode: 'relay_only',
+              contentAuditMode: 'plaintext',
+            ),
+          ),
+          httpClient: MockClient((request) async {
+            return http.Response('unexpected', 500);
+          }),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField).first);
+    expect(field.textAlignVertical, TextAlignVertical.center);
+  });
+
   testWidgets('relay_only shows local cache hint and skips server search', (
     tester,
   ) async {
