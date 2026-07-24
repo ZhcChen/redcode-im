@@ -1,0 +1,14 @@
+.DS_Store
+.env.local
+.env.*.local
+.git
+.gitignore
+.husky
+.idea
+.vscode
+coverage
+deploy.config
+dist
+node_modules
+playwright-report
+test-results

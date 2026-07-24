@@ -3,6 +3,11 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+ARG VITE_API_BASE_URL
+ARG VITE_ENABLE_DATA_CLEANUP=false
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_ENABLE_DATA_CLEANUP=${VITE_ENABLE_DATA_CLEANUP}
+
 # 复制 package 文件
 COPY package*.json ./
 COPY pnpm-lock.yaml ./
@@ -12,6 +17,9 @@ RUN npm install -g pnpm && pnpm install
 
 # 复制源代码
 COPY . .
+
+# 明确要求按环境传入 API 地址，避免误连到错误环境。
+RUN test -n "$VITE_API_BASE_URL"
 
 # 构建项目
 RUN pnpm run build

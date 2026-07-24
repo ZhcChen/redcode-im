@@ -2,3 +2,8 @@ im-test-1.codelib.cc {
     encode gzip zstd
     reverse_proxy 127.0.0.1:8010
 }
+
+im-test-admin-1.codelib.cc {
+    encode gzip zstd
+    reverse_proxy 127.0.0.1:8011
+}

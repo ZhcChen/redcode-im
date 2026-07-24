@@ -7,6 +7,7 @@
 - PostgreSQL
 - Redis
 - API
+- Admin
 
 不包含：
 
@@ -19,9 +20,10 @@
 ## 文件说明
 
 - `docker-compose.yml`：单机部署 compose
-- `Caddyfile`：`im-test-1.codelib.cc` 的反向代理配置
+- `Caddyfile`：`im-test-1.codelib.cc` / `im-test-admin-1.codelib.cc` 的反向代理配置
 - `.env.example`：环境变量模板
 - `load-api-image.sh`：从 GitHub Release 产物加载并重打 API Docker 镜像标签
+- `load-admin-image.sh`：加载并重打 Admin Docker 镜像标签
 
 ## 前置条件
 
@@ -29,7 +31,29 @@
 - Docker Compose 插件（`docker compose`）
 - 已安装 Caddy
 - 一个名为 `redcode-im-api-linux-x86_64.docker.tar.gz` 的正式版 API 镜像产物
+- 一个本地构建并导出的 Admin Docker 镜像产物（例如 `redcode-im-admin-im-test-1.docker.tar.gz`）
 - `im-test-1.codelib.cc` 已解析到该服务器公网 IP
+- `im-test-admin-1.codelib.cc` 已解析到该服务器公网 IP
+
+如果目标服务器是 `x86_64`，本地构建 Admin 镜像时要显式指定：
+
+```bash
+docker buildx build \
+  --platform linux/amd64 \
+  --build-arg VITE_API_BASE_URL=https://im-test-1.codelib.cc \
+  --tag redcode-im-admin:im-test-1 \
+  --load \
+  -f admin/nginx/Dockerfile \
+  admin
+```
+
+`VITE_API_BASE_URL` 现在是必填参数；如果漏传，Docker 构建会直接失败，避免把测试 Admin 误连到其他环境。
+
+构建完成后，再把镜像导出成部署脚本可直接加载的归档：
+
+```bash
+docker save redcode-im-admin:im-test-1 | gzip -c > redcode-im-admin-im-test-1.docker.tar.gz
+```
 
 ## 首次部署
 
@@ -81,47 +105,75 @@
    systemctl restart caddy
    ```
 
-8. 启动整套服务：
+8. 把本地导出的 Admin 镜像归档上传到服务器。
+
+9. 加载 Admin 镜像：
+
+   ```bash
+   ./load-admin-image.sh /path/to/redcode-im-admin-im-test-1.docker.tar.gz
+   ```
+
+   如果你想在服务器上改成本地自定义标签：
+
+   ```bash
+   ADMIN_IMAGE_TARGET=redcode-im-admin:test-20260724 ./load-admin-image.sh /path/to/redcode-im-admin-im-test-1.docker.tar.gz
+   ```
+
+   如果用了自定义标签，记得把 `.env` 里的 `ADMIN_IMAGE` 一并改成同一个值。
+
+10. 启动整套服务：
 
    ```bash
    docker compose up -d
    ```
 
-9. 验证：
+11. 验证：
 
    ```bash
     docker compose ps
     docker compose logs -f api
+    docker compose logs -f admin
     curl http://127.0.0.1:8010/healthz
     curl https://im-test-1.codelib.cc/healthz
+    curl -I https://im-test-admin-1.codelib.cc
    ```
 
 ## 升级
 
-1. 下载新的正式版镜像产物。
-2. 用 `./load-api-image.sh ...` 加载并覆盖本地标签。
-3. 仅重建 API 容器：
+1. 下载新的正式版 API 镜像产物，或重新构建并导出新的 Admin 镜像产物。
+2. 对照新的 `.env.example` 检查 `.env` 是否缺少新增变量；如果你的老环境文件里还没有 `ADMIN_IMAGE` / `ADMIN_BIND_IP` / `ADMIN_PORT`，请先补齐，或者确认继续使用 compose 里的默认值。
+3. 先做一次配置体检：
+
+   ```bash
+   docker compose --env-file .env config >/tmp/im-test-1-compose.check
+   ```
+
+4. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` 加载并覆盖本地标签。
+5. 按需重建对应容器：
 
    ```bash
    docker compose up -d --force-recreate api
+   docker compose up -d --force-recreate admin
    ```
 
-4. 再次检查 `healthz` 和日志。
+6. 再次检查 `healthz`、Admin 首页和日志。
 
 ## 回滚
 
-1. 保留上一个正式版镜像产物。
-2. 用 `./load-api-image.sh ...` 重新加载旧版本。
-3. 重建 API 容器：
+1. 保留上一个 API / Admin 镜像产物。
+2. 用 `./load-api-image.sh ...` / `./load-admin-image.sh ...` 重新加载旧版本。
+3. 重建对应容器：
 
    ```bash
    docker compose up -d --force-recreate api
+   docker compose up -d --force-recreate admin
    ```
 
 ## 说明
 
 - PostgreSQL 和 Redis 都只在容器网络内使用，不暴露宿主机端口。
 - API 暴露为 `${API_BIND_IP}:${API_PORT}`，容器内端口固定是 `8010`。
-- 当前推荐由 Caddy 对外承接 `80/443`，再反代到 `127.0.0.1:8010`。
+- Admin 暴露为 `${ADMIN_BIND_IP}:${ADMIN_PORT}`，容器内端口固定是 `80`。
+- 当前推荐由 Caddy 对外承接 `80/443`，再分别反代到 `127.0.0.1:8010` 和 `127.0.0.1:8011`。
 - 数据库迁移仍然由 API 启动时自动执行。
 - Push provider、对象存储等能力不在这套基础 profile 里；后面测试范围真的需要时再补。
