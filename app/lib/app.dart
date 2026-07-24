@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'core/services/settings_service.dart';
 import 'core/services/push_navigation.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/no_stretch_scroll_behavior.dart';
+import 'core/theme/screen_adaptation.dart';
 import 'core/update/hot_patch_asset_bundle.dart';
 import 'core/update/hot_update_manager.dart';
 import 'features/startup/splash_page.dart';
@@ -53,10 +53,7 @@ class _RedcodeAppState extends State<RedcodeApp> {
 
     return DefaultAssetBundle(
       bundle: bundle,
-      child: ScreenUtilInit(
-        designSize: const Size(375, 812), // 基于 iPhone X 设计稿
-        minTextAdapt: true,
-        splitScreenMode: true,
+      child: AdaptiveScreenUtilInit(
         builder: (context, child) => MaterialApp(
           title: _appName,
           theme: AppTheme.light,

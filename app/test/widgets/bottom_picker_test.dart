@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:app/core/widgets/bottom_picker.dart';
 
 Widget _buildHost({
   required VoidCallback onPrimaryTap,
   required VoidCallback onCancel,
 }) {
-  return ScreenUtilInit(
-    designSize: const Size(375, 812),
+  return AdaptiveScreenUtilInit(
     builder: (context, _) {
       return MaterialApp(
         home: Scaffold(
