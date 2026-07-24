@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/widgets/sheet_header.dart';
 import '../../core/widgets/tip_dialog.dart';
 
 /// 群管理员管理页面
@@ -103,27 +104,14 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 32),
-                  Text(
-                    '选择要添加的管理员',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(sheetContext),
-                    child: const Icon(
-                      Icons.close,
-                      size: 24,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              SheetHeader(
+                title: '选择要添加的管理员',
+                titleStyle: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                onClose: () => Navigator.pop(sheetContext),
               ),
               const SizedBox(height: 16),
               ConstrainedBox(
@@ -136,10 +124,12 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final member = available[index];
-                    final userId = member['user_id'] as String? ??
+                    final userId =
+                        member['user_id'] as String? ??
                         member['userId'] as String? ??
                         '';
-                    final displayName = member['nickname'] as String? ??
+                    final displayName =
+                        member['nickname'] as String? ??
                         member['username'] as String? ??
                         '成员';
                     final avatarUrl = member['avatar_url'] as String?;
@@ -170,7 +160,10 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
       content: '确定要将「$displayName」设为管理员吗？',
       onConfirm: () async {
         try {
-          await _roomService.appointAdmin(roomId: widget.roomId, userId: userId);
+          await _roomService.appointAdmin(
+            roomId: widget.roomId,
+            userId: userId,
+          );
           _showSnackBar('已任命「$displayName」为管理员');
           await _loadAdmins();
           return true;
@@ -218,10 +211,8 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
           width: 40,
           height: 40,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildDefaultAvatar(
-            initial,
-            backgroundColor,
-          ),
+          errorBuilder: (_, __, ___) =>
+              _buildDefaultAvatar(initial, backgroundColor),
         ),
       );
     }
@@ -251,9 +242,9 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -275,72 +266,69 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _admins.isEmpty
-              ? Center(
-                  child: Text(
-                    '暂无管理员',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14.sp,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _admins.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final admin = _admins[index];
-                    final displayName = _getMemberName(admin.adminId);
-                    final avatarUrl = _getMemberAvatar(admin.adminId);
+          ? Center(
+              child: Text(
+                '暂无管理员',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _admins.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final admin = _admins[index];
+                final displayName = _getMemberName(admin.adminId);
+                final avatarUrl = _getMemberAvatar(admin.adminId);
 
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          _buildAvatar(admin.adminId, displayName, avatarUrl),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName,
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '任命于 ${_formatDate(admin.appointedAt)}',
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => _confirmRemoveAdmin(admin),
-                            child: Text(
-                              '移除',
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      _buildAvatar(admin.adminId, displayName, avatarUrl),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
                               style: TextStyle(
-                                color: Colors.red,
-                                fontSize: 13.sp,
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
                               ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 2),
+                            Text(
+                              '任命于 ${_formatDate(admin.appointedAt)}',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                ),
+                      TextButton(
+                        onPressed: () => _confirmRemoveAdmin(admin),
+                        child: Text(
+                          '移除',
+                          style: TextStyle(color: Colors.red, fontSize: 13.sp),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 

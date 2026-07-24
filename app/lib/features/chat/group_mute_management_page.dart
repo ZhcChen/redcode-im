@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/widgets/sheet_header.dart';
 import '../../core/widgets/tip_dialog.dart';
 
 /// 禁言管理页面
@@ -76,9 +77,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
       final userId = m['user_id'] as String? ?? m['userId'] as String?;
       final role = (m['role'] as String? ?? m['member_role'] as String? ?? '')
           .toLowerCase();
-      return userId != null &&
-          !mutedIds.contains(userId) &&
-          role == 'member';
+      return userId != null && !mutedIds.contains(userId) && role == 'member';
     }).toList();
   }
 
@@ -102,27 +101,14 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 32),
-                  Text(
-                    '选择要禁言的成员',
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(sheetContext),
-                    child: const Icon(
-                      Icons.close,
-                      size: 24,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
+              SheetHeader(
+                title: '选择要禁言的成员',
+                titleStyle: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                onClose: () => Navigator.pop(sheetContext),
               ),
               const SizedBox(height: 16),
               ConstrainedBox(
@@ -135,10 +121,12 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final member = available[index];
-                    final userId = member['user_id'] as String? ??
+                    final userId =
+                        member['user_id'] as String? ??
                         member['userId'] as String? ??
                         '';
-                    final displayName = member['nickname'] as String? ??
+                    final displayName =
+                        member['nickname'] as String? ??
                         member['username'] as String? ??
                         '成员';
                     final avatarUrl = member['avatar_url'] as String?;
@@ -273,10 +261,8 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
           width: 40,
           height: 40,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildDefaultAvatar(
-            initial,
-            backgroundColor,
-          ),
+          errorBuilder: (_, __, ___) =>
+              _buildDefaultAvatar(initial, backgroundColor),
         ),
       );
     }
@@ -324,9 +310,9 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -348,91 +334,91 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _mutes.isEmpty
-              ? Center(
-                  child: Text(
-                    '暂无被禁言的成员',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14.sp,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _mutes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final mute = _mutes[index];
-                    final displayName = _getMemberName(mute.userId);
-                    final avatarUrl = _getMemberAvatar(mute.userId);
+          ? Center(
+              child: Text(
+                '暂无被禁言的成员',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _mutes.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                final mute = _mutes[index];
+                final displayName = _getMemberName(mute.userId);
+                final avatarUrl = _getMemberAvatar(mute.userId);
 
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        children: [
-                          _buildAvatar(mute.userId, displayName, avatarUrl),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      _buildAvatar(mute.userId, displayName, avatarUrl),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
                               children: [
-                                Text(
-                                  displayName,
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Row(
-                                  children: [
-                                    if (mute.reason != null &&
-                                        mute.reason!.isNotEmpty)
-                                      Flexible(
-                                        child: Text(
-                                          '原因：${mute.reason}',
-                                          style: TextStyle(
-                                            fontSize: 12.sp,
-                                            color: AppColors.textSecondary,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    if (mute.reason != null &&
-                                        mute.reason!.isNotEmpty)
-                                      const SizedBox(width: 8),
-                                    Text(
-                                      _formatMuteInfo(mute),
+                                if (mute.reason != null &&
+                                    mute.reason!.isNotEmpty)
+                                  Flexible(
+                                    child: Text(
+                                      '原因：${mute.reason}',
                                       style: TextStyle(
                                         fontSize: 12.sp,
-                                        color: AppColors.textTertiary,
+                                        color: AppColors.textSecondary,
                                       ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ],
+                                  ),
+                                if (mute.reason != null &&
+                                    mute.reason!.isNotEmpty)
+                                  const SizedBox(width: 8),
+                                Text(
+                                  _formatMuteInfo(mute),
+                                  style: TextStyle(
+                                    fontSize: 12.sp,
+                                    color: AppColors.textTertiary,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () => _confirmUnmute(mute),
-                            child: Text(
-                              '解除',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 13.sp,
-                              ),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    );
-                  },
-                ),
+                      TextButton(
+                        onPressed: () => _confirmUnmute(mute),
+                        child: Text(
+                          '解除',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 13.sp,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

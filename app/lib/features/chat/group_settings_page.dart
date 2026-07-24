@@ -22,6 +22,7 @@ import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/input_dialog.dart';
+import '../../core/widgets/sheet_header.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
 import '../contacts/contact_detail_page.dart';
@@ -459,24 +460,14 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           itemCount: _members.length + actionCount,
           itemBuilder: (context, index) {
             if (canManageMembers && index == 0) {
-              return _buildActionMember(
-                context,
-                true,
-                '添加',
-                () {
-                  _handleAddMembers();
-                },
-              );
+              return _buildActionMember(context, true, '添加', () {
+                _handleAddMembers();
+              });
             }
             if (canManageMembers && index == 1) {
-              return _buildActionMember(
-                context,
-                false,
-                '移除',
-                () {
-                  _handleRemoveMembers();
-                },
-              );
+              return _buildActionMember(context, false, '移除', () {
+                _handleRemoveMembers();
+              });
             }
             final member = _members[index - actionCount];
             return _buildMemberItem(context, member);
@@ -506,7 +497,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
     // 使用哈希背景色（与聊天列表一致），用 userId 作为稳定种子
     final userId = member['user_id'] as String? ?? member['userId'] as String?;
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(userId ?? displayName);
+    final backgroundColor = AvatarColorUtils.generateBackgroundColor(
+      userId ?? displayName,
+    );
 
     return GestureDetector(
       onTap: () => _navigateToContactDetail(context, member),
@@ -781,9 +774,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => GroupJoinRequestsPage(
-          roomId: widget.chat.roomId,
-        ),
+        builder: (context) => GroupJoinRequestsPage(roomId: widget.chat.roomId),
       ),
     );
   }
@@ -923,9 +914,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             Uri.parse(
               '${AppConfig.apiBaseUrl}/rooms/${widget.chat.roomId}/messages',
             ),
-            headers: {
-              'Authorization': 'Bearer ${session.token}',
-            },
+            headers: {'Authorization': 'Bearer ${session.token}'},
           );
 
           if (response.statusCode == 200) {
@@ -1016,27 +1005,14 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // 标题栏
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 32),
-                      Text(
-                        '选择新群主',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(sheetContext),
-                        child: const Icon(
-                          Icons.close,
-                          size: 24,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
+                  SheetHeader(
+                    title: '选择新群主',
+                    titleStyle: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                    onClose: () => Navigator.pop(sheetContext),
                   ),
                   const SizedBox(height: 16),
                   // 搜索框
@@ -1181,7 +1157,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: submitting || attachments.length >= maxAttachments
+                      onPressed:
+                          submitting || attachments.length >= maxAttachments
                           ? null
                           : () async {
                               try {
@@ -1206,7 +1183,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: submitting || attachments.length >= maxAttachments
+                      onPressed:
+                          submitting || attachments.length >= maxAttachments
                           ? null
                           : () async {
                               try {
@@ -1234,7 +1212,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               const SizedBox(height: 8),
               Text(
                 '已选择 ${attachments.length}/$maxAttachments 张（必填）',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                ),
               ),
               if (attachments.isNotEmpty) ...[
                 const SizedBox(height: 10),
@@ -1264,7 +1245,11 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                               minWidth: 24,
                               minHeight: 24,
                             ),
-                            icon: const Icon(Icons.cancel, size: 18, color: Colors.red),
+                            icon: const Icon(
+                              Icons.cancel,
+                              size: 18,
+                              color: Colors.red,
+                            ),
                             onPressed: submitting
                                 ? null
                                 : () {
@@ -1291,7 +1276,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                     SizedBox(width: 8),
                     Text(
                       '提交中...',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -1376,8 +1364,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final filename = p.basename(file.path);
 
     // 1) 获取直传签名
-    final directUri =
-        Uri.parse('${AppConfig.apiBaseUrl}/reports/attachments/signature');
+    final directUri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/reports/attachments/signature',
+    );
     final directResponse = await http.post(
       directUri,
       headers: {
@@ -1397,7 +1386,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       );
     }
 
-    final directPayload = jsonDecode(directResponse.body) as Map<String, dynamic>;
+    final directPayload =
+        jsonDecode(directResponse.body) as Map<String, dynamic>;
     final directSuccess = directPayload['success'] as bool? ?? false;
     if (!directSuccess) {
       throw Exception(directPayload['message'] as String? ?? '获取上传签名失败');
@@ -1412,7 +1402,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
     // 2) 直传到对象存储
     final signature = DirectUploadSignature.fromJson(signatureMap);
-    final uploadRequest = http.Request(signature.method, Uri.parse(signature.url));
+    final uploadRequest = http.Request(
+      signature.method,
+      Uri.parse(signature.url),
+    );
     signature.applyHeaders(uploadRequest, defaultContentType: contentType);
     uploadRequest.bodyBytes = await file.readAsBytes();
 
@@ -1427,7 +1420,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     }
 
     // 3) commit
-    final commitUri = Uri.parse('${AppConfig.apiBaseUrl}/reports/attachments/commit');
+    final commitUri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/reports/attachments/commit',
+    );
     final commitResponse = await http.post(
       commitUri,
       headers: {
@@ -1441,7 +1436,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       throw Exception('提交截图信息失败: ${commitResponse.body}');
     }
 
-    final commitPayload = jsonDecode(commitResponse.body) as Map<String, dynamic>;
+    final commitPayload =
+        jsonDecode(commitResponse.body) as Map<String, dynamic>;
     final commitSuccess = commitPayload['success'] as bool? ?? false;
     if (!commitSuccess) {
       throw Exception(commitPayload['message'] as String? ?? '提交截图信息失败');
@@ -1460,7 +1456,9 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     }
 
     final targetType = widget.chat.type == ChatType.group ? 'room' : 'user';
-    final targetId = targetType == 'room' ? widget.chat.roomId : _extractReportTargetUserId();
+    final targetId = targetType == 'room'
+        ? widget.chat.roomId
+        : _extractReportTargetUserId();
     if (targetId == null || targetId.isEmpty) {
       throw Exception('无法获取被举报对象 ID');
     }
@@ -1468,7 +1466,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final keys = <String>[];
     for (final item in attachments) {
       final file = File(item.path);
-      final key = await _uploadReportAttachment(token: session.token, file: file);
+      final key = await _uploadReportAttachment(
+        token: session.token,
+        file: file,
+      );
       keys.add(key);
     }
 
@@ -1495,7 +1496,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       throw Exception('提交举报失败: ${reportResponse.body}');
     }
 
-    final reportPayload = jsonDecode(reportResponse.body) as Map<String, dynamic>;
+    final reportPayload =
+        jsonDecode(reportResponse.body) as Map<String, dynamic>;
     final reportSuccess = reportPayload['success'] as bool? ?? false;
     if (!reportSuccess) {
       throw Exception(reportPayload['message'] as String? ?? '提交举报失败');
@@ -1937,7 +1939,10 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     final failedIds = <String>[];
     for (final userId in selectedIds) {
       try {
-        await _roomService.removeMember(roomId: widget.chat.roomId, userId: userId);
+        await _roomService.removeMember(
+          roomId: widget.chat.roomId,
+          userId: userId,
+        );
         removedCount += 1;
       } catch (_) {
         failedIds.add(userId);

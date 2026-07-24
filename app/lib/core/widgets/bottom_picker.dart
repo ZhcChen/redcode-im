@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../constants/app_colors.dart';
+import 'sheet_header.dart';
 
 /// 底部选择弹窗选项
 class BottomPickerOption {
@@ -49,31 +50,19 @@ class BottomPicker {
             mainAxisSize: MainAxisSize.min,
             children: [
               // 标题栏
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 32),
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (enableCancel)
-                    GestureDetector(
-                      onTap: () {
+              SheetHeader(
+                title: title,
+                titleStyle: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+                onClose: enableCancel
+                    ? () {
                         Navigator.pop(sheetContext);
                         onCancel?.call();
-                      },
-                      child: const Icon(
-                        Icons.close,
-                        size: 24,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                ],
+                      }
+                    : null,
               ),
               const SizedBox(height: 16),
               // 选项列表
@@ -82,7 +71,8 @@ class BottomPicker {
                   final index = entry.key;
                   final option = entry.value;
                   final isLast = index == options.length - 1;
-                  final isDestructiveItem = isDestructive && index == options.length - 1;
+                  final isDestructiveItem =
+                      isDestructive && index == options.length - 1;
 
                   return Container(
                     margin: EdgeInsets.only(bottom: isLast ? 0 : 8),
@@ -114,7 +104,8 @@ class BottomPicker {
                                     child: Icon(
                                       option.icon,
                                       size: 20,
-                                      color: option.iconColor ??
+                                      color:
+                                          option.iconColor ??
                                           (isDestructiveItem
                                               ? AppColors.danger
                                               : AppColors.textSecondary),
@@ -126,7 +117,8 @@ class BottomPicker {
                                     style: TextStyle(
                                       fontSize: 16.sp,
                                       fontWeight: FontWeight.w400,
-                                      color: option.textColor ??
+                                      color:
+                                          option.textColor ??
                                           (isDestructiveItem
                                               ? AppColors.danger
                                               : textColor),
