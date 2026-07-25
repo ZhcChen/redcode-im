@@ -13,12 +13,16 @@ class ChatListItem extends StatelessWidget {
     required this.chat,
     required this.avatarBuilder,
     required this.onTap,
+    this.onLongPress,
+    this.footer,
     this.showBottomDivider = false,
   });
 
   final Chat chat;
   final AvatarBuilder avatarBuilder;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final Widget? footer;
   final bool showBottomDivider;
 
   @override
@@ -33,6 +37,7 @@ class ChatListItem extends StatelessWidget {
       color: chat.isPinned ? AppColors.surfaceMuted : AppColors.surface,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -50,6 +55,7 @@ class ChatListItem extends StatelessWidget {
                 ],
               ),
             ),
+            if (footer != null) footer!,
             if (showBottomDivider)
               Divider(
                 height: 1,

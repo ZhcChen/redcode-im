@@ -8,6 +8,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/theme/phone_density.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/widgets/tip_dialog.dart';
 import 'chat_detail_page_v2.dart';
 import 'create_group_page.dart';
 import 'models/chat_model.dart';
@@ -90,6 +91,30 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
     );
   }
 
+  String? _groupDescription(Chat chat) {
+    final extra = chat.extra;
+    final candidates = <String?>[
+      extra?['description'] as String?,
+      extra?['group_description'] as String?,
+      extra?['groupDescription'] as String?,
+    ];
+    for (final value in candidates) {
+      if (value != null && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  int? _memberCountForChat(Chat chat) {
+    final extra = chat.extra;
+    final raw = extra?['member_count'] ?? extra?['memberCount'];
+    if (raw is int) {
+      return raw;
+    }
+    return _chatProvider.cachedMemberCount(chat.roomId);
+  }
+
   List<Chat> _filterGroupChats(ChatProvider provider) {
     final groupChats = provider.chats
         .where((chat) => chat.type == ChatType.group)
@@ -106,19 +131,111 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
       if (chat.lastMessage.toLowerCase().contains(keyword)) {
         return true;
       }
-      final extra = chat.extra;
-      final candidateFields = <String?>[
-        extra?['description'] as String?,
-        extra?['group_description'] as String?,
-        extra?['groupDescription'] as String?,
-      ];
-      for (final field in candidateFields) {
-        if (field != null && field.toLowerCase().contains(keyword)) {
-          return true;
-        }
+      final description = _groupDescription(chat);
+      if (description != null && description.toLowerCase().contains(keyword)) {
+        return true;
       }
       return false;
     }).toList();
+  }
+
+  List<_GroupSectionData> _buildSections(List<Chat> groupChats) {
+    final pinned = <Chat>[];
+    final recent = <Chat>[];
+    for (final chat in groupChats) {
+      if (chat.isPinned) {
+        pinned.add(chat);
+      } else {
+        recent.add(chat);
+      }
+    }
+
+    final sections = <_GroupSectionData>[];
+    if (pinned.isNotEmpty) {
+      sections.add(
+        _GroupSectionData(
+          title: '置顶群聊',
+          subtitle: '${pinned.length} 个',
+          chats: pinned,
+        ),
+      );
+    }
+    if (recent.isNotEmpty) {
+      sections.add(
+        _GroupSectionData(title: '最近活跃', subtitle: '按最近消息排序', chats: recent),
+      );
+    }
+    return sections;
+  }
+
+  Future<void> _showChatActions(Chat chat) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _GroupChatActionSheet(
+        chat: chat,
+        onTogglePinned: () => _togglePinned(chat),
+        onToggleMuted: () => _toggleMuted(chat),
+        onDelete: () => _deleteChat(chat),
+      ),
+    );
+  }
+
+  Future<void> _togglePinned(Chat chat) async {
+    try {
+      await _chatProvider.pinChat(chat.id, !chat.isPinned);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(chat.isPinned ? '已取消置顶' : '已置顶群聊')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试')));
+    }
+  }
+
+  Future<void> _toggleMuted(Chat chat) async {
+    try {
+      await _chatProvider.muteChat(chat.id, !chat.isMuted);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(chat.isMuted ? '已恢复消息提醒' : '已设为免打扰')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('操作失败，请稍后重试')));
+    }
+  }
+
+  Future<void> _deleteChat(Chat chat) async {
+    final confirmed = await TipDialog.showConfirm(
+      context,
+      title: '删除会话',
+      content: '确定要删除群聊「${chat.name}」的会话吗？\n聊天记录将被清空。',
+      confirmText: '删除',
+      cancelText: '取消',
+      confirmDanger: true,
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _chatProvider.deleteChat(chat.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('会话已删除')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
+    }
   }
 
   @override
@@ -131,6 +248,7 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
           final totalGroupCount = provider.chats
               .where((chat) => chat.type == ChatType.group)
               .length;
+          final sections = _buildSections(groupChats);
 
           return Scaffold(
             backgroundColor: AppColors.background,
@@ -175,16 +293,38 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
                                     top: 8,
                                     bottom: 24,
                                   ),
-                                  itemCount: groupChats.length,
+                                  itemCount: sections.length,
                                   itemBuilder: (context, index) {
-                                    final chat = groupChats[index];
-                                    return ChatListItem(
-                                      chat: chat,
-                                      avatarBuilder: (_) =>
-                                          _GroupChatAvatar(chat: chat),
-                                      onTap: () => _openChat(chat),
-                                      showBottomDivider:
-                                          index < groupChats.length - 1,
+                                    final section = sections[index];
+                                    return _GroupChatSection(
+                                      title: section.title,
+                                      subtitle: section.subtitle,
+                                      children: List<Widget>.generate(
+                                        section.chats.length,
+                                        (chatIndex) {
+                                          final chat = section.chats[chatIndex];
+                                          return ChatListItem(
+                                            chat: chat,
+                                            avatarBuilder: (_) =>
+                                                _GroupChatAvatar(chat: chat),
+                                            onTap: () => _openChat(chat),
+                                            onLongPress: () =>
+                                                _showChatActions(chat),
+                                            footer: _GroupChatFooter(
+                                              chat: chat,
+                                              description: _groupDescription(
+                                                chat,
+                                              ),
+                                              memberCount: _memberCountForChat(
+                                                chat,
+                                              ),
+                                            ),
+                                            showBottomDivider:
+                                                chatIndex <
+                                                section.chats.length - 1,
+                                          );
+                                        },
+                                      ),
                                     );
                                   },
                                 ),
@@ -197,6 +337,18 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
       ),
     );
   }
+}
+
+class _GroupSectionData {
+  const _GroupSectionData({
+    required this.title,
+    required this.subtitle,
+    required this.chats,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Chat> chats;
 }
 
 class _GroupChatsHeader extends StatefulWidget {
@@ -375,6 +527,167 @@ class _GroupChatsHeaderState extends State<_GroupChatsHeader> {
   }
 }
 
+class _GroupChatSection extends StatelessWidget {
+  const _GroupChatSection({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    return Padding(
+      padding: EdgeInsets.only(bottom: density.scale(18)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              density.scale(16),
+              density.scale(12),
+              density.scale(16),
+              density.scale(8),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(width: density.scale(8)),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ...children,
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupChatFooter extends StatelessWidget {
+  const _GroupChatFooter({
+    required this.chat,
+    required this.description,
+    required this.memberCount,
+  });
+
+  final Chat chat;
+  final String? description;
+  final int? memberCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final rowHorizontalPadding = density.scale(16);
+    final avatarBoxSize = density.scale(56);
+    final avatarGap = density.scale(16);
+    final leftInset = rowHorizontalPadding + avatarBoxSize + avatarGap;
+    final chips = <Widget>[
+      if (memberCount != null)
+        _GroupMetaChip(icon: Icons.group_outlined, label: '$memberCount 人'),
+      if (chat.isPinned)
+        const _GroupMetaChip(icon: Icons.push_pin_outlined, label: '已置顶'),
+      if (chat.isMuted)
+        const _GroupMetaChip(
+          icon: Icons.notifications_off_outlined,
+          label: '免打扰',
+        ),
+    ];
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        leftInset,
+        0,
+        rowHorizontalPadding,
+        density.scale(12),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(
+          horizontal: density.scale(12),
+          vertical: density.scale(10),
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(density.scale(16)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              description ?? '暂无群简介',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (chips.isNotEmpty) ...[
+              SizedBox(height: density.scale(8)),
+              Wrap(
+                spacing: density.scale(8),
+                runSpacing: density.scale(8),
+                children: chips,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupMetaChip extends StatelessWidget {
+  const _GroupMetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: density.scale(8),
+        vertical: density.scale(4),
+      ),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(density.scale(999)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: density.scale(13), color: AppColors.textTertiary),
+          SizedBox(width: density.scale(4)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyGroupChatsState extends StatelessWidget {
   const _EmptyGroupChatsState({
     required this.isEmptySearch,
@@ -434,6 +747,135 @@ class _EmptyGroupChatsState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GroupChatActionSheet extends StatelessWidget {
+  const _GroupChatActionSheet({
+    required this.chat,
+    required this.onTogglePinned,
+    required this.onToggleMuted,
+    required this.onDelete,
+  });
+
+  final Chat chat;
+  final Future<void> Function() onTogglePinned;
+  final Future<void> Function() onToggleMuted;
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        density.scale(20),
+        density.scale(16),
+        density.scale(20),
+        density.scale(28),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            chat.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          SizedBox(height: density.scale(6)),
+          const Text(
+            '长按操作',
+            style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+          ),
+          SizedBox(height: density.scale(16)),
+          _GroupChatActionTile(
+            icon: chat.isPinned
+                ? Icons.push_pin_outlined
+                : Icons.push_pin_rounded,
+            label: chat.isPinned ? '取消置顶' : '置顶群聊',
+            onTap: () async {
+              Navigator.of(context).pop();
+              await onTogglePinned();
+            },
+          ),
+          _GroupChatActionTile(
+            icon: chat.isMuted
+                ? Icons.notifications_active_outlined
+                : Icons.notifications_off_outlined,
+            label: chat.isMuted ? '取消免打扰' : '设为免打扰',
+            onTap: () async {
+              Navigator.of(context).pop();
+              await onToggleMuted();
+            },
+          ),
+          _GroupChatActionTile(
+            icon: Icons.delete_outline,
+            label: '删除会话',
+            danger: true,
+            onTap: () async {
+              Navigator.of(context).pop();
+              await onDelete();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupChatActionTile extends StatelessWidget {
+  const _GroupChatActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final color = danger ? AppColors.danger : AppColors.textPrimary;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(density.scale(16)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: density.scale(4),
+            vertical: density.scale(14),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: density.scale(20), color: color),
+              SizedBox(width: density.scale(12)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

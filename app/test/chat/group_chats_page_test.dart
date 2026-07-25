@@ -26,6 +26,14 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   }
 
   @override
+  int? cachedRoomMemberCount(String roomId) {
+    final chat = _chats.where((item) => item.roomId == roomId).firstOrNull;
+    final extra = chat?.extra;
+    final raw = extra?['member_count'] ?? extra?['memberCount'];
+    return raw is int ? raw : null;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -60,6 +68,9 @@ Chat _buildChat({
   required String id,
   required String name,
   required ChatType type,
+  bool isPinned = false,
+  bool isMuted = false,
+  Map<String, dynamic>? extra,
 }) {
   return Chat(
     id: id,
@@ -68,6 +79,9 @@ Chat _buildChat({
     type: type,
     lastMessage: 'last-$id',
     lastMessageTime: DateTime(2026, 7, 25, 10, 0),
+    isPinned: isPinned,
+    isMuted: isMuted,
+    extra: extra,
   );
 }
 
@@ -120,7 +134,12 @@ void main() {
 
   testWidgets('支持按群名搜索并展示空搜索态', (tester) async {
     final provider = _buildProvider(<Chat>[
-      _buildChat(id: 'group-1', name: '项目群', type: ChatType.group),
+      _buildChat(
+        id: 'group-1',
+        name: '项目群',
+        type: ChatType.group,
+        extra: const <String, dynamic>{'description': '核心项目讨论'},
+      ),
       _buildChat(id: 'group-2', name: '测试群', type: ChatType.group),
     ]);
 
@@ -147,5 +166,66 @@ void main() {
 
     expect(find.text('项目群'), findsOneWidget);
     expect(find.text('测试群'), findsOneWidget);
+  });
+
+  testWidgets('群聊页展示置顶分组与群资料摘要', (tester) async {
+    final provider = _buildProvider(<Chat>[
+      _buildChat(
+        id: 'group-1',
+        name: '项目群',
+        type: ChatType.group,
+        isPinned: true,
+        extra: const <String, dynamic>{
+          'description': '核心项目讨论',
+          'member_count': 12,
+        },
+      ),
+      _buildChat(
+        id: 'group-2',
+        name: '测试群',
+        type: ChatType.group,
+        isMuted: true,
+        extra: const <String, dynamic>{'description': '联调测试用'},
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('置顶群聊'), findsOneWidget);
+    expect(find.text('最近活跃'), findsOneWidget);
+    expect(find.text('核心项目讨论'), findsOneWidget);
+    expect(find.text('联调测试用'), findsOneWidget);
+    expect(find.text('12 人'), findsOneWidget);
+    expect(find.text('已置顶'), findsOneWidget);
+    expect(find.text('免打扰'), findsOneWidget);
+  });
+
+  testWidgets('长按群聊会打开操作面板', (tester) async {
+    final provider = _buildProvider(<Chat>[
+      _buildChat(
+        id: 'group-1',
+        name: '项目群',
+        type: ChatType.group,
+        isPinned: true,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.longPress(find.text('项目群'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('长按操作'), findsOneWidget);
+    expect(find.text('取消置顶'), findsOneWidget);
+    expect(find.text('设为免打扰'), findsOneWidget);
+    expect(find.text('删除会话'), findsOneWidget);
   });
 }

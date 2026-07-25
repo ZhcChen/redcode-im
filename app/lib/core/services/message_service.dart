@@ -708,7 +708,7 @@ class MessageService with ChangeNotifier {
     }
 
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/chats');
-    final response = await http.get(
+    final response = await _client.get(
       uri,
       headers: {'Authorization': 'Bearer ${session.token}'},
     );
@@ -4213,6 +4213,8 @@ class MessageService with ChangeNotifier {
     final unread = _readInt(json, const ['unread_count', 'unreadCount']);
 
     final extra = <String, dynamic>{
+      'description': _readString(json, const ['description']),
+      'member_count': _readInt(json, const ['member_count', 'memberCount']),
       'last_message_id': _readString(lastMessage, const [
         'id',
         'message_id',

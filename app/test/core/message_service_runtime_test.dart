@@ -523,53 +523,56 @@ void main() {
     },
   );
 
-  test('live websocket image message uses preview summary immediately', () async {
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: _FakeMessageStorage(),
-      chatCache: _FakeChatCache(
-        chats: <Chat>[
-          Chat(
-            id: 'room-1',
-            roomId: 'room-1',
-            name: 'Alice',
-            type: ChatType.single,
-            lastMessage: '',
-            lastMessageTime: DateTime(2026, 4, 12, 12, 0, 0),
-            unreadCount: 0,
-          ),
-        ],
-      ),
-      appConfigService: _FakeAppConfigService(
-        runtime: const MessageRuntimeSettings(
-          serverStorageMode: 'relay_only',
-          contentAuditMode: 'plaintext',
+  test(
+    'live websocket image message uses preview summary immediately',
+    () async {
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(
+          chats: <Chat>[
+            Chat(
+              id: 'room-1',
+              roomId: 'room-1',
+              name: 'Alice',
+              type: ChatType.single,
+              lastMessage: '',
+              lastMessageTime: DateTime(2026, 4, 12, 12, 0, 0),
+              unreadCount: 0,
+            ),
+          ],
         ),
-      ),
-    );
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'relay_only',
+            contentAuditMode: 'plaintext',
+          ),
+        ),
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    await service.handleWebSocketMessage(
-      WebSocketMessage(
-        id: 'msg-image-1',
-        roomId: 'room-1',
-        senderId: 'user-peer',
-        senderUsername: 'bob',
-        senderNickname: 'Bob',
-        senderAvatarUrl: null,
-        content: '',
-        messageType: 'image',
-        timestamp: DateTime(2026, 4, 12, 12, 40, 0),
-        extra: null,
-        quotedMessage: null,
-        forwardMessage: null,
-        parts: const <WebSocketMessagePart>[],
-      ),
-    );
+      await Future<void>.delayed(Duration.zero);
+      await service.handleWebSocketMessage(
+        WebSocketMessage(
+          id: 'msg-image-1',
+          roomId: 'room-1',
+          senderId: 'user-peer',
+          senderUsername: 'bob',
+          senderNickname: 'Bob',
+          senderAvatarUrl: null,
+          content: '',
+          messageType: 'image',
+          timestamp: DateTime(2026, 4, 12, 12, 40, 0),
+          extra: null,
+          quotedMessage: null,
+          forwardMessage: null,
+          parts: const <WebSocketMessagePart>[],
+        ),
+      );
 
-    expect(service.chats.single.lastMessage, '[图片]');
-    expect(service.chats.single.extra?['last_message_id'], 'msg-image-1');
-  });
+      expect(service.chats.single.lastMessage, '[图片]');
+      expect(service.chats.single.extra?['last_message_id'], 'msg-image-1');
+    },
+  );
 
   test('local delete refreshes latest chat summary immediately', () async {
     final service = MessageService(
@@ -724,223 +727,282 @@ void main() {
     expect(service.chats.single.extra?['last_message_id'], 'msg-1');
   });
 
-  test('addReaction persists updated message reactions to local cache', () async {
-    final storage = _FakeMessageStorage(
-      roomMessages: <String, List<Message>>{
-        'room-1': <Message>[
-          Message(
-            id: 'msg-1',
-            roomId: 'room-1',
-            senderId: 'user-peer',
-            senderUsername: 'bob',
-            senderName: 'Bob',
-            content: 'hello latest',
-            type: MessageType.text,
-            status: MessageStatus.sent,
-            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
-            isSelf: false,
+  test(
+    'fetchChats preserves group description and member count in extra',
+    () async {
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'persist',
+            contentAuditMode: 'plaintext',
           ),
-        ],
-      },
-    );
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: storage,
-      chatCache: _FakeChatCache(),
-      client: MockClient((request) async {
-        if (request.method == 'POST' &&
-            request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'message': 'ok',
-              'summaries': [
+        ),
+        client: MockClient((request) async {
+          if (request.method == 'GET' && request.url.path == '/chats') {
+            return http.Response(
+              jsonEncode([
                 {
-                  'reaction_key': '👍',
-                  'count': 1,
-                  'user_ids': ['user-self'],
-                  'has_self': true,
+                  'room_id': 'room-group-1',
+                  'name': '项目群',
+                  'room_type': 'group',
+                  'description': '核心项目讨论',
+                  'member_count': 12,
+                  'unread_count': 0,
+                  'last_message': {
+                    'id': 'msg-1',
+                    'content': 'hello group',
+                    'message_type': 'text',
+                    'created_at': '2026-07-25T10:00:00.000Z',
+                  },
                 },
+              ]),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      final chats = await service.fetchChats(force: true);
+
+      expect(chats.single.extra?['description'], '核心项目讨论');
+      expect(chats.single.extra?['member_count'], 12);
+    },
+  );
+
+  test(
+    'addReaction persists updated message reactions to local cache',
+    () async {
+      final storage = _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-peer',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: false,
+            ),
+          ],
+        },
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: storage,
+        chatCache: _FakeChatCache(),
+        client: MockClient((request) async {
+          if (request.method == 'POST' &&
+              request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'message': 'ok',
+                'summaries': [
+                  {
+                    'reaction_key': '👍',
+                    'count': 1,
+                    'user_ids': ['user-self'],
+                    'has_self': true,
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
+
+      await service.loadCachedMessages('room-1');
+      final summaries = await service.addReaction(
+        roomId: 'room-1',
+        messageId: 'msg-1',
+        reactionKey: '👍',
+      );
+
+      expect(summaries.single.reactionKey, '👍');
+      expect(
+        service.getMessages('room-1').single.reactions?.single.reactionKey,
+        '👍',
+      );
+      expect(
+        storage._roomMessages['room-1']?.single.reactions?.single.reactionKey,
+        '👍',
+      );
+    },
+  );
+
+  test(
+    'removeReaction persists updated message reactions to local cache',
+    () async {
+      final storage = _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-peer',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: false,
+              reactions: <MessageReactionSummary>[
+                MessageReactionSummary(
+                  reactionKey: '👍',
+                  count: 1,
+                  userIds: <String>['user-self'],
+                  hasSelf: true,
+                ),
               ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('not found', 404);
-      }),
-    );
+            ),
+          ],
+        },
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: storage,
+        chatCache: _FakeChatCache(),
+        client: MockClient((request) async {
+          if (request.method == 'DELETE' &&
+              request.url.path == '/rooms/room-1/messages/msg-1/reactions' &&
+              request.url.queryParameters['reaction_key'] == '👍') {
+            return http.Response(
+              jsonEncode({'success': true, 'message': 'ok', 'summaries': []}),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
 
-    await service.loadCachedMessages('room-1');
-    final summaries = await service.addReaction(
-      roomId: 'room-1',
-      messageId: 'msg-1',
-      reactionKey: '👍',
-    );
+      await service.loadCachedMessages('room-1');
+      final summaries = await service.removeReaction(
+        roomId: 'room-1',
+        messageId: 'msg-1',
+        reactionKey: '👍',
+      );
 
-    expect(summaries.single.reactionKey, '👍');
-    expect(service.getMessages('room-1').single.reactions?.single.reactionKey, '👍');
-    expect(
-      storage._roomMessages['room-1']?.single.reactions?.single.reactionKey,
-      '👍',
-    );
-  });
+      expect(summaries, isEmpty);
+      expect(service.getMessages('room-1').single.reactions, isEmpty);
+      expect(storage._roomMessages['room-1']?.single.reactions, isEmpty);
+    },
+  );
 
-  test('removeReaction persists updated message reactions to local cache', () async {
-    final storage = _FakeMessageStorage(
-      roomMessages: <String, List<Message>>{
-        'room-1': <Message>[
-          Message(
-            id: 'msg-1',
-            roomId: 'room-1',
-            senderId: 'user-peer',
-            senderUsername: 'bob',
-            senderName: 'Bob',
-            content: 'hello latest',
-            type: MessageType.text,
-            status: MessageStatus.sent,
-            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
-            isSelf: false,
-            reactions: <MessageReactionSummary>[
-              MessageReactionSummary(
-                reactionKey: '👍',
-                count: 1,
-                userIds: <String>['user-self'],
-                hasSelf: true,
-              ),
-            ],
-          ),
-        ],
-      },
-    );
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: storage,
-      chatCache: _FakeChatCache(),
-      client: MockClient((request) async {
-        if (request.method == 'DELETE' &&
-            request.url.path == '/rooms/room-1/messages/msg-1/reactions' &&
-            request.url.queryParameters['reaction_key'] == '👍') {
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'message': 'ok',
-              'summaries': [],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('not found', 404);
-      }),
-    );
+  test(
+    'getReactions refreshes cached message reactions for unloaded room',
+    () async {
+      final storage = _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-peer',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: false,
+            ),
+          ],
+        },
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: storage,
+        chatCache: _FakeChatCache(),
+        client: MockClient((request) async {
+          if (request.method == 'GET' &&
+              request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'message': 'ok',
+                'summaries': [
+                  {
+                    'reaction_key': '🎉',
+                    'count': 2,
+                    'user_ids': ['user-a', 'user-b'],
+                    'has_self': false,
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+          return http.Response('not found', 404);
+        }),
+      );
 
-    await service.loadCachedMessages('room-1');
-    final summaries = await service.removeReaction(
-      roomId: 'room-1',
-      messageId: 'msg-1',
-      reactionKey: '👍',
-    );
+      final summaries = await service.getReactions(
+        roomId: 'room-1',
+        messageId: 'msg-1',
+      );
+      final persisted = await storage.loadMessages('room-1');
 
-    expect(summaries, isEmpty);
-    expect(service.getMessages('room-1').single.reactions, isEmpty);
-    expect(storage._roomMessages['room-1']?.single.reactions, isEmpty);
-  });
+      expect(summaries.single.reactionKey, '🎉');
+      expect(persisted.single.reactions?.single.reactionKey, '🎉');
+    },
+  );
 
-  test('getReactions refreshes cached message reactions for unloaded room', () async {
-    final storage = _FakeMessageStorage(
-      roomMessages: <String, List<Message>>{
-        'room-1': <Message>[
-          Message(
-            id: 'msg-1',
-            roomId: 'room-1',
-            senderId: 'user-peer',
-            senderUsername: 'bob',
-            senderName: 'Bob',
-            content: 'hello latest',
-            type: MessageType.text,
-            status: MessageStatus.sent,
-            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
-            isSelf: false,
-          ),
-        ],
-      },
-    );
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: storage,
-      chatCache: _FakeChatCache(),
-      client: MockClient((request) async {
-        if (request.method == 'GET' &&
-            request.url.path == '/rooms/room-1/messages/msg-1/reactions') {
-          return http.Response(
-            jsonEncode({
-              'success': true,
-              'message': 'ok',
-              'summaries': [
-                {
-                  'reaction_key': '🎉',
-                  'count': 2,
-                  'user_ids': ['user-a', 'user-b'],
-                  'has_self': false,
-                },
-              ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('not found', 404);
-      }),
-    );
+  test(
+    'handlePinUpdate persists cached message pin state for unloaded room',
+    () async {
+      final storage = _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            Message(
+              id: 'msg-1',
+              roomId: 'room-1',
+              senderId: 'user-peer',
+              senderUsername: 'bob',
+              senderName: 'Bob',
+              content: 'hello latest',
+              type: MessageType.text,
+              status: MessageStatus.sent,
+              timestamp: DateTime(2026, 4, 12, 12, 30, 0),
+              isSelf: false,
+            ),
+          ],
+        },
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: storage,
+        chatCache: _FakeChatCache(),
+      );
 
-    final summaries = await service.getReactions(
-      roomId: 'room-1',
-      messageId: 'msg-1',
-    );
-    final persisted = await storage.loadMessages('room-1');
+      await service.handlePinUpdate(
+        roomId: 'room-1',
+        messageId: 'msg-1',
+        isPinned: true,
+        pinnedAt: DateTime(2026, 4, 12, 12, 45, 0),
+        pinnedBy: 'admin-1',
+      );
 
-    expect(summaries.single.reactionKey, '🎉');
-    expect(persisted.single.reactions?.single.reactionKey, '🎉');
-  });
-
-  test('handlePinUpdate persists cached message pin state for unloaded room', () async {
-    final storage = _FakeMessageStorage(
-      roomMessages: <String, List<Message>>{
-        'room-1': <Message>[
-          Message(
-            id: 'msg-1',
-            roomId: 'room-1',
-            senderId: 'user-peer',
-            senderUsername: 'bob',
-            senderName: 'Bob',
-            content: 'hello latest',
-            type: MessageType.text,
-            status: MessageStatus.sent,
-            timestamp: DateTime(2026, 4, 12, 12, 30, 0),
-            isSelf: false,
-          ),
-        ],
-      },
-    );
-    final service = MessageService(
-      tokenStorage: const _FakeTokenStorage(session),
-      messageStorage: storage,
-      chatCache: _FakeChatCache(),
-    );
-
-    await service.handlePinUpdate(
-      roomId: 'room-1',
-      messageId: 'msg-1',
-      isPinned: true,
-      pinnedAt: DateTime(2026, 4, 12, 12, 45, 0),
-      pinnedBy: 'admin-1',
-    );
-
-    final persisted = await storage.loadMessages('room-1');
-    expect(persisted.single.pinnedAt, DateTime(2026, 4, 12, 12, 45, 0));
-    expect(persisted.single.extra?['pinned_by'], 'admin-1');
-  });
+      final persisted = await storage.loadMessages('room-1');
+      expect(persisted.single.pinnedAt, DateTime(2026, 4, 12, 12, 45, 0));
+      expect(persisted.single.extra?['pinned_by'], 'admin-1');
+    },
+  );
 }
 
 class _FakeAppConfigService extends AppConfigService {
