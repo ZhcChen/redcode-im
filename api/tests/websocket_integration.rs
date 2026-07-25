@@ -440,6 +440,85 @@ async fn websocket_auth_join_ping_and_message_broadcast_succeeds() {
 }
 
 #[tokio::test]
+async fn persist_mode_rejects_uncommitted_attachment_keys() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "pao").await;
+    let member = register_and_login(&app, "pam").await;
+    let room_id = create_room(&app, &owner, &[&member]).await;
+    let provider_id = seed_default_storage_provider(&app).await;
+
+    let forged_key = format!("messages/{}/images_20260724/forged.png", Uuid::new_v4());
+    let forged_body = json!({
+        "parts": [
+            {
+                "type": "image",
+                "key": forged_key,
+                "name": "forged.png",
+                "mime": "image/png",
+                "size": 12345
+            }
+        ]
+    })
+    .to_string();
+    let (status, forged_resp) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &owner.token,
+            &forged_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "persist 模式应拒绝未提交附件 key: {}",
+        String::from_utf8_lossy(&forged_resp)
+    );
+    assert!(
+        String::from_utf8_lossy(&forged_resp).contains("上传提交"),
+        "persist 模式错误信息应提示先完成上传提交: {}",
+        String::from_utf8_lossy(&forged_resp)
+    );
+
+    let committed_key = format!("messages/{}/images_20260724/committed.png", Uuid::new_v4());
+    seed_completed_message_attachment(&app, provider_id, &committed_key, "image/png", 12345).await;
+    let committed_body = json!({
+        "parts": [
+            {
+                "type": "image",
+                "key": committed_key,
+                "name": "committed.png",
+                "mime": "image/png",
+                "size": 12345
+            }
+        ]
+    })
+    .to_string();
+    let (status, committed_resp) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &owner.token,
+            &committed_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "persist 模式应允许已提交附件 key: {}",
+        String::from_utf8_lossy(&committed_resp)
+    );
+    let committed_sent = body_json(&committed_resp);
+    let committed_message_id = committed_sent["message"]["id"]
+        .as_str()
+        .expect("persist attachment response message id")
+        .to_string();
+    assert_eq!(
+        committed_sent["message"]["parts"][0]["attachment"]["key"].as_str(),
+        Some(committed_key.as_str())
+    );
+    assert_message_persistence(&app, &committed_message_id, 1).await;
+}
+
+#[tokio::test]
 async fn relay_only_message_broadcasts_without_server_persistence() {
     let app = spawn_test_app().await;
     let owner = register_and_login(&app, "rlo").await;

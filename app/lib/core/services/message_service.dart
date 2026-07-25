@@ -2904,6 +2904,8 @@ class MessageService with ChangeNotifier {
     final sig = plan.signature!;
     final request = http.StreamedRequest(sig.method, Uri.parse(sig.url));
     sig.applyHeaders(request, defaultContentType: plan.contentType);
+    // RustFS 对 presigned PUT 需要固定 Content-Length；chunked 会导致签名失配。
+    request.contentLength = plan.size;
 
     final total = plan.size.toDouble().clamp(1, double.infinity);
     double uploaded = 0;
@@ -3003,6 +3005,8 @@ class MessageService with ChangeNotifier {
           Uri.parse(signature.url),
         );
         signature.applyHeaders(request, defaultContentType: plan.contentType);
+        // 分片直传同样必须携带固定 Content-Length。
+        request.contentLength = endExclusive - start;
 
         final responseFuture = request.send();
 

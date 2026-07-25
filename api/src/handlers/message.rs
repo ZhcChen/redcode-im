@@ -711,13 +711,11 @@ fn ensure_relay_only_attachment_keys_belong_to_room(
     Ok(())
 }
 
-async fn ensure_relay_only_attachment_keys_are_committed(
-    state: &AppState,
-    room_id: Uuid,
-    parts: &[NewMessagePart],
-) -> Result<(), AppError> {
-    ensure_relay_only_attachment_keys_belong_to_room(room_id, parts)?;
+fn attachment_commit_required_error() -> AppError {
+    AppError::ValidationError("附件必须先完成上传提交，请重新上传附件".to_string())
+}
 
+fn collect_attachment_keys(parts: &[NewMessagePart]) -> Vec<String> {
     let mut keys = Vec::new();
     for part in parts {
         if part.part_type == MessagePartType::Text {
@@ -738,6 +736,14 @@ async fn ensure_relay_only_attachment_keys_are_committed(
     }
     keys.sort();
     keys.dedup();
+    keys
+}
+
+async fn ensure_message_attachment_keys_are_committed(
+    state: &AppState,
+    parts: &[NewMessagePart],
+) -> Result<(), AppError> {
+    let keys = collect_attachment_keys(parts);
     if keys.is_empty() {
         return Ok(());
     }
@@ -750,13 +756,20 @@ async fn ensure_relay_only_attachment_keys_are_committed(
             .await
             .map_err(AppError::from)?
         {
-            return Err(AppError::ValidationError(
-                "relay_only 模式附件必须先完成上传提交，请重新上传附件".to_string(),
-            ));
+            return Err(attachment_commit_required_error());
         }
     }
 
     Ok(())
+}
+
+async fn ensure_relay_only_attachment_keys_are_committed(
+    state: &AppState,
+    room_id: Uuid,
+    parts: &[NewMessagePart],
+) -> Result<(), AppError> {
+    ensure_relay_only_attachment_keys_belong_to_room(room_id, parts)?;
+    ensure_message_attachment_keys_are_committed(state, parts).await
 }
 
 fn is_hex_32(value: &str) -> bool {
@@ -1134,6 +1147,9 @@ pub async fn send_message(
     }
     if relay_only_runtime {
         ensure_relay_only_attachment_keys_are_committed(&state, room_id, &db_parts).await?;
+    } else {
+        // persist 模式也必须先完成 commit，避免不存在的对象 key 被消息直接引用。
+        ensure_message_attachment_keys_are_committed(&state, &db_parts).await?;
     }
 
     // 兜底：即使客户端未走 commit（仅引用 key），也要确保进入审核队列

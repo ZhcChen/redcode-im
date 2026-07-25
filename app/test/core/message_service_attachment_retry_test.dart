@@ -57,6 +57,8 @@ class _UploadTestBackend {
   final List<String> signatureKeys;
   final Uri apiBaseUri = Uri.parse(AppConfig.apiBaseUrl);
   final Map<String, List<int>> uploadedBodies = <String, List<int>>{};
+  final Map<String, int> uploadedContentLengths = <String, int>{};
+  final Map<String, bool> uploadedChunkedFlags = <String, bool>{};
   final List<String> committedKeys = <String>[];
   final List<Map<String, dynamic>> sentBodies = <Map<String, dynamic>>[];
   int signatureRequestCount = 0;
@@ -131,6 +133,9 @@ class _UploadTestBackend {
             request.uri.pathSegments.isNotEmpty &&
             request.uri.pathSegments.first == 'uploads') {
           final objectKey = request.uri.pathSegments.skip(1).join('/');
+          uploadedContentLengths[objectKey] = request.headers.contentLength;
+          uploadedChunkedFlags[objectKey] =
+              request.headers.chunkedTransferEncoding;
           uploadedBodies[objectKey] = await request.fold<List<int>>(<int>[], (
             buffer,
             chunk,
@@ -401,6 +406,14 @@ void main() {
         backend.uploadedBodies['messages/retry-uploaded-image.png'],
         localBytes,
       );
+      expect(
+        backend.uploadedContentLengths['messages/retry-uploaded-image.png'],
+        localBytes.length,
+      );
+      expect(
+        backend.uploadedChunkedFlags['messages/retry-uploaded-image.png'],
+        isFalse,
+      );
       expect(backend.committedKeys, <String>[
         'messages/retry-uploaded-image.png',
       ]);
@@ -474,6 +487,14 @@ void main() {
       expect(
         backend.uploadedBodies.keys,
         contains('messages/retry-second-image.png'),
+      );
+      expect(
+        backend.uploadedContentLengths['messages/retry-second-image.png'],
+        3,
+      );
+      expect(
+        backend.uploadedChunkedFlags['messages/retry-second-image.png'],
+        isFalse,
       );
       expect(backend.committedKeys, <String>[
         'messages/retry-second-image.png',
