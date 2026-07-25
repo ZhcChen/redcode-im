@@ -1,4 +1,5 @@
 import 'package:app/core/theme/app_theme.dart';
+import 'package:app/core/theme/phone_density.dart';
 import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,10 +37,15 @@ Widget _buildHost({
   bool showEmojiPanel = false,
   bool showMorePanel = false,
   bool useRealTheme = false,
+  bool useAdaptiveDensity = false,
 }) {
   Widget buildApp(ThemeData? theme) {
     return MaterialApp(
       theme: theme,
+      builder: useAdaptiveDensity
+          ? (context, child) =>
+                AdaptivePhoneDensity(child: child ?? const SizedBox.shrink())
+          : null,
       home: Scaffold(
         body: ChangeNotifierProvider<ChatProvider>.value(
           value: provider,
@@ -279,6 +285,64 @@ void main() {
       expect(field.style?.height, 1.3);
       expect(field.decoration?.hintStyle?.fontSize, 15);
       expect(field.decoration?.hintStyle?.height, 1.3);
+
+      final containerBox = tester.renderObject<RenderBox>(
+        find.byKey(const ValueKey('chat-input-text-container')),
+      );
+      final containerTopLeft = containerBox.localToGlobal(Offset.zero);
+      final containerCenterY =
+          containerTopLeft.dy + containerBox.size.height / 2;
+
+      final hintBox = tester.renderObject<RenderBox>(find.text('发送消息...'));
+      final hintTopLeft = hintBox.localToGlobal(Offset.zero);
+      final hintCenterY = hintTopLeft.dy + hintBox.size.height / 2;
+      expect((hintCenterY - containerCenterY).abs(), lessThanOrEqualTo(2.0));
+
+      await tester.tap(find.byKey(const ValueKey('chat-input-text-field')));
+      await tester.pump();
+
+      final editableState = tester.state<EditableTextState>(
+        find.byType(EditableText),
+      );
+      final editable = editableState.renderEditable;
+      final caretRect = editable.getLocalRectForCaret(
+        const TextPosition(offset: 0),
+      );
+      final editableTopLeft = editable.localToGlobal(Offset.zero);
+      final caretCenterY = editableTopLeft.dy + caretRect.center.dy;
+      expect((caretCenterY - containerCenterY).abs(), lessThanOrEqualTo(2.0));
+    });
+
+    testWidgets('1.5k 设备下空输入态提示文案和光标保持垂直居中', (tester) async {
+      tester.view.physicalSize = const Size(1220, 2712);
+      tester.view.devicePixelRatio = 3;
+
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final provider = _StubChatProvider();
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        controller.dispose();
+        focusNode.dispose();
+        provider.dispose();
+      });
+
+      await tester.pumpWidget(
+        _buildHost(
+          controller: controller,
+          focusNode: focusNode,
+          onSendMessage: () {},
+          onToggleVoice: () {},
+          onToggleEmoji: () {},
+          onToggleMore: () {},
+          provider: provider,
+          useRealTheme: true,
+          useAdaptiveDensity: true,
+        ),
+      );
+      await tester.pumpAndSettle();
 
       final containerBox = tester.renderObject<RenderBox>(
         find.byKey(const ValueKey('chat-input-text-container')),

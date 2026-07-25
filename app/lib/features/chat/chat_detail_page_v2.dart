@@ -19,7 +19,6 @@ import 'package:provider/provider.dart';
 
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/utils/avatar_color_utils.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
@@ -28,6 +27,8 @@ import '../../core/services/room_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/storage/message_search_storage.dart';
+import '../../core/theme/phone_density.dart';
+import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'constants/emoji_list.dart';
@@ -1475,12 +1476,16 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Widget _buildInputArea() {
+    final density = context.phoneDensity;
     final theme = Theme.of(context);
     final typingText = _typingIndicatorText;
 
     return Container(
       key: _inputAreaKey,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: density.scale(12),
+        vertical: density.scale(8),
+      ),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
@@ -1518,18 +1523,18 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                       onTap: () => _scrollToMessage(_quotedMessage!.id),
                     ),
             ),
-            if (_quotedMessage != null) const SizedBox(height: 8),
+            if (_quotedMessage != null) SizedBox(height: density.scale(8)),
             if (typingText != null) ...[
               Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: density.scale(10),
+                    vertical: density.scale(4),
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.background,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(density.scale(10)),
                     border: Border.all(color: AppColors.divider),
                   ),
                   child: Text(
@@ -1542,11 +1547,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: density.scale(8)),
             ],
             if (_showMentionPanel) ...[
               _buildMentionPanel(theme),
-              const SizedBox(height: 8),
+              SizedBox(height: density.scale(8)),
             ],
             // 为输入区域添加高度过渡动画，减轻高度瞬间变化带来的突兀感
             AnimatedSize(
@@ -4927,23 +4932,24 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 语音按钮
         _buildVoiceButton(),
 
-        const SizedBox(width: 8),
+        SizedBox(width: density.scale(8)),
 
         // 文本输入框 - 支持自动扩展高度，最多显示 6 行
         Expanded(child: _buildTextInput(context)),
 
-        const SizedBox(width: 8),
+        SizedBox(width: density.scale(8)),
 
         // 表情按钮
         _buildEmojiButton(),
 
-        const SizedBox(width: 4),
+        SizedBox(width: density.scale(4)),
 
         // 发送/更多按钮
         _buildSendOrMoreButton(),
@@ -4960,12 +4966,15 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     // 配合外层 AnimatedSize 做平滑过渡，减轻文字跳动感。
     const baseFontSize = 15.0;
     const maxVisibleLines = 6;
-    const verticalPadding = 10.0;
     const lineHeightMultiplier = 1.3;
 
+    final density = context.phoneDensity;
     final mediaQuery = MediaQuery.maybeOf(context);
     final textScaler = mediaQuery?.textScaler ?? const TextScaler.linear(1.0);
     final scaledFontSize = textScaler.scale(baseFontSize);
+    final horizontalPadding = density.scale(12);
+    final verticalPadding = density.scale(10);
+    final inputRadius = density.scale(8);
     final textStyle = TextStyle(
       fontSize: baseFontSize,
       height: lineHeightMultiplier,
@@ -4987,7 +4996,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         );
 
         // 减去左右 contentPadding 的宽度，避免低估行数
-        var maxWidth = constraints.maxWidth - 24; // 12 + 12
+        var maxWidth = constraints.maxWidth - horizontalPadding * 2;
         if (maxWidth <= 0) {
           maxWidth = constraints.maxWidth;
         }
@@ -5054,8 +5063,8 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
             decoration: InputDecoration(
               // 覆盖全局 InputDecorationTheme 的固定高度约束，避免破坏聊天输入框的动态高度与单行垂直居中。
               constraints: const BoxConstraints(minHeight: 0),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 12,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
                 vertical: verticalPadding,
               ),
               filled: true,
@@ -5063,19 +5072,19 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                   ? const Color(0xFFF5F5F5)
                   : const Color(0xFFEFEFF0),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(inputRadius),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(inputRadius),
                 borderSide: BorderSide.none,
               ),
               disabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(inputRadius),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(inputRadius),
                 borderSide: BorderSide.none,
               ),
               hintText: widget.isDisabled
@@ -5113,26 +5122,34 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   }
 
   Widget _buildSendButton(bool isSending) {
+    final density = context.phoneDensity;
+    final buttonSize = density.scale(36);
+    final buttonRadius = density.scale(18);
+    final loadingSize = density.scale(20);
     return Material(
       color: AppColors.primary,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(buttonRadius),
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(buttonRadius),
         onTap: isSending ? null : widget.onSendMessage,
         child: Container(
-          width: 36,
-          height: 36,
+          width: buttonSize,
+          height: buttonSize,
           alignment: Alignment.center,
           child: isSending
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
+              ? SizedBox(
+                  width: loadingSize,
+                  height: loadingSize,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
                 )
-              : const Icon(Icons.send_rounded, size: 20, color: Colors.white),
+              : Icon(
+                  Icons.send_rounded,
+                  size: density.scale(20),
+                  color: Colors.white,
+                ),
         ),
       ),
     );
@@ -5161,26 +5178,29 @@ class _IconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final buttonSize = density.scale(36);
+    final buttonRadius = density.scale(18);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(buttonRadius),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          width: 36,
-          height: 36,
+          width: buttonSize,
+          height: buttonSize,
           decoration: BoxDecoration(
             color: isActive
                 ? AppColors.primary.withValues(alpha: 0.12)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
           alignment: Alignment.center,
           child: SvgPicture.asset(
             icon,
-            width: 24,
-            height: 24,
+            width: density.scale(24),
+            height: density.scale(24),
             colorFilter: ColorFilter.mode(
               isActive ? AppColors.primary : AppColors.iconSecondary,
               BlendMode.srcIn,

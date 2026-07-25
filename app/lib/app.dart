@@ -5,6 +5,7 @@ import 'core/services/settings_service.dart';
 import 'core/services/push_navigation.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/no_stretch_scroll_behavior.dart';
+import 'core/theme/phone_density.dart';
 import 'core/theme/screen_adaptation.dart';
 import 'core/update/hot_patch_asset_bundle.dart';
 import 'core/update/hot_update_manager.dart';
@@ -60,6 +61,8 @@ class _RedcodeAppState extends State<RedcodeApp> {
           debugShowCheckedModeBanner: false,
           navigatorKey: pushNavigatorKey,
           scrollBehavior: const NoStretchScrollBehavior(),
+          builder: (context, child) =>
+              AdaptivePhoneDensity(child: child ?? const SizedBox.shrink()),
           home: const SplashPage(),
         ),
       ),

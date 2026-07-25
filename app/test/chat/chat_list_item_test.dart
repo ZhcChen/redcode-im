@@ -1,11 +1,22 @@
+import 'package:app/core/theme/phone_density.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/widgets/app_badge.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/widgets/chat_list_item.dart';
 
-Widget _buildHarness(Widget child) {
-  return MaterialApp(home: Scaffold(body: child));
+Widget _buildHarness(Widget child, {bool enableDensity = false}) {
+  return MaterialApp(
+    home: Builder(
+      builder: (context) {
+        final body = Scaffold(body: child);
+        if (!enableDensity) {
+          return body;
+        }
+        return AdaptivePhoneDensity(child: body);
+      },
+    ),
+  );
 }
 
 Chat _buildChat({
@@ -98,5 +109,37 @@ void main() {
 
     expect(find.byType(AppBadge), findsOneWidget);
     expect(find.byType(Divider), findsOneWidget);
+  });
+
+  testWidgets('1.5k phones tighten avatar box size', (tester) async {
+    tester.view.physicalSize = const Size(1220, 2712);
+    tester.view.devicePixelRatio = 3;
+
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final chat = _buildChat(
+      type: ChatType.single,
+      name: 'Alice',
+      lastMessage: 'hello',
+    );
+
+    await tester.pumpWidget(
+      _buildHarness(
+        ChatListItem(
+          chat: chat,
+          avatarBuilder: (_) => const SizedBox.expand(key: Key('avatar')),
+          onTap: () {},
+        ),
+        enableDensity: true,
+      ),
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('avatar'))).width,
+      closeTo(56 * 0.96, 0.01),
+    );
   });
 }

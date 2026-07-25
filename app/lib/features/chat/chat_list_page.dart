@@ -10,6 +10,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/user_avatar_service.dart';
+import '../../core/theme/phone_density.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../contacts/add_friend_page.dart';
 import 'chat_detail_page_v2.dart';
@@ -273,19 +274,21 @@ class _FavoriteAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     const initial = '收';
     const primaryColor = AppColors.primary;
+    final density = context.phoneDensity;
+    final avatarSize = density.scale(48);
 
     return Container(
-      width: 48,
-      height: 48,
+      width: avatarSize,
+      height: avatarSize,
       decoration: BoxDecoration(
         color: primaryColor,
-        borderRadius: BorderRadius.circular(48),
+        borderRadius: BorderRadius.circular(avatarSize / 2),
       ),
       child: Center(
         child: Text(
           initial,
-          style: const TextStyle(
-            fontSize: 19,
+          style: TextStyle(
+            fontSize: density.scale(19),
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
@@ -337,6 +340,16 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final outerHorizontalPadding = density.scale(16);
+    final outerVerticalPadding = density.scale(12);
+    final searchBarHeight = density.scale(46);
+    final searchBarRadius = density.scale(24);
+    final searchBarHorizontalPadding = density.scale(14);
+    final searchIconSize = density.scale(20);
+    final clearIconSize = density.scale(18);
+    final searchVerticalPadding = density.scale(13);
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -351,28 +364,33 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: outerHorizontalPadding,
+            vertical: outerVerticalPadding,
+          ),
           child: Row(
             children: [
               _ChatMenuButton(onSelected: widget.onMenuSelected),
-              const SizedBox(width: 16),
+              SizedBox(width: density.scale(16)),
               Expanded(
                 child: Container(
-                  height: 46,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  height: searchBarHeight,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: searchBarHorizontalPadding,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(searchBarRadius),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.search,
-                        size: 20,
+                        size: searchIconSize,
                         color: AppColors.textTertiary,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: density.scale(8)),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
@@ -382,15 +400,17 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
                             fontSize: 14,
                             color: AppColors.textPrimary,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: '搜索',
-                            hintStyle: TextStyle(
+                            hintStyle: const TextStyle(
                               fontSize: 14,
                               color: AppColors.textTertiary,
                             ),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(vertical: 13),
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: searchVerticalPadding,
+                            ),
                           ),
                         ),
                       ),
@@ -400,9 +420,9 @@ class _ChatListHeaderState extends State<_ChatListHeader> {
                             _searchController.clear();
                             widget.onSearchCleared();
                           },
-                          child: const Icon(
+                          child: Icon(
                             Icons.clear,
-                            size: 18,
+                            size: clearIconSize,
                             color: AppColors.textTertiary,
                           ),
                         ),
@@ -453,9 +473,11 @@ class _ChatMenuButtonState extends State<_ChatMenuButton>
   }
 
   double _menuButtonSize(BuildContext context) {
+    final density = context.phoneDensity;
     final screenWidth = MediaQuery.of(context).size.width;
     final scale = screenWidth / 375;
-    return (40 * scale).clamp(36, 48);
+    final baseSize = (40 * scale).clamp(36.0, 48.0).toDouble();
+    return density.scale(baseSize);
   }
 
   void _showMenu() {
@@ -571,12 +593,14 @@ class _DropdownMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final cornerRadius = density.scale(8);
     return Material(
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(cornerRadius),
           boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
@@ -620,16 +644,24 @@ class _DropdownItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(density.scale(8)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: density.scale(16),
+          vertical: density.scale(12),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(icon, width: 20, height: 20),
-            const SizedBox(width: 12),
+            SvgPicture.asset(
+              icon,
+              width: density.scale(20),
+              height: density.scale(20),
+            ),
+            SizedBox(width: density.scale(12)),
             Text(
               label,
               style: const TextStyle(
@@ -651,7 +683,8 @@ class _MenuArrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = 12.0;
+    final density = context.phoneDensity;
+    final size = density.scale(12);
     return Transform.rotate(
       angle: math.pi / 4,
       child: Container(
@@ -659,7 +692,7 @@ class _MenuArrow extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(2),
+          borderRadius: BorderRadius.circular(density.scale(2)),
           boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
@@ -778,6 +811,9 @@ class _ChatAvatarState extends State<_ChatAvatar> {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final avatarSize = density.scale(48);
+    final loadingIndicatorSize = density.scale(16);
     final isFavorite = widget.chat.type == ChatType.favorite;
     if (isFavorite) {
       return _FavoriteAvatar();
@@ -788,14 +824,14 @@ class _ChatAvatarState extends State<_ChatAvatar> {
       final file = File(_cachedAvatarPath!);
       if (file.existsSync()) {
         return SizedBox(
-          width: 48,
-          height: 48,
+          width: avatarSize,
+          height: avatarSize,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(48),
+            borderRadius: BorderRadius.circular(avatarSize / 2),
             child: Image.file(
               file,
-              width: 48,
-              height: 48,
+              width: avatarSize,
+              height: avatarSize,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) {
                 // 如果文件读取失败，显示默认头像
@@ -812,16 +848,16 @@ class _ChatAvatarState extends State<_ChatAvatar> {
         widget.chat.avatarObjectKey != null &&
         widget.chat.avatarObjectKey!.isNotEmpty) {
       return Container(
-        width: 48,
-        height: 48,
+        width: avatarSize,
+        height: avatarSize,
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(48),
+          borderRadius: BorderRadius.circular(avatarSize / 2),
         ),
-        child: const Center(
+        child: Center(
           child: SizedBox(
-            width: 16,
-            height: 16,
+            width: loadingIndicatorSize,
+            height: loadingIndicatorSize,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
@@ -832,19 +868,19 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     final avatar = widget.chat.avatar;
     if (avatar != null && avatar.isNotEmpty) {
       if (avatar.endsWith('.svg')) {
-        return SvgPicture.asset(avatar, width: 48, height: 48);
+        return SvgPicture.asset(avatar, width: avatarSize, height: avatarSize);
       }
       // asset头像
       if (!avatar.startsWith('http://') && !avatar.startsWith('https://')) {
         return SizedBox(
-          width: 48,
-          height: 48,
+          width: avatarSize,
+          height: avatarSize,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(48),
+            borderRadius: BorderRadius.circular(avatarSize / 2),
             child: Image.asset(
               avatar,
-              width: 48,
-              height: 48,
+              width: avatarSize,
+              height: avatarSize,
               fit: BoxFit.cover,
             ),
           ),
@@ -857,6 +893,8 @@ class _ChatAvatarState extends State<_ChatAvatar> {
   }
 
   Widget _buildDefaultAvatar() {
+    final density = context.phoneDensity;
+    final avatarSize = density.scale(48);
     final name = widget.chat.name.trim();
     final initial = AvatarColorUtils.getInitial(name);
     // 背景色使用稳定种子，单聊优先对端用户ID，群聊用 roomId，与桌面端逻辑保持一致
@@ -864,17 +902,17 @@ class _ChatAvatarState extends State<_ChatAvatar> {
     final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
 
     return Container(
-      width: 48,
-      height: 48,
+      width: avatarSize,
+      height: avatarSize,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(48),
+        borderRadius: BorderRadius.circular(avatarSize / 2),
       ),
       child: Center(
         child: Text(
           initial,
           style: TextStyle(
-            fontSize: 19,
+            fontSize: density.scale(19),
             color: Colors.white,
             fontWeight: FontWeight.w600,
           ),
@@ -921,16 +959,17 @@ class _EmptyPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             isEmptySearch ? Icons.search_off : Icons.mark_chat_unread_outlined,
-            size: 56,
+            size: density.scale(56),
             color: AppColors.textTertiary,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: density.scale(16)),
           Text(
             isEmptySearch ? '未找到相关会话' : '暂无会话',
             style: const TextStyle(
@@ -938,7 +977,7 @@ class _EmptyPlaceholder extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: density.scale(6)),
           Text(
             isEmptySearch ? '试试其他关键词' : '开始一段新的聊天吧',
             style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),

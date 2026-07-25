@@ -7,6 +7,7 @@ import '../../core/services/friend_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/services/message_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/theme/phone_density.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
 import 'models/friend_models.dart';
@@ -214,6 +215,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Future<String?> _showAddFriendDialog(AuthUser user) async {
+    final density = context.phoneDensity;
     final controller = TextEditingController(text: _buildDefaultGreeting(user));
     final result = await TipDialog.showConfirmWithResult<String>(
       context,
@@ -224,15 +226,15 @@ class _AddFriendPageState extends State<AddFriendPage> {
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(14),
+            padding: EdgeInsets.all(density.scale(14)),
             decoration: BoxDecoration(
               color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(density.scale(16)),
             ),
             child: Row(
               children: [
-                _UserAvatar(user: user, size: 44),
-                const SizedBox(width: 12),
+                _UserAvatar(user: user, size: density.scale(44)),
+                SizedBox(width: density.scale(12)),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,7 +247,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: density.scale(4)),
                       Text(
                         _buildUserSubtitle(user),
                         style: const TextStyle(
@@ -259,7 +261,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: density.scale(16)),
           const Text(
             '附言',
             style: TextStyle(
@@ -268,12 +270,12 @@ class _AddFriendPageState extends State<AddFriendPage> {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: density.scale(6)),
           const Text(
             '向对方简单介绍自己，方便更快通过。',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: density.scale(12)),
           TextField(
             controller: controller,
             maxLength: 120,
@@ -286,21 +288,21 @@ class _AddFriendPageState extends State<AddFriendPage> {
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(density.scale(14)),
                 borderSide: const BorderSide(color: AppColors.divider),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(density.scale(14)),
                 borderSide: const BorderSide(color: AppColors.divider),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(density.scale(14)),
                 borderSide: const BorderSide(
                   color: AppColors.primary,
                   width: 1.5,
                 ),
               ),
-              contentPadding: const EdgeInsets.all(14),
+              contentPadding: EdgeInsets.all(density.scale(14)),
             ),
           ),
         ],
@@ -488,12 +490,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildHintPanel(String text) {
+    final density = context.phoneDensity;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(density.scale(12)),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(density.scale(14)),
       ),
       child: Text(
         text,
@@ -507,12 +510,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildResultStatePanel({required String label, required String hint}) {
+    final density = context.phoneDensity;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(density.scale(12)),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(density.scale(14)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,7 +531,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: density.scale(12)),
           _StatusTag(label: label),
         ],
       ),
@@ -557,19 +561,23 @@ class _AddFriendPageState extends State<AddFriendPage> {
           child: ListView(
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            padding: EdgeInsets.symmetric(
+              horizontal: context.phoneDensity.scale(16),
+              vertical: context.phoneDensity.scale(20),
+            ),
             children: [
               _buildSearchCard(),
-              const SizedBox(height: 24),
+              SizedBox(height: context.phoneDensity.scale(24)),
               if (_hasSearched) _buildSearchResults(),
-              if (_hasSearched) const SizedBox(height: 24),
+              if (_hasSearched)
+                SizedBox(height: context.phoneDensity.scale(24)),
               _buildRequestSection(
                 key: _requestsKey,
                 title: '新的好友请求',
                 requests: _incoming,
                 incoming: true,
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: context.phoneDensity.scale(24)),
               _buildRequestSection(
                 title: '我发出的申请',
                 requests: _outgoing,
@@ -583,13 +591,16 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildSearchCard() {
+    final density = context.phoneDensity;
     return Card(
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(density.scale(20)),
+      ),
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.all(density.scale(20)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -601,7 +612,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: density.scale(16)),
             TextField(
               controller: _searchController,
               focusNode: _searchFocusNode,
@@ -628,17 +639,17 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 ),
                 filled: true,
                 fillColor: AppColors.surfaceMuted,
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search_rounded,
                   color: AppColors.textSecondary,
-                  size: 24,
+                  size: density.scale(24),
                 ),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.clear_rounded,
                           color: AppColors.textSecondary,
-                          size: 20,
+                          size: density.scale(20),
                         ),
                         onPressed: () {
                           _searchController.clear();
@@ -653,27 +664,27 @@ class _AddFriendPageState extends State<AddFriendPage> {
                       )
                     : null,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(density.scale(16)),
                   borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(density.scale(16)),
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(
+                  borderRadius: BorderRadius.circular(density.scale(16)),
+                  borderSide: BorderSide(
                     color: AppColors.primary,
-                    width: 2,
+                    width: density.scale(2),
                   ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: density.scale(20),
+                  vertical: density.scale(16),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: density.scale(16)),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -681,28 +692,28 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.symmetric(vertical: density.scale(16)),
                   elevation: 2,
                   shadowColor: AppColors.primary.withValues(alpha: 0.3),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(density.scale(16)),
                   ),
                 ),
                 child: _searching
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                    ? SizedBox(
+                        width: density.scale(20),
+                        height: density.scale(20),
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           color: Colors.white,
                         ),
                       )
-                    : const Row(
+                    : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_rounded, size: 20),
-                          SizedBox(width: 8),
-                          Text(
+                          Icon(Icons.search_rounded, size: density.scale(20)),
+                          SizedBox(width: density.scale(8)),
+                          const Text(
                             '搜索',
                             style: TextStyle(
                               fontSize: 16,
@@ -721,6 +732,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildSearchResults() {
+    final density = context.phoneDensity;
     debugPrint(
       '_buildSearchResults 被调用，_searching=$_searching, _searchResults.length=${_searchResults.length}',
     );
@@ -750,7 +762,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: density.scale(12)),
         // 修复：使用 ListView.builder 替代 map 展开
         ...List.generate(
           _searchResults.length,
@@ -761,6 +773,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildSearchResultTile(AuthUser user) {
+    final density = context.phoneDensity;
     debugPrint('_buildSearchResultTile 被调用: user=${user.username}');
     final isSelf = _isSelf(user);
     final isFriend = _isFriend(user);
@@ -768,11 +781,11 @@ class _AddFriendPageState extends State<AddFriendPage> {
     final pendingOutgoing = _hasPendingOutgoing(user);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: density.scale(12)),
+      padding: EdgeInsets.all(density.scale(16)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(density.scale(18)),
         border: Border.all(color: AppColors.divider),
       ),
       child: Column(
@@ -780,8 +793,8 @@ class _AddFriendPageState extends State<AddFriendPage> {
         children: [
           Row(
             children: [
-              _UserAvatar(user: user, size: 48),
-              const SizedBox(width: 12),
+              _UserAvatar(user: user, size: density.scale(48)),
+              SizedBox(width: density.scale(12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -794,7 +807,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: density.scale(4)),
                     Text(
                       _buildUserSubtitle(user),
                       style: const TextStyle(
@@ -807,7 +820,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: density.scale(12)),
           _buildResultActions(
             user,
             isSelf: isSelf,
@@ -844,7 +857,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHintPanel('对方已向你发来好友申请，处理后会自动建立单聊会话。'),
-          const SizedBox(height: 12),
+          SizedBox(height: context.phoneDensity.scale(12)),
           _IncomingRequestActions(
             onAccept: () =>
                 _respondRequest(pendingIncoming, FriendRequestAction.accept),
@@ -859,7 +872,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHintPanel('发送申请时可附上一句打招呼内容，方便对方更快识别你。'),
-        const SizedBox(height: 12),
+        SizedBox(height: context.phoneDensity.scale(12)),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -869,16 +882,20 @@ class _AddFriendPageState extends State<AddFriendPage> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              minimumSize: const Size(0, 40),
+              padding: EdgeInsets.symmetric(
+                vertical: context.phoneDensity.scale(10),
+              ),
+              minimumSize: Size(0, context.phoneDensity.scale(40)),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(
+                  context.phoneDensity.scale(12),
+                ),
               ),
             ),
             child: _requestingUserIds.contains(user.id)
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
+                ? SizedBox(
+                    width: context.phoneDensity.scale(16),
+                    height: context.phoneDensity.scale(16),
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
@@ -900,12 +917,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
     required List<FriendRequestInfo> requests,
     required bool incoming,
   }) {
+    final density = context.phoneDensity;
     return Container(
       key: key,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(density.scale(16)),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(density.scale(16)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -921,17 +939,17 @@ class _AddFriendPageState extends State<AddFriendPage> {
                 ),
               ),
               if (_loadingRequests)
-                const Padding(
-                  padding: EdgeInsets.only(left: 8),
+                Padding(
+                  padding: EdgeInsets.only(left: density.scale(8)),
                   child: SizedBox(
-                    width: 14,
-                    height: 14,
+                    width: density.scale(14),
+                    height: density.scale(14),
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: density.scale(12)),
           if (requests.isEmpty && !_loadingRequests)
             Text(
               incoming ? '暂无新的好友请求' : '暂无待处理的申请',
@@ -952,13 +970,14 @@ class _AddFriendPageState extends State<AddFriendPage> {
   }
 
   Widget _buildRequestTile(FriendRequestInfo request, bool incoming) {
+    final density = context.phoneDensity;
     final user = request.counterparty;
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.only(bottom: density.scale(12)),
+      padding: EdgeInsets.all(density.scale(16)),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(density.scale(16)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -966,8 +985,8 @@ class _AddFriendPageState extends State<AddFriendPage> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _UserAvatar(user: user, size: 46),
-              const SizedBox(width: 12),
+              _UserAvatar(user: user, size: density.scale(46)),
+              SizedBox(width: density.scale(12)),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -980,7 +999,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: density.scale(4)),
                     Text(
                       _buildUserSubtitle(user),
                       style: const TextStyle(
@@ -994,13 +1013,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
               if (!incoming) const _StatusTag(label: '等待确认'),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: density.scale(12)),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(density.scale(12)),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(density.scale(14)),
               border: Border.all(color: AppColors.divider),
             ),
             child: Column(
@@ -1026,7 +1045,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: density.scale(8)),
                 Text(
                   _buildRequestMessage(request, incoming: incoming),
                   style: const TextStyle(
@@ -1039,7 +1058,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
             ),
           ),
           if (incoming) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: density.scale(12)),
             _IncomingRequestActions(
               onAccept: () =>
                   _respondRequest(request, FriendRequestAction.accept),
@@ -1096,6 +1115,7 @@ class _IncomingRequestActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return Row(
       children: [
         Expanded(
@@ -1105,7 +1125,7 @@ class _IncomingRequestActions extends StatelessWidget {
             onPressed: onAccept,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: density.scale(10)),
         Expanded(
           child: _ActionButton(
             label: '拒绝',
@@ -1131,14 +1151,20 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        minimumSize: const Size(0, 40),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: EdgeInsets.symmetric(
+          horizontal: density.scale(12),
+          vertical: density.scale(10),
+        ),
+        minimumSize: Size(0, density.scale(40)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(density.scale(12)),
+        ),
         elevation: 0,
       ),
       child: Text(
@@ -1156,8 +1182,12 @@ class _StatusTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: density.scale(12),
+        vertical: density.scale(6),
+      ),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(999),

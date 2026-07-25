@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/phone_density.dart';
 import '../../../core/widgets/app_badge.dart';
 import '../models/chat_model.dart';
 
@@ -22,6 +23,12 @@ class ChatListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final rowHorizontalPadding = density.scale(16);
+    final rowVerticalPadding = density.scale(12);
+    final avatarBoxSize = density.scale(56);
+    final avatarGap = density.scale(16);
+
     return Material(
       color: chat.isPinned ? AppColors.surfaceMuted : AppColors.surface,
       child: InkWell(
@@ -30,22 +37,25 @@ class ChatListItem extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: rowHorizontalPadding,
+                vertical: rowVerticalPadding,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  _buildAvatar(),
-                  const SizedBox(width: 16),
+                  _buildAvatar(context, avatarBoxSize),
+                  SizedBox(width: avatarGap),
                   Expanded(child: _buildContent(context)),
                 ],
               ),
             ),
             if (showBottomDivider)
-              const Divider(
+              Divider(
                 height: 1,
                 thickness: 0.5,
                 color: Color(0xFFE9EBEF),
-                indent: 88, // 16 padding + 56 avatar + 16 gap
+                indent: rowHorizontalPadding + avatarBoxSize + avatarGap,
               ),
           ],
         ),
@@ -53,11 +63,16 @@ class ChatListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
-    return SizedBox(width: 56, height: 56, child: avatarBuilder(chat.avatar));
+  Widget _buildAvatar(BuildContext context, double avatarBoxSize) {
+    return SizedBox(
+      width: avatarBoxSize,
+      height: avatarBoxSize,
+      child: avatarBuilder(chat.avatar),
+    );
   }
 
   Widget _buildContent(BuildContext context) {
+    final density = context.phoneDensity;
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,7 +90,7 @@ class ChatListItem extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: density.scale(12)),
             Text(
               chat.displayTime,
               style: theme.textTheme.bodySmall?.copyWith(
@@ -84,7 +99,7 @@ class ChatListItem extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: density.scale(6)),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -103,11 +118,11 @@ class ChatListItem extends StatelessWidget {
             ),
             if (chat.unreadCount > 0 && chat.type != ChatType.favorite)
               Padding(
-                padding: const EdgeInsets.only(left: 12),
+                padding: EdgeInsets.only(left: density.scale(12)),
                 child: AppBadge(
                   count: chat.unreadCount,
-                  size: 18,
-                  fontSize: 11,
+                  size: density.scale(18),
+                  fontSize: density.scale(11),
                   backgroundColor: AppColors.primary,
                 ),
               ),
