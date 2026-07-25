@@ -13,6 +13,7 @@ import '../../core/storage/avatar_cache.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/services/websocket_service.dart';
+import '../chat/group_chats_page.dart';
 import 'add_friend_page.dart';
 import 'contact_detail_page.dart';
 import 'models/friend_models.dart';
@@ -487,6 +488,13 @@ class ContactsPageState extends State<ContactsPage> {
   void _handleEntryTap(ContactEntry entry) {
     if (entry.id == 'new_friends') {
       _openAddFriend(showRequestsFirst: true);
+      return;
+    }
+
+    if (entry.id == 'groups') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GroupChatsPage()));
       return;
     }
 
