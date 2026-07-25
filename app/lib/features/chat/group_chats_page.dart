@@ -11,6 +11,7 @@ import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/tip_dialog.dart';
 import 'chat_detail_page_v2.dart';
 import 'create_group_page.dart';
+import 'group_settings_page.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 import 'widgets/chat_list_item.dart';
@@ -87,6 +88,15 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
           chatType: chat.type,
           chatProvider: _chatProvider,
         ),
+      ),
+    );
+  }
+
+  Future<void> _openGroupSettings(Chat chat) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            GroupSettingsPage(chat: chat, chatProvider: _chatProvider),
       ),
     );
   }
@@ -174,6 +184,7 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _GroupChatActionSheet(
         chat: chat,
+        onViewGroupSettings: () => _openGroupSettings(chat),
         onTogglePinned: () => _togglePinned(chat),
         onToggleMuted: () => _toggleMuted(chat),
         onDelete: () => _deleteChat(chat),
@@ -318,6 +329,8 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
                                               memberCount: _memberCountForChat(
                                                 chat,
                                               ),
+                                              onTap: () =>
+                                                  _openGroupSettings(chat),
                                             ),
                                             showBottomDivider:
                                                 chatIndex <
@@ -586,11 +599,13 @@ class _GroupChatFooter extends StatelessWidget {
     required this.chat,
     required this.description,
     required this.memberCount,
+    required this.onTap,
   });
 
   final Chat chat;
   final String? description;
   final int? memberCount;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -618,37 +633,44 @@ class _GroupChatFooter extends StatelessWidget {
         rowHorizontalPadding,
         density.scale(12),
       ),
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(
-          horizontal: density.scale(12),
-          vertical: density.scale(10),
-        ),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(density.scale(16)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              description ?? '暂无群简介',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
+          child: Ink(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: density.scale(12),
+              vertical: density.scale(10),
             ),
-            if (chips.isNotEmpty) ...[
-              SizedBox(height: density.scale(8)),
-              Wrap(
-                spacing: density.scale(8),
-                runSpacing: density.scale(8),
-                children: chips,
-              ),
-            ],
-          ],
+            decoration: BoxDecoration(
+              color: AppColors.surfaceMuted,
+              borderRadius: BorderRadius.circular(density.scale(16)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  description ?? '暂无群简介',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (chips.isNotEmpty) ...[
+                  SizedBox(height: density.scale(8)),
+                  Wrap(
+                    spacing: density.scale(8),
+                    runSpacing: density.scale(8),
+                    children: chips,
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -755,12 +777,14 @@ class _EmptyGroupChatsState extends StatelessWidget {
 class _GroupChatActionSheet extends StatelessWidget {
   const _GroupChatActionSheet({
     required this.chat,
+    required this.onViewGroupSettings,
     required this.onTogglePinned,
     required this.onToggleMuted,
     required this.onDelete,
   });
 
   final Chat chat;
+  final Future<void> Function() onViewGroupSettings;
   final Future<void> Function() onTogglePinned;
   final Future<void> Function() onToggleMuted;
   final Future<void> Function() onDelete;
@@ -799,6 +823,14 @@ class _GroupChatActionSheet extends StatelessWidget {
             style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
           ),
           SizedBox(height: density.scale(16)),
+          _GroupChatActionTile(
+            icon: Icons.info_outline,
+            label: '查看群资料',
+            onTap: () async {
+              Navigator.of(context).pop();
+              await onViewGroupSettings();
+            },
+          ),
           _GroupChatActionTile(
             icon: chat.isPinned
                 ? Icons.push_pin_outlined

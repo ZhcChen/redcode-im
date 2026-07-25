@@ -3,11 +3,14 @@ import 'package:app/core/services/message_service.dart';
 import 'package:app/core/services/settings_service.dart';
 import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
+import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:app/features/chat/group_chats_page.dart';
+import 'package:app/features/chat/group_settings_page.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/providers/chat_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeMessageService extends ChangeNotifier implements MessageService {
   _FakeMessageService({required List<Chat> chats})
@@ -31,6 +34,11 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     final extra = chat?.extra;
     final raw = extra?['member_count'] ?? extra?['memberCount'];
     return raw is int ? raw : null;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
+    return const <Map<String, dynamic>>[];
   }
 
   @override
@@ -95,15 +103,41 @@ ChatProvider _buildProvider(List<Chat> chats) {
   );
 }
 
+Widget _buildHost(Widget child) {
+  return _buildHostWithObservers(child);
+}
+
+Widget _buildHostWithObservers(
+  Widget child, {
+  List<NavigatorObserver> observers = const <NavigatorObserver>[],
+}) {
+  return AdaptiveScreenUtilInit(
+    builder: (context, _) =>
+        MaterialApp(home: child, navigatorObservers: observers),
+  );
+}
+
+class _TestNavigatorObserver extends NavigatorObserver {
+  int pushCount = 0;
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    pushCount += 1;
+    super.didPush(route, previousRoute);
+  }
+}
+
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   testWidgets('没有群聊时仍会进入真实群聊页并展示创建入口', (tester) async {
     final provider = _buildProvider(<Chat>[
       _buildChat(id: 'single-1', name: '单聊-张三', type: ChatType.single),
     ]);
 
-    await tester.pumpWidget(
-      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
-    );
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
     await tester.pump();
     await tester.pump();
 
@@ -120,9 +154,7 @@ void main() {
       _buildChat(id: 'group-2', name: '测试群', type: ChatType.group),
     ]);
 
-    await tester.pumpWidget(
-      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
-    );
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
     await tester.pump();
     await tester.pump();
 
@@ -143,9 +175,7 @@ void main() {
       _buildChat(id: 'group-2', name: '测试群', type: ChatType.group),
     ]);
 
-    await tester.pumpWidget(
-      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
-    );
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
     await tester.pump();
     await tester.pump();
 
@@ -189,9 +219,7 @@ void main() {
       ),
     ]);
 
-    await tester.pumpWidget(
-      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
-    );
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
     await tester.pump();
     await tester.pump();
 
@@ -204,6 +232,37 @@ void main() {
     expect(find.text('免打扰'), findsOneWidget);
   });
 
+  testWidgets('点击群资料摘要会进入群设置页', (tester) async {
+    final observer = _TestNavigatorObserver();
+    final provider = _buildProvider(<Chat>[
+      _buildChat(
+        id: 'group-1',
+        name: '项目群',
+        type: ChatType.group,
+        extra: const <String, dynamic>{
+          'description': '核心项目讨论',
+          'member_count': 12,
+        },
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      _buildHostWithObservers(
+        GroupChatsPage(chatProvider: provider),
+        observers: <NavigatorObserver>[observer],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final basePushCount = observer.pushCount;
+
+    await tester.tap(find.text('核心项目讨论'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GroupSettingsPage), findsOneWidget);
+    expect(observer.pushCount, basePushCount + 1);
+  });
+
   testWidgets('长按群聊会打开操作面板', (tester) async {
     final provider = _buildProvider(<Chat>[
       _buildChat(
@@ -214,9 +273,7 @@ void main() {
       ),
     ]);
 
-    await tester.pumpWidget(
-      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
-    );
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
     await tester.pump();
     await tester.pump();
 
@@ -224,8 +281,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('长按操作'), findsOneWidget);
+    expect(find.text('查看群资料'), findsOneWidget);
     expect(find.text('取消置顶'), findsOneWidget);
     expect(find.text('设为免打扰'), findsOneWidget);
     expect(find.text('删除会话'), findsOneWidget);
+  });
+
+  testWidgets('长按菜单可进入群设置页', (tester) async {
+    final observer = _TestNavigatorObserver();
+    final provider = _buildProvider(<Chat>[
+      _buildChat(id: 'group-1', name: '项目群', type: ChatType.group),
+    ]);
+
+    await tester.pumpWidget(
+      _buildHostWithObservers(
+        GroupChatsPage(chatProvider: provider),
+        observers: <NavigatorObserver>[observer],
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    final basePushCount = observer.pushCount;
+
+    await tester.longPress(find.text('项目群'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('查看群资料'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GroupSettingsPage), findsOneWidget);
+    expect(observer.pushCount, basePushCount + 2);
   });
 }
