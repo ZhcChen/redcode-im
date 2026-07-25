@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
+import '../../core/services/friend_store.dart';
 import '../../core/services/room_service.dart';
 import '../contacts/models/friend_models.dart';
 import 'widgets/friend_selection_sheet.dart';
 
 class CreateGroupPage extends StatefulWidget {
-  const CreateGroupPage({super.key});
+  const CreateGroupPage({super.key, this.friendService, this.roomService});
+
+  final FriendService? friendService;
+  final RoomService? roomService;
 
   @override
   State<CreateGroupPage> createState() => _CreateGroupPageState();
@@ -15,8 +19,9 @@ class CreateGroupPage extends StatefulWidget {
 
 class _CreateGroupPageState extends State<CreateGroupPage> {
   final TextEditingController _groupNameController = TextEditingController();
-  final FriendService _friendService = FriendService();
-  final RoomService _roomService = RoomService();
+  late final FriendService _friendService;
+  late final RoomService _roomService;
+  final FriendStore _friendStore = FriendStore.instance;
 
   bool _isSubmitting = false;
   bool _isLoadingFriends = false;
@@ -26,6 +31,8 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
   @override
   void initState() {
     super.initState();
+    _friendService = widget.friendService ?? FriendService();
+    _roomService = widget.roomService ?? RoomService();
     _loadFriends();
   }
 
@@ -34,6 +41,9 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     final selectedFriends = _friends
         .where((friend) => _selectedFriendIds.contains(friend.user.id))
         .toList();
+    final hasFriendCandidates = _friends.isNotEmpty;
+    final shouldBlockFriendSelection =
+        _isLoadingFriends && !hasFriendCandidates;
 
     return Scaffold(
       appBar: AppBar(
@@ -125,7 +135,9 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                         ),
                       ),
                       TextButton(
-                        onPressed: _isLoadingFriends ? null : _selectMembers,
+                        onPressed: shouldBlockFriendSelection
+                            ? null
+                            : _selectMembers,
                         child: const Text(
                           '添加好友',
                           style: TextStyle(color: AppColors.primary),
@@ -134,7 +146,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (_isLoadingFriends)
+                  if (shouldBlockFriendSelection)
                     const Center(
                       child: SizedBox(
                         width: 24,
@@ -147,27 +159,48 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
                         ),
                       ),
                     )
-                  else if (selectedFriends.isEmpty)
-                    const Text(
-                      '点击右上角按钮，选择至少一位好友加入群聊',
-                      style: TextStyle(
-                        color: AppColors.textTertiary,
-                        fontSize: 14,
-                      ),
-                    )
                   else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: selectedFriends
-                          .map(
-                            (friend) => Chip(
-                              label: Text(friendDisplayName(friend)),
-                              deleteIcon: const Icon(Icons.close, size: 18),
-                              onDeleted: () => _removeMember(friend.user.id),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_isLoadingFriends)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              '正在刷新好友列表...',
+                              style: TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        if (selectedFriends.isEmpty)
+                          const Text(
+                            '点击右上角按钮，选择至少一位好友加入群聊',
+                            style: TextStyle(
+                              color: AppColors.textTertiary,
+                              fontSize: 14,
                             ),
                           )
-                          .toList(),
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: selectedFriends
+                                .map(
+                                  (friend) => Chip(
+                                    label: Text(friendDisplayName(friend)),
+                                    deleteIcon: const Icon(
+                                      Icons.close,
+                                      size: 18,
+                                    ),
+                                    onDeleted: () =>
+                                        _removeMember(friend.user.id),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                      ],
                     ),
                 ],
               ),
@@ -182,17 +215,24 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
     setState(() {
       _isLoadingFriends = true;
     });
+    _primeFriendsFromStore();
     try {
       final friends = await _friendService.fetchFriends();
       if (!mounted) return;
       setState(() {
-        _friends = friends;
+        // 已有应用内好友快照时，一次空返回先不抹空候选，避免刚建立好友关系后
+        // 创建群页与当前联系人视图短暂脱节。
+        if (friends.isNotEmpty || _friends.isEmpty) {
+          _friends = friends;
+        }
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('获取好友列表失败：$e')));
+      if (_friends.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('获取好友列表失败：$e')));
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -202,6 +242,21 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
         _isLoadingFriends = false;
       }
     }
+  }
+
+  void _primeFriendsFromStore() {
+    if (_friends.isNotEmpty) {
+      return;
+    }
+
+    final storeFriends = _friendStore.friends;
+    if (storeFriends.isEmpty || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _friends = List<FriendInfo>.from(storeFriends);
+    });
   }
 
   Future<void> _createGroup() async {
