@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
 import 'package:app/core/services/settings_service.dart';
+import 'package:app/core/services/upload_policy_service.dart';
 import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
 import 'package:app/features/chat/chat_detail_page_v2.dart';
@@ -169,6 +170,36 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
+  test('file picker treats image mime as image attachment', () {
+    final policy = UploadPolicy.builtinV1();
+
+    expect(
+      resolveAttachmentDraftTypeForFileMime('image/png', policy),
+      MessagePartType.image,
+    );
+  });
+
+  test('file picker keeps generic document mime as file attachment', () {
+    final policy = UploadPolicy.builtinV1();
+
+    expect(
+      resolveAttachmentDraftTypeForFileMime('application/pdf', policy),
+      MessagePartType.file,
+    );
+  });
+
+  test('file picker rejects unsupported mime types', () {
+    final policy = UploadPolicy.builtinV1();
+
+    expect(
+      () => resolveAttachmentDraftTypeForFileMime(
+        'application/x-msdownload',
+        policy,
+      ),
+      throwsA(isA<StateError>()),
+    );
   });
 
   testWidgets('relay_only action menu hides unsupported message actions', (

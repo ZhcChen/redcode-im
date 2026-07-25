@@ -2663,16 +2663,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
             .toLowerCase();
 
     final policy = await UploadPolicyService.instance.getPolicy();
-
-    late final MessagePartType partType;
-    if (policy.isMimeAllowedForPartType('video', mimeType)) {
-      partType = MessagePartType.video;
-    } else if (policy.isMimeAllowedForPartType('audio', mimeType)) {
-      partType = MessagePartType.audio;
-    } else if (policy.isMimeAllowedForPartType('file', mimeType)) {
-      partType = MessagePartType.file;
-    } else {
-      throw StateError('暂不支持该文件类型 ($mimeType)');
+    final partType = resolveAttachmentDraftTypeForFileMime(mimeType, policy);
+    if (partType == MessagePartType.image) {
+      return _createImageDraft(source);
     }
 
     return MessageAttachmentDraft(
@@ -2776,6 +2769,27 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     final position = _scrollController.position;
     return position.maxScrollExtent > 0;
   }
+}
+
+@visibleForTesting
+MessagePartType resolveAttachmentDraftTypeForFileMime(
+  String mimeType,
+  UploadPolicy policy,
+) {
+  final normalizedMimeType = mimeType.trim().toLowerCase();
+  if (policy.isMimeAllowedForPartType('image', normalizedMimeType)) {
+    return MessagePartType.image;
+  }
+  if (policy.isMimeAllowedForPartType('video', normalizedMimeType)) {
+    return MessagePartType.video;
+  }
+  if (policy.isMimeAllowedForPartType('audio', normalizedMimeType)) {
+    return MessagePartType.audio;
+  }
+  if (policy.isMimeAllowedForPartType('file', normalizedMimeType)) {
+    return MessagePartType.file;
+  }
+  throw StateError('暂不支持该文件类型 ($normalizedMimeType)');
 }
 
 /// 消息气泡
