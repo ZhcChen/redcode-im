@@ -21,6 +21,9 @@ class AddFriendPage extends StatefulWidget {
     this.initialIncomingRequests = const <FriendRequestInfo>[],
     this.initialOutgoingRequests = const <FriendRequestInfo>[],
     this.initialCurrentUser,
+    this.friendService,
+    this.websocketService,
+    this.messageService,
   });
 
   final Set<String> existingFriendIds;
@@ -30,6 +33,9 @@ class AddFriendPage extends StatefulWidget {
   final List<FriendRequestInfo> initialIncomingRequests;
   final List<FriendRequestInfo> initialOutgoingRequests;
   final AuthUser? initialCurrentUser;
+  final FriendService? friendService;
+  final WebSocketService? websocketService;
+  final MessageService? messageService;
 
   @override
   State<AddFriendPage> createState() => _AddFriendPageState();
@@ -37,11 +43,13 @@ class AddFriendPage extends StatefulWidget {
 
 class _AddFriendPageState extends State<AddFriendPage> {
   final TextEditingController _searchController = TextEditingController();
-  final FriendService _friendService = FriendService();
   final TokenStorage _tokenStorage = const TokenStorage();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _searchFocusNode = FocusNode();
   final GlobalKey _requestsKey = GlobalKey();
+  FriendService? _friendServiceInstance;
+  WebSocketService? _webSocketServiceInstance;
+  MessageService? _messageServiceInstance;
 
   List<AuthUser> _searchResults = [];
   List<FriendRequestInfo> _incoming = [];
@@ -55,6 +63,15 @@ class _AddFriendPageState extends State<AddFriendPage> {
   bool _changed = false;
   String? _currentUserId;
   AuthUser? _currentUser;
+
+  FriendService get _friendService =>
+      _friendServiceInstance ??= widget.friendService ?? FriendService();
+
+  WebSocketService get _webSocketService => _webSocketServiceInstance ??=
+      widget.websocketService ?? WebSocketService.instance;
+
+  MessageService get _messageService => _messageServiceInstance ??=
+      widget.messageService ?? MessageService.instance;
 
   @override
   void initState() {
@@ -365,37 +382,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
           final ensure = await _friendService.ensurePrivateChat(counterpartyId);
 
           // 立即加入该房间，确保后续消息能实时推送
-          await WebSocketService.instance.joinRoom(ensure.roomId);
+          await _webSocketService.joinRoom(ensure.roomId);
 
-          // 若请求里包含打招呼内容，先用占位消息刷新聊天列表的显示
-          if ((updated.message ?? '').trim().isNotEmpty) {
-            await MessageService.instance.handleWebSocketMessage(
-              WebSocketMessage(
-                id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-                roomId: ensure.roomId,
-                senderId: counterpartyId,
-                senderUsername: updated.counterparty.username,
-                senderNickname: updated.counterparty.nickname,
-                senderAvatarUrl:
-                    updated.counterparty.avatarUrl ?? ensure.friendAvatar,
-                content: updated.message!.trim(),
-                messageType: 'text',
-                timestamp: DateTime.now(),
-                extra: {
-                  'room_type': ensure.roomType,
-                  'room_name': ensure.roomName,
-                  'sender_nickname': updated.counterparty.nickname,
-                  'sender_username': updated.counterparty.username,
-                },
-                quotedMessage: null,
-                forwardMessage: null,
-                parts: const [],
-              ),
-            );
-          }
+          // 直接同步服务端真实首条消息，避免与后端已落库/广播的消息重复。
+          await _messageService.loadMessages(ensure.roomId, limit: 20);
 
           // 再拉一次服务端会话，确保与后端状态一致
-          await MessageService.instance.fetchChats();
+          await _messageService.fetchChats(force: true);
         } catch (e) {
           debugPrint('ensure chat/join or refresh chats failed: $e');
         }
