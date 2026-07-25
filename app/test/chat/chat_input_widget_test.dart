@@ -1,3 +1,5 @@
+import 'package:app/core/theme/app_theme.dart';
+import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/chat/chat_detail_page_v2.dart';
@@ -33,29 +35,43 @@ Widget _buildHost({
   String? disabledHint,
   bool showEmojiPanel = false,
   bool showMorePanel = false,
+  bool useRealTheme = false,
 }) {
-  return MaterialApp(
-    home: Scaffold(
-      body: ChangeNotifierProvider<ChatProvider>.value(
-        value: provider,
-        child: ChatInputWidget(
-          controller: controller,
-          focusNode: focusNode,
-          onSendMessage: onSendMessage,
-          onToggleVoice: onToggleVoice,
-          onToggleEmoji: onToggleEmoji,
-          onToggleMore: onToggleMore,
-          showEmojiPanel: showEmojiPanel,
-          showMorePanel: showMorePanel,
-          isDisabled: isDisabled,
-          disabledHint: disabledHint,
+  Widget buildApp(ThemeData? theme) {
+    return MaterialApp(
+      theme: theme,
+      home: Scaffold(
+        body: ChangeNotifierProvider<ChatProvider>.value(
+          value: provider,
+          child: ChatInputWidget(
+            controller: controller,
+            focusNode: focusNode,
+            onSendMessage: onSendMessage,
+            onToggleVoice: onToggleVoice,
+            onToggleEmoji: onToggleEmoji,
+            onToggleMore: onToggleMore,
+            showEmojiPanel: showEmojiPanel,
+            showMorePanel: showMorePanel,
+            isDisabled: isDisabled,
+            disabledHint: disabledHint,
+          ),
         ),
       ),
-    ),
+    );
+  }
+
+  if (!useRealTheme) {
+    return buildApp(null);
+  }
+
+  return AdaptiveScreenUtilInit(
+    builder: (context, _) => buildApp(AppTheme.light),
   );
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ChatInputWidget', () {
     testWidgets('无输入文本时不显示发送按钮', (tester) async {
       final controller = TextEditingController();
@@ -223,6 +239,72 @@ void main() {
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.enabled, isFalse);
       expect(find.text('全员禁言'), findsOneWidget);
+    });
+
+    testWidgets('真实主题下空输入态提示文案和光标保持垂直居中', (tester) async {
+      tester.view.physicalSize = const Size(375, 812);
+      tester.view.devicePixelRatio = 1;
+
+      final controller = TextEditingController();
+      final focusNode = FocusNode();
+      final provider = _StubChatProvider();
+
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        controller.dispose();
+        focusNode.dispose();
+        provider.dispose();
+      });
+
+      await tester.pumpWidget(
+        _buildHost(
+          controller: controller,
+          focusNode: focusNode,
+          onSendMessage: () {},
+          onToggleVoice: () {},
+          onToggleEmoji: () {},
+          onToggleMore: () {},
+          provider: provider,
+          useRealTheme: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('chat-input-text-field')),
+      );
+      expect(field.decoration?.constraints?.minHeight, 0);
+      expect(field.style?.fontSize, 15);
+      expect(field.style?.height, 1.3);
+      expect(field.decoration?.hintStyle?.fontSize, 15);
+      expect(field.decoration?.hintStyle?.height, 1.3);
+
+      final containerBox = tester.renderObject<RenderBox>(
+        find.byKey(const ValueKey('chat-input-text-container')),
+      );
+      final containerTopLeft = containerBox.localToGlobal(Offset.zero);
+      final containerCenterY =
+          containerTopLeft.dy + containerBox.size.height / 2;
+
+      final hintBox = tester.renderObject<RenderBox>(find.text('发送消息...'));
+      final hintTopLeft = hintBox.localToGlobal(Offset.zero);
+      final hintCenterY = hintTopLeft.dy + hintBox.size.height / 2;
+      expect((hintCenterY - containerCenterY).abs(), lessThanOrEqualTo(2.0));
+
+      await tester.tap(find.byKey(const ValueKey('chat-input-text-field')));
+      await tester.pump();
+
+      final editableState = tester.state<EditableTextState>(
+        find.byType(EditableText),
+      );
+      final editable = editableState.renderEditable;
+      final caretRect = editable.getLocalRectForCaret(
+        const TextPosition(offset: 0),
+      );
+      final editableTopLeft = editable.localToGlobal(Offset.zero);
+      final caretCenterY = editableTopLeft.dy + caretRect.center.dy;
+      expect((caretCenterY - containerCenterY).abs(), lessThanOrEqualTo(2.0));
     });
 
     testWidgets('发送中时发送按钮进入 loading 态并不可触发', (tester) async {

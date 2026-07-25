@@ -4961,12 +4961,14 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     const baseFontSize = 15.0;
     const maxVisibleLines = 6;
     const verticalPadding = 10.0;
+    const lineHeightMultiplier = 1.3;
 
     final mediaQuery = MediaQuery.maybeOf(context);
     final textScaler = mediaQuery?.textScaler ?? const TextScaler.linear(1.0);
     final scaledFontSize = textScaler.scale(baseFontSize);
     final textStyle = TextStyle(
       fontSize: baseFontSize,
+      height: lineHeightMultiplier,
       color: AppColors.textPrimary,
     );
 
@@ -4996,12 +4998,29 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
         if (metrics.isNotEmpty) {
           lineHeight = metrics.first.height;
         } else {
-          lineHeight = scaledFontSize * 1.3;
+          lineHeight = scaledFontSize * lineHeightMultiplier;
         }
         final int lineCount = metrics.isEmpty
             ? 1
             : metrics.length.clamp(1, maxVisibleLines);
         final bool isSingleLine = lineCount == 1;
+        final inputTextStyle = TextStyle(
+          fontSize: baseFontSize,
+          height: lineHeightMultiplier,
+          color: widget.isDisabled
+              ? AppColors.textTertiary
+              : AppColors.textPrimary,
+        );
+        final hintTextStyle = TextStyle(
+          fontSize: baseFontSize,
+          height: lineHeightMultiplier,
+          color: AppColors.textTertiary,
+        );
+        final strutStyle = StrutStyle(
+          fontSize: baseFontSize,
+          height: lineHeightMultiplier,
+          forceStrutHeight: true,
+        );
 
         final minHeight = lineHeight + verticalPadding * 2;
         final maxHeight = lineHeight * maxVisibleLines + verticalPadding * 2;
@@ -5011,11 +5030,13 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
             .toDouble();
 
         return ConstrainedBox(
+          key: const ValueKey('chat-input-text-container'),
           constraints: BoxConstraints(
             minHeight: clampedHeight,
             maxHeight: clampedHeight,
           ),
           child: TextField(
+            key: const ValueKey('chat-input-text-field'),
             controller: widget.controller,
             focusNode: widget.focusNode,
             enabled: !widget.isDisabled,
@@ -5027,13 +5048,12 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
                 : TextAlignVertical.top,
             minLines: 1,
             maxLines: maxVisibleLines,
-            style: TextStyle(
-              fontSize: baseFontSize,
-              color: widget.isDisabled
-                  ? AppColors.textTertiary
-                  : AppColors.textPrimary,
-            ),
+            cursorHeight: lineHeight,
+            strutStyle: strutStyle,
+            style: inputTextStyle,
             decoration: InputDecoration(
+              // 覆盖全局 InputDecorationTheme 的固定高度约束，避免破坏聊天输入框的动态高度与单行垂直居中。
+              constraints: const BoxConstraints(minHeight: 0),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: verticalPadding,
@@ -5061,7 +5081,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
               hintText: widget.isDisabled
                   ? (widget.disabledHint ?? '已禁言')
                   : '发送消息...',
-              hintStyle: TextStyle(color: AppColors.textTertiary),
+              hintStyle: hintTextStyle,
             ),
           ),
         );
