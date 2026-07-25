@@ -96,6 +96,7 @@ void main() {
     expect(find.text('群聊'), findsOneWidget);
     expect(find.text('还没有加入任何群聊'), findsOneWidget);
     expect(find.text('创建群聊'), findsOneWidget);
+    expect(find.text('共 0 个群聊'), findsOneWidget);
   });
 
   testWidgets('群聊页只展示 group 类型会话', (tester) async {
@@ -114,5 +115,37 @@ void main() {
     expect(find.text('项目群'), findsOneWidget);
     expect(find.text('测试群'), findsOneWidget);
     expect(find.text('单聊-李四'), findsNothing);
+    expect(find.text('共 2 个群聊'), findsOneWidget);
+  });
+
+  testWidgets('支持按群名搜索并展示空搜索态', (tester) async {
+    final provider = _buildProvider(<Chat>[
+      _buildChat(id: 'group-1', name: '项目群', type: ChatType.group),
+      _buildChat(id: 'group-2', name: '测试群', type: ChatType.group),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: GroupChatsPage(chatProvider: provider)),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField), '项目');
+    await tester.pump();
+
+    expect(find.text('项目群'), findsOneWidget);
+    expect(find.text('测试群'), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '不存在');
+    await tester.pump();
+
+    expect(find.text('未找到相关群聊'), findsOneWidget);
+    expect(find.text('清空搜索'), findsOneWidget);
+
+    await tester.tap(find.text('清空搜索'));
+    await tester.pump();
+
+    expect(find.text('项目群'), findsOneWidget);
+    expect(find.text('测试群'), findsOneWidget);
   });
 }

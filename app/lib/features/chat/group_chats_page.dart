@@ -90,68 +90,108 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
     );
   }
 
+  List<Chat> _filterGroupChats(ChatProvider provider) {
+    final groupChats = provider.chats
+        .where((chat) => chat.type == ChatType.group)
+        .toList();
+    final keyword = provider.searchKeyword.trim().toLowerCase();
+    if (keyword.isEmpty) {
+      return groupChats;
+    }
+
+    return groupChats.where((chat) {
+      if (chat.name.toLowerCase().contains(keyword)) {
+        return true;
+      }
+      if (chat.lastMessage.toLowerCase().contains(keyword)) {
+        return true;
+      }
+      final extra = chat.extra;
+      final candidateFields = <String?>[
+        extra?['description'] as String?,
+        extra?['group_description'] as String?,
+        extra?['groupDescription'] as String?,
+      ];
+      for (final field in candidateFields) {
+        if (field != null && field.toLowerCase().contains(keyword)) {
+          return true;
+        }
+      }
+      return false;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider<ChatProvider>.value(
       value: _chatProvider,
       child: Consumer<ChatProvider>(
         builder: (context, provider, _) {
-          final groupChats = provider.chats
+          final groupChats = _filterGroupChats(provider);
+          final totalGroupCount = provider.chats
               .where((chat) => chat.type == ChatType.group)
-              .toList();
+              .length;
 
           return Scaffold(
-            appBar: AppBar(
-              title: const Text('群聊'),
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.textPrimary,
-              elevation: 0,
-              actions: [
-                TextButton(
-                  onPressed: _openCreateGroup,
-                  child: const Text(
-                    '创建',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+            backgroundColor: AppColors.background,
+            body: Column(
+              children: [
+                _GroupChatsHeader(
+                  searchKeyword: provider.searchKeyword,
+                  totalGroupCount: totalGroupCount,
+                  onSearchChanged: provider.setSearchKeyword,
+                  onSearchCleared: provider.clearSearch,
+                  onCreateGroup: _openCreateGroup,
+                ),
+                Expanded(
+                  child: provider.isChatsLoading && groupChats.isEmpty
+                      ? const Center(child: CircularProgressIndicator())
+                      : RefreshIndicator(
+                          onRefresh: () => _loadChats(refresh: true),
+                          child: groupChats.isEmpty
+                              ? ListView(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    96,
+                                    24,
+                                    24,
+                                  ),
+                                  children: [
+                                    _EmptyGroupChatsState(
+                                      isEmptySearch: provider.searchKeyword
+                                          .trim()
+                                          .isNotEmpty,
+                                      onCreateGroup: _openCreateGroup,
+                                      onClearSearch: provider.clearSearch,
+                                    ),
+                                  ],
+                                )
+                              : ListView.builder(
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.only(
+                                    top: 8,
+                                    bottom: 24,
+                                  ),
+                                  itemCount: groupChats.length,
+                                  itemBuilder: (context, index) {
+                                    final chat = groupChats[index];
+                                    return ChatListItem(
+                                      chat: chat,
+                                      avatarBuilder: (_) =>
+                                          _GroupChatAvatar(chat: chat),
+                                      onTap: () => _openChat(chat),
+                                      showBottomDivider:
+                                          index < groupChats.length - 1,
+                                    );
+                                  },
+                                ),
+                        ),
                 ),
               ],
             ),
-            backgroundColor: AppColors.background,
-            body: provider.isChatsLoading && groupChats.isEmpty
-                ? const Center(child: CircularProgressIndicator())
-                : RefreshIndicator(
-                    onRefresh: () => _loadChats(refresh: true),
-                    child: groupChats.isEmpty
-                        ? ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(24, 96, 24, 24),
-                            children: [
-                              _EmptyGroupChatsState(
-                                onCreateGroup: _openCreateGroup,
-                              ),
-                            ],
-                          )
-                        : ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.only(top: 8, bottom: 24),
-                            itemCount: groupChats.length,
-                            itemBuilder: (context, index) {
-                              final chat = groupChats[index];
-                              return ChatListItem(
-                                chat: chat,
-                                avatarBuilder: (_) =>
-                                    _GroupChatAvatar(chat: chat),
-                                onTap: () => _openChat(chat),
-                                showBottomDivider:
-                                    index < groupChats.length - 1,
-                              );
-                            },
-                          ),
-                  ),
           );
         },
       ),
@@ -159,10 +199,192 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
   }
 }
 
-class _EmptyGroupChatsState extends StatelessWidget {
-  const _EmptyGroupChatsState({required this.onCreateGroup});
+class _GroupChatsHeader extends StatefulWidget {
+  const _GroupChatsHeader({
+    required this.searchKeyword,
+    required this.totalGroupCount,
+    required this.onSearchChanged,
+    required this.onSearchCleared,
+    required this.onCreateGroup,
+  });
 
+  final String searchKeyword;
+  final int totalGroupCount;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSearchCleared;
   final VoidCallback onCreateGroup;
+
+  @override
+  State<_GroupChatsHeader> createState() => _GroupChatsHeaderState();
+}
+
+class _GroupChatsHeaderState extends State<_GroupChatsHeader> {
+  late final TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchKeyword);
+  }
+
+  @override
+  void didUpdateWidget(_GroupChatsHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchKeyword != widget.searchKeyword) {
+      _searchController.text = widget.searchKeyword;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final density = context.phoneDensity;
+    final outerHorizontalPadding = density.scale(16);
+    final outerVerticalPadding = density.scale(12);
+    final titleGap = density.scale(14);
+    final searchBarHeight = density.scale(46);
+    final searchBarRadius = density.scale(24);
+    final searchBarHorizontalPadding = density.scale(14);
+    final searchIconSize = density.scale(20);
+    final clearIconSize = density.scale(18);
+    final searchVerticalPadding = density.scale(13);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            outerHorizontalPadding,
+            outerVerticalPadding,
+            outerHorizontalPadding,
+            outerVerticalPadding,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '群聊',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: widget.onCreateGroup,
+                    child: const Text(
+                      '创建',
+                      style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: titleGap),
+              Container(
+                height: searchBarHeight,
+                padding: EdgeInsets.symmetric(
+                  horizontal: searchBarHorizontalPadding,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceMuted,
+                  borderRadius: BorderRadius.circular(searchBarRadius),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.search,
+                      size: searchIconSize,
+                      color: AppColors.textTertiary,
+                    ),
+                    SizedBox(width: density.scale(8)),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: widget.onSearchChanged,
+                        textAlignVertical: TextAlignVertical.center,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textPrimary,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '搜索群聊',
+                          hintStyle: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textTertiary,
+                          ),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(
+                            vertical: searchVerticalPadding,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (widget.searchKeyword.isNotEmpty)
+                      GestureDetector(
+                        onTap: () {
+                          _searchController.clear();
+                          widget.onSearchCleared();
+                        },
+                        child: Icon(
+                          Icons.clear,
+                          size: clearIconSize,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(height: density.scale(10)),
+              Text(
+                '共 ${widget.totalGroupCount} 个群聊',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyGroupChatsState extends StatelessWidget {
+  const _EmptyGroupChatsState({
+    required this.isEmptySearch,
+    required this.onCreateGroup,
+    required this.onClearSearch,
+  });
+
+  final bool isEmptySearch;
+  final VoidCallback onCreateGroup;
+  final VoidCallback onClearSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -172,39 +394,43 @@ class _EmptyGroupChatsState extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.group_outlined,
+            isEmptySearch ? Icons.search_off : Icons.group_outlined,
             size: density.scale(72),
             color: AppColors.textTertiary,
           ),
           SizedBox(height: density.scale(16)),
-          const Text(
-            '还没有加入任何群聊',
-            style: TextStyle(
+          Text(
+            isEmptySearch ? '未找到相关群聊' : '还没有加入任何群聊',
+            style: const TextStyle(
               fontSize: 17,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
           ),
           SizedBox(height: density.scale(8)),
-          const Text(
-            '你可以先进入创建页，或等待其他人邀请你加入群聊',
+          Text(
+            isEmptySearch ? '试试其他关键词' : '你可以先进入创建页，或等待其他人邀请你加入群聊',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: AppColors.textTertiary),
+            style: const TextStyle(fontSize: 14, color: AppColors.textTertiary),
           ),
           SizedBox(height: density.scale(24)),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: onCreateGroup,
+              onPressed: isEmptySearch ? onClearSearch : onCreateGroup,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
+                backgroundColor: isEmptySearch
+                    ? AppColors.surfaceMuted
+                    : AppColors.primary,
+                foregroundColor: isEmptySearch
+                    ? AppColors.textPrimary
+                    : Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                 ),
               ),
-              child: const Text('创建群聊'),
+              child: Text(isEmptySearch ? '清空搜索' : '创建群聊'),
             ),
           ),
         ],
