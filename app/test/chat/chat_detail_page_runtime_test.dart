@@ -34,6 +34,9 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
 
   final Map<String, List<Message>> roomMessages;
   final List<Chat> seedChats;
+  int sendRichMessageCalls = 0;
+  String? lastSentRoomId;
+  String? lastSentText;
 
   @override
   List<Chat> get chats => List<Chat>.from(seedChats);
@@ -74,6 +77,18 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
 
   @override
   void markChatAsRead(String roomId) {}
+
+  @override
+  Future<void> sendRichMessage({
+    required String roomId,
+    String? text,
+    List<MessageAttachmentDraft> attachments = const [],
+    Message? quotedMessage,
+  }) async {
+    sendRichMessageCalls += 1;
+    lastSentRoomId = roomId;
+    lastSentText = text;
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -143,23 +158,27 @@ ChatProvider _buildProvider(
     contentAuditMode: 'plaintext',
   ),
   List<Message>? roomMessages,
+  _FakeMessageService? messageService,
 }) {
   final seedMessages = roomMessages ?? <Message>[_message()];
   final message = seedMessages.first;
+  final resolvedMessageService =
+      messageService ??
+      _FakeMessageService(
+        roomMessages: <String, List<Message>>{'room-1': seedMessages},
+        seedChats: <Chat>[
+          Chat(
+            id: 'chat-1',
+            roomId: 'room-1',
+            name: 'Alice',
+            type: ChatType.single,
+            lastMessage: message.content,
+            lastMessageTime: message.timestamp,
+          ),
+        ],
+      );
   return ChatProvider(
-    messageService: _FakeMessageService(
-      roomMessages: <String, List<Message>>{'room-1': seedMessages},
-      seedChats: <Chat>[
-        Chat(
-          id: 'chat-1',
-          roomId: 'room-1',
-          name: 'Alice',
-          type: ChatType.single,
-          lastMessage: message.content,
-          lastMessageTime: message.timestamp,
-        ),
-      ],
-    ),
+    messageService: resolvedMessageService,
     webSocketService: websocketService,
     appConfigService: _FakeAppConfigService(runtime: runtime),
   );
@@ -289,6 +308,70 @@ void main() {
 
     expect(find.text('当前配置目标：端到端加密'), findsNothing);
     expect(find.text('消息会保存在服务器，按当前配置目标不应被服务端审计。'), findsNothing);
+  });
+
+  testWidgets('sending while emoji panel is open keeps emoji panel mode', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final messageService = _FakeMessageService(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[_message()],
+      },
+      seedChats: <Chat>[
+        Chat(
+          id: 'chat-1',
+          roomId: 'room-1',
+          name: 'Alice',
+          type: ChatType.single,
+          lastMessage: 'hello relay only',
+          lastMessageTime: DateTime(2026, 4, 11, 12, 0, 0),
+        ),
+      ],
+    );
+    final provider = _buildProvider(
+      websocketService,
+      messageService: messageService,
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.enterText(
+      find.byKey(const ValueKey('chat-input-text-field')),
+      '继续发表情',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-emoji-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('chat-emoji-panel')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-send-button')));
+    await tester.pump();
+    await tester.pump();
+
+    expect(messageService.sendRichMessageCalls, 1);
+    expect(messageService.lastSentRoomId, 'room-1');
+    expect(messageService.lastSentText, '继续发表情');
+    expect(find.byKey(const ValueKey('chat-emoji-panel')), findsOneWidget);
+
+    final editableState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    expect(editableState.widget.focusNode.hasFocus, isFalse);
   });
 
   testWidgets(

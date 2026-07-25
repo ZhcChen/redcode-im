@@ -801,6 +801,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       return;
     }
 
+    final keepEmojiPanelVisible = _showEmojiPanel;
+
     try {
       _stopTyping();
       await _chatProvider.sendRichMessage(
@@ -817,12 +819,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         setState(() => _quotedMessage = null);
       }
       setState(() {
-        _showEmojiPanel = false;
+        _showEmojiPanel = keepEmojiPanelVisible;
         _showMorePanel = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        FocusScope.of(context).requestFocus(_inputFocusNode);
+        if (!keepEmojiPanelVisible) {
+          FocusScope.of(context).requestFocus(_inputFocusNode);
+        }
         _scrollToBottom(animated: false);
       });
     } catch (error) {
@@ -4958,7 +4962,11 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   }
 
   Widget _buildVoiceButton() {
-    return _IconButton(icon: AppAssets.iconVoice, onTap: widget.onToggleVoice);
+    return _IconButton(
+      buttonKey: const ValueKey('chat-input-voice-button'),
+      icon: AppAssets.iconVoice,
+      onTap: widget.onToggleVoice,
+    );
   }
 
   Widget _buildTextInput(BuildContext context) {
@@ -5100,6 +5108,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildEmojiButton() {
     return _IconButton(
+      buttonKey: const ValueKey('chat-input-emoji-button'),
       icon: AppAssets.iconEmoji,
       isActive: widget.showEmojiPanel,
       onTap: widget.onToggleEmoji,
@@ -5127,6 +5136,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     final buttonRadius = density.scale(18);
     final loadingSize = density.scale(20);
     return Material(
+      key: const ValueKey('chat-input-send-button'),
       color: AppColors.primary,
       borderRadius: BorderRadius.circular(buttonRadius),
       child: InkWell(
@@ -5157,6 +5167,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 
   Widget _buildMoreButton() {
     return _IconButton(
+      buttonKey: const ValueKey('chat-input-more-button'),
       icon: AppAssets.iconAdd,
       isActive: widget.showMorePanel,
       onTap: widget.onToggleMore,
@@ -5170,11 +5181,13 @@ class _IconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.isActive = false,
+    this.buttonKey,
   });
 
   final String icon;
   final VoidCallback onTap;
   final bool isActive;
+  final Key? buttonKey;
 
   @override
   Widget build(BuildContext context) {
@@ -5182,6 +5195,7 @@ class _IconButton extends StatelessWidget {
     final buttonSize = density.scale(36);
     final buttonRadius = density.scale(18);
     return Material(
+      key: buttonKey,
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(buttonRadius),
@@ -5355,6 +5369,7 @@ class _EmojiPanelState extends State<_EmojiPanel> {
     final tabs = _buildTabs();
 
     return Container(
+      key: const ValueKey('chat-emoji-panel'),
       height: 320,
       decoration: const BoxDecoration(
         color: AppColors.surface,
