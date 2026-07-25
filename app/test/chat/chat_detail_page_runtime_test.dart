@@ -90,6 +90,12 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     lastSentText = text;
   }
 
+  void appendMessage(String roomId, Message message) {
+    final messages = roomMessages.putIfAbsent(roomId, () => <Message>[]);
+    messages.add(message);
+    notifyListeners();
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -468,4 +474,73 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     },
   );
+
+  testWidgets('new appended message enters with slide-up transition', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final messageService = _FakeMessageService(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[_message()],
+      },
+      seedChats: <Chat>[
+        Chat(
+          id: 'chat-1',
+          roomId: 'room-1',
+          name: 'Alice',
+          type: ChatType.single,
+          lastMessage: 'hello relay only',
+          lastMessageTime: DateTime(2026, 4, 11, 12, 0, 0),
+        ),
+      ],
+    );
+    final provider = _buildProvider(
+      websocketService,
+      messageService: messageService,
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final slideTransitionCountBefore = find
+        .byType(SlideTransition)
+        .evaluate()
+        .length;
+
+    messageService.appendMessage(
+      'room-1',
+      Message(
+        id: 'msg-2',
+        roomId: 'room-1',
+        senderId: 'user-2',
+        senderUsername: 'bob',
+        senderName: 'Bob',
+        content: 'incoming animated message',
+        type: MessageType.text,
+        status: MessageStatus.sent,
+        timestamp: DateTime(2026, 4, 11, 12, 0, 3),
+        isSelf: false,
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('incoming animated message'), findsOneWidget);
+    expect(
+      find.byType(SlideTransition).evaluate().length,
+      slideTransitionCountBefore + 1,
+    );
+  });
 }

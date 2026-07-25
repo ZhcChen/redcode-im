@@ -22,7 +22,18 @@ void main() {
           devicePixelRatio: 3,
           physicalSize: const Size(1220, 2712),
         ),
-        0.96,
+        0.94,
+      );
+    });
+
+    test('tightens 1k phones more aggressively', () {
+      expect(
+        resolvePhoneDensityFactor(
+          logicalSize: const Size(360, 900),
+          devicePixelRatio: 3,
+          physicalSize: const Size(1080, 2700),
+        ),
+        0.90,
       );
     });
 
@@ -73,8 +84,8 @@ void main() {
         ),
       );
 
-      expect(resolvedScale, 0.96);
-      expect(scaledFontSize, closeTo(9.6, 0.0001));
+      expect(resolvedScale, 0.94);
+      expect(scaledFontSize, closeTo(9.4, 0.0001));
     });
   });
 }

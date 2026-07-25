@@ -30,20 +30,23 @@ void main() {
         physicalSize: const Size(1220, 2712),
       );
 
-      expect(designSize.width, closeTo((1220 / 3) / 0.96, 0.0001));
-      expect(designSize.height, closeTo((2712 / 3) / 0.96, 0.0001));
+      expect(designSize.width, closeTo((1220 / 3) / 0.94, 0.0001));
+      expect(designSize.height, closeTo((2712 / 3) / 0.94, 0.0001));
     });
 
-    test('tightens narrow 1k portrait phones on top of the base design size', () {
-      final designSize = resolveScreenUtilDesignSize(
-        const Size(360, 900),
-        devicePixelRatio: 3,
-        physicalSize: const Size(1080, 2700),
-      );
+    test(
+      'tightens narrow 1k portrait phones on top of the base design size',
+      () {
+        final designSize = resolveScreenUtilDesignSize(
+          const Size(360, 900),
+          devicePixelRatio: 3,
+          physicalSize: const Size(1080, 2700),
+        );
 
-      expect(designSize.width, closeTo(375 / 0.94, 0.0001));
-      expect(designSize.height, closeTo(900 / 0.94, 0.0001));
-    });
+        expect(designSize.width, closeTo(375 / 0.90, 0.0001));
+        expect(designSize.height, closeTo(900 / 0.90, 0.0001));
+      },
+    );
 
     test('keeps 2k landscape phones at regular density', () {
       expect(
@@ -79,9 +82,7 @@ void main() {
   });
 
   group('screen util scaling', () {
-    testWidgets('2k phones keep width and height scale at 1', (
-      tester,
-    ) async {
+    testWidgets('2k phones keep width and height scale at 1', (tester) async {
       tester.view.physicalSize = const Size(1440, 3200);
       tester.view.devicePixelRatio = 1440 / 412;
       addTearDown(() {
@@ -129,31 +130,32 @@ void main() {
       expect(44.h, lessThan(44));
     });
 
-    testWidgets('1k narrow android phone tightens around the base design size', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1080, 2700);
-      tester.view.devicePixelRatio = 3;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    testWidgets(
+      '1k narrow android phone tightens around the base design size',
+      (tester) async {
+        tester.view.physicalSize = const Size(1080, 2700);
+        tester.view.devicePixelRatio = 3;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
 
-      await tester.pumpWidget(
-        AdaptiveScreenUtilInit(
-          builder: (context, child) => const Directionality(
-            textDirection: TextDirection.ltr,
-            child: SizedBox.shrink(),
+        await tester.pumpWidget(
+          AdaptiveScreenUtilInit(
+            builder: (context, child) => const Directionality(
+              textDirection: TextDirection.ltr,
+              child: SizedBox.shrink(),
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(ScreenUtil().screenWidth, closeTo(360, 0.0001));
-      expect(ScreenUtil().screenHeight, closeTo(900, 0.0001));
-      expect(ScreenUtil().scaleWidth, closeTo((360 / 375) * 0.94, 0.0001));
-      expect(ScreenUtil().scaleHeight, closeTo(0.94, 0.0001));
-      expect(24.w, closeTo(24 * (360 / 375) * 0.94, 0.0001));
-    });
+        expect(ScreenUtil().screenWidth, closeTo(360, 0.0001));
+        expect(ScreenUtil().screenHeight, closeTo(900, 0.0001));
+        expect(ScreenUtil().scaleWidth, closeTo((360 / 375) * 0.90, 0.0001));
+        expect(ScreenUtil().scaleHeight, closeTo(0.90, 0.0001));
+        expect(24.w, closeTo(24 * (360 / 375) * 0.90, 0.0001));
+      },
+    );
 
     testWidgets('1.5k android phone tightens width and height scale', (
       tester,
@@ -176,10 +178,10 @@ void main() {
 
       expect(ScreenUtil().screenWidth, closeTo(1220 / 3, 0.0001));
       expect(ScreenUtil().screenHeight, closeTo(2712 / 3, 0.0001));
-      expect(ScreenUtil().scaleWidth, closeTo(0.96, 0.0001));
-      expect(ScreenUtil().scaleHeight, closeTo(0.96, 0.0001));
-      expect(24.w, closeTo(24 * 0.96, 0.0001));
-      expect(14.sp, closeTo(14 * 0.96, 0.0001));
+      expect(ScreenUtil().scaleWidth, closeTo(0.94, 0.0001));
+      expect(ScreenUtil().scaleHeight, closeTo(0.94, 0.0001));
+      expect(24.w, closeTo(24 * 0.94, 0.0001));
+      expect(14.sp, closeTo(14 * 0.94, 0.0001));
     });
   });
 }

@@ -27,12 +27,12 @@ double resolvePhoneDensityFactor({
     return 1.0;
   }
   if (shortestPhysicalSide >= _midResolutionPhoneShortestSidePx) {
-    return 0.96;
-  }
-  if (shortestPhysicalSide >= _fullHdPhoneShortestSidePx) {
     return 0.94;
   }
-  return 0.92;
+  if (shortestPhysicalSide >= _fullHdPhoneShortestSidePx) {
+    return 0.90;
+  }
+  return 0.88;
 }
 
 PhoneDensityData resolvePhoneDensity({

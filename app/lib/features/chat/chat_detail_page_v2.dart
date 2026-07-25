@@ -159,6 +159,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   double _messageListOpacity = 0.0;
   String? _lastMessageId;
   int _lastMessageCount = 0;
+  final Set<String> _messageEntryAnimationIds = <String>{};
   Message? _quotedMessage;
   bool _multiSelectMode = false;
   final Set<String> _selectedMessageIds = <String>{};
@@ -193,6 +194,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   static const Duration _typingThrottle = Duration(milliseconds: 1200);
   static const Duration _typingIdleDelay = Duration(milliseconds: 1500);
+  static const int _messageEntryAnimationCacheLimit = 48;
   Timer? _typingIdleTimer;
   bool? _lastSentTypingState;
   DateTime? _lastSentTypingAt;
@@ -1333,104 +1335,113 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               final canShowReadReceipts = provider.shouldShowReadReceipts(
                 message,
               );
+              final shouldAnimateEntry = _messageEntryAnimationIds.contains(
+                message.id,
+              );
+
+              Widget itemContent = Column(
+                children: [
+                  if (showTimestamp && dayLabel.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      dayLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  _MessageBubble(
+                    message: message,
+                    onResend: () => provider.resendMessage(message.id),
+                    canShowReadReceipts: canShowReadReceipts,
+                    onShowReadReceipts: canShowReadReceipts
+                        ? () => _showMessageReaders(message)
+                        : null,
+                    onBubbleTap: _showMessageActions,
+                    onQuoteTap: _scrollToMessage,
+                    onStartSelection: () => _startMultiSelect(message),
+                    onToggleSelection: () => _toggleMessageSelection(message),
+                    isSelected: isSelected,
+                    multiSelectMode: _multiSelectMode,
+                    isHighlighted: _highlightedMessageId == message.id,
+                  ),
+                  // 消息反应标签
+                  if (message.reactions != null &&
+                      message.reactions!.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: 6,
+                        left: message.isSelf ? 0 : 56,
+                        right: message.isSelf ? 56 : 0,
+                      ),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        alignment: message.isSelf
+                            ? WrapAlignment.end
+                            : WrapAlignment.start,
+                        children: message.reactions!.map((reaction) {
+                          return InkWell(
+                            onTap: _chatProvider.isRelayOnlyMode
+                                ? null
+                                : () => _handleReactionTagTap(
+                                    message,
+                                    reaction.reactionKey,
+                                  ),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: reaction.hasSelf
+                                    ? AppColors.primary.withValues(alpha: 0.1)
+                                    : AppColors.surface,
+                                borderRadius: BorderRadius.circular(12),
+                                border: reaction.hasSelf
+                                    ? Border.all(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                        width: 1,
+                                      )
+                                    : null,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    reaction.reactionKey,
+                                    style: const TextStyle(fontSize: 16),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${reaction.count}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                ],
+              );
+
+              if (shouldAnimateEntry) {
+                itemContent = _MessageEntryTransition(child: itemContent);
+              }
 
               return RepaintBoundary(
                 key: _messageItemKeys.keyFor(message.id),
-                child: Column(
-                  children: [
-                    if (showTimestamp && dayLabel.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Text(
-                        dayLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    _MessageBubble(
-                      message: message,
-                      onResend: () => provider.resendMessage(message.id),
-                      canShowReadReceipts: canShowReadReceipts,
-                      onShowReadReceipts: canShowReadReceipts
-                          ? () => _showMessageReaders(message)
-                          : null,
-                      onBubbleTap: _showMessageActions,
-                      onQuoteTap: _scrollToMessage,
-                      onStartSelection: () => _startMultiSelect(message),
-                      onToggleSelection: () => _toggleMessageSelection(message),
-                      isSelected: isSelected,
-                      multiSelectMode: _multiSelectMode,
-                      isHighlighted: _highlightedMessageId == message.id,
-                    ),
-                    // 消息反应标签
-                    if (message.reactions != null &&
-                        message.reactions!.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          top: 6,
-                          left: message.isSelf ? 0 : 56,
-                          right: message.isSelf ? 56 : 0,
-                        ),
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          alignment: message.isSelf
-                              ? WrapAlignment.end
-                              : WrapAlignment.start,
-                          children: message.reactions!.map((reaction) {
-                            return InkWell(
-                              onTap: _chatProvider.isRelayOnlyMode
-                                  ? null
-                                  : () => _handleReactionTagTap(
-                                      message,
-                                      reaction.reactionKey,
-                                    ),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: reaction.hasSelf
-                                      ? AppColors.primary.withValues(alpha: 0.1)
-                                      : AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: reaction.hasSelf
-                                      ? Border.all(
-                                          color: AppColors.primary.withValues(
-                                            alpha: 0.3,
-                                          ),
-                                          width: 1,
-                                        )
-                                      : null,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      reaction.reactionKey,
-                                      style: const TextStyle(fontSize: 16),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '${reaction.count}',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                  ],
-                ),
+                child: itemContent,
               );
             },
           );
@@ -2758,6 +2769,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   void _processMessages(List<Message> messages) {
     final previousCount = _lastMessageCount;
+    final previousLastId = _lastMessageId;
     final latestId = messages.isNotEmpty ? messages.last.id : null;
     final changed =
         latestId != _lastMessageId || messages.length != _lastMessageCount;
@@ -2770,12 +2782,38 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _lastMessageId = latestId;
     _lastMessageCount = messages.length;
 
+    final appendedLatestMessage =
+        previousCount > 0 &&
+        messages.length > previousCount &&
+        latestId != null &&
+        latestId != previousLastId;
+
     final shouldAutoScroll =
         wasAtBottom || previousCount == 0 || (!_hasScrollableContent());
 
-    if (shouldAutoScroll) {
-      _scrollToBottom(animated: false);
+    if (appendedLatestMessage && (wasAtBottom || isNearBottom)) {
+      final added = _rememberMessageEntryAnimation(latestId);
+      if (added && mounted) {
+        setState(() {});
+      }
     }
+
+    if (shouldAutoScroll) {
+      _scrollToBottom(animated: appendedLatestMessage);
+    }
+  }
+
+  bool _rememberMessageEntryAnimation(String messageId) {
+    if (_messageEntryAnimationIds.contains(messageId)) {
+      return false;
+    }
+
+    _messageEntryAnimationIds.add(messageId);
+    while (_messageEntryAnimationIds.length >
+        _messageEntryAnimationCacheLimit) {
+      _messageEntryAnimationIds.remove(_messageEntryAnimationIds.first);
+    }
+    return true;
   }
 
   // 距离底部超过此阈值时显示"回到底部"按钮（与桌面端一致）
@@ -2817,6 +2855,56 @@ MessagePartType resolveAttachmentDraftTypeForFileMime(
     return MessagePartType.file;
   }
   throw StateError('暂不支持该文件类型 ($normalizedMimeType)');
+}
+
+class _MessageEntryTransition extends StatefulWidget {
+  const _MessageEntryTransition({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_MessageEntryTransition> createState() =>
+      _MessageEntryTransitionState();
+}
+
+class _MessageEntryTransitionState extends State<_MessageEntryTransition>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    final curve = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(curve);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(curve);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: SlideTransition(position: _slideAnimation, child: widget.child),
+    );
+  }
 }
 
 /// 消息气泡
