@@ -40,6 +40,13 @@ enum MessageStatus {
   failed, // 发送失败
 }
 
+class MessageSendRetryScheduled implements Exception {
+  const MessageSendRetryScheduled();
+
+  @override
+  String toString() => '消息发送失败，系统将自动重试';
+}
+
 /// 附件路径更新事件
 class AttachmentPathUpdate {
   final String messageId;
@@ -870,12 +877,11 @@ class MessageService with ChangeNotifier {
 
       if (_pendingMessages.containsKey(tempId)) {
         _replaceMessage(tempId, updated);
-        _pendingMessages.remove(tempId);
+        _clearPendingMessageTracking(tempId);
       } else {
         _replaceMessage(updated.id, updated);
       }
 
-      _pendingPayloads.remove(tempId);
       _updateChatLastMessage(roomId, updated);
       unawaited(_hydrateAttachmentLocalPaths(updated));
     } catch (error, stackTrace) {
@@ -885,6 +891,7 @@ class MessageService with ChangeNotifier {
       }
       // 保持 sending 状态，持续重试直到成功
       _scheduleRetry(tempId);
+      throw const MessageSendRetryScheduled();
     }
   }
 
@@ -925,8 +932,7 @@ class MessageService with ChangeNotifier {
         overrideStatus: MessageStatus.sent,
       );
       _replaceMessage(messageId, updated);
-      _pendingMessages.remove(messageId);
-      _pendingPayloads.remove(messageId);
+      _clearPendingMessageTracking(messageId);
       unawaited(_hydrateAttachmentLocalPaths(updated));
     } catch (e) {
       debugPrint('Failed to resend message: $e');
@@ -1687,22 +1693,11 @@ class MessageService with ChangeNotifier {
     if (session == null) return;
 
     final message = _messageFromWebSocket(wsMessage, session.user.id);
-    String? matchedPendingId;
-    _pendingMessages.forEach((pendingId, pendingMessage) {
-      if (matchedPendingId != null) {
-        return;
-      }
-      final sameRoom = pendingMessage.roomId == message.roomId;
-      final sameSender = pendingMessage.senderId == message.senderId;
-      final sameContent = pendingMessage.content == message.content;
-      if (sameRoom && sameSender && sameContent) {
-        matchedPendingId = pendingId;
-      }
-    });
+    final matchedPendingId = _findMatchingPendingMessageId(message);
 
     if (matchedPendingId != null) {
-      _pendingMessages.remove(matchedPendingId);
-      _replaceMessage(matchedPendingId!, message);
+      _clearPendingMessageTracking(matchedPendingId);
+      _replaceMessage(matchedPendingId, message);
       unawaited(_hydrateAttachmentLocalPaths(message));
       return;
     }
@@ -3762,8 +3757,7 @@ class MessageService with ChangeNotifier {
         overrideStatus: MessageStatus.sent,
       );
       _replaceMessage(messageId, updated);
-      _pendingMessages.remove(messageId);
-      _pendingPayloads.remove(messageId);
+      _clearPendingMessageTracking(messageId);
       debugPrint('Message $messageId sent successfully after retry');
       unawaited(_hydrateAttachmentLocalPaths(updated));
     } catch (e) {
@@ -3972,6 +3966,12 @@ class MessageService with ChangeNotifier {
     _retryTimers.remove(messageId);
   }
 
+  void _clearPendingMessageTracking(String messageId) {
+    _cancelRetry(messageId);
+    _pendingMessages.remove(messageId);
+    _pendingPayloads.remove(messageId);
+  }
+
   /// 标记消息已读
   Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {
     try {
@@ -4016,8 +4016,13 @@ class MessageService with ChangeNotifier {
     final existed = _chats.any((chat) => chat.roomId == roomId);
     _chats.removeWhere((chat) => chat.roomId == roomId);
     _messagesByRoom.remove(roomId);
-    _pendingMessages.remove(roomId);
-    _pendingPayloads.remove(roomId);
+    final removedPendingIds = _pendingMessages.entries
+        .where((entry) => entry.value.roomId == roomId)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    for (final messageId in removedPendingIds) {
+      _clearPendingMessageTracking(messageId);
+    }
     _clearMessageReadersForRoom(roomId);
     _roomMemberCountCache.remove(roomId);
     _pinnedMessageIds.remove(roomId);
@@ -4683,6 +4688,118 @@ class MessageService with ChangeNotifier {
       pinnedAt: pinnedAt,
       parts: parts,
     );
+  }
+
+  String? _findMatchingPendingMessageId(Message incoming) {
+    final incomingMatch = _buildIncomingPendingMatchPayload(incoming);
+    for (final entry in _pendingMessages.entries) {
+      final pendingMessage = entry.value;
+      if (pendingMessage.roomId != incoming.roomId ||
+          pendingMessage.senderId != incoming.senderId ||
+          pendingMessage.type != incoming.type) {
+        continue;
+      }
+
+      final pendingMatch = _buildPendingMatchPayload(entry.key, pendingMessage);
+      if (_pendingPayloadMatches(pendingMatch, incomingMatch)) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+
+  _PendingMatchPayload _buildPendingMatchPayload(
+    String messageId,
+    Message message,
+  ) {
+    final payload = _pendingPayloads[messageId];
+    return _PendingMatchPayload(
+      text: payload?.content ?? _extractPendingMessageText(message),
+      quotedMessageId: payload?.quotedMessageId ?? message.quotedMessage?.id,
+      parts: payload != null
+          ? _normalizeComparablePartsPayload(payload.parts)
+          : _extractComparablePartsPayload(message),
+    );
+  }
+
+  _PendingMatchPayload _buildIncomingPendingMatchPayload(Message message) {
+    return _PendingMatchPayload(
+      text: _extractPendingMessageText(message),
+      quotedMessageId: message.quotedMessage?.id,
+      parts: _extractComparablePartsPayload(message),
+    );
+  }
+
+  bool _pendingPayloadMatches(
+    _PendingMatchPayload pending,
+    _PendingMatchPayload incoming,
+  ) {
+    if ((pending.text ?? '') != (incoming.text ?? '')) {
+      return false;
+    }
+    if ((pending.quotedMessageId ?? '') != (incoming.quotedMessageId ?? '')) {
+      return false;
+    }
+    return _partPayloadListEquals(pending.parts, incoming.parts);
+  }
+
+  List<Map<String, dynamic>> _extractComparablePartsPayload(Message message) {
+    final parts = <Map<String, dynamic>>[];
+    for (final part in message.parts) {
+      switch (part.type) {
+        case MessagePartType.text:
+          break;
+        case MessagePartType.image:
+        case MessagePartType.video:
+        case MessagePartType.audio:
+        case MessagePartType.file:
+          final attachment = part.attachment;
+          if (attachment == null) {
+            continue;
+          }
+          parts.add({
+            'type': _mapPartTypeName(part.type),
+            'key': attachment.key,
+          });
+          break;
+      }
+    }
+    return parts;
+  }
+
+  List<Map<String, dynamic>> _normalizeComparablePartsPayload(
+    List<Map<String, dynamic>> parts,
+  ) {
+    final normalized = <Map<String, dynamic>>[];
+    for (final part in parts) {
+      final type = part['type']?.toString();
+      if (type == null || type.isEmpty || type == 'text') {
+        continue;
+      }
+      normalized.add({
+        'type': type,
+        if (part['key'] != null) 'key': part['key'],
+      });
+    }
+    return normalized;
+  }
+
+  bool _partPayloadListEquals(
+    List<Map<String, dynamic>> left,
+    List<Map<String, dynamic>> right,
+  ) {
+    if (identical(left, right)) {
+      return true;
+    }
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index++) {
+      if (!mapEquals(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   MessageType _mapMessageType(String raw) {
@@ -5364,6 +5481,18 @@ class _PendingMessagePayload {
   final String? content;
   final List<Map<String, dynamic>> parts;
   final String? quotedMessageId;
+}
+
+class _PendingMatchPayload {
+  const _PendingMatchPayload({
+    required this.text,
+    required this.quotedMessageId,
+    required this.parts,
+  });
+
+  final String? text;
+  final String? quotedMessageId;
+  final List<Map<String, dynamic>> parts;
 }
 
 class ForwardMessageResponse {

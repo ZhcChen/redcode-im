@@ -53,6 +53,7 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   int loadCachedMessagesCallCount = 0;
   int loadMessagesCallCount = 0;
   Future<void> Function()? onFetchChats;
+  Object? sendRichError;
 
   @override
   List<Chat> get chats => List<Chat>.from(_chats);
@@ -86,6 +87,9 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
         quotedMessage: quotedMessage,
       ),
     );
+    if (sendRichError != null) {
+      throw sendRichError!;
+    }
   }
 
   @override
@@ -452,6 +456,33 @@ void main() {
 
       expect(fakeMessageService.sendRichCalls, isEmpty);
     });
+
+    test(
+      'sendRichMessage rethrows send failure and resets sending state',
+      () async {
+        final fakeMessageService = _FakeMessageService()
+          ..sendRichError = const MessageSendRetryScheduled();
+        final fakeWs = _FakeWebSocketService();
+        final provider = ChatProvider(
+          messageService: fakeMessageService,
+          webSocketService: fakeWs,
+        );
+        addTearDown(provider.dispose);
+
+        await provider.enterChatRoom(
+          'r1',
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
+          delayHistoryLoad: true,
+        );
+
+        await expectLater(
+          provider.sendRichMessage(text: 'hello'),
+          throwsA(isA<MessageSendRetryScheduled>()),
+        );
+        expect(provider.isSending, isFalse);
+        expect(fakeMessageService.sendRichCalls, hasLength(1));
+      },
+    );
 
     test('forwardMessage keeps existing forward info', () async {
       final fakeMessageService = _FakeMessageService();

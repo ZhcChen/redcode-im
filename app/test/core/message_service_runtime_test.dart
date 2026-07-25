@@ -56,6 +56,70 @@ class _FakeChatCache extends ChatCache {
   }
 }
 
+Message _pendingImageMessage({
+  required String id,
+  required String attachmentKey,
+  required DateTime timestamp,
+}) {
+  return Message(
+    id: id,
+    roomId: 'room-1',
+    senderId: 'user-self',
+    senderUsername: 'alice',
+    senderName: 'Alice',
+    content: '[图片]',
+    type: MessageType.image,
+    status: MessageStatus.sending,
+    timestamp: timestamp,
+    isSelf: true,
+    parts: <MessagePart>[
+      MessagePart(
+        position: 0,
+        type: MessagePartType.image,
+        attachment: MessageAttachment(
+          key: attachmentKey,
+          name: '$id.png',
+          mime: 'image/png',
+          size: 1,
+        ),
+      ),
+    ],
+  );
+}
+
+WebSocketMessage _incomingImageMessage({
+  required String id,
+  required String attachmentKey,
+  required DateTime timestamp,
+}) {
+  return WebSocketMessage(
+    id: id,
+    roomId: 'room-1',
+    senderId: 'user-self',
+    senderUsername: 'alice',
+    senderNickname: 'Alice',
+    senderAvatarUrl: null,
+    content: '[图片]',
+    messageType: 'image',
+    timestamp: timestamp,
+    extra: null,
+    quotedMessage: null,
+    forwardMessage: null,
+    parts: <WebSocketMessagePart>[
+      WebSocketMessagePart(
+        position: 0,
+        partType: 'image',
+        attachment: WebSocketMessageAttachment(
+          key: attachmentKey,
+          name: '$id.png',
+          mime: 'image/png',
+          size: 1,
+        ),
+      ),
+    ],
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -262,6 +326,110 @@ void main() {
     expect(service.chats.single.unreadCount, 1);
     expect(service.chats.single.extra?['last_message_id'], 'msg-1');
   });
+
+  test(
+    'websocket echo matches pending image by attachment key instead of summary',
+    () async {
+      final storage = _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            _pendingImageMessage(
+              id: 'pending-1',
+              attachmentKey: 'messages/image-1.png',
+              timestamp: DateTime(2026, 4, 12, 12, 0, 0),
+            ),
+            _pendingImageMessage(
+              id: 'pending-2',
+              attachmentKey: 'messages/image-2.png',
+              timestamp: DateTime(2026, 4, 12, 12, 1, 0),
+            ),
+          ],
+        },
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: storage,
+        chatCache: _FakeChatCache(),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'persist',
+            contentAuditMode: 'plaintext',
+          ),
+        ),
+      );
+      addTearDown(() async {
+        await service.handleGroupDissolved('room-1');
+        service.dispose();
+      });
+
+      await service.loadCachedMessages('room-1');
+      await service.handleWebSocketMessage(
+        _incomingImageMessage(
+          id: 'server-msg-2',
+          attachmentKey: 'messages/image-2.png',
+          timestamp: DateTime(2026, 4, 12, 12, 2, 0),
+        ),
+      );
+
+      final messages = service.getMessages('room-1');
+      expect(messages.map((message) => message.id), <String>[
+        'pending-1',
+        'server-msg-2',
+      ]);
+      expect(
+        messages.first.parts.single.attachment?.key,
+        'messages/image-1.png',
+      );
+      expect(
+        messages.last.parts.single.attachment?.key,
+        'messages/image-2.png',
+      );
+      expect(messages.last.status, MessageStatus.sent);
+    },
+  );
+
+  test(
+    'handleGroupDissolved clears room pending queue before resend',
+    () async {
+      var requestCount = 0;
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(
+          roomMessages: <String, List<Message>>{
+            'room-1': <Message>[
+              _pendingImageMessage(
+                id: 'pending-1',
+                attachmentKey: 'messages/image-1.png',
+                timestamp: DateTime(2026, 4, 12, 12, 0, 0),
+              ),
+            ],
+          },
+        ),
+        chatCache: _FakeChatCache(),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'persist',
+            contentAuditMode: 'plaintext',
+          ),
+        ),
+        client: MockClient((request) async {
+          requestCount += 1;
+          return http.Response('unexpected request', 500);
+        }),
+      );
+      addTearDown(() async {
+        await service.handleGroupDissolved('room-1');
+        service.dispose();
+      });
+
+      await service.loadCachedMessages('room-1');
+      await service.handleGroupDissolved('room-1');
+      await service.resendMessage('pending-1');
+
+      expect(service.getMessages('room-1'), isEmpty);
+      expect(requestCount, 0);
+    },
+  );
 
   test('markChatAsRead persists unread reset to chat cache', () async {
     final chatCache = _FakeChatCache(

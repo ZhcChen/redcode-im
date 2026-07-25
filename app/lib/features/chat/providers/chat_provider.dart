@@ -372,6 +372,7 @@ class ChatProvider with ChangeNotifier {
       );
     } catch (e) {
       debugPrint('Failed to send message: $e');
+      rethrow;
     } finally {
       _isSending = false;
       notifyListeners();
