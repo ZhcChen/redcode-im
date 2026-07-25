@@ -28,6 +28,7 @@ import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/storage/message_search_storage.dart';
 import '../../core/theme/phone_density.dart';
+import '../../core/utils/local_file_utils.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
@@ -6140,6 +6141,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
   void initState() {
     super.initState();
     _localPath = widget.part.attachment?.localPath;
+    _loading = !hasReadableLocalFile(_localPath);
     _subscribeToUpdates();
     _load();
   }
@@ -6150,7 +6152,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
     if (oldWidget.part.attachment?.key != widget.part.attachment?.key) {
       _localPath = widget.part.attachment?.localPath;
       _error = null;
-      _loading = true;
+      _loading = !hasReadableLocalFile(_localPath);
       // 重新订阅新的 key
       _subscription?.cancel();
       _subscribeToUpdates();
@@ -6198,16 +6200,14 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
     // 记录加载开始时的 key，用于检测 widget 是否被复用
     final loadingKey = attachment.key;
 
-    if (_localPath != null && _localPath!.isNotEmpty) {
-      final file = File(_localPath!);
-      if (await file.exists()) {
-        // 检查 key 是否仍然匹配（widget 可能已被复用）
-        if (widget.part.attachment?.key != loadingKey) return;
+    if (hasReadableLocalFile(_localPath)) {
+      if (widget.part.attachment?.key != loadingKey) return;
+      if (_loading) {
         setState(() {
           _loading = false;
         });
-        return;
       }
+      return;
     }
 
     try {
@@ -6292,15 +6292,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
                 width: size.width,
                 height: size.height,
                 fit: BoxFit.cover,
-                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                  if (wasSynchronouslyLoaded) return child;
-                  return AnimatedOpacity(
-                    opacity: frame == null ? 0 : 1,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                    child: child,
-                  );
-                },
+                gaplessPlayback: true,
                 errorBuilder: (context, error, stackTrace) =>
                     skeletonPlaceHolder,
               ),
