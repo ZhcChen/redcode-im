@@ -221,6 +221,21 @@ void main() {
     );
   });
 
+  test('message item key registry reuses stable key instance for same id', () {
+    final registry = ChatMessageItemKeyRegistry();
+
+    final first = registry.keyFor('msg-1');
+    final second = registry.keyFor('msg-1');
+    final third = registry.keyFor('msg-2');
+
+    expect(identical(first, second), isTrue);
+    expect(identical(first, third), isFalse);
+
+    registry.retainIds(const <String>['msg-2']);
+    final recreated = registry.keyFor('msg-1');
+    expect(identical(first, recreated), isFalse);
+  });
+
   testWidgets('relay_only action menu hides unsupported message actions', (
     tester,
   ) async {
@@ -372,6 +387,41 @@ void main() {
       find.byType(EditableText),
     );
     expect(editableState.widget.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('emoji and more panels close voice panel before opening', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(websocketService);
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-voice-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('按住录音'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-emoji-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-emoji-panel')), findsOneWidget);
+    expect(find.text('按住录音'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-more-button')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-emoji-panel')), findsNothing);
+    expect(find.text('按住录音'), findsNothing);
   });
 
   testWidgets(

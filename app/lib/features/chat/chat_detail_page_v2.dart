@@ -87,6 +87,23 @@ class _MessageActionEntry {
   final bool danger;
 }
 
+@visibleForTesting
+class ChatMessageItemKeyRegistry {
+  final Map<String, GlobalKey> _keys = <String, GlobalKey>{};
+
+  GlobalKey keyFor(String messageId) {
+    return _keys.putIfAbsent(
+      messageId,
+      () => GlobalKey(debugLabel: 'chat-msg-$messageId'),
+    );
+  }
+
+  void retainIds(Iterable<String> messageIds) {
+    final activeIds = messageIds.toSet();
+    _keys.removeWhere((messageId, _) => !activeIds.contains(messageId));
+  }
+}
+
 /// 反应选择器底部表单
 class _ReactionPickerSheet extends StatelessWidget {
   const _ReactionPickerSheet({required this.reactions});
@@ -145,8 +162,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   Message? _quotedMessage;
   bool _multiSelectMode = false;
   final Set<String> _selectedMessageIds = <String>{};
-  // 使用 GlobalObjectKey 替代 GlobalKey，避免 ListView 复用时的冲突问题
-  // GlobalObjectKey 基于对象引用（消息 ID 字符串）创建，确保唯一性
+  final ChatMessageItemKeyRegistry _messageItemKeys =
+      ChatMessageItemKeyRegistry();
 
   bool _showEmojiPanel = false;
   bool _showMorePanel = false;
@@ -886,8 +903,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     if (attempt >= 8) {
       final lastId = _lastMessageId;
       if (lastId != null) {
-        // 使用 GlobalObjectKey 获取最后一条消息的 context
-        final key = GlobalObjectKey('msg_$lastId');
+        final key = _messageItemKeys.keyFor(lastId);
         final targetContext = key.currentContext;
         if (targetContext != null) {
           Scrollable.ensureVisible(
@@ -1286,6 +1302,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           final pinnedMessage = provider.pinnedMessage;
           final hasPinnedBanner =
               pinnedMessage != null && messages.contains(pinnedMessage);
+          _messageItemKeys.retainIds(messages.map((message) => message.id));
 
           // 使用 Opacity 替代 AnimatedOpacity，避免键盘动画期间的额外性能开销
           // 只有在初始加载时才需要动画，后续直接使用静态 Opacity
@@ -1317,10 +1334,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 message,
               );
 
-              // 使用 GlobalObjectKey 确保每个消息有唯一的 key
-              // GlobalObjectKey 基于消息 ID 创建，避免 ListView 复用时的 GlobalKey 冲突
               return RepaintBoundary(
-                key: GlobalObjectKey('msg_${message.id}'),
+                key: _messageItemKeys.keyFor(message.id),
                 child: Column(
                   children: [
                     if (showTimestamp && dayLabel.isNotEmpty) ...[
@@ -1632,6 +1647,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     setState(() {
       _showEmojiPanel = !_showEmojiPanel;
       _showMorePanel = false;
+      _showVoicePanel = false;
     });
 
     if (_showEmojiPanel) {
@@ -1648,6 +1664,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     setState(() {
       _showMorePanel = !_showMorePanel;
       _showEmojiPanel = false;
+      _showVoicePanel = false;
     });
 
     if (_showMorePanel) {
@@ -1791,8 +1808,8 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         pinnedMessage != null && messages.contains(pinnedMessage);
     final effectiveIndex = hasPinnedBanner ? targetIndex + 1 : targetIndex;
 
-    // 先尝试使用 GlobalObjectKey（如果消息已渲染）
-    final key = GlobalObjectKey('msg_$messageId');
+    // 先尝试使用稳定复用的 GlobalKey（如果消息已渲染）
+    final key = _messageItemKeys.keyFor(messageId);
     final targetContext = key.currentContext;
 
     if (targetContext != null) {
@@ -1844,7 +1861,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       return;
     }
 
-    final key = GlobalObjectKey('msg_$messageId');
+    final key = _messageItemKeys.keyFor(messageId);
     final targetContext = key.currentContext;
 
     if (targetContext != null) {
