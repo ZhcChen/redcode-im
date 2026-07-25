@@ -34,15 +34,15 @@ void main() {
       expect(designSize.height, closeTo((2712 / 3) / 0.96, 0.0001));
     });
 
-    test('keeps narrow portrait phones on the base design size', () {
-      expect(
-        resolveScreenUtilDesignSize(
-          const Size(360, 900),
-          devicePixelRatio: 3,
-          physicalSize: const Size(1080, 2700),
-        ),
-        const Size(375, 900),
+    test('tightens narrow 1k portrait phones on top of the base design size', () {
+      final designSize = resolveScreenUtilDesignSize(
+        const Size(360, 900),
+        devicePixelRatio: 3,
+        physicalSize: const Size(1080, 2700),
       );
+
+      expect(designSize.width, closeTo(375 / 0.94, 0.0001));
+      expect(designSize.height, closeTo(900 / 0.94, 0.0001));
     });
 
     test('keeps 2k landscape phones at regular density', () {
@@ -107,8 +107,8 @@ void main() {
     testWidgets('smaller phones still shrink from the base design', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(360, 780);
-      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1440, 3120);
+      tester.view.devicePixelRatio = 4;
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
@@ -127,6 +127,32 @@ void main() {
       expect(ScreenUtil().scaleHeight, closeTo(780 / 812, 0.0001));
       expect(24.w, lessThan(24));
       expect(44.h, lessThan(44));
+    });
+
+    testWidgets('1k narrow android phone tightens around the base design size', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1080, 2700);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        AdaptiveScreenUtilInit(
+          builder: (context, child) => const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox.shrink(),
+          ),
+        ),
+      );
+
+      expect(ScreenUtil().screenWidth, closeTo(360, 0.0001));
+      expect(ScreenUtil().screenHeight, closeTo(900, 0.0001));
+      expect(ScreenUtil().scaleWidth, closeTo((360 / 375) * 0.94, 0.0001));
+      expect(ScreenUtil().scaleHeight, closeTo(0.94, 0.0001));
+      expect(24.w, closeTo(24 * (360 / 375) * 0.94, 0.0001));
     });
 
     testWidgets('1.5k android phone tightens width and height scale', (

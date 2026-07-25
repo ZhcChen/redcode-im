@@ -13,7 +13,7 @@ const double _tabletShortestSideBreakpoint = 600;
 ///
 /// 同时，对逻辑尺寸已不小于设计稿、但物理最短边像素更低的手机，
 /// 通过放大 designSize 的方式收紧 `.w/.h/.sp`，让 1.5K / 1080p
-/// 手机更接近 2K 机型的视觉密度；窄屏小手机和平板维持原策略。
+/// 手机更接近 2K 机型的视觉密度；平板维持原策略。
 Size resolveScreenUtilDesignSize(
   Size screenSize, {
   double devicePixelRatio = 1,
@@ -28,27 +28,28 @@ Size resolveScreenUtilDesignSize(
       ? _phoneLandscapeDesignSize
       : _phonePortraitDesignSize;
 
-  final densityFactor = resolvePhoneDensityFactor(
-    logicalSize: screenSize,
-    devicePixelRatio: devicePixelRatio,
-    physicalSize: physicalSize,
-  );
-  final canTightenLargePhone =
-      densityFactor < 1.0 &&
-      screenSize.width >= baseDesignSize.width &&
-      screenSize.height >= baseDesignSize.height;
-
-  if (canTightenLargePhone) {
-    return Size(
-      screenSize.width / densityFactor,
-      screenSize.height / densityFactor,
-    );
-  }
-
-  return Size(
+  final resolvedBaseDesignSize = Size(
     math.max(screenSize.width, baseDesignSize.width),
     math.max(screenSize.height, baseDesignSize.height),
   );
+
+  final densityFactor =
+      physicalSize != null || devicePixelRatio > 1
+      ? resolvePhoneDensityFactor(
+          logicalSize: screenSize,
+          devicePixelRatio: devicePixelRatio,
+          physicalSize: physicalSize,
+        )
+      : 1.0;
+
+  if (densityFactor < 1.0) {
+    return Size(
+      resolvedBaseDesignSize.width / densityFactor,
+      resolvedBaseDesignSize.height / densityFactor,
+    );
+  }
+
+  return resolvedBaseDesignSize;
 }
 
 bool _isTabletLike(Size screenSize) {
