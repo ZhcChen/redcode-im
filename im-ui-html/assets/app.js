@@ -37,6 +37,93 @@
     violet: "avatar--violet",
   };
 
+  const iconPaths = {
+    chats: [
+      '<path d="M8.25 6.25h7.5a4 4 0 0 1 4 4v3.2a4 4 0 0 1-4 4H13.7L9.75 20.5c-.25.19-.6.01-.6-.3v-2.75h-.9a4 4 0 0 1-4-4v-3.2a4 4 0 0 1 4-4Z" />',
+      '<path d="M8.35 10.65h7.4" />',
+      '<path d="M8.35 13.75h4.6" />',
+    ],
+    contacts: [
+      '<path d="M8.85 11a2.85 2.85 0 1 0 0-5.7 2.85 2.85 0 0 0 0 5.7Z" />',
+      '<path d="M16.45 10.05a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z" />',
+      '<path d="M4.9 18.1c.66-2.3 2.6-3.65 5.35-3.65 2.73 0 4.66 1.35 5.32 3.65" />',
+      '<path d="M14.75 17.65c.44-1.36 1.53-2.16 3.12-2.16 1.05 0 1.9.31 2.58.94" />',
+    ],
+    discover: [
+      '<circle cx="12" cy="12" r="7.25" />',
+      '<path d="M12 8.1l3.35 3.35L12 15.9l-3.35-3.35L12 8.1Z" />',
+      '<path d="M12 5.3v1.45" />',
+      '<path d="M18.7 12h-1.45" />',
+      '<path d="M12 18.7v-1.45" />',
+      '<path d="M5.3 12h1.45" />',
+    ],
+    settings: [
+      '<path d="M5.4 7.2h7.1" />',
+      '<path d="M15.65 7.2h2.95" />',
+      '<path d="M11.6 7.2a1.55 1.55 0 1 0 0-3.1 1.55 1.55 0 0 0 0 3.1Z" />',
+      '<path d="M5.4 12h2.95" />',
+      '<path d="M11.5 12h7.1" />',
+      '<path d="M9.95 12a1.55 1.55 0 1 0 0-3.1 1.55 1.55 0 0 0 0 3.1Z" />',
+      '<path d="M5.4 16.8h7.1" />',
+      '<path d="M15.65 16.8h2.95" />',
+      '<path d="M14.1 16.8a1.55 1.55 0 1 0 0-3.1 1.55 1.55 0 0 0 0 3.1Z" />',
+    ],
+    back: [
+      '<path d="M14.9 6.5L8.75 12l6.15 5.5" />',
+      '<path d="M9.15 12H19" />',
+    ],
+    search: [
+      '<circle cx="10.7" cy="10.7" r="4.95" />',
+      '<path d="M14.35 14.35 18.65 18.65" />',
+    ],
+    plus: [
+      '<path d="M12 5.75v12.5" />',
+      '<path d="M5.75 12h12.5" />',
+    ],
+    emoji: [
+      '<circle cx="12" cy="12" r="7.2" />',
+      '<path d="M9.15 10.3h.01" />',
+      '<path d="M14.85 10.3h.01" />',
+      '<path d="M8.95 13.9c.74 1.13 1.8 1.7 3.05 1.7 1.25 0 2.31-.57 3.05-1.7" />',
+    ],
+    more: [
+      '<circle cx="6.9" cy="12" r="1.2" />',
+      '<circle cx="12" cy="12" r="1.2" />',
+      '<circle cx="17.1" cy="12" r="1.2" />',
+    ],
+    send: [
+      '<path d="M4.95 11.75 18.95 5.7c.45-.19.92.2.78.67l-3.15 11.3c-.12.45-.7.57-.98.19l-3.08-4.07" />',
+      '<path d="M4.95 11.75 12.55 13.95" />',
+      '<path d="M12.55 13.95 18.2 8.65" />',
+      '<path d="M12.55 13.95 11.4 18.2" />',
+    ],
+    moments: [
+      '<rect x="4.9" y="5.3" width="14.2" height="13.4" rx="3.3" />',
+      '<path d="M7.65 14.5 10.25 11.95l2.2 2.1 3.95-4.05 2.2 2.3" />',
+      '<circle cx="9.15" cy="9.15" r="1.15" />',
+    ],
+    scan: [
+      '<path d="M7.45 5.5H5.8A1.8 1.8 0 0 0 4 7.3v1.65" />',
+      '<path d="M16.55 5.5h1.65A1.8 1.8 0 0 1 20 7.3v1.65" />',
+      '<path d="M7.45 18.5H5.8A1.8 1.8 0 0 1 4 16.7v-1.65" />',
+      '<path d="M16.55 18.5h1.65a1.8 1.8 0 0 0 1.8-1.8v-1.65" />',
+      '<path d="M7.15 12h9.7" />',
+      '<path d="M8.9 8.8h6.2" />',
+      '<path d="M8.9 15.2h6.2" />',
+    ],
+    nearby: [
+      '<path d="M12 19.35c3.2-3.35 4.8-5.94 4.8-7.82A4.8 4.8 0 0 0 12 6.7a4.8 4.8 0 0 0-4.8 4.83c0 1.88 1.6 4.47 4.8 7.82Z" />',
+      '<circle cx="12" cy="11.55" r="1.9" />',
+    ],
+    games: [
+      '<path d="M8.1 9.15h7.8c2.28 0 3.95 1.65 3.95 3.92 0 2.3-1.52 4.18-3.45 4.18-1.22 0-1.98-.57-2.75-1.55l-.65-.8h-1l-.65.8c-.77.98-1.53 1.55-2.75 1.55-1.93 0-3.45-1.88-3.45-4.18 0-2.27 1.67-3.92 3.95-3.92Z" />',
+      '<path d="M8.55 12.2h3.05" />',
+      '<path d="M10.1 10.65v3.05" />',
+      '<circle cx="15.7" cy="11.2" r="0.9" />',
+      '<circle cx="17.55" cy="13.05" r="0.9" />',
+    ],
+  };
+
   let toastTimerId = 0;
 
   initializeChats();
@@ -208,6 +295,20 @@
     }
 
     return { section: "not-found", path };
+  }
+
+  function renderIcon(name, className, label) {
+    const paths = iconPaths[name] || iconPaths.search;
+    const classes = ["ui-icon", className].filter(Boolean).join(" ");
+    const aria = label ? `role="img" aria-label="${escapeHtml(label)}"` : 'aria-hidden="true"';
+
+    return `
+      <span class="${classes}" ${aria}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+          ${paths.join("")}
+        </svg>
+      </span>
+    `;
   }
 
   function isWideStageRoute(route) {
@@ -592,12 +693,16 @@
               </div>
               <div class="composer composer--preview desktop-composer-preview">
                 <div class="composer__inner">
-                  <button class="icon-button icon-button--soft" disabled>☺</button>
+                  <button class="icon-button icon-button--soft" disabled type="button">
+                    ${renderIcon("emoji", "icon-button__glyph", "表情")}
+                  </button>
                   <div class="composer__field composer__field--preview">
                     <span>桌面端继续保留单底部输入区，不把附件、资料和成员操作塞进同一层。</span>
                   </div>
-                  <button class="icon-button icon-button--soft" disabled>＋</button>
-                  <button class="primary-button primary-button--small" disabled>发送</button>
+                  <button class="icon-button icon-button--soft" disabled type="button">
+                    ${renderIcon("plus", "icon-button__glyph", "更多")}
+                  </button>
+                  <button class="primary-button primary-button--small" disabled type="button">发送</button>
                 </div>
               </div>
             </section>
@@ -742,22 +847,20 @@
 
             <section class="surface-card">
               <div class="surface-card__header">
-                <h3>底部导航样式</h3>
+                <h3>移动端壳层</h3>
+                <span class="badge">App Shell</span>
+              </div>
+              ${renderShellPreview()}
+              <p class="surface-caption">移动端入口页只做导航和重点链路分发，不把真实聊天主视图直接塞进入口首页。</p>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>底部导航正式稿</h3>
                 <span class="badge">Capsule</span>
               </div>
-              <div class="mobile-nav-preview">
-                ${system.mobileBlueprint.routes
-                  .map(
-                    (item, index) => `
-                      <span class="mobile-nav-preview__item ${index === 0 ? "is-active" : ""}">
-                        <span class="mobile-nav-preview__icon">${escapeHtml(item.title.charAt(0))}</span>
-                        <span>${escapeHtml(item.title)}</span>
-                      </span>
-                    `,
-                  )
-                  .join("")}
-              </div>
-              <p class="surface-caption">移动端入口页只做导航和重点链路分发，不把真实聊天主视图直接塞进入口首页。</p>
+              ${renderMobileNavPreview("discover")}
+              <p class="surface-caption">图标、标题、辅助语义三层一起收敛，active / inactive 不再靠临时字符占位。</p>
             </section>
 
             <section class="surface-card">
@@ -767,7 +870,7 @@
               </div>
               <div class="page-map">
                 ${system.componentInventory
-                  .slice(0, 5)
+                  .slice(0, 8)
                   .map((item) => `<span class="page-map__item">${escapeHtml(item.title)}</span>`)
                   .join("")}
               </div>
@@ -794,13 +897,26 @@
     `;
   }
 
+  function renderMobileNavPreview(activeId) {
+    return `
+      <div class="mobile-nav-preview">
+        ${data.designSystem.mobileBlueprint.routes
+          .map(
+            (item) => `
+              <span class="mobile-nav-preview__item ${item.id === activeId ? "is-active" : ""}">
+                ${renderIcon(item.icon, "mobile-nav-preview__icon", item.title)}
+                <span class="mobile-nav-preview__label">${escapeHtml(item.title)}</span>
+                <span class="mobile-nav-preview__hint">${escapeHtml(item.hint)}</span>
+              </span>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderTabBar(route) {
-    const items = [
-      { id: "chats", label: "聊天", route: "/chats", icon: "聊", hint: "消息" },
-      { id: "contacts", label: "联系人", route: "/contacts", icon: "联", hint: "关系" },
-      { id: "discover", label: "发现", route: "/discover", icon: "发", hint: "内容" },
-      { id: "settings", label: "设置", route: "/settings", icon: "设", hint: "偏好" },
-    ];
+    const items = data.designSystem.mobileBlueprint.routes;
 
     if (!["chats", "contacts", "discover", "settings"].includes(route.section)) {
       return "";
@@ -818,9 +934,12 @@
                 data-action="navigate"
                 data-route="${item.route}"
               >
-                <span class="tab-bar__icon">${item.icon}</span>
-                <span class="tab-bar__label">${item.label}</span>
-                <span class="tab-bar__hint">${item.hint}</span>
+                <span class="tab-bar__indicator"></span>
+                ${renderIcon(item.icon, "tab-bar__icon", item.title)}
+                <span class="tab-bar__copy">
+                  <span class="tab-bar__label">${escapeHtml(item.title)}</span>
+                  <span class="tab-bar__hint">${escapeHtml(item.hint)}</span>
+                </span>
               </button>
             `;
           })
@@ -903,7 +1022,7 @@
           data-route="${options.backPath}"
           aria-label="返回"
         >
-          ←
+          ${renderIcon("back", "icon-button__glyph", "返回")}
         </button>
       `
       : "";
@@ -961,9 +1080,12 @@
             .map(
               (item) => `
                 <article class="icon-spec-card">
-                  <span class="icon-spec-card__glyph">${escapeHtml(item.glyph)}</span>
-                  <strong>${escapeHtml(item.label)}</strong>
-                  <span>${escapeHtml(item.usage)}</span>
+                  ${renderIcon(item.icon, "icon-spec-card__glyph", item.label)}
+                  <div class="icon-spec-card__copy">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <span>${escapeHtml(item.usage)}</span>
+                  </div>
+                  <span class="icon-spec-card__token">icon.${escapeHtml(item.icon)}</span>
                 </article>
               `,
             )
@@ -989,6 +1111,134 @@
           <code>${escapeHtml(item.flutter)}</code>
         </div>
       </article>
+    `;
+  }
+
+  function renderShellPreview() {
+    return `
+      <div class="shell-preview">
+        <div class="shell-preview__status">
+          <span>9:41</span>
+          <span>5G · 87%</span>
+        </div>
+        <div class="shell-preview__bar">
+          <div class="shell-preview__bar-copy">
+            <strong>聊天</strong>
+            <span>Root App Bar · Safe Area</span>
+          </div>
+          <span class="badge">Shell</span>
+        </div>
+        <div class="shell-preview__body">
+          <div class="shell-preview__surface">
+            <span class="chip chip--filled">内容优先</span>
+            <span class="chip">单列节奏</span>
+          </div>
+          <div class="shell-preview__row">
+            <span class="shell-preview__marker"></span>
+            <div>
+              <strong>滚动主区</strong>
+              <span>一级页保留单滚动主体，信息不分裂。</span>
+            </div>
+          </div>
+          <div class="shell-preview__row shell-preview__row--muted">
+            <span class="shell-preview__marker"></span>
+            <div>
+              <strong>详情承载</strong>
+              <span>返回、搜索、群设置都下沉二级，不和根页争层级。</span>
+            </div>
+          </div>
+        </div>
+        <div class="shell-preview__nav">
+          ${renderMobileNavPreview("chats")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderComponentShowcase(chat, contact) {
+    return `
+      <div class="component-showcase-grid">
+        <div class="preview-surface preview-surface--shell">
+          <p class="section-title">App Shell + Tab Bar</p>
+          ${renderShellPreview()}
+          <p class="surface-caption">壳层只做四件事：Safe Area、Root App Bar、内容滚动区、底部胶囊导航。</p>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">Search Box + Chip</p>
+          <div class="search-box search-box--component-preview">
+            <span>Context Search</span>
+            <label class="search-box__field">
+              ${renderIcon("search", "search-box__icon", "搜索")}
+              <input class="search-box__input" value="发布节奏" readonly />
+              <span class="badge">群聊内</span>
+            </label>
+          </div>
+          <div class="chip-row">
+            <span class="chip chip--filled">已选中</span>
+            <span class="chip">弱标签</span>
+            <span class="chip">可筛选</span>
+          </div>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">Button Set</p>
+          <div class="button-preview-row">
+            <button class="primary-button primary-button--small">继续</button>
+            <button class="ghost-button ghost-button--small">稍后</button>
+            <button class="icon-button icon-button--soft" type="button">
+              ${renderIcon("plus", "icon-button__glyph", "新增")}
+            </button>
+            <button class="icon-button is-active" type="button">
+              ${renderIcon("emoji", "icon-button__glyph", "表情")}
+            </button>
+          </div>
+          <div class="button-preview-row">
+            <button class="primary-button primary-button--small" disabled>处理中</button>
+            <button class="ghost-button ghost-button--small" disabled>禁用态</button>
+          </div>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">会话卡片</p>
+          <div class="list-card">
+            ${renderConversationRow(chat)}
+          </div>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">消息气泡 + 输入区</p>
+          <div class="mini-message-preview">
+            ${renderMessageBubble(chat, chat.messages[0])}
+            ${renderMessageBubble(chat, chat.messages[1])}
+          </div>
+          <div class="composer composer--preview">
+            <div class="composer__inner">
+              <button class="icon-button icon-button--soft" disabled type="button">
+                ${renderIcon("emoji", "icon-button__glyph", "表情")}
+              </button>
+              <div class="composer__field composer__field--preview">
+                <span>发送消息...</span>
+              </div>
+              <button class="icon-button icon-button--soft" disabled type="button">
+                ${renderIcon("plus", "icon-button__glyph", "更多")}
+              </button>
+              <button class="primary-button primary-button--small" disabled type="button">发送</button>
+            </div>
+          </div>
+          <p class="surface-caption">输入区先保证垂直居中、面板切换和发送态节奏，再扩语音、附件和更多动作。</p>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">联系人 + 设置项</p>
+          <div class="list-card">
+            ${renderContactRow(contact)}
+          </div>
+          <div class="settings-list">
+            ${renderMenuRow("账号与安全", "手机号、设备、密码与登录态", false)}
+            ${renderMenuRow("聊天", "消息、字体、通知和存储偏好", false)}
+          </div>
+        </div>
+        <div class="preview-surface">
+          <p class="section-title">Empty State</p>
+          ${renderEmptyState("暂无筛选结果", "空态也必须保持轻量说明和明确回路，不靠大插画撑场。")}
+        </div>
+      </div>
     `;
   }
 
@@ -1126,54 +1376,12 @@
               <span class="page-map__item">Message Bubble</span>
               <span class="page-map__item">Composer</span>
               <span class="page-map__item">Search Box</span>
+              <span class="page-map__item">Button Set</span>
+              <span class="page-map__item">Chip / Empty</span>
               <span class="page-map__item">Settings Row</span>
             </div>
           </div>
-          <div class="preview-surface">
-            <p class="section-title">导航条</p>
-            <div class="component-bar-preview">
-              <button class="icon-button icon-button--preview">←</button>
-              <div class="component-bar-preview__body">
-                <strong>聊天详情</strong>
-                <span>群成员 18 · 在线 11</span>
-              </div>
-              <button class="ghost-button ghost-button--small">群设置</button>
-            </div>
-          </div>
-          <div class="preview-surface">
-            <p class="section-title">会话卡片</p>
-            <div class="list-card">
-              ${renderConversationRow(chat)}
-            </div>
-          </div>
-          <div class="preview-surface">
-            <p class="section-title">消息气泡 + 输入区</p>
-            <div class="mini-message-preview">
-              ${renderMessageBubble(chat, chat.messages[0])}
-              ${renderMessageBubble(chat, chat.messages[1])}
-            </div>
-            <div class="composer composer--preview">
-              <div class="composer__inner">
-                <button class="icon-button icon-button--soft" disabled>☺</button>
-                <div class="composer__field composer__field--preview">
-                  <span>发送消息...</span>
-                </div>
-                <button class="icon-button icon-button--soft" disabled>＋</button>
-                <button class="primary-button primary-button--small" disabled>发送</button>
-              </div>
-            </div>
-            <p class="surface-caption">输入区必须先保证垂直居中、占位态、表情态、更多态的节奏稳定，再讨论高级扩展。</p>
-          </div>
-          <div class="preview-surface">
-            <p class="section-title">联系人 + 设置项</p>
-            <div class="list-card">
-              ${renderContactRow(contact)}
-            </div>
-            <div class="settings-list">
-              ${renderMenuRow("账号与安全", "手机号、设备、密码与登录态", false)}
-              ${renderMenuRow("聊天", "消息、字体、通知和存储偏好", false)}
-            </div>
-          </div>
+          ${renderComponentShowcase(chat, contact)}
           <div class="surface-block">
             <p class="section-title">Flutter handoff 约束</p>
             <ul class="bullet-list">
@@ -1391,7 +1599,7 @@
             root: true,
             actions: [
               `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/search">搜索</button>`,
-              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">＋</button>`,
+              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "icon-button__glyph", "添加好友")}</button>`,
             ],
           })}
           <div class="screen-stack">
@@ -1426,7 +1634,7 @@
             <label class="search-box search-box--conversation">
               <span>搜索会话、标签或最后一条消息</span>
               <div class="search-box__field">
-                <span class="search-box__icon">⌕</span>
+                ${renderIcon("search", "search-box__icon", "搜索")}
                 <input
                   id="chat-filter-input"
                   class="search-box__input"
@@ -1650,7 +1858,7 @@
               data-action="toggle-composer-panel"
               data-panel="emoji"
             >
-              ☺
+              ${renderIcon("emoji", "icon-button__glyph", "表情")}
             </button>
             <label class="composer__field ${draft.trim() ? "is-filled" : ""} ${activePanel ? "is-panel-active" : ""}">
               <textarea
@@ -1666,7 +1874,7 @@
               data-action="toggle-composer-panel"
               data-panel="more"
             >
-              ＋
+              ${renderIcon("plus", "icon-button__glyph", "更多")}
             </button>
             <button class="primary-button primary-button--small primary-button--composer" type="submit">发送</button>
           </div>
@@ -1836,7 +2044,7 @@
             subtitle: `在线 ${onlineCount} · 待处理 ${pendingIncoming} · ${zoneCount} 个协作组`,
             root: true,
             actions: [
-              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">＋</button>`,
+              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "icon-button__glyph", "添加好友")}</button>`,
             ],
           })}
           <div class="screen-stack">
@@ -1871,7 +2079,7 @@
             <label class="search-box search-box--conversation">
               <span>搜索联系人或直接进入添加好友</span>
               <div class="search-box__field">
-                <span class="search-box__icon">⌕</span>
+                ${renderIcon("search", "search-box__icon", "搜索")}
                 <input
                   id="contact-filter-input"
                   class="search-box__input"
@@ -1982,7 +2190,7 @@
         data-action="navigate"
         data-route="${item.route}"
       >
-        <span class="discover-entry-card__icon">${escapeHtml(item.icon)}</span>
+        ${renderIcon(item.icon, "discover-entry-card__icon", item.title)}
         <div class="discover-entry-card__body">
           <div class="discover-entry-card__title">
             <div class="discover-entry-card__title-copy">
@@ -2423,7 +2631,7 @@
             <label class="search-box search-box--conversation">
               <span>搜索昵称、账号或城市</span>
               <div class="search-box__field">
-                <span class="search-box__icon">⌕</span>
+                ${renderIcon("search", "search-box__icon", "搜索")}
                 <input
                   id="friend-search-input"
                   class="search-box__input"

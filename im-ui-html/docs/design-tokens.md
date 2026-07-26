@@ -76,6 +76,11 @@
 - 导航、操作、发现功能三类 icon 均使用简洁轮廓语义。
 - 点击 icon 必须落在稳定热区内，目标尺寸优先对齐 `40-44dp`。
 - 激活态优先用主色、胶囊底和弱高亮表达，不依赖复杂填充或插画。
+- 当前正式 key 统一收敛为三组：
+  - 一级导航：`chats / contacts / discover / settings`
+  - 基础操作：`back / search / plus / emoji / more / send`
+  - 发现功能：`moments / scan / nearby / games`
+- Flutter 落地时优先把 icon key 当语义层，不要把某页临时字符或图片资源继续带进组件实现。
 
 ## 壳层规则
 

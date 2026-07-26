@@ -9,9 +9,14 @@
 | 组件 | 用途 | 状态 | Flutter 映射 |
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
+| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense` | `PreferredSizeWidget + shared title/action slots` |
 | `Conversation Cell` | 会话、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
+| `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual` | `Shared search field + optional context label` |
+| `Button Set` | Primary / Ghost / Icon 三类按钮 | `Default / Pressed / Disabled / Loading` | `Button theme + icon button wrappers` |
+| `Chip` | 轻标签、状态提示、过滤器 | `Soft / Filled / Selected / Dismissible` | `Assist chip / filter chip variants` |
+| `Empty State` | 空列表、无结果、未开启功能说明 | `Plain / Actionable / Illustrated` | `Shared empty state widget` |
 | `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Hover / Active / Disabled` | `Pressable surface card` |
 | `Settings Row` | 设置、群规则、资料字段等通用行 | `Plain / Clickable / Switch / Danger` | `Row + optional trailing control` |
 
@@ -98,15 +103,20 @@
 建议 Flutter 落地顺序：
 
 1. `App Shell`
-2. `Conversation Cell`
-3. `Message Bubble`
-4. `Composer`
-5. `Settings Row`
-6. `Action Card`
+2. `App Bar`
+3. `Conversation Cell`
+4. `Message Bubble`
+5. `Composer`
+6. `Search Box`
+7. `Button Set`
+8. `Chip`
+9. `Empty State`
+10. `Settings Row`
 
 原因：
 
-- 前 5 项直接决定聊天、联系人、设置、群聊等主流程一致性。
+- 前 6 项直接决定聊天、联系人、搜索、设置、群聊等主流程一致性。
+- `Button Set / Chip / Empty State` 决定全局反馈语言是否统一，不应等页面写散了再回收。
 - `Action Card` 更多服务于设计入口、发现入口和次级导航，可在主流程稳定后补强。
 
 ## 复杂组件拆分建议
