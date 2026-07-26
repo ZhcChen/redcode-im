@@ -1553,6 +1553,78 @@
     `;
   }
 
+  function renderChatFocusAreaBoard(compact) {
+    const areas = data.designSystem.chatPageSpec?.focusAreas || [];
+
+    return `
+      <div class="chat-focus-grid ${compact ? "chat-focus-grid--compact" : ""}">
+        ${areas
+          .map(
+            (item) => `
+              <article class="chat-focus-card">
+                <div class="chat-focus-card__header">
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <p>${escapeHtml(item.target)}</p>
+                </div>
+                <div class="chat-focus-card__checks">
+                  ${item.checks.map((check) => `<span class="page-map__item">${escapeHtml(check)}</span>`).join("")}
+                </div>
+                <div class="chat-focus-card__footer">
+                  <span>Flutter handoff</span>
+                  <code>${escapeHtml(item.handoff)}</code>
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderChatSignalMatrix(compact) {
+    const signals = data.designSystem.chatPageSpec?.signalMatrix || [];
+
+    return `
+      <div class="chat-signal-grid ${compact ? "chat-signal-grid--compact" : ""}">
+        ${signals
+          .map(
+            (item) => `
+              <article class="chat-signal-card">
+                <div class="chat-signal-card__header">
+                  <strong>${escapeHtml(item[0])}</strong>
+                  <span>${escapeHtml(item[1])}</span>
+                </div>
+                <p>${escapeHtml(item[2])}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderChatInteractionSequence(compact) {
+    const steps = data.designSystem.chatPageSpec?.interactionSequence || [];
+
+    return `
+      <div class="chat-sequence-board ${compact ? "chat-sequence-board--compact" : ""}">
+        ${steps
+          .map(
+            (item) => `
+              <article class="chat-sequence-step">
+                <span class="chat-sequence-step__index">${escapeHtml(item[0])}</span>
+                <div class="chat-sequence-step__body">
+                  <strong>${escapeHtml(item[1])}</strong>
+                  <p>${escapeHtml(item[2])}</p>
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderChatSpecActionGrid() {
     const actions = data.designSystem.chatPageSpec?.panelActions || [];
 
@@ -1661,6 +1733,22 @@
               </article>
             </div>
           </div>
+        </section>
+
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>状态信号校准</h3>
+            <span class="badge">Signals</span>
+          </div>
+          ${renderChatSignalMatrix(true)}
+        </section>
+
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>交互时序</h3>
+            <span class="badge">Sequence</span>
+          </div>
+          ${renderChatInteractionSequence(true)}
         </section>
       </div>
     `;
@@ -2088,6 +2176,13 @@
         </section>
         <section class="surface-card">
           <div class="surface-card__header">
+            <h3>聊天页专项焦点</h3>
+            <span class="badge">Focus</span>
+          </div>
+          ${renderChatFocusAreaBoard(false)}
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
             <h3>关键状态</h3>
             <span class="badge">States</span>
           </div>
@@ -2097,12 +2192,26 @@
         </section>
         <section class="surface-card">
           <div class="surface-card__header">
+            <h3>信号矩阵</h3>
+            <span class="badge">Signals</span>
+          </div>
+          ${renderChatSignalMatrix(false)}
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
             <h3>交互动效</h3>
             <span class="badge">Motion</span>
           </div>
           <ul class="bullet-list">
             ${system.chatPageSpec.motionRules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
           </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>交互时序</h3>
+            <span class="badge">Sequence</span>
+          </div>
+          ${renderChatInteractionSequence(false)}
         </section>
         <section class="surface-card">
           <div class="surface-card__header">
