@@ -1,7 +1,7 @@
 (function bootstrapIMPrototype() {
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
-  const STORAGE_KEY = "redcode-im-ui-prototype/ui";
+  const STORAGE_KEY = "redcode-im-ui-prototype/mobile-v1";
 
   if (!source || !root) {
     return;
@@ -9,23 +9,26 @@
 
   const data = JSON.parse(JSON.stringify(source));
   const state = {
-    theme: data.settings.theme || "dark",
-    density: data.settings.density || "comfortable",
+    theme: "light",
+    density: "regular",
     activeChatId: data.chats[0] ? data.chats[0].id : null,
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
-    highlightMessageId: null,
-    chatDrafts: {},
-    searchQuery: "",
+    activeSpecTab: "tokens",
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
-    friendNote: "你好，我想一起同步新版 IM 的界面方向。",
-    createGroupName: "新设计评审群",
-    createGroupMembers: new Set(["u_alice", "u_zoe"]),
+    friendNote: "你好，我想一起评审 RedCode IM 的移动端重构方案。",
+    searchQuery: "",
     groupMemberFilter: "",
-    modal: null,
+    createGroupName: "移动端重构评审群",
+    createGroupMembers: new Set(["u_alice", "u_zoe"]),
+    chatDrafts: {},
+    composerPanel: null,
+    highlightMessageId: null,
+    recentMessageId: null,
     toasts: [],
+    orderCursor: 1000,
   };
 
   const toneClassMap = {
@@ -34,9 +37,9 @@
     violet: "avatar--violet",
   };
 
-  let toastTimerId = null;
+  let toastTimerId = 0;
 
-  initializeSortKeys();
+  initializeChats();
   hydrateUiState();
   applyBodyState();
 
@@ -46,34 +49,42 @@
 
   window.addEventListener("hashchange", () => {
     const route = parseRoute(currentPath());
-    syncSelectionFromRoute(route);
+    syncSelection(route);
+    if (route.section !== "chat-detail") {
+      state.composerPanel = null;
+    }
     render();
   });
 
   root.addEventListener("click", handleClick);
+  root.addEventListener("input", handleInput);
   root.addEventListener("change", handleChange);
   root.addEventListener("submit", handleSubmit);
+
   render();
 
-  function initializeSortKeys() {
-    const base = 1000;
+  function initializeChats() {
     data.chats.forEach((chat, index) => {
-      chat.sortKey = base - index;
+      chat.sortKey = 1000 - index;
     });
+    state.orderCursor = 2000;
   }
 
   function hydrateUiState() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const persisted = JSON.parse(raw);
-      if (persisted.theme === "dark" || persisted.theme === "light") {
-        state.theme = persisted.theme;
-        data.settings.theme = persisted.theme;
+      if (!raw) {
+        data.settings.theme = state.theme;
+        data.settings.density = state.density;
+        return;
       }
-      if (persisted.density === "comfortable" || persisted.density === "compact") {
+
+      const persisted = JSON.parse(raw);
+      if (persisted.theme === "light" || persisted.theme === "dark") {
+        state.theme = persisted.theme;
+      }
+      if (["regular", "mid", "compact"].includes(persisted.density)) {
         state.density = persisted.density;
-        data.settings.density = persisted.density;
       }
       if (persisted.notifications && typeof persisted.notifications === "object") {
         Object.assign(data.settings.notifications, persisted.notifications);
@@ -81,6 +92,8 @@
       if (persisted.privacy && typeof persisted.privacy === "object") {
         Object.assign(data.settings.privacy, persisted.privacy);
       }
+      data.settings.theme = state.theme;
+      data.settings.density = state.density;
     } catch (error) {
       console.warn("Failed to hydrate prototype UI state.", error);
     }
@@ -88,10 +101,23 @@
 
   function persistUiState() {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data.settings));
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          theme: state.theme,
+          density: state.density,
+          notifications: data.settings.notifications,
+          privacy: data.settings.privacy,
+        }),
+      );
     } catch (error) {
       console.warn("Failed to persist prototype UI state.", error);
     }
+  }
+
+  function applyBodyState() {
+    document.body.dataset.theme = state.theme;
+    document.body.dataset.density = state.density;
   }
 
   function currentPath() {
@@ -101,7 +127,8 @@
 
   function parseRoute(path) {
     const segments = path.split("/").filter(Boolean);
-    if (segments.length === 0) {
+
+    if (segments.length === 0 || segments[0] === "spec") {
       return { section: "spec" };
     }
 
@@ -109,35 +136,35 @@
       return { section: "auth", subview: segments[1] || "login" };
     }
 
-    if (segments[0] === "chat") {
-      return { section: "chats", chatId: segments[1] || state.activeChatId };
+    if (segments[0] === "chats") {
+      return { section: "chats" };
     }
 
-    if (segments[0] === "chats") {
-      return { section: "chats", chatId: state.activeChatId };
+    if (segments[0] === "chat") {
+      return { section: "chat-detail", chatId: segments[1] || state.activeChatId };
     }
 
     if (segments[0] === "contacts") {
       if (segments[1] === "requests") {
-        return { section: "contacts", subview: "requests" };
+        return { section: "contact-requests" };
       }
       if (segments[1] === "add") {
-        return { section: "contacts", subview: "add" };
+        return { section: "contact-add" };
       }
       if (segments[1] === "profile") {
-        return { section: "contacts", subview: "profile", contactId: segments[2] };
+        return { section: "contact-profile", contactId: segments[2] || state.activeContactId };
       }
-      return { section: "contacts", subview: "list", contactId: state.activeContactId };
+      return { section: "contacts" };
     }
 
     if (segments[0] === "groups") {
       if (segments[1] === "create") {
-        return { section: "groups", subview: "create" };
+        return { section: "group-create" };
       }
       if (segments[1] === "settings") {
-        return { section: "groups", subview: "settings", groupId: segments[2] || state.activeGroupId };
+        return { section: "group-settings", groupId: segments[2] || state.activeGroupId };
       }
-      return { section: "groups", subview: "list", groupId: state.activeGroupId };
+      return { section: "groups" };
     }
 
     if (segments[0] === "search") {
@@ -145,10 +172,7 @@
     }
 
     if (segments[0] === "lab") {
-      return {
-        section: "lab",
-        moduleId: segments[1] || null,
-      };
+      return { section: "lab", moduleId: segments[1] || null };
     }
 
     if (segments[0] === "settings") {
@@ -158,24 +182,24 @@
     return { section: "spec" };
   }
 
-  function syncSelectionFromRoute(route) {
-    if (route.chatId) {
+  function syncSelection(route) {
+    if (route.chatId && findChat(route.chatId)) {
       state.activeChatId = route.chatId;
     }
-    if (route.contactId) {
+    if (route.contactId && findContact(route.contactId)) {
       state.activeContactId = route.contactId;
     }
-    if (route.groupId) {
+    if (route.groupId && findGroup(route.groupId)) {
       state.activeGroupId = route.groupId;
     }
   }
 
   function navigate(path, options) {
-    const merged = Object.assign({ preserveHighlight: false }, options);
-    if (!merged.preserveHighlight) {
+    const nextPath = path || "/spec";
+    if (!options || !options.keepHighlight) {
       state.highlightMessageId = null;
     }
-    const nextHash = `#${path}`;
+    const nextHash = `#${nextPath}`;
     if (window.location.hash === nextHash) {
       render();
       return;
@@ -186,2509 +210,1719 @@
   function render() {
     applyBodyState();
     const route = parseRoute(currentPath());
-    syncSelectionFromRoute(route);
+    syncSelection(route);
 
-    if (route.section === "auth") {
-      root.innerHTML = renderAuth(route);
-      bindInputs(route);
-      return;
-    }
-
-    const activeNav = resolveActiveNav(route);
     root.innerHTML = `
-      <div class="shell">
-        ${renderRail(activeNav)}
-        <main class="content-column">
-          <section class="panel">
-            <header class="panel__header">
-              ${renderPanelHeader(route)}
-            </header>
-            <div class="panel__body">
-              ${renderRoute(route)}
-            </div>
-            ${renderFloatingNav(activeNav)}
-          </section>
+      <div class="prototype-shell">
+        ${renderPrototypeToolbar(route)}
+        <main class="prototype-main">
+          <div class="prototype-stage">
+            ${renderPhone(route)}
+          </div>
+          ${renderRouteReview(route)}
         </main>
       </div>
-      ${renderModal()}
       ${renderToasts()}
     `;
-    bindInputs(route);
   }
 
-  function renderRail(activeNav) {
-    return `
-      <aside class="app-rail" aria-label="主导航">
-        <div class="brand-mark">RC</div>
-        <div class="rail-stack">
-          ${data.navItems
-            .map((item) => {
-              const active = item.id === activeNav ? "active" : "";
-              return `
-                <button
-                  class="rail-item ${active}"
-                  data-action="navigate"
-                  data-route="${item.route}"
-                  aria-label="${escapeHtml(item.label)}"
-                  title="${escapeHtml(item.label)}"
-                >
-                  <span class="rail-item__icon">${item.icon}</span>
-                </button>
-              `;
-            })
-            .join("")}
-        </div>
-        <div class="rail-user">
-          ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "")}
-        </div>
-      </aside>
-    `;
-  }
-
-  function renderFloatingNav(activeNav) {
-    const visibleItems = data.navItems.filter((item) =>
-      ["spec", "chats", "contacts", "lab", "settings"].includes(item.id),
-    );
-    return `
-      <nav class="floating-nav" aria-label="移动导航">
-        <div class="floating-nav__inner">
-          ${visibleItems
-            .map((item) => {
-              const active = item.id === activeNav ? "active" : "";
-              return `
-                <button
-                  class="rail-item ${active}"
-                  data-action="navigate"
-                  data-route="${item.route}"
-                  aria-label="${escapeHtml(item.label)}"
-                >
-                  <span class="rail-item__icon">${item.icon}</span>
-                </button>
-              `;
-            })
-            .join("")}
-        </div>
-      </nav>
-    `;
-  }
-
-  function renderPanelHeader(route) {
-    const header = headerForRoute(route);
-    return `
-      <div class="panel__title">
-        <span class="eyebrow">${escapeHtml(header.eyebrow)}</span>
-        <h1 class="title-lg">${escapeHtml(header.title)}</h1>
-        <p class="body-md">${escapeHtml(header.description)}</p>
-      </div>
-      <div class="toolbar">
-        ${header.controls}
-      </div>
-    `;
-  }
-
-  function headerForRoute(route) {
-    if (route.section === "spec") {
-      return {
-        eyebrow: "Design Operating System",
-        title: "RedCode IM 设计规范与交互原型",
-        description: "先固定视觉语言，再把聊天、联系人、群组和未来扩展统一进同一套设计规则。",
-        controls: `
-          <button class="button secondary" data-action="navigate" data-route="/auth/login">登录页</button>
-          <button class="button primary" data-action="navigate" data-route="/chat/${state.activeChatId}">进入主线原型</button>
-        `,
-      };
-    }
-
-    if (route.section === "chats") {
-      const activeChat = findChat(route.chatId || state.activeChatId);
-      return {
-        eyebrow: activeChat && activeChat.type === "group" ? "Group Conversation" : "Conversation Workspace",
-        title: activeChat ? activeChat.name : "会话总览",
-        description: activeChat
-          ? activeChat.description
-          : "统一管理私聊、群聊、收藏、AI 助理与上下文信息面板。",
-        controls: `
-          <button class="button secondary" data-action="navigate" data-route="/search">消息搜索</button>
-          <button class="button secondary" data-action="navigate" data-route="/groups/create">创建群聊</button>
-          <button class="button primary" data-action="simulate-reply">模拟来消息</button>
-        `,
-      };
-    }
-
-    if (route.section === "contacts") {
-      const titleMap = {
-        list: "联系人",
-        requests: "好友申请",
-        add: "添加好友",
-        profile: "联系人详情",
-      };
-      return {
-        eyebrow: "Network Layer",
-        title: titleMap[route.subview || "list"] || "联系人",
-        description: "让搜索、申请、审批、备注和发起会话形成同一条轻量社交流程。",
-        controls: `
-          <button class="button secondary" data-action="navigate" data-route="/contacts/requests">新朋友</button>
-          <button class="button primary" data-action="navigate" data-route="/contacts/add">搜索添加</button>
-        `,
-      };
-    }
-
-    if (route.section === "groups") {
-      return {
-        eyebrow: "Group Control",
-        title: route.subview === "create" ? "创建群聊" : route.subview === "settings" ? "群设置" : "群组空间",
-        description: "把成员、规则、公告、加入策略与权限摆进一个统一的信息架构里。",
-        controls: `
-          <button class="button secondary" data-action="navigate" data-route="/groups">群组概览</button>
-          <button class="button primary" data-action="navigate" data-route="/groups/create">新建群聊</button>
-        `,
-      };
-    }
-
-    if (route.section === "search") {
-      return {
-        eyebrow: "Search & Trace",
-        title: "消息搜索中心",
-        description: "搜索结果不只是列表，要保留会话、发送者、时间和跳转上下文。",
-        controls: `
-          <button class="button secondary" data-action="set-message-search" data-preset="设计">搜索“设计”</button>
-          <button class="button primary" data-action="set-message-search" data-preset="群">搜索“群”</button>
-        `,
-      };
-    }
-
-    if (route.section === "lab") {
-      return {
-        eyebrow: "Future Surfaces",
-        title: route.moduleId ? labTitle(route.moduleId) : "未来扩展工作台",
-        description: "在当前 IM 主体之外，为通话、AI、文件协作与自动化预留结构化入口。",
-        controls: `
-          <button class="button secondary" data-action="navigate" data-route="/lab/ai">AI 助理</button>
-          <button class="button primary" data-action="navigate" data-route="/lab/files">文件协作</button>
-        `,
-      };
-    }
-
-    if (route.section === "settings") {
-      return {
-        eyebrow: "Preferences",
-        title: "设置与主题控制",
-        description: "主题、密度、通知、隐私和未来能力开关都回到同一套偏好体系里。",
-        controls: `
-          <button class="button secondary" data-action="toggle-theme">切换主题</button>
-          <button class="button primary" data-action="toggle-density">切换密度</button>
-        `,
-      };
-    }
-
-    return {
-      eyebrow: "Prototype",
-      title: "RedCode IM",
-      description: "统一的 UI 设计基线。",
-      controls: "",
-    };
-  }
-
-  function resolveActiveNav(route) {
-    if (route.section === "spec") return "spec";
-    if (route.section === "auth") return "auth";
-    if (route.section === "chats") return "chats";
-    if (route.section === "contacts") return "contacts";
-    if (route.section === "groups") return "groups";
-    if (route.section === "search") return "search";
-    if (route.section === "lab") return "lab";
-    if (route.section === "settings") return "settings";
-    return "spec";
-  }
-
-  function renderRoute(route) {
-    if (route.section === "spec") return renderSpecPage();
-    if (route.section === "chats") return renderChatWorkspace(route.chatId || state.activeChatId);
-    if (route.section === "contacts") return renderContactsRoute(route);
-    if (route.section === "groups") return renderGroupsRoute(route);
-    if (route.section === "search") return renderSearchRoute();
-    if (route.section === "lab") return route.moduleId ? renderLabDetail(route.moduleId) : renderLabOverview();
-    if (route.section === "settings") return renderSettingsRoute();
-    return renderSpecPage();
-  }
-
-  function renderAuth() {
-    return `
-      <div class="shell">
-        <main class="content-column">
-          <section class="login-layout">
-            <article class="auth-card">
-              <section class="auth-brand stack lg">
-                <span class="eyebrow">Graphite Command Lounge</span>
-                <h1 class="title-xl">先统一设计规范，再重构 IM。</h1>
-                <p class="body-lg">
-                  这个纯 HTML 原型不依赖真实服务端，专门用来验证新的登录、导航、会话和扩展能力的视觉与交互规则。
-                </p>
-                <div class="metric-grid">
-                  <div class="metric-card">
-                    <p class="meta">原型页面</p>
-                    <p class="metric-card__value">12</p>
-                  </div>
-                  <div class="metric-card">
-                    <p class="meta">当前功能覆盖</p>
-                    <p class="metric-card__value">IM 主线</p>
-                  </div>
-                  <div class="metric-card">
-                    <p class="meta">未来扩展位</p>
-                    <p class="metric-card__value">4+</p>
-                  </div>
-                </div>
-                <ul class="kicker-list">
-                  ${data.designSystem.principles
-                    .map((item) => `<li>${escapeHtml(item)}</li>`)
-                    .join("")}
-                </ul>
-              </section>
-              <section class="auth-form">
-                <span class="eyebrow">Prototype Login</span>
-                <h2 class="title-lg">欢迎回到 RedCode IM</h2>
-                <p class="body-md">
-                  这个登录页原型强调品牌层级、路径选择和轻量错误提示，而不是把所有控件堆在首屏。
-                </p>
-                <label class="stack">
-                  <span class="meta">账号</span>
-                  <input class="input" value="atlas@redcode.im" readonly />
-                </label>
-                <label class="stack">
-                  <span class="meta">密码</span>
-                  <input class="input" value="••••••••" readonly />
-                </label>
-                <div class="button-row" style="grid-template-columns: 1fr 1fr;">
-                  <button class="button secondary" type="button" data-action="navigate" data-route="/spec">查看规范</button>
-                  <button class="button primary" type="button" data-action="prototype-login">进入原型</button>
-                </div>
-                <div class="helper-note">
-                  当前只做 UI 原型，因此登录不会校验真实账号，而是直接进入应用工作区。
-                </div>
-              </section>
-            </article>
-          </section>
-        </main>
-      </div>
-    `;
-  }
-
-  function renderSpecPage() {
-    return `
-      <section class="spec-layout">
-        <div class="stack lg">
-          <article class="hero">
-            <div class="hero-grid">
-              <div class="stack lg">
-                <span class="pill">设计主张</span>
-                <h2 class="title-xl">${escapeHtml(data.designSystem.thesis)}</h2>
-                <p class="body-lg">
-                  目标不是把现有 IM 页面“修顺一点”，而是重新定义一套统一、长期可扩展的界面操作系统：导航统一、层级统一、组件统一、状态统一。
-                </p>
-                <div class="button-row" style="grid-template-columns: repeat(3, minmax(0, max-content));">
-                  ${data.quickActions
-                    .map(
-                      (item) => `
-                        <button class="button ${item.id === "open-chat" ? "primary" : "secondary"}" data-action="navigate" data-route="${item.route}">
-                          ${escapeHtml(item.title)}
-                        </button>
-                      `,
-                    )
-                    .join("")}
-                </div>
-              </div>
-              <div class="hero-preview stack">
-                <span class="eyebrow">Interaction DNA</span>
-                <h3 class="title-md">统一 3 类核心动效</h3>
-                <ul class="kicker-list">
-                  <li>导航切换：轻位移 + 淡入，保持工作区稳定感。</li>
-                  <li>消息进入：从下向上出现，适合 IM 的时间流感知。</li>
-                  <li>弹层与侧栏：以滑入替代生硬弹出，减少上下文断裂。</li>
-                </ul>
-              </div>
-            </div>
-          </article>
-
-          <div class="metric-grid">
-            <article class="metric-card">
-              <p class="meta">Brand Mood</p>
-              <p class="metric-card__value">Calm / Sharp</p>
-            </article>
-            <article class="metric-card">
-              <p class="meta">Primary Surface</p>
-              <p class="metric-card__value">Dark Graphite</p>
-            </article>
-            <article class="metric-card">
-              <p class="meta">Action Accent</p>
-              <p class="metric-card__value">Electric Cyan</p>
-            </article>
-            <article class="metric-card">
-              <p class="meta">Layout Bias</p>
-              <p class="metric-card__value">Dense Workspace</p>
-            </article>
-          </div>
-
-          <section class="spec-card stack lg">
-            <div class="stack">
-              <span class="eyebrow">Design Tokens</span>
-              <h3 class="title-md">颜色、字体、间距、圆角必须先定死</h3>
-            </div>
-            <div class="token-grid">
-              <article class="token-card stack">
-                <h4 class="title-sm">Color System</h4>
-                ${data.designSystem.tokens.colors
-                  .map(
-                    (entry) => `
-                      <div class="row space-between">
-                        <span>${escapeHtml(entry[0])}</span>
-                        <span class="meta">${entry[1]}</span>
-                      </div>
-                    `,
-                  )
-                  .join("")}
-              </article>
-              <article class="token-card stack">
-                <h4 class="title-sm">Typography</h4>
-                ${data.designSystem.tokens.typography
-                  .map(
-                    (entry) => `
-                      <div class="row space-between">
-                        <span>${escapeHtml(entry[0])}</span>
-                        <span class="meta">${escapeHtml(entry[1])}</span>
-                      </div>
-                    `,
-                  )
-                  .join("")}
-              </article>
-              <article class="token-card stack">
-                <h4 class="title-sm">Spacing & Motion</h4>
-                ${data.designSystem.tokens.spacing
-                  .map(
-                    (entry) => `
-                      <div class="row space-between">
-                        <span>${escapeHtml(entry[0])}</span>
-                        <span class="meta">${escapeHtml(entry[1])}</span>
-                      </div>
-                    `,
-                  )
-                  .join("")}
-              </article>
-            </div>
-          </section>
-
-          <section class="spec-card stack lg">
-            <div class="stack">
-              <span class="eyebrow">Component Language</span>
-              <h3 class="title-md">按钮、状态、筛选、消息气泡都遵循同一套形态规则</h3>
-            </div>
-            <div class="component-grid">
-              <article class="component-card stack">
-                <h4 class="title-sm">Button States</h4>
-                <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-                  <button class="button primary">主操作</button>
-                  <button class="button secondary">次操作</button>
-                  <button class="button ghost">弱操作</button>
-                  <button class="button danger">危险操作</button>
-                </div>
-              </article>
-              <article class="component-card stack">
-                <h4 class="title-sm">Filter Chips</h4>
-                <div class="chip-row">
-                  <span class="chip active">全部会话</span>
-                  <span class="chip">群聊</span>
-                  <span class="chip">收藏</span>
-                  <span class="chip">机器人</span>
-                </div>
-              </article>
-              <article class="component-card stack">
-                <h4 class="title-sm">Message Bubble</h4>
-                <div class="message-board">
-                  <div class="message-row">
-                    ${renderAvatar("Zoe", "violet", "")}
-                    <div class="message-bubble">
-                      这套气泡要支持文本、引用、附件、reaction 和上下文动作。
-                      <div class="reaction-row">
-                        <span class="reaction">🔥 4</span>
-                        <span class="reaction">✅ 2</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="message-row self">
-                    <div class="message-bubble">
-                      所以整个设计系统不能只盯着列表页，要从消息对象本身出发。
-                    </div>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </section>
-        </div>
-
-        <aside class="stack lg">
-          <article class="spec-card stack">
-            <span class="eyebrow">Prototype Coverage</span>
-            <h3 class="title-md">当前页面清单</h3>
-            <div class="list">
-              ${data.designSystem.pageTemplates
-                .map(
-                  (name) => `
-                    <div class="list-item">
-                      <div class="list-item__main">
-                        <p class="list-item__title">${escapeHtml(name)}</p>
-                        <p class="list-item__summary">已纳入统一原型导航和 mock 数据流。</p>
-                      </div>
-                    </div>
-                  `,
-                )
-                .join("")}
-            </div>
-          </article>
-
-          <article class="spec-card stack">
-            <span class="eyebrow">Review Route</span>
-            <h3 class="title-md">建议评审路径</h3>
-            <ul class="kicker-list">
-              <li>先看规范页，确认视觉方向和组件形态。</li>
-              <li>再看聊天主线，验证会话列表 + 详情 + 右侧上下文。</li>
-              <li>再看联系人、加好友、建群，确认社交流程是否顺滑。</li>
-              <li>最后看扩展页，判断未来路线是否值得保留。</li>
-            </ul>
-          </article>
-
-          <article class="spec-card stack">
-            <span class="eyebrow">Future Hooks</span>
-            <h3 class="title-md">已预留扩展位</h3>
-            ${data.extensions
-              .map(
-                (item) => `
-                  <button class="list-item" data-action="navigate" data-route="${item.route}">
-                    <div class="list-item__main">
-                      <div class="list-item__row">
-                        <p class="list-item__title">${escapeHtml(item.title)}</p>
-                        <span class="badge">${escapeHtml(item.status)}</span>
-                      </div>
-                      <p class="list-item__summary">${escapeHtml(item.summary)}</p>
-                    </div>
-                  </button>
-                `,
-              )
-              .join("")}
-          </article>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderChatWorkspace(chatId) {
-    const chatList = sortedChats();
-    const filteredChatList = chatList.filter((chat) => matchesChatFilter(chat));
-    const activeChat = findChat(chatId) || findChat(state.activeChatId);
-    if (!activeChat) {
-      return '<div class="empty-state">当前没有可展示的会话。</div>';
-    }
-
-    state.activeChatId = activeChat.id;
-    const participants = contactListForChat(activeChat);
-    const draft = state.chatDrafts[activeChat.id] || "";
-    const chatAction = renderChatContextAction(activeChat);
+  function renderPrototypeToolbar(route) {
+    const shortcuts = [
+      { label: "规范", route: "/spec", active: route.section === "spec" },
+      {
+        label: "聊天",
+        route: state.activeChatId ? `/chat/${state.activeChatId}` : "/chats",
+        active: route.section === "chats" || route.section === "chat-detail" || route.section === "search",
+      },
+      {
+        label: "联系人",
+        route: "/contacts",
+        active:
+          route.section === "contacts" ||
+          route.section === "contact-requests" ||
+          route.section === "contact-add" ||
+          route.section === "contact-profile",
+      },
+      {
+        label: "群聊",
+        route: "/groups/create",
+        active:
+          route.section === "groups" ||
+          route.section === "group-create" ||
+          route.section === "group-settings",
+      },
+      { label: "设置", route: "/settings", active: route.section === "settings" },
+    ];
 
     return `
-      <section class="stage-layout">
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Inbox</span>
-              <h3 class="title-md">会话列表</h3>
-            </div>
-            <span class="badge">${chatList.length}</span>
-          </header>
-          <div class="context-card__body stack">
-            <input
-              id="chat-filter-input"
-              class="search-field"
-              placeholder="搜索会话、标签或最后一条消息"
-              value="${escapeHtml(state.chatFilter)}"
-            />
-            <div class="chip-row">
-              <button class="chip active" data-action="navigate" data-route="/chats">全部</button>
-              <button class="chip" data-action="navigate" data-route="/groups">群聊</button>
-              <button class="chip" data-action="navigate" data-route="/lab/ai">AI</button>
-            </div>
-            <div class="list">
-              ${
-                filteredChatList.length
-                  ? filteredChatList.map((chat) => renderChatListItem(chat, chat.id === activeChat.id)).join("")
-                  : '<div class="empty-state compact">没有匹配的会话。</div>'
-              }
-            </div>
-          </div>
-        </aside>
-
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="row">
-              ${renderAvatar(activeChat.name, activeChat.avatarTone, "")}
-              <div class="stack">
-                <h3 class="title-md">${escapeHtml(activeChat.name)}</h3>
-                <p class="body-sm">${escapeHtml(activeChat.description)}</p>
-              </div>
-            </div>
-            <div class="row wrap">
-              ${activeChat.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
-              ${chatAction}
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            <div class="message-board">
-              ${activeChat.messages
-                .map((message) => renderMessage(activeChat, message))
-                .join("")}
-            </div>
-          </div>
-          <footer class="message-composer">
-            <div class="composer-actions">
-              <button class="action-button" data-action="insert-draft-token" data-token="#设计评审">#</button>
-              <button class="action-button" data-action="insert-draft-token" data-token="@all">@</button>
-            </div>
-            <textarea
-              id="chat-draft"
-              class="composer-input"
-              placeholder="输入消息、需求摘要或群公告草稿..."
-            >${escapeHtml(draft)}</textarea>
-            <div class="composer-actions">
-              <button class="action-button" data-action="insert-draft-token" data-token="✅">✓</button>
-              <button class="button primary" data-action="send-message">发送</button>
-            </div>
-          </footer>
-        </section>
-
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Context</span>
-              <h3 class="title-md">上下文面板</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack lg">
-            <article class="preview-card stack">
-              <h4 class="title-sm">群指标</h4>
-              <div class="metric-grid">
-                <div class="metric-card">
-                  <p class="meta">在线成员</p>
-                  <p class="metric-card__value">${activeChat.metrics.activeMembers}</p>
-                </div>
-                <div class="metric-card">
-                  <p class="meta">今日消息</p>
-                  <p class="metric-card__value">${activeChat.metrics.todayMessages}</p>
-                </div>
-              </div>
-            </article>
-            <article class="preview-card stack">
-              <h4 class="title-sm">Pinned Messages</h4>
-              <div class="list">
-                ${activeChat.pinnedMessages.length
-                  ? activeChat.pinnedMessages
-                      .map(
-                        (item) => `
-                          <div class="list-item">
-                            <div class="list-item__main">
-                              <p class="list-item__summary">${escapeHtml(item)}</p>
-                            </div>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : '<div class="helper-note">当前会话还没有置顶消息。</div>'}
-              </div>
-            </article>
-            <article class="preview-card stack">
-              <h4 class="title-sm">Shared Files</h4>
-              <div class="list">
-                ${activeChat.files.length
-                  ? activeChat.files
-                      .map(
-                        (item) => `
-                          <div class="list-item">
-                            <div class="list-item__main">
-                              <div class="list-item__row">
-                                <p class="list-item__title">${escapeHtml(item.name)}</p>
-                                <span class="badge">${escapeHtml(item.type)}</span>
-                              </div>
-                              <p class="list-item__summary">${escapeHtml(item.size)}</p>
-                            </div>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : '<div class="helper-note">暂无共享文件。</div>'}
-              </div>
-            </article>
-            <article class="preview-card stack">
-              <h4 class="title-sm">Active Participants</h4>
-              <div class="list">
-                ${participants
-                  .map(
-                    (contact) => `
-                      <button
-                        class="list-item"
-                        data-action="navigate"
-                        data-route="/contacts/profile/${contact.id}"
-                      >
-                        ${renderAvatar(contact.name, contact.tone, "")}
-                        <div class="list-item__main">
-                          <div class="list-item__row">
-                            <p class="list-item__title">${escapeHtml(contact.name)}</p>
-                            <span class="badge">${escapeHtml(contact.status)}</span>
-                          </div>
-                          <p class="list-item__summary">${escapeHtml(contact.title || contact.role || "")}</p>
-                        </div>
-                      </button>
-                    `,
-                  )
-                  .join("")}
-              </div>
-            </article>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderMessage(chat, message) {
-    const reactionRow = message.reactions && message.reactions.length
-      ? `
-        <div class="reaction-row">
-          ${message.reactions
-            .map(
-              (reaction) => `
-                <button
-                  class="reaction"
-                  data-action="increment-reaction"
-                  data-chat-id="${chat.id}"
-                  data-message-id="${message.id}"
-                  data-emoji="${reaction.emoji}"
-                >${reaction.emoji} ${reaction.count}</button>
-              `,
-            )
-            .join("")}
-        </div>
-      `
-      : "";
-
-    const quote = message.quote
-      ? `<div class="helper-note" style="margin-bottom: 12px;">${escapeHtml(message.quote)}</div>`
-      : "";
-
-    const bubbleClass = state.highlightMessageId === message.id ? "message-bubble highlight" : "message-bubble";
-
-    return `
-      <div class="message-row ${message.self ? "self" : ""}">
-        ${message.self ? "" : renderAvatar(message.senderName, message.senderTone, "")}
-        <div class="${bubbleClass}">
-          ${message.self ? "" : `<p class="meta">${escapeHtml(message.senderName)}</p>`}
-          ${quote}
-          <div>${escapeHtml(message.content)}</div>
-          ${reactionRow}
-          <div class="message-meta">
-            <span>${escapeHtml(message.time)}</span>
-            <span>${escapeHtml(message.status || (message.self ? "已送达" : "可操作"))}</span>
+      <header class="prototype-toolbar">
+        <div class="prototype-toolbar__brand">
+          <span class="prototype-toolbar__eyebrow">HTML Prototype</span>
+          <div>
+            <h1>RedCode IM 移动端 UI 设计稿</h1>
+            <p>先抽离规范、组件和密度体系，再回到真实 IM 流程。</p>
           </div>
         </div>
-      </div>
-    `;
-  }
-
-  function renderContactsRoute(route) {
-    if (route.subview === "requests") {
-      return renderFriendRequests();
-    }
-    if (route.subview === "add") {
-      return renderAddFriend();
-    }
-    return renderContactsList(route.contactId || state.activeContactId);
-  }
-
-  function renderContactsList(contactId) {
-    const filtered = data.contacts.filter((contact) => {
-      if (!state.contactFilter.trim()) return true;
-      const keyword = state.contactFilter.trim().toLowerCase();
-      return (
-        contact.name.toLowerCase().includes(keyword) ||
-        contact.username.toLowerCase().includes(keyword) ||
-        contact.zone.toLowerCase().includes(keyword)
-      );
-    });
-
-    const activeContact = findContact(contactId) || filtered[0] || data.contacts[0];
-    if (activeContact) {
-      state.activeContactId = activeContact.id;
-    }
-
-    return `
-      <section class="contacts-layout">
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">People Directory</span>
-              <h3 class="title-md">联系人</h3>
-            </div>
-            <span class="badge">${filtered.length}</span>
-          </header>
-          <div class="context-card__body stack">
-            <input
-              id="contact-filter-input"
-              class="search-field"
-              placeholder="搜索名字、账号、组织"
-              value="${escapeHtml(state.contactFilter)}"
-            />
-            <div class="list">
-              ${filtered
-                .map(
-                  (contact) => `
-                    <button
-                      class="list-item ${activeContact && activeContact.id === contact.id ? "active" : ""}"
-                      data-action="navigate"
-                      data-route="/contacts/profile/${contact.id}"
-                    >
-                      ${renderAvatar(contact.name, contact.tone, "")}
-                      <div class="list-item__main">
-                        <div class="list-item__row">
-                          <p class="list-item__title">${escapeHtml(contact.name)}</p>
-                          <span class="badge">${escapeHtml(contact.status)}</span>
-                        </div>
-                        <p class="list-item__summary">${escapeHtml(contact.title)}</p>
-                        <p class="list-item__note">${escapeHtml(contact.note)}</p>
-                      </div>
-                    </button>
-                  `,
-                )
-                .join("")}
-            </div>
-          </div>
-        </aside>
-
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="row">
-              ${activeContact ? renderAvatar(activeContact.name, activeContact.tone, "large") : ""}
-              <div class="stack">
-                <h3 class="title-md">${escapeHtml(activeContact ? activeContact.name : "暂无联系人")}</h3>
-                <p class="body-sm">${escapeHtml(activeContact ? `${activeContact.title} · ${activeContact.zone}` : "")}</p>
-              </div>
-            </div>
-            <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, max-content));">
-              ${
-                activeContact
-                  ? `<button class="button secondary" data-action="open-direct-chat" data-contact-id="${activeContact.id}">发消息</button>`
-                  : ""
-              }
-              <button class="button primary" data-action="navigate" data-route="/contacts/add">添加好友</button>
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            ${
-              activeContact
-                ? `
-                  <div class="metric-grid">
-                    <article class="metric-card">
-                      <p class="meta">账号</p>
-                      <p class="metric-card__value">${escapeHtml(activeContact.username)}</p>
-                    </article>
-                    <article class="metric-card">
-                      <p class="meta">状态</p>
-                      <p class="metric-card__value">${escapeHtml(activeContact.status)}</p>
-                    </article>
-                    <article class="metric-card">
-                      <p class="meta">组织</p>
-                      <p class="metric-card__value">${escapeHtml(activeContact.zone)}</p>
-                    </article>
-                  </div>
-                  <article class="settings-section stack">
-                    <h4 class="title-sm">联系信息与备注</h4>
-                    <p class="body-md">${escapeHtml(activeContact.note)}</p>
-                    <div class="divider"></div>
-                    <div class="row space-between">
-                      <span>个人标签</span>
-                      <span class="chip">${escapeHtml(activeContact.zone)}</span>
-                    </div>
-                    <div class="row space-between">
-                      <span>推荐入口</span>
-                      <span class="meta">聊天 / 协作文件 / 群组邀请</span>
-                    </div>
-                  </article>
-                  <article class="settings-section stack">
-                    <h4 class="title-sm">推荐下一步</h4>
-                    <div class="button-row" style="grid-template-columns: repeat(3, minmax(0, 1fr));">
-                      <button class="button secondary" data-action="open-direct-chat" data-contact-id="${activeContact.id}">发消息</button>
-                      <button class="button secondary" data-action="preset-group-member" data-contact-id="${activeContact.id}">拉进建群</button>
-                      <button class="button secondary" data-action="navigate" data-route="/groups/settings/${data.groups[0].id}">共享群设置</button>
-                    </div>
-                  </article>
-                `
-                : '<div class="empty-state">没有匹配的联系人。</div>'
-            }
-          </div>
-        </section>
-      </section>
-    `;
-  }
-
-  function renderFriendRequests() {
-    const incoming = data.friendRequests.filter((item) => item.type === "incoming");
-    const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
-    return `
-      <section class="settings-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Incoming</span>
-              <h3 class="title-md">收到的好友申请</h3>
-            </div>
-            <span class="badge">${incoming.filter((item) => item.status === "pending").length}</span>
-          </header>
-          <div class="stage-card__body">
-            <div class="list">
-              ${
-                incoming.length
-                  ? incoming
-                      .map(
-                        (request) => `
-                          <div class="list-item">
-                            ${renderAvatar(request.name, request.tone, "")}
-                            <div class="list-item__main">
-                              <div class="list-item__row">
-                                <p class="list-item__title">${escapeHtml(request.name)}</p>
-                                <span class="badge ${request.status === "accepted" ? "success" : request.status === "rejected" ? "danger" : ""}">${escapeHtml(request.status)}</span>
-                              </div>
-                              <p class="list-item__summary">${escapeHtml(request.title)}</p>
-                              <p class="list-item__note">${escapeHtml(request.message)}</p>
-                              <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, max-content)); margin-top: 12px;">
-                                <button class="button secondary" data-action="reject-request" data-request-id="${request.id}">拒绝</button>
-                                <button class="button primary" data-action="accept-request" data-request-id="${request.id}">通过</button>
-                              </div>
-                            </div>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : '<div class="empty-state compact">当前没有待处理的好友申请。</div>'
-              }
-            </div>
-          </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Outgoing</span>
-              <h3 class="title-md">我发出的申请</h3>
-            </div>
-          </header>
-          <div class="context-card__body">
-            <div class="list">
-              ${
-                outgoing.length
-                  ? outgoing
-                      .map(
-                        (request) => `
-                          <div class="list-item">
-                            ${renderAvatar(request.name, request.tone, "")}
-                            <div class="list-item__main">
-                              <div class="list-item__row">
-                                <p class="list-item__title">${escapeHtml(request.name)}</p>
-                                <span class="badge">${escapeHtml(request.status)}</span>
-                              </div>
-                              <p class="list-item__summary">${escapeHtml(request.title)}</p>
-                              <p class="list-item__note">${escapeHtml(request.message)}</p>
-                            </div>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : '<div class="empty-state compact">你还没有发出新的好友申请。</div>'
-              }
-            </div>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderAddFriend() {
-    const keyword = state.friendSearch.trim().toLowerCase();
-    const filtered = data.searchUsers.filter((user) => {
-      if (!keyword) return true;
-      return (
-        user.name.toLowerCase().includes(keyword) ||
-        user.username.toLowerCase().includes(keyword) ||
-        user.title.toLowerCase().includes(keyword) ||
-        user.city.toLowerCase().includes(keyword)
-      );
-    });
-    const relationSummary = {
-      pendingIncoming: filtered.filter((user) => user.relation === "pending_incoming").length,
-      pendingOutgoing: filtered.filter((user) => user.relation === "pending_outgoing").length,
-      available: filtered.filter((user) => user.relation === "none").length,
-    };
-    return `
-      <section class="settings-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Search User</span>
-              <h3 class="title-md">搜索并添加好友</h3>
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            <article class="hero">
-              <div class="hero-grid">
-                <div class="stack">
-                  <h3 class="title-lg">把“找人 + 申请 + 状态反馈”压缩成一条顺畅路径。</h3>
-                  <p class="body-md">搜索结果要足够清楚：头像、职能、城市、当前关系状态与下一步动作一屏说明白。</p>
-                </div>
-                <div class="stack">
-                  <label class="stack">
-                    <span class="meta">关键词</span>
-                    <input
-                      id="friend-search-input"
-                      class="search-field"
-                      placeholder="输入名字、账号、城市或岗位"
-                      value="${escapeHtml(state.friendSearch)}"
-                    />
-                  </label>
-                  <label class="stack">
-                    <span class="meta">打招呼文案</span>
-                    <textarea id="friend-note-input" class="textarea">${escapeHtml(state.friendNote)}</textarea>
-                  </label>
-                </div>
-              </div>
-            </article>
-
-            <div class="metric-grid">
-              <article class="metric-card">
-                <p class="meta">候选结果</p>
-                <p class="metric-card__value">${filtered.length}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">待我处理</p>
-                <p class="metric-card__value">${relationSummary.pendingIncoming}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">可直接添加</p>
-                <p class="metric-card__value">${relationSummary.available}</p>
-              </article>
-            </div>
-
-            <div class="search-result-grid">
-              ${filtered.length
-                ? filtered.map((user) => renderSearchUserItem(user)).join("")
-                : '<div class="empty-state">没有匹配结果，试试输入更短的关键词。</div>'}
-            </div>
-          </div>
-        </section>
-
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Flow Tips</span>
-              <h3 class="title-md">设计要求</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack">
-            <div class="helper-note">结果卡片不做杂乱信息堆叠，只保留决策必须字段。</div>
-            <div class="helper-note">申请动作始终明确区分：未添加、等待对方、等待我处理、已是好友。</div>
-            <div class="helper-note">点击“添加好友”会弹出轻量确认层，不再让操作跳来跳去。</div>
-            <article class="preview-card stack">
-              <h4 class="title-sm">状态分布</h4>
-              <div class="list">
-                <div class="list-item">
-                  <div class="list-item__main">
-                    <div class="list-item__row">
-                      <p class="list-item__title">待我处理</p>
-                      <span class="badge">${relationSummary.pendingIncoming}</span>
-                    </div>
-                    <p class="list-item__summary">收到申请后可以直接通过并生成私聊入口。</p>
-                  </div>
-                </div>
-                <div class="list-item">
-                  <div class="list-item__main">
-                    <div class="list-item__row">
-                      <p class="list-item__title">等待对方</p>
-                      <span class="badge">${relationSummary.pendingOutgoing}</span>
-                    </div>
-                    <p class="list-item__summary">保持静态反馈，不再把状态藏进详情页。</p>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderSearchUserItem(user) {
-    return `
-      <article class="search-result stack">
-        <div class="row space-between">
-          <div class="row">
-            ${renderAvatar(user.name, user.tone, "")}
-            <div class="stack">
-              <h4 class="title-sm">${escapeHtml(user.name)}</h4>
-              <p class="body-sm">${escapeHtml(user.username)} · ${escapeHtml(user.title)}</p>
-            </div>
-          </div>
-          <span class="badge">${escapeHtml(relationLabel(user.relation))}</span>
-        </div>
-        <div class="row space-between">
-          <p class="meta">${escapeHtml(user.city)}</p>
-          <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, max-content));">
-            ${
-              user.relation === "none"
-                ? `<button class="button primary" data-action="open-request-modal" data-user-id="${user.id}">添加好友</button>`
-                : ""
-            }
-            ${
-              user.relation === "pending_incoming"
-                ? `<button class="button primary" data-action="accept-by-user-id" data-user-id="${user.id}">立即通过</button>`
-                : ""
-            }
-            ${
-              user.relation === "pending_outgoing"
-                ? `<button class="button secondary" disabled>等待对方处理</button>`
-                : ""
-            }
-            ${
-              user.relation !== "none"
-                ? `<button class="button secondary" data-action="navigate" data-route="/contacts/requests">查看申请</button>`
-                : ""
-            }
-          </div>
-        </div>
-      </article>
-    `;
-  }
-
-  function renderGroupsRoute(route) {
-    if (route.subview === "create") {
-      return renderCreateGroup();
-    }
-    if (route.subview === "settings") {
-      return renderGroupSettings(route.groupId || state.activeGroupId);
-    }
-    return renderGroupOverview();
-  }
-
-  function renderGroupOverview() {
-    const groups = data.groups;
-    return `
-      <section class="group-layout">
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Group Spaces</span>
-              <h3 class="title-md">群组列表</h3>
-            </div>
-            <span class="badge">${groups.length}</span>
-          </header>
-          <div class="context-card__body">
-            <div class="list">
-              ${groups
-                .map(
-                  (group) => `
-                    <button class="list-item" data-action="navigate" data-route="/groups/settings/${group.id}">
-                      ${renderAvatar(group.name, "violet", "")}
-                      <div class="list-item__main">
-                        <div class="list-item__row">
-                          <p class="list-item__title">${escapeHtml(group.name)}</p>
-                          <span class="badge">${group.memberCount}</span>
-                        </div>
-                        <p class="list-item__summary">${escapeHtml(group.notice)}</p>
-                      </div>
-                    </button>
-                  `,
-                )
-                .join("")}
-            </div>
-          </div>
-        </aside>
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Architecture</span>
-              <h3 class="title-md">群组页面的重构重点</h3>
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            <div class="card-grid">
-              <article class="extension-card stack">
-                <h4 class="title-sm">信息集中</h4>
-                <p class="body-sm">公告、规则、权限、入群方式、禁言模式不再散落在多个入口。</p>
-              </article>
-              <article class="extension-card stack">
-                <h4 class="title-sm">成员可控</h4>
-                <p class="body-sm">管理员、禁言、申请、操作日志全部使用同一视觉结构。</p>
-              </article>
-              <article class="extension-card stack">
-                <h4 class="title-sm">上下文统一</h4>
-                <p class="body-sm">从群详情、聊天右栏、搜索结果都能进入同一套群管理视图。</p>
-              </article>
-            </div>
-            <button class="button primary" data-action="navigate" data-route="/groups/create">开始创建群聊</button>
-          </div>
-        </section>
-      </section>
-    `;
-  }
-
-  function renderCreateGroup() {
-    const selectedIds = Array.from(state.createGroupMembers);
-    const selectedContacts = data.contacts.filter((contact) => selectedIds.includes(contact.id));
-    const candidateKeyword = state.groupMemberFilter.trim().toLowerCase();
-    const candidateContacts = data.contacts.filter((contact) => {
-      if (!candidateKeyword) return true;
-      return (
-        contact.name.toLowerCase().includes(candidateKeyword) ||
-        contact.title.toLowerCase().includes(candidateKeyword) ||
-        contact.zone.toLowerCase().includes(candidateKeyword)
-      );
-    });
-    const onlineCount = selectedContacts.filter((contact) => contact.status !== "离开").length;
-    const previewMessageAuthor = selectedContacts[0] || data.currentUser;
-    return `
-      <section class="group-layout">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Create Group</span>
-              <h3 class="title-md">用“群目的 + 成员选择 + 规则预览”替代空白表单</h3>
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            <label class="stack">
-              <span class="meta">群聊名称</span>
-              <input id="group-name-input" class="input" value="${escapeHtml(state.createGroupName)}" />
-            </label>
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">已选成员 (${selectedContacts.length})</h4>
-                <button class="button secondary" data-action="clear-group-members">清空</button>
-              </div>
-              <div class="chip-row">
-                ${selectedContacts.length
-                  ? selectedContacts
-                      .map((contact) => `<span class="chip active">${escapeHtml(contact.name)}</span>`)
-                      .join("")
-                  : '<span class="helper-note">至少选择 1 位好友，原型会自动创建群聊和会话。</span>'}
-              </div>
-            </article>
-            <article class="settings-section stack">
-              <h4 class="title-sm">选择好友</h4>
-              <input
-                id="group-member-search-input"
-                class="search-field"
-                placeholder="搜索名字、岗位或分组"
-                value="${escapeHtml(state.groupMemberFilter)}"
-              />
-              <div class="list">
-                ${candidateContacts.length
-                  ? candidateContacts
-                  .map(
-                    (contact) => `
-                      <label class="list-item">
-                        <input
-                          type="checkbox"
-                          data-action="toggle-group-member"
-                          data-contact-id="${contact.id}"
-                          ${state.createGroupMembers.has(contact.id) ? "checked" : ""}
-                        />
-                        ${renderAvatar(contact.name, contact.tone, "")}
-                        <div class="list-item__main">
-                          <p class="list-item__title">${escapeHtml(contact.name)}</p>
-                          <p class="list-item__summary">${escapeHtml(contact.title)}</p>
-                        </div>
-                      </label>
-                    `,
-                  )
-                  .join("")
-                  : '<div class="empty-state compact">没有匹配的好友，换个关键词再试。</div>'}
-              </div>
-            </article>
-            <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-              <button class="button secondary" data-action="navigate" data-route="/groups">返回群组</button>
-              <button class="button primary" data-action="create-group">创建并进入聊天</button>
-            </div>
-          </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Preview</span>
-              <h3 class="title-md">群聊预览</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack lg">
-            <div class="hero-preview stack">
-              <h4 class="title-sm">${escapeHtml(state.createGroupName || "未命名群聊")}</h4>
-              <p class="body-sm">默认会附带欢迎公告、群规则入口与上下文工作区。</p>
-              <div class="chip-row">
-                <span class="chip active">公告</span>
-                <span class="chip">规则</span>
-                <span class="chip">文件</span>
-                <span class="chip">成员</span>
-              </div>
-            </div>
-            <div class="metric-grid">
-              <article class="metric-card">
-                <p class="meta">预计成员</p>
-                <p class="metric-card__value">${selectedContacts.length + 1}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">预计在线</p>
-                <p class="metric-card__value">${onlineCount + 1}</p>
-              </article>
-            </div>
-            <article class="preview-card stack">
-              <div class="row space-between">
-                <h4 class="title-sm">默认策略</h4>
-                <span class="badge">invite_only</span>
-              </div>
-              <div class="helper-note">新群默认采用邀请制、开放发言、欢迎公告 + 规则入口 + 文件区的组合。</div>
-              <div class="list">
-                <div class="list-item">
-                  <div class="list-item__main">
-                    <p class="list-item__title">群入口</p>
-                    <p class="list-item__summary">会话顶部 / 聊天右栏 / 搜索结果都能进入群设置。</p>
-                  </div>
-                </div>
-                <div class="list-item">
-                  <div class="list-item__main">
-                    <p class="list-item__title">内容结构</p>
-                    <p class="list-item__summary">公告、规则、文件、成员全部走统一组件和状态样式。</p>
-                  </div>
-                </div>
-              </div>
-            </article>
-            <article class="preview-card stack">
-              <h4 class="title-sm">创建后首屏预览</h4>
-              <div class="message-board">
-                <div class="message-row self">
-                  <div class="message-bubble">
-                    已创建 ${escapeHtml(state.createGroupName || "新的群聊")}，请把今天的评审重点直接放进公告。
-                    <div class="message-meta">
-                      <span>刚刚</span>
-                      <span>系统已同步</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="message-row">
-                  ${renderAvatar(previewMessageAuthor.name, previewMessageAuthor.tone || previewMessageAuthor.avatarTone || "mint", "")}
-                  <div class="message-bubble">
-                    收到，我会先补充规范页、聊天主线和扩展入口的评审结论。
-                    <div class="message-meta">
-                      <span>预计首条回复</span>
-                      <span>${escapeHtml(previewMessageAuthor.name)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </article>
-            <article class="preview-card stack">
-              <h4 class="title-sm">成员快照</h4>
-              <div class="list">
-                ${selectedContacts.length
-                  ? selectedContacts
-                      .map(
-                        (contact) => `
-                          <div class="list-item">
-                            ${renderAvatar(contact.name, contact.tone, "")}
-                            <div class="list-item__main">
-                              <div class="list-item__row">
-                                <p class="list-item__title">${escapeHtml(contact.name)}</p>
-                                <span class="badge">${escapeHtml(contact.status)}</span>
-                              </div>
-                              <p class="list-item__summary">${escapeHtml(contact.title)}</p>
-                            </div>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : '<div class="empty-state compact">还没有选择成员。</div>'}
-              </div>
-            </article>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderGroupSettings(groupId) {
-    const group = findGroup(groupId) || data.groups[0];
-    if (!group) {
-      return '<div class="empty-state">没有可用的群设置数据。</div>';
-    }
-    state.activeGroupId = group.id;
-
-    return `
-      <section class="settings-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="row">
-              ${renderAvatar(group.name, "violet", "large")}
-              <div class="stack">
-                <h3 class="title-md">${escapeHtml(group.name)}</h3>
-                <p class="body-sm">${group.memberCount} 成员 · ${group.onlineCount} 在线</p>
-              </div>
-            </div>
-            <button class="button secondary" data-action="navigate" data-route="/chat/${group.chatId}">返回聊天</button>
-          </header>
-          <div class="stage-card__body stack lg">
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">群公告</h4>
-                <span class="badge success">同步显示在聊天右栏</span>
-              </div>
-              <p class="body-md">${escapeHtml(group.notice)}</p>
-            </article>
-
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">群规则</h4>
-                <span class="badge">${group.rules.length}</span>
-              </div>
-              <ul class="kicker-list">
-                ${group.rules.map((rule) => `<li>${escapeHtml(rule)}</li>`).join("")}
-              </ul>
-            </article>
-
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">加入与发言策略</h4>
-                <button class="button secondary" data-action="toggle-group-policy" data-group-id="${group.id}">
-                  切换策略
-                </button>
-              </div>
-              <div class="metric-grid">
-                <div class="metric-card">
-                  <p class="meta">加入方式</p>
-                  <p class="metric-card__value">${escapeHtml(group.joinPolicy)}</p>
-                </div>
-                <div class="metric-card">
-                  <p class="meta">禁言模式</p>
-                  <p class="metric-card__value">${escapeHtml(group.muteMode)}</p>
-                </div>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Admin Surface</span>
-              <h3 class="title-md">高级入口</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack">
-            <button class="list-item" data-action="show-toast" data-message="管理员管理页将在正式重构中继续展开。">
-              <div class="list-item__main">
-                <p class="list-item__title">管理员与角色</p>
-                <p class="list-item__summary">任命、移除、权限映射</p>
-              </div>
-            </button>
-            <button class="list-item" data-action="show-toast" data-message="入群申请页将在正式重构中挂到这里。">
-              <div class="list-item__main">
-                <p class="list-item__title">入群申请</p>
-                <p class="list-item__summary">审批流、黑名单、补充问答</p>
-              </div>
-            </button>
-            <button class="list-item" data-action="show-toast" data-message="操作日志页将在正式重构中挂到这里。">
-              <div class="list-item__main">
-                <p class="list-item__title">操作日志</p>
-                <p class="list-item__summary">删除、禁言、权限变更审计</p>
-              </div>
-            </button>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderSearchRoute() {
-    const results = searchMessages(state.searchQuery);
-    return `
-      <section class="search-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Search Results</span>
-              <h3 class="title-md">${state.searchQuery ? `搜索“${escapeHtml(state.searchQuery)}”` : "输入关键词搜索消息"}</h3>
-            </div>
-            <span class="badge">${results.length}</span>
-          </header>
-          <div class="stage-card__body stack lg">
-            <input
-              id="message-search-input"
-              class="search-field"
-              placeholder="输入关键词，例如 设计、群、原型、公告"
-              value="${escapeHtml(state.searchQuery)}"
-            />
-            <div class="list">
-              ${results.length
-                ? results
-                    .map(
-                      (item) => `
-                        <button
-                          class="list-item"
-                          data-action="jump-to-message"
-                          data-chat-id="${item.chat.id}"
-                          data-message-id="${item.message.id}"
-                        >
-                          ${renderAvatar(item.message.senderName, item.message.senderTone || "mint", "")}
-                          <div class="list-item__main">
-                            <div class="list-item__row">
-                              <p class="list-item__title">${escapeHtml(item.chat.name)}</p>
-                              <span class="meta">${escapeHtml(item.message.time)}</span>
-                            </div>
-                            <p class="list-item__summary">${escapeHtml(item.message.content)}</p>
-                            <p class="list-item__note">${escapeHtml(item.message.senderName)} · ${escapeHtml(item.chat.type)}</p>
-                          </div>
-                        </button>
-                      `,
-                    )
-                    .join("")
-                : '<div class="empty-state">还没有匹配结果，试着输入 “设计” 或 “群”。</div>'}
-            </div>
-          </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Why This Matters</span>
-              <h3 class="title-md">搜索页设计目标</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack">
-            <div class="helper-note">搜索页不应只给结果，而要保留会话、发送者、时间和跳转上下文。</div>
-            <div class="helper-note">未来可扩展到文件、成员、公告、操作日志的统一检索。</div>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderLabOverview() {
-    return `
-      <section class="discover-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Capability Horizon</span>
-              <h3 class="title-md">从即时通讯延展到协作操作系统</h3>
-            </div>
-          </header>
-          <div class="stage-card__body stack lg">
-            <article class="hero">
-              <div class="hero-grid">
-                <div class="stack">
-                  <h3 class="title-lg">IM 不应该只停留在发消息。</h3>
-                  <p class="body-md">
-                    未来扩展位统一使用同一套视觉语言和上下文结构，让“通话、AI、文件、自动化”自然嵌入当前会话体系，而不是另起一套产品。
-                  </p>
-                </div>
-                <div class="chip-row">
-                  <span class="chip active">Calls</span>
-                  <span class="chip">AI</span>
-                  <span class="chip">Files</span>
-                  <span class="chip">Flows</span>
-                </div>
-              </div>
-            </article>
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">接入路径</h4>
-                <span class="badge">3 steps</span>
-              </div>
-              <div class="timeline">
-                <div class="timeline-item">
-                  <span class="meta">01</span>
-                  <div class="helper-note">会话顶部动作区：先给用户“进入扩展”的直观入口。</div>
-                </div>
-                <div class="timeline-item">
-                  <span class="meta">02</span>
-                  <div class="helper-note">聊天右栏上下文：把通话、AI、文件和自动化放进当前会话对象之下。</div>
-                </div>
-                <div class="timeline-item">
-                  <span class="meta">03</span>
-                  <div class="helper-note">搜索与通知回流：扩展结果仍然能回跳到原始消息和群组空间。</div>
-                </div>
-              </div>
-            </article>
-            <div class="extension-grid">
-              ${data.extensions
+        <div class="prototype-toolbar__controls">
+          <div class="toolbar-block">
+            <span class="toolbar-label">快速跳转</span>
+            <div class="segmented segmented--toolbar">
+              ${shortcuts
                 .map(
                   (item) => `
-                    <button class="extension-card stack" data-action="navigate" data-route="${item.route}">
-                      <div class="row space-between">
-                        <h4 class="title-sm">${escapeHtml(item.title)}</h4>
-                        <span class="badge">${escapeHtml(item.status)}</span>
-                      </div>
-                      <p class="body-sm">${escapeHtml(item.summary)}</p>
-                      <ul class="kicker-list">
-                        ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
-                      </ul>
+                    <button
+                      class="segmented__item ${item.active ? "is-active" : ""}"
+                      data-action="navigate"
+                      data-route="${item.route}"
+                    >
+                      ${escapeHtml(item.label)}
                     </button>
                   `,
                 )
                 .join("")}
             </div>
-            <div class="card-grid">
-              <article class="extension-card stack">
-                <h4 class="title-sm">统一导航</h4>
-                <p class="body-sm">未来扩展不再拆出独立产品壳，而是挂回统一工作台导航。</p>
-              </article>
-              <article class="extension-card stack">
-                <h4 class="title-sm">统一 token</h4>
-                <p class="body-sm">继续沿用现在的颜色、间距、动效、圆角，避免信息流断层。</p>
-              </article>
-              <article class="extension-card stack">
-                <h4 class="title-sm">统一返回路径</h4>
-                <p class="body-sm">每个模块都能回到消息、群聊、搜索或设置，不做死胡同页面。</p>
-              </article>
-            </div>
           </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Expansion Rules</span>
-              <h3 class="title-md">扩展规则</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack">
-            <div class="helper-note">扩展能力不新增新配色体系，继续使用主应用 token。</div>
-            <div class="helper-note">所有扩展页面都应从会话上下文进入，而不是孤立应用。</div>
-            <div class="helper-note">未来即使独立收费，也应该保留统一导航和返回路径。</div>
-            <article class="preview-card stack">
-              <h4 class="title-sm">状态分布</h4>
-              <div class="list">
-                ${data.extensions
-                  .map(
-                    (item) => `
-                      <div class="list-item">
-                        <div class="list-item__main">
-                          <div class="list-item__row">
-                            <p class="list-item__title">${escapeHtml(item.title)}</p>
-                            <span class="badge">${escapeHtml(item.status)}</span>
-                          </div>
-                          <p class="list-item__summary">${escapeHtml(item.summary)}</p>
-                        </div>
-                      </div>
-                    `,
-                  )
-                  .join("")}
-              </div>
-            </article>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderLabDetail(moduleId) {
-    const module = data.extensions.find((item) => item.id === moduleId);
-    if (!module) {
-      return renderLabOverview();
-    }
-    return `
-      <section class="settings-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="stack">
-              <span class="eyebrow">Future Module</span>
-              <h3 class="title-md">${escapeHtml(module.title)}</h3>
-            </div>
-            <span class="badge">${escapeHtml(module.status)}</span>
-          </header>
-          <div class="stage-card__body stack lg">
-            <article class="hero">
-              <div class="stack">
-                <h3 class="title-lg">${escapeHtml(module.summary)}</h3>
-                <p class="body-md">
-                  这不是一个独立外链入口，而是未来挂入聊天右栏、消息操作菜单或顶部工作区的能力模块。
-                </p>
-              </div>
-            </article>
-            <div class="card-grid">
-              ${module.bullets
-                .map(
-                  (bullet) => `
-                    <article class="extension-card stack">
-                      <h4 class="title-sm">${escapeHtml(bullet)}</h4>
-                      <p class="body-sm">延续主 IM 的组件和动效规则，不额外制造视觉断层。</p>
-                    </article>
-                  `,
-                )
-                .join("")}
-            </div>
-          </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Entry Points</span>
-              <h3 class="title-md">建议入口</h3>
-            </div>
-          </header>
-          <div class="context-card__body stack">
-            <div class="helper-note">聊天顶部操作区</div>
-            <div class="helper-note">消息长按菜单</div>
-            <div class="helper-note">群组上下文面板</div>
-            <button class="button primary" data-action="navigate" data-route="/lab">返回扩展总览</button>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderSettingsRoute() {
-    const enabledNotificationCount = Object.values(data.settings.notifications).filter(Boolean).length;
-    const enabledPrivacyCount = Object.values(data.settings.privacy).filter(Boolean).length;
-    return `
-      <section class="settings-layout layout-main-first">
-        <section class="stage-card">
-          <header class="stage-card__header">
-            <div class="row">
-              ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "large")}
-              <div class="stack">
-                <h3 class="title-md">${escapeHtml(data.currentUser.name)}</h3>
-                <p class="body-sm">${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</p>
+          <div class="toolbar-inline">
+            <div class="toolbar-block">
+              <span class="toolbar-label">主题</span>
+              <div class="segmented">
+                ${renderThemeButton("light", "浅色")}
+                ${renderThemeButton("dark", "深色")}
               </div>
             </div>
-            <button class="button secondary" data-action="navigate" data-route="/auth/login">退出到登录页</button>
-          </header>
-          <div class="stage-card__body stack lg">
-            <div class="metric-grid">
-              <article class="metric-card">
-                <p class="meta">当前主题</p>
-                <p class="metric-card__value">${escapeHtml(state.theme)}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">界面密度</p>
-                <p class="metric-card__value">${escapeHtml(state.density)}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">通知开关</p>
-                <p class="metric-card__value">${enabledNotificationCount}</p>
-              </article>
-              <article class="metric-card">
-                <p class="meta">隐私开关</p>
-                <p class="metric-card__value">${enabledPrivacyCount}</p>
-              </article>
-            </div>
-
-            <div class="card-grid">
-              <article class="settings-section stack">
-                <div class="row space-between">
-                  <h4 class="title-sm">主题</h4>
-                  <button class="button primary" data-action="toggle-theme">${state.theme === "dark" ? "切到浅色" : "切到暗色"}</button>
-                </div>
-                <p class="body-sm">当前主题：${escapeHtml(state.theme)}</p>
-              </article>
-              <article class="settings-section stack">
-                <div class="row space-between">
-                  <h4 class="title-sm">界面密度</h4>
-                  <button class="button secondary" data-action="toggle-density">${state.density === "comfortable" ? "切到紧凑" : "切到舒适"}</button>
-                </div>
-                <p class="body-sm">当前密度：${escapeHtml(state.density)}</p>
-              </article>
-            </div>
-
-            <div class="card-grid">
-              <article class="settings-section stack">
-                <h4 class="title-sm">通知</h4>
-                <div class="row space-between">
-                  <span>提及通知</span>
-                  <button class="switch ${data.settings.notifications.mentions ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="mentions"></button>
-                </div>
-                <div class="row space-between">
-                  <span>每日摘要</span>
-                  <button class="switch ${data.settings.notifications.summaries ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="summaries"></button>
-                </div>
-                <div class="row space-between">
-                  <span>文件提醒</span>
-                  <button class="switch ${data.settings.notifications.fileAlerts ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="fileAlerts"></button>
-                </div>
-              </article>
-              <article class="settings-section stack">
-                <h4 class="title-sm">隐私</h4>
-                <div class="row space-between">
-                  <span>已读回执</span>
-                  <button class="switch ${data.settings.privacy.readReceipt ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="readReceipt"></button>
-                </div>
-                <div class="row space-between">
-                  <span>正在输入状态</span>
-                  <button class="switch ${data.settings.privacy.typingStatus ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="typingStatus"></button>
-                </div>
-                <div class="row space-between">
-                  <span>自动下载媒体</span>
-                  <button class="switch ${data.settings.privacy.autoDownloadMedia ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="autoDownloadMedia"></button>
-                </div>
-              </article>
-            </div>
-
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">实时预览</h4>
-                <span class="badge">${escapeHtml(state.theme)} / ${escapeHtml(state.density)}</span>
+            <div class="toolbar-block">
+              <span class="toolbar-label">密度</span>
+              <div class="segmented">
+                ${renderDensityButton("regular", "2K")}
+                ${renderDensityButton("mid", "1.5K")}
+                ${renderDensityButton("compact", "1K")}
               </div>
-              <div class="card-grid">
-                <div class="preview-card stack">
-                  <p class="meta">通知预览</p>
-                  <div class="list-item">
-                    ${renderAvatar("Ops Copilot", "violet", "")}
-                    <div class="list-item__main">
-                      <div class="list-item__row">
-                        <p class="list-item__title">Ops Copilot</p>
-                        <span class="badge">${data.settings.notifications.mentions ? "提醒开" : "提醒关"}</span>
-                      </div>
-                      <p class="list-item__summary">已根据当前主题与密度刷新通知卡片样式。</p>
-                    </div>
-                  </div>
-                </div>
-                <div class="preview-card stack">
-                  <p class="meta">消息预览</p>
-                  <div class="message-board">
-                    <div class="message-row self">
-                      <div class="message-bubble">
-                        当前这页不只是设置项列表，而是整个原型的视觉开关面板。
-                        <div class="message-meta">
-                          <span>现在</span>
-                          <span>${data.settings.privacy.readReceipt ? "已读回执开启" : "已读回执关闭"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </article>
-          </div>
-        </section>
-        <aside class="context-card">
-          <header class="context-card__header">
-            <div class="stack">
-              <span class="eyebrow">Spec Hooks</span>
-              <h3 class="title-md">这页的作用</h3>
             </div>
-          </header>
-          <div class="context-card__body stack">
-            <div class="helper-note">设置页不仅是功能堆积页，也是主题、密度、通知策略的实时演示面板。</div>
-            <div class="helper-note">切换主题和密度后，整个原型会同步变化，便于评审不同视觉方案。</div>
-            <article class="preview-card stack">
-              <h4 class="title-sm">持久化说明</h4>
-              <div class="helper-note">主题、密度以及设置开关会写入 localStorage，刷新页面后仍然保留。</div>
-            </article>
-          </div>
-        </aside>
-      </section>
-    `;
-  }
-
-  function renderChatListItem(chat, active) {
-    const unread = chat.unread > 0 ? `<span class="badge danger">${chat.unread}</span>` : `<span class="meta">${escapeHtml(chat.lastTime)}</span>`;
-    return `
-      <button
-        class="list-item ${active ? "active" : ""}"
-        data-action="navigate"
-        data-route="/chat/${chat.id}"
-      >
-        ${renderAvatar(chat.name, chat.avatarTone, "")}
-        <div class="list-item__main">
-          <div class="list-item__row">
-            <p class="list-item__title">${escapeHtml(chat.name)}</p>
-            ${unread}
-          </div>
-          <p class="list-item__summary">${escapeHtml(chat.lastMessage)}</p>
-          <div class="row wrap">
-            ${chat.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
           </div>
         </div>
+      </header>
+    `;
+  }
+
+  function renderThemeButton(value, label) {
+    return `
+      <button
+        class="segmented__item ${state.theme === value ? "is-active" : ""}"
+        data-action="set-theme"
+        data-theme="${value}"
+      >
+        ${label}
       </button>
     `;
   }
 
-  function renderAvatar(name, tone, sizeClass) {
-    const label = initials(name);
-    const toneClass = toneClassMap[tone] || "";
-    return `<span class="avatar ${toneClass} ${sizeClass || ""}" aria-hidden="true">${escapeHtml(label)}</span>`;
+  function renderDensityButton(value, label) {
+    return `
+      <button
+        class="segmented__item ${state.density === value ? "is-active" : ""}"
+        data-action="set-density"
+        data-density="${value}"
+      >
+        ${label}
+      </button>
+    `;
   }
 
-  function renderModal() {
-    if (!state.modal) {
-      return '<div class="modal-root" id="modal-root" aria-hidden="true"></div>';
+  function renderPhone(route) {
+    return `
+      <section class="phone-frame" aria-label="移动端原型画布">
+        <div class="phone-frame__notch"></div>
+        <div class="phone-screen">
+          <div class="phone-status-bar">
+            <span>9:41</span>
+            <span>5G · 87%</span>
+          </div>
+          ${renderRoute(route)}
+          ${renderTabBar(route)}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderTabBar(route) {
+    const items = [
+      { id: "chats", label: "聊天", route: "/chats", icon: "聊" },
+      { id: "contacts", label: "联系人", route: "/contacts", icon: "联" },
+      { id: "settings", label: "设置", route: "/settings", icon: "设" },
+    ];
+
+    if (!["chats", "contacts", "settings"].includes(route.section)) {
+      return "";
     }
 
-    if (state.modal.type === "send-request") {
-      const user = data.searchUsers.find((item) => item.id === state.modal.userId);
-      if (!user) {
-        return '<div class="modal-root" id="modal-root" aria-hidden="true"></div>';
-      }
+    return `
+      <nav class="tab-bar" aria-label="底部主导航">
+        ${items
+          .map((item) => {
+            const active = route.section === item.id;
+            return `
+              <button
+                class="tab-bar__item ${active ? "is-active" : ""}"
+                data-action="navigate"
+                data-route="${item.route}"
+              >
+                <span class="tab-bar__icon">${item.icon}</span>
+                <span>${item.label}</span>
+              </button>
+            `;
+          })
+          .join("")}
+      </nav>
+    `;
+  }
+
+  function renderRoute(route) {
+    if (route.section === "spec") {
+      return renderSpecScreen();
+    }
+    if (route.section === "auth") {
+      return renderAuthScreen(route);
+    }
+    if (route.section === "chats") {
+      return renderChatListScreen();
+    }
+    if (route.section === "chat-detail") {
+      return renderChatDetailScreen(route.chatId);
+    }
+    if (route.section === "contacts") {
+      return renderContactsScreen();
+    }
+    if (route.section === "contact-requests") {
+      return renderFriendRequestsScreen();
+    }
+    if (route.section === "contact-add") {
+      return renderAddFriendScreen();
+    }
+    if (route.section === "contact-profile") {
+      return renderContactProfileScreen(route.contactId);
+    }
+    if (route.section === "groups") {
+      return renderGroupsScreen();
+    }
+    if (route.section === "group-create") {
+      return renderCreateGroupScreen();
+    }
+    if (route.section === "group-settings") {
+      return renderGroupSettingsScreen(route.groupId);
+    }
+    if (route.section === "search") {
+      return renderSearchScreen();
+    }
+    if (route.section === "lab") {
+      return route.moduleId ? renderLabDetailScreen(route.moduleId) : renderLabOverviewScreen();
+    }
+    if (route.section === "settings") {
+      return renderSettingsScreen();
+    }
+    return renderSpecScreen();
+  }
+
+  function renderScreenHeader(options) {
+    const backButton = options.backPath
+      ? `
+        <button
+          class="icon-button"
+          data-action="navigate"
+          data-route="${options.backPath}"
+          aria-label="返回"
+        >
+          ←
+        </button>
+      `
+      : "";
+
+    const actions = options.actions && options.actions.length
+      ? `<div class="screen-header__actions">${options.actions.join("")}</div>`
+      : "";
+
+    return `
+      <header class="screen-header ${options.root ? "screen-header--root" : ""}">
+        ${backButton}
+        <div class="screen-header__main">
+          <h2>${escapeHtml(options.title)}</h2>
+          ${options.subtitle ? `<p>${escapeHtml(options.subtitle)}</p>` : ""}
+        </div>
+        ${actions}
+      </header>
+    `;
+  }
+
+  function renderSpecScreen() {
+    const system = data.designSystem;
+    const quickActions = data.quickActions
+      .map(
+        (item) => `
+          <button class="quick-action-card" data-action="navigate" data-route="${item.route}">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.note)}</span>
+          </button>
+        `,
+      )
+      .join("");
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "移动端设计系统",
+          subtitle: "基于 Flutter 真实信息架构重做 UI 规范",
+          root: true,
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="hero-card hero-card--accent">
+              <span class="eyebrow">Visual Thesis</span>
+              <h3>${escapeHtml(system.thesis)}</h3>
+              <p>底部主导航固定为聊天 / 联系人 / 设置，其他能力全部按二级页面推进，不再用桌面式三栏工作台表达移动端。</p>
+              <div class="chip-row">
+                <span class="chip chip--filled">Mobile-first</span>
+                <span class="chip chip--filled">真实密度分档</span>
+                <span class="chip chip--filled">轻表面层级</span>
+              </div>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>规范切面</h3>
+                <div class="segmented">
+                  ${renderSpecTabButton("tokens", "Tokens")}
+                  ${renderSpecTabButton("components", "Components")}
+                  ${renderSpecTabButton("flows", "Flows")}
+                </div>
+              </div>
+              ${renderSpecTabContent()}
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>优先评审路径</h3>
+                <span class="badge">先系统后页面</span>
+              </div>
+              <div class="quick-action-grid">
+                ${quickActions}
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSpecTabButton(id, label) {
+    return `
+      <button
+        class="segmented__item ${state.activeSpecTab === id ? "is-active" : ""}"
+        data-action="set-spec-tab"
+        data-tab="${id}"
+      >
+        ${label}
+      </button>
+    `;
+  }
+
+  function renderSpecTabContent() {
+    if (state.activeSpecTab === "components") {
+      const chat = sortedChats()[0];
+      const contact = filteredContacts()[0] || data.contacts[0];
       return `
-        <div class="modal-root active" id="modal-root" aria-hidden="false">
-          <div class="modal-card stack lg">
-            <div class="stack">
-              <span class="eyebrow">Friend Request</span>
-              <h3 class="title-md">发送好友申请给 ${escapeHtml(user.name)}</h3>
-              <p class="body-md">原型里保留一个轻量确认层，避免把用户直接甩进另一个页面。</p>
+        <div class="screen-stack">
+          <div class="preview-surface">
+            <p class="section-title">导航条</p>
+            <div class="component-bar-preview">
+              <button class="icon-button icon-button--preview">←</button>
+              <div class="component-bar-preview__body">
+                <strong>聊天详情</strong>
+                <span>群成员 18 · 在线 11</span>
+              </div>
+              <button class="ghost-button ghost-button--small">群设置</button>
             </div>
-            <div class="helper-note">${escapeHtml(state.friendNote)}</div>
-            <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
-              <button class="button secondary" data-action="close-modal">取消</button>
-              <button class="button primary" data-action="confirm-send-request" data-user-id="${user.id}">确认发送</button>
+          </div>
+          <div class="preview-surface">
+            <p class="section-title">会话卡片</p>
+            <div class="list-card">
+              ${renderConversationRow(chat)}
+            </div>
+          </div>
+          <div class="preview-surface">
+            <p class="section-title">消息气泡 + 输入区</p>
+            <div class="mini-message-preview">
+              ${renderMessageBubble(chat, chat.messages[0])}
+              ${renderMessageBubble(chat, chat.messages[1])}
+            </div>
+            <div class="composer composer--preview">
+              <div class="composer__inner">
+                <button class="icon-button icon-button--soft" disabled>☺</button>
+                <div class="composer__field composer__field--preview">
+                  <span>发送消息...</span>
+                </div>
+                <button class="icon-button icon-button--soft" disabled>＋</button>
+                <button class="primary-button primary-button--small" disabled>发送</button>
+              </div>
+            </div>
+          </div>
+          <div class="preview-surface">
+            <p class="section-title">联系人 + 设置项</p>
+            <div class="list-card">
+              ${renderContactRow(contact)}
+            </div>
+            <div class="settings-list">
+              ${renderMenuRow("账号与安全", "手机号、设备、密码与登录态", false)}
+              ${renderMenuRow("聊天", "消息、字体、通知和存储偏好", false)}
             </div>
           </div>
         </div>
       `;
     }
 
-    return '<div class="modal-root" id="modal-root" aria-hidden="true"></div>';
-  }
-
-  function renderToasts() {
-    return `
-      <div class="toast-stack">
-        ${state.toasts
-          .map(
-            (toast) => `
-              <div class="toast">
-                <p class="title-sm" style="margin-bottom: 6px;">${escapeHtml(toast.title)}</p>
-                <p class="body-sm">${escapeHtml(toast.message)}</p>
+    if (state.activeSpecTab === "flows") {
+      return `
+        <div class="screen-stack">
+          <div class="flow-board">
+            <div class="flow-step">
+              <span class="flow-step__index">01</span>
+              <div>
+                <strong>主导航</strong>
+                <p>聊天 / 联系人 / 设置</p>
               </div>
-            `,
-          )
-          .join("")}
+            </div>
+            <div class="flow-step">
+              <span class="flow-step__index">02</span>
+              <div>
+                <strong>二级流转</strong>
+                <p>聊天详情、好友申请、添加好友、群设置、搜索</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <span class="flow-step__index">03</span>
+              <div>
+                <strong>未来扩展</strong>
+                <p>通话、AI、文件、自动化全部走独立场景页</p>
+              </div>
+            </div>
+          </div>
+          <div class="surface-block">
+            <p class="section-title">页面地图</p>
+            <div class="page-map">
+              ${data.designSystem.pageTemplates
+                .map((item) => `<span class="page-map__item">${escapeHtml(item)}</span>`)
+                .join("")}
+            </div>
+          </div>
+          <div class="surface-block">
+            <p class="section-title">组件封装建议</p>
+            <ul class="bullet-list">
+              <li>App Bar：根页 / 二级页两种模式，统一标题、返回、右侧动作布局。</li>
+              <li>Cell：会话、联系人、设置项都用同一套左右结构和信息层级。</li>
+              <li>Message Bubble：单聊 / 群聊共用，只在头像、昵称、状态位扩展。</li>
+              <li>Composer：表情面板、更多面板、发送态共用一套容器节奏。</li>
+            </ul>
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="screen-stack">
+        <div class="token-grid">
+          ${data.designSystem.tokens.colors
+            .map(
+              (item) => `
+                <div class="token-card token-card--swatch">
+                  <span class="swatch" style="background:${item[1]}"></span>
+                  <strong>${escapeHtml(item[0])}</strong>
+                  <span>${escapeHtml(item[1])}</span>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+        <div class="token-stack">
+          <div class="token-card">
+            <span class="section-title">Typography</span>
+            <ul class="token-list">
+              ${data.designSystem.tokens.typography
+                .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
+                .join("")}
+            </ul>
+          </div>
+          <div class="token-card">
+            <span class="section-title">Spacing & Motion</span>
+            <ul class="token-list">
+              ${data.designSystem.tokens.spacing
+                .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
+                .join("")}
+            </ul>
+          </div>
+        </div>
+        <div class="density-preview">
+          <div class="density-preview__item">
+            <strong>2K</strong>
+            <span>scale 1.00</span>
+            <p>保留完整留白，标题和头像都维持自然尺寸。</p>
+          </div>
+          <div class="density-preview__item">
+            <strong>1.5K</strong>
+            <span>scale 0.94</span>
+            <p>轻收紧字号和圆角，避免列表、输入框显得偏胖。</p>
+          </div>
+          <div class="density-preview__item">
+            <strong>1K</strong>
+            <span>scale 0.88</span>
+            <p>进一步压缩间距与控件高度，但不牺牲触达面积。</p>
+          </div>
+        </div>
       </div>
     `;
   }
 
-  function bindInputs(route) {
-    const chatDraft = document.getElementById("chat-draft");
-    if (chatDraft) {
-      chatDraft.addEventListener("input", (event) => {
-        state.chatDrafts[state.activeChatId] = event.target.value;
-      });
-    }
-
-    const contactFilter = document.getElementById("contact-filter-input");
-    if (contactFilter) {
-      contactFilter.addEventListener("input", (event) => {
-        state.contactFilter = event.target.value;
-        render();
-      });
-    }
-
-    const chatFilter = document.getElementById("chat-filter-input");
-    if (chatFilter) {
-      chatFilter.addEventListener("input", (event) => {
-        state.chatFilter = event.target.value;
-        render();
-      });
-    }
-
-    const friendSearch = document.getElementById("friend-search-input");
-    if (friendSearch) {
-      friendSearch.addEventListener("input", (event) => {
-        state.friendSearch = event.target.value;
-        render();
-      });
-    }
-
-    const friendNote = document.getElementById("friend-note-input");
-    if (friendNote) {
-      friendNote.addEventListener("input", (event) => {
-        state.friendNote = event.target.value;
-      });
-    }
-
-    const groupName = document.getElementById("group-name-input");
-    if (groupName) {
-      groupName.addEventListener("input", (event) => {
-        state.createGroupName = event.target.value;
-        render();
-      });
-    }
-
-    const groupMemberSearch = document.getElementById("group-member-search-input");
-    if (groupMemberSearch) {
-      groupMemberSearch.addEventListener("input", (event) => {
-        state.groupMemberFilter = event.target.value;
-        render();
-      });
-    }
-
-    const messageSearch = document.getElementById("message-search-input");
-    if (messageSearch) {
-      messageSearch.addEventListener("input", (event) => {
-        state.searchQuery = event.target.value;
-        render();
-      });
-    }
-
-    if (route.section === "search" && !state.searchQuery) {
-      state.searchQuery = "";
-    }
+  function renderAuthScreen() {
+    return `
+      <section class="screen screen--auth">
+        <div class="screen-scroll screen-scroll--auth">
+          <div class="auth-lockup">
+            <span class="prototype-toolbar__eyebrow">Mock Entry</span>
+            <h2>登录后直接进入真实主导航结构</h2>
+            <p>这里只保留移动端登录壳层，用来验证品牌、输入区和首屏层级。</p>
+          </div>
+          <form class="auth-card" data-form="login-form">
+            <label class="field">
+              <span>手机号</span>
+              <input class="field__input" name="phone" placeholder="请输入手机号" />
+            </label>
+            <label class="field">
+              <span>验证码</span>
+              <input class="field__input" name="otp" placeholder="输入 123456 即可" />
+            </label>
+            <button class="primary-button" type="submit">进入原型</button>
+            <button
+              class="ghost-button ghost-button--wide"
+              type="button"
+              data-action="navigate"
+              data-route="/spec"
+            >
+              先看设计系统
+            </button>
+          </form>
+        </div>
+      </section>
+    `;
   }
 
-  function handleClick(event) {
-    const target = event.target.closest("[data-action]");
-    if (!target) return;
+  function renderChatListScreen() {
+    const chats = sortedChats().filter(matchesChatFilter);
+    const unreadTotal = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
 
-    const action = target.getAttribute("data-action");
-
-    if (action === "navigate") {
-      const route = target.getAttribute("data-route");
-      if (route) navigate(route);
-      return;
-    }
-
-    if (action === "prototype-login") {
-      navigate("/chat/" + state.activeChatId);
-      showToast("已进入原型", "当前登录流程为 mock，重点是演示 UI 和交互。");
-      return;
-    }
-
-    if (action === "send-message") {
-      sendMessage();
-      return;
-    }
-
-    if (action === "simulate-reply") {
-      simulateReply();
-      return;
-    }
-
-    if (action === "increment-reaction") {
-      incrementReaction(
-        target.getAttribute("data-chat-id"),
-        target.getAttribute("data-message-id"),
-        target.getAttribute("data-emoji"),
-      );
-      return;
-    }
-
-    if (action === "open-request-modal") {
-      state.modal = { type: "send-request", userId: target.getAttribute("data-user-id") };
-      render();
-      return;
-    }
-
-    if (action === "close-modal") {
-      state.modal = null;
-      render();
-      return;
-    }
-
-    if (action === "confirm-send-request") {
-      confirmSendRequest(target.getAttribute("data-user-id"));
-      return;
-    }
-
-    if (action === "accept-request") {
-      updateRequest(target.getAttribute("data-request-id"), "accepted");
-      return;
-    }
-
-    if (action === "reject-request") {
-      updateRequest(target.getAttribute("data-request-id"), "rejected");
-      return;
-    }
-
-    if (action === "accept-by-user-id") {
-      const request = data.friendRequests.find((item) => item.userId === target.getAttribute("data-user-id") && item.type === "incoming");
-      if (request) {
-        updateRequest(request.id, "accepted");
-      }
-      return;
-    }
-
-    if (action === "clear-group-members") {
-      state.createGroupMembers.clear();
-      render();
-      return;
-    }
-
-    if (action === "create-group") {
-      createGroup();
-      return;
-    }
-
-    if (action === "toggle-group-policy") {
-      toggleGroupPolicy(target.getAttribute("data-group-id"));
-      return;
-    }
-
-    if (action === "jump-to-message") {
-      const chatId = target.getAttribute("data-chat-id");
-      state.highlightMessageId = target.getAttribute("data-message-id");
-      if (chatId) {
-        navigate("/chat/" + chatId, { preserveHighlight: true });
-      }
-      return;
-    }
-
-    if (action === "set-message-search") {
-      state.searchQuery = target.getAttribute("data-preset") || "";
-      navigate("/search");
-      return;
-    }
-
-    if (action === "toggle-theme") {
-      state.theme = state.theme === "dark" ? "light" : "dark";
-      data.settings.theme = state.theme;
-      persistUiState();
-      render();
-      return;
-    }
-
-    if (action === "toggle-density") {
-      state.density = state.density === "comfortable" ? "compact" : "comfortable";
-      data.settings.density = state.density;
-      persistUiState();
-      render();
-      return;
-    }
-
-    if (action === "toggle-setting") {
-      const domain = target.getAttribute("data-domain");
-      const key = target.getAttribute("data-key");
-      if (domain && key && data.settings[domain]) {
-        data.settings[domain][key] = !data.settings[domain][key];
-        persistUiState();
-        render();
-      }
-      return;
-    }
-
-    if (action === "open-direct-chat") {
-      const contactId = target.getAttribute("data-contact-id");
-      if (contactId) {
-        const chat = ensureDirectChat(contactId);
-        navigate("/chat/" + chat.id);
-      }
-      return;
-    }
-
-    if (action === "preset-group-member") {
-      const contactId = target.getAttribute("data-contact-id");
-      if (contactId) {
-        state.createGroupMembers.add(contactId);
-        navigate("/groups/create");
-      }
-      return;
-    }
-
-    if (action === "insert-draft-token") {
-      const token = target.getAttribute("data-token") || "";
-      const existing = state.chatDrafts[state.activeChatId] || "";
-      state.chatDrafts[state.activeChatId] = `${existing}${existing ? " " : ""}${token} `;
-      render();
-      return;
-    }
-
-    if (action === "show-toast") {
-      showToast("原型说明", target.getAttribute("data-message") || "该能力将在正式重构阶段展开。");
-      return;
-    }
+    return `
+      <section class="screen">
+        <div class="screen-scroll">
+          ${renderScreenHeader({
+            title: "聊天",
+            subtitle: `未读 ${unreadTotal} · 主导航一级入口`,
+            root: true,
+            actions: [
+              `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/search">搜索</button>`,
+              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">＋</button>`,
+            ],
+          })}
+          <div class="screen-stack">
+            <label class="search-box">
+              <span>搜索会话、标签或最后一条消息</span>
+              <input
+                id="chat-filter-input"
+                class="search-box__input"
+                value="${escapeHtml(state.chatFilter)}"
+                placeholder="例如：发布、AI、设计"
+              />
+            </label>
+            <section class="hero-card hero-card--soft">
+              <span class="eyebrow">Content Plan</span>
+              <h3>聊天列表只负责定位和进入会话，不再和详情并排出现。</h3>
+              <div class="inline-actions">
+                <button class="ghost-button" data-action="navigate" data-route="/groups/create">建群</button>
+                <button class="ghost-button" data-action="navigate" data-route="/contacts/add">加好友</button>
+              </div>
+            </section>
+            <section class="list-card">
+              ${chats.length ? chats.map((chat) => renderConversationRow(chat)).join("") : renderEmptyState("没有匹配会话", "尝试切换关键词，或直接进入好友与群聊创建流程。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
   }
 
-  function handleChange(event) {
-    const target = event.target;
-    if (!target || target.getAttribute("data-action") !== "toggle-group-member") {
-      return;
-    }
+  function renderConversationRow(chat) {
+    const titleMeta = chat.pinned ? `<span class="badge">置顶</span>` : `<span class="list-meta">${escapeHtml(chat.lastTime)}</span>`;
+    const unread = chat.unread > 0 ? `<span class="badge badge--danger">${chat.unread}</span>` : "";
 
-    const contactId = target.getAttribute("data-contact-id");
-    if (!contactId) return;
-
-    if (target.checked) {
-      state.createGroupMembers.add(contactId);
-    } else {
-      state.createGroupMembers.delete(contactId);
-    }
-    render();
+    return `
+      <button
+        class="conversation-row"
+        data-action="navigate"
+        data-route="/chat/${chat.id}"
+      >
+        ${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}
+        <span class="conversation-row__body">
+          <span class="conversation-row__top">
+            <strong>${escapeHtml(chat.name)}</strong>
+            <span class="conversation-row__right">${titleMeta}${unread}</span>
+          </span>
+          <span class="conversation-row__summary">${escapeHtml(chat.lastMessage)}</span>
+          <span class="conversation-row__tags">
+            ${chat.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+          </span>
+        </span>
+      </button>
+    `;
   }
 
-  function handleSubmit(event) {
-    event.preventDefault();
-  }
-
-  function sendMessage() {
-    const chat = findChat(state.activeChatId);
-    if (!chat) return;
-    const draft = (state.chatDrafts[chat.id] || "").trim();
-    if (!draft) {
-      showToast("发送失败", "先输入一条 mock 消息再发送。");
-      return;
-    }
-    chat.messages.push({
-      id: `m_${Date.now()}`,
-      senderId: data.currentUser.id,
-      senderName: data.currentUser.name,
-      senderTone: data.currentUser.avatarTone,
-      content: draft,
-      time: "刚刚",
-      self: true,
-      status: "已送达",
-      reactions: [],
-    });
-    chat.lastMessage = draft;
-    chat.lastTime = "刚刚";
-    chat.unread = 0;
-    chat.sortKey = Date.now();
-    state.chatDrafts[chat.id] = "";
-    render();
-    showToast("已发送", "消息已经写入 mock 会话流。");
-  }
-
-  function simulateReply() {
-    const chat = findChat(state.activeChatId);
-    if (!chat) return;
-    const templates = [
-      "收到，我会把这个入口在右侧上下文面板里再加强。",
-      "这个信息层级可以，我建议把搜索结果的会话名再放大一点。",
-      "OK，后续把文件协作页也纳入统一 token 即可。",
-    ];
-    const sender = contactListForChat(chat).find((item) => item.id !== data.currentUser.id) || data.contacts[0];
-    chat.messages.push({
-      id: `m_reply_${Date.now()}`,
-      senderId: sender.id,
-      senderName: sender.name,
-      senderTone: sender.tone,
-      content: templates[Math.floor(Math.random() * templates.length)],
-      time: "刚刚",
-      self: false,
-      reactions: [{ emoji: "👍", count: 1 }],
-    });
-    chat.lastMessage = chat.messages[chat.messages.length - 1].content;
-    chat.lastTime = "刚刚";
-    chat.unread = 0;
-    chat.sortKey = Date.now();
-    render();
-    showToast("模拟来消息", "新的消息从下往上进入列表，用来演示消息入场动画。");
-  }
-
-  function incrementReaction(chatId, messageId, emoji) {
+  function renderChatDetailScreen(chatId) {
     const chat = findChat(chatId);
-    if (!chat) return;
-    const message = chat.messages.find((item) => item.id === messageId);
-    if (!message) return;
-    if (!message.reactions) {
-      message.reactions = [];
+    if (!chat) {
+      return renderFallbackScreen("会话不存在", "/chats");
     }
-    const reaction = message.reactions.find((item) => item.emoji === emoji);
-    if (reaction) {
-      reaction.count += 1;
-    } else {
-      message.reactions.push({ emoji: emoji || "👍", count: 1 });
-    }
-    render();
+
+    const group = findGroupByChatId(chat.id);
+    const targetContact = chat.type === "single" ? findDirectContact(chat) : null;
+    const draft = state.chatDrafts[chat.id] || "";
+
+    return `
+      <section class="screen screen--chat-detail">
+        ${renderScreenHeader({
+          title: chat.name,
+          subtitle: group
+            ? `${group.memberCount} 位成员 · 在线 ${group.onlineCount}`
+            : targetContact
+            ? `${targetContact.title} · ${targetContact.status}`
+            : chat.description || "单聊",
+          backPath: "/chats",
+          actions: [
+            group
+              ? `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>`
+              : targetContact
+              ? `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/contacts/profile/${targetContact.id}">资料</button>`
+              : "",
+          ].filter(Boolean),
+        })}
+        <div class="screen-scroll screen-scroll--chat">
+          <div class="screen-stack screen-stack--tight">
+            ${
+              group
+                ? `
+                  <section class="surface-banner">
+                    <strong>群公告</strong>
+                    <p>${escapeHtml(group.notice)}</p>
+                  </section>
+                `
+                : `
+                  <section class="surface-banner surface-banner--subtle">
+                    <strong>会话定位</strong>
+                    <p>${escapeHtml(chat.description || "围绕单个联系人展开消息、文件与后续扩展能力。")}</p>
+                  </section>
+                `
+            }
+            <div class="message-list">
+              ${chat.messages.map((message) => renderMessageBubble(chat, message)).join("")}
+            </div>
+          </div>
+        </div>
+        ${renderComposerPanel()}
+        <form class="composer" data-form="send-message" data-chat-id="${chat.id}">
+          <div class="composer__inner">
+            <button
+              class="icon-button icon-button--soft"
+              type="button"
+              data-action="toggle-composer-panel"
+              data-panel="emoji"
+            >
+              ☺
+            </button>
+            <label class="composer__field">
+              <textarea
+                id="chat-draft-input"
+                rows="1"
+                placeholder="发送消息..."
+                data-chat-id="${chat.id}"
+              >${escapeHtml(draft)}</textarea>
+            </label>
+            <button
+              class="icon-button icon-button--soft"
+              type="button"
+              data-action="toggle-composer-panel"
+              data-panel="more"
+            >
+              ＋
+            </button>
+            <button class="primary-button primary-button--small" type="submit">发送</button>
+          </div>
+          <div class="composer__footer">
+            <button class="text-button" type="button" data-action="simulate-message" data-chat-id="${chat.id}">
+              模拟来消息
+            </button>
+            <span>${group ? "发送后保持当前面板状态，验证交互节奏。" : "输入区、面板和消息动效共享同一密度体系。"}</span>
+          </div>
+        </form>
+      </section>
+    `;
   }
 
-  function confirmSendRequest(userId) {
-    const user = data.searchUsers.find((item) => item.id === userId);
-    if (!user) return;
-    user.relation = "pending_outgoing";
-    data.friendRequests.unshift({
-      id: `fr_${Date.now()}`,
-      type: "outgoing",
-      userId: user.id,
-      name: user.name,
-      username: user.username,
-      title: user.title,
-      tone: user.tone,
-      message: state.friendNote || "希望添加你为好友。",
-      time: "刚刚",
-      status: "sent",
-    });
-    state.modal = null;
-    render();
-    showToast("申请已发送", `已向 ${user.name} 发送好友申请。`);
-  }
-
-  function updateRequest(requestId, nextStatus) {
-    const request = data.friendRequests.find((item) => item.id === requestId);
-    if (!request) return;
-    request.status = nextStatus;
-    if (nextStatus === "accepted") {
-      ensureContactFromRequest(request);
-      ensureDirectChat(request.userId);
-      showToast("已通过", `${request.name} 已进入联系人列表，并生成私聊入口。`);
-    } else {
-      showToast("已处理", `${request.name} 的申请已标记为 ${nextStatus}。`);
+  function renderComposerPanel() {
+    if (state.composerPanel === "emoji") {
+      const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
+      return `
+        <section class="composer-panel">
+          <div class="emoji-grid">
+            ${emojis
+              .map(
+                (emoji) => `
+                  <button
+                    class="emoji-grid__item"
+                    type="button"
+                    data-action="append-emoji"
+                    data-emoji="${emoji}"
+                  >
+                    ${emoji}
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+      `;
     }
-    render();
-  }
 
-  function ensureContactFromRequest(request) {
-    const existing = data.contacts.find((item) => item.id === request.userId);
-    if (existing) return existing;
-    const contact = {
-      id: request.userId,
-      name: request.name,
-      username: request.username,
-      title: request.title,
-      status: "在线",
-      tone: request.tone,
-      note: "通过好友申请加入联系人列表。",
-      zone: "新联系人",
-    };
-    data.contacts.unshift(contact);
-    return contact;
-  }
-
-  function ensureDirectChat(contactId) {
-    const contact = findContact(contactId) || data.searchUsers.find((item) => item.id === contactId);
-    const existing = data.chats.find(
-      (chat) => chat.type === "single" && chat.participants.includes(contactId),
-    );
-    if (existing) {
-      state.activeChatId = existing.id;
-      return existing;
+    if (state.composerPanel === "more") {
+      const actions = [
+        ["图片", "从相册进入图片流"],
+        ["文件", "独立文件入口而不是塞进气泡里"],
+        ["拍摄", "优先对齐发送图片体验"],
+        ["位置", "后续扩展场景能力"],
+      ];
+      return `
+        <section class="composer-panel">
+          <div class="quick-action-grid quick-action-grid--compact">
+            ${actions
+              .map(
+                (item) => `
+                  <button class="quick-action-card quick-action-card--mini" data-action="show-hint" data-message="${item[1]}">
+                    <strong>${item[0]}</strong>
+                    <span>${item[1]}</span>
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+      `;
     }
-    const chat = {
-      id: `c_${contactId}_${Date.now()}`,
-      type: "single",
-      name: contact.name,
-      remark: "",
-      participants: [data.currentUser.id, contact.id],
-      avatarTone: contact.tone,
-      unread: 0,
-      pinned: false,
-      muted: false,
-      tags: ["新会话"],
-      lastMessage: "新的私聊已创建。",
-      lastTime: "刚刚",
-      description: "由联系人详情或好友申请流直接创建的私聊入口。",
-      metrics: {
-        activeMembers: 2,
-        todayMessages: 1,
-        unreadMention: 0,
-      },
-      pinnedMessages: [],
-      files: [],
-      messages: [
-        {
-          id: `m_welcome_${Date.now()}`,
-          senderId: contact.id,
-          senderName: contact.name,
-          senderTone: contact.tone,
-          content: "你好，新的私聊已经就绪，后续可以继续走统一聊天界面。",
-          time: "刚刚",
-          self: false,
-          reactions: [],
-        },
-      ],
-      sortKey: Date.now(),
-    };
-    data.chats.unshift(chat);
-    state.activeChatId = chat.id;
-    return chat;
+
+    return "";
   }
 
-  function createGroup() {
-    const name = state.createGroupName.trim();
-    if (!name) {
-      showToast("创建失败", "请先输入群聊名称。");
-      return;
-    }
-    if (state.createGroupMembers.size === 0) {
-      showToast("创建失败", "至少选择 1 位好友。");
-      return;
-    }
-    const groupId = `g_${Date.now()}`;
-    const chatId = `c_group_${Date.now()}`;
-    const group = {
-      id: groupId,
-      chatId,
-      name,
-      members: [data.currentUser.id].concat(Array.from(state.createGroupMembers)),
-      notice: "欢迎来到新的设计协作群，这里会沉淀原型、讨论和任务。",
-      rules: ["重要结论请固定在公告或 pinned 中。", "涉及视觉变更先回规范页确认。"],
-      joinPolicy: "invite_only",
-      muteMode: "free",
-      memberCount: state.createGroupMembers.size + 1,
-      onlineCount: state.createGroupMembers.size + 1,
-      tags: ["新建群聊"],
-    };
-    const chat = {
-      id: chatId,
-      type: "group",
-      name,
-      remark: "",
-      participants: group.members,
-      avatarTone: "violet",
-      unread: 0,
-      pinned: false,
-      muted: false,
-      tags: ["新群"],
-      lastMessage: "群聊已创建。",
-      lastTime: "刚刚",
-      description: "通过原型中的建群流程新创建的群组。",
-      metrics: {
-        activeMembers: group.onlineCount,
-        todayMessages: 1,
-        unreadMention: 0,
-      },
-      pinnedMessages: ["欢迎使用新的群聊信息架构。"],
-      files: [],
-      messages: [
-        {
-          id: `m_group_${Date.now()}`,
-          senderId: data.currentUser.id,
-          senderName: data.currentUser.name,
-          senderTone: data.currentUser.avatarTone,
-          content: "群聊已创建，接下来可以直接发消息、看公告和进入群设置。",
-          time: "刚刚",
-          self: true,
-          status: "系统已同步",
-          reactions: [],
-        },
-      ],
-      sortKey: Date.now(),
-    };
+  function renderMessageBubble(chat, message) {
+    const isHighlighted = state.highlightMessageId === message.id;
+    const isRecent = state.recentMessageId === message.id;
+    const reactions = Array.isArray(message.reactions) && message.reactions.length
+      ? `
+        <div class="reaction-row">
+          ${message.reactions
+            .map((item) => `<span class="reaction-pill">${escapeHtml(item.emoji)} ${item.count}</span>`)
+            .join("")}
+        </div>
+      `
+      : "";
 
-    data.groups.unshift(group);
-    data.chats.unshift(chat);
-    state.activeGroupId = groupId;
-    state.activeChatId = chatId;
-    state.createGroupName = "新设计评审群";
-    state.createGroupMembers = new Set(["u_alice", "u_zoe"]);
-    navigate("/chat/" + chatId);
-    showToast("群聊已创建", `${name} 已加入群组和会话列表。`);
+    return `
+      <div class="message-row ${message.self ? "message-row--self" : ""}">
+        ${message.self ? "" : renderAvatar(message.senderName, message.senderTone, "avatar--sm")}
+        <div class="message-block ${message.self ? "message-block--self" : ""}">
+          ${message.self ? "" : `<span class="message-sender">${escapeHtml(message.senderName)}</span>`}
+          <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
+            ${message.quote ? `<div class="message-quote">${escapeHtml(message.quote)}</div>` : ""}
+            <p>${escapeHtml(message.content)}</p>
+          </div>
+          ${reactions}
+          <div class="message-meta">
+            <span>${escapeHtml(message.time)}</span>
+            ${message.self ? `<span>${escapeHtml(message.status || "已送达")}</span>` : ""}
+          </div>
+        </div>
+      </div>
+    `;
   }
 
-  function toggleGroupPolicy(groupId) {
+  function renderContactsScreen() {
+    const groups = groupContacts(filteredContacts());
+    const pendingIncoming = data.friendRequests.filter(
+      (item) => item.type === "incoming" && item.status === "pending",
+    ).length;
+
+    return `
+      <section class="screen">
+        <div class="screen-scroll">
+          ${renderScreenHeader({
+            title: "联系人",
+            subtitle: "新的朋友、群聊与好友列表",
+            root: true,
+            actions: [
+              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">＋</button>`,
+            ],
+          })}
+          <div class="screen-stack">
+            <label class="search-box">
+              <span>搜索联系人或直接进入添加好友</span>
+              <input
+                id="contact-filter-input"
+                class="search-box__input"
+                value="${escapeHtml(state.contactFilter)}"
+                placeholder="姓名、组别、职责"
+              />
+            </label>
+            <section class="list-card">
+              <button class="special-entry" data-action="navigate" data-route="/contacts/requests">
+                <span class="special-entry__icon">新</span>
+                <span class="special-entry__body">
+                  <strong>新的朋友</strong>
+                  <span>${pendingIncoming ? `待处理 ${pendingIncoming} 条` : "查看所有好友申请"}</span>
+                </span>
+                ${pendingIncoming ? `<span class="badge badge--danger">${pendingIncoming}</span>` : `<span class="list-arrow">→</span>`}
+              </button>
+              <button class="special-entry" data-action="navigate" data-route="/groups">
+                <span class="special-entry__icon">群</span>
+                <span class="special-entry__body">
+                  <strong>群聊</strong>
+                  <span>从联系人体系进入群列表与建群流程</span>
+                </span>
+                <span class="list-arrow">→</span>
+              </button>
+            </section>
+            <section class="surface-card">
+              ${groups.length ? groups.map(renderContactSection).join("") : renderEmptyState("没有匹配联系人", "尝试清空关键词，或去添加好友页发起新申请。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderContactSection(section) {
+    return `
+      <div class="contact-section">
+        <div class="contact-section__tag">${section.tag}</div>
+        <div class="list-card list-card--embedded">
+          ${section.items.map((contact) => renderContactRow(contact)).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderContactRow(contact) {
+    return `
+      <button
+        class="list-row"
+        data-action="navigate"
+        data-route="/contacts/profile/${contact.id}"
+      >
+        ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+        <span class="list-row__body">
+          <span class="list-row__title">
+            <strong>${escapeHtml(contact.name)}</strong>
+            <span class="badge">${escapeHtml(contact.status)}</span>
+          </span>
+          <span class="list-row__summary">${escapeHtml(contact.title)}</span>
+          <span class="list-row__note">${escapeHtml(contact.zone)} · ${escapeHtml(contact.note)}</span>
+        </span>
+      </button>
+    `;
+  }
+
+  function renderFriendRequestsScreen() {
+    const incoming = data.friendRequests.filter((item) => item.type === "incoming");
+    const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "新的朋友",
+          subtitle: `${incoming.length} 条收到 · ${outgoing.length} 条发出`,
+          backPath: "/contacts",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>收到的申请</h3>
+                <span class="badge">${incoming.length}</span>
+              </div>
+              ${incoming.length ? incoming.map(renderRequestCard).join("") : renderEmptyState("暂无收到的申请", "后续这里会承接好友验证、打招呼和状态变更。")}
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>发出的申请</h3>
+                <span class="badge">${outgoing.length}</span>
+              </div>
+              ${outgoing.length ? outgoing.map(renderRequestCard).join("") : renderEmptyState("暂无发出的申请", "从添加好友页发起申请后，这里会同步展示。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderRequestCard(request) {
+    const isIncoming = request.type === "incoming";
+    const pending = request.status === "pending";
+
+    return `
+      <div class="request-card">
+        <div class="request-card__header">
+          ${renderAvatar(request.name, request.tone, "avatar--md")}
+          <div class="request-card__body">
+            <div class="request-card__title">
+              <strong>${escapeHtml(request.name)}</strong>
+              <span class="badge ${request.status === "rejected" ? "badge--muted" : request.status === "accepted" ? "badge--success" : ""}">
+                ${statusLabel(request.status)}
+              </span>
+            </div>
+            <p>${escapeHtml(request.title)} · ${escapeHtml(request.time)}</p>
+            <p>${escapeHtml(request.message)}</p>
+          </div>
+        </div>
+        ${
+          isIncoming && pending
+            ? `
+              <div class="request-card__actions">
+                <button class="ghost-button" data-action="update-request" data-request-id="${request.id}" data-status="rejected">忽略</button>
+                <button class="primary-button primary-button--small" data-action="update-request" data-request-id="${request.id}" data-status="accepted">通过</button>
+              </div>
+            `
+            : !isIncoming && pending
+            ? `
+              <div class="request-card__actions">
+                <button class="ghost-button" data-action="update-request" data-request-id="${request.id}" data-status="withdrawn">撤回申请</button>
+              </div>
+            `
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  function renderAddFriendScreen() {
+    const users = filteredSearchUsers();
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "添加好友",
+          subtitle: "搜索账号、写打招呼，再进入好友申请流转",
+          backPath: "/contacts",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <label class="search-box">
+              <span>搜索昵称、账号或城市</span>
+              <input
+                id="friend-search-input"
+                class="search-box__input"
+                value="${escapeHtml(state.friendSearch)}"
+                placeholder="例如：nora、Shanghai"
+              />
+            </label>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>打招呼内容</h3>
+                <span class="badge">会随申请一起发送</span>
+              </div>
+              <label class="field field--textarea">
+                <textarea id="friend-note-input" class="field__input field__input--textarea" rows="3">${escapeHtml(state.friendNote)}</textarea>
+              </label>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>搜索结果</h3>
+                <span class="badge">${users.length}</span>
+              </div>
+              ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSearchUserItem(user) {
+    const action = renderSearchUserAction(user);
+
+    return `
+      <div class="list-row list-row--static">
+        ${renderAvatar(user.name, user.tone, "avatar--md")}
+        <div class="list-row__body">
+          <div class="list-row__title">
+            <strong>${escapeHtml(user.name)}</strong>
+            <span class="badge">${relationLabel(user.relation)}</span>
+          </div>
+          <div class="list-row__summary">${escapeHtml(user.username)} · ${escapeHtml(user.title)}</div>
+          <div class="list-row__note">${escapeHtml(user.city)}</div>
+        </div>
+        ${action}
+      </div>
+    `;
+  }
+
+  function renderSearchUserAction(user) {
+    if (user.relation === "pending_incoming") {
+      return `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/contacts/requests">去处理</button>`;
+    }
+    if (user.relation === "pending_outgoing") {
+      return `<button class="ghost-button ghost-button--small" type="button" disabled>已发送</button>`;
+    }
+    if (user.relation === "friend") {
+      return `<button class="ghost-button ghost-button--small" data-action="open-direct-chat" data-contact-id="${user.id}">发消息</button>`;
+    }
+    return `<button class="primary-button primary-button--small" data-action="send-friend-request" data-user-id="${user.id}">添加</button>`;
+  }
+
+  function renderContactProfileScreen(contactId) {
+    const contact = findContact(contactId);
+    if (!contact) {
+      return renderFallbackScreen("联系人不存在", "/contacts");
+    }
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "联系人资料",
+          subtitle: "单独承载联系人详情，而不是和列表并排",
+          backPath: "/contacts",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="profile-hero">
+              ${renderAvatar(contact.name, contact.tone, "avatar--xl")}
+              <div class="profile-hero__body">
+                <h3>${escapeHtml(contact.name)}</h3>
+                <p>${escapeHtml(contact.title)} · ${escapeHtml(contact.status)}</p>
+                <div class="chip-row">
+                  <span class="chip chip--filled">${escapeHtml(contact.zone)}</span>
+                  <span class="chip">${escapeHtml(contact.username)}</span>
+                </div>
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="inline-actions inline-actions--wide">
+                <button class="primary-button" data-action="open-direct-chat" data-contact-id="${contact.id}">发送消息</button>
+                <button class="ghost-button" data-action="show-hint" data-message="后续这里可承接音视频、备注、共享文件等能力。">更多动作</button>
+              </div>
+            </section>
+            <section class="settings-list">
+              ${renderMenuRow("账号", contact.username, false)}
+              ${renderMenuRow("职责", contact.title, false)}
+              ${renderMenuRow("所在组", contact.zone, false)}
+              ${renderMenuRow("备注", contact.note, false)}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGroupsScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "群聊",
+          subtitle: "从联系人体系进入群组列表和群设置",
+          backPath: "/contacts",
+          actions: [
+            `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/groups/create">建群</button>`,
+          ],
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>已有群组</h3>
+                <span class="badge">${data.groups.length}</span>
+              </div>
+              ${data.groups.map(renderGroupCard).join("")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGroupCard(group) {
+    return `
+      <div class="group-card">
+        <div class="group-card__header">
+          ${renderAvatar(group.name, "violet", "avatar--md")}
+          <div class="group-card__body">
+            <div class="list-row__title">
+              <strong>${escapeHtml(group.name)}</strong>
+              <span class="badge">${group.memberCount} 人</span>
+            </div>
+            <p>${escapeHtml(group.notice)}</p>
+            <div class="chip-row">
+              ${group.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="request-card__actions">
+          <button class="ghost-button" data-action="navigate" data-route="/chat/${group.chatId}">进入聊天</button>
+          <button class="primary-button primary-button--small" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderCreateGroupScreen() {
+    const contacts = filteredContacts().filter(matchesGroupMemberFilter);
+    const selectedNames = data.contacts
+      .filter((contact) => state.createGroupMembers.has(contact.id))
+      .map((contact) => `<span class="chip chip--filled">${escapeHtml(contact.name)}</span>`)
+      .join("");
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "创建群聊",
+          subtitle: "真实移动端流程：命名、选人、创建后进入群会话",
+          backPath: "/groups",
+        })}
+        <div class="screen-scroll">
+          <form class="screen-stack" data-form="create-group-form">
+            <section class="surface-card">
+              <label class="field">
+                <span>群聊名称</span>
+                <input
+                  id="group-name-input"
+                  class="field__input"
+                  value="${escapeHtml(state.createGroupName)}"
+                  placeholder="输入群聊名称"
+                />
+              </label>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>已选成员</h3>
+                <span class="badge">${state.createGroupMembers.size}</span>
+              </div>
+              <div class="chip-row">
+                ${selectedNames || `<span class="empty-inline">至少选择 1 位好友</span>`}
+              </div>
+            </section>
+            <section class="surface-card">
+              <label class="search-box">
+                <span>筛选成员</span>
+                <input
+                  id="group-member-filter-input"
+                  class="search-box__input"
+                  value="${escapeHtml(state.groupMemberFilter)}"
+                  placeholder="姓名、组别或职责"
+                />
+              </label>
+              <div class="member-picker">
+                ${contacts.map(renderMemberPickerRow).join("")}
+              </div>
+            </section>
+            <button class="primary-button" type="submit">创建并进入群聊</button>
+          </form>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderMemberPickerRow(contact) {
+    const checked = state.createGroupMembers.has(contact.id);
+    return `
+      <label class="list-row list-row--checkable">
+        ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+        <span class="list-row__body">
+          <span class="list-row__title">
+            <strong>${escapeHtml(contact.name)}</strong>
+            <span class="badge">${escapeHtml(contact.status)}</span>
+          </span>
+          <span class="list-row__summary">${escapeHtml(contact.title)}</span>
+        </span>
+        <input
+          class="checkbox"
+          type="checkbox"
+          data-kind="group-member"
+          data-contact-id="${contact.id}"
+          ${checked ? "checked" : ""}
+        />
+      </label>
+    `;
+  }
+
+  function renderGroupSettingsScreen(groupId) {
     const group = findGroup(groupId);
-    if (!group) return;
-    group.joinPolicy =
-      group.joinPolicy === "invite_only"
-        ? "review_required"
-        : group.joinPolicy === "review_required"
-          ? "public_with_guidelines"
-          : "invite_only";
-    group.muteMode =
-      group.muteMode === "free"
-        ? "admin_only"
-        : group.muteMode === "admin_only"
-          ? "owner_only"
-          : "free";
-    render();
-    showToast("策略已切换", `${group.name} 的加入方式和禁言模式已更新。`);
+    if (!group) {
+      return renderFallbackScreen("群组不存在", "/groups");
+    }
+
+    const members = group.members.map((memberId) => findPerson(memberId)).filter(Boolean);
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "群设置",
+          subtitle: "公告、规则、加入方式和成员管理",
+          backPath: `/chat/${group.chatId}`,
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="profile-hero profile-hero--group">
+              ${renderAvatar(group.name, "violet", "avatar--xl")}
+              <div class="profile-hero__body">
+                <h3>${escapeHtml(group.name)}</h3>
+                <p>${group.memberCount} 位成员 · 在线 ${group.onlineCount}</p>
+                <div class="chip-row">
+                  ${group.tags.map((tag) => `<span class="chip chip--filled">${escapeHtml(tag)}</span>`).join("")}
+                </div>
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>群公告</h3>
+                <button class="ghost-button ghost-button--small" data-action="navigate" data-route="/chat/${group.chatId}">返回会话</button>
+              </div>
+              <p>${escapeHtml(group.notice)}</p>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>加入方式</h3>
+                <span class="badge">${joinPolicyLabel(group.joinPolicy)}</span>
+              </div>
+              <div class="choice-row">
+                ${renderChoiceButton("join-policy", group.id, "invite_only", joinPolicyLabel("invite_only"), group.joinPolicy)}
+                ${renderChoiceButton("join-policy", group.id, "review_required", joinPolicyLabel("review_required"), group.joinPolicy)}
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>发言策略</h3>
+                <span class="badge">${muteModeLabel(group.muteMode)}</span>
+              </div>
+              <div class="choice-row">
+                ${renderChoiceButton("mute-mode", group.id, "free", muteModeLabel("free"), group.muteMode)}
+                ${renderChoiceButton("mute-mode", group.id, "admin_only", muteModeLabel("admin_only"), group.muteMode)}
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>群规则</h3>
+                <span class="badge">${group.rules.length}</span>
+              </div>
+              <ul class="bullet-list">
+                ${group.rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+              </ul>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>成员</h3>
+                <span class="badge">${members.length}</span>
+              </div>
+              <div class="member-stack">
+                ${members
+                  .map((member) => {
+                    const name = member.name || member.username || "Unknown";
+                    const title = member.title || member.role || "成员";
+                    const tone = member.tone || member.avatarTone || "mint";
+                    const status = member.status || "在线";
+                    return `
+                      <div class="list-row list-row--static">
+                        ${renderAvatar(name, tone, "avatar--md")}
+                        <div class="list-row__body">
+                          <div class="list-row__title">
+                            <strong>${escapeHtml(name)}</strong>
+                            <span class="badge">${escapeHtml(status)}</span>
+                          </div>
+                          <div class="list-row__summary">${escapeHtml(title)}</div>
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
   }
 
-  function showToast(title, message) {
-    state.toasts = [{ title, message }];
-    render();
-    window.clearTimeout(toastTimerId);
-    toastTimerId = window.setTimeout(() => {
-      state.toasts = [];
-      render();
-    }, 2200);
+  function renderChoiceButton(kind, groupId, value, label, currentValue) {
+    return `
+      <button
+        class="choice-button ${currentValue === value ? "is-active" : ""}"
+        data-action="update-group-field"
+        data-kind="${kind}"
+        data-group-id="${groupId}"
+        data-value="${value}"
+      >
+        ${label}
+      </button>
+    `;
   }
 
-  function applyBodyState() {
-    document.body.setAttribute("data-theme", state.theme);
-    document.body.setAttribute("data-density", state.density);
+  function renderSearchScreen() {
+    const results = searchResults();
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "消息搜索",
+          subtitle: "独立二级页，点击结果返回对应会话上下文",
+          backPath: "/chats",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <label class="search-box">
+              <span>搜索关键词</span>
+              <input
+                id="global-search-input"
+                class="search-box__input"
+                value="${escapeHtml(state.searchQuery)}"
+                placeholder="例如：发布、规范、AI"
+              />
+            </label>
+            ${
+              !state.searchQuery.trim()
+                ? `
+                  <section class="surface-card">
+                    <div class="surface-card__header">
+                      <h3>推荐关键词</h3>
+                      <span class="badge">Mock</span>
+                    </div>
+                    <div class="chip-row">
+                      ${["发布", "设计", "AI", "群公告"]
+                        .map(
+                          (item) => `
+                            <button class="chip" data-action="prefill-search" data-value="${item}">
+                              ${item}
+                            </button>
+                          `,
+                        )
+                        .join("")}
+                    </div>
+                  </section>
+                `
+                : ""
+            }
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>${state.searchQuery.trim() ? `搜索“${escapeHtml(state.searchQuery)}”` : "最近命中的消息"}</h3>
+                <span class="badge">${results.length}</span>
+              </div>
+              ${results.length ? results.map(renderSearchResultRow).join("") : renderEmptyState("没有匹配消息", "尝试更换关键词，或先进入聊天列表查看最近会话。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSearchResultRow(item) {
+    return `
+      <button
+        class="search-result-row"
+        data-action="open-search-result"
+        data-chat-id="${item.chat.id}"
+        data-message-id="${item.message.id}"
+      >
+        <span class="search-result-row__title">
+          <strong>${escapeHtml(item.chat.name)}</strong>
+          <span>${escapeHtml(item.message.time)}</span>
+        </span>
+        <span class="search-result-row__summary">${escapeHtml(item.message.content)}</span>
+        <span class="search-result-row__note">${escapeHtml(item.message.senderName)} · ${item.chat.type === "group" ? "群聊" : "单聊"}</span>
+      </button>
+    `;
+  }
+
+  function renderLabOverviewScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "扩展模块",
+          subtitle: "未来能力全部拆成独立场景页，不绑在主聊天视图里",
+          backPath: "/spec",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            ${data.extensions.map(renderExtensionCard).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderExtensionCard(item) {
+    return `
+      <button class="surface-card surface-card--button" data-action="navigate" data-route="${item.route}">
+        <div class="surface-card__header">
+          <h3>${escapeHtml(item.title)}</h3>
+          <span class="badge">${escapeHtml(item.status)}</span>
+        </div>
+        <p>${escapeHtml(item.summary)}</p>
+        <ul class="bullet-list">
+          ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+        </ul>
+      </button>
+    `;
+  }
+
+  function renderLabDetailScreen(moduleId) {
+    const item = data.extensions.find((entry) => entry.id === moduleId);
+    if (!item) {
+      return renderFallbackScreen("扩展模块不存在", "/lab");
+    }
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: item.title,
+          subtitle: "未来扩展方向",
+          backPath: "/lab",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="hero-card hero-card--soft">
+              <span class="eyebrow">Future Module</span>
+              <h3>${escapeHtml(item.summary)}</h3>
+              <span class="badge">${escapeHtml(item.status)}</span>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>可扩展内容</h3>
+                <span class="badge">${item.bullets.length}</span>
+              </div>
+              <ul class="bullet-list">
+                ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+              </ul>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSettingsScreen() {
+    return `
+      <section class="screen">
+        <div class="screen-scroll">
+          ${renderScreenHeader({
+            title: "设置",
+            subtitle: "主导航一级入口，承载账号、聊天与偏好",
+            root: true,
+          })}
+          <div class="screen-stack">
+            <section class="profile-hero">
+              ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
+              <div class="profile-hero__body">
+                <h3>${escapeHtml(data.currentUser.name)}</h3>
+                <p>${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</p>
+                <div class="chip-row">
+                  <span class="chip chip--filled">${themeLabel(state.theme)}</span>
+                  <span class="chip">${densityLabel(state.density)}</span>
+                </div>
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>显示偏好</h3>
+                <span class="badge">Prototype</span>
+              </div>
+              <div class="settings-block">
+                <div class="settings-row">
+                  <span>主题</span>
+                  <div class="segmented">
+                    ${renderThemeButton("light", "浅色")}
+                    ${renderThemeButton("dark", "深色")}
+                  </div>
+                </div>
+                <div class="settings-row">
+                  <span>密度</span>
+                  <div class="segmented">
+                    ${renderDensityButton("regular", "2K")}
+                    ${renderDensityButton("mid", "1.5K")}
+                    ${renderDensityButton("compact", "1K")}
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>消息与隐私</h3>
+                <span class="badge">可持久化</span>
+              </div>
+              <div class="switch-stack">
+                ${renderSwitchRow("mentions", "提及通知", data.settings.notifications.mentions, "notifications")}
+                ${renderSwitchRow("summaries", "消息摘要", data.settings.notifications.summaries, "notifications")}
+                ${renderSwitchRow("fileAlerts", "文件提醒", data.settings.notifications.fileAlerts, "notifications")}
+                ${renderSwitchRow("readReceipt", "已读回执", data.settings.privacy.readReceipt, "privacy")}
+                ${renderSwitchRow("typingStatus", "正在输入", data.settings.privacy.typingStatus, "privacy")}
+                ${renderSwitchRow("autoDownloadMedia", "自动下载媒体", data.settings.privacy.autoDownloadMedia, "privacy")}
+              </div>
+            </section>
+            <section class="settings-list">
+              ${renderMenuRow("账号与安全", "手机号、设备管理、登录态", true)}
+              ${renderMenuRow("聊天", "字体、通知、搜索与存储策略", true)}
+              ${renderMenuRow("隐私协议", "协议与数据使用说明", true)}
+              ${renderMenuRow("关于 Chatly", "品牌、版本与反馈入口", true)}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSwitchRow(key, label, checked, scope) {
+    return `
+      <label class="switch-row">
+        <span>${label}</span>
+        <input
+          class="switch-row__input"
+          type="checkbox"
+          data-kind="setting-toggle"
+          data-scope="${scope}"
+          data-key="${key}"
+          ${checked ? "checked" : ""}
+        />
+      </label>
+    `;
+  }
+
+  function renderMenuRow(title, description, clickable) {
+    const tag = clickable ? "button" : "div";
+    const attrs = clickable
+      ? `class="menu-row" data-action="show-hint" data-message="${escapeHtml(description)}"`
+      : `class="menu-row menu-row--static"`;
+
+    return `
+      <${tag} ${attrs}>
+        <span class="menu-row__body">
+          <strong>${escapeHtml(title)}</strong>
+          <span>${escapeHtml(description)}</span>
+        </span>
+        ${clickable ? `<span class="list-arrow">→</span>` : ""}
+      </${tag}>
+    `;
+  }
+
+  function renderFallbackScreen(title, backPath) {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title,
+          subtitle: "返回上一层继续浏览原型",
+          backPath,
+        })}
+        <div class="screen-scroll">
+          ${renderEmptyState(title, "这条 mock 数据当前不存在，可以返回继续体验其他页面。")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderEmptyState(title, description) {
+    return `
+      <div class="empty-state">
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(description)}</p>
+      </div>
+    `;
+  }
+
+  function renderRouteReview(route) {
+    const notes = reviewNotesForRoute(route);
+    return `
+      <section class="review-card">
+        <div class="review-card__header">
+          <h3>${escapeHtml(notes.title)}</h3>
+          <span class="badge">${escapeHtml(notes.label)}</span>
+        </div>
+        <ul class="bullet-list">
+          ${notes.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+    `;
+  }
+
+  function reviewNotesForRoute(route) {
+    if (route.section === "spec") {
+      return {
+        title: "规范页当前看点",
+        label: "System",
+        items: [
+          "颜色、字号、圆角、间距和动效都先收敛成统一 token。",
+          "组件预览必须直接服务移动端场景，而不是桌面工作台。",
+          "密度分档明确对齐 2K / 1.5K / 1K 手机。",
+        ],
+      };
+    }
+    if (route.section === "chat-detail") {
+      return {
+        title: "聊天详情验证点",
+        label: "Chat",
+        items: [
+          "输入框、占位文案和发送按钮在垂直方向保持一致节奏。",
+          "表情 / 更多面板作为输入区延展，而不是打断当前上下文。",
+          "消息列表只承载单列滚动，不再并排挂其他面板。",
+        ],
+      };
+    }
+    if (route.section === "contacts" || route.section === "contact-profile" || route.section === "contact-add") {
+      return {
+        title: "联系人链路验证点",
+        label: "Contact",
+        items: [
+          "联系人主页和资料页分层明确，避免列表 + 详情并排。",
+          "好友申请、添加好友、群聊都从联系人体系自然分叉。",
+          "卡片、列表项、按钮都复用同一套信息层级。",
+        ],
+      };
+    }
+    if (route.section === "groups" || route.section === "group-create" || route.section === "group-settings") {
+      return {
+        title: "群组链路验证点",
+        label: "Group",
+        items: [
+          "建群流程应当短、清晰、适配手机单列操作。",
+          "群设置承载规则、公告、策略和成员，不混进聊天主屏。",
+          "创建完成后默认回到群会话，再从群设置进入细节维护。",
+        ],
+      };
+    }
+    if (route.section === "settings") {
+      return {
+        title: "设置页验证点",
+        label: "Settings",
+        items: [
+          "一级入口只放和账号、聊天、偏好相关的事情。",
+          "主题和密度是原型评审手柄，也映射未来正式实现。",
+          "开关行高、文本层级和列表结构保持统一。",
+        ],
+      };
+    }
+    return {
+      title: "当前页面验证点",
+      label: "Screen",
+      items: [
+        "保持移动端单列阅读和操作路径。",
+        "只用必要表面层级，不回到桌面式信息堆叠。",
+        "跳转、列表、按钮都要延续同一套视觉节奏。",
+      ],
+    };
+  }
+
+  function renderAvatar(name, tone, sizeClass) {
+    const safeName = name || "R";
+    const label = initials(safeName);
+    const toneClass = toneClassMap[tone] || "avatar--mint";
+    return `<span class="avatar ${toneClass} ${sizeClass || ""}" aria-hidden="true">${escapeHtml(label)}</span>`;
   }
 
   function sortedChats() {
-    return data.chats
-      .slice()
-      .sort((left, right) => {
-        if (left.pinned !== right.pinned) {
-          return left.pinned ? -1 : 1;
-        }
-        return (right.sortKey || 0) - (left.sortKey || 0);
-      });
+    return data.chats.slice().sort((left, right) => {
+      const pinnedDiff = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+      if (pinnedDiff !== 0) {
+        return pinnedDiff;
+      }
+      return (right.sortKey || 0) - (left.sortKey || 0);
+    });
   }
 
   function matchesChatFilter(chat) {
-    if (!state.chatFilter.trim()) return true;
     const keyword = state.chatFilter.trim().toLowerCase();
-    return (
-      chat.name.toLowerCase().includes(keyword) ||
-      chat.lastMessage.toLowerCase().includes(keyword) ||
-      chat.tags.some((tag) => tag.toLowerCase().includes(keyword))
+    if (!keyword) {
+      return true;
+    }
+    return [chat.name, chat.lastMessage, chat.description, (chat.tags || []).join(" ")]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(keyword);
+  }
+
+  function filteredContacts() {
+    const keyword = state.contactFilter.trim().toLowerCase();
+    if (!keyword) {
+      return data.contacts.slice();
+    }
+    return data.contacts.filter((contact) =>
+      [contact.name, contact.title, contact.zone, contact.note, contact.username]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword),
     );
   }
 
-  function contactListForChat(chat) {
-    return chat.participants
-      .map((participantId) => {
-        if (participantId === data.currentUser.id) {
-          return {
-            id: data.currentUser.id,
-            name: data.currentUser.name,
-            title: data.currentUser.role,
-            tone: data.currentUser.avatarTone,
-            status: data.currentUser.status,
-          };
-        }
-        return findContact(participantId) || data.searchUsers.find((item) => item.id === participantId);
-      })
-      .filter(Boolean);
+  function groupContacts(contacts) {
+    const grouped = new Map();
+    contacts.forEach((contact) => {
+      const tag = contact.name ? contact.name.charAt(0).toUpperCase() : "#";
+      if (!grouped.has(tag)) {
+        grouped.set(tag, []);
+      }
+      grouped.get(tag).push(contact);
+    });
+    return Array.from(grouped.entries())
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([tag, items]) => ({ tag, items: items.sort((left, right) => left.name.localeCompare(right.name)) }));
   }
 
-  function searchMessages(query) {
-    const keyword = query.trim().toLowerCase();
-    if (!keyword) return [];
+  function filteredSearchUsers() {
+    const keyword = state.friendSearch.trim().toLowerCase();
+    if (!keyword) {
+      return data.searchUsers.slice();
+    }
+    return data.searchUsers.filter((user) =>
+      [user.name, user.username, user.title, user.city]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword),
+    );
+  }
+
+  function matchesGroupMemberFilter(contact) {
+    const keyword = state.groupMemberFilter.trim().toLowerCase();
+    if (!keyword) {
+      return true;
+    }
+    return [contact.name, contact.title, contact.zone]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase()
+      .includes(keyword);
+  }
+
+  function searchResults() {
+    const keyword = state.searchQuery.trim().toLowerCase();
     const results = [];
-    data.chats.forEach((chat) => {
-      chat.messages.forEach((message) => {
-        if (message.content.toLowerCase().includes(keyword)) {
+
+    sortedChats().forEach((chat) => {
+      (chat.messages || []).forEach((message) => {
+        const matchedText = [message.content, message.senderName, message.quote]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!keyword || matchedText.includes(keyword)) {
           results.push({ chat, message });
         }
       });
     });
-    return results;
-  }
 
-  function resolveGroupId(chat) {
-    const group = data.groups.find((item) => item.chatId === chat.id);
-    return group ? group.id : data.groups[0] ? data.groups[0].id : "";
-  }
-
-  function resolvePrimaryPeerContact(chat) {
-    const peerId = chat.participants.find((participantId) => participantId !== data.currentUser.id);
-    if (!peerId) return null;
-    return findContact(peerId);
-  }
-
-  function renderChatContextAction(chat) {
-    if (chat.type === "group") {
-      return `<button class="button secondary" data-action="navigate" data-route="/groups/settings/${resolveGroupId(chat)}">群设置</button>`;
-    }
-
-    const peerContact = resolvePrimaryPeerContact(chat);
-    if (!peerContact) {
-      return '<span class="helper-note">当前是单聊会话。</span>';
-    }
-
-    return `<button class="button secondary" data-action="navigate" data-route="/contacts/profile/${peerContact.id}">联系人详情</button>`;
-  }
-
-  function relationLabel(relation) {
-    const map = {
-      none: "可添加",
-      pending_incoming: "待我处理",
-      pending_outgoing: "等待对方",
-      friend: "已是好友",
-    };
-    return map[relation] || "未知状态";
-  }
-
-  function labTitle(moduleId) {
-    const module = data.extensions.find((item) => item.id === moduleId);
-    return module ? module.title : "未来扩展";
+    return results.slice(-8).reverse();
   }
 
   function findChat(chatId) {
@@ -2703,18 +1937,617 @@
     return data.groups.find((group) => group.id === groupId) || null;
   }
 
-  function initials(name) {
-    const value = String(name || "").trim();
-    if (!value) return "RC";
-    const parts = value.split(/\s+/).filter(Boolean);
-    if (parts.length === 1) {
-      return value.slice(0, 2).toUpperCase();
+  function findGroupByChatId(chatId) {
+    return data.groups.find((group) => group.chatId === chatId) || null;
+  }
+
+  function findPerson(personId) {
+    if (personId === data.currentUser.id) {
+      return data.currentUser;
     }
-    return (parts[0][0] + parts[1][0]).toUpperCase();
+    const contact = findContact(personId);
+    if (contact) {
+      return contact;
+    }
+    const searchUser = data.searchUsers.find((item) => item.id === personId);
+    if (searchUser) {
+      return {
+        id: searchUser.id,
+        name: searchUser.name,
+        title: searchUser.title,
+        status: "在线",
+        tone: searchUser.tone,
+      };
+    }
+    return null;
+  }
+
+  function findDirectContact(chat) {
+    const contactId = (chat.participants || []).find((id) => id !== data.currentUser.id);
+    return contactId ? findContact(contactId) : null;
+  }
+
+  function promoteChat(chat) {
+    state.orderCursor += 1;
+    chat.sortKey = state.orderCursor;
+  }
+
+  function createDirectChat(contact) {
+    const existing = data.chats.find(
+      (chat) =>
+        chat.type === "single" &&
+        chat.participants.includes(data.currentUser.id) &&
+        chat.participants.includes(contact.id),
+    );
+
+    if (existing) {
+      promoteChat(existing);
+      return existing;
+    }
+
+    const chat = {
+      id: `c_room_${contact.id}`,
+      type: "single",
+      name: contact.name,
+      remark: "",
+      participants: [data.currentUser.id, contact.id],
+      avatarTone: contact.tone,
+      unread: 0,
+      pinned: false,
+      muted: false,
+      tags: [contact.zone],
+      lastMessage: "会话刚刚创建，准备开始新一轮沟通。",
+      lastTime: "刚刚",
+      description: `${contact.title} · ${contact.zone}`,
+      metrics: {
+        activeMembers: 2,
+        todayMessages: 0,
+        unreadMention: 0,
+      },
+      pinnedMessages: [],
+      files: [],
+      messages: [
+        {
+          id: `m_${Date.now()}`,
+          senderId: data.currentUser.id,
+          senderName: data.currentUser.name,
+          senderTone: data.currentUser.avatarTone,
+          content: "你好，先从这里开始同步新的移动端方案。",
+          time: "刚刚",
+          self: true,
+          status: "已送达",
+        },
+      ],
+      sortKey: 0,
+    };
+    promoteChat(chat);
+    data.chats.unshift(chat);
+    return chat;
+  }
+
+  function ensureContactForRequest(request) {
+    if (findContact(request.userId)) {
+      return findContact(request.userId);
+    }
+    const contact = {
+      id: request.userId,
+      name: request.name,
+      username: request.username,
+      title: request.title,
+      status: "在线",
+      tone: request.tone,
+      note: "由好友申请转入联系人列表",
+      zone: "新的好友",
+    };
+    data.contacts.push(contact);
+    return contact;
+  }
+
+  function updateSearchUserRelation(userId, relation) {
+    const user = data.searchUsers.find((item) => item.id === userId);
+    if (user) {
+      user.relation = relation;
+    }
+  }
+
+  function sendFriendRequest(userId) {
+    const user = data.searchUsers.find((entry) => entry.id === userId);
+    if (!user) {
+      return;
+    }
+    user.relation = "pending_outgoing";
+    data.friendRequests.unshift({
+      id: `fr_${Date.now()}`,
+      type: "outgoing",
+      userId: user.id,
+      name: user.name,
+      username: user.username,
+      title: user.title,
+      tone: user.tone,
+      message: state.friendNote.trim() || "你好，想和你建立联系。",
+      time: "刚刚",
+      status: "pending",
+    });
+    showToast("申请已发送", `已向 ${user.name} 发送好友申请。`);
+  }
+
+  function updateFriendRequest(requestId, nextStatus) {
+    const request = data.friendRequests.find((item) => item.id === requestId);
+    if (!request) {
+      return;
+    }
+    request.status = nextStatus;
+    if (nextStatus === "accepted") {
+      const contact = ensureContactForRequest(request);
+      updateSearchUserRelation(request.userId, "friend");
+      createDirectChat(contact);
+      showToast("已通过申请", `${request.name} 已加入联系人，并生成私聊入口。`);
+      return;
+    }
+    if (nextStatus === "withdrawn") {
+      updateSearchUserRelation(request.userId, "none");
+      showToast("已撤回", `已撤回发给 ${request.name} 的好友申请。`);
+      return;
+    }
+    showToast("申请状态已更新", `${request.name} 当前状态：${statusLabel(nextStatus)}。`);
+  }
+
+  function createGroupFromForm() {
+    const name = state.createGroupName.trim();
+    const members = Array.from(state.createGroupMembers);
+
+    if (!name) {
+      showToast("创建失败", "请先输入群聊名称。");
+      return;
+    }
+    if (members.length === 0) {
+      showToast("创建失败", "至少选择 1 位好友。");
+      return;
+    }
+
+    const timestamp = Date.now();
+    const groupId = `g_${timestamp}`;
+    const chatId = `c_group_${timestamp}`;
+    const memberIds = [data.currentUser.id].concat(members);
+    const previewContacts = members
+      .map((id) => findContact(id))
+      .filter(Boolean);
+
+    data.groups.unshift({
+      id: groupId,
+      chatId,
+      name,
+      members: memberIds,
+      notice: "刚创建的群聊，建议先把当前评审目标写进公告。",
+      rules: ["围绕移动端体验推进结论。", "设计变更先回到规范页达成共识。"],
+      joinPolicy: "invite_only",
+      muteMode: "free",
+      memberCount: memberIds.length,
+      onlineCount: Math.max(2, memberIds.length - 1),
+      tags: ["新建群聊", "移动端评审"],
+    });
+
+    const firstNames = previewContacts.map((contact) => contact.name).join("、");
+    const chat = {
+      id: chatId,
+      type: "group",
+      name,
+      remark: "",
+      participants: memberIds,
+      avatarTone: "violet",
+      unread: 0,
+      pinned: false,
+      muted: false,
+      tags: ["群聊", "评审"],
+      lastMessage: `${data.currentUser.name} 创建了群聊`,
+      lastTime: "刚刚",
+      description: `成员：${firstNames || "待补充"}`,
+      metrics: {
+        activeMembers: memberIds.length,
+        todayMessages: 1,
+        unreadMention: 0,
+      },
+      pinnedMessages: ["先对齐规范，再逐页推进视觉重构。"],
+      files: [],
+      messages: [
+        {
+          id: `m_${timestamp}`,
+          senderId: data.currentUser.id,
+          senderName: data.currentUser.name,
+          senderTone: data.currentUser.avatarTone,
+          content: `${data.currentUser.name} 创建了群聊「${name}」`,
+          time: "刚刚",
+          self: true,
+          status: "系统消息",
+        },
+      ],
+      sortKey: 0,
+    };
+    promoteChat(chat);
+    data.chats.unshift(chat);
+
+    state.activeGroupId = groupId;
+    state.activeChatId = chatId;
+    state.createGroupName = "移动端重构评审群";
+    state.createGroupMembers = new Set(["u_alice", "u_zoe"]);
+    state.groupMemberFilter = "";
+
+    showToast("群聊已创建", `${name} 已创建完成，并进入群会话。`);
+    navigate(`/chat/${chatId}`);
+  }
+
+  function sendChatMessage(chatId) {
+    const chat = findChat(chatId);
+    if (!chat) {
+      return;
+    }
+
+    const content = (state.chatDrafts[chatId] || "").trim();
+    if (!content) {
+      showToast("发送失败", "先输入一条 mock 消息再发送。");
+      return;
+    }
+
+    const message = {
+      id: `m_${Date.now()}`,
+      senderId: data.currentUser.id,
+      senderName: data.currentUser.name,
+      senderTone: data.currentUser.avatarTone,
+      content,
+      time: "刚刚",
+      self: true,
+      status: "已送达",
+    };
+    chat.messages.push(message);
+    chat.lastMessage = content;
+    chat.lastTime = "刚刚";
+    chat.unread = 0;
+    promoteChat(chat);
+    state.chatDrafts[chatId] = "";
+    state.recentMessageId = message.id;
+    showToast("消息已发送", "新的 mock 消息已经进入当前会话流。");
+    render();
+  }
+
+  function simulateIncomingMessage(chatId) {
+    const chat = findChat(chatId);
+    if (!chat) {
+      return;
+    }
+
+    const sender = chat.type === "group"
+      ? findContact(chat.participants.find((item) => item !== data.currentUser.id))
+      : findDirectContact(chat);
+
+    const message = {
+      id: `m_${Date.now()}`,
+      senderId: sender ? sender.id : "u_bot",
+      senderName: sender ? sender.name : "Ops Copilot",
+      senderTone: sender ? sender.tone : "violet",
+      content: "这是模拟新消息，用来验证消息入场动画和列表节奏。",
+      time: "刚刚",
+      self: false,
+      reactions: [{ emoji: "👀", count: 1 }],
+    };
+    chat.messages.push(message);
+    chat.lastMessage = message.content;
+    chat.lastTime = "刚刚";
+    chat.unread = 0;
+    promoteChat(chat);
+    state.recentMessageId = message.id;
+    showToast("模拟来消息", "已插入一条自下而上的新消息。");
+    render();
+  }
+
+  function updateGroupField(groupId, kind, value) {
+    const group = findGroup(groupId);
+    if (!group) {
+      return;
+    }
+    if (kind === "join-policy") {
+      group.joinPolicy = value;
+      showToast("加入方式已更新", `${group.name} 现在是 ${joinPolicyLabel(value)}。`);
+    } else if (kind === "mute-mode") {
+      group.muteMode = value;
+      showToast("发言策略已更新", `${group.name} 现在是 ${muteModeLabel(value)}。`);
+    }
+    render();
+  }
+
+  function showToast(title, message) {
+    state.toasts.unshift({
+      id: `toast_${Date.now()}`,
+      title,
+      message,
+    });
+    state.toasts = state.toasts.slice(0, 3);
+    if (toastTimerId) {
+      window.clearTimeout(toastTimerId);
+    }
+    toastTimerId = window.setTimeout(() => {
+      state.toasts.pop();
+      render();
+    }, 2800);
+  }
+
+  function renderToasts() {
+    if (!state.toasts.length) {
+      return "";
+    }
+    return `
+      <aside class="toast-stack" aria-live="polite">
+        ${state.toasts
+          .map(
+            (toast) => `
+              <div class="toast">
+                <strong>${escapeHtml(toast.title)}</strong>
+                <p>${escapeHtml(toast.message)}</p>
+              </div>
+            `,
+          )
+          .join("")}
+      </aside>
+    `;
+  }
+
+  function handleClick(event) {
+    const target = event.target.closest("[data-action]");
+    if (!target) {
+      return;
+    }
+
+    const action = target.getAttribute("data-action");
+    if (action === "navigate") {
+      event.preventDefault();
+      navigate(target.getAttribute("data-route"));
+      return;
+    }
+    if (action === "set-theme") {
+      state.theme = target.getAttribute("data-theme");
+      data.settings.theme = state.theme;
+      persistUiState();
+      render();
+      return;
+    }
+    if (action === "set-density") {
+      state.density = target.getAttribute("data-density");
+      data.settings.density = state.density;
+      persistUiState();
+      render();
+      return;
+    }
+    if (action === "set-spec-tab") {
+      state.activeSpecTab = target.getAttribute("data-tab");
+      render();
+      return;
+    }
+    if (action === "toggle-composer-panel") {
+      const panel = target.getAttribute("data-panel");
+      state.composerPanel = state.composerPanel === panel ? null : panel;
+      render();
+      return;
+    }
+    if (action === "append-emoji") {
+      const route = parseRoute(currentPath());
+      if (route.section === "chat-detail" && route.chatId) {
+        state.chatDrafts[route.chatId] = `${state.chatDrafts[route.chatId] || ""}${target.getAttribute("data-emoji")}`;
+        render();
+      }
+      return;
+    }
+    if (action === "simulate-message") {
+      simulateIncomingMessage(target.getAttribute("data-chat-id"));
+      return;
+    }
+    if (action === "show-hint") {
+      showToast("原型说明", target.getAttribute("data-message") || "该能力将在正式重构阶段继续展开。");
+      return;
+    }
+    if (action === "send-friend-request") {
+      sendFriendRequest(target.getAttribute("data-user-id"));
+      render();
+      return;
+    }
+    if (action === "update-request") {
+      updateFriendRequest(target.getAttribute("data-request-id"), target.getAttribute("data-status"));
+      render();
+      return;
+    }
+    if (action === "open-direct-chat") {
+      const contact = findContact(target.getAttribute("data-contact-id"));
+      if (contact) {
+        const chat = createDirectChat(contact);
+        state.activeChatId = chat.id;
+        navigate(`/chat/${chat.id}`);
+      }
+      return;
+    }
+    if (action === "open-search-result") {
+      state.activeChatId = target.getAttribute("data-chat-id");
+      state.highlightMessageId = target.getAttribute("data-message-id");
+      navigate(`/chat/${state.activeChatId}`, { keepHighlight: true });
+      return;
+    }
+    if (action === "prefill-search") {
+      state.searchQuery = target.getAttribute("data-value") || "";
+      render();
+      return;
+    }
+    if (action === "update-group-field") {
+      updateGroupField(
+        target.getAttribute("data-group-id"),
+        target.getAttribute("data-kind"),
+        target.getAttribute("data-value"),
+      );
+    }
+  }
+
+  function handleInput(event) {
+    const target = event.target;
+
+    if (target.id === "chat-filter-input") {
+      state.chatFilter = target.value;
+      render();
+      return;
+    }
+    if (target.id === "contact-filter-input") {
+      state.contactFilter = target.value;
+      render();
+      return;
+    }
+    if (target.id === "friend-search-input") {
+      state.friendSearch = target.value;
+      render();
+      return;
+    }
+    if (target.id === "global-search-input") {
+      state.searchQuery = target.value;
+      render();
+      return;
+    }
+    if (target.id === "group-member-filter-input") {
+      state.groupMemberFilter = target.value;
+      render();
+      return;
+    }
+    if (target.id === "group-name-input") {
+      state.createGroupName = target.value;
+      return;
+    }
+    if (target.id === "friend-note-input") {
+      state.friendNote = target.value;
+      return;
+    }
+    if (target.id === "chat-draft-input") {
+      const chatId = target.getAttribute("data-chat-id");
+      state.chatDrafts[chatId] = target.value;
+    }
+  }
+
+  function handleChange(event) {
+    const target = event.target;
+
+    if (target.getAttribute("data-kind") === "setting-toggle") {
+      const scope = target.getAttribute("data-scope");
+      const key = target.getAttribute("data-key");
+      data.settings[scope][key] = target.checked;
+      persistUiState();
+      return;
+    }
+
+    if (target.getAttribute("data-kind") === "group-member") {
+      const contactId = target.getAttribute("data-contact-id");
+      if (target.checked) {
+        state.createGroupMembers.add(contactId);
+      } else {
+        state.createGroupMembers.delete(contactId);
+      }
+      render();
+    }
+  }
+
+  function handleSubmit(event) {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+
+    const formKind = form.getAttribute("data-form");
+    if (formKind === "login-form") {
+      event.preventDefault();
+      showToast("已进入原型", "登录流程为 mock，重点是移动端信息架构与 UI 细节。");
+      navigate("/chats");
+      return;
+    }
+    if (formKind === "send-message") {
+      event.preventDefault();
+      sendChatMessage(form.getAttribute("data-chat-id"));
+      return;
+    }
+    if (formKind === "create-group-form") {
+      event.preventDefault();
+      createGroupFromForm();
+    }
+  }
+
+  function relationLabel(value) {
+    if (value === "pending_incoming") {
+      return "待处理";
+    }
+    if (value === "pending_outgoing") {
+      return "已申请";
+    }
+    if (value === "friend") {
+      return "好友";
+    }
+    return "可添加";
+  }
+
+  function statusLabel(value) {
+    if (value === "pending") {
+      return "待处理";
+    }
+    if (value === "accepted") {
+      return "已通过";
+    }
+    if (value === "rejected") {
+      return "已忽略";
+    }
+    if (value === "withdrawn") {
+      return "已撤回";
+    }
+    if (value === "sent") {
+      return "已发送";
+    }
+    return value;
+  }
+
+  function joinPolicyLabel(value) {
+    if (value === "invite_only") {
+      return "仅邀请";
+    }
+    if (value === "review_required") {
+      return "需审核";
+    }
+    return value;
+  }
+
+  function muteModeLabel(value) {
+    if (value === "admin_only") {
+      return "仅管理员";
+    }
+    if (value === "free") {
+      return "全员可发言";
+    }
+    return value;
+  }
+
+  function themeLabel(value) {
+    return value === "dark" ? "深色主题" : "浅色主题";
+  }
+
+  function densityLabel(value) {
+    if (value === "mid") {
+      return "1.5K 密度";
+    }
+    if (value === "compact") {
+      return "1K 密度";
+    }
+    return "2K 密度";
+  }
+
+  function initials(value) {
+    return value
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((item) => item.charAt(0))
+      .join("")
+      .toUpperCase();
   }
 
   function escapeHtml(value) {
-    return String(value || "")
+    return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
