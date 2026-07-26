@@ -413,13 +413,13 @@ window.RedcodeIMPrototypeData = {
       {
         title: "Composer",
         summary: "输入框、表情、更多面板和发送动作作为一个整体组件处理。",
-        states: ["Idle", "Typing", "Emoji Panel", "Attachment Panel"],
+        states: ["Idle", "Typing", "Emoji Panel", "Action Panel"],
         flutter: "Bottom composer + panel controller",
       },
       {
         title: "Search Box",
         summary: "搜索 icon、输入框、占位文案和结果上下文使用统一容器，不在不同页面反复变体。",
-        states: ["Idle", "Focused", "Typing", "Contextual"],
+        states: ["Idle", "Focused", "Typing", "Context"],
         flutter: "Shared search field + optional context label",
       },
       {
@@ -468,7 +468,7 @@ window.RedcodeIMPrototypeData = {
         summary: "输入、表情、更多面板与发送动作共用同一底部节奏。",
         items: [
           { state: "Idle", detail: "单行输入 + 轻操作", tone: "muted" },
-          { state: "Panel", detail: "表情 / 更多保持底部占位", tone: "soft" },
+          { state: "Panel Active", detail: "表情 / 更多保持底部占位", tone: "soft" },
           { state: "Typing", detail: "发送动作进入主色可点击", tone: "active" },
         ],
       },

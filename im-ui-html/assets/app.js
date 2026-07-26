@@ -1505,6 +1505,53 @@
     `;
   }
 
+  function renderFlowEntrySequence() {
+    const primaryRoutes = data.designSystem.mobileBlueprint.routes || [];
+    const secondaryRoutes = data.designSystem.mobileBlueprint.secondary || [];
+
+    return `
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>手机入口顺序</h3>
+          <span class="badge">Mobile Order</span>
+        </div>
+        <div class="flow-board">
+          ${primaryRoutes
+            .map(
+              (item, index) => `
+                <div class="flow-step">
+                  <span class="flow-step__index">0${index + 1}</span>
+                  <div>
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <p>${escapeHtml(item.note)}</p>
+                  </div>
+                </div>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>关键二级入口</h3>
+          <span class="badge">Secondary</span>
+        </div>
+        <div class="quick-action-grid quick-action-grid--compact">
+          ${secondaryRoutes
+            .map(
+              (item) => `
+                <span class="quick-action-card quick-action-card--mini">
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <span>${escapeHtml(item.note)}</span>
+                </span>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
   function renderChatPageBlueprintBoard(compact) {
     const items = data.designSystem.chatPageSpec?.blueprints || [];
 
@@ -1911,13 +1958,7 @@
             </div>
             ${renderRootPagePreviewDeck()}
           </section>
-          <section class="surface-card">
-            <div class="surface-card__header">
-              <h3>一级页面拆分</h3>
-              <span class="badge">Root Pages</span>
-            </div>
-            ${renderPageBlueprintBoard(true)}
-          </section>
+          ${renderFlowEntrySequence()}
           <section class="surface-card">
             <div class="surface-card__header">
               <h3>主链路顺序</h3>
