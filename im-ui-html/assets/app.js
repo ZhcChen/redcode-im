@@ -1377,13 +1377,17 @@
     const chats = sortedChats().filter(matchesChatFilter);
     const unreadTotal = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
     const pinnedCount = chats.filter((chat) => chat.pinned).length;
+    const mentionTotal = chats.reduce((sum, chat) => sum + (chat.metrics?.unreadMention || 0), 0);
+    const priorityChats = chats.filter((chat) => chat.pinned || chat.unread > 0);
+    const priorityIds = new Set(priorityChats.map((chat) => chat.id));
+    const recentChats = chats.filter((chat) => !priorityIds.has(chat.id));
 
     return `
-      <section class="screen screen--tabbed">
+      <section class="screen screen--tabbed screen--chats">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "聊天",
-            subtitle: `未读 ${unreadTotal} · 主导航一级入口`,
+            subtitle: `未读 ${unreadTotal} · @我 ${mentionTotal} · 主导航一级入口`,
             root: true,
             actions: [
               `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/search">搜索</button>`,
@@ -1391,63 +1395,144 @@
             ],
           })}
           <div class="screen-stack">
-            <section class="hero-card hero-card--tabbed">
-              <div class="hero-card__metric-row">
-                <span class="hero-metric">
+            <section class="hero-card hero-card--tabbed hero-card--conversation-hub">
+              <div class="conversation-hub__headline">
+                <div>
+                  <p class="section-title">Inbox</p>
+                  <h3>先把高优先级会话拎到第一屏</h3>
+                  <p>会话列表只承担收件箱角色：读未读、看摘要、快速进入，不把复杂上下文堆回首页。</p>
+                </div>
+                <span class="badge badge--success">主线页</span>
+              </div>
+              <div class="conversation-hub__stats">
+                <span class="conversation-hub__stat">
                   <strong>${unreadTotal}</strong>
                   <span>未读消息</span>
                 </span>
-                <span class="hero-metric">
+                <span class="conversation-hub__stat">
                   <strong>${pinnedCount}</strong>
                   <span>置顶会话</span>
                 </span>
-                <span class="hero-metric">
-                  <strong>${data.chats.length}</strong>
-                  <span>全部会话</span>
+                <span class="conversation-hub__stat">
+                  <strong>${mentionTotal}</strong>
+                  <span>@我提醒</span>
                 </span>
               </div>
-              <div class="inline-actions">
+              <div class="inline-actions inline-actions--wide">
                 <button class="ghost-button" data-action="navigate" data-route="/groups/create">建群</button>
                 <button class="ghost-button" data-action="navigate" data-route="/search">搜消息</button>
               </div>
             </section>
-            <label class="search-box">
+            <label class="search-box search-box--conversation">
               <span>搜索会话、标签或最后一条消息</span>
-              <input
-                id="chat-filter-input"
-                class="search-box__input"
-                value="${escapeHtml(state.chatFilter)}"
-                placeholder="例如：发布、AI、设计"
-              />
+              <div class="search-box__field">
+                <span class="search-box__icon">⌕</span>
+                <input
+                  id="chat-filter-input"
+                  class="search-box__input"
+                  value="${escapeHtml(state.chatFilter)}"
+                  placeholder="例如：发布、AI、设计"
+                />
+              </div>
             </label>
-            <section class="list-card">
-              ${chats.length ? chats.map((chat) => renderConversationRow(chat)).join("") : renderEmptyState("没有匹配会话", "尝试切换关键词，或直接进入好友与群聊创建流程。")}
-            </section>
+            ${
+              chats.length
+                ? `
+                  ${renderConversationSection("优先处理", "置顶和未读会话", "让真正需要处理的消息先占据第一屏。", priorityChats)}
+                  ${renderConversationSection("最近会话", "常规节奏与低噪音列表", "其余会话收敛为稳定节奏，不和高优先级抢层级。", recentChats)}
+                `
+                : renderEmptyState("没有匹配会话", "尝试切换关键词，或直接进入好友与群聊创建流程。")
+            }
           </div>
         </div>
       </section>
     `;
   }
 
+  function renderConversationSection(label, title, note, chats) {
+    if (!chats.length) {
+      return "";
+    }
+
+    return `
+      <section class="conversation-section">
+        <div class="conversation-section__header">
+          <div class="conversation-section__copy">
+            <p class="section-title">${escapeHtml(label)}</p>
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(note)}</p>
+          </div>
+          <span class="badge">${chats.length} 个</span>
+        </div>
+        <section class="list-card list-card--conversation">
+          ${chats.map((chat) => renderConversationRow(chat)).join("")}
+        </section>
+      </section>
+    `;
+  }
+
+  function chatTypeLabel(chat) {
+    return chat.type === "group" ? "群聊" : "私聊";
+  }
+
+  function chatSecondaryLabel(chat) {
+    if (chat.type === "group") {
+      const members = chat.metrics?.activeMembers || chat.participants?.length || 0;
+      return `${members} 人活跃`;
+    }
+    if (chat.remark) {
+      return chat.remark;
+    }
+    if (chat.muted) {
+      return "静音会话";
+    }
+    return "直接沟通";
+  }
+
   function renderConversationRow(chat) {
-    const titleMeta = chat.pinned ? `<span class="badge">置顶</span>` : `<span class="list-meta">${escapeHtml(chat.lastTime)}</span>`;
     const unread = chat.unread > 0 ? `<span class="badge badge--danger">${chat.unread}</span>` : "";
+    const active = state.activeChatId === chat.id;
+    const titlePills = [
+      chat.pinned ? `<span class="badge">置顶</span>` : "",
+      chat.muted ? `<span class="badge badge--muted">静音</span>` : "",
+      `<span class="chip ${chat.type === "group" ? "chip--filled" : ""}">${chatTypeLabel(chat)}</span>`,
+    ]
+      .filter(Boolean)
+      .join("");
+    const statusPills = [
+      ...(chat.tags || []).slice(0, 2).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`),
+      chat.metrics?.unreadMention ? `<span class="conversation-row__signal">@我 ${chat.metrics.unreadMention}</span>` : "",
+    ]
+      .filter(Boolean)
+      .join("");
 
     return `
       <button
-        class="conversation-row"
+        class="conversation-row ${active ? "is-active" : ""}"
         data-action="navigate"
         data-route="/chat/${chat.id}"
       >
-        ${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}
+        <span class="conversation-row__avatar">
+          ${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}
+          <span class="conversation-row__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>
+        </span>
         <span class="conversation-row__body">
           <span class="conversation-row__top">
-            <strong>${escapeHtml(chat.name)}</strong>
-            <span class="conversation-row__right">${titleMeta}${unread}</span>
+            <span class="conversation-row__title-group">
+              <strong>${escapeHtml(chat.name)}</strong>
+              <span class="conversation-row__pills">${titlePills}</span>
+            </span>
+            <span class="conversation-row__right">
+              <span class="list-meta">${escapeHtml(chat.lastTime)}</span>
+              ${unread}
+            </span>
           </span>
           <span class="conversation-row__summary">${escapeHtml(chat.lastMessage)}</span>
-          <span class="conversation-row__tags">
-            ${chat.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+          <span class="conversation-row__bottom">
+            <span class="conversation-row__tags">
+              ${statusPills}
+            </span>
+            <span class="conversation-row__secondary">${escapeHtml(chatSecondaryLabel(chat))}</span>
           </span>
         </span>
       </button>
@@ -1463,6 +1548,8 @@
     const group = findGroupByChatId(chat.id);
     const targetContact = chat.type === "single" ? findDirectContact(chat) : null;
     const draft = state.chatDrafts[chat.id] || "";
+    const mentionCount = chat.metrics?.unreadMention || 0;
+    const activePanel = state.composerPanel;
 
     return `
       <section class="screen screen--chat-detail">
@@ -1483,39 +1570,89 @@
           ].filter(Boolean),
         })}
         <div class="screen-scroll screen-scroll--chat">
-          <div class="screen-stack screen-stack--tight">
-            ${
-              group
-                ? `
-                  <section class="surface-banner">
-                    <strong>群公告</strong>
-                    <p>${escapeHtml(group.notice)}</p>
-                  </section>
-                `
-                : `
-                  <section class="surface-banner surface-banner--subtle">
-                    <strong>会话定位</strong>
-                    <p>${escapeHtml(chat.description || "围绕单个联系人展开消息、文件与后续扩展能力。")}</p>
-                  </section>
-                `
-            }
-            <div class="message-list">
-              ${chat.messages.map((message) => renderMessageBubble(chat, message)).join("")}
-            </div>
+          <div class="screen-stack screen-stack--tight screen-stack--chat-detail">
+            <section class="surface-card surface-card--chat-brief">
+              <div class="chat-brief">
+                <div class="chat-brief__top">
+                  <div class="chat-brief__copy">
+                    <p class="section-title">${group ? "Group Session" : "Direct Session"}</p>
+                    <h3>${group ? "主聊天区只保留必要上下文" : `${escapeHtml(chat.name)} 的对话主视图`}</h3>
+                    <p>${escapeHtml(group
+                      ? "群信息只保留成员、频次和共享文件摘要，消息流仍然是当前页主角。"
+                      : "资料和扩展入口继续下沉到二级页，当前页只承载消息与输入动作。")}</p>
+                  </div>
+                  <span class="badge ${group ? "" : "badge--success"}">${group ? "群聊" : "单聊"}</span>
+                </div>
+                <div class="chat-brief__metrics">
+                  <span class="hero-metric">
+                    <strong>${chat.messages.length}</strong>
+                    <span>当前消息</span>
+                  </span>
+                  <span class="hero-metric">
+                    <strong>${chat.metrics?.todayMessages || chat.messages.length}</strong>
+                    <span>今日流量</span>
+                  </span>
+                  <span class="hero-metric">
+                    <strong>${group ? group.memberCount : targetContact ? targetContact.status : "在线"}</strong>
+                    <span>${group ? "群成员" : "会话状态"}</span>
+                  </span>
+                </div>
+                <div class="chat-brief__chips">
+                  ${(chat.tags || []).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
+                  ${mentionCount ? `<span class="chip chip--filled">@我 ${mentionCount}</span>` : ""}
+                  ${chat.files.length ? `<span class="chip">共享文件 ${chat.files.length}</span>` : ""}
+                  ${chat.pinnedMessages.length ? `<span class="chip">置顶 ${chat.pinnedMessages.length}</span>` : ""}
+                </div>
+              </div>
+            </section>
+            <section class="surface-banner ${group ? "" : "surface-banner--subtle"}">
+              <strong>${group ? "群公告" : "会话重点"}</strong>
+              <p>${escapeHtml(group ? group.notice : chat.description || "围绕单个联系人展开消息、文件与后续扩展能力。")}</p>
+              ${
+                chat.pinnedMessages.length
+                  ? `
+                    <div class="surface-banner__chips">
+                      ${chat.pinnedMessages
+                        .slice(0, 2)
+                        .map((item) => `<span class="chip">${escapeHtml(item)}</span>`)
+                        .join("")}
+                    </div>
+                  `
+                  : ""
+              }
+            </section>
+            <section class="message-stage">
+              <div class="message-stage__header">
+                <div class="message-stage__copy">
+                  <p class="section-title">Message Flow</p>
+                  <h3>消息主阅读区</h3>
+                  <p>时间分段、引用态和底部输入区共用同一套节奏。</p>
+                </div>
+                <span class="badge">${chat.messages.length} 条</span>
+              </div>
+              <div class="message-stage__summary">
+                <span class="chip chip--filled">最近更新 ${escapeHtml(chat.lastTime)}</span>
+                <span class="chip">${escapeHtml(chatSecondaryLabel(chat))}</span>
+                ${chat.pinned ? `<span class="chip">当前已置顶</span>` : ""}
+              </div>
+              <div class="message-list">
+                ${renderMessageTimeline(chat)}
+              </div>
+            </section>
           </div>
         </div>
         ${renderComposerPanel()}
-        <form class="composer" data-form="send-message" data-chat-id="${chat.id}">
+        <form class="composer composer--chat" data-form="send-message" data-chat-id="${chat.id}">
           <div class="composer__inner">
             <button
-              class="icon-button icon-button--soft"
+              class="icon-button icon-button--soft ${activePanel === "emoji" ? "is-active" : ""}"
               type="button"
               data-action="toggle-composer-panel"
               data-panel="emoji"
             >
               ☺
             </button>
-            <label class="composer__field">
+            <label class="composer__field ${draft.trim() ? "is-filled" : ""} ${activePanel ? "is-panel-active" : ""}">
               <textarea
                 id="chat-draft-input"
                 rows="1"
@@ -1524,20 +1661,27 @@
               >${escapeHtml(draft)}</textarea>
             </label>
             <button
-              class="icon-button icon-button--soft"
+              class="icon-button icon-button--soft ${activePanel === "more" ? "is-active" : ""}"
               type="button"
               data-action="toggle-composer-panel"
               data-panel="more"
             >
               ＋
             </button>
-            <button class="primary-button primary-button--small" type="submit">发送</button>
+            <button class="primary-button primary-button--small primary-button--composer" type="submit">发送</button>
           </div>
           <div class="composer__footer">
+            <span class="composer__hint">${activePanel === "emoji"
+              ? "发送后保持表情面板，验证连续输入时不跳回默认态。"
+              : activePanel === "more"
+              ? "附件面板保持当前上下文，避免发送后突然收回。"
+              : group
+              ? "输入区、面板和消息动效共享同一密度体系。"
+              : "占位态、输入态和附件态保持同一垂直节奏。"}
+            </span>
             <button class="text-button" type="button" data-action="simulate-message" data-chat-id="${chat.id}">
               模拟来消息
             </button>
-            <span>${group ? "发送后保持当前面板状态，验证交互节奏。" : "输入区、面板和消息动效共享同一密度体系。"}</span>
           </div>
         </form>
       </section>
@@ -1548,7 +1692,11 @@
     if (state.composerPanel === "emoji") {
       const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
       return `
-        <section class="composer-panel">
+        <section class="composer-panel composer-panel--emoji">
+          <div class="composer-panel__header">
+            <strong>表情面板</strong>
+            <span>发送后保持当前面板，连续输入不跳态。</span>
+          </div>
           <div class="emoji-grid">
             ${emojis
               .map(
@@ -1577,7 +1725,11 @@
         ["位置", "后续扩展场景能力"],
       ];
       return `
-        <section class="composer-panel">
+        <section class="composer-panel composer-panel--actions">
+          <div class="composer-panel__header">
+            <strong>更多操作</strong>
+            <span>先把图片、文件、拍摄和位置拆成独立入口。</span>
+          </div>
           <div class="quick-action-grid quick-action-grid--compact">
             ${actions
               .map(
@@ -1595,6 +1747,38 @@
     }
 
     return "";
+  }
+
+  function renderMessageTimeline(chat) {
+    let previousBucket = "";
+
+    return chat.messages
+      .map((message) => {
+        const bucket = messageDayLabel(message.time);
+        const divider = bucket !== previousBucket
+          ? `
+            <div class="message-day-divider">
+              <span>${escapeHtml(bucket)}</span>
+            </div>
+          `
+          : "";
+        previousBucket = bucket;
+        return `${divider}${renderMessageBubble(chat, message)}`;
+      })
+      .join("");
+  }
+
+  function messageDayLabel(time) {
+    if (typeof time !== "string" || !time.trim()) {
+      return "今天";
+    }
+    if (time.startsWith("昨天")) {
+      return "昨天";
+    }
+    if (time.startsWith("前天")) {
+      return "前天";
+    }
+    return "今天";
   }
 
   function renderMessageBubble(chat, message) {
@@ -1616,8 +1800,15 @@
         <div class="message-block ${message.self ? "message-block--self" : ""}">
           ${message.self ? "" : `<span class="message-sender">${escapeHtml(message.senderName)}</span>`}
           <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
-            ${message.quote ? `<div class="message-quote">${escapeHtml(message.quote)}</div>` : ""}
-            <p>${escapeHtml(message.content)}</p>
+            ${message.quote
+              ? `
+                <div class="message-quote">
+                  <span class="message-quote__label">引用</span>
+                  <p>${escapeHtml(message.quote)}</p>
+                </div>
+              `
+              : ""}
+            <p class="message-bubble__text">${escapeHtml(message.content)}</p>
           </div>
           ${reactions}
           <div class="message-meta">
