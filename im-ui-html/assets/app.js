@@ -369,7 +369,7 @@
     const route = parseRoute(currentPath());
     syncSelection(route);
     const wideStage = isWideStageRoute(route);
-    const showPrototypeToolbar = route.section !== "entry";
+    const showPrototypeToolbar = route.section !== "entry" && route.section !== "spec";
 
     root.innerHTML = `
       <div class="prototype-shell">
@@ -1643,6 +1643,30 @@
               <li>先收敛组件、字体、颜色，再回刷聊天 / 联系人 / 发现页面。</li>
               <li>右侧预览统一放进手机画布，不再用纯说明文档代替真实 UI 观感。</li>
             </ul>
+          </div>
+          <div class="surface-block spec-sidebar__settings">
+            <div class="spec-sidebar__settings-header">
+              <p class="section-title">显示设置</p>
+              <div class="chip-row">
+                <span class="chip chip--filled">${themeLabel(state.theme)}</span>
+                <span class="chip">${densityLabel(state.density)}</span>
+              </div>
+            </div>
+            <div class="spec-setting-group">
+              <span class="toolbar-label">主题</span>
+              <div class="segmented segmented--fluid">
+                ${renderThemeButton("light", "浅色")}
+                ${renderThemeButton("dark", "深色")}
+              </div>
+            </div>
+            <div class="spec-setting-group">
+              <span class="toolbar-label">密度</span>
+              <div class="segmented segmented--fluid">
+                ${renderDensityButton("regular", "2K")}
+                ${renderDensityButton("mid", "1.5K")}
+                ${renderDensityButton("compact", "1K")}
+              </div>
+            </div>
           </div>
         </aside>
 

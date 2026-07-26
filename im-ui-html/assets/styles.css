@@ -291,6 +291,17 @@ img {
   max-width: 100%;
 }
 
+.segmented--fluid {
+  display: flex;
+  width: 100%;
+}
+
+.segmented--fluid .segmented__item {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
 .segmented__item {
   min-width: 3.2rem;
   padding: 0.48rem 0.78rem;
@@ -1094,6 +1105,22 @@ img {
 
 .spec-sidebar__note {
   padding: 0.9rem;
+}
+
+.spec-sidebar__settings {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.spec-sidebar__settings-header,
+.spec-setting-group {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.spec-sidebar__settings .chip-row {
+  gap: 0.32rem;
 }
 
 .spec-preview-stage__hero {
@@ -3903,6 +3930,11 @@ img {
   .spec-sidebar,
   .spec-preview-stage__hero {
     padding: 0.9rem;
+  }
+
+  .spec-sidebar__settings .chip-row {
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   .spec-nav-item {
