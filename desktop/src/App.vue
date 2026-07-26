@@ -29,7 +29,7 @@ const reportUpdateEvent = async (
   triggerSource: 'manual' | 'auto' | 'notification' = 'manual'
 ) => {
   try {
-    const currentVersion = store.getters.currentVersion || '1.0.0';
+    const currentVersion = store.getters.currentVersion || '2.0.0';
     const patchVersion = version?.version || currentVersion;
     const currentUser = store.getters.currentUser;
 

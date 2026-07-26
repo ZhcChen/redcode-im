@@ -180,7 +180,7 @@ export const getEnvironmentInfo = () => {
     environment: config.env,
     apiBaseUrl: config.apiBaseUrl,
     useRustBackend: config.useRustBackend,
-    version: import.meta.env.VITE_APP_VERSION || '0.1.0',
+    version: import.meta.env.VITE_APP_VERSION || '2.0.0',
     buildTime: import.meta.env.VITE_BUILD_TIME || new Date().toISOString(),
   }
 }
