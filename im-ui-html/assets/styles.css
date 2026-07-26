@@ -4216,6 +4216,62 @@ body[data-theme="dark"] .spec-stage {
       minmax(0, 1fr);
   }
 
+  .spec-sidebar,
+  .spec-secondary-column__intro,
+  .spec-preview-column {
+    padding: 0.9rem;
+  }
+
+  .spec-sidebar__header {
+    gap: 0.28rem;
+  }
+
+  .spec-sidebar__header h2,
+  .spec-secondary-column__intro h3 {
+    font-size: clamp(1.28rem, 4vw, 1.55rem);
+  }
+
+  .spec-sidebar__header p,
+  .spec-secondary-column__intro p {
+    font-size: 0.85rem;
+    line-height: 1.52;
+  }
+
+  .spec-nav-item {
+    padding: 0.72rem 0.76rem;
+    padding-right: 1rem;
+    gap: 0.58rem;
+    border-radius: 0.88rem;
+  }
+
+  .spec-nav-item__index {
+    min-width: 1.92rem;
+    height: 1.92rem;
+    font-size: 0.64rem;
+  }
+
+  .spec-nav-item strong {
+    font-size: 0.84rem;
+  }
+
+  .spec-nav-item__eyebrow {
+    font-size: 0.6rem;
+  }
+
+  .spec-preview-column__meta {
+    gap: 0.56rem;
+  }
+
+  .spec-preview-column__label {
+    font-size: 0.76rem;
+    letter-spacing: 0.06em;
+  }
+
+  .phone-frame--spec {
+    width: min(23rem, 100%);
+    height: min(43rem, calc(100vh - 11rem));
+  }
+
   .spec-secondary-column,
   .spec-preview-column,
   .spec-sidebar {
@@ -4292,7 +4348,7 @@ body[data-theme="dark"] .spec-stage {
   .spec-sidebar,
   .spec-secondary-column__intro,
   .spec-preview-column {
-    padding: 0.9rem;
+    padding: 0.8rem;
   }
 
   .spec-sidebar__settings .chip-row {
@@ -4314,17 +4370,18 @@ body[data-theme="dark"] .spec-stage {
   }
 
   .spec-nav-item {
-    padding: 0.82rem;
-    border-radius: 1rem;
+    padding: 0.7rem 0.72rem;
+    border-radius: 0.92rem;
   }
 
   .spec-nav-item__index {
-    min-width: 2.25rem;
-    height: 2.25rem;
+    min-width: 1.86rem;
+    height: 1.86rem;
   }
 
   .phone-frame--spec {
-    height: min(45rem, calc(100vh - 11.25rem));
+    width: min(21.5rem, 100%);
+    height: min(39.5rem, calc(100vh - 10.8rem));
   }
 
   .desktop-canvas {
