@@ -157,6 +157,22 @@
       return { section: "contacts" };
     }
 
+    if (segments[0] === "discover") {
+      if (segments[1] === "moments") {
+        return { section: "discover-moments" };
+      }
+      if (segments[1] === "scan") {
+        return { section: "discover-scan" };
+      }
+      if (segments[1] === "nearby") {
+        return { section: "discover-nearby" };
+      }
+      if (segments[1] === "games") {
+        return { section: "discover-games" };
+      }
+      return { section: "discover" };
+    }
+
     if (segments[0] === "groups") {
       if (segments[1] === "create") {
         return { section: "group-create" };
@@ -245,12 +261,14 @@
           route.section === "contact-profile",
       },
       {
-        label: "群聊",
-        route: "/groups/create",
+        label: "发现",
+        route: "/discover",
         active:
-          route.section === "groups" ||
-          route.section === "group-create" ||
-          route.section === "group-settings",
+          route.section === "discover" ||
+          route.section === "discover-moments" ||
+          route.section === "discover-scan" ||
+          route.section === "discover-nearby" ||
+          route.section === "discover-games",
       },
       { label: "设置", route: "/settings", active: route.section === "settings" },
     ];
@@ -359,17 +377,19 @@
 
   function renderTabBar(route) {
     const items = [
-      { id: "chats", label: "聊天", route: "/chats", icon: "聊" },
-      { id: "contacts", label: "联系人", route: "/contacts", icon: "联" },
-      { id: "settings", label: "设置", route: "/settings", icon: "设" },
+      { id: "chats", label: "聊天", route: "/chats", icon: "聊", hint: "消息" },
+      { id: "contacts", label: "联系人", route: "/contacts", icon: "联", hint: "关系" },
+      { id: "discover", label: "发现", route: "/discover", icon: "发", hint: "内容" },
+      { id: "settings", label: "设置", route: "/settings", icon: "设", hint: "偏好" },
     ];
 
-    if (!["chats", "contacts", "settings"].includes(route.section)) {
+    if (!["chats", "contacts", "discover", "settings"].includes(route.section)) {
       return "";
     }
 
     return `
-      <nav class="tab-bar" aria-label="底部主导航">
+      <nav class="tab-bar tab-bar--floating" aria-label="底部主导航">
+        <div class="tab-bar__capsule">
         ${items
           .map((item) => {
             const active = route.section === item.id;
@@ -380,11 +400,13 @@
                 data-route="${item.route}"
               >
                 <span class="tab-bar__icon">${item.icon}</span>
-                <span>${item.label}</span>
+                <span class="tab-bar__label">${item.label}</span>
+                <span class="tab-bar__hint">${item.hint}</span>
               </button>
             `;
           })
           .join("")}
+        </div>
       </nav>
     `;
   }
@@ -404,6 +426,21 @@
     }
     if (route.section === "contacts") {
       return renderContactsScreen();
+    }
+    if (route.section === "discover") {
+      return renderDiscoverScreen();
+    }
+    if (route.section === "discover-moments") {
+      return renderDiscoverMomentsScreen();
+    }
+    if (route.section === "discover-scan") {
+      return renderDiscoverScanScreen();
+    }
+    if (route.section === "discover-nearby") {
+      return renderDiscoverNearbyScreen();
+    }
+    if (route.section === "discover-games") {
+      return renderDiscoverGamesScreen();
     }
     if (route.section === "contact-requests") {
       return renderFriendRequestsScreen();
@@ -803,9 +840,10 @@
   function renderChatListScreen() {
     const chats = sortedChats().filter(matchesChatFilter);
     const unreadTotal = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
+    const pinnedCount = chats.filter((chat) => chat.pinned).length;
 
     return `
-      <section class="screen">
+      <section class="screen screen--tabbed">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "聊天",
@@ -817,6 +855,26 @@
             ],
           })}
           <div class="screen-stack">
+            <section class="hero-card hero-card--tabbed">
+              <div class="hero-card__metric-row">
+                <span class="hero-metric">
+                  <strong>${unreadTotal}</strong>
+                  <span>未读消息</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>${pinnedCount}</strong>
+                  <span>置顶会话</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>${data.chats.length}</strong>
+                  <span>全部会话</span>
+                </span>
+              </div>
+              <div class="inline-actions">
+                <button class="ghost-button" data-action="navigate" data-route="/groups/create">建群</button>
+                <button class="ghost-button" data-action="navigate" data-route="/search">搜消息</button>
+              </div>
+            </section>
             <label class="search-box">
               <span>搜索会话、标签或最后一条消息</span>
               <input
@@ -826,14 +884,6 @@
                 placeholder="例如：发布、AI、设计"
               />
             </label>
-            <section class="hero-card hero-card--soft">
-              <span class="eyebrow">Content Plan</span>
-              <h3>聊天列表只负责定位和进入会话，不再和详情并排出现。</h3>
-              <div class="inline-actions">
-                <button class="ghost-button" data-action="navigate" data-route="/groups/create">建群</button>
-                <button class="ghost-button" data-action="navigate" data-route="/contacts/add">加好友</button>
-              </div>
-            </section>
             <section class="list-card">
               ${chats.length ? chats.map((chat) => renderConversationRow(chat)).join("") : renderEmptyState("没有匹配会话", "尝试切换关键词，或直接进入好友与群聊创建流程。")}
             </section>
@@ -1050,7 +1100,7 @@
     ).length;
 
     return `
-      <section class="screen">
+      <section class="screen screen--tabbed">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "联系人",
@@ -1061,6 +1111,26 @@
             ],
           })}
           <div class="screen-stack">
+            <section class="hero-card hero-card--tabbed">
+              <div class="hero-card__metric-row">
+                <span class="hero-metric">
+                  <strong>${data.contacts.length}</strong>
+                  <span>好友</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>${pendingIncoming}</strong>
+                  <span>待处理申请</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>${data.groups.length}</strong>
+                  <span>群聊</span>
+                </span>
+              </div>
+              <div class="inline-actions">
+                <button class="ghost-button" data-action="navigate" data-route="/contacts/requests">新的朋友</button>
+                <button class="ghost-button" data-action="navigate" data-route="/groups/create">发起群聊</button>
+              </div>
+            </section>
             <label class="search-box">
               <span>搜索联系人或直接进入添加好友</span>
               <input
@@ -1090,6 +1160,212 @@
             </section>
             <section class="surface-card">
               ${groups.length ? groups.map(renderContactSection).join("") : renderEmptyState("没有匹配联系人", "尝试清空关键词，或去添加好友页发起新申请。")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderDiscoverScreen() {
+    const discover = data.discover;
+    return `
+      <section class="screen screen--tabbed">
+        <div class="screen-scroll">
+          ${renderScreenHeader({
+            title: "发现",
+            subtitle: "把内容消费、扫码、附近关系和游戏入口统一收进一级入口",
+            root: true,
+          })}
+          <div class="screen-stack">
+            <section class="hero-card hero-card--discover">
+              <span class="eyebrow">Discover Hub</span>
+              <h3>${escapeHtml(discover.highlight.summary)}</h3>
+              <div class="hero-card__metric-row">
+                ${discover.highlight.stats
+                  .map(
+                    (item) => `
+                      <span class="hero-metric">
+                        <strong>${escapeHtml(item[1])}</strong>
+                        <span>${escapeHtml(item[0])}</span>
+                      </span>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </section>
+            <section class="discover-grid">
+              ${discover.entries.map(renderDiscoverEntryCard).join("")}
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>入口原则</h3>
+                <span class="badge">一级导航</span>
+              </div>
+              <ul class="bullet-list">
+                <li>朋友圈负责内容消费和熟人动态，不回塞到聊天主列表里。</li>
+                <li>扫一扫和附近的人都属于弱关系和快捷入口，适合放到发现统一处理。</li>
+                <li>游戏先只做统一入口，后续小游戏大厅和房间再扩展。</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderDiscoverEntryCard(item) {
+    return `
+      <button
+        class="discover-entry-card"
+        data-action="navigate"
+        data-route="${item.route}"
+      >
+        <span class="discover-entry-card__icon">${escapeHtml(item.icon)}</span>
+        <div class="discover-entry-card__body">
+          <div class="discover-entry-card__title">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span class="badge">${escapeHtml(item.badge)}</span>
+          </div>
+          <p>${escapeHtml(item.summary)}</p>
+        </div>
+      </button>
+    `;
+  }
+
+  function renderDiscoverMomentsScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "朋友圈",
+          subtitle: "先用单列时间流验证内容型页面节奏",
+          backPath: "/discover",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            ${data.discover.moments.map(renderMomentCard).join("")}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderMomentCard(item) {
+    return `
+      <article class="moment-card">
+        <div class="moment-card__header">
+          ${renderAvatar(item.author, item.tone, "avatar--md")}
+          <div class="moment-card__meta">
+            <strong>${escapeHtml(item.author)}</strong>
+            <span>${escapeHtml(item.time)}</span>
+          </div>
+        </div>
+        <p class="moment-card__text">${escapeHtml(item.text)}</p>
+        <div class="moment-card__media">${escapeHtml(item.media)}</div>
+        <div class="moment-card__footer">
+          <span>赞 ${item.likes}</span>
+          <span>评论 ${item.comments}</span>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderDiscoverScanScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "扫一扫",
+          subtitle: "扫码属于高频快捷入口，单独承载更合理",
+          backPath: "/discover",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="scan-shell">
+              <div class="scan-shell__frame">
+                <div class="scan-shell__line"></div>
+              </div>
+              <p>后续可接加好友、进群、打开活动页、桌面端登录确认等二维码流程。</p>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>扫码入口优先承载</h3>
+                <span class="badge">Quick Action</span>
+              </div>
+              <ul class="bullet-list">
+                <li>加好友二维码</li>
+                <li>群邀请二维码</li>
+                <li>桌面端登录确认</li>
+                <li>活动页 / 设备配网等后续能力</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderDiscoverNearbyScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "附近的人",
+          subtitle: "用于弱关系扩展和同城场景，不混入联系人主列表",
+          backPath: "/discover",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="surface-card">
+              ${data.discover.nearbyPeople.map(renderNearbyPersonCard).join("")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderNearbyPersonCard(item) {
+    return `
+      <div class="nearby-card">
+        ${renderAvatar(item.name, item.tone, "avatar--md")}
+        <div class="nearby-card__body">
+          <div class="nearby-card__title">
+            <strong>${escapeHtml(item.name)}</strong>
+            <span class="badge">${escapeHtml(item.distance)}</span>
+          </div>
+          <p>${escapeHtml(item.note)}</p>
+        </div>
+        <button class="ghost-button ghost-button--small" data-action="show-hint" data-message="后续这里可接发招呼、查看资料、发起同城群。">看看</button>
+      </div>
+    `;
+  }
+
+  function renderDiscoverGamesScreen() {
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "游戏",
+          subtitle: "这一轮先只保留统一入口，后续再接小游戏大厅",
+          backPath: "/discover",
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="hero-card hero-card--soft">
+              <span class="eyebrow">Game Entry</span>
+              <h3>先保留一个成熟的入口位置，不急着把小游戏本体塞进这轮 UI 重构。</h3>
+            </section>
+            <section class="surface-card">
+              ${data.discover.games
+                .map(
+                  (item) => `
+                    <div class="menu-row menu-row--static">
+                      <div class="menu-row__body">
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <span>${escapeHtml(item.summary)}</span>
+                      </div>
+                    </div>
+                  `,
+                )
+                .join("")}
             </section>
           </div>
         </div>
@@ -1704,7 +1980,7 @@
 
   function renderSettingsScreen() {
     return `
-      <section class="screen">
+      <section class="screen screen--tabbed">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "设置",
@@ -1712,6 +1988,22 @@
             root: true,
           })}
           <div class="screen-stack">
+            <section class="hero-card hero-card--tabbed">
+              <div class="hero-card__metric-row">
+                <span class="hero-metric">
+                  <strong>${themeLabel(state.theme)}</strong>
+                  <span>主题</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>${densityLabel(state.density)}</strong>
+                  <span>密度</span>
+                </span>
+                <span class="hero-metric">
+                  <strong>6</strong>
+                  <span>偏好开关</span>
+                </span>
+              </div>
+            </section>
             <section class="profile-hero">
               ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
               <div class="profile-hero__body">
@@ -1875,6 +2167,23 @@
           "联系人主页和资料页分层明确，避免列表 + 详情并排。",
           "好友申请、添加好友、群聊都从联系人体系自然分叉。",
           "卡片、列表项、按钮都复用同一套信息层级。",
+        ],
+      };
+    }
+    if (
+      route.section === "discover" ||
+      route.section === "discover-moments" ||
+      route.section === "discover-scan" ||
+      route.section === "discover-nearby" ||
+      route.section === "discover-games"
+    ) {
+      return {
+        title: "发现链路验证点",
+        label: "Discover",
+        items: [
+          "发现必须成为正式一级入口，而不是继续挂在扩展页后面。",
+          "朋友圈、扫一扫、附近的人、游戏要按不同场景分别落位，不混在一个大杂烩页里。",
+          "游戏先只做入口位，保留后续小游戏大厅和房间扩展空间。",
         ],
       };
     }

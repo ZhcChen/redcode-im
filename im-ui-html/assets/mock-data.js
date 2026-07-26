@@ -58,11 +58,15 @@ window.RedcodeIMPrototypeData = {
     pageGroups: [
       {
         title: "一级入口",
-        items: ["Chats", "Contacts", "Settings"],
+        items: ["Chats", "Contacts", "Discover", "Settings"],
       },
       {
         title: "聊天链路",
         items: ["Chat Detail", "Search", "Pinned Messages"],
+      },
+      {
+        title: "发现链路",
+        items: ["Moments", "Scan", "Nearby", "Games"],
       },
       {
         title: "联系人链路",
@@ -76,7 +80,7 @@ window.RedcodeIMPrototypeData = {
     handoffTracks: [
       "Shell：先 mobile shell，再 desktop shell，不让桌面形态污染手机信息架构。",
       "UI Kit：先沉淀 tokens、输入区、cell、bubble、settings row 这些稳定组件。",
-      "Features：聊天、联系人、群、搜索、设置按真实主流程逐步替换旧页面。",
+      "Features：聊天、联系人、发现、群、搜索、设置按真实主流程逐步替换旧页面。",
       "Legacy：Win7 兼容单独立项，不影响主线 Flutter SDK 与插件选择。",
     ],
     tokens: {
@@ -110,6 +114,11 @@ window.RedcodeIMPrototypeData = {
       "Chats",
       "Chat Detail",
       "Contacts",
+      "Discover",
+      "Moments",
+      "Scan",
+      "Nearby",
+      "Games",
       "Friend Requests",
       "Add Friend",
       "Contact Profile",
@@ -138,6 +147,12 @@ window.RedcodeIMPrototypeData = {
       title: "体验建群和群设置",
       route: "/groups/create",
       note: "验证建群单列流程、群设置分层和高级能力安放位置",
+    },
+    {
+      id: "open-discover",
+      title: "体验发现入口",
+      route: "/discover",
+      note: "朋友圈、扫一扫、附近的人、游戏入口都从这里分流",
     },
   ],
   chats: [
@@ -554,6 +569,118 @@ window.RedcodeIMPrototypeData = {
       ],
     },
   ],
+  discover: {
+    highlight: {
+      title: "发现",
+      summary: "朋友圈、扫一扫、附近的人和游戏入口全部收束到同一个一级入口，用独立场景页承接，而不是再分散进聊天和设置。",
+      stats: [
+        ["今日动态", "12"],
+        ["附近在线", "8"],
+        ["游戏房间", "3"],
+      ],
+    },
+    entries: [
+      {
+        id: "moments",
+        route: "/discover/moments",
+        title: "朋友圈",
+        icon: "圈",
+        badge: "12",
+        summary: "看朋友动态、图片和日常更新，偏内容消费。",
+      },
+      {
+        id: "scan",
+        route: "/discover/scan",
+        title: "扫一扫",
+        icon: "扫",
+        badge: "快捷",
+        summary: "扫码加好友、进群、打开活动页或登录桌面端。",
+      },
+      {
+        id: "nearby",
+        route: "/discover/nearby",
+        title: "附近的人",
+        icon: "近",
+        badge: "8",
+        summary: "基于地理位置扩展弱连接关系和同城社交。",
+      },
+      {
+        id: "games",
+        route: "/discover/games",
+        title: "游戏",
+        icon: "游",
+        badge: "入口",
+        summary: "先保留统一入口，后续再接小游戏大厅与房间。",
+      },
+    ],
+    moments: [
+      {
+        id: "mom_1001",
+        author: "Alice Li",
+        tone: "amber",
+        time: "10 分钟前",
+        text: "把聊天输入区和底部悬浮导航统一成一套胶囊语言后，整体终于细起来了。",
+        media: "3 张设计图",
+        likes: 26,
+        comments: 8,
+      },
+      {
+        id: "mom_1002",
+        author: "Nora",
+        tone: "mint",
+        time: "1 小时前",
+        text: "附近的人入口后面可以接活动群、同城兴趣标签和线下快闪。",
+        media: "无媒体",
+        likes: 13,
+        comments: 4,
+      },
+      {
+        id: "mom_1003",
+        author: "Ian",
+        tone: "violet",
+        time: "昨天",
+        text: "游戏入口先不要铺开，把统一大厅入口和后续扩展位置留下来就够了。",
+        media: "文字",
+        likes: 9,
+        comments: 2,
+      },
+    ],
+    nearbyPeople: [
+      {
+        id: "near_zoe",
+        name: "Zoe",
+        tone: "violet",
+        distance: "350m",
+        note: "正在参与产品设计共创活动",
+      },
+      {
+        id: "near_mia",
+        name: "Mia",
+        tone: "mint",
+        distance: "1.2km",
+        note: "附近开了一个游戏测试小组",
+      },
+      {
+        id: "near_jules",
+        name: "Jules",
+        tone: "amber",
+        distance: "2.8km",
+        note: "同城设计交流群在线",
+      },
+    ],
+    games: [
+      {
+        id: "game-entry-1",
+        title: "小游戏大厅",
+        summary: "后续接统一小游戏列表、最近玩过和热门房间。",
+      },
+      {
+        id: "game-entry-2",
+        title: "组队房间",
+        summary: "后续从群聊或好友对话拉起房间，不在这一轮展开。",
+      },
+    ],
+  },
   settings: {
     theme: "light",
     density: "regular",
@@ -573,6 +700,7 @@ window.RedcodeIMPrototypeData = {
     { id: "auth", label: "登录", icon: "◎", route: "/auth/login" },
     { id: "chats", label: "会话", icon: "◍", route: "/chats" },
     { id: "contacts", label: "联系人", icon: "◌", route: "/contacts" },
+    { id: "discover", label: "发现", icon: "⬤", route: "/discover" },
     { id: "groups", label: "群组", icon: "◇", route: "/groups" },
     { id: "search", label: "搜索", icon: "⌕", route: "/search" },
     { id: "lab", label: "扩展", icon: "⬢", route: "/lab" },
