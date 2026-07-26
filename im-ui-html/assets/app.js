@@ -1345,10 +1345,20 @@
                     </div>
                   </div>
                   <div class="page-blueprint-card__group">
+                    <span class="section-title">共用组件</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.components.map((component) => `<span class="page-map__item">${escapeHtml(component)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
                     <span class="section-title">路由</span>
                     <div class="page-blueprint-card__route-list">
                       ${item.routes.map((routeItem) => `<code>${escapeHtml(routeItem)}</code>`).join("")}
                     </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">滚动策略</span>
+                    <p class="surface-caption">${escapeHtml(item.scrolling)}</p>
                   </div>
                 </div>
                 <p class="surface-caption">${escapeHtml(item.note)}</p>
@@ -1356,6 +1366,141 @@
             `,
           )
           .join("")}
+      </div>
+    `;
+  }
+
+  function renderRootPagePreviewCard(item) {
+    let canvas = "";
+
+    if (item.id === "chats") {
+      canvas = `
+        <div class="root-page-preview__toolbar">
+          <span class="root-page-preview__title">消息 18</span>
+          <span class="root-page-preview__meta">+ 建群</span>
+        </div>
+        <div class="root-page-preview__search">搜索会话 / 消息</div>
+        <div class="root-page-preview__rows">
+          <div class="root-page-preview__row is-accent">
+            <span class="root-page-preview__avatar"></span>
+            <div class="root-page-preview__lines">
+              <span></span>
+              <span></span>
+            </div>
+            <span class="root-page-preview__badge">3</span>
+          </div>
+          <div class="root-page-preview__row">
+            <span class="root-page-preview__avatar"></span>
+            <div class="root-page-preview__lines">
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+          <div class="root-page-preview__row">
+            <span class="root-page-preview__avatar"></span>
+            <div class="root-page-preview__lines">
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (item.id === "contacts") {
+      canvas = `
+        <div class="root-page-preview__toolbar">
+          <span class="root-page-preview__title">联系人</span>
+          <span class="root-page-preview__meta">新增</span>
+        </div>
+        <div class="root-page-preview__chips">
+          <span>新的朋友</span>
+          <span>群聊入口</span>
+        </div>
+        <div class="root-page-preview__rows">
+          <div class="root-page-preview__row">
+            <span class="root-page-preview__avatar"></span>
+            <div class="root-page-preview__lines">
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+          <div class="root-page-preview__row">
+            <span class="root-page-preview__avatar"></span>
+            <div class="root-page-preview__lines">
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (item.id === "discover") {
+      canvas = `
+        <div class="root-page-preview__toolbar">
+          <span class="root-page-preview__title">发现</span>
+          <span class="root-page-preview__meta">内容</span>
+        </div>
+        <div class="root-page-preview__hero">
+          <span>朋友圈 / 附近 / 游戏</span>
+          <strong>四个入口统一分流</strong>
+        </div>
+        <div class="root-page-preview__grid">
+          ${["朋友圈", "扫一扫", "附近的人", "游戏"]
+            .map(
+              (label) => `
+                <span class="root-page-preview__tile">
+                  <span class="root-page-preview__tile-dot"></span>
+                  <strong>${escapeHtml(label)}</strong>
+                </span>
+              `,
+            )
+            .join("")}
+        </div>
+      `;
+    } else {
+      canvas = `
+        <div class="root-page-preview__toolbar">
+          <span class="root-page-preview__title">设置</span>
+          <span class="root-page-preview__meta">偏好</span>
+        </div>
+        <div class="root-page-preview__profile">
+          <span class="root-page-preview__avatar root-page-preview__avatar--lg"></span>
+          <div class="root-page-preview__lines">
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+        <div class="root-page-preview__setting-list">
+          <div class="root-page-preview__setting-row"><span>主题与密度</span><span class="root-page-preview__switch"></span></div>
+          <div class="root-page-preview__setting-row"><span>通知偏好</span><span class="root-page-preview__switch"></span></div>
+          <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
+        </div>
+      `;
+    }
+
+    return `
+      <article class="root-page-preview-card root-page-preview-card--${item.id}">
+        <div class="root-page-preview-card__header">
+          <div>
+            <span class="section-title">${escapeHtml(item.shell)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+          </div>
+          <span class="badge">${escapeHtml(item.routes.length)} Routes</span>
+        </div>
+        <div class="root-page-preview-card__canvas">
+          ${canvas}
+        </div>
+        <div class="root-page-preview-card__footer">
+          ${item.components.slice(0, 4).map((component) => `<span class="chip">${escapeHtml(component)}</span>`).join("")}
+        </div>
+      </article>
+    `;
+  }
+
+  function renderRootPagePreviewDeck() {
+    const items = data.designSystem.pageBlueprints || [];
+
+    return `
+      <div class="root-page-preview-stack">
+        ${items.map(renderRootPagePreviewCard).join("")}
       </div>
     `;
   }
@@ -1502,6 +1647,13 @@
     if (group.id === "flows") {
       return `
         <div class="screen-stack">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>一级页面视觉稿</h3>
+              <span class="badge">Root Views</span>
+            </div>
+            ${renderRootPagePreviewDeck()}
+          </section>
           <section class="surface-card">
             <div class="surface-card__header">
               <h3>一级页面拆分</h3>
