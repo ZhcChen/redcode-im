@@ -1505,6 +1505,167 @@
     `;
   }
 
+  function renderChatPageBlueprintBoard(compact) {
+    const items = data.designSystem.chatPageSpec?.blueprints || [];
+
+    return `
+      <div class="page-blueprint-grid ${compact ? "page-blueprint-grid--compact" : ""}">
+        ${items
+          .map(
+            (item) => `
+              <article class="page-blueprint-card">
+                <div class="page-blueprint-card__header">
+                  <div>
+                    <span class="section-title">${escapeHtml(item.shell)}</span>
+                    <strong>${escapeHtml(item.title)}</strong>
+                  </div>
+                </div>
+                <p>${escapeHtml(item.summary)}</p>
+                <div class="page-blueprint-card__stack">
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">页面分块</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.sections.map((section) => `<span class="page-map__item">${escapeHtml(section)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">主动作</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.actions.map((action) => `<span class="chip">${escapeHtml(action)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">共用组件</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.components.map((component) => `<span class="page-map__item">${escapeHtml(component)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">滚动策略</span>
+                    <p class="surface-caption">${escapeHtml(item.scrolling)}</p>
+                  </div>
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderChatSpecActionGrid() {
+    const actions = data.designSystem.chatPageSpec?.panelActions || [];
+
+    return `
+      <div class="chat-spec-action-grid">
+        ${actions
+          .map(
+            (item) => `
+              <article class="chat-spec-action-card">
+                <strong>${escapeHtml(item[0])}</strong>
+                <span>${escapeHtml(item[1])}</span>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderChatSpecPhoneDeck(chat) {
+    const secondaryChat = sortedChats().find((item) => item.id !== chat.id) || chat;
+    const previewMessages = chat.messages.slice(0, 3);
+    const emojiSamples = ["😀", "😂", "🤝", "🔥", "✅", "🚀"];
+
+    return `
+      <div class="chat-spec-preview-stack">
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>会话列表</h3>
+            <span class="badge">Root</span>
+          </div>
+          <div class="search-box search-box--component-preview chat-spec-search-preview">
+            <span>Conversation Search</span>
+            <label class="search-box__field">
+              ${renderIcon("search", "search-box__icon", "搜索")}
+              <input class="search-box__input" value="搜索会话 / 消息" readonly />
+            </label>
+          </div>
+          <div class="list-card">
+            ${renderConversationRow(chat)}
+            ${renderConversationRow(secondaryChat)}
+          </div>
+        </section>
+
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>聊天详情</h3>
+            <span class="badge">Thread</span>
+          </div>
+          <section class="surface-banner surface-banner--subtle">
+            <strong>Pinned 摘要</strong>
+            <p>置顶摘要只在消息流上方轻量出现，不把资料信息抬成主层级。</p>
+          </section>
+          <div class="chat-spec-thread">
+            ${previewMessages.map((message) => renderMessageBubble(chat, message)).join("")}
+          </div>
+        </section>
+
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>输入区与面板</h3>
+            <span class="badge">Composer</span>
+          </div>
+          <div class="chat-spec-composer-shell">
+            <div class="composer composer--preview chat-spec-composer-preview">
+              <div class="composer__inner">
+                <button class="icon-button icon-button--soft is-active" disabled type="button">
+                  ${renderIcon("emoji", "icon-button__glyph", "表情")}
+                </button>
+                <div class="composer__field composer__field--preview is-panel-active">
+                  <span>发送消息...</span>
+                </div>
+                <button class="icon-button icon-button--soft" disabled type="button">
+                  ${renderIcon("plus", "icon-button__glyph", "更多")}
+                </button>
+                <button class="primary-button primary-button--small" disabled type="button">发送</button>
+              </div>
+            </div>
+            <div class="chat-spec-panel-grid">
+              <article class="chat-spec-panel-card">
+                <div class="composer-panel__header">
+                  <strong>表情面板</strong>
+                  <span>发送后仍留在当前面板，适合连续输入。</span>
+                </div>
+                <div class="emoji-grid">
+                  ${emojiSamples.map((emoji) => `<span class="emoji-grid__item">${emoji}</span>`).join("")}
+                </div>
+              </article>
+              <article class="chat-spec-panel-card">
+                <div class="composer-panel__header">
+                  <strong>更多面板</strong>
+                  <span>图片、文件、拍摄和位置拆成独立动作位。</span>
+                </div>
+                <div class="quick-action-grid quick-action-grid--compact">
+                  ${data.designSystem.chatPageSpec.panelActions
+                    .map(
+                      (item) => `
+                        <span class="quick-action-card quick-action-card--mini chat-spec-action-chip">
+                          <strong>${escapeHtml(item[0])}</strong>
+                          <span>${escapeHtml(item[1])}</span>
+                        </span>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function renderSpecPhoneContent(group) {
     const system = data.designSystem;
     const chat = sortedChats()[0];
@@ -1640,6 +1801,14 @@
             ${renderMobileNavPreview("chats")}
             <p class="surface-caption">底部主导航固定为聊天 / 联系人 / 发现 / 设置四个一级入口。</p>
           </section>
+        </div>
+      `;
+    }
+
+    if (group.id === "chat-page") {
+      return `
+        <div class="screen-stack">
+          ${renderChatSpecPhoneDeck(chat)}
         </div>
       `;
     }
@@ -1904,6 +2073,43 @@
             <li>输入区、列表和导航共享同一密度体系，不能局部单独放大。</li>
             <li>桌面端复用同一语言，但只重组布局，不改手机信息架构。</li>
           </ul>
+        </section>
+      `;
+    }
+
+    if (group.id === "chat-page") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>聊天页蓝图</h3>
+            <span class="badge">Blueprint</span>
+          </div>
+          ${renderChatPageBlueprintBoard(false)}
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>关键状态</h3>
+            <span class="badge">States</span>
+          </div>
+          <ul class="bullet-list">
+            ${system.chatPageSpec.stateRules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>交互动效</h3>
+            <span class="badge">Motion</span>
+          </div>
+          <ul class="bullet-list">
+            ${system.chatPageSpec.motionRules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>面板动作清单</h3>
+            <span class="badge">Actions</span>
+          </div>
+          ${renderChatSpecActionGrid()}
         </section>
       `;
     }

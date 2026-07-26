@@ -2660,6 +2660,85 @@ body[data-theme="dark"] .spec-stage {
     linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 62%, transparent), var(--surface));
 }
 
+.chat-spec-preview-stack,
+.chat-spec-panel-grid {
+  display: grid;
+  gap: 0.7em;
+}
+
+.chat-spec-search-preview {
+  margin-bottom: 0.72em;
+}
+
+.chat-spec-thread {
+  display: grid;
+  gap: 0.55em;
+}
+
+.chat-spec-composer-shell,
+.chat-spec-panel-card,
+.chat-spec-action-card {
+  border-radius: 1.02em;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.chat-spec-composer-shell {
+  padding: 0.74em;
+  display: grid;
+  gap: 0.72em;
+}
+
+.chat-spec-composer-preview {
+  padding: 0;
+  background: transparent;
+}
+
+.chat-spec-composer-preview .composer__field {
+  min-height: 2.85em;
+}
+
+.chat-spec-panel-card {
+  padding: 0.75em;
+  display: grid;
+  gap: 0.7em;
+}
+
+.chat-spec-panel-card .composer-panel__header span {
+  text-align: left;
+}
+
+.chat-spec-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6em;
+}
+
+.chat-spec-action-card {
+  padding: 0.78em;
+  display: grid;
+  gap: 0.26em;
+}
+
+.chat-spec-action-card strong,
+.chat-spec-action-chip strong {
+  font-size: 0.9em;
+  line-height: 1.28;
+}
+
+.chat-spec-action-card span,
+.chat-spec-action-chip span {
+  color: var(--text-secondary);
+  font-size: 0.8em;
+  line-height: 1.5;
+}
+
+.chat-spec-action-chip {
+  display: grid;
+  align-content: start;
+  gap: 0.25em;
+}
+
 .page-blueprint-grid--compact .page-blueprint-card,
 .nav-icon-blueprint-grid--compact .nav-icon-blueprint-card {
   background: var(--surface-soft);
