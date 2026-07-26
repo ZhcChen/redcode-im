@@ -371,11 +371,12 @@
     const wideStage = isWideStageRoute(route);
     const showPrototypeToolbar = route.section !== "entry" && route.section !== "spec";
     const fullBleedStage = route.section === "spec";
+    const specWorkspace = route.section === "spec";
 
     root.innerHTML = `
-      <div class="prototype-shell">
+      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""}">
         ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
-        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""}">
+        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""}">
           <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""}">
             ${renderStage(route)}
           </div>
@@ -1631,7 +1632,7 @@
           <h3>${escapeHtml(group.title)}</h3>
           <p>${escapeHtml(group.summary)}</p>
         </section>
-        <div class="spec-secondary-column__list">
+        <div class="spec-secondary-column__list spec-scroll-area">
           ${renderSpecDetailRail(group)}
         </div>
       </section>
@@ -1648,7 +1649,7 @@
             <span class="chip">手机画布</span>
           </div>
         </div>
-        <div class="spec-preview-column__body">
+        <div class="spec-preview-column__body spec-scroll-area">
           <section class="phone-frame phone-frame--spec" aria-label="规范手机预览画布">
             <div class="phone-frame__notch"></div>
             <div class="phone-screen">
@@ -1689,7 +1690,7 @@
             <h2>规范页面</h2>
             <p>左侧按分组切换规范，右侧统一在手机画布里验证颜色、字体、组件和 Shell 的真实落位。</p>
           </div>
-          <div class="spec-sidebar__group-list">
+          <div class="spec-sidebar__group-list spec-scroll-area">
             ${system.specGroups.map(renderSpecNavItem).join("")}
           </div>
           <div class="spec-sidebar__aux">
