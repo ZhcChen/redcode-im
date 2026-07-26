@@ -593,8 +593,8 @@ window.RedcodeIMPrototypeData = {
     },
     tokens: {
       colors: [
-        ["Primary", "#19C7B8"],
-        ["Primary Strong", "#0D9D91"],
+        ["Primary", "#4B87FF"],
+        ["Primary Strong", "#235DFF"],
         ["Background", "#F6F8FB"],
         ["Surface", "#FFFFFF"],
         ["Surface Soft", "#F2F5F8"],
