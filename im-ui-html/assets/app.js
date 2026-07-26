@@ -1825,67 +1825,86 @@
     const pendingIncoming = data.friendRequests.filter(
       (item) => item.type === "incoming" && item.status === "pending",
     ).length;
+    const onlineCount = data.contacts.filter((item) => item.status === "在线").length;
+    const zoneCount = new Set(data.contacts.map((item) => item.zone)).size;
 
     return `
-      <section class="screen screen--tabbed">
+      <section class="screen screen--tabbed screen--contacts">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "联系人",
-            subtitle: "新的朋友、群聊与好友列表",
+            subtitle: `在线 ${onlineCount} · 待处理 ${pendingIncoming} · ${zoneCount} 个协作组`,
             root: true,
             actions: [
               `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">＋</button>`,
             ],
           })}
           <div class="screen-stack">
-            <section class="hero-card hero-card--tabbed">
-              <div class="hero-card__metric-row">
-                <span class="hero-metric">
+            <section class="hero-card hero-card--tabbed hero-card--contact-hub">
+              <div class="contact-hub__headline">
+                <div>
+                  <p class="section-title">Relationship Hub</p>
+                  <h3>把新的朋友、群聊和好友资料收进一个稳定入口</h3>
+                  <p>联系人页是关系工作台：先处理申请，再看分组和资料，聊天与建群从这里自然分叉。</p>
+                </div>
+                <span class="badge badge--success">关系页</span>
+              </div>
+              <div class="contact-hub__stats">
+                <span class="contact-hub__stat">
                   <strong>${data.contacts.length}</strong>
                   <span>好友</span>
                 </span>
-                <span class="hero-metric">
+                <span class="contact-hub__stat">
                   <strong>${pendingIncoming}</strong>
                   <span>待处理申请</span>
                 </span>
-                <span class="hero-metric">
-                  <strong>${data.groups.length}</strong>
-                  <span>群聊</span>
+                <span class="contact-hub__stat">
+                  <strong>${onlineCount}</strong>
+                  <span>在线好友</span>
                 </span>
               </div>
-              <div class="inline-actions">
+              <div class="inline-actions inline-actions--wide">
                 <button class="ghost-button" data-action="navigate" data-route="/contacts/requests">新的朋友</button>
                 <button class="ghost-button" data-action="navigate" data-route="/groups/create">发起群聊</button>
               </div>
             </section>
-            <label class="search-box">
+            <label class="search-box search-box--conversation">
               <span>搜索联系人或直接进入添加好友</span>
-              <input
-                id="contact-filter-input"
-                class="search-box__input"
-                value="${escapeHtml(state.contactFilter)}"
-                placeholder="姓名、组别、职责"
-              />
+              <div class="search-box__field">
+                <span class="search-box__icon">⌕</span>
+                <input
+                  id="contact-filter-input"
+                  class="search-box__input"
+                  value="${escapeHtml(state.contactFilter)}"
+                  placeholder="姓名、组别、职责"
+                />
+              </div>
             </label>
-            <section class="list-card">
-              <button class="special-entry" data-action="navigate" data-route="/contacts/requests">
-                <span class="special-entry__icon">新</span>
-                <span class="special-entry__body">
+            <section class="contact-entry-grid">
+              <button class="contact-entry-card" data-action="navigate" data-route="/contacts/requests">
+                <span class="contact-entry-card__icon">新</span>
+                <span class="contact-entry-card__body">
+                  <span class="contact-entry-card__meta">Request Flow</span>
                   <strong>新的朋友</strong>
-                  <span>${pendingIncoming ? `待处理 ${pendingIncoming} 条` : "查看所有好友申请"}</span>
+                  <span>${pendingIncoming ? `先处理 ${pendingIncoming} 条待确认关系` : "查看收到与发出的全部申请"}</span>
                 </span>
                 ${pendingIncoming ? `<span class="badge badge--danger">${pendingIncoming}</span>` : `<span class="list-arrow">→</span>`}
               </button>
-              <button class="special-entry" data-action="navigate" data-route="/groups">
-                <span class="special-entry__icon">群</span>
-                <span class="special-entry__body">
+              <button class="contact-entry-card" data-action="navigate" data-route="/groups">
+                <span class="contact-entry-card__icon">群</span>
+                <span class="contact-entry-card__body">
+                  <span class="contact-entry-card__meta">Group Entry</span>
                   <strong>群聊</strong>
-                  <span>从联系人体系进入群列表与建群流程</span>
+                  <span>${data.groups.length} 个群组入口从联系人体系展开，建群也从这里继续。</span>
                 </span>
-                <span class="list-arrow">→</span>
+                <span class="badge">${data.groups.length}</span>
               </button>
             </section>
-            <section class="surface-card">
+            <section class="surface-card surface-card--contact-directory">
+              <div class="surface-card__header">
+                <h3>联系人目录</h3>
+                <span class="badge">${groups.length} 组</span>
+              </div>
               ${groups.length ? groups.map(renderContactSection).join("") : renderEmptyState("没有匹配联系人", "尝试清空关键词，或去添加好友页发起新申请。")}
             </section>
           </div>
@@ -2102,30 +2121,49 @@
 
   function renderContactSection(section) {
     return `
-      <div class="contact-section">
-        <div class="contact-section__tag">${section.tag}</div>
+      <section class="contact-section">
+        <div class="contact-section__header">
+          <div class="contact-section__copy">
+            <div class="contact-section__tag">${section.tag}</div>
+            <p>按姓名首字母快速定位资料与关系动作。</p>
+          </div>
+          <span class="badge">${section.items.length}</span>
+        </div>
         <div class="list-card list-card--embedded">
           ${section.items.map((contact) => renderContactRow(contact)).join("")}
         </div>
-      </div>
+      </section>
     `;
   }
 
   function renderContactRow(contact) {
+    const relatedGroups = groupsForContact(contact.id);
+
     return `
       <button
-        class="list-row"
+        class="list-row list-row--contact"
         data-action="navigate"
         data-route="/contacts/profile/${contact.id}"
       >
-        ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+        <span class="contact-row__avatar">
+          ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+          <span class="contact-row__presence ${presenceClass(contact.status)}"></span>
+        </span>
         <span class="list-row__body">
           <span class="list-row__title">
             <strong>${escapeHtml(contact.name)}</strong>
-            <span class="badge">${escapeHtml(contact.status)}</span>
+            <span class="contact-row__tail">
+              <span class="badge ${contact.status === "在线" ? "badge--success" : contact.status === "离开" ? "badge--muted" : ""}">${escapeHtml(contact.status)}</span>
+              <span class="list-arrow">→</span>
+            </span>
           </span>
           <span class="list-row__summary">${escapeHtml(contact.title)}</span>
-          <span class="list-row__note">${escapeHtml(contact.zone)} · ${escapeHtml(contact.note)}</span>
+          <span class="contact-row__chips">
+            <span class="chip chip--filled">${escapeHtml(contact.zone)}</span>
+            <span class="chip">@${escapeHtml(contact.username)}</span>
+            ${relatedGroups.length ? `<span class="chip">共同群 ${relatedGroups.length}</span>` : ""}
+          </span>
+          <span class="list-row__note">${escapeHtml(contact.note)}</span>
         </span>
       </button>
     `;
@@ -2144,22 +2182,56 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>收到的申请</h3>
-                <span class="badge">${incoming.length}</span>
+            <section class="hero-card hero-card--soft hero-card--request-hub">
+              <span class="eyebrow">Request Inbox</span>
+              <h3>好友申请要先看方向、状态和打招呼内容，再决定通过、忽略或撤回。</h3>
+              <div class="request-overview-grid">
+                <span class="request-overview-card">
+                  <strong>${incoming.length}</strong>
+                  <span>收到申请</span>
+                </span>
+                <span class="request-overview-card">
+                  <strong>${outgoing.length}</strong>
+                  <span>发出申请</span>
+                </span>
               </div>
-              ${incoming.length ? incoming.map(renderRequestCard).join("") : renderEmptyState("暂无收到的申请", "后续这里会承接好友验证、打招呼和状态变更。")}
             </section>
+            ${renderRequestSection("收到的申请", "优先处理待确认的关系请求。", incoming, "incoming")}
+            ${renderRequestSection("发出的申请", "跟踪自己发出的申请是否已经被处理。", outgoing, "outgoing")}
             <section class="surface-card">
               <div class="surface-card__header">
-                <h3>发出的申请</h3>
-                <span class="badge">${outgoing.length}</span>
+                <h3>下一步动作</h3>
+                <span class="badge">Flow</span>
               </div>
-              ${outgoing.length ? outgoing.map(renderRequestCard).join("") : renderEmptyState("暂无发出的申请", "从添加好友页发起申请后，这里会同步展示。")}
+              <div class="inline-actions inline-actions--wide">
+                <button class="ghost-button" data-action="navigate" data-route="/contacts/add">继续搜索好友</button>
+                <button class="ghost-button" data-action="navigate" data-route="/contacts">返回联系人目录</button>
+              </div>
             </section>
           </div>
         </div>
+      </section>
+    `;
+  }
+
+  function renderRequestSection(title, note, requests, type) {
+    return `
+      <section class="surface-card surface-card--request-section">
+        <div class="surface-card__header">
+          <div class="surface-card__header-copy">
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(note)}</p>
+          </div>
+          <span class="badge">${requests.length}</span>
+        </div>
+        ${requests.length
+          ? requests.map((request) => renderRequestCard(request)).join("")
+          : renderEmptyState(
+              type === "incoming" ? "暂无收到的申请" : "暂无发出的申请",
+              type === "incoming"
+                ? "后续这里会承接好友验证、打招呼和状态变更。"
+                : "从添加好友页发起申请后，这里会同步展示。",
+            )}
       </section>
     `;
   }
@@ -2169,18 +2241,31 @@
     const pending = request.status === "pending";
 
     return `
-      <div class="request-card">
+      <div class="request-card request-card--${request.type}">
         <div class="request-card__header">
           ${renderAvatar(request.name, request.tone, "avatar--md")}
           <div class="request-card__body">
             <div class="request-card__title">
               <strong>${escapeHtml(request.name)}</strong>
+              <span class="request-card__status">
+                <span class="chip ${isIncoming ? "chip--filled" : ""}">${requestDirectionLabel(request.type)}</span>
+              </span>
+            </div>
+            <div class="request-card__meta">
+              <span>@${escapeHtml(request.username)}</span>
+              <span>${escapeHtml(request.title)}</span>
+              <span>${escapeHtml(request.time)}</span>
+            </div>
+            <div class="request-card__title">
+              <strong>${isIncoming ? "当前状态" : "申请状态"}</strong>
               <span class="badge ${request.status === "rejected" ? "badge--muted" : request.status === "accepted" ? "badge--success" : ""}">
                 ${statusLabel(request.status)}
               </span>
             </div>
-            <p>${escapeHtml(request.title)} · ${escapeHtml(request.time)}</p>
-            <p>${escapeHtml(request.message)}</p>
+            <div class="request-card__message">
+              <span>打招呼内容</span>
+              <p>${escapeHtml(request.message)}</p>
+            </div>
           </div>
         </div>
         ${
@@ -2215,30 +2300,50 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
-            <label class="search-box">
+            <section class="hero-card hero-card--soft hero-card--add-friend">
+              <span class="eyebrow">Search & Greeting</span>
+              <h3>先搜到人，再决定是添加、处理现有关系，还是直接进入聊天。</h3>
+            </section>
+            <label class="search-box search-box--conversation">
               <span>搜索昵称、账号或城市</span>
-              <input
-                id="friend-search-input"
-                class="search-box__input"
-                value="${escapeHtml(state.friendSearch)}"
-                placeholder="例如：nora、Shanghai"
-              />
+              <div class="search-box__field">
+                <span class="search-box__icon">⌕</span>
+                <input
+                  id="friend-search-input"
+                  class="search-box__input"
+                  value="${escapeHtml(state.friendSearch)}"
+                  placeholder="例如：nora、Shanghai"
+                />
+              </div>
             </label>
-            <section class="surface-card">
+            <section class="surface-card surface-card--search-results">
+              <div class="surface-card__header">
+                <div class="surface-card__header-copy">
+                  <h3>搜索结果</h3>
+                  <p>动作按钮随关系状态变化，不让用户在“添加 / 处理 / 发消息”之间猜测。</p>
+                </div>
+                <span class="badge">${users.length}</span>
+              </div>
+              ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
+            </section>
+            <section class="surface-card surface-card--friend-note">
               <div class="surface-card__header">
                 <h3>打招呼内容</h3>
-                <span class="badge">会随申请一起发送</span>
+                <span class="badge">添加时会携带</span>
+              </div>
+              <div class="friend-note-card">
+                <div class="friend-note-card__preview">
+                  <strong>当前预览</strong>
+                  <p>${escapeHtml(state.friendNote)}</p>
+                </div>
+                <div class="friend-note-card__meta">
+                  <span class="chip chip--filled">${state.friendNote.trim().length} 字</span>
+                  <span class="chip">申请消息</span>
+                </div>
               </div>
               <label class="field field--textarea">
                 <textarea id="friend-note-input" class="field__input field__input--textarea" rows="3">${escapeHtml(state.friendNote)}</textarea>
               </label>
-            </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>搜索结果</h3>
-                <span class="badge">${users.length}</span>
-              </div>
-              ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
             </section>
           </div>
         </div>
@@ -2250,7 +2355,7 @@
     const action = renderSearchUserAction(user);
 
     return `
-      <div class="list-row list-row--static">
+      <div class="list-row list-row--static list-row--search-user">
         ${renderAvatar(user.name, user.tone, "avatar--md")}
         <div class="list-row__body">
           <div class="list-row__title">
@@ -2258,7 +2363,10 @@
             <span class="badge">${relationLabel(user.relation)}</span>
           </div>
           <div class="list-row__summary">${escapeHtml(user.username)} · ${escapeHtml(user.title)}</div>
-          <div class="list-row__note">${escapeHtml(user.city)}</div>
+          <div class="contact-row__chips">
+            <span class="chip chip--filled">${escapeHtml(user.city)}</span>
+            <span class="chip">${escapeHtml(searchUserRelationNote(user))}</span>
+          </div>
         </div>
         ${action}
       </div>
@@ -2283,6 +2391,7 @@
     if (!contact) {
       return renderFallbackScreen("联系人不存在", "/contacts");
     }
+    const relatedGroups = groupsForContact(contact.id);
 
     return `
       <section class="screen">
@@ -2293,21 +2402,43 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
-            <section class="profile-hero">
+            <section class="profile-hero profile-hero--contact">
               ${renderAvatar(contact.name, contact.tone, "avatar--xl")}
               <div class="profile-hero__body">
                 <h3>${escapeHtml(contact.name)}</h3>
                 <p>${escapeHtml(contact.title)} · ${escapeHtml(contact.status)}</p>
                 <div class="chip-row">
                   <span class="chip chip--filled">${escapeHtml(contact.zone)}</span>
-                  <span class="chip">${escapeHtml(contact.username)}</span>
+                  <span class="chip">@${escapeHtml(contact.username)}</span>
+                  ${relatedGroups.length ? `<span class="chip">共同群 ${relatedGroups.length}</span>` : ""}
                 </div>
               </div>
+              <span class="badge ${contact.status === "在线" ? "badge--success" : contact.status === "离开" ? "badge--muted" : ""}">${escapeHtml(contact.status)}</span>
             </section>
             <section class="surface-card">
               <div class="inline-actions inline-actions--wide">
                 <button class="primary-button" data-action="open-direct-chat" data-contact-id="${contact.id}">发送消息</button>
                 <button class="ghost-button" data-action="show-hint" data-message="后续这里可承接音视频、备注、共享文件等能力。">更多动作</button>
+              </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>关系摘要</h3>
+                <span class="badge">Profile</span>
+              </div>
+              <div class="profile-fact-grid">
+                <span class="profile-fact">
+                  <strong>@${escapeHtml(contact.username)}</strong>
+                  <span>账号</span>
+                </span>
+                <span class="profile-fact">
+                  <strong>${escapeHtml(contact.zone)}</strong>
+                  <span>所在组</span>
+                </span>
+                <span class="profile-fact">
+                  <strong>${relatedGroups.length}</strong>
+                  <span>共同群聊</span>
+                </span>
               </div>
             </section>
             <section class="settings-list">
@@ -2316,6 +2447,33 @@
               ${renderMenuRow("所在组", contact.zone, false)}
               ${renderMenuRow("备注", contact.note, false)}
             </section>
+            ${
+              relatedGroups.length
+                ? `
+                  <section class="surface-card">
+                    <div class="surface-card__header">
+                      <h3>共同群聊</h3>
+                      <span class="badge">${relatedGroups.length}</span>
+                    </div>
+                    <div class="group-preview-list">
+                      ${relatedGroups
+                        .map(
+                          (group) => `
+                            <div class="group-preview-card">
+                              <div class="group-preview-card__title">
+                                <strong>${escapeHtml(group.name)}</strong>
+                                <span class="badge">${group.memberCount} 人</span>
+                              </div>
+                              <p>${escapeHtml(group.notice)}</p>
+                            </div>
+                          `,
+                        )
+                        .join("")}
+                    </div>
+                  </section>
+                `
+                : ""
+            }
           </div>
         </div>
       </section>
@@ -2930,7 +3088,12 @@
         ],
       };
     }
-    if (route.section === "contacts" || route.section === "contact-profile" || route.section === "contact-add") {
+    if (
+      route.section === "contacts" ||
+      route.section === "contact-profile" ||
+      route.section === "contact-add" ||
+      route.section === "contact-requests"
+    ) {
       return {
         title: "联系人链路验证点",
         label: "Contact",
@@ -3058,8 +3221,39 @@
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
-        .includes(keyword),
+      .includes(keyword),
     );
+  }
+
+  function presenceClass(status) {
+    if (status === "在线") {
+      return "is-online";
+    }
+    if (status === "离开") {
+      return "is-away";
+    }
+    return "is-busy";
+  }
+
+  function groupsForContact(contactId) {
+    return data.groups.filter((group) => group.members.includes(contactId));
+  }
+
+  function requestDirectionLabel(type) {
+    return type === "incoming" ? "收到申请" : "发出申请";
+  }
+
+  function searchUserRelationNote(user) {
+    if (user.relation === "pending_incoming") {
+      return "等你处理";
+    }
+    if (user.relation === "pending_outgoing") {
+      return "等待对方";
+    }
+    if (user.relation === "friend") {
+      return "已是好友";
+    }
+    return "可发申请";
   }
 
   function matchesGroupMemberFilter(contact) {

@@ -604,11 +604,24 @@ img {
   margin-bottom: 0.8em;
 }
 
+.surface-card__header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.18em;
+}
+
 .surface-card__header h3,
 .hero-card h3,
 .review-card h3 {
   margin: 0;
   font-size: 1.02em;
+}
+
+.surface-card__header-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8em;
+  line-height: 1.5;
 }
 
 .hero-card {
@@ -626,7 +639,18 @@ img {
   gap: 0.9em;
 }
 
+.hero-card--contact-hub {
+  gap: 0.78em;
+}
+
 .conversation-hub__headline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8em;
+}
+
+.contact-hub__headline {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -639,6 +663,12 @@ img {
   line-height: 1.22;
 }
 
+.contact-hub__headline h3 {
+  margin: 0.06em 0 0;
+  font-size: 1.06em;
+  line-height: 1.24;
+}
+
 .conversation-hub__headline p:last-child {
   margin: 0.36em 0 0;
   color: var(--text-secondary);
@@ -646,7 +676,20 @@ img {
   line-height: 1.48;
 }
 
+.contact-hub__headline p:last-child {
+  margin: 0.36em 0 0;
+  color: var(--text-secondary);
+  font-size: 0.84em;
+  line-height: 1.5;
+}
+
 .conversation-hub__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.46em;
+}
+
+.contact-hub__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.46em;
@@ -662,12 +705,32 @@ img {
   gap: 0.08em;
 }
 
+.contact-hub__stat {
+  min-height: 2.86em;
+  padding: 0.46em 0.68em;
+  border-radius: 1em;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  display: grid;
+  gap: 0.08em;
+}
+
 .conversation-hub__stat strong {
   font-size: 1.02em;
   line-height: 1.1;
 }
 
+.contact-hub__stat strong {
+  font-size: 1.02em;
+  line-height: 1.1;
+}
+
 .conversation-hub__stat span {
+  color: var(--text-secondary);
+  font-size: 0.78em;
+}
+
+.contact-hub__stat span {
   color: var(--text-secondary);
   font-size: 0.78em;
 }
@@ -1796,6 +1859,64 @@ img {
   gap: 0.62em;
 }
 
+.contact-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7em;
+}
+
+.contact-entry-card {
+  width: 100%;
+  min-height: 7.9em;
+  padding: 0.88em;
+  border-radius: 1.2em;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 42%, transparent), transparent 44%),
+    var(--surface);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  align-content: start;
+  gap: 0.55em;
+  text-align: left;
+}
+
+.contact-entry-card__icon {
+  width: 2.5em;
+  height: 2.5em;
+  border-radius: 0.95em;
+  display: grid;
+  place-items: center;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  color: var(--primary-strong);
+  font-weight: 800;
+}
+
+.contact-entry-card__body {
+  display: grid;
+  gap: 0.2em;
+}
+
+.contact-entry-card__meta {
+  color: var(--text-tertiary);
+  font-size: 0.74em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.contact-entry-card__body strong {
+  font-size: 0.98em;
+  line-height: 1.24;
+}
+
+.contact-entry-card__body span:last-child {
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  line-height: 1.48;
+}
+
 .conversation-section__header {
   display: flex;
   justify-content: space-between;
@@ -2248,19 +2369,119 @@ img {
 
 .contact-section {
   display: grid;
-  gap: 0.55em;
+  gap: 0.62em;
+}
+
+.contact-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8em;
+}
+
+.contact-section__copy {
+  display: grid;
+  gap: 0.12em;
+}
+
+.contact-section__copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8em;
+  line-height: 1.46;
 }
 
 .contact-section__tag {
-  padding-left: 0.15em;
+  padding-left: 0;
   color: var(--text-tertiary);
   font-size: 0.78em;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.surface-card--contact-directory {
+  padding: 0.95em;
+}
+
+.list-row--contact {
+  padding: 0.95em 0;
+}
+
+.contact-row__avatar {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.contact-row__presence {
+  position: absolute;
+  right: -0.06em;
+  bottom: -0.02em;
+  width: 0.92em;
+  height: 0.92em;
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+  background: var(--success);
+}
+
+.contact-row__presence.is-away {
+  background: var(--text-tertiary);
+}
+
+.contact-row__presence.is-busy {
+  background: var(--danger);
+}
+
+.contact-row__tail {
+  display: flex;
+  align-items: center;
+  gap: 0.38em;
+  flex-shrink: 0;
+}
+
+.contact-row__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
 }
 
 .request-card,
 .group-card {
   padding: 0.95em 0;
+}
+
+.hero-card--request-hub,
+.hero-card--add-friend {
+  gap: 0.8em;
+}
+
+.request-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55em;
+}
+
+.request-overview-card {
+  min-height: 3.6em;
+  padding: 0.62em 0.74em;
+  border-radius: 1em;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  display: grid;
+  gap: 0.1em;
+}
+
+.request-overview-card strong {
+  font-size: 1.02em;
+}
+
+.request-overview-card span {
+  color: var(--text-secondary);
+  font-size: 0.8em;
+}
+
+.surface-card--request-section {
+  padding: 0.95em;
 }
 
 .moment-card,
@@ -2402,7 +2623,7 @@ img {
   flex: 1;
   min-width: 0;
   display: grid;
-  gap: 0.24em;
+  gap: 0.34em;
 }
 
 .request-card__body p,
@@ -2410,11 +2631,87 @@ img {
   margin: 0;
 }
 
+.request-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em 0.55em;
+  color: var(--text-secondary);
+  font-size: 0.8em;
+}
+
+.request-card__status {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.request-card__message {
+  padding: 0.68em 0.78em;
+  border-radius: 1em;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  display: grid;
+  gap: 0.18em;
+}
+
+.request-card__message span {
+  color: var(--text-tertiary);
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.request-card__message p {
+  color: var(--text);
+  line-height: 1.5;
+}
+
 .request-card__actions {
   margin-top: 0.8em;
   display: flex;
   justify-content: flex-end;
   gap: 0.5em;
+}
+
+.surface-card--friend-note {
+  padding: 0.95em;
+}
+
+.friend-note-card {
+  display: grid;
+  gap: 0.65em;
+  margin-bottom: 0.75em;
+}
+
+.friend-note-card__preview {
+  padding: 0.68em 0.8em;
+  border-radius: 1em;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  display: grid;
+  gap: 0.22em;
+}
+
+.friend-note-card__preview strong {
+  font-size: 0.86em;
+}
+
+.friend-note-card__preview p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.friend-note-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+}
+
+.list-row--search-user {
+  padding: 0.95em 0;
+  align-items: center;
 }
 
 .profile-hero {
@@ -2445,6 +2742,65 @@ img {
 .profile-hero__body p {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.profile-hero--contact {
+  align-items: flex-start;
+}
+
+.profile-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6em;
+}
+
+.profile-fact {
+  min-height: 4.2em;
+  padding: 0.72em 0.78em;
+  border-radius: 1em;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
+  display: grid;
+  gap: 0.18em;
+}
+
+.profile-fact strong {
+  font-size: 0.94em;
+  line-height: 1.28;
+  word-break: break-word;
+}
+
+.profile-fact span {
+  color: var(--text-secondary);
+  font-size: 0.78em;
+}
+
+.group-preview-list {
+  display: grid;
+  gap: 0.7em;
+}
+
+.group-preview-card {
+  padding: 0.85em 0.92em;
+  border-radius: 1.05em;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  display: grid;
+  gap: 0.24em;
+}
+
+.group-preview-card__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7em;
+}
+
+.group-preview-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.84em;
+  line-height: 1.48;
 }
 
 .settings-list {
