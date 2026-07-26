@@ -2209,6 +2209,18 @@ body[data-theme="dark"] .spec-stage {
   gap: 0.45em;
 }
 
+.token-card--swatch strong {
+  line-height: 1.32;
+}
+
+.token-card--swatch span:last-child {
+  color: var(--text-secondary);
+  font-size: 0.78em;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .swatch {
   width: 100%;
   height: 2.9em;

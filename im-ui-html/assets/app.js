@@ -1840,9 +1840,9 @@
               <span class="badge">Usage</span>
             </div>
             <ul class="bullet-list">
-              <li>主色只负责动作、选中和反馈，不再承担大面积装饰。</li>
+              <li>Primary / Strong 负责动作，Primary Soft / Ring 只用于选中底和 focus。</li>
               <li>正文层级由 Text Primary / Secondary / Tertiary 递减，不靠额外杂色区分。</li>
-              <li>Danger 只用于删除、未读提醒和风险操作。</li>
+              <li>Danger / Success 只服务状态反馈，不扩散到装饰层。</li>
             </ul>
           </section>
         </div>
@@ -2095,7 +2095,7 @@
           </div>
           <ul class="bullet-list">
             <li>表面层、分隔线、文字层级优先靠 token 递减，不靠阴影硬堆层级。</li>
-            <li>按钮激活态和导航激活态共享同一主色语义。</li>
+            <li>按钮激活态、导航激活态和 focus ring 共享同一套科技蓝语义。</li>
             <li>Danger / Success 只服务状态反馈，禁止扩大到装饰层。</li>
           </ul>
         </section>
