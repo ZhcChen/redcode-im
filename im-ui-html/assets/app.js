@@ -227,6 +227,7 @@
   }
 
   function renderPrototypeToolbar(route) {
+    const system = data.designSystem;
     const shortcuts = [
       { label: "规范", route: "/spec", active: route.section === "spec" },
       {
@@ -257,10 +258,22 @@
     return `
       <header class="prototype-toolbar">
         <div class="prototype-toolbar__brand">
-          <span class="prototype-toolbar__eyebrow">HTML Prototype</span>
+          <span class="prototype-toolbar__eyebrow">2.0 Design Source</span>
           <div>
-            <h1>RedCode IM 移动端 UI 设计稿</h1>
-            <p>先抽离规范、组件和密度体系，再回到真实 IM 流程。</p>
+            <h1>RedCode IM 2.0 UI 设计源</h1>
+            <p>先锁移动端规范和真实 IM 流程，再推导 Flutter 多端正式实现。</p>
+          </div>
+          <div class="prototype-toolbar__meta">
+            ${system.priorities
+              .map(
+                (item) => `
+                  <span class="meta-pill">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <span>${escapeHtml(item.title)}</span>
+                  </span>
+                `,
+              )
+              .join("")}
           </div>
         </div>
         <div class="prototype-toolbar__controls">
@@ -468,20 +481,34 @@
     return `
       <section class="screen">
         ${renderScreenHeader({
-          title: "移动端设计系统",
-          subtitle: "基于 Flutter 真实信息架构重做 UI 规范",
+          title: "2.0 设计系统",
+          subtitle: "先定义主线视觉、密度和组件契约，再进入 Flutter 实装",
           root: true,
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
-            <section class="hero-card hero-card--accent">
+            <section class="hero-card hero-card--spec">
               <span class="eyebrow">Visual Thesis</span>
               <h3>${escapeHtml(system.thesis)}</h3>
-              <p>底部主导航固定为聊天 / 联系人 / 设置，其他能力全部按二级页面推进，不再用桌面式三栏工作台表达移动端。</p>
+              <p>底部主导航固定为聊天 / 联系人 / 设置，聊天详情、搜索、好友申请、建群、群设置都按移动端单列流程推进，先把手机体验做准，再推桌面形态。</p>
               <div class="chip-row">
                 <span class="chip chip--filled">Mobile-first</span>
+                <span class="chip chip--filled">单 Flutter 主线</span>
                 <span class="chip chip--filled">真实密度分档</span>
-                <span class="chip chip--filled">轻表面层级</span>
+                <span class="chip chip--filled">低噪音层级</span>
+              </div>
+              <div class="spec-summary-grid">
+                ${system.priorities
+                  .map(
+                    (item) => `
+                      <article class="summary-tile">
+                        <span class="summary-tile__label">${escapeHtml(item.label)}</span>
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <p>${escapeHtml(item.note)}</p>
+                      </article>
+                    `,
+                  )
+                  .join("")}
               </div>
             </section>
 
@@ -489,12 +516,24 @@
               <div class="surface-card__header">
                 <h3>规范切面</h3>
                 <div class="segmented">
-                  ${renderSpecTabButton("tokens", "Tokens")}
-                  ${renderSpecTabButton("components", "Components")}
-                  ${renderSpecTabButton("flows", "Flows")}
+                  ${renderSpecTabButton("tokens", "视觉")}
+                  ${renderSpecTabButton("components", "组件")}
+                  ${renderSpecTabButton("flows", "流转")}
                 </div>
               </div>
               ${renderSpecTabContent()}
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>当前实施边界</h3>
+                <span class="badge">2.0 Mainline</span>
+              </div>
+              <ul class="bullet-list">
+                <li><strong>当前主线：</strong><code>app/</code> 后续承载 Android、iOS、Windows 10+、macOS、Linux。</li>
+                <li><strong>当前设计源：</strong><code>im-ui-html/</code> 先收敛规范、组件和页面地图。</li>
+                <li><strong>当前不做：</strong>不让 Win7、旧桌面壳和历史 UI 结构决定 2.0 主线形态。</li>
+              </ul>
             </section>
 
             <section class="surface-card">
@@ -525,11 +564,23 @@
   }
 
   function renderSpecTabContent() {
+    const system = data.designSystem;
     if (state.activeSpecTab === "components") {
       const chat = sortedChats()[0];
       const contact = filteredContacts()[0] || data.contacts[0];
       return `
         <div class="screen-stack">
+          <div class="surface-block">
+            <p class="section-title">组件优先级</p>
+            <div class="page-map page-map--dense">
+              <span class="page-map__item">Shell / Nav</span>
+              <span class="page-map__item">Cell / Row</span>
+              <span class="page-map__item">Message Bubble</span>
+              <span class="page-map__item">Composer</span>
+              <span class="page-map__item">Search Box</span>
+              <span class="page-map__item">Settings Row</span>
+            </div>
+          </div>
           <div class="preview-surface">
             <p class="section-title">导航条</p>
             <div class="component-bar-preview">
@@ -563,6 +614,7 @@
                 <button class="primary-button primary-button--small" disabled>发送</button>
               </div>
             </div>
+            <p class="surface-caption">输入区必须先保证垂直居中、占位态、表情态、更多态的节奏稳定，再讨论高级扩展。</p>
           </div>
           <div class="preview-surface">
             <p class="section-title">联系人 + 设置项</p>
@@ -573,6 +625,14 @@
               ${renderMenuRow("账号与安全", "手机号、设备、密码与登录态", false)}
               ${renderMenuRow("聊天", "消息、字体、通知和存储偏好", false)}
             </div>
+          </div>
+          <div class="surface-block">
+            <p class="section-title">Flutter handoff 约束</p>
+            <ul class="bullet-list">
+              <li>先抽 <code>im_ui_kit</code>，统一 tokens、输入区、cell、bubble、settings row。</li>
+              <li>聊天、联系人、建群、搜索、设置都只允许在这套组件基线内扩展。</li>
+              <li>桌面端后续复用同一组件语言，但重新组织为双栏 / 三栏布局。</li>
+            </ul>
           </div>
         </div>
       `;
@@ -585,24 +645,44 @@
             <div class="flow-step">
               <span class="flow-step__index">01</span>
               <div>
-                <strong>主导航</strong>
-                <p>聊天 / 联系人 / 设置</p>
+                <strong>先手机主导航</strong>
+                <p>聊天 / 联系人 / 设置固定为唯一一级入口</p>
               </div>
             </div>
             <div class="flow-step">
               <span class="flow-step__index">02</span>
               <div>
-                <strong>二级流转</strong>
-                <p>聊天详情、好友申请、添加好友、群设置、搜索</p>
+                <strong>再补二级流转</strong>
+                <p>聊天详情、好友申请、添加好友、群设置、搜索全部拆成二级页</p>
               </div>
             </div>
             <div class="flow-step">
               <span class="flow-step__index">03</span>
               <div>
-                <strong>未来扩展</strong>
-                <p>通话、AI、文件、自动化全部走独立场景页</p>
+                <strong>后补桌面与扩展</strong>
+                <p>桌面形态、通话、AI、文件协作统一延后到第二阶段处理</p>
               </div>
             </div>
+          </div>
+          <div class="page-map-grid">
+            ${system.pageGroups
+              .map(
+                (group) => `
+                  <article class="page-map-card">
+                    <span class="section-title">${escapeHtml(group.title)}</span>
+                    <strong>${escapeHtml(group.items.join(" / "))}</strong>
+                  </article>
+                `,
+              )
+              .join("")}
+          </div>
+          <div class="surface-block">
+            <p class="section-title">Flutter 实施轨道</p>
+            <ul class="bullet-list">
+              ${system.handoffTracks
+                .map((item) => `<li>${escapeHtml(item)}</li>`)
+                .join("")}
+            </ul>
           </div>
           <div class="surface-block">
             <p class="section-title">页面地图</p>
@@ -627,8 +707,20 @@
 
     return `
       <div class="screen-stack">
+        <div class="principle-grid">
+          ${system.principles
+            .map(
+              (item, index) => `
+                <article class="principle-card">
+                  <span class="principle-card__index">0${index + 1}</span>
+                  <p>${escapeHtml(item)}</p>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
         <div class="token-grid">
-          ${data.designSystem.tokens.colors
+          ${system.tokens.colors
             .map(
               (item) => `
                 <div class="token-card token-card--swatch">
@@ -644,7 +736,7 @@
           <div class="token-card">
             <span class="section-title">Typography</span>
             <ul class="token-list">
-              ${data.designSystem.tokens.typography
+              ${system.tokens.typography
                 .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
                 .join("")}
             </ul>
@@ -652,28 +744,24 @@
           <div class="token-card">
             <span class="section-title">Spacing & Motion</span>
             <ul class="token-list">
-              ${data.designSystem.tokens.spacing
+              ${system.tokens.spacing
                 .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
                 .join("")}
             </ul>
           </div>
         </div>
-        <div class="density-preview">
-          <div class="density-preview__item">
-            <strong>2K</strong>
-            <span>scale 1.00</span>
-            <p>保留完整留白，标题和头像都维持自然尺寸。</p>
-          </div>
-          <div class="density-preview__item">
-            <strong>1.5K</strong>
-            <span>scale 0.94</span>
-            <p>轻收紧字号和圆角，避免列表、输入框显得偏胖。</p>
-          </div>
-          <div class="density-preview__item">
-            <strong>1K</strong>
-            <span>scale 0.88</span>
-            <p>进一步压缩间距与控件高度，但不牺牲触达面积。</p>
-          </div>
+        <div class="density-preview density-preview--grid">
+          ${system.densityBands
+            .map(
+              (item) => `
+                <article class="density-preview__item">
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>scale ${escapeHtml(item.scale)}</span>
+                  <p>${escapeHtml(item.title)} · ${escapeHtml(item.note)}</p>
+                </article>
+              `,
+            )
+            .join("")}
         </div>
       </div>
     `;
@@ -1759,12 +1847,12 @@
   function reviewNotesForRoute(route) {
     if (route.section === "spec") {
       return {
-        title: "规范页当前看点",
-        label: "System",
+        title: "规范页当前验证点",
+        label: "Design Source",
         items: [
-          "颜色、字号、圆角、间距和动效都先收敛成统一 token。",
-          "组件预览必须直接服务移动端场景，而不是桌面工作台。",
-          "密度分档明确对齐 2K / 1.5K / 1K 手机。",
+          "先确认 2.0 视觉语言足够克制、细致，而不是继续沿用旧原型的花哨感。",
+          "先把手机端 token、组件、页面地图定清楚，再让 Flutter 去实现。",
+          "桌面端只保留方向说明，不提前把手机页拉成桌面工作台。",
         ],
       };
     }
