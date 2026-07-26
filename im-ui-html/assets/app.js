@@ -2354,22 +2354,10 @@
     return `
       <section class="spec-stage" aria-label="规范设计工作台">
         <aside class="surface-card spec-sidebar">
-          <div class="spec-sidebar__header">
-            <span class="eyebrow">Spec Workbench</span>
-            <h2>规范页面</h2>
-            <p>左侧按分组切换规范，右侧统一在手机画布里验证颜色、字体、组件和 Shell 的真实落位。</p>
-          </div>
           <div class="spec-sidebar__group-list spec-scroll-area">
             ${system.specGroups.map(renderSpecNavItem).join("")}
           </div>
           <div class="spec-sidebar__aux">
-            <div class="surface-block spec-sidebar__note">
-              <p class="section-title">当前主线</p>
-              <ul class="bullet-list">
-                <li>先收敛组件、字体、颜色，再回刷聊天 / 联系人 / 发现页面。</li>
-                <li>右侧预览统一放进手机画布，不再用纯说明文档代替真实 UI 观感。</li>
-              </ul>
-            </div>
             <div class="surface-block spec-sidebar__settings">
               <div class="spec-sidebar__settings-header">
                 <p class="section-title">显示设置</p>
