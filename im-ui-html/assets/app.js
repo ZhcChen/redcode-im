@@ -513,31 +513,6 @@
 
     return `
       <section class="design-hub" aria-label="设计源总入口">
-        <section class="hero-card hero-card--spec design-hub__hero">
-          <span class="eyebrow">Entry Hub</span>
-          <h2>先收敛规范，再展开 PC 与移动端 UI</h2>
-          <p>${escapeHtml(system.thesis)} 这套设计源先服务于 2.0 主线重构，不再默认落到某个具体业务页。</p>
-          <div class="chip-row">
-            <span class="chip chip--filled">规范优先</span>
-            <span class="chip chip--filled">Mobile-first</span>
-            <span class="chip chip--filled">Desktop-ready</span>
-            <span class="chip chip--filled">Flutter handoff</span>
-          </div>
-          <div class="spec-summary-grid">
-            ${system.priorities
-              .map(
-                (item) => `
-                  <article class="summary-tile">
-                    <span class="summary-tile__label">${escapeHtml(item.label)}</span>
-                    <strong>${escapeHtml(item.title)}</strong>
-                    <p>${escapeHtml(item.note)}</p>
-                  </article>
-                `,
-              )
-              .join("")}
-          </div>
-        </section>
-
         <div class="design-hub__grid">
           ${system.entryCards.map((item, index) => renderEntryCard(item, index)).join("")}
         </div>
