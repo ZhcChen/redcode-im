@@ -1284,6 +1284,82 @@
     `;
   }
 
+  function renderNavIconBlueprintBoard(compact) {
+    const items = data.designSystem.navIconBlueprints || [];
+
+    return `
+      <div class="nav-icon-blueprint-grid ${compact ? "nav-icon-blueprint-grid--compact" : ""}">
+        ${items
+          .map(
+            (item) => `
+              <article class="nav-icon-blueprint-card ${item.id === "chats" ? "is-primary" : ""}">
+                <div class="nav-icon-blueprint-card__top">
+                  ${renderIcon(item.icon, "nav-icon-blueprint-card__glyph", item.title)}
+                  <div class="nav-icon-blueprint-card__copy">
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <span>${escapeHtml(item.hint)}</span>
+                  </div>
+                  <span class="badge">${escapeHtml(item.hotArea)}</span>
+                </div>
+                <div class="nav-icon-blueprint-card__meta">
+                  <span class="nav-icon-blueprint-chip">${escapeHtml(item.emphasis)}</span>
+                  <span class="nav-icon-blueprint-chip">${escapeHtml(item.stroke)}</span>
+                </div>
+                <p>${escapeHtml(item.note)}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderPageBlueprintBoard(compact) {
+    const items = data.designSystem.pageBlueprints || [];
+
+    return `
+      <div class="page-blueprint-grid ${compact ? "page-blueprint-grid--compact" : ""}">
+        ${items
+          .map(
+            (item) => `
+              <article class="page-blueprint-card">
+                <div class="page-blueprint-card__header">
+                  <div>
+                    <span class="section-title">${escapeHtml(item.shell)}</span>
+                    <strong>${escapeHtml(item.title)}</strong>
+                  </div>
+                  <span class="badge">${escapeHtml(item.routes.length)} Routes</span>
+                </div>
+                <p>${escapeHtml(item.summary)}</p>
+                <div class="page-blueprint-card__stack">
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">页面分块</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.sections.map((section) => `<span class="page-map__item">${escapeHtml(section)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">主动作</span>
+                    <div class="page-blueprint-card__chips">
+                      ${item.actions.map((action) => `<span class="chip">${escapeHtml(action)}</span>`).join("")}
+                    </div>
+                  </div>
+                  <div class="page-blueprint-card__group">
+                    <span class="section-title">路由</span>
+                    <div class="page-blueprint-card__route-list">
+                      ${item.routes.map((routeItem) => `<code>${escapeHtml(routeItem)}</code>`).join("")}
+                    </div>
+                  </div>
+                </div>
+                <p class="surface-caption">${escapeHtml(item.note)}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderSpecPhoneContent(group) {
     const system = data.designSystem;
     const chat = sortedChats()[0];
@@ -1382,6 +1458,20 @@
     if (group.id === "icons") {
       return `
         <div class="screen-stack">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>底部导航 Icon</h3>
+              <span class="badge">Tab Bar</span>
+            </div>
+            ${renderNavIconBlueprintBoard(true)}
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>胶囊导航预览</h3>
+              <span class="badge">Active / Inactive</span>
+            </div>
+            ${renderMobileNavPreview("discover")}
+          </section>
           ${system.iconLibrary.map(renderIconSpecGroup).join("")}
         </div>
       `;
@@ -1412,6 +1502,13 @@
     if (group.id === "flows") {
       return `
         <div class="screen-stack">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>一级页面拆分</h3>
+              <span class="badge">Root Pages</span>
+            </div>
+            ${renderPageBlueprintBoard(true)}
+          </section>
           <section class="surface-card">
             <div class="surface-card__header">
               <h3>主链路顺序</h3>
@@ -1600,6 +1697,13 @@
       return `
         <section class="surface-card">
           <div class="surface-card__header">
+            <h3>底部导航细化</h3>
+            <span class="badge">Tab Bar</span>
+          </div>
+          ${renderNavIconBlueprintBoard(false)}
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
             <h3>Icon 规则</h3>
             <span class="badge">Hot Area</span>
           </div>
@@ -1654,6 +1758,13 @@
 
     if (group.id === "flows") {
       return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>一级页面规范拆分</h3>
+            <span class="badge">Blueprint</span>
+          </div>
+          ${renderPageBlueprintBoard(false)}
+        </section>
         <section class="surface-card">
           <div class="surface-card__header">
             <h3>Flutter Handoff</h3>

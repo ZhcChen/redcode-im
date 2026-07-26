@@ -433,6 +433,8 @@ img {
   min-height: 0;
   overflow-y: auto;
   padding: 0 1em 1.1em;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 42%, transparent) transparent;
 }
 
 .screen-scroll--auth {
@@ -454,7 +456,7 @@ img {
 }
 
 .screen-scroll::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
+  background: color-mix(in srgb, var(--text-tertiary) 42%, transparent);
   border-radius: 999px;
 }
 
@@ -1091,7 +1093,7 @@ body[data-theme="dark"] .spec-stage {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--primary) 34%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 42%, transparent) transparent;
 }
 
 .spec-scroll-area::-webkit-scrollbar {
@@ -1100,7 +1102,7 @@ body[data-theme="dark"] .spec-stage {
 
 .spec-scroll-area::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 34%, transparent);
+  background: color-mix(in srgb, var(--text-tertiary) 42%, transparent);
 }
 
 .spec-scroll-area::-webkit-scrollbar-track {
@@ -2245,13 +2247,17 @@ body[data-theme="dark"] .spec-stage {
 }
 
 .interaction-state-grid,
-.density-calibration-grid {
+.density-calibration-grid,
+.nav-icon-blueprint-grid,
+.page-blueprint-grid {
   display: grid;
   gap: 0.7em;
 }
 
 .interaction-state-card,
-.density-calibration-card {
+.density-calibration-card,
+.nav-icon-blueprint-card,
+.page-blueprint-card {
   border-radius: 1.05em;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -2279,8 +2285,19 @@ body[data-theme="dark"] .spec-stage {
   line-height: 1.5;
 }
 
+.nav-icon-blueprint-card p,
+.page-blueprint-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  line-height: 1.5;
+}
+
 .interaction-state-card__list,
-.density-calibration-card__metrics {
+.density-calibration-card__metrics,
+.page-blueprint-card__chips,
+.page-blueprint-card__route-list,
+.nav-icon-blueprint-card__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.42em;
@@ -2355,14 +2372,105 @@ body[data-theme="dark"] .spec-stage {
   letter-spacing: 0.04em;
 }
 
+.nav-icon-blueprint-card__top,
+.page-blueprint-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7em;
+}
+
+.nav-icon-blueprint-card__top {
+  align-items: center;
+}
+
+.nav-icon-blueprint-card__glyph {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 0.9rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--primary-strong);
+}
+
+.nav-icon-blueprint-card__glyph svg {
+  width: 1.16rem;
+  height: 1.16rem;
+}
+
+.nav-icon-blueprint-card__copy,
+.page-blueprint-card__header > div,
+.page-blueprint-card__group {
+  display: grid;
+  gap: 0.18em;
+}
+
+.nav-icon-blueprint-card__copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-icon-blueprint-card__copy strong,
+.page-blueprint-card__header strong {
+  font-size: 0.94em;
+  line-height: 1.25;
+}
+
+.nav-icon-blueprint-card__copy span {
+  color: var(--text-secondary);
+  font-size: 0.78em;
+}
+
+.nav-icon-blueprint-card.is-primary {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 56%, transparent), var(--surface));
+}
+
+.nav-icon-blueprint-chip {
+  min-height: 1.8em;
+  padding: 0.25em 0.58em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 0.74em;
+}
+
+.page-blueprint-card__stack {
+  display: grid;
+  gap: 0.6em;
+}
+
+.page-blueprint-card__route-list code {
+  font-size: 0.76em;
+}
+
+.page-blueprint-grid--compact .page-blueprint-card,
+.nav-icon-blueprint-grid--compact .nav-icon-blueprint-card {
+  background: var(--surface-soft);
+  padding: 0.82em;
+}
+
+.page-blueprint-grid--compact .page-blueprint-card__chips .page-map__item,
+.page-blueprint-grid--compact .page-blueprint-card__chips .chip {
+  min-height: 1.75em;
+  font-size: 0.72em;
+}
+
 .interaction-state-grid--compact .interaction-state-card,
-.density-calibration-grid--compact .density-calibration-card {
+.density-calibration-grid--compact .density-calibration-card,
+.nav-icon-blueprint-grid--compact .nav-icon-blueprint-card,
+.page-blueprint-grid--compact .page-blueprint-card {
   background: var(--surface-soft);
   padding: 0.82em;
 }
 
 .interaction-state-grid--compact .interaction-state-card__header p,
-.density-calibration-grid--compact .density-calibration-card p {
+.density-calibration-grid--compact .density-calibration-card p,
+.nav-icon-blueprint-grid--compact .nav-icon-blueprint-card p,
+.page-blueprint-grid--compact .page-blueprint-card p {
   font-size: 0.78em;
 }
 
