@@ -1,6 +1,7 @@
 (function bootstrapIMPrototype() {
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
+  const STORAGE_KEY = "redcode-im-ui-prototype/ui";
 
   if (!source || !root) {
     return;
@@ -22,6 +23,7 @@
     friendNote: "你好，我想一起同步新版 IM 的界面方向。",
     createGroupName: "新设计评审群",
     createGroupMembers: new Set(["u_alice", "u_zoe"]),
+    groupMemberFilter: "",
     modal: null,
     toasts: [],
   };
@@ -35,6 +37,7 @@
   let toastTimerId = null;
 
   initializeSortKeys();
+  hydrateUiState();
   applyBodyState();
 
   if (!window.location.hash) {
@@ -57,6 +60,38 @@
     data.chats.forEach((chat, index) => {
       chat.sortKey = base - index;
     });
+  }
+
+  function hydrateUiState() {
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const persisted = JSON.parse(raw);
+      if (persisted.theme === "dark" || persisted.theme === "light") {
+        state.theme = persisted.theme;
+        data.settings.theme = persisted.theme;
+      }
+      if (persisted.density === "comfortable" || persisted.density === "compact") {
+        state.density = persisted.density;
+        data.settings.density = persisted.density;
+      }
+      if (persisted.notifications && typeof persisted.notifications === "object") {
+        Object.assign(data.settings.notifications, persisted.notifications);
+      }
+      if (persisted.privacy && typeof persisted.privacy === "object") {
+        Object.assign(data.settings.privacy, persisted.privacy);
+      }
+    } catch (error) {
+      console.warn("Failed to hydrate prototype UI state.", error);
+    }
+  }
+
+  function persistUiState() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data.settings));
+    } catch (error) {
+      console.warn("Failed to persist prototype UI state.", error);
+    }
   }
 
   function currentPath() {
@@ -1002,7 +1037,7 @@
     const incoming = data.friendRequests.filter((item) => item.type === "incoming");
     const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
     return `
-      <section class="settings-layout">
+      <section class="settings-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="stack">
@@ -1089,8 +1124,13 @@
         user.city.toLowerCase().includes(keyword)
       );
     });
+    const relationSummary = {
+      pendingIncoming: filtered.filter((user) => user.relation === "pending_incoming").length,
+      pendingOutgoing: filtered.filter((user) => user.relation === "pending_outgoing").length,
+      available: filtered.filter((user) => user.relation === "none").length,
+    };
     return `
-      <section class="settings-layout">
+      <section class="settings-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="stack">
@@ -1123,7 +1163,22 @@
               </div>
             </article>
 
-            <div class="list">
+            <div class="metric-grid">
+              <article class="metric-card">
+                <p class="meta">候选结果</p>
+                <p class="metric-card__value">${filtered.length}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">待我处理</p>
+                <p class="metric-card__value">${relationSummary.pendingIncoming}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">可直接添加</p>
+                <p class="metric-card__value">${relationSummary.available}</p>
+              </article>
+            </div>
+
+            <div class="search-result-grid">
               ${filtered.length
                 ? filtered.map((user) => renderSearchUserItem(user)).join("")
                 : '<div class="empty-state">没有匹配结果，试试输入更短的关键词。</div>'}
@@ -1142,6 +1197,29 @@
             <div class="helper-note">结果卡片不做杂乱信息堆叠，只保留决策必须字段。</div>
             <div class="helper-note">申请动作始终明确区分：未添加、等待对方、等待我处理、已是好友。</div>
             <div class="helper-note">点击“添加好友”会弹出轻量确认层，不再让操作跳来跳去。</div>
+            <article class="preview-card stack">
+              <h4 class="title-sm">状态分布</h4>
+              <div class="list">
+                <div class="list-item">
+                  <div class="list-item__main">
+                    <div class="list-item__row">
+                      <p class="list-item__title">待我处理</p>
+                      <span class="badge">${relationSummary.pendingIncoming}</span>
+                    </div>
+                    <p class="list-item__summary">收到申请后可以直接通过并生成私聊入口。</p>
+                  </div>
+                </div>
+                <div class="list-item">
+                  <div class="list-item__main">
+                    <div class="list-item__row">
+                      <p class="list-item__title">等待对方</p>
+                      <span class="badge">${relationSummary.pendingOutgoing}</span>
+                    </div>
+                    <p class="list-item__summary">保持静态反馈，不再把状态藏进详情页。</p>
+                  </div>
+                </div>
+              </div>
+            </article>
           </div>
         </aside>
       </section>
@@ -1265,6 +1343,17 @@
   function renderCreateGroup() {
     const selectedIds = Array.from(state.createGroupMembers);
     const selectedContacts = data.contacts.filter((contact) => selectedIds.includes(contact.id));
+    const candidateKeyword = state.groupMemberFilter.trim().toLowerCase();
+    const candidateContacts = data.contacts.filter((contact) => {
+      if (!candidateKeyword) return true;
+      return (
+        contact.name.toLowerCase().includes(candidateKeyword) ||
+        contact.title.toLowerCase().includes(candidateKeyword) ||
+        contact.zone.toLowerCase().includes(candidateKeyword)
+      );
+    });
+    const onlineCount = selectedContacts.filter((contact) => contact.status !== "离开").length;
+    const previewMessageAuthor = selectedContacts[0] || data.currentUser;
     return `
       <section class="group-layout">
         <section class="stage-card">
@@ -1294,8 +1383,15 @@
             </article>
             <article class="settings-section stack">
               <h4 class="title-sm">选择好友</h4>
+              <input
+                id="group-member-search-input"
+                class="search-field"
+                placeholder="搜索名字、岗位或分组"
+                value="${escapeHtml(state.groupMemberFilter)}"
+              />
               <div class="list">
-                ${data.contacts
+                ${candidateContacts.length
+                  ? candidateContacts
                   .map(
                     (contact) => `
                       <label class="list-item">
@@ -1313,7 +1409,8 @@
                       </label>
                     `,
                   )
-                  .join("")}
+                  .join("")
+                  : '<div class="empty-state compact">没有匹配的好友，换个关键词再试。</div>'}
               </div>
             </article>
             <div class="button-row" style="grid-template-columns: repeat(2, minmax(0, 1fr));">
@@ -1329,7 +1426,7 @@
               <h3 class="title-md">群聊预览</h3>
             </div>
           </header>
-          <div class="context-card__body stack">
+          <div class="context-card__body stack lg">
             <div class="hero-preview stack">
               <h4 class="title-sm">${escapeHtml(state.createGroupName || "未命名群聊")}</h4>
               <p class="body-sm">默认会附带欢迎公告、群规则入口与上下文工作区。</p>
@@ -1340,6 +1437,84 @@
                 <span class="chip">成员</span>
               </div>
             </div>
+            <div class="metric-grid">
+              <article class="metric-card">
+                <p class="meta">预计成员</p>
+                <p class="metric-card__value">${selectedContacts.length + 1}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">预计在线</p>
+                <p class="metric-card__value">${onlineCount + 1}</p>
+              </article>
+            </div>
+            <article class="preview-card stack">
+              <div class="row space-between">
+                <h4 class="title-sm">默认策略</h4>
+                <span class="badge">invite_only</span>
+              </div>
+              <div class="helper-note">新群默认采用邀请制、开放发言、欢迎公告 + 规则入口 + 文件区的组合。</div>
+              <div class="list">
+                <div class="list-item">
+                  <div class="list-item__main">
+                    <p class="list-item__title">群入口</p>
+                    <p class="list-item__summary">会话顶部 / 聊天右栏 / 搜索结果都能进入群设置。</p>
+                  </div>
+                </div>
+                <div class="list-item">
+                  <div class="list-item__main">
+                    <p class="list-item__title">内容结构</p>
+                    <p class="list-item__summary">公告、规则、文件、成员全部走统一组件和状态样式。</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="preview-card stack">
+              <h4 class="title-sm">创建后首屏预览</h4>
+              <div class="message-board">
+                <div class="message-row self">
+                  <div class="message-bubble">
+                    已创建 ${escapeHtml(state.createGroupName || "新的群聊")}，请把今天的评审重点直接放进公告。
+                    <div class="message-meta">
+                      <span>刚刚</span>
+                      <span>系统已同步</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="message-row">
+                  ${renderAvatar(previewMessageAuthor.name, previewMessageAuthor.tone || previewMessageAuthor.avatarTone || "mint", "")}
+                  <div class="message-bubble">
+                    收到，我会先补充规范页、聊天主线和扩展入口的评审结论。
+                    <div class="message-meta">
+                      <span>预计首条回复</span>
+                      <span>${escapeHtml(previewMessageAuthor.name)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="preview-card stack">
+              <h4 class="title-sm">成员快照</h4>
+              <div class="list">
+                ${selectedContacts.length
+                  ? selectedContacts
+                      .map(
+                        (contact) => `
+                          <div class="list-item">
+                            ${renderAvatar(contact.name, contact.tone, "")}
+                            <div class="list-item__main">
+                              <div class="list-item__row">
+                                <p class="list-item__title">${escapeHtml(contact.name)}</p>
+                                <span class="badge">${escapeHtml(contact.status)}</span>
+                              </div>
+                              <p class="list-item__summary">${escapeHtml(contact.title)}</p>
+                            </div>
+                          </div>
+                        `,
+                      )
+                      .join("")
+                  : '<div class="empty-state compact">还没有选择成员。</div>'}
+              </div>
+            </article>
           </div>
         </aside>
       </section>
@@ -1354,7 +1529,7 @@
     state.activeGroupId = group.id;
 
     return `
-      <section class="settings-layout">
+      <section class="settings-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="row">
@@ -1441,7 +1616,7 @@
   function renderSearchRoute() {
     const results = searchMessages(state.searchQuery);
     return `
-      <section class="search-layout">
+      <section class="search-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="stack">
@@ -1503,7 +1678,7 @@
 
   function renderLabOverview() {
     return `
-      <section class="discover-layout">
+      <section class="discover-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="stack">
@@ -1528,6 +1703,26 @@
                 </div>
               </div>
             </article>
+            <article class="settings-section stack">
+              <div class="row space-between">
+                <h4 class="title-sm">接入路径</h4>
+                <span class="badge">3 steps</span>
+              </div>
+              <div class="timeline">
+                <div class="timeline-item">
+                  <span class="meta">01</span>
+                  <div class="helper-note">会话顶部动作区：先给用户“进入扩展”的直观入口。</div>
+                </div>
+                <div class="timeline-item">
+                  <span class="meta">02</span>
+                  <div class="helper-note">聊天右栏上下文：把通话、AI、文件和自动化放进当前会话对象之下。</div>
+                </div>
+                <div class="timeline-item">
+                  <span class="meta">03</span>
+                  <div class="helper-note">搜索与通知回流：扩展结果仍然能回跳到原始消息和群组空间。</div>
+                </div>
+              </div>
+            </article>
             <div class="extension-grid">
               ${data.extensions
                 .map(
@@ -1546,6 +1741,20 @@
                 )
                 .join("")}
             </div>
+            <div class="card-grid">
+              <article class="extension-card stack">
+                <h4 class="title-sm">统一导航</h4>
+                <p class="body-sm">未来扩展不再拆出独立产品壳，而是挂回统一工作台导航。</p>
+              </article>
+              <article class="extension-card stack">
+                <h4 class="title-sm">统一 token</h4>
+                <p class="body-sm">继续沿用现在的颜色、间距、动效、圆角，避免信息流断层。</p>
+              </article>
+              <article class="extension-card stack">
+                <h4 class="title-sm">统一返回路径</h4>
+                <p class="body-sm">每个模块都能回到消息、群聊、搜索或设置，不做死胡同页面。</p>
+              </article>
+            </div>
           </div>
         </section>
         <aside class="context-card">
@@ -1559,6 +1768,26 @@
             <div class="helper-note">扩展能力不新增新配色体系，继续使用主应用 token。</div>
             <div class="helper-note">所有扩展页面都应从会话上下文进入，而不是孤立应用。</div>
             <div class="helper-note">未来即使独立收费，也应该保留统一导航和返回路径。</div>
+            <article class="preview-card stack">
+              <h4 class="title-sm">状态分布</h4>
+              <div class="list">
+                ${data.extensions
+                  .map(
+                    (item) => `
+                      <div class="list-item">
+                        <div class="list-item__main">
+                          <div class="list-item__row">
+                            <p class="list-item__title">${escapeHtml(item.title)}</p>
+                            <span class="badge">${escapeHtml(item.status)}</span>
+                          </div>
+                          <p class="list-item__summary">${escapeHtml(item.summary)}</p>
+                        </div>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </article>
           </div>
         </aside>
       </section>
@@ -1571,7 +1800,7 @@
       return renderLabOverview();
     }
     return `
-      <section class="settings-layout">
+      <section class="settings-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="stack">
@@ -1622,8 +1851,10 @@
   }
 
   function renderSettingsRoute() {
+    const enabledNotificationCount = Object.values(data.settings.notifications).filter(Boolean).length;
+    const enabledPrivacyCount = Object.values(data.settings.privacy).filter(Boolean).length;
     return `
-      <section class="settings-layout">
+      <section class="settings-layout layout-main-first">
         <section class="stage-card">
           <header class="stage-card__header">
             <div class="row">
@@ -1636,32 +1867,108 @@
             <button class="button secondary" data-action="navigate" data-route="/auth/login">退出到登录页</button>
           </header>
           <div class="stage-card__body stack lg">
+            <div class="metric-grid">
+              <article class="metric-card">
+                <p class="meta">当前主题</p>
+                <p class="metric-card__value">${escapeHtml(state.theme)}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">界面密度</p>
+                <p class="metric-card__value">${escapeHtml(state.density)}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">通知开关</p>
+                <p class="metric-card__value">${enabledNotificationCount}</p>
+              </article>
+              <article class="metric-card">
+                <p class="meta">隐私开关</p>
+                <p class="metric-card__value">${enabledPrivacyCount}</p>
+              </article>
+            </div>
+
+            <div class="card-grid">
+              <article class="settings-section stack">
+                <div class="row space-between">
+                  <h4 class="title-sm">主题</h4>
+                  <button class="button primary" data-action="toggle-theme">${state.theme === "dark" ? "切到浅色" : "切到暗色"}</button>
+                </div>
+                <p class="body-sm">当前主题：${escapeHtml(state.theme)}</p>
+              </article>
+              <article class="settings-section stack">
+                <div class="row space-between">
+                  <h4 class="title-sm">界面密度</h4>
+                  <button class="button secondary" data-action="toggle-density">${state.density === "comfortable" ? "切到紧凑" : "切到舒适"}</button>
+                </div>
+                <p class="body-sm">当前密度：${escapeHtml(state.density)}</p>
+              </article>
+            </div>
+
+            <div class="card-grid">
+              <article class="settings-section stack">
+                <h4 class="title-sm">通知</h4>
+                <div class="row space-between">
+                  <span>提及通知</span>
+                  <button class="switch ${data.settings.notifications.mentions ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="mentions"></button>
+                </div>
+                <div class="row space-between">
+                  <span>每日摘要</span>
+                  <button class="switch ${data.settings.notifications.summaries ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="summaries"></button>
+                </div>
+                <div class="row space-between">
+                  <span>文件提醒</span>
+                  <button class="switch ${data.settings.notifications.fileAlerts ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="fileAlerts"></button>
+                </div>
+              </article>
+              <article class="settings-section stack">
+                <h4 class="title-sm">隐私</h4>
+                <div class="row space-between">
+                  <span>已读回执</span>
+                  <button class="switch ${data.settings.privacy.readReceipt ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="readReceipt"></button>
+                </div>
+                <div class="row space-between">
+                  <span>正在输入状态</span>
+                  <button class="switch ${data.settings.privacy.typingStatus ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="typingStatus"></button>
+                </div>
+                <div class="row space-between">
+                  <span>自动下载媒体</span>
+                  <button class="switch ${data.settings.privacy.autoDownloadMedia ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="autoDownloadMedia"></button>
+                </div>
+              </article>
+            </div>
+
             <article class="settings-section stack">
               <div class="row space-between">
-                <h4 class="title-sm">主题</h4>
-                <button class="button primary" data-action="toggle-theme">${state.theme === "dark" ? "切到浅色" : "切到暗色"}</button>
+                <h4 class="title-sm">实时预览</h4>
+                <span class="badge">${escapeHtml(state.theme)} / ${escapeHtml(state.density)}</span>
               </div>
-              <p class="body-sm">当前主题：${escapeHtml(state.theme)}</p>
-            </article>
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <h4 class="title-sm">界面密度</h4>
-                <button class="button secondary" data-action="toggle-density">${state.density === "comfortable" ? "切到紧凑" : "切到舒适"}</button>
-              </div>
-              <p class="body-sm">当前密度：${escapeHtml(state.density)}</p>
-            </article>
-            <article class="settings-section stack">
-              <div class="row space-between">
-                <span>提及通知</span>
-                <button class="switch ${data.settings.notifications.mentions ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="mentions"></button>
-              </div>
-              <div class="row space-between">
-                <span>每日摘要</span>
-                <button class="switch ${data.settings.notifications.summaries ? "active" : ""}" data-action="toggle-setting" data-domain="notifications" data-key="summaries"></button>
-              </div>
-              <div class="row space-between">
-                <span>自动下载媒体</span>
-                <button class="switch ${data.settings.privacy.autoDownloadMedia ? "active" : ""}" data-action="toggle-setting" data-domain="privacy" data-key="autoDownloadMedia"></button>
+              <div class="card-grid">
+                <div class="preview-card stack">
+                  <p class="meta">通知预览</p>
+                  <div class="list-item">
+                    ${renderAvatar("Ops Copilot", "violet", "")}
+                    <div class="list-item__main">
+                      <div class="list-item__row">
+                        <p class="list-item__title">Ops Copilot</p>
+                        <span class="badge">${data.settings.notifications.mentions ? "提醒开" : "提醒关"}</span>
+                      </div>
+                      <p class="list-item__summary">已根据当前主题与密度刷新通知卡片样式。</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="preview-card stack">
+                  <p class="meta">消息预览</p>
+                  <div class="message-board">
+                    <div class="message-row self">
+                      <div class="message-bubble">
+                        当前这页不只是设置项列表，而是整个原型的视觉开关面板。
+                        <div class="message-meta">
+                          <span>现在</span>
+                          <span>${data.settings.privacy.readReceipt ? "已读回执开启" : "已读回执关闭"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </article>
           </div>
@@ -1676,6 +1983,10 @@
           <div class="context-card__body stack">
             <div class="helper-note">设置页不仅是功能堆积页，也是主题、密度、通知策略的实时演示面板。</div>
             <div class="helper-note">切换主题和密度后，整个原型会同步变化，便于评审不同视觉方案。</div>
+            <article class="preview-card stack">
+              <h4 class="title-sm">持久化说明</h4>
+              <div class="helper-note">主题、密度以及设置开关会写入 localStorage，刷新页面后仍然保留。</div>
+            </article>
           </div>
         </aside>
       </section>
@@ -1806,6 +2117,14 @@
       });
     }
 
+    const groupMemberSearch = document.getElementById("group-member-search-input");
+    if (groupMemberSearch) {
+      groupMemberSearch.addEventListener("input", (event) => {
+        state.groupMemberFilter = event.target.value;
+        render();
+      });
+    }
+
     const messageSearch = document.getElementById("message-search-input");
     if (messageSearch) {
       messageSearch.addEventListener("input", (event) => {
@@ -1925,6 +2244,7 @@
     if (action === "toggle-theme") {
       state.theme = state.theme === "dark" ? "light" : "dark";
       data.settings.theme = state.theme;
+      persistUiState();
       render();
       return;
     }
@@ -1932,6 +2252,7 @@
     if (action === "toggle-density") {
       state.density = state.density === "comfortable" ? "compact" : "comfortable";
       data.settings.density = state.density;
+      persistUiState();
       render();
       return;
     }
@@ -1941,6 +2262,7 @@
       const key = target.getAttribute("data-key");
       if (domain && key && data.settings[domain]) {
         data.settings[domain][key] = !data.settings[domain][key];
+        persistUiState();
         render();
       }
       return;
