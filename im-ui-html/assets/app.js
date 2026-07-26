@@ -1916,22 +1916,28 @@
   function renderDiscoverScreen() {
     const discover = data.discover;
     return `
-      <section class="screen screen--tabbed">
+      <section class="screen screen--tabbed screen--discover">
         <div class="screen-scroll">
           ${renderScreenHeader({
             title: "发现",
-            subtitle: "把内容消费、扫码、附近关系和游戏入口统一收进一级入口",
+            subtitle: `内容 ${discover.highlight.stats[0][1]} · 附近 ${discover.highlight.stats[1][1]} · 游戏 ${discover.highlight.stats[2][1]}`,
             root: true,
           })}
           <div class="screen-stack">
-            <section class="hero-card hero-card--discover">
-              <span class="eyebrow">Discover Hub</span>
-              <h3>${escapeHtml(discover.highlight.summary)}</h3>
-              <div class="hero-card__metric-row">
+            <section class="hero-card hero-card--discover hero-card--discover-hub">
+              <div class="discover-hub__headline">
+                <div>
+                  <p class="section-title">Discover Hub</p>
+                  <h3>${escapeHtml(discover.highlight.summary)}</h3>
+                  <p>发现只负责“分发内容、快捷入口、弱关系、轻娱乐”，不再回塞到聊天和设置里。</p>
+                </div>
+                <span class="badge badge--success">一级入口</span>
+              </div>
+              <div class="discover-hub__stats">
                 ${discover.highlight.stats
                   .map(
                     (item) => `
-                      <span class="hero-metric">
+                      <span class="discover-hub__stat">
                         <strong>${escapeHtml(item[1])}</strong>
                         <span>${escapeHtml(item[0])}</span>
                       </span>
@@ -1939,13 +1945,20 @@
                   )
                   .join("")}
               </div>
+              <div class="inline-actions inline-actions--wide">
+                <button class="ghost-button" data-action="navigate" data-route="/discover/moments">看动态</button>
+                <button class="ghost-button" data-action="navigate" data-route="/discover/scan">去扫码</button>
+              </div>
             </section>
             <section class="discover-grid">
               ${discover.entries.map(renderDiscoverEntryCard).join("")}
             </section>
             <section class="surface-card">
               <div class="surface-card__header">
-                <h3>入口原则</h3>
+                <div class="surface-card__header-copy">
+                  <h3>入口原则</h3>
+                  <p>四类场景各走各的任务流：内容、快捷动作、弱关系、轻娱乐。</p>
+                </div>
                 <span class="badge">一级导航</span>
               </div>
               <ul class="bullet-list">
@@ -1961,6 +1974,8 @@
   }
 
   function renderDiscoverEntryCard(item) {
+    const meta = discoverEntryMeta(item);
+
     return `
       <button
         class="discover-entry-card"
@@ -1970,10 +1985,17 @@
         <span class="discover-entry-card__icon">${escapeHtml(item.icon)}</span>
         <div class="discover-entry-card__body">
           <div class="discover-entry-card__title">
-            <strong>${escapeHtml(item.title)}</strong>
+            <div class="discover-entry-card__title-copy">
+              <span class="discover-entry-card__meta">${escapeHtml(meta.label)}</span>
+              <strong>${escapeHtml(item.title)}</strong>
+            </div>
             <span class="badge">${escapeHtml(item.badge)}</span>
           </div>
           <p>${escapeHtml(item.summary)}</p>
+          <div class="discover-entry-card__footer">
+            <span class="chip chip--filled">${escapeHtml(meta.keyword)}</span>
+            <span>${escapeHtml(meta.note)}</span>
+          </div>
         </div>
       </button>
     `;
@@ -1989,6 +2011,14 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
+            <section class="hero-card hero-card--soft hero-card--moments">
+              <span class="eyebrow">Moments Feed</span>
+              <h3>朋友圈页只做内容流：作者、时间、正文、媒体与互动，不混入聊天操作。</h3>
+              <div class="inline-actions inline-actions--wide">
+                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接发动态、图片选择与可见范围。">发一条动态</button>
+                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接仅朋友可见、分组可见和草稿箱。">可见范围</button>
+              </div>
+            </section>
             ${data.discover.moments.map(renderMomentCard).join("")}
           </div>
         </div>
@@ -2005,12 +2035,18 @@
             <strong>${escapeHtml(item.author)}</strong>
             <span>${escapeHtml(item.time)}</span>
           </div>
+          <span class="badge">动态</span>
         </div>
         <p class="moment-card__text">${escapeHtml(item.text)}</p>
         <div class="moment-card__media">${escapeHtml(item.media)}</div>
+        <div class="moment-card__stats">
+          <span class="chip chip--filled">内容流</span>
+          <span class="chip">${escapeHtml(item.media)}</span>
+        </div>
         <div class="moment-card__footer">
           <span>赞 ${item.likes}</span>
           <span>评论 ${item.comments}</span>
+          <span>查看详情 →</span>
         </div>
       </article>
     `;
@@ -2027,14 +2063,38 @@
         <div class="screen-scroll">
           <div class="screen-stack">
             <section class="scan-shell">
+              <div class="scan-shell__header">
+                <span class="eyebrow">Scan Gateway</span>
+                <strong>把扫码动作单独抽出来，保证它是高频快捷入口。</strong>
+              </div>
               <div class="scan-shell__frame">
                 <div class="scan-shell__line"></div>
               </div>
               <p>后续可接加好友、进群、打开活动页、桌面端登录确认等二维码流程。</p>
             </section>
+            <section class="quick-action-grid quick-action-grid--compact">
+              ${[
+                ["加好友", "扫个人二维码直接发起关系请求"],
+                ["进群", "扫码加入活动群或协作群"],
+                ["登录桌面端", "手机确认桌面登录动作"],
+                ["活动页", "打开外部落地页或设备配网"],
+              ]
+                .map(
+                  (item) => `
+                    <button class="quick-action-card quick-action-card--mini" data-action="show-hint" data-message="${item[1]}">
+                      <strong>${item[0]}</strong>
+                      <span>${item[1]}</span>
+                    </button>
+                  `,
+                )
+                .join("")}
+            </section>
             <section class="surface-card">
               <div class="surface-card__header">
-                <h3>扫码入口优先承载</h3>
+                <div class="surface-card__header-copy">
+                  <h3>扫码入口优先承载</h3>
+                  <p>二维码是流程跳板，不应该被挤进其它页面做附属按钮。</p>
+                </div>
                 <span class="badge">Quick Action</span>
               </div>
               <ul class="bullet-list">
@@ -2060,7 +2120,18 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
+            <section class="hero-card hero-card--soft hero-card--nearby">
+              <span class="eyebrow">Nearby People</span>
+              <h3>附近的人属于弱关系扩展页：看距离、场景和打招呼，不混进联系人主目录。</h3>
+            </section>
             <section class="surface-card">
+              <div class="surface-card__header">
+                <div class="surface-card__header-copy">
+                  <h3>附近在线</h3>
+                  <p>先看距离和场景，再决定查看资料、发招呼或拉进同城群。</p>
+                </div>
+                <span class="badge">${data.discover.nearbyPeople.length}</span>
+              </div>
               ${data.discover.nearbyPeople.map(renderNearbyPersonCard).join("")}
             </section>
           </div>
@@ -2079,6 +2150,10 @@
             <span class="badge">${escapeHtml(item.distance)}</span>
           </div>
           <p>${escapeHtml(item.note)}</p>
+          <div class="chip-row">
+            <span class="chip chip--filled">附近的人</span>
+            <span class="chip">${escapeHtml(item.distance)}</span>
+          </div>
         </div>
         <button class="ghost-button ghost-button--small" data-action="show-hint" data-message="后续这里可接发招呼、查看资料、发起同城群。">看看</button>
       </div>
@@ -2095,19 +2170,31 @@
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
-            <section class="hero-card hero-card--soft">
+            <section class="hero-card hero-card--soft hero-card--games">
               <span class="eyebrow">Game Entry</span>
               <h3>先保留一个成熟的入口位置，不急着把小游戏本体塞进这轮 UI 重构。</h3>
+              <div class="inline-actions inline-actions--wide">
+                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接小游戏大厅与最近玩过。">小游戏大厅</button>
+                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接群内发起房间与好友邀请。">组队房间</button>
+              </div>
             </section>
-            <section class="surface-card">
+            <section class="surface-card surface-card--games">
+              <div class="surface-card__header">
+                <div class="surface-card__header-copy">
+                  <h3>当前入口规划</h3>
+                  <p>先把入口和状态语言做对，后续再扩小游戏大厅与房间链路。</p>
+                </div>
+                <span class="badge">${data.discover.games.length}</span>
+              </div>
               ${data.discover.games
                 .map(
                   (item) => `
-                    <div class="menu-row menu-row--static">
-                      <div class="menu-row__body">
+                    <div class="game-entry-card">
+                      <div class="game-entry-card__body">
                         <strong>${escapeHtml(item.title)}</strong>
                         <span>${escapeHtml(item.summary)}</span>
                       </div>
+                      <span class="badge">入口</span>
                     </div>
                   `,
                 )
@@ -2117,6 +2204,35 @@
         </div>
       </section>
     `;
+  }
+
+  function discoverEntryMeta(item) {
+    if (item.route === "/discover/moments") {
+      return {
+        label: "内容流",
+        keyword: "熟人动态",
+        note: "用时间流承接图文内容与互动。",
+      };
+    }
+    if (item.route === "/discover/scan") {
+      return {
+        label: "快捷动作",
+        keyword: "扫码跳转",
+        note: "扫码后直接进入加好友、进群或登录确认。",
+      };
+    }
+    if (item.route === "/discover/nearby") {
+      return {
+        label: "弱关系",
+        keyword: "同城扩展",
+        note: "基于距离和场景扩展新的关系。",
+      };
+    }
+    return {
+      label: "轻娱乐",
+      keyword: "入口保留",
+      note: "先确定入口位置，后续再扩小游戏链路。",
+    };
   }
 
   function renderContactSection(section) {
