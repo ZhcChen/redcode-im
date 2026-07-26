@@ -370,12 +370,13 @@
     syncSelection(route);
     const wideStage = isWideStageRoute(route);
     const showPrototypeToolbar = route.section !== "entry" && route.section !== "spec";
+    const fullBleedStage = route.section === "spec";
 
     root.innerHTML = `
       <div class="prototype-shell">
         ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
         <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""}">
-          <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""}">
+          <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""}">
             ${renderStage(route)}
           </div>
           ${renderRouteReview(route)}
@@ -1622,6 +1623,60 @@
     `;
   }
 
+  function renderSpecSecondaryColumn(group) {
+    return `
+      <section class="spec-secondary-column" aria-label="${escapeHtml(group.title)} 二级列表内容">
+        <section class="surface-card spec-secondary-column__intro">
+          <span class="eyebrow">${escapeHtml(group.eyebrow)}</span>
+          <h3>${escapeHtml(group.title)}</h3>
+          <p>${escapeHtml(group.summary)}</p>
+        </section>
+        <div class="spec-secondary-column__list">
+          ${renderSpecDetailRail(group)}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderSpecPreviewColumn(group) {
+    return `
+      <section class="surface-card spec-preview-column" aria-label="${escapeHtml(group.title)} 预览界面">
+        <div class="spec-preview-column__meta">
+          <span class="spec-preview-column__label">${escapeHtml(group.title)} · 实时预览</span>
+          <div class="chip-row">
+            <span class="chip chip--filled">${escapeHtml(group.eyebrow)}</span>
+            <span class="chip">手机画布</span>
+          </div>
+        </div>
+        <div class="spec-preview-column__body">
+          <section class="phone-frame phone-frame--spec" aria-label="规范手机预览画布">
+            <div class="phone-frame__notch"></div>
+            <div class="phone-screen">
+              <div class="phone-status-bar">
+                <span>9:41</span>
+                <span>5G · 87%</span>
+              </div>
+              <section class="screen screen--spec-preview">
+                <header class="screen-header screen-header--root">
+                  <div class="screen-header__main">
+                    <h2>${escapeHtml(group.title)}</h2>
+                    <p>${escapeHtml(group.eyebrow)} · 规范分组预览</p>
+                  </div>
+                  <div class="screen-header__actions">
+                    <span class="badge">${escapeHtml(group.title)}</span>
+                  </div>
+                </header>
+                <div class="screen-scroll screen-scroll--spec">
+                  ${renderSpecPhoneContent(group)}
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
   function renderSpecScreen() {
     const system = data.designSystem;
     const group = activeSpecGroup();
@@ -1670,39 +1725,8 @@
           </div>
         </aside>
 
-        <section class="spec-preview-stage">
-          <div class="spec-preview-stage__body">
-            <div class="spec-preview-stage__phone">
-              <section class="phone-frame phone-frame--spec" aria-label="规范手机预览画布">
-                <div class="phone-frame__notch"></div>
-                <div class="phone-screen">
-                  <div class="phone-status-bar">
-                    <span>9:41</span>
-                    <span>5G · 87%</span>
-                  </div>
-                  <section class="screen screen--spec-preview">
-                    <header class="screen-header screen-header--root">
-                      <div class="screen-header__main">
-                        <h2>${escapeHtml(group.title)}</h2>
-                        <p>${escapeHtml(group.eyebrow)} · 规范分组预览</p>
-                      </div>
-                      <div class="screen-header__actions">
-                        <span class="badge">${escapeHtml(group.title)}</span>
-                      </div>
-                    </header>
-                    <div class="screen-scroll screen-scroll--spec">
-                      ${renderSpecPhoneContent(group)}
-                    </div>
-                  </section>
-                </div>
-              </section>
-            </div>
-
-            <div class="spec-preview-stage__rail">
-              ${renderSpecDetailRail(group)}
-            </div>
-          </div>
-        </section>
+        ${renderSpecSecondaryColumn(group)}
+        ${renderSpecPreviewColumn(group)}
       </section>
     `;
   }
