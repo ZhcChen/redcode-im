@@ -13,10 +13,36 @@ window.RedcodeIMPrototypeData = {
     thesis:
       "Precision Pocket IM：以真实手机单列沟通为核心，压低视觉噪音，让内容、状态和输入节奏成为主角。",
     principles: [
-      "一级导航固定为聊天 / 联系人 / 设置；详情、搜索、申请、群设置全部走二级页。",
+      "一级导航固定为聊天 / 联系人 / 发现 / 设置；详情、搜索、申请、群设置全部走二级页。",
       "颜色和层级只服务信息优先级，不再依赖大量卡片、渐变和杂色制造存在感。",
       "2K / 1.5K / 1K 三档统一收紧字号、圆角和间距，而不是整体放大 UI。",
       "桌面端复用同一设计语言，但在第二阶段用双栏 / 三栏重组，不把手机页直接拉伸。",
+    ],
+    entryCards: [
+      {
+        id: "spec",
+        route: "/spec",
+        eyebrow: "Foundation",
+        title: "规范页面",
+        summary: "集中定义色系、字体、icon、组件、密度和 Flutter handoff 约束。",
+        bullets: ["颜色与字体 token", "icon 语义与尺寸", "组件状态与封装边界"],
+      },
+      {
+        id: "pc",
+        route: "/pc-design",
+        eyebrow: "Desktop",
+        title: "PC 端设计",
+        summary: "先建立桌面工作台基线，明确三栏结构与信息分区，不直接放大手机页。",
+        bullets: ["左导航 / 中会话 / 主聊天 / 右资料", "桌面信息密度策略", "跨端一致的设计语言"],
+      },
+      {
+        id: "mobile",
+        route: "/mobile-design",
+        eyebrow: "Mobile",
+        title: "移动端 UI 设计",
+        summary: "从手机端主线入口进入聊天、联系人、发现与设置，再展开真实业务流转。",
+        bullets: ["一级导航与二级流转", "聊天输入区与消息节奏", "发现与扩展位安放方式"],
+      },
     ],
     priorities: [
       {
@@ -83,6 +109,141 @@ window.RedcodeIMPrototypeData = {
       "Features：聊天、联系人、发现、群、搜索、设置按真实主流程逐步替换旧页面。",
       "Legacy：Win7 兼容单独立项，不影响主线 Flutter SDK 与插件选择。",
     ],
+    iconLibrary: [
+      {
+        title: "一级导航",
+        note: "优先用简洁轮廓 icon，避免装饰性填充；激活态通过胶囊底和主色表达。",
+        items: [
+          { glyph: "聊", label: "聊天", usage: "底部主导航 / 会话总入口" },
+          { glyph: "联", label: "联系人", usage: "底部主导航 / 关系入口" },
+          { glyph: "发", label: "发现", usage: "底部主导航 / 内容与扩展入口" },
+          { glyph: "设", label: "设置", usage: "底部主导航 / 账号与偏好入口" },
+        ],
+      },
+      {
+        title: "基础操作",
+        note: "操作 icon 统一放进 40-44dp 热区，和 App Bar、输入区组件共用节奏。",
+        items: [
+          { glyph: "←", label: "返回", usage: "二级页顶部返回" },
+          { glyph: "⌕", label: "搜索", usage: "会话 / 消息搜索入口" },
+          { glyph: "＋", label: "新增", usage: "添加好友 / 创建群聊 / 更多操作" },
+          { glyph: "☺", label: "表情", usage: "聊天输入区表情面板" },
+          { glyph: "…", label: "更多", usage: "详情动作 / 群设置扩展操作" },
+          { glyph: "↑", label: "发送", usage: "发送文本、附件或语音转文本结果" },
+        ],
+      },
+      {
+        title: "发现功能",
+        note: "发现内的 icon 只负责分类识别，页面层级仍由标题、摘要和 badge 承担。",
+        items: [
+          { glyph: "圈", label: "朋友圈", usage: "内容流 / 动态入口" },
+          { glyph: "扫", label: "扫一扫", usage: "扫码加好友、进群、登录桌面端" },
+          { glyph: "近", label: "附近的人", usage: "同城弱关系拓展" },
+          { glyph: "游", label: "游戏", usage: "小游戏大厅与房间入口" },
+        ],
+      },
+    ],
+    componentInventory: [
+      {
+        title: "App Shell",
+        summary: "统一状态栏、App Bar、浮动胶囊导航与根页滚动区域。",
+        states: ["Root", "Subpage", "Overlay"],
+        flutter: "Scaffold + SafeArea + custom shell",
+      },
+      {
+        title: "Conversation Cell",
+        summary: "会话列表、搜索结果、联系人行都共用左右信息层级与热区节奏。",
+        states: ["Default", "Pinned", "Unread", "Muted"],
+        flutter: "Reusable list tile + leading avatar + trailing meta",
+      },
+      {
+        title: "Message Bubble",
+        summary: "单聊和群聊共用气泡语言，只在发送者、状态位和引用态扩展。",
+        states: ["Incoming", "Outgoing", "Quote", "Recent", "Highlighted"],
+        flutter: "Message bubble component + reaction row",
+      },
+      {
+        title: "Composer",
+        summary: "输入框、表情、更多面板和发送动作作为一个整体组件处理。",
+        states: ["Idle", "Typing", "Emoji Panel", "Attachment Panel"],
+        flutter: "Bottom composer + panel controller",
+      },
+      {
+        title: "Action Card",
+        summary: "发现页、设计入口页、快速评审路径统一使用的轻面板按钮。",
+        states: ["Default", "Hover", "Active", "Disabled"],
+        flutter: "Pressable surface card",
+      },
+      {
+        title: "Settings Row",
+        summary: "设置、群规则、资料项都复用同一行高、标题层级和说明文案结构。",
+        states: ["Plain", "Clickable", "Switch", "Danger"],
+        flutter: "Row + optional trailing control",
+      },
+    ],
+    mobileBlueprint: {
+      headline: "移动端先统一一级导航和输入节奏，再把 IM 二级流程逐一做准。",
+      routes: [
+        {
+          title: "聊天",
+          route: "/chats",
+          note: "从会话列表进入详情、搜索、建群和输入区验证。",
+        },
+        {
+          title: "联系人",
+          route: "/contacts",
+          note: "串起联系人、好友申请、添加好友、资料页与群组入口。",
+        },
+        {
+          title: "发现",
+          route: "/discover",
+          note: "朋友圈、扫一扫、附近的人、游戏统一挂到一个一级入口。",
+        },
+        {
+          title: "设置",
+          route: "/settings",
+          note: "管理主题、密度、通知、隐私和账号相关偏好。",
+        },
+      ],
+      secondary: [
+        {
+          title: "消息搜索",
+          route: "/search",
+          note: "验证会话上下文预览、结果跳转与高亮。",
+        },
+        {
+          title: "创建群聊",
+          route: "/groups/create",
+          note: "验证手机单列建群流程与群设置入口。",
+        },
+      ],
+    },
+    desktopBlueprint: {
+      thesis: "桌面端沿用同一套 token，但用低噪音三栏工作台重组，而不是直接拉宽手机页。",
+      columns: [
+        {
+          title: "全局导航",
+          summary: "品牌、工作区切换、账号状态和高频功能入口。",
+        },
+        {
+          title: "会话与筛选",
+          summary: "会话列表、搜索、分组过滤、未读统计集中在左中列。",
+        },
+        {
+          title: "主聊天区",
+          summary: "消息流、输入区、Pinned Summary 与主操作区构成核心工作面。",
+        },
+        {
+          title: "资料侧栏",
+          summary: "群信息、成员、共享文件和上下文信息只在需要时展开。",
+        },
+      ],
+      rules: [
+        "桌面主区优先承载消息流，资料和成员信息不与消息争夺主层级。",
+        "桌面可加一列上下文，但消息输入区仍保持单底部主操作位。",
+        "移动端的 cell、bubble、chip、button 语义不变，只调整版式与密度。",
+      ],
+    },
     tokens: {
       colors: [
         ["Primary", "#19C7B8"],

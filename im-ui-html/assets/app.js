@@ -1,7 +1,7 @@
 (function bootstrapIMPrototype() {
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
-  const STORAGE_KEY = "redcode-im-ui-prototype/mobile-v1";
+  const STORAGE_KEY = "redcode-im-ui-prototype/design-source-v2";
 
   if (!source || !root) {
     return;
@@ -44,7 +44,7 @@
   applyBodyState();
 
   if (!window.location.hash) {
-    window.location.hash = "#/spec";
+    window.location.hash = "#/entry";
   }
 
   window.addEventListener("hashchange", () => {
@@ -122,14 +122,26 @@
 
   function currentPath() {
     const hash = window.location.hash.replace(/^#/, "").trim();
-    return hash || "/spec";
+    return hash || "/entry";
   }
 
   function parseRoute(path) {
     const segments = path.split("/").filter(Boolean);
 
-    if (segments.length === 0 || segments[0] === "spec") {
+    if (segments.length === 0 || segments[0] === "entry") {
+      return { section: "entry" };
+    }
+
+    if (segments[0] === "spec") {
       return { section: "spec" };
+    }
+
+    if (segments[0] === "pc-design") {
+      return { section: "pc-design" };
+    }
+
+    if (segments[0] === "mobile-design") {
+      return { section: "mobile-design" };
     }
 
     if (segments[0] === "auth") {
@@ -195,7 +207,35 @@
       return { section: "settings" };
     }
 
-    return { section: "spec" };
+    return { section: "not-found", path };
+  }
+
+  function isWideStageRoute(route) {
+    return route.section === "entry" || route.section === "pc-design" || route.section === "not-found";
+  }
+
+  function isMobileUiSection(section) {
+    return [
+      "mobile-design",
+      "auth",
+      "chats",
+      "chat-detail",
+      "contacts",
+      "contact-requests",
+      "contact-add",
+      "contact-profile",
+      "discover",
+      "discover-moments",
+      "discover-scan",
+      "discover-nearby",
+      "discover-games",
+      "groups",
+      "group-create",
+      "group-settings",
+      "search",
+      "lab",
+      "settings",
+    ].includes(section);
   }
 
   function syncSelection(route) {
@@ -211,7 +251,7 @@
   }
 
   function navigate(path, options) {
-    const nextPath = path || "/spec";
+    const nextPath = path || "/entry";
     if (!options || !options.keepHighlight) {
       state.highlightMessageId = null;
     }
@@ -227,13 +267,14 @@
     applyBodyState();
     const route = parseRoute(currentPath());
     syncSelection(route);
+    const wideStage = isWideStageRoute(route);
 
     root.innerHTML = `
       <div class="prototype-shell">
         ${renderPrototypeToolbar(route)}
-        <main class="prototype-main">
-          <div class="prototype-stage">
-            ${renderPhone(route)}
+        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""}">
+          <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""}">
+            ${renderStage(route)}
           </div>
           ${renderRouteReview(route)}
         </main>
@@ -245,32 +286,26 @@
   function renderPrototypeToolbar(route) {
     const system = data.designSystem;
     const shortcuts = [
-      { label: "规范", route: "/spec", active: route.section === "spec" },
       {
-        label: "聊天",
-        route: state.activeChatId ? `/chat/${state.activeChatId}` : "/chats",
-        active: route.section === "chats" || route.section === "chat-detail" || route.section === "search",
+        label: "入口",
+        route: "/entry",
+        active: route.section === "entry",
       },
       {
-        label: "联系人",
-        route: "/contacts",
-        active:
-          route.section === "contacts" ||
-          route.section === "contact-requests" ||
-          route.section === "contact-add" ||
-          route.section === "contact-profile",
+        label: "规范",
+        route: "/spec",
+        active: route.section === "spec",
       },
       {
-        label: "发现",
-        route: "/discover",
-        active:
-          route.section === "discover" ||
-          route.section === "discover-moments" ||
-          route.section === "discover-scan" ||
-          route.section === "discover-nearby" ||
-          route.section === "discover-games",
+        label: "PC 设计",
+        route: "/pc-design",
+        active: route.section === "pc-design",
       },
-      { label: "设置", route: "/settings", active: route.section === "settings" },
+      {
+        label: "移动 UI",
+        route: "/mobile-design",
+        active: isMobileUiSection(route.section),
+      },
     ];
 
     return `
@@ -279,7 +314,7 @@
           <span class="prototype-toolbar__eyebrow">2.0 Design Source</span>
           <div>
             <h1>RedCode IM 2.0 UI 设计源</h1>
-            <p>先锁移动端规范和真实 IM 流程，再推导 Flutter 多端正式实现。</p>
+            <p>先把规范、PC 端与移动端三层入口收敛到同一个 HTML 设计源，再映射 Flutter 正式实现。</p>
           </div>
           <div class="prototype-toolbar__meta">
             ${system.priorities
@@ -359,6 +394,390 @@
     `;
   }
 
+  function renderStage(route) {
+    if (route.section === "entry") {
+      return renderEntryStage();
+    }
+    if (route.section === "pc-design") {
+      return renderPCDesignStage();
+    }
+    if (route.section === "not-found") {
+      return renderBrokenRouteStage(route);
+    }
+    return renderPhone(route);
+  }
+
+  function renderEntryStage() {
+    const system = data.designSystem;
+
+    return `
+      <section class="design-hub" aria-label="设计源总入口">
+        <section class="hero-card hero-card--spec design-hub__hero">
+          <span class="eyebrow">Entry Hub</span>
+          <h2>先收敛规范，再展开 PC 与移动端 UI</h2>
+          <p>${escapeHtml(system.thesis)} 这套设计源先服务于 2.0 主线重构，不再默认落到某个具体业务页。</p>
+          <div class="chip-row">
+            <span class="chip chip--filled">规范优先</span>
+            <span class="chip chip--filled">Mobile-first</span>
+            <span class="chip chip--filled">Desktop-ready</span>
+            <span class="chip chip--filled">Flutter handoff</span>
+          </div>
+          <div class="spec-summary-grid">
+            ${system.priorities
+              .map(
+                (item) => `
+                  <article class="summary-tile">
+                    <span class="summary-tile__label">${escapeHtml(item.label)}</span>
+                    <strong>${escapeHtml(item.title)}</strong>
+                    <p>${escapeHtml(item.note)}</p>
+                  </article>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+
+        <div class="design-hub__grid">
+          ${system.entryCards.map((item, index) => renderEntryCard(item, index)).join("")}
+        </div>
+
+        <div class="design-note-grid">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>推荐评审顺序</h3>
+              <span class="badge">Entry Flow</span>
+            </div>
+            <div class="flow-board">
+              <div class="flow-step">
+                <span class="flow-step__index">01</span>
+                <div>
+                  <strong>先看规范页</strong>
+                  <p>把颜色、字体、icon、组件和密度规则定死，避免页面越改越散。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step__index">02</span>
+                <div>
+                  <strong>再看移动端入口</strong>
+                  <p>从手机主导航进入聊天、联系人、发现、设置等真实主流程。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step__index">03</span>
+                <div>
+                  <strong>最后看桌面适配</strong>
+                  <p>在同一设计语言下检查三栏结构与更高信息密度的版式收束。</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>当前主线能力</h3>
+              <span class="badge">Mock Ready</span>
+            </div>
+            <div class="quick-action-grid quick-action-grid--compact">
+              ${data.quickActions
+                .map(
+                  (item) => `
+                    <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="${item.route}">
+                      <strong>${escapeHtml(item.title)}</strong>
+                      <span>${escapeHtml(item.note)}</span>
+                    </button>
+                  `,
+                )
+                .join("")}
+            </div>
+          </section>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPCDesignStage() {
+    const system = data.designSystem;
+    const activeChat = findChat(state.activeChatId) || sortedChats()[0];
+    const group = activeChat ? findGroupByChatId(activeChat.id) : null;
+    const desktopChats = sortedChats().slice(0, 4);
+    const files = activeChat && activeChat.files ? activeChat.files.slice(0, 3) : [];
+
+    return `
+      <section class="desktop-stage" aria-label="PC 端设计画布">
+        <section class="surface-card desktop-stage__hero">
+          <div>
+            <span class="eyebrow">Desktop Blueprint</span>
+            <h2>桌面端不是把手机页横向放大，而是重组为安静的工作台。</h2>
+            <p>${escapeHtml(system.desktopBlueprint.thesis)}</p>
+          </div>
+          <div class="inline-actions">
+            <button class="ghost-button" data-action="navigate" data-route="/spec">查看规范</button>
+            <button class="primary-button" data-action="navigate" data-route="/mobile-design">回到移动端</button>
+          </div>
+        </section>
+
+        <section class="desktop-canvas">
+          <div class="desktop-app">
+            <aside class="desktop-nav">
+              <div class="desktop-nav__brand">
+                <span>RC</span>
+                <strong>RedCode IM</strong>
+              </div>
+              <div class="desktop-nav__items">
+                <div class="desktop-nav__item is-active">聊天</div>
+                <div class="desktop-nav__item">联系人</div>
+                <div class="desktop-nav__item">发现</div>
+                <div class="desktop-nav__item">设置</div>
+              </div>
+              <div class="desktop-nav__meta">
+                <span class="badge">AMD64 构建</span>
+                <span class="badge">${escapeHtml(densityLabel(state.density))}</span>
+              </div>
+            </aside>
+
+            <aside class="desktop-pane desktop-pane--list">
+              <div class="desktop-pane__header">
+                <div>
+                  <strong>会话</strong>
+                  <span>未读与分组集中收纳</span>
+                </div>
+                <button class="ghost-button ghost-button--small" data-action="navigate" data-route="/chats">看手机链路</button>
+              </div>
+              <div class="desktop-conversation-list">
+                ${desktopChats
+                  .map(
+                    (chat) => `
+                      <button
+                        class="desktop-conversation ${activeChat && chat.id === activeChat.id ? "is-active" : ""}"
+                        data-action="set-desktop-chat"
+                        data-chat-id="${chat.id}"
+                      >
+                        ${renderAvatar(chat.name, chat.avatarTone, "avatar--sm")}
+                        <span class="desktop-conversation__body">
+                          <strong>${escapeHtml(chat.name)}</strong>
+                          <span>${escapeHtml(chat.lastMessage)}</span>
+                        </span>
+                        <span class="badge ${chat.unread ? "badge--danger" : ""}">${chat.unread || chat.lastTime}</span>
+                      </button>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </aside>
+
+            <section class="desktop-chat-pane">
+              <div class="desktop-chat-pane__header">
+                <div>
+                  <strong>${escapeHtml(activeChat ? activeChat.name : "会话预览")}</strong>
+                  <span>${escapeHtml(group ? `${group.memberCount} 位成员 · 在线 ${group.onlineCount}` : activeChat ? activeChat.description : "桌面消息工作台")}</span>
+                </div>
+                <div class="chip-row">
+                  <span class="chip chip--filled">主消息流</span>
+                  <span class="chip">底部输入区</span>
+                  <span class="chip">右侧资料栏</span>
+                </div>
+              </div>
+              <div class="desktop-chat-surface">
+                ${(activeChat && activeChat.messages ? activeChat.messages : [])
+                  .slice(0, 4)
+                  .map(
+                    (message) => `
+                      <div class="desktop-chat-bubble ${message.self ? "desktop-chat-bubble--self" : ""}">
+                        <strong>${escapeHtml(message.senderName)}</strong>
+                        <p>${escapeHtml(message.content)}</p>
+                      </div>
+                    `,
+                  )
+                  .join("")}
+              </div>
+              <div class="composer composer--preview desktop-composer-preview">
+                <div class="composer__inner">
+                  <button class="icon-button icon-button--soft" disabled>☺</button>
+                  <div class="composer__field composer__field--preview">
+                    <span>桌面端继续保留单底部输入区，不把附件、资料和成员操作塞进同一层。</span>
+                  </div>
+                  <button class="icon-button icon-button--soft" disabled>＋</button>
+                  <button class="primary-button primary-button--small" disabled>发送</button>
+                </div>
+              </div>
+            </section>
+
+            <aside class="desktop-pane desktop-pane--inspector">
+              <div class="desktop-pane__header">
+                <div>
+                  <strong>上下文侧栏</strong>
+                  <span>只在需要时展开，不抢主消息层级</span>
+                </div>
+              </div>
+              <div class="desktop-info-stack">
+                <section class="surface-block">
+                  <p class="section-title">结构分区</p>
+                  <div class="desktop-chip-list">
+                    ${system.desktopBlueprint.columns
+                      .map((item) => `<span class="page-map__item">${escapeHtml(item.title)}</span>`)
+                      .join("")}
+                  </div>
+                </section>
+                <section class="surface-block">
+                  <p class="section-title">共享文件</p>
+                  <ul class="bullet-list">
+                    ${files.length
+                      ? files
+                          .map((file) => `<li>${escapeHtml(file.name)} · ${escapeHtml(file.type)}</li>`)
+                          .join("")
+                      : "<li>当前会话暂无文件 mock。</li>"}
+                  </ul>
+                </section>
+                <section class="surface-block">
+                  <p class="section-title">桌面约束</p>
+                  <ul class="bullet-list">
+                    ${system.desktopBlueprint.rules
+                      .map((item) => `<li>${escapeHtml(item)}</li>`)
+                      .join("")}
+                  </ul>
+                </section>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <div class="design-note-grid">
+          ${system.desktopBlueprint.columns
+            .map(
+              (item) => `
+                <article class="summary-tile">
+                  <span class="summary-tile__label">Desktop Zone</span>
+                  <strong>${escapeHtml(item.title)}</strong>
+                  <p>${escapeHtml(item.summary)}</p>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderBrokenRouteStage(route) {
+    return `
+      <section class="design-hub" aria-label="无效路由提示">
+        <section class="surface-card design-hub__hero">
+          <span class="eyebrow">Route Fallback</span>
+          <h2>当前 hash 没有对应页面</h2>
+          <p>检测到未注册路由：<code>${escapeHtml(route.path || "/")}</code>。这里不再静默跳回首页，避免把错误导航误判成成功渲染。</p>
+          <div class="inline-actions">
+            <button class="primary-button" data-action="navigate" data-route="/entry">回到总入口</button>
+            <button class="ghost-button" data-action="navigate" data-route="/spec">查看规范页</button>
+            <button class="ghost-button" data-action="navigate" data-route="/mobile-design">查看移动端入口</button>
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
+  function renderMobileDesignScreen() {
+    const system = data.designSystem;
+
+    return `
+      <section class="screen">
+        ${renderScreenHeader({
+          title: "移动端 UI 设计",
+          subtitle: "从这里进入手机端主导航与关键二级链路",
+          root: true,
+          actions: [
+            `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/spec">规范页</button>`,
+          ],
+        })}
+        <div class="screen-scroll">
+          <div class="screen-stack">
+            <section class="hero-card hero-card--accent">
+              <span class="eyebrow">Mobile Blueprint</span>
+              <h3>${escapeHtml(system.mobileBlueprint.headline)}</h3>
+              <p>当前移动端主线继续围绕聊天、联系人、发现、设置四个一级入口收敛，再向搜索、建群、资料、申请等二级页发散。</p>
+              <div class="chip-row">
+                <span class="chip chip--filled">聊天输入区优先</span>
+                <span class="chip chip--filled">发现正式一级入口</span>
+                <span class="chip chip--filled">手机单列主流程</span>
+              </div>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>一级入口</h3>
+                <span class="badge">${system.mobileBlueprint.routes.length}</span>
+              </div>
+              <div class="mobile-hub-grid">
+                ${system.mobileBlueprint.routes
+                  .map(
+                    (item, index) => `
+                      <button class="mobile-hub-card" data-action="navigate" data-route="${item.route}">
+                        <span class="mobile-hub-card__index">0${index + 1}</span>
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <span>${escapeHtml(item.note)}</span>
+                      </button>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>关键二级链路</h3>
+                <span class="badge">Secondary</span>
+              </div>
+              <div class="quick-action-grid quick-action-grid--compact">
+                ${system.mobileBlueprint.secondary
+                  .map(
+                    (item) => `
+                      <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="${item.route}">
+                        <strong>${escapeHtml(item.title)}</strong>
+                        <span>${escapeHtml(item.note)}</span>
+                      </button>
+                    `,
+                  )
+                  .join("")}
+              </div>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>底部导航样式</h3>
+                <span class="badge">Capsule</span>
+              </div>
+              <div class="mobile-nav-preview">
+                ${system.mobileBlueprint.routes
+                  .map(
+                    (item, index) => `
+                      <span class="mobile-nav-preview__item ${index === 0 ? "is-active" : ""}">
+                        <span class="mobile-nav-preview__icon">${escapeHtml(item.title.charAt(0))}</span>
+                        <span>${escapeHtml(item.title)}</span>
+                      </span>
+                    `,
+                  )
+                  .join("")}
+              </div>
+              <p class="surface-caption">移动端入口页只做导航和重点链路分发，不把真实聊天主视图直接塞进入口首页。</p>
+            </section>
+
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>优先封装组件</h3>
+                <span class="badge">UI Kit</span>
+              </div>
+              <div class="page-map">
+                ${system.componentInventory
+                  .slice(0, 5)
+                  .map((item) => `<span class="page-map__item">${escapeHtml(item.title)}</span>`)
+                  .join("")}
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
   function renderPhone(route) {
     return `
       <section class="phone-frame" aria-label="移动端原型画布">
@@ -414,6 +833,9 @@
   function renderRoute(route) {
     if (route.section === "spec") {
       return renderSpecScreen();
+    }
+    if (route.section === "mobile-design") {
+      return renderMobileDesignScreen();
     }
     if (route.section === "auth") {
       return renderAuthScreen(route);
@@ -502,6 +924,74 @@
     `;
   }
 
+  function renderEntryCard(item, index) {
+    const iconMap = {
+      spec: "规",
+      pc: "桌",
+      mobile: "移",
+    };
+
+    return `
+      <article class="entry-card">
+        <div class="entry-card__top">
+          <span class="badge">入口 0${index + 1}</span>
+          <span class="entry-card__eyebrow">${escapeHtml(item.eyebrow)}</span>
+        </div>
+        <span class="entry-card__icon">${iconMap[item.id] || "R"}</span>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p>${escapeHtml(item.summary)}</p>
+        <ul class="entry-card__list">
+          ${item.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join("")}
+        </ul>
+        <button class="primary-button" data-action="navigate" data-route="${item.route}">进入 ${escapeHtml(item.title)}</button>
+      </article>
+    `;
+  }
+
+  function renderIconSpecGroup(group) {
+    return `
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>${escapeHtml(group.title)}</h3>
+          <span class="badge">Icon Group</span>
+        </div>
+        <p class="surface-caption">${escapeHtml(group.note)}</p>
+        <div class="icon-spec-grid">
+          ${group.items
+            .map(
+              (item) => `
+                <article class="icon-spec-card">
+                  <span class="icon-spec-card__glyph">${escapeHtml(item.glyph)}</span>
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>${escapeHtml(item.usage)}</span>
+                </article>
+              `,
+            )
+            .join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderComponentInventoryCard(item) {
+    return `
+      <article class="component-inventory-card">
+        <span class="section-title">Component</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <p>${escapeHtml(item.summary)}</p>
+        <div class="component-state-list">
+          ${item.states
+            .map((stateItem) => `<span class="component-state-pill">${escapeHtml(stateItem)}</span>`)
+            .join("")}
+        </div>
+        <div class="component-inventory-card__footer">
+          <span>Flutter 映射</span>
+          <code>${escapeHtml(item.flutter)}</code>
+        </div>
+      </article>
+    `;
+  }
+
   function renderSpecScreen() {
     const system = data.designSystem;
     const quickActions = data.quickActions
@@ -527,9 +1017,10 @@
             <section class="hero-card hero-card--spec">
               <span class="eyebrow">Visual Thesis</span>
               <h3>${escapeHtml(system.thesis)}</h3>
-              <p>底部主导航固定为聊天 / 联系人 / 设置，聊天详情、搜索、好友申请、建群、群设置都按移动端单列流程推进，先把手机体验做准，再推桌面形态。</p>
+              <p>设计源按“总入口 -> 规范 -> 移动端 / PC 端”的层次组织；在手机端内部，再把聊天、联系人、发现、设置四个一级入口和二级流程做准。</p>
               <div class="chip-row">
                 <span class="chip chip--filled">Mobile-first</span>
+                <span class="chip chip--filled">PC Layout Ready</span>
                 <span class="chip chip--filled">单 Flutter 主线</span>
                 <span class="chip chip--filled">真实密度分档</span>
                 <span class="chip chip--filled">低噪音层级</span>
@@ -553,7 +1044,8 @@
               <div class="surface-card__header">
                 <h3>规范切面</h3>
                 <div class="segmented">
-                  ${renderSpecTabButton("tokens", "视觉")}
+                  ${renderSpecTabButton("tokens", "基础")}
+                  ${renderSpecTabButton("icons", "Icon")}
                   ${renderSpecTabButton("components", "组件")}
                   ${renderSpecTabButton("flows", "流转")}
                 </div>
@@ -602,11 +1094,30 @@
 
   function renderSpecTabContent() {
     const system = data.designSystem;
+    if (state.activeSpecTab === "icons") {
+      return `
+        <div class="screen-stack">
+          <div class="surface-block">
+            <p class="section-title">icon 规范约束</p>
+            <ul class="bullet-list">
+              <li>导航、操作、发现功能三类 icon 统一保持简洁轮廓，不依赖插画化装饰。</li>
+              <li>icon 永远服务语义识别，页面层级仍由标题、摘要、badge 和间距承担。</li>
+              <li>所有点击 icon 都要放进稳定热区，未来 Flutter 落地统一走同一套尺寸 token。</li>
+            </ul>
+          </div>
+          ${system.iconLibrary.map(renderIconSpecGroup).join("")}
+        </div>
+      `;
+    }
+
     if (state.activeSpecTab === "components") {
       const chat = sortedChats()[0];
       const contact = filteredContacts()[0] || data.contacts[0];
       return `
         <div class="screen-stack">
+          <div class="component-inventory-grid">
+            ${system.componentInventory.map(renderComponentInventoryCard).join("")}
+          </div>
           <div class="surface-block">
             <p class="section-title">组件优先级</p>
             <div class="page-map page-map--dense">
@@ -682,22 +1193,29 @@
             <div class="flow-step">
               <span class="flow-step__index">01</span>
               <div>
-                <strong>先手机主导航</strong>
-                <p>聊天 / 联系人 / 设置固定为唯一一级入口</p>
+                <strong>先总入口分层</strong>
+                <p>入口页先分出规范、PC 端设计、移动端 UI 设计三个总入口。</p>
               </div>
             </div>
             <div class="flow-step">
               <span class="flow-step__index">02</span>
               <div>
-                <strong>再补二级流转</strong>
-                <p>聊天详情、好友申请、添加好友、群设置、搜索全部拆成二级页</p>
+                <strong>再稳定手机主导航</strong>
+                <p>聊天、联系人、发现、设置作为移动端唯一一级入口，详情页全部下沉二级。</p>
               </div>
             </div>
             <div class="flow-step">
               <span class="flow-step__index">03</span>
               <div>
-                <strong>后补桌面与扩展</strong>
-                <p>桌面形态、通话、AI、文件协作统一延后到第二阶段处理</p>
+                <strong>再固化组件与页面地图</strong>
+                <p>先让输入区、消息气泡、列表项、设置行进入稳定组件清单，再扩展业务页。</p>
+              </div>
+            </div>
+            <div class="flow-step">
+              <span class="flow-step__index">04</span>
+              <div>
+                <strong>最后补桌面适配</strong>
+                <p>桌面形态、资料侧栏、文件与扩展位在第二阶段重组成工作台。</p>
               </div>
             </div>
           </div>
@@ -737,6 +1255,16 @@
               <li>Message Bubble：单聊 / 群聊共用，只在头像、昵称、状态位扩展。</li>
               <li>Composer：表情面板、更多面板、发送态共用一套容器节奏。</li>
             </ul>
+          </div>
+          <div class="quick-action-grid quick-action-grid--compact">
+            <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="/entry">
+              <strong>回到总入口</strong>
+              <span>从三层入口重新组织评审顺序。</span>
+            </button>
+            <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="/pc-design">
+              <strong>查看 PC 端设计</strong>
+              <span>验证桌面三栏结构与信息分区。</span>
+            </button>
           </div>
         </div>
       `;
@@ -784,6 +1312,14 @@
               ${system.tokens.spacing
                 .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
                 .join("")}
+            </ul>
+          </div>
+          <div class="token-card">
+            <span class="section-title">Base Rules</span>
+            <ul class="bullet-list">
+              <li>主色只承担“动作、选中、反馈”，不要回到多彩按钮和大面积渐变。</li>
+              <li>字体层级先用 Display / UI 两组封装，页面不再各自发明字号体系。</li>
+              <li>1K / 1.5K / 2K 的差异统一走密度 token，不允许某个页面单独放大。</li>
             </ul>
           </div>
         </div>
@@ -2137,6 +2673,28 @@
   }
 
   function reviewNotesForRoute(route) {
+    if (route.section === "entry") {
+      return {
+        title: "总入口当前验证点",
+        label: "Entry",
+        items: [
+          "index 首页不再直接落入某个具体原型页，而是先分出规范、PC、移动端三个评审入口。",
+          "入口页要体现“先系统后页面”的顺序，而不是继续把业务路由当首页。",
+          "入口卡片、说明块与后续设计页必须共用同一套色系、字体和表面层级。",
+        ],
+      };
+    }
+    if (route.section === "pc-design") {
+      return {
+        title: "PC 设计验证点",
+        label: "Desktop",
+        items: [
+          "桌面版是重组消息工作台，而不是把手机布局直接横向放大。",
+          "消息流仍然是主层级，资料侧栏和文件上下文只能作为次级信息区。",
+          "桌面端要继承移动端 token 与组件语义，但允许在版式上提升信息密度。",
+        ],
+      };
+    }
     if (route.section === "spec") {
       return {
         title: "规范页当前验证点",
@@ -2145,6 +2703,28 @@
           "先确认 2.0 视觉语言足够克制、细致，而不是继续沿用旧原型的花哨感。",
           "先把手机端 token、组件、页面地图定清楚，再让 Flutter 去实现。",
           "桌面端只保留方向说明，不提前把手机页拉成桌面工作台。",
+        ],
+      };
+    }
+    if (route.section === "mobile-design") {
+      return {
+        title: "移动端入口验证点",
+        label: "Mobile",
+        items: [
+          "移动端入口页只负责组织聊天、联系人、发现、设置等主链路，不替代真实业务首页。",
+          "一级入口与二级链路的层次要清楚，建群、搜索、资料和申请都应从主入口自然下沉。",
+          "底部胶囊导航、聊天输入区和列表项要统一进同一套组件语言。",
+        ],
+      };
+    }
+    if (route.section === "not-found") {
+      return {
+        title: "无效路由验证点",
+        label: "Route",
+        items: [
+          "非法 hash 需要显式提示，而不是静默伪装成首页成功渲染。",
+          "错误路由页仍要保留回到入口、规范页和移动端入口的恢复路径。",
+          "后续新增入口或页面时，应继续把非法路由作为基本 smoke 场景之一。",
         ],
       };
     }
@@ -2711,6 +3291,14 @@
       data.settings.density = state.density;
       persistUiState();
       render();
+      return;
+    }
+    if (action === "set-desktop-chat") {
+      const chatId = target.getAttribute("data-chat-id");
+      if (chatId && findChat(chatId)) {
+        state.activeChatId = chatId;
+        render();
+      }
       return;
     }
     if (action === "set-spec-tab") {
