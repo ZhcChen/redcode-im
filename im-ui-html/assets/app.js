@@ -516,57 +516,6 @@
         <div class="design-hub__grid">
           ${system.entryCards.map((item, index) => renderEntryCard(item, index)).join("")}
         </div>
-
-        <div class="design-note-grid">
-          <section class="surface-card">
-            <div class="surface-card__header">
-              <h3>推荐评审顺序</h3>
-              <span class="badge">Entry Flow</span>
-            </div>
-            <div class="flow-board">
-              <div class="flow-step">
-                <span class="flow-step__index">01</span>
-                <div>
-                  <strong>先看规范页</strong>
-                  <p>把颜色、字体、icon、组件和密度规则定死，避免页面越改越散。</p>
-                </div>
-              </div>
-              <div class="flow-step">
-                <span class="flow-step__index">02</span>
-                <div>
-                  <strong>再看移动端入口</strong>
-                  <p>从手机主导航进入聊天、联系人、发现、设置等真实主流程。</p>
-                </div>
-              </div>
-              <div class="flow-step">
-                <span class="flow-step__index">03</span>
-                <div>
-                  <strong>最后看桌面适配</strong>
-                  <p>在同一设计语言下检查三栏结构与更高信息密度的版式收束。</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="surface-card">
-            <div class="surface-card__header">
-              <h3>当前主线能力</h3>
-              <span class="badge">Mock Ready</span>
-            </div>
-            <div class="quick-action-grid quick-action-grid--compact">
-              ${data.quickActions
-                .map(
-                  (item) => `
-                    <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="${item.route}">
-                      <strong>${escapeHtml(item.title)}</strong>
-                      <span>${escapeHtml(item.note)}</span>
-                    </button>
-                  `,
-                )
-                .join("")}
-            </div>
-          </section>
-        </div>
       </section>
     `;
   }
@@ -3306,6 +3255,10 @@
   }
 
   function renderRouteReview(route) {
+    if (route.section === "entry") {
+      return "";
+    }
+
     const notes = reviewNotesForRoute(route);
     return `
       <section class="review-card">
