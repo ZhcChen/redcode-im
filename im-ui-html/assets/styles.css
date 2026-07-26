@@ -1000,16 +1000,14 @@ img {
   gap: 0.42rem;
 }
 
-.spec-sidebar__header h2,
-.spec-preview-stage__hero-copy h2 {
+.spec-sidebar__header h2 {
   margin: 0;
   font-size: clamp(1.45rem, 2vw, 1.9rem);
   line-height: 1.08;
   letter-spacing: -0.03em;
 }
 
-.spec-sidebar__header p,
-.spec-preview-stage__hero-copy p {
+.spec-sidebar__header p {
   margin: 0;
   color: var(--text-secondary);
   line-height: 1.6;
@@ -1120,18 +1118,6 @@ img {
 }
 
 .spec-sidebar__settings .chip-row {
-  gap: 0.32rem;
-}
-
-.spec-preview-stage__hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.spec-preview-stage__hero-copy {
-  display: grid;
   gap: 0.32rem;
 }
 
@@ -3863,11 +3849,6 @@ img {
     grid-template-columns: 1fr;
   }
 
-  .spec-preview-stage__hero {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .spec-summary-grid,
   .density-preview--grid {
     grid-template-columns: 1fr;
@@ -3927,8 +3908,7 @@ img {
     gap: 0.85rem;
   }
 
-  .spec-sidebar,
-  .spec-preview-stage__hero {
+  .spec-sidebar {
     padding: 0.9rem;
   }
 

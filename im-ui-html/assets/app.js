@@ -1671,19 +1671,6 @@
         </aside>
 
         <section class="spec-preview-stage">
-          <section class="surface-card spec-preview-stage__hero">
-            <div class="spec-preview-stage__hero-copy">
-              <span class="eyebrow">当前分组</span>
-              <h2>${escapeHtml(group.title)}</h2>
-              <p>${escapeHtml(group.summary)}</p>
-            </div>
-            <div class="chip-row">
-              <span class="chip chip--filled">${escapeHtml(group.eyebrow)}</span>
-              <span class="chip">手机预览</span>
-              <span class="chip">实现映射</span>
-            </div>
-          </section>
-
           <div class="spec-preview-stage__body">
             <div class="spec-preview-stage__phone">
               <section class="phone-frame phone-frame--spec" aria-label="规范手机预览画布">
