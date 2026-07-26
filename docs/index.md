@@ -10,7 +10,9 @@
 | [规划文档目录](plans/) | `ce:plan` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
-| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 当前移动端 Android 原生迁移计划 |
+| [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 当前 2.0 主线方向：`app/` 单 Flutter 工程承载移动端 + 桌面端 |
+| [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 当前 2.0 设计入口：先在 `im-ui-html/` 收敛规范、组件和页面 |
+| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史方向参考：已不作为 2.0 主线 |
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
 
@@ -138,4 +140,4 @@
 
 ---
 
-**文档最后更新**: 2026-07-23
+**文档最后更新**: 2026-07-26
