@@ -109,6 +109,50 @@ window.RedcodeIMPrototypeData = {
       "Features：聊天、联系人、发现、群、搜索、设置按真实主流程逐步替换旧页面。",
       "Legacy：Win7 兼容单独立项，不影响主线 Flutter SDK 与插件选择。",
     ],
+    specGroups: [
+      {
+        id: "components",
+        title: "组件",
+        eyebrow: "UI Kit",
+        summary: "先看 Cell、Composer、Button、Search、Empty 这些会进入运行时的核心组件。",
+      },
+      {
+        id: "typography",
+        title: "字体",
+        eyebrow: "Typography",
+        summary: "统一标题、正文、注释和字重节奏，避免页面各自发明字号体系。",
+      },
+      {
+        id: "colors",
+        title: "颜色",
+        eyebrow: "Color",
+        summary: "主色、文本、表面层和危险态按语义归位，不再依赖杂色强调层级。",
+      },
+      {
+        id: "icons",
+        title: "Icon",
+        eyebrow: "Icon System",
+        summary: "导航、操作、发现功能图标都用同一套轮廓语言和点击热区约束。",
+      },
+      {
+        id: "shell",
+        title: "Shell",
+        eyebrow: "App Shell",
+        summary: "Safe Area、App Bar、滚动主区和底部导航一起定义，不让页面各自拼壳层。",
+      },
+      {
+        id: "foundations",
+        title: "基础",
+        eyebrow: "Tokens",
+        summary: "密度、间距、圆角和动效作为最底层约束，决定 2K / 1.5K / 1K 的一致观感。",
+      },
+      {
+        id: "flows",
+        title: "流转",
+        eyebrow: "Flow Map",
+        summary: "页面地图、主链路顺序和 Flutter handoff 轨道都在这里对齐。",
+      },
+    ],
     iconLibrary: [
       {
         title: "一级导航",

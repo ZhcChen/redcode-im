@@ -14,7 +14,7 @@
     activeChatId: data.chats[0] ? data.chats[0].id : null,
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
-    activeSpecTab: "tokens",
+    activeSpecTab: "components",
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
@@ -312,7 +312,7 @@
   }
 
   function isWideStageRoute(route) {
-    return route.section === "entry" || route.section === "pc-design" || route.section === "not-found";
+    return route.section === "entry" || route.section === "spec" || route.section === "pc-design" || route.section === "not-found";
   }
 
   function isMobileUiSection(section) {
@@ -499,6 +499,9 @@
   function renderStage(route) {
     if (route.section === "entry") {
       return renderEntryStage();
+    }
+    if (route.section === "spec") {
+      return renderSpecScreen();
     }
     if (route.section === "pc-design") {
       return renderPCDesignStage();
@@ -1167,309 +1170,529 @@
     `;
   }
 
-  function renderSpecScreen() {
-    const system = data.designSystem;
-    const quickActions = data.quickActions
-      .map(
-        (item) => `
-          <button class="quick-action-card" data-action="navigate" data-route="${item.route}">
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.note)}</span>
-          </button>
-        `,
-      )
-      .join("");
-
-    return `
-      <section class="screen">
-        ${renderScreenHeader({
-          title: "2.0 设计系统",
-          subtitle: "先定义主线视觉、密度和组件契约，再进入 Flutter 实装",
-          root: true,
-        })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--spec">
-              <span class="eyebrow">Visual Thesis</span>
-              <h3>${escapeHtml(system.thesis)}</h3>
-              <p>设计源按“总入口 -> 规范 -> 移动端 / PC 端”的层次组织；在手机端内部，再把聊天、联系人、发现、设置四个一级入口和二级流程做准。</p>
-              <div class="chip-row">
-                <span class="chip chip--filled">Mobile-first</span>
-                <span class="chip chip--filled">PC Layout Ready</span>
-                <span class="chip chip--filled">单 Flutter 主线</span>
-                <span class="chip chip--filled">真实密度分档</span>
-                <span class="chip chip--filled">低噪音层级</span>
-              </div>
-              <div class="spec-summary-grid">
-                ${system.priorities
-                  .map(
-                    (item) => `
-                      <article class="summary-tile">
-                        <span class="summary-tile__label">${escapeHtml(item.label)}</span>
-                        <strong>${escapeHtml(item.title)}</strong>
-                        <p>${escapeHtml(item.note)}</p>
-                      </article>
-                    `,
-                  )
-                  .join("")}
-              </div>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>规范切面</h3>
-                <div class="segmented">
-                  ${renderSpecTabButton("tokens", "基础")}
-                  ${renderSpecTabButton("icons", "Icon")}
-                  ${renderSpecTabButton("components", "组件")}
-                  ${renderSpecTabButton("flows", "流转")}
-                </div>
-              </div>
-              ${renderSpecTabContent()}
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>当前实施边界</h3>
-                <span class="badge">2.0 Mainline</span>
-              </div>
-              <ul class="bullet-list">
-                <li><strong>当前主线：</strong><code>app/</code> 后续承载 Android、iOS、Windows 10+、macOS、Linux。</li>
-                <li><strong>当前设计源：</strong><code>im-ui-html/</code> 先收敛规范、组件和页面地图。</li>
-                <li><strong>当前不做：</strong>不让 Win7、旧桌面壳和历史 UI 结构决定 2.0 主线形态。</li>
-              </ul>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>优先评审路径</h3>
-                <span class="badge">先系统后页面</span>
-              </div>
-              <div class="quick-action-grid">
-                ${quickActions}
-              </div>
-            </section>
-          </div>
-        </div>
-      </section>
-    `;
+  function activeSpecGroup() {
+    const groups = data.designSystem.specGroups || [];
+    return groups.find((item) => item.id === state.activeSpecTab) || groups[0] || {
+      id: "components",
+      title: "组件",
+      eyebrow: "UI Kit",
+      summary: "",
+    };
   }
 
-  function renderSpecTabButton(id, label) {
+  function renderSpecNavItem(item, index) {
     return `
       <button
-        class="segmented__item ${state.activeSpecTab === id ? "is-active" : ""}"
+        class="spec-nav-item ${state.activeSpecTab === item.id ? "is-active" : ""}"
         data-action="set-spec-tab"
-        data-tab="${id}"
+        data-tab="${item.id}"
       >
-        ${label}
+        <span class="spec-nav-item__index">0${index + 1}</span>
+        <span class="spec-nav-item__body">
+          <span class="spec-nav-item__eyebrow">${escapeHtml(item.eyebrow)}</span>
+          <strong>${escapeHtml(item.title)}</strong>
+          <span>${escapeHtml(item.summary)}</span>
+        </span>
       </button>
     `;
   }
 
-  function renderSpecTabContent() {
+  function renderTypographyRamp() {
+    const samples = [
+      ["Display / 28", "RedCode IM 主标题", "用于规范页、首屏和一级视觉焦点。", "type-ramp__sample--display"],
+      ["Headline / 22", "聊天详情标题", "用于一级页面标题和关键分组名称。", "type-ramp__sample--headline"],
+      ["Body / 16", "这是一段标准正文，用于列表说明和核心描述。", "用于正文、输入区、表单和卡片主体。", "type-ramp__sample--body"],
+      ["Caption / 12", "辅助说明与标签", "用于注释、时间、状态和弱层级信息。", "type-ramp__sample--caption"],
+    ];
+
+    return `
+      <div class="type-ramp">
+        ${samples
+          .map(
+            (item) => `
+              <article class="type-ramp__item">
+                <span class="type-ramp__meta">${escapeHtml(item[0])}</span>
+                <strong class="type-ramp__sample ${item[3]}">${escapeHtml(item[1])}</strong>
+                <p>${escapeHtml(item[2])}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderSpecPhoneContent(group) {
     const system = data.designSystem;
-    if (state.activeSpecTab === "icons") {
+    const chat = sortedChats()[0];
+    const contact = filteredContacts()[0] || data.contacts[0];
+
+    if (group.id === "components") {
       return `
         <div class="screen-stack">
-          <div class="surface-block">
-            <p class="section-title">icon 规范约束</p>
-            <ul class="bullet-list">
-              <li>导航、操作、发现功能三类 icon 统一保持简洁轮廓，不依赖插画化装饰。</li>
-              <li>icon 永远服务语义识别，页面层级仍由标题、摘要、badge 和间距承担。</li>
-              <li>所有点击 icon 都要放进稳定热区，未来 Flutter 落地统一走同一套尺寸 token。</li>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>核心组件</h3>
+              <span class="badge">UI Kit</span>
+            </div>
+            <div class="page-map page-map--dense">
+              <span class="page-map__item">Cell / Row</span>
+              <span class="page-map__item">Composer</span>
+              <span class="page-map__item">Search Box</span>
+              <span class="page-map__item">Button Set</span>
+              <span class="page-map__item">Chip / Empty</span>
+            </div>
+          </section>
+          ${renderComponentShowcase(chat, contact)}
+        </div>
+      `;
+    }
+
+    if (group.id === "typography") {
+      return `
+        <div class="screen-stack">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>字体分组</h3>
+              <span class="badge">Typography</span>
+            </div>
+            ${renderTypographyRamp()}
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>字体 Tokens</h3>
+              <span class="badge">Type Stack</span>
+            </div>
+            <ul class="token-list">
+              ${system.tokens.typography
+                .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
+                .join("")}
             </ul>
-          </div>
+          </section>
+        </div>
+      `;
+    }
+
+    if (group.id === "colors") {
+      return `
+        <div class="screen-stack">
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>颜色分组</h3>
+              <span class="badge">Color</span>
+            </div>
+            <div class="token-grid">
+              ${system.tokens.colors
+                .map(
+                  (item) => `
+                    <div class="token-card token-card--swatch">
+                      <span class="swatch" style="background:${item[1]}"></span>
+                      <strong>${escapeHtml(item[0])}</strong>
+                      <span>${escapeHtml(item[1])}</span>
+                    </div>
+                  `,
+                )
+                .join("")}
+            </div>
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>颜色规则</h3>
+              <span class="badge">Usage</span>
+            </div>
+            <ul class="bullet-list">
+              <li>主色只负责动作、选中和反馈，不再承担大面积装饰。</li>
+              <li>正文层级由 Text Primary / Secondary / Tertiary 递减，不靠额外杂色区分。</li>
+              <li>Danger 只用于删除、未读提醒和风险操作。</li>
+            </ul>
+          </section>
+        </div>
+      `;
+    }
+
+    if (group.id === "icons") {
+      return `
+        <div class="screen-stack">
           ${system.iconLibrary.map(renderIconSpecGroup).join("")}
         </div>
       `;
     }
 
-    if (state.activeSpecTab === "components") {
-      const chat = sortedChats()[0];
-      const contact = filteredContacts()[0] || data.contacts[0];
+    if (group.id === "shell") {
       return `
         <div class="screen-stack">
-          <div class="component-inventory-grid">
-            ${system.componentInventory.map(renderComponentInventoryCard).join("")}
-          </div>
-          <div class="surface-block">
-            <p class="section-title">组件优先级</p>
-            <div class="page-map page-map--dense">
-              <span class="page-map__item">Shell / Nav</span>
-              <span class="page-map__item">Cell / Row</span>
-              <span class="page-map__item">Message Bubble</span>
-              <span class="page-map__item">Composer</span>
-              <span class="page-map__item">Search Box</span>
-              <span class="page-map__item">Button Set</span>
-              <span class="page-map__item">Chip / Empty</span>
-              <span class="page-map__item">Settings Row</span>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>移动端壳层</h3>
+              <span class="badge">App Shell</span>
             </div>
-          </div>
-          ${renderComponentShowcase(chat, contact)}
-          <div class="surface-block">
-            <p class="section-title">Flutter handoff 约束</p>
-            <ul class="bullet-list">
-              <li>先抽 <code>im_ui_kit</code>，统一 tokens、输入区、cell、bubble、settings row。</li>
-              <li>聊天、联系人、建群、搜索、设置都只允许在这套组件基线内扩展。</li>
-              <li>桌面端后续复用同一组件语言，但重新组织为双栏 / 三栏布局。</li>
-            </ul>
-          </div>
+            ${renderShellPreview()}
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>底部导航</h3>
+              <span class="badge">Capsule</span>
+            </div>
+            ${renderMobileNavPreview("chats")}
+            <p class="surface-caption">底部主导航固定为聊天 / 联系人 / 发现 / 设置四个一级入口。</p>
+          </section>
         </div>
       `;
     }
 
-    if (state.activeSpecTab === "flows") {
+    if (group.id === "flows") {
       return `
         <div class="screen-stack">
-          <div class="flow-board">
-            <div class="flow-step">
-              <span class="flow-step__index">01</span>
-              <div>
-                <strong>先总入口分层</strong>
-                <p>入口页先分出规范、PC 端设计、移动端 UI 设计三个总入口。</p>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>主链路顺序</h3>
+              <span class="badge">Flow Map</span>
+            </div>
+            <div class="flow-board">
+              <div class="flow-step">
+                <span class="flow-step__index">01</span>
+                <div>
+                  <strong>先看规范</strong>
+                  <p>颜色、字体、组件和密度先统一，再进入页面重构。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step__index">02</span>
+                <div>
+                  <strong>再看移动端</strong>
+                  <p>聊天、联系人、发现、设置作为手机端唯一一级入口。</p>
+                </div>
+              </div>
+              <div class="flow-step">
+                <span class="flow-step__index">03</span>
+                <div>
+                  <strong>最后补桌面</strong>
+                  <p>桌面只重组版式，不再回头污染手机信息架构。</p>
+                </div>
               </div>
             </div>
-            <div class="flow-step">
-              <span class="flow-step__index">02</span>
-              <div>
-                <strong>再稳定手机主导航</strong>
-                <p>聊天、联系人、发现、设置作为移动端唯一一级入口，详情页全部下沉二级。</p>
-              </div>
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>页面地图</h3>
+              <span class="badge">Routes</span>
             </div>
-            <div class="flow-step">
-              <span class="flow-step__index">03</span>
-              <div>
-                <strong>再固化组件与页面地图</strong>
-                <p>先让输入区、消息气泡、列表项、设置行进入稳定组件清单，再扩展业务页。</p>
-              </div>
-            </div>
-            <div class="flow-step">
-              <span class="flow-step__index">04</span>
-              <div>
-                <strong>最后补桌面适配</strong>
-                <p>桌面形态、资料侧栏、文件与扩展位在第二阶段重组成工作台。</p>
-              </div>
-            </div>
-          </div>
-          <div class="page-map-grid">
-            ${system.pageGroups
-              .map(
-                (group) => `
-                  <article class="page-map-card">
-                    <span class="section-title">${escapeHtml(group.title)}</span>
-                    <strong>${escapeHtml(group.items.join(" / "))}</strong>
-                  </article>
-                `,
-              )
-              .join("")}
-          </div>
-          <div class="surface-block">
-            <p class="section-title">Flutter 实施轨道</p>
-            <ul class="bullet-list">
-              ${system.handoffTracks
-                .map((item) => `<li>${escapeHtml(item)}</li>`)
-                .join("")}
-            </ul>
-          </div>
-          <div class="surface-block">
-            <p class="section-title">页面地图</p>
             <div class="page-map">
-              ${data.designSystem.pageTemplates
+              ${system.pageTemplates
                 .map((item) => `<span class="page-map__item">${escapeHtml(item)}</span>`)
                 .join("")}
             </div>
-          </div>
-          <div class="surface-block">
-            <p class="section-title">组件封装建议</p>
-            <ul class="bullet-list">
-              <li>App Bar：根页 / 二级页两种模式，统一标题、返回、右侧动作布局。</li>
-              <li>Cell：会话、联系人、设置项都用同一套左右结构和信息层级。</li>
-              <li>Message Bubble：单聊 / 群聊共用，只在头像、昵称、状态位扩展。</li>
-              <li>Composer：表情面板、更多面板、发送态共用一套容器节奏。</li>
-            </ul>
-          </div>
-          <div class="quick-action-grid quick-action-grid--compact">
-            <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="/entry">
-              <strong>回到总入口</strong>
-              <span>从三层入口重新组织评审顺序。</span>
-            </button>
-            <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="/pc-design">
-              <strong>查看 PC 端设计</strong>
-              <span>验证桌面三栏结构与信息分区。</span>
-            </button>
-          </div>
+          </section>
         </div>
       `;
     }
 
     return `
       <div class="screen-stack">
-        <div class="principle-grid">
-          ${system.principles
-            .map(
-              (item, index) => `
-                <article class="principle-card">
-                  <span class="principle-card__index">0${index + 1}</span>
-                  <p>${escapeHtml(item)}</p>
-                </article>
-              `,
-            )
-            .join("")}
-        </div>
-        <div class="token-grid">
-          ${system.tokens.colors
-            .map(
-              (item) => `
-                <div class="token-card token-card--swatch">
-                  <span class="swatch" style="background:${item[1]}"></span>
-                  <strong>${escapeHtml(item[0])}</strong>
-                  <span>${escapeHtml(item[1])}</span>
-                </div>
-              `,
-            )
-            .join("")}
-        </div>
-        <div class="token-stack">
-          <div class="token-card">
-            <span class="section-title">Typography</span>
-            <ul class="token-list">
-              ${system.tokens.typography
-                .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
-                .join("")}
-            </ul>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>基础 Tokens</h3>
+            <span class="badge">Foundation</span>
           </div>
-          <div class="token-card">
-            <span class="section-title">Spacing & Motion</span>
-            <ul class="token-list">
-              ${system.tokens.spacing
-                .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
-                .join("")}
-            </ul>
+          <div class="token-stack">
+            ${system.tokens.spacing
+              .filter((item) => item[0] !== "Density")
+              .map(
+                (item) => `
+                  <div class="token-card">
+                    <span class="section-title">${escapeHtml(item[0])}</span>
+                    <strong>${escapeHtml(item[1])}</strong>
+                  </div>
+                `,
+              )
+              .join("")}
           </div>
-          <div class="token-card">
-            <span class="section-title">Base Rules</span>
-            <ul class="bullet-list">
-              <li>主色只承担“动作、选中、反馈”，不要回到多彩按钮和大面积渐变。</li>
-              <li>字体层级先用 Display / UI 两组封装，页面不再各自发明字号体系。</li>
-              <li>1K / 1.5K / 2K 的差异统一走密度 token，不允许某个页面单独放大。</li>
-            </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>密度档位</h3>
+            <span class="badge">Density</span>
           </div>
-        </div>
-        <div class="density-preview density-preview--grid">
-          ${system.densityBands
-            .map(
-              (item) => `
-                <article class="density-preview__item">
-                  <strong>${escapeHtml(item.label)}</strong>
-                  <span>scale ${escapeHtml(item.scale)}</span>
-                  <p>${escapeHtml(item.title)} · ${escapeHtml(item.note)}</p>
-                </article>
-              `,
-            )
-            .join("")}
-        </div>
+          <div class="density-preview density-preview--grid">
+            ${system.densityBands
+              .map(
+                (item) => `
+                  <article class="density-preview__item">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <span>scale ${escapeHtml(item.scale)}</span>
+                    <p>${escapeHtml(item.title)} · ${escapeHtml(item.note)}</p>
+                  </article>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
       </div>
+    `;
+  }
+
+  function renderSpecDetailRail(group) {
+    const system = data.designSystem;
+
+    if (group.id === "components") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>组件清单</h3>
+            <span class="badge">Runtime</span>
+          </div>
+          <div class="component-inventory-grid spec-detail-grid">
+            ${system.componentInventory.map(renderComponentInventoryCard).join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    if (group.id === "typography") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>字体约束</h3>
+            <span class="badge">Rules</span>
+          </div>
+          <ul class="bullet-list">
+            <li>Display 只用于入口、规范和一级标题，不进入常规列表正文。</li>
+            <li>业务页正文统一回到 UI 字体节奏，防止页面之间字号飘散。</li>
+            <li>1K / 1.5K / 2K 的字号差异统一走密度 token，不允许页面局部手调。</li>
+          </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>字体栈</h3>
+            <span class="badge">Stack</span>
+          </div>
+          <ul class="token-list">
+            ${system.tokens.typography
+              .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
+              .join("")}
+          </ul>
+        </section>
+      `;
+    }
+
+    if (group.id === "colors") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>颜色清单</h3>
+            <span class="badge">Semantic</span>
+          </div>
+          <div class="token-grid spec-detail-token-grid">
+            ${system.tokens.colors
+              .map(
+                (item) => `
+                  <div class="token-card token-card--swatch">
+                    <span class="swatch" style="background:${item[1]}"></span>
+                    <strong>${escapeHtml(item[0])}</strong>
+                    <span>${escapeHtml(item[1])}</span>
+                  </div>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>执行原则</h3>
+            <span class="badge">Usage</span>
+          </div>
+          <ul class="bullet-list">
+            <li>表面层、分隔线、文字层级优先靠 token 递减，不靠阴影硬堆层级。</li>
+            <li>按钮激活态和导航激活态共享同一主色语义。</li>
+            <li>Danger / Success 只服务状态反馈，禁止扩大到装饰层。</li>
+          </ul>
+        </section>
+      `;
+    }
+
+    if (group.id === "icons") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>Icon 规则</h3>
+            <span class="badge">Hot Area</span>
+          </div>
+          <ul class="bullet-list">
+            <li>导航、操作、发现三类 icon 全部保持轮廓风格一致。</li>
+            <li>未来 Flutter 落地时统一进入同一 icon registry，不再页面私自引图。</li>
+            <li>点击目标优先对齐 40-44dp，确保小屏设备触达稳定。</li>
+          </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>关键 Key</h3>
+            <span class="badge">Registry</span>
+          </div>
+          <div class="page-map">
+            ${["chats", "contacts", "discover", "settings", "back", "search", "plus", "emoji", "more", "send"]
+              .map((item) => `<span class="page-map__item">icon.${escapeHtml(item)}</span>`)
+              .join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    if (group.id === "shell") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>壳层清单</h3>
+            <span class="badge">Shell</span>
+          </div>
+          <div class="page-map">
+            <span class="page-map__item">Safe Area</span>
+            <span class="page-map__item">Status Bar</span>
+            <span class="page-map__item">App Bar</span>
+            <span class="page-map__item">Scroll Area</span>
+            <span class="page-map__item">Tab Bar</span>
+          </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>壳层原则</h3>
+            <span class="badge">Rules</span>
+          </div>
+          <ul class="bullet-list">
+            <li>根页固定四个一级入口，详情、搜索、申请和群设置全部下沉二级。</li>
+            <li>输入区、列表和导航共享同一密度体系，不能局部单独放大。</li>
+            <li>桌面端复用同一语言，但只重组布局，不改手机信息架构。</li>
+          </ul>
+        </section>
+      `;
+    }
+
+    if (group.id === "flows") {
+      return `
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>Flutter Handoff</h3>
+            <span class="badge">Tracks</span>
+          </div>
+          <ul class="bullet-list">
+            ${system.handoffTracks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>页面组</h3>
+            <span class="badge">Map</span>
+          </div>
+          <div class="page-map-grid">
+            ${system.pageGroups
+              .map(
+                (item) => `
+                  <article class="page-map-card">
+                    <span class="section-title">${escapeHtml(item.title)}</span>
+                    <strong>${escapeHtml(item.items.join(" / "))}</strong>
+                  </article>
+                `,
+              )
+              .join("")}
+          </div>
+        </section>
+      `;
+    }
+
+    return `
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>基础约束</h3>
+          <span class="badge">Foundation</span>
+        </div>
+        <ul class="token-list">
+          ${system.tokens.spacing
+            .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
+            .join("")}
+        </ul>
+      </section>
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>执行说明</h3>
+          <span class="badge">Rules</span>
+        </div>
+        <ul class="bullet-list">
+          ${system.principles.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+        </ul>
+      </section>
+    `;
+  }
+
+  function renderSpecScreen() {
+    const system = data.designSystem;
+    const group = activeSpecGroup();
+
+    return `
+      <section class="spec-stage" aria-label="规范设计工作台">
+        <aside class="surface-card spec-sidebar">
+          <div class="spec-sidebar__header">
+            <span class="eyebrow">Spec Workbench</span>
+            <h2>规范页面</h2>
+            <p>左侧按分组切换规范，右侧统一在手机画布里验证颜色、字体、组件和 Shell 的真实落位。</p>
+          </div>
+          <div class="spec-sidebar__group-list">
+            ${system.specGroups.map(renderSpecNavItem).join("")}
+          </div>
+          <div class="surface-block spec-sidebar__note">
+            <p class="section-title">当前主线</p>
+            <ul class="bullet-list">
+              <li>先收敛组件、字体、颜色，再回刷聊天 / 联系人 / 发现页面。</li>
+              <li>右侧预览统一放进手机画布，不再用纯说明文档代替真实 UI 观感。</li>
+            </ul>
+          </div>
+        </aside>
+
+        <section class="spec-preview-stage">
+          <section class="surface-card spec-preview-stage__hero">
+            <div class="spec-preview-stage__hero-copy">
+              <span class="eyebrow">当前分组</span>
+              <h2>${escapeHtml(group.title)}</h2>
+              <p>${escapeHtml(group.summary)}</p>
+            </div>
+            <div class="chip-row">
+              <span class="chip chip--filled">${escapeHtml(group.eyebrow)}</span>
+              <span class="chip">手机预览</span>
+              <span class="chip">实现映射</span>
+            </div>
+          </section>
+
+          <div class="spec-preview-stage__body">
+            <div class="spec-preview-stage__phone">
+              <section class="phone-frame phone-frame--spec" aria-label="规范手机预览画布">
+                <div class="phone-frame__notch"></div>
+                <div class="phone-screen">
+                  <div class="phone-status-bar">
+                    <span>9:41</span>
+                    <span>5G · 87%</span>
+                  </div>
+                  <section class="screen screen--spec-preview">
+                    <header class="screen-header screen-header--root">
+                      <div class="screen-header__main">
+                        <h2>${escapeHtml(group.title)}</h2>
+                        <p>${escapeHtml(group.eyebrow)} · 规范分组预览</p>
+                      </div>
+                      <div class="screen-header__actions">
+                        <span class="badge">${escapeHtml(group.title)}</span>
+                      </div>
+                    </header>
+                    <div class="screen-scroll screen-scroll--spec">
+                      ${renderSpecPhoneContent(group)}
+                    </div>
+                  </section>
+                </div>
+              </section>
+            </div>
+
+            <div class="spec-preview-stage__rail">
+              ${renderSpecDetailRail(group)}
+            </div>
+          </div>
+        </section>
+      </section>
     `;
   }
 
@@ -3256,7 +3479,7 @@
   }
 
   function renderRouteReview(route) {
-    if (route.section === "entry") {
+    if (route.section === "entry" || route.section === "spec") {
       return "";
     }
 
