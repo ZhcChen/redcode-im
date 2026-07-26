@@ -369,11 +369,12 @@
     const route = parseRoute(currentPath());
     syncSelection(route);
     const wideStage = isWideStageRoute(route);
+    const showPrototypeToolbar = route.section !== "entry";
 
     root.innerHTML = `
       <div class="prototype-shell">
-        ${renderPrototypeToolbar(route)}
-        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${route.section === "entry" ? "prototype-main--entry" : ""}">
+        ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
+        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""}">
           <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""}">
             ${renderStage(route)}
           </div>

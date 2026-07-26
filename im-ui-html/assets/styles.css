@@ -267,10 +267,6 @@ img {
   gap: 1rem;
 }
 
-.prototype-main--entry {
-  margin-top: -0.32rem;
-}
-
 .prototype-stage {
   width: 100%;
   display: flex;
@@ -977,10 +973,6 @@ img {
   width: min(80rem, 100%);
   display: grid;
   gap: 1rem;
-}
-
-.prototype-main--entry .design-hub {
-  gap: 0.8rem;
 }
 
 .design-hub__hero,
