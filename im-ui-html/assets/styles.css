@@ -2244,6 +2244,128 @@ body[data-theme="dark"] .spec-stage {
   gap: 0.7em;
 }
 
+.interaction-state-grid,
+.density-calibration-grid {
+  display: grid;
+  gap: 0.7em;
+}
+
+.interaction-state-card,
+.density-calibration-card {
+  border-radius: 1.05em;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 0.9em;
+  display: grid;
+  gap: 0.62em;
+}
+
+.interaction-state-card__header {
+  display: grid;
+  gap: 0.2em;
+}
+
+.interaction-state-card__header strong,
+.density-calibration-card__header strong {
+  font-size: 0.94em;
+  line-height: 1.3;
+}
+
+.interaction-state-card__header p,
+.density-calibration-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.82em;
+  line-height: 1.5;
+}
+
+.interaction-state-card__list,
+.density-calibration-card__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42em;
+}
+
+.interaction-state-pill,
+.density-calibration-card__metric {
+  min-height: 1.95em;
+  padding: 0.32em 0.62em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.interaction-state-pill {
+  display: inline-grid;
+  gap: 0.08em;
+}
+
+.interaction-state-pill strong {
+  font-size: 0.72em;
+  line-height: 1;
+}
+
+.interaction-state-pill span,
+.density-calibration-card__metric {
+  color: var(--text-secondary);
+  font-size: 0.74em;
+  line-height: 1.25;
+}
+
+.interaction-state-pill--active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--surface));
+}
+
+.interaction-state-pill--active strong,
+.interaction-state-pill--filled strong,
+.density-calibration-card__header span {
+  color: var(--primary-strong);
+}
+
+.interaction-state-pill--filled {
+  border-color: color-mix(in srgb, var(--primary) 24%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-soft) 82%, transparent), var(--surface-soft));
+}
+
+.interaction-state-pill--soft {
+  background: color-mix(in srgb, var(--surface-soft) 78%, rgba(75, 135, 255, 0.08));
+}
+
+.interaction-state-pill--warning {
+  background: rgba(245, 171, 66, 0.12);
+  border-color: rgba(245, 171, 66, 0.2);
+}
+
+.interaction-state-pill--warning strong {
+  color: #d27a00;
+}
+
+.density-calibration-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+}
+
+.density-calibration-card__header span {
+  font-size: 0.76em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.interaction-state-grid--compact .interaction-state-card,
+.density-calibration-grid--compact .density-calibration-card {
+  background: var(--surface-soft);
+  padding: 0.82em;
+}
+
+.interaction-state-grid--compact .interaction-state-card__header p,
+.density-calibration-grid--compact .density-calibration-card p {
+  font-size: 0.78em;
+}
+
 .density-preview--grid {
   grid-template-columns: 1fr;
 }

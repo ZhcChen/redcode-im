@@ -1224,6 +1224,66 @@
     `;
   }
 
+  function renderInteractionStateBoard(compact) {
+    const groups = data.designSystem.interactionStates || [];
+
+    return `
+      <div class="interaction-state-grid ${compact ? "interaction-state-grid--compact" : ""}">
+        ${groups
+          .map(
+            (group) => `
+              <article class="interaction-state-card">
+                <div class="interaction-state-card__header">
+                  <strong>${escapeHtml(group.title)}</strong>
+                  <p>${escapeHtml(group.summary)}</p>
+                </div>
+                <div class="interaction-state-card__list">
+                  ${group.items
+                    .map(
+                      (item) => `
+                        <span class="interaction-state-pill interaction-state-pill--${escapeHtml(item.tone)}">
+                          <strong>${escapeHtml(item.state)}</strong>
+                          <span>${escapeHtml(item.detail)}</span>
+                        </span>
+                      `,
+                    )
+                    .join("")}
+                </div>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  function renderDensityCalibrationBoard(compact) {
+    const items = data.designSystem.densityCalibration || [];
+
+    return `
+      <div class="density-calibration-grid ${compact ? "density-calibration-grid--compact" : ""}">
+        ${items
+          .map(
+            (item) => `
+              <article class="density-calibration-card">
+                <div class="density-calibration-card__header">
+                  <strong>${escapeHtml(item.label)}</strong>
+                  <span>scale ${escapeHtml(item.scale)}</span>
+                </div>
+                <div class="density-calibration-card__metrics">
+                  ${item.metrics
+                    .map((metric) => `<span class="density-calibration-card__metric">${escapeHtml(metric)}</span>`)
+                    .join("")}
+                </div>
+                <p>${escapeHtml(item.note)}</p>
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
   function renderSpecPhoneContent(group) {
     const system = data.designSystem;
     const chat = sortedChats()[0];
@@ -1246,6 +1306,13 @@
             </div>
           </section>
           ${renderComponentShowcase(chat, contact)}
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>交互状态</h3>
+              <span class="badge">States</span>
+            </div>
+            ${renderInteractionStateBoard(true)}
+          </section>
         </div>
       `;
     }
@@ -1415,6 +1482,7 @@
             <h3>密度档位</h3>
             <span class="badge">Density</span>
           </div>
+          ${renderDensityCalibrationBoard(true)}
           <div class="density-preview density-preview--grid">
             ${system.densityBands
               .map(
@@ -1446,6 +1514,22 @@
           <div class="component-inventory-grid spec-detail-grid">
             ${system.componentInventory.map(renderComponentInventoryCard).join("")}
           </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>状态矩阵</h3>
+            <span class="badge">States</span>
+          </div>
+          ${renderInteractionStateBoard(false)}
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>封装原则</h3>
+            <span class="badge">Rules</span>
+          </div>
+          <ul class="bullet-list">
+            ${system.componentRules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+          </ul>
         </section>
       `;
     }
@@ -1611,6 +1695,13 @@
             .map((item) => `<li><strong>${escapeHtml(item[0])}</strong><span>${escapeHtml(item[1])}</span></li>`)
             .join("")}
         </ul>
+      </section>
+      <section class="surface-card">
+        <div class="surface-card__header">
+          <h3>密度校准板</h3>
+          <span class="badge">Scale</span>
+        </div>
+        ${renderDensityCalibrationBoard(false)}
       </section>
       <section class="surface-card">
         <div class="surface-card__header">

@@ -255,6 +255,69 @@ window.RedcodeIMPrototypeData = {
         flutter: "Row + optional trailing control",
       },
     ],
+    interactionStates: [
+      {
+        title: "Search Box",
+        summary: "一个输入容器内完成默认、聚焦和上下文提示，不再换壳。",
+        items: [
+          { state: "Idle", detail: "占位文案 + 搜索 icon", tone: "muted" },
+          { state: "Focused", detail: "主色 ring + 光标定位", tone: "active" },
+          { state: "Context", detail: "群聊内 / 联系人内上下文", tone: "filled" },
+        ],
+      },
+      {
+        title: "Composer",
+        summary: "输入、表情、更多面板与发送动作共用同一底部节奏。",
+        items: [
+          { state: "Idle", detail: "单行输入 + 轻操作", tone: "muted" },
+          { state: "Panel", detail: "表情 / 更多保持底部占位", tone: "soft" },
+          { state: "Typing", detail: "发送动作进入主色可点击", tone: "active" },
+        ],
+      },
+      {
+        title: "Button Set",
+        summary: "Primary / Ghost / Icon 用同一圆角、反馈时长和热区。",
+        items: [
+          { state: "Pressed", detail: "降低阴影并轻收缩", tone: "active" },
+          { state: "Loading", detail: "原位等待，不弹额外层", tone: "warning" },
+          { state: "Disabled", detail: "保留结构但降对比", tone: "muted" },
+        ],
+      },
+      {
+        title: "Navigation",
+        summary: "一级导航只区分普通与激活，不制造多套颜色状态。",
+        items: [
+          { state: "Default", detail: "轮廓 icon + 弱提示", tone: "soft" },
+          { state: "Active", detail: "胶囊底 + 主色 icon", tone: "filled" },
+          { state: "Badge", detail: "未读 / 新功能轻提示", tone: "active" },
+        ],
+      },
+    ],
+    componentRules: [
+      "Focus 态只给当前输入或操作位加主色 ring，不把整块面板全部染色。",
+      "Loading 优先在原按钮位或原行内解决，避免额外弹出大提示层打断主线。",
+      "Panel 切换保持输入区基线稳定，不能因为键盘、表情或更多面板来回跳动。",
+    ],
+    densityCalibration: [
+      {
+        label: "2K",
+        scale: "1.00",
+        metrics: ["列表 52dp", "输入 48dp", "圆角 22", "标题 18/16"],
+        note: "优先保住留白、字距与信息层级，不让内容显得拥挤。",
+      },
+      {
+        label: "1.5K",
+        scale: "0.94",
+        metrics: ["列表 48dp", "输入 44dp", "圆角 18", "标题 17/15"],
+        note: "同步收紧字号、控件高度和圆角，避免小屏看起来发胖。",
+      },
+      {
+        label: "1K",
+        scale: "0.88",
+        metrics: ["列表 44dp", "输入 42dp", "圆角 16", "标题 16/14"],
+        note: "继续压缩视觉体积，但热区和输入可触达性不能被牺牲。",
+      },
+    ],
     mobileBlueprint: {
       headline: "移动端先统一一级导航和输入节奏，再把 IM 二级流程逐一做准。",
       routes: [
