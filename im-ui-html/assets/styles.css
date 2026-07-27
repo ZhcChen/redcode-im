@@ -5068,7 +5068,7 @@ body[data-theme="dark"] .spec-stage {
   --runtime-canvas: #f5f7f6;
   --runtime-surface: #ffffff;
   --runtime-soft: #edf2f0;
-  --runtime-line: #e2e9e6;
+  --runtime-line: rgba(23, 33, 30, 0.08);
   --runtime-ink: #17211e;
   --runtime-muted: #72807b;
   --runtime-faint: #98a39f;
@@ -5076,13 +5076,16 @@ body[data-theme="dark"] .spec-stage {
   --runtime-accent-deep: #008f83;
   --runtime-accent-soft: #dff7f1;
   --runtime-danger: #df5b53;
+  --runtime-radius-control: 14px;
+  --runtime-radius-surface: 18px;
+  --runtime-radius-feature: 22px;
 }
 
 body[data-theme="dark"] .phone-screen {
   --runtime-canvas: #111715;
   --runtime-surface: #18201d;
   --runtime-soft: #202a26;
-  --runtime-line: #2b3934;
+  --runtime-line: rgba(239, 248, 244, 0.1);
   --runtime-ink: #eff8f4;
   --runtime-muted: #a4b2ac;
   --runtime-faint: #78867f;
@@ -5090,6 +5093,9 @@ body[data-theme="dark"] .phone-screen {
   --runtime-accent-deep: #7ae3d7;
   --runtime-accent-soft: #173c36;
   --runtime-danger: #ff8b81;
+  --runtime-radius-control: 14px;
+  --runtime-radius-surface: 18px;
+  --runtime-radius-feature: 22px;
 }
 
 .phone-screen--runtime {
@@ -6364,4 +6370,268 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
   .phone-frame--mobile-preview .phone-frame__notch {
     top: 0.42rem;
   }
+}
+
+/* Borderless rounded mobile surface system. */
+.phone-screen .runtime-list-content {
+  gap: 20px;
+}
+
+.phone-screen .runtime-conversation-section,
+.phone-screen .runtime-contact-section {
+  gap: 10px;
+}
+
+.phone-screen .runtime-section-heading h3,
+.phone-screen .runtime-settings-group h3,
+.phone-screen .runtime-contact-section__heading {
+  color: var(--runtime-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.phone-screen .runtime-icon-button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+  color: var(--runtime-ink);
+}
+
+.phone-screen .runtime-icon-button__glyph,
+.phone-screen .runtime-composer__glyph,
+.phone-screen .runtime-composer__send-icon,
+.phone-screen .runtime-contact-shortcut__glyph,
+.phone-screen .runtime-discover-card__glyph,
+.phone-screen .runtime-search-field__icon {
+  width: 22px;
+  height: 22px;
+}
+
+.phone-screen .runtime-header-link {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-unread-strip {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-conversation-list,
+.phone-screen .runtime-contact-list,
+.phone-screen .runtime-settings-group,
+.phone-screen .runtime-contact-shortcuts {
+  border: 0;
+  border-radius: var(--runtime-radius-surface);
+  box-shadow: none;
+}
+
+.phone-screen .runtime-conversation,
+.phone-screen .runtime-contact-row {
+  min-height: 76px;
+  padding: 14px;
+}
+
+.phone-screen .runtime-conversation + .runtime-conversation,
+.phone-screen .runtime-contact-row + .runtime-contact-row,
+.phone-screen .runtime-setting-row + .runtime-setting-row,
+.phone-screen .runtime-contact-shortcut + .runtime-contact-shortcut {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 var(--runtime-line);
+}
+
+.phone-screen .runtime-conversation__avatar .avatar,
+.phone-screen .runtime-contact-row__avatar .avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+}
+
+.phone-screen .runtime-contact-shortcut {
+  min-height: 68px;
+  padding: 12px 14px;
+}
+
+.phone-screen .runtime-contact-shortcut__icon,
+.phone-screen .runtime-discover-card__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-search-field {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-search-field:focus-within,
+.phone-screen .runtime-composer__field:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--runtime-accent) 18%, transparent);
+}
+
+.phone-screen .runtime-moments-card {
+  min-height: 156px;
+  border-radius: var(--runtime-radius-feature);
+  background: var(--runtime-accent-soft);
+}
+
+.phone-screen .runtime-discover-card {
+  border: 0;
+  border-radius: var(--runtime-radius-surface);
+}
+
+.phone-screen .runtime-tab-bar {
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  border: 0;
+  background: var(--runtime-surface);
+  box-shadow: 0 -1px 0 var(--runtime-line);
+}
+
+.phone-screen .runtime-tab-bar__items {
+  height: 70px;
+  gap: 4px;
+}
+
+.phone-screen .runtime-tab-bar__item {
+  padding: 0;
+  gap: 3px;
+  color: var(--runtime-faint);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.phone-screen .runtime-tab-bar__icon {
+  width: 46px;
+  height: 40px;
+  border-radius: var(--runtime-radius-control);
+  color: var(--runtime-muted);
+}
+
+.phone-screen .runtime-tab-bar__glyph,
+.phone-screen .runtime-tab-bar__glyph svg {
+  width: 26px;
+  height: 26px;
+}
+
+.phone-screen .runtime-tab-bar__glyph svg {
+  stroke-width: 2.1;
+}
+
+.phone-screen .runtime-tab-bar__item.is-active {
+  color: var(--runtime-accent-deep);
+  font-weight: 750;
+}
+
+.phone-screen .runtime-tab-bar__item.is-active .runtime-tab-bar__icon {
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-accent-deep);
+}
+
+.phone-screen .screen--tabbed .runtime-scroll {
+  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+}
+
+.phone-screen .runtime-announcement {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .message-bubble {
+  border: 0;
+  border-radius: 18px 18px 18px 6px;
+}
+
+.phone-screen .message-bubble--self {
+  border: 0;
+  border-radius: 18px 18px 6px 18px;
+}
+
+.phone-screen .reaction-pill {
+  border: 0;
+  border-radius: 10px;
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-composer-panel,
+.phone-screen .runtime-composer {
+  border-top: 0;
+  box-shadow: 0 -8px 22px rgba(23, 33, 30, 0.035);
+}
+
+.phone-screen .runtime-composer__action,
+.phone-screen .runtime-composer__send {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-composer__action {
+  border: 0;
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-composer__field {
+  min-height: 40px;
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-profile-row {
+  min-height: 80px;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--runtime-radius-feature);
+}
+
+.phone-screen .runtime-settings-group {
+  border: 0;
+  border-radius: var(--runtime-radius-surface);
+}
+
+.phone-screen .runtime-setting-row {
+  min-height: 56px;
+  padding: 0 14px;
+}
+
+.phone-screen--preview .screen:not(.runtime-screen) .surface-card,
+.phone-screen--preview .screen:not(.runtime-screen) .list-card,
+.phone-screen--preview .screen:not(.runtime-screen) .settings-list,
+.phone-screen--preview .screen:not(.runtime-screen) .request-card,
+.phone-screen--preview .screen:not(.runtime-screen) .group-card,
+.phone-screen--preview .screen:not(.runtime-screen) .moment-card,
+.phone-screen--preview .screen:not(.runtime-screen) .scan-shell {
+  border: 0;
+  border-radius: var(--runtime-radius-feature);
+}
+
+.phone-screen--preview .screen:not(.runtime-screen) .field__input,
+.phone-screen--preview .screen:not(.runtime-screen) .search-box,
+.phone-screen--preview .screen:not(.runtime-screen) .search-box__input {
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+}
+
+.phone-screen--preview .screen:not(.runtime-screen) .primary-button,
+.phone-screen--preview .screen:not(.runtime-screen) .ghost-button {
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  box-shadow: none;
+}
+
+.phone-screen--preview .screen:not(.runtime-screen) .ghost-button {
+  background: var(--runtime-soft);
+}
+
+.phone-screen--preview .toast-stack--embedded {
+  bottom: 96px;
 }
