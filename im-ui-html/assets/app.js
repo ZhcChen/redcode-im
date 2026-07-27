@@ -3517,7 +3517,7 @@
       <section class="screen runtime-screen runtime-group-create-screen">
         ${renderScreenHeader({
           title: "创建群聊",
-          backPath: "/groups",
+          backPath: "/chats",
         })}
         <form id="group-create-form" class="runtime-group-create-form" data-form="create-group-form">
           <section class="runtime-group-create__identity">
