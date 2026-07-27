@@ -2,6 +2,14 @@
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
   const STORAGE_KEY = "redcode-im-ui-prototype/design-source-v2";
+  const DEVICE_FRAMES = {
+    "iphone-12-pro": {
+      label: "iPhone 12 Pro",
+    },
+    "pixel-8-pro": {
+      label: "Pixel 8 Pro",
+    },
+  };
 
   if (!source || !root) {
     return;
@@ -11,6 +19,7 @@
   const state = {
     theme: "light",
     density: "regular",
+    deviceFrame: "iphone-12-pro",
     activeChatId: data.chats[0] ? data.chats[0].id : null,
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
@@ -168,6 +177,9 @@
       if (["regular", "mid", "compact"].includes(persisted.density)) {
         state.density = persisted.density;
       }
+      if (isSupportedDeviceFrame(persisted.deviceFrame)) {
+        state.deviceFrame = persisted.deviceFrame;
+      }
       if (persisted.notifications && typeof persisted.notifications === "object") {
         Object.assign(data.settings.notifications, persisted.notifications);
       }
@@ -188,6 +200,7 @@
         JSON.stringify({
           theme: state.theme,
           density: state.density,
+          deviceFrame: state.deviceFrame,
           notifications: data.settings.notifications,
           privacy: data.settings.privacy,
         }),
@@ -200,6 +213,10 @@
   function applyBodyState() {
     document.body.dataset.theme = state.theme;
     document.body.dataset.density = state.density;
+  }
+
+  function isSupportedDeviceFrame(value) {
+    return Object.prototype.hasOwnProperty.call(DEVICE_FRAMES, value);
   }
 
   function currentPath() {
@@ -767,6 +784,24 @@
 
     return `
       <section class="mobile-preview-canvas" aria-label="RedCode IM 移动端预览">
+        <div class="mobile-preview-device-switcher" role="group" aria-label="设备外壳选择">
+          ${Object.entries(DEVICE_FRAMES)
+            .map(
+              ([id, device]) => `
+                <button
+                  class="mobile-preview-device-switcher__item ${state.deviceFrame === id ? "is-active" : ""}"
+                  type="button"
+                  data-action="set-device-frame"
+                  data-device-frame="${id}"
+                  aria-pressed="${state.deviceFrame === id}"
+                >
+                  <span class="mobile-preview-device-switcher__glyph mobile-preview-device-switcher__glyph--${id}" aria-hidden="true"></span>
+                  <span>${escapeHtml(device.label)}</span>
+                </button>
+              `,
+            )
+            .join("")}
+        </div>
         ${renderPhone(previewRoute, { devicePreview: true })}
       </section>
     `;
@@ -798,8 +833,31 @@
       return `<section class="mobile-runtime" aria-label="移动端应用预览">${screen}</section>`;
     }
 
+    if (options.devicePreview) {
+      const deviceId = isSupportedDeviceFrame(state.deviceFrame) ? state.deviceFrame : "iphone-12-pro";
+      const device = DEVICE_FRAMES[deviceId];
+
+      return `
+        <section
+          class="phone-frame phone-frame--mobile-preview phone-frame--${deviceId}"
+          data-device-frame="${deviceId}"
+          aria-label="${escapeHtml(device.label)} 设备预览画布"
+        >
+          <span class="phone-frame__side-button phone-frame__side-button--action" aria-hidden="true"></span>
+          <span class="phone-frame__side-button phone-frame__side-button--volume-up" aria-hidden="true"></span>
+          <span class="phone-frame__side-button phone-frame__side-button--volume-down" aria-hidden="true"></span>
+          <span class="phone-frame__side-button phone-frame__side-button--power" aria-hidden="true"></span>
+          <div class="phone-frame__screen-clip">
+            ${screen}
+          </div>
+          <span class="phone-frame__earpiece" aria-hidden="true"></span>
+          <span class="phone-frame__sensor" aria-hidden="true"></span>
+        </section>
+      `;
+    }
+
     return `
-      <section class="phone-frame ${options.devicePreview ? "phone-frame--mobile-preview" : ""}" aria-label="移动端原型画布">
+      <section class="phone-frame" aria-label="移动端原型画布">
         <div class="phone-frame__notch"></div>
         ${screen}
       </section>
@@ -4583,6 +4641,15 @@
       data.settings.density = state.density;
       persistUiState();
       render();
+      return;
+    }
+    if (action === "set-device-frame") {
+      const deviceFrame = target.getAttribute("data-device-frame");
+      if (isSupportedDeviceFrame(deviceFrame)) {
+        state.deviceFrame = deviceFrame;
+        persistUiState();
+        render();
+      }
       return;
     }
     if (action === "set-desktop-chat") {

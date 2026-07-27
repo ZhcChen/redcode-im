@@ -6252,6 +6252,8 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
 .mobile-preview-canvas {
   display: grid;
   place-items: center;
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
   padding: 16px;
 }
@@ -6260,14 +6262,25 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
   width: min(430px, calc(100vw - 32px));
   height: min(900px, calc(100dvh - 32px));
   max-height: calc(100dvh - 32px);
-  padding: 0.65rem;
-  overflow: hidden;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: var(--device-shell-radius, 52px);
+  background: #141b28;
+  box-shadow: 0 30px 72px rgba(15, 23, 42, 0.24);
+  isolation: isolate;
 }
 
 .phone-screen--preview {
+  width: 100%;
   height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: inherit;
   background: var(--runtime-canvas);
   color: var(--runtime-ink);
+  overflow: hidden;
   font-size: calc(16px * var(--density-scale));
   line-height: 1.4;
 }
@@ -6352,6 +6365,300 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
   box-shadow: 0 12px 28px rgba(23, 33, 30, 0.2);
 }
 
+/* Device shells keep app pixels inside a dedicated screen clip. */
+.phone-frame--mobile-preview::before {
+  inset: 2px;
+  z-index: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: inherit;
+  background: transparent;
+}
+
+.phone-frame--mobile-preview::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  z-index: 3;
+  border: 1px solid rgba(6, 12, 22, 0.48);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.phone-frame--mobile-preview .phone-frame__screen-clip {
+  position: absolute;
+  inset: var(--device-screen-inset, 8px);
+  z-index: 1;
+  overflow: hidden;
+  border-radius: var(--device-screen-radius, 45px);
+  background: #f5f7fb;
+  box-shadow: inset 0 0 0 1px rgba(5, 10, 18, 0.24);
+  isolation: isolate;
+}
+
+.phone-frame--mobile-preview .phone-frame__side-button {
+  position: absolute;
+  z-index: 4;
+  display: block;
+  width: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: #344154;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.38);
+}
+
+.phone-frame--mobile-preview .phone-frame__earpiece,
+.phone-frame--mobile-preview .phone-frame__sensor {
+  position: absolute;
+  z-index: 4;
+  display: block;
+  pointer-events: none;
+}
+
+body[data-theme="dark"] .phone-frame--mobile-preview .phone-frame__screen-clip {
+  background: #0e1420;
+}
+
+.phone-frame--iphone-12-pro {
+  --device-shell-radius: 48px;
+  --device-screen-radius: 40px;
+  --device-screen-inset: 8px;
+  background: #121a27;
+  box-shadow:
+    0 34px 76px rgba(15, 23, 42, 0.28),
+    0 8px 22px rgba(15, 23, 42, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.phone-frame--iphone-12-pro .phone-frame__sensor {
+  top: 8px;
+  left: 50%;
+  width: 142px;
+  height: 30px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0 0 17px 17px;
+  background: #05070c;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+}
+
+.phone-frame--iphone-12-pro .phone-frame__earpiece {
+  top: 15px;
+  left: 50%;
+  width: 38px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #202938;
+}
+
+.phone-frame--iphone-12-pro .phone-frame__side-button--action {
+  top: 19%;
+  left: -3px;
+  height: 26px;
+}
+
+.phone-frame--iphone-12-pro .phone-frame__side-button--volume-up {
+  top: 28%;
+  left: -3px;
+  height: 46px;
+}
+
+.phone-frame--iphone-12-pro .phone-frame__side-button--volume-down {
+  top: 35%;
+  left: -3px;
+  height: 46px;
+}
+
+.phone-frame--iphone-12-pro .phone-frame__side-button--power {
+  top: 29%;
+  right: -3px;
+  height: 64px;
+}
+
+.phone-frame--pixel-8-pro {
+  --device-shell-radius: 40px;
+  --device-screen-radius: 32px;
+  --device-screen-inset: 8px;
+  background: #2a3545;
+  box-shadow:
+    0 30px 70px rgba(15, 23, 42, 0.26),
+    0 8px 20px rgba(15, 23, 42, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.phone-frame--pixel-8-pro::before {
+  border-color: rgba(224, 231, 255, 0.16);
+}
+
+.phone-frame--pixel-8-pro .phone-frame__earpiece {
+  top: 13px;
+  left: 50%;
+  width: 34px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(7, 12, 20, 0.78);
+}
+
+.phone-frame--pixel-8-pro .phone-frame__sensor {
+  top: 19px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  background: #05070c;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.38);
+}
+
+.phone-frame--pixel-8-pro .phone-frame__side-button--action {
+  display: none;
+}
+
+.phone-frame--pixel-8-pro .phone-frame__side-button--volume-up {
+  top: 23%;
+  right: -3px;
+  height: 56px;
+}
+
+.phone-frame--pixel-8-pro .phone-frame__side-button--volume-down {
+  display: none;
+}
+
+.phone-frame--pixel-8-pro .phone-frame__side-button--power {
+  top: 34%;
+  right: -3px;
+  height: 34px;
+}
+
+.mobile-preview-device-switcher {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 248px);
+  z-index: 10;
+  display: grid;
+  gap: 4px;
+  width: 148px;
+  padding: 4px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.mobile-preview-device-switcher__item {
+  min-height: 38px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: #637187;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.mobile-preview-device-switcher__item:hover,
+.mobile-preview-device-switcher__item:focus-visible {
+  color: #1d4ed8;
+}
+
+.mobile-preview-device-switcher__item:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.34);
+  outline-offset: 1px;
+}
+
+.mobile-preview-device-switcher__item.is-active {
+  background: #e8f0ff;
+  color: #1d4ed8;
+}
+
+.mobile-preview-device-switcher__glyph {
+  width: 14px;
+  height: 22px;
+  justify-self: center;
+  position: relative;
+  border: 1.5px solid currentColor;
+  background: transparent;
+}
+
+.mobile-preview-device-switcher__glyph--iphone-12-pro {
+  border-radius: 4px;
+}
+
+.mobile-preview-device-switcher__glyph--iphone-12-pro::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 6px;
+  height: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.mobile-preview-device-switcher__glyph--pixel-8-pro {
+  border-radius: 3px;
+}
+
+.mobile-preview-device-switcher__glyph--pixel-8-pro::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 3px;
+  height: 3px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+body[data-theme="dark"] .mobile-preview-device-switcher {
+  border-color: rgba(140, 179, 255, 0.18);
+  background: rgba(21, 29, 42, 0.84);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme="dark"] .mobile-preview-device-switcher__item {
+  color: #aab8cd;
+}
+
+body[data-theme="dark"] .mobile-preview-device-switcher__item:hover,
+body[data-theme="dark"] .mobile-preview-device-switcher__item:focus-visible,
+body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
+  color: #8cb3ff;
+}
+
+body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
+  background: #172e5c;
+}
+
+@media (max-width: 980px) and (min-width: 761px) {
+  .mobile-preview-device-switcher {
+    top: 20px;
+    right: 12px;
+    left: auto;
+    transform: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .mobile-preview-device-switcher {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .mobile-preview-canvas {
     padding: 0;
@@ -6361,18 +6668,26 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
     width: 100%;
     height: 100dvh;
     max-height: none;
-    padding: 0.4rem;
-    border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
   .phone-frame--mobile-preview::before,
-  .phone-frame--mobile-preview .phone-screen {
-    border-radius: 0;
+  .phone-frame--mobile-preview::after,
+  .phone-frame--mobile-preview .phone-frame__side-button,
+  .phone-frame--mobile-preview .phone-frame__earpiece,
+  .phone-frame--mobile-preview .phone-frame__sensor {
+    display: none;
   }
 
-  .phone-frame--mobile-preview .phone-frame__notch {
-    top: 0.42rem;
+  .phone-frame--mobile-preview .phone-frame__screen-clip {
+    inset: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone-frame--mobile-preview .phone-screen--preview {
+    border-radius: 0;
   }
 }
 

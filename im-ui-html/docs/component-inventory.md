@@ -52,7 +52,9 @@
 
 结构：
 
-- device frame
+- 宽屏设备选择器：默认 `iPhone 12 Pro`，可切换 `Pixel 8 Pro`
+- device frame：独立的机身、侧键与顶部传感器装饰
+- screen clip：独立圆角裁切层，所有 App 内容、导航与 Toast 必须留在其中
 - status bar
 - full IM screen
 - embedded toast layer
@@ -60,6 +62,7 @@
 备注：
 
 - 这是设计源专用的单一手机容器，用来串联完整移动端交互。
+- 宽屏使用设备外壳进行尺寸和安全区审查；`640px` 以下直接显示 App，不展示外壳或切换器。
 - 容器内必须使用真实业务页面，不能再放移动端路线说明、组件说明或评审卡片。
 - 正式 App 不保留设备外框，但应继承其中的 App Shell、导航和页面层级。
 
