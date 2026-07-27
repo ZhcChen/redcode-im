@@ -15,16 +15,19 @@
 
 | Token | Value | 用途 |
 | --- | --- | --- |
-| `Primary` | `#00C2B3` | 主动作、激活态、关键强调；与 Flutter `AppColors.primary` 对齐 |
-| `Primary Strong` | `#008F83` | 主按钮深色端、文字强调 |
-| `Background` | `#F5F7F6` | 移动业务页基底背景 |
+| `Primary` | `#2563EB` | 主动作、激活态、关键强调；HTML 设计源的科技蓝主色 |
+| `Primary Strong` | `#1D4ED8` | 主按钮深色端、文字强调 |
+| `Primary Soft` | `#E8F0FF` | 激活 icon 背景、轻提示与低强调面层 |
+| `Background` | `#F5F7FB` | 移动业务页冷白蓝灰基底背景 |
 | `Surface` | `#FFFFFF` | 列表、设置分组、消息气泡 |
-| `Surface Soft` | `#EDF2F0` | 输入区、轻提示、次级容器 |
-| `Surface Muted` | `#E2E9E6` | 分隔线与更弱层级 |
-| `Text Primary` | `#17211E` | 主标题、正文 |
-| `Text Secondary` | `#72807B` | 摘要、说明、次级信息 |
-| `Divider` | `#E2E9E6` | 分隔线、描边 |
+| `Surface Soft` | `#EEF3FA` | 输入区、轻提示、次级容器 |
+| `Surface Muted` | `#E4EAF3` | 分隔线与更弱层级 |
+| `Text Primary` | `#172033` | 主标题、正文 |
+| `Text Secondary` | `#6F7D91` | 摘要、说明、次级信息 |
+| `Divider` | `rgba(22, 35, 57, 0.08)` | 列表内部弱分隔，不作为常态外框 |
 | `Danger` | `#F6695E` | 删除、未读提醒、危险操作 |
+
+深色模式的对应强调色为 `#5B8CFF / #8CB3FF / #172E5C`。本轮科技蓝只作用于 `im-ui-html/` 设计源；Flutter 当前 `AppColors.primary` 仍保持既有值，待视觉方向确认后单独映射。
 
 ## 字体
 
