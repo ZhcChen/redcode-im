@@ -143,6 +143,12 @@
     render();
   });
 
+  let resizeRenderTimer = 0;
+  window.addEventListener("resize", () => {
+    window.clearTimeout(resizeRenderTimer);
+    resizeRenderTimer = window.setTimeout(render, 120);
+  });
+
   root.addEventListener("click", handleClick);
   root.addEventListener("input", handleInput);
   root.addEventListener("change", handleChange);
@@ -364,23 +370,40 @@
     window.location.hash = nextHash;
   }
 
+  function isReviewOnlyRoute(route) {
+    return ["entry", "spec", "pc-design", "mobile-design"].includes(route.section);
+  }
+
+  function resolvePreviewMode(route) {
+    const requested = new URLSearchParams(window.location.search).get("mode");
+    if (requested === "review" || requested === "app") {
+      return requested;
+    }
+    if (isReviewOnlyRoute(route)) {
+      return "review";
+    }
+    return window.matchMedia("(max-width: 640px)").matches ? "app" : "review";
+  }
+
   function render() {
     applyBodyState();
     const route = parseRoute(currentPath());
     syncSelection(route);
-    const wideStage = isWideStageRoute(route);
-    const showPrototypeToolbar = route.section !== "entry" && route.section !== "spec";
+    const previewMode = resolvePreviewMode(route);
+    const runtimeMode = previewMode === "app" && !isReviewOnlyRoute(route);
+    const wideStage = !runtimeMode && isWideStageRoute(route);
+    const showPrototypeToolbar = !runtimeMode && route.section !== "entry" && route.section !== "spec";
     const fullBleedStage = route.section === "spec";
     const specWorkspace = route.section === "spec";
 
     root.innerHTML = `
-      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""}">
+      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""} ${runtimeMode ? "prototype-shell--app" : ""}" data-preview-mode="${previewMode}">
         ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
-        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""}">
+        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""} ${runtimeMode ? "prototype-main--app" : ""}">
           <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""}">
-            ${renderStage(route)}
+            ${renderStage(route, { runtimeMode })}
           </div>
-          ${renderRouteReview(route)}
+          ${runtimeMode ? "" : renderRouteReview(route)}
         </main>
       </div>
       ${renderToasts()}
@@ -498,7 +521,7 @@
     `;
   }
 
-  function renderStage(route) {
+  function renderStage(route, options = {}) {
     if (route.section === "entry") {
       return renderEntryStage();
     }
@@ -511,7 +534,7 @@
     if (route.section === "not-found") {
       return renderBrokenRouteStage(route);
     }
-    return renderPhone(route);
+    return renderPhone(route, options);
   }
 
   function renderEntryStage() {
@@ -811,18 +834,28 @@
     `;
   }
 
-  function renderPhone(route) {
-    return `
-      <section class="phone-frame" aria-label="移动端原型画布">
-        <div class="phone-frame__notch"></div>
-        <div class="phone-screen">
+  function renderPhone(route, options = {}) {
+    const screen = `
+      <div class="phone-screen ${options.runtimeMode ? "phone-screen--runtime" : ""}">
+        ${options.runtimeMode ? "" : `
           <div class="phone-status-bar">
             <span>9:41</span>
             <span>5G · 87%</span>
           </div>
-          ${renderRoute(route)}
-          ${renderTabBar(route)}
-        </div>
+        `}
+        ${renderRoute(route)}
+        ${renderTabBar(route)}
+      </div>
+    `;
+
+    if (options.runtimeMode) {
+      return `<section class="mobile-runtime" aria-label="移动端应用预览">${screen}</section>`;
+    }
+
+    return `
+      <section class="phone-frame" aria-label="移动端原型画布">
+        <div class="phone-frame__notch"></div>
+        ${screen}
       </section>
     `;
   }
@@ -853,23 +886,19 @@
     }
 
     return `
-      <nav class="tab-bar tab-bar--floating" aria-label="底部主导航">
-        <div class="tab-bar__capsule">
+      <nav class="runtime-tab-bar" aria-label="底部主导航">
+        <div class="runtime-tab-bar__items">
         ${items
           .map((item) => {
             const active = route.section === item.id;
             return `
               <button
-                class="tab-bar__item ${active ? "is-active" : ""}"
+                class="runtime-tab-bar__item ${active ? "is-active" : ""}"
                 data-action="navigate"
                 data-route="${item.route}"
               >
-                <span class="tab-bar__indicator"></span>
-                ${renderIcon(item.icon, "tab-bar__icon", item.title)}
-                <span class="tab-bar__copy">
-                  <span class="tab-bar__label">${escapeHtml(item.title)}</span>
-                  <span class="tab-bar__hint">${escapeHtml(item.hint)}</span>
-                </span>
+                <span class="runtime-tab-bar__icon">${renderIcon(item.icon, "runtime-tab-bar__glyph", item.title)}</span>
+                <span class="runtime-tab-bar__label">${escapeHtml(item.title)}</span>
               </button>
             `;
           })
@@ -962,7 +991,7 @@
       : "";
 
     return `
-      <header class="screen-header ${options.root ? "screen-header--root" : ""}">
+      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""}">
         ${backButton}
         <div class="screen-header__main">
           <h2>${escapeHtml(options.title)}</h2>
@@ -2434,131 +2463,79 @@
 
   function renderAuthScreen() {
     return `
-      <section class="screen screen--auth">
-        <div class="screen-scroll screen-scroll--auth">
-          <div class="auth-lockup">
-            <span class="prototype-toolbar__eyebrow">Mock Entry</span>
-            <h2>登录后直接进入真实主导航结构</h2>
-            <p>这里只保留移动端登录壳层，用来验证品牌、输入区和首屏层级。</p>
+      <section class="screen screen--auth runtime-auth-screen">
+        <div class="screen-scroll runtime-scroll runtime-auth-scroll">
+          <div class="runtime-auth-brand">
+            <span class="runtime-auth-brand__mark">R</span>
+            <span>RedCode IM</span>
           </div>
-          <form class="auth-card" data-form="login-form">
-            <label class="field">
+          <div class="runtime-auth-copy">
+            <h2>欢迎回来</h2>
+            <p>登录后继续与你的朋友保持联系。</p>
+          </div>
+          <form class="runtime-auth-form" data-form="login-form">
+            <label class="runtime-auth-field">
               <span>手机号</span>
-              <input class="field__input" name="phone" placeholder="请输入手机号" />
+              <input name="phone" inputmode="tel" autocomplete="tel" placeholder="请输入手机号" />
             </label>
-            <label class="field">
+            <label class="runtime-auth-field">
               <span>验证码</span>
-              <input class="field__input" name="otp" placeholder="输入 123456 即可" />
+              <input name="otp" inputmode="numeric" autocomplete="one-time-code" placeholder="请输入验证码" />
             </label>
-            <button class="primary-button" type="submit">进入原型</button>
-            <button
-              class="ghost-button ghost-button--wide"
-              type="button"
-              data-action="navigate"
-              data-route="/spec"
-            >
-              先看设计系统
-            </button>
+            <button class="runtime-auth-submit" type="submit">登录</button>
           </form>
+          <p class="runtime-auth-terms">登录即表示你已阅读并同意用户协议与隐私政策。</p>
         </div>
       </section>
     `;
   }
 
   function renderChatListScreen() {
-    const chats = sortedChats().filter(matchesChatFilter);
+    const chats = sortedChats();
     const unreadTotal = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
-    const pinnedCount = chats.filter((chat) => chat.pinned).length;
-    const mentionTotal = chats.reduce((sum, chat) => sum + (chat.metrics?.unreadMention || 0), 0);
-    const priorityChats = chats.filter((chat) => chat.pinned || chat.unread > 0);
-    const priorityIds = new Set(priorityChats.map((chat) => chat.id));
-    const recentChats = chats.filter((chat) => !priorityIds.has(chat.id));
+    const pinnedChats = chats.filter((chat) => chat.pinned);
+    const recentChats = chats.filter((chat) => !chat.pinned);
 
     return `
-      <section class="screen screen--tabbed screen--chats">
-        <div class="screen-scroll">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+        <div class="screen-scroll runtime-scroll">
           ${renderScreenHeader({
             title: "聊天",
-            subtitle: `未读 ${unreadTotal} · @我 ${mentionTotal} · 主导航一级入口`,
             root: true,
             actions: [
-              `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/search">搜索</button>`,
-              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "icon-button__glyph", "添加好友")}</button>`,
+              `<button class="runtime-icon-button" data-action="navigate" data-route="/search" aria-label="搜索消息">${renderIcon("search", "runtime-icon-button__glyph", "搜索")}</button>`,
+              `<button class="runtime-icon-button" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
             ],
           })}
-          <div class="screen-stack">
-            <section class="hero-card hero-card--tabbed hero-card--conversation-hub">
-              <div class="conversation-hub__headline">
-                <div>
-                  <p class="section-title">Inbox</p>
-                  <h3>先把高优先级会话拎到第一屏</h3>
-                  <p>会话列表只承担收件箱角色：读未读、看摘要、快速进入，不把复杂上下文堆回首页。</p>
-                </div>
-                <span class="badge badge--success">主线页</span>
-              </div>
-              <div class="conversation-hub__stats">
-                <span class="conversation-hub__stat">
-                  <strong>${unreadTotal}</strong>
-                  <span>未读消息</span>
-                </span>
-                <span class="conversation-hub__stat">
-                  <strong>${pinnedCount}</strong>
-                  <span>置顶会话</span>
-                </span>
-                <span class="conversation-hub__stat">
-                  <strong>${mentionTotal}</strong>
-                  <span>@我提醒</span>
-                </span>
-              </div>
-              <div class="inline-actions inline-actions--wide">
-                <button class="ghost-button" data-action="navigate" data-route="/groups/create">建群</button>
-                <button class="ghost-button" data-action="navigate" data-route="/search">搜消息</button>
-              </div>
-            </section>
-            <label class="search-box search-box--conversation">
-              <span>搜索会话、标签或最后一条消息</span>
-              <div class="search-box__field">
-                ${renderIcon("search", "search-box__icon", "搜索")}
-                <input
-                  id="chat-filter-input"
-                  class="search-box__input"
-                  value="${escapeHtml(state.chatFilter)}"
-                  placeholder="例如：发布、AI、设计"
-                />
-              </div>
-            </label>
+          <div class="runtime-list-content">
             ${
-              chats.length
-                ? `
-                  ${renderConversationSection("优先处理", "置顶和未读会话", "让真正需要处理的消息先占据第一屏。", priorityChats)}
-                  ${renderConversationSection("最近会话", "常规节奏与低噪音列表", "其余会话收敛为稳定节奏，不和高优先级抢层级。", recentChats)}
-                `
-                : renderEmptyState("没有匹配会话", "尝试切换关键词，或直接进入好友与群聊创建流程。")
+              unreadTotal
+                ? `<button class="runtime-unread-strip" data-action="navigate" data-route="/search"><span class="runtime-unread-strip__dot"></span><span>有 ${unreadTotal} 条未读消息</span><span class="runtime-unread-strip__arrow">查看</span></button>`
+                : ""
             }
+            ${renderConversationSection("置顶", pinnedChats)}
+            ${renderConversationSection(pinnedChats.length ? "全部消息" : "消息", recentChats)}
+            ${chats.length ? "" : renderEmptyState("暂无会话", "从联系人中发起一段新对话。")}
           </div>
         </div>
       </section>
     `;
   }
 
-  function renderConversationSection(label, title, note, chats) {
+  function renderConversationSection(title, chats) {
     if (!chats.length) {
       return "";
     }
 
     return `
-      <section class="conversation-section">
-        <div class="conversation-section__header">
-          <div class="conversation-section__copy">
-            <p class="section-title">${escapeHtml(label)}</p>
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(note)}</p>
-          </div>
-          <span class="badge">${chats.length} 个</span>
+      <section class="runtime-conversation-section">
+        <div class="runtime-section-heading">
+          <h3>${escapeHtml(title)}</h3>
+          <span>${chats.length}</span>
         </div>
-        <section class="list-card list-card--conversation">
+        <div class="runtime-conversation-list">
           ${chats.map((chat) => renderConversationRow(chat)).join("")}
-        </section>
+        </div>
       </section>
     `;
   }
@@ -2582,49 +2559,36 @@
   }
 
   function renderConversationRow(chat) {
-    const unread = chat.unread > 0 ? `<span class="badge badge--danger">${chat.unread}</span>` : "";
-    const active = state.activeChatId === chat.id;
-    const titlePills = [
-      chat.pinned ? `<span class="badge">置顶</span>` : "",
-      chat.muted ? `<span class="badge badge--muted">静音</span>` : "",
-      `<span class="chip ${chat.type === "group" ? "chip--filled" : ""}">${chatTypeLabel(chat)}</span>`,
-    ]
-      .filter(Boolean)
-      .join("");
-    const statusPills = [
-      ...(chat.tags || []).slice(0, 2).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`),
-      chat.metrics?.unreadMention ? `<span class="conversation-row__signal">@我 ${chat.metrics.unreadMention}</span>` : "",
-    ]
-      .filter(Boolean)
-      .join("");
+    const unread = chat.unread > 0 ? `<span class="runtime-unread-badge">${chat.unread}</span>` : "";
+    const context = chat.pinned
+      ? "置顶"
+      : chat.metrics?.unreadMention
+      ? `@我 ${chat.metrics.unreadMention}`
+      : chat.muted
+      ? "已静音"
+      : chat.type === "group"
+      ? "群聊"
+      : "";
 
     return `
       <button
-        class="conversation-row ${active ? "is-active" : ""}"
+        class="runtime-conversation"
         data-action="navigate"
         data-route="/chat/${chat.id}"
       >
-        <span class="conversation-row__avatar">
+        <span class="runtime-conversation__avatar">
           ${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}
-          <span class="conversation-row__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>
+          <span class="runtime-conversation__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>
         </span>
-        <span class="conversation-row__body">
-          <span class="conversation-row__top">
-            <span class="conversation-row__title-group">
-              <strong>${escapeHtml(chat.name)}</strong>
-              <span class="conversation-row__pills">${titlePills}</span>
-            </span>
-            <span class="conversation-row__right">
-              <span class="list-meta">${escapeHtml(chat.lastTime)}</span>
-              ${unread}
-            </span>
+        <span class="runtime-conversation__body">
+          <span class="runtime-conversation__top">
+            <strong>${escapeHtml(chat.name)}</strong>
+            <time>${escapeHtml(chat.lastTime)}</time>
           </span>
-          <span class="conversation-row__summary">${escapeHtml(chat.lastMessage)}</span>
-          <span class="conversation-row__bottom">
-            <span class="conversation-row__tags">
-              ${statusPills}
-            </span>
-            <span class="conversation-row__secondary">${escapeHtml(chatSecondaryLabel(chat))}</span>
+          <span class="runtime-conversation__summary">${escapeHtml(chat.lastMessage)}</span>
+          <span class="runtime-conversation__bottom">
+            <span>${escapeHtml(context)}</span>
+            ${unread}
           </span>
         </span>
       </button>
@@ -2640,139 +2604,74 @@
     const group = findGroupByChatId(chat.id);
     const targetContact = chat.type === "single" ? findDirectContact(chat) : null;
     const draft = state.chatDrafts[chat.id] || "";
-    const mentionCount = chat.metrics?.unreadMention || 0;
     const activePanel = state.composerPanel;
+    const contextualNote = group?.notice || chat.pinnedMessages?.[0] || "";
 
     return `
-      <section class="screen screen--chat-detail">
+      <section class="screen screen--chat-detail runtime-chat-screen">
         ${renderScreenHeader({
           title: chat.name,
           subtitle: group
-            ? `${group.memberCount} 位成员 · 在线 ${group.onlineCount}`
+            ? `${group.memberCount} 位成员`
             : targetContact
-            ? `${targetContact.title} · ${targetContact.status}`
-            : chat.description || "单聊",
+            ? targetContact.status
+            : "在线",
           backPath: "/chats",
           actions: [
             group
-              ? `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>`
+              ? `<button class="runtime-header-link" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>`
               : targetContact
-              ? `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/contacts/profile/${targetContact.id}">资料</button>`
+              ? `<button class="runtime-header-link" data-action="navigate" data-route="/contacts/profile/${targetContact.id}">资料</button>`
               : "",
           ].filter(Boolean),
         })}
-        <div class="screen-scroll screen-scroll--chat">
-          <div class="screen-stack screen-stack--tight screen-stack--chat-detail">
-            <section class="surface-card surface-card--chat-brief">
-              <div class="chat-brief">
-                <div class="chat-brief__top">
-                  <div class="chat-brief__copy">
-                    <p class="section-title">${group ? "Group Session" : "Direct Session"}</p>
-                    <h3>${group ? "主聊天区只保留必要上下文" : `${escapeHtml(chat.name)} 的对话主视图`}</h3>
-                    <p>${escapeHtml(group
-                      ? "群信息只保留成员、频次和共享文件摘要，消息流仍然是当前页主角。"
-                      : "资料和扩展入口继续下沉到二级页，当前页只承载消息与输入动作。")}</p>
-                  </div>
-                  <span class="badge ${group ? "" : "badge--success"}">${group ? "群聊" : "单聊"}</span>
-                </div>
-                <div class="chat-brief__metrics">
-                  <span class="hero-metric">
-                    <strong>${chat.messages.length}</strong>
-                    <span>当前消息</span>
-                  </span>
-                  <span class="hero-metric">
-                    <strong>${chat.metrics?.todayMessages || chat.messages.length}</strong>
-                    <span>今日流量</span>
-                  </span>
-                  <span class="hero-metric">
-                    <strong>${group ? group.memberCount : targetContact ? targetContact.status : "在线"}</strong>
-                    <span>${group ? "群成员" : "会话状态"}</span>
-                  </span>
-                </div>
-                <div class="chat-brief__chips">
-                  ${(chat.tags || []).map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
-                  ${mentionCount ? `<span class="chip chip--filled">@我 ${mentionCount}</span>` : ""}
-                  ${chat.files.length ? `<span class="chip">共享文件 ${chat.files.length}</span>` : ""}
-                  ${chat.pinnedMessages.length ? `<span class="chip">置顶 ${chat.pinnedMessages.length}</span>` : ""}
-                </div>
-              </div>
-            </section>
-            <section class="surface-banner ${group ? "" : "surface-banner--subtle"}">
-              <strong>${group ? "群公告" : "会话重点"}</strong>
-              <p>${escapeHtml(group ? group.notice : chat.description || "围绕单个联系人展开消息、文件与后续扩展能力。")}</p>
-              ${
-                chat.pinnedMessages.length
-                  ? `
-                    <div class="surface-banner__chips">
-                      ${chat.pinnedMessages
-                        .slice(0, 2)
-                        .map((item) => `<span class="chip">${escapeHtml(item)}</span>`)
-                        .join("")}
-                    </div>
-                  `
-                  : ""
-              }
-            </section>
-            <section class="message-stage">
-              <div class="message-stage__header">
-                <div class="message-stage__copy">
-                  <p class="section-title">Message Flow</p>
-                  <h3>消息主阅读区</h3>
-                  <p>时间分段、引用态和底部输入区共用同一套节奏。</p>
-                </div>
-                <span class="badge">${chat.messages.length} 条</span>
-              </div>
-              <div class="message-stage__summary">
-                <span class="chip chip--filled">最近更新 ${escapeHtml(chat.lastTime)}</span>
-                <span class="chip">${escapeHtml(chatSecondaryLabel(chat))}</span>
-                ${chat.pinned ? `<span class="chip">当前已置顶</span>` : ""}
-              </div>
-              <div class="message-list">
-                ${renderMessageTimeline(chat)}
-              </div>
-            </section>
+        <div class="screen-scroll runtime-scroll runtime-chat-scroll">
+          ${
+            contextualNote
+              ? `
+                <button class="runtime-announcement" data-action="show-hint" data-message="${escapeHtml(contextualNote)}">
+                  <span class="runtime-announcement__label">${group ? "群公告" : "置顶消息"}</span>
+                  <span class="runtime-announcement__text">${escapeHtml(contextualNote)}</span>
+                  <span class="runtime-announcement__arrow">›</span>
+                </button>
+              `
+              : ""
+          }
+          <div class="runtime-message-list">
+            ${renderMessageTimeline(chat)}
           </div>
         </div>
         ${renderComposerPanel()}
-        <form class="composer composer--chat" data-form="send-message" data-chat-id="${chat.id}">
-          <div class="composer__inner">
+        <form class="runtime-composer" data-form="send-message" data-chat-id="${chat.id}">
+          <div class="runtime-composer__inner">
             <button
-              class="icon-button icon-button--soft ${activePanel === "emoji" ? "is-active" : ""}"
+              class="runtime-composer__action ${activePanel === "emoji" ? "is-active" : ""}"
               type="button"
               data-action="toggle-composer-panel"
               data-panel="emoji"
+              aria-label="表情"
             >
-              ${renderIcon("emoji", "icon-button__glyph", "表情")}
+              ${renderIcon("emoji", "runtime-composer__glyph", "表情")}
             </button>
-            <label class="composer__field ${draft.trim() ? "is-filled" : ""} ${activePanel ? "is-panel-active" : ""}">
+            <label class="runtime-composer__field ${draft.trim() ? "is-filled" : ""}">
               <textarea
                 id="chat-draft-input"
                 rows="1"
-                placeholder="发送消息..."
+                placeholder="发消息"
                 data-chat-id="${chat.id}"
               >${escapeHtml(draft)}</textarea>
             </label>
             <button
-              class="icon-button icon-button--soft ${activePanel === "more" ? "is-active" : ""}"
+              class="runtime-composer__action ${activePanel === "more" ? "is-active" : ""}"
               type="button"
               data-action="toggle-composer-panel"
               data-panel="more"
+              aria-label="更多操作"
             >
-              ${renderIcon("plus", "icon-button__glyph", "更多")}
+              ${renderIcon("plus", "runtime-composer__glyph", "更多操作")}
             </button>
-            <button class="primary-button primary-button--small primary-button--composer" type="submit">发送</button>
-          </div>
-          <div class="composer__footer">
-            <span class="composer__hint">${activePanel === "emoji"
-              ? "发送后保持表情面板，验证连续输入时不跳回默认态。"
-              : activePanel === "more"
-              ? "附件面板保持当前上下文，避免发送后突然收回。"
-              : group
-              ? "输入区、面板和消息动效共享同一密度体系。"
-              : "占位态、输入态和附件态保持同一垂直节奏。"}
-            </span>
-            <button class="text-button" type="button" data-action="simulate-message" data-chat-id="${chat.id}">
-              模拟来消息
+            <button class="runtime-composer__send" type="submit" aria-label="发送消息">
+              ${renderIcon("send", "runtime-composer__send-icon", "发送消息")}
             </button>
           </div>
         </form>
@@ -2784,11 +2683,8 @@
     if (state.composerPanel === "emoji") {
       const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
       return `
-        <section class="composer-panel composer-panel--emoji">
-          <div class="composer-panel__header">
-            <strong>表情面板</strong>
-            <span>发送后保持当前面板，连续输入不跳态。</span>
-          </div>
+        <section class="runtime-composer-panel runtime-composer-panel--emoji">
+          <div class="runtime-composer-panel__header"><strong>表情</strong></div>
           <div class="emoji-grid">
             ${emojis
               .map(
@@ -2798,6 +2694,7 @@
                     type="button"
                     data-action="append-emoji"
                     data-emoji="${emoji}"
+                    aria-label="${emoji}"
                   >
                     ${emoji}
                   </button>
@@ -2811,24 +2708,20 @@
 
     if (state.composerPanel === "more") {
       const actions = [
-        ["图片", "从相册进入图片流"],
-        ["文件", "独立文件入口而不是塞进气泡里"],
-        ["拍摄", "优先对齐发送图片体验"],
-        ["位置", "后续扩展场景能力"],
+        ["图片", "选择图片"],
+        ["文件", "选择文件"],
+        ["拍摄", "打开相机"],
+        ["位置", "发送位置"],
       ];
       return `
-        <section class="composer-panel composer-panel--actions">
-          <div class="composer-panel__header">
-            <strong>更多操作</strong>
-            <span>先把图片、文件、拍摄和位置拆成独立入口。</span>
-          </div>
-          <div class="quick-action-grid quick-action-grid--compact">
+        <section class="runtime-composer-panel runtime-composer-panel--actions">
+          <div class="runtime-composer-panel__header"><strong>更多操作</strong></div>
+          <div class="runtime-composer-actions">
             ${actions
               .map(
                 (item) => `
-                  <button class="quick-action-card quick-action-card--mini" data-action="show-hint" data-message="${item[1]}">
-                    <strong>${item[0]}</strong>
-                    <span>${item[1]}</span>
+                  <button class="runtime-composer-action-card" data-action="show-hint" data-message="${item[1]}">
+                    <span>${item[0]}</span>
                   </button>
                 `,
               )
@@ -2913,92 +2806,46 @@
   }
 
   function renderContactsScreen() {
-    const groups = groupContacts(filteredContacts());
+    const sections = groupContacts(filteredContacts());
     const pendingIncoming = data.friendRequests.filter(
       (item) => item.type === "incoming" && item.status === "pending",
     ).length;
-    const onlineCount = data.contacts.filter((item) => item.status === "在线").length;
-    const zoneCount = new Set(data.contacts.map((item) => item.zone)).size;
 
     return `
-      <section class="screen screen--tabbed screen--contacts">
-        <div class="screen-scroll">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+        <div class="screen-scroll runtime-scroll">
           ${renderScreenHeader({
             title: "联系人",
-            subtitle: `在线 ${onlineCount} · 待处理 ${pendingIncoming} · ${zoneCount} 个协作组`,
             root: true,
             actions: [
-              `<button class="icon-button icon-button--soft" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "icon-button__glyph", "添加好友")}</button>`,
+              `<button class="runtime-icon-button" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
             ],
           })}
-          <div class="screen-stack">
-            <section class="hero-card hero-card--tabbed hero-card--contact-hub">
-              <div class="contact-hub__headline">
-                <div>
-                  <p class="section-title">Relationship Hub</p>
-                  <h3>把新的朋友、群聊和好友资料收进一个稳定入口</h3>
-                  <p>联系人页是关系工作台：先处理申请，再看分组和资料，聊天与建群从这里自然分叉。</p>
-                </div>
-                <span class="badge badge--success">关系页</span>
-              </div>
-              <div class="contact-hub__stats">
-                <span class="contact-hub__stat">
-                  <strong>${data.contacts.length}</strong>
-                  <span>好友</span>
-                </span>
-                <span class="contact-hub__stat">
-                  <strong>${pendingIncoming}</strong>
-                  <span>待处理申请</span>
-                </span>
-                <span class="contact-hub__stat">
-                  <strong>${onlineCount}</strong>
-                  <span>在线好友</span>
-                </span>
-              </div>
-              <div class="inline-actions inline-actions--wide">
-                <button class="ghost-button" data-action="navigate" data-route="/contacts/requests">新的朋友</button>
-                <button class="ghost-button" data-action="navigate" data-route="/groups/create">发起群聊</button>
-              </div>
-            </section>
-            <label class="search-box search-box--conversation">
-              <span>搜索联系人或直接进入添加好友</span>
-              <div class="search-box__field">
-                ${renderIcon("search", "search-box__icon", "搜索")}
-                <input
-                  id="contact-filter-input"
-                  class="search-box__input"
-                  value="${escapeHtml(state.contactFilter)}"
-                  placeholder="姓名、组别、职责"
-                />
-              </div>
+          <div class="runtime-list-content">
+            <div class="runtime-contact-shortcuts">
+              <button class="runtime-contact-shortcut" data-action="navigate" data-route="/contacts/requests">
+                <span class="runtime-contact-shortcut__icon">${renderIcon("contacts", "runtime-contact-shortcut__glyph", "新的朋友")}</span>
+                <span class="runtime-contact-shortcut__copy"><strong>新的朋友</strong><span>${pendingIncoming ? `${pendingIncoming} 条待处理` : "好友申请"}</span></span>
+                ${pendingIncoming ? `<span class="runtime-unread-badge">${pendingIncoming}</span>` : ""}
+              </button>
+              <button class="runtime-contact-shortcut" data-action="navigate" data-route="/groups">
+                <span class="runtime-contact-shortcut__icon">${renderIcon("chats", "runtime-contact-shortcut__glyph", "群聊")}</span>
+                <span class="runtime-contact-shortcut__copy"><strong>群聊</strong><span>${data.groups.length} 个群聊</span></span>
+                <span class="runtime-row-chevron">›</span>
+              </button>
+            </div>
+            <label class="runtime-search-field">
+              ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
+              <input
+                id="contact-filter-input"
+                value="${escapeHtml(state.contactFilter)}"
+                placeholder="搜索联系人"
+                aria-label="搜索联系人"
+              />
             </label>
-            <section class="contact-entry-grid">
-              <button class="contact-entry-card" data-action="navigate" data-route="/contacts/requests">
-                <span class="contact-entry-card__icon">新</span>
-                <span class="contact-entry-card__body">
-                  <span class="contact-entry-card__meta">Request Flow</span>
-                  <strong>新的朋友</strong>
-                  <span>${pendingIncoming ? `先处理 ${pendingIncoming} 条待确认关系` : "查看收到与发出的全部申请"}</span>
-                </span>
-                ${pendingIncoming ? `<span class="badge badge--danger">${pendingIncoming}</span>` : `<span class="list-arrow">→</span>`}
-              </button>
-              <button class="contact-entry-card" data-action="navigate" data-route="/groups">
-                <span class="contact-entry-card__icon">群</span>
-                <span class="contact-entry-card__body">
-                  <span class="contact-entry-card__meta">Group Entry</span>
-                  <strong>群聊</strong>
-                  <span>${data.groups.length} 个群组入口从联系人体系展开，建群也从这里继续。</span>
-                </span>
-                <span class="badge">${data.groups.length}</span>
-              </button>
-            </section>
-            <section class="surface-card surface-card--contact-directory">
-              <div class="surface-card__header">
-                <h3>联系人目录</h3>
-                <span class="badge">${groups.length} 组</span>
-              </div>
-              ${groups.length ? groups.map(renderContactSection).join("") : renderEmptyState("没有匹配联系人", "尝试清空关键词，或去添加好友页发起新申请。")}
-            </section>
+            <div class="runtime-contact-directory">
+              ${sections.length ? sections.map(renderContactSection).join("") : renderEmptyState("暂无联系人", "添加好友后会显示在这里。")}
+            </div>
           </div>
         </div>
       </section>
@@ -3007,57 +2854,22 @@
 
   function renderDiscoverScreen() {
     const discover = data.discover;
+    const moments = discover.entries.find((item) => item.id === "moments") || discover.entries[0];
+    const quickEntries = discover.entries.filter((item) => item.id !== moments.id);
+
     return `
-      <section class="screen screen--tabbed screen--discover">
-        <div class="screen-scroll">
-          ${renderScreenHeader({
-            title: "发现",
-            subtitle: `内容 ${discover.highlight.stats[0][1]} · 附近 ${discover.highlight.stats[1][1]} · 游戏 ${discover.highlight.stats[2][1]}`,
-            root: true,
-          })}
-          <div class="screen-stack">
-            <section class="hero-card hero-card--discover hero-card--discover-hub">
-              <div class="discover-hub__headline">
-                <div>
-                  <p class="section-title">Discover Hub</p>
-                  <h3>${escapeHtml(discover.highlight.summary)}</h3>
-                  <p>发现只负责“分发内容、快捷入口、弱关系、轻娱乐”，不再回塞到聊天和设置里。</p>
-                </div>
-                <span class="badge badge--success">一级入口</span>
-              </div>
-              <div class="discover-hub__stats">
-                ${discover.highlight.stats
-                  .map(
-                    (item) => `
-                      <span class="discover-hub__stat">
-                        <strong>${escapeHtml(item[1])}</strong>
-                        <span>${escapeHtml(item[0])}</span>
-                      </span>
-                    `,
-                  )
-                  .join("")}
-              </div>
-              <div class="inline-actions inline-actions--wide">
-                <button class="ghost-button" data-action="navigate" data-route="/discover/moments">看动态</button>
-                <button class="ghost-button" data-action="navigate" data-route="/discover/scan">去扫码</button>
-              </div>
-            </section>
-            <section class="discover-grid">
-              ${discover.entries.map(renderDiscoverEntryCard).join("")}
-            </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <div class="surface-card__header-copy">
-                  <h3>入口原则</h3>
-                  <p>四类场景各走各的任务流：内容、快捷动作、弱关系、轻娱乐。</p>
-                </div>
-                <span class="badge">一级导航</span>
-              </div>
-              <ul class="bullet-list">
-                <li>朋友圈负责内容消费和熟人动态，不回塞到聊天主列表里。</li>
-                <li>扫一扫和附近的人都属于弱关系和快捷入口，适合放到发现统一处理。</li>
-                <li>游戏先只做统一入口，后续小游戏大厅和房间再扩展。</li>
-              </ul>
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+        <div class="screen-scroll runtime-scroll">
+          ${renderScreenHeader({ title: "发现", root: true })}
+          <div class="runtime-list-content runtime-discover-content">
+            <button class="runtime-moments-card" data-action="navigate" data-route="${moments.route}">
+              <span class="runtime-moments-card__eyebrow">朋友圈</span>
+              <strong>看看朋友最近的动态</strong>
+              <span>${escapeHtml(moments.summary)}</span>
+              <span class="runtime-moments-card__meta">${escapeHtml(moments.badge)} 条新动态 <b>›</b></span>
+            </button>
+            <section class="runtime-discover-grid" aria-label="发现功能">
+              ${quickEntries.map(renderDiscoverEntryCard).join("")}
             </section>
           </div>
         </div>
@@ -3066,29 +2878,11 @@
   }
 
   function renderDiscoverEntryCard(item) {
-    const meta = discoverEntryMeta(item);
-
     return `
-      <button
-        class="discover-entry-card"
-        data-action="navigate"
-        data-route="${item.route}"
-      >
-        ${renderIcon(item.icon, "discover-entry-card__icon", item.title)}
-        <div class="discover-entry-card__body">
-          <div class="discover-entry-card__title">
-            <div class="discover-entry-card__title-copy">
-              <span class="discover-entry-card__meta">${escapeHtml(meta.label)}</span>
-              <strong>${escapeHtml(item.title)}</strong>
-            </div>
-            <span class="badge">${escapeHtml(item.badge)}</span>
-          </div>
-          <p>${escapeHtml(item.summary)}</p>
-          <div class="discover-entry-card__footer">
-            <span class="chip chip--filled">${escapeHtml(meta.keyword)}</span>
-            <span>${escapeHtml(meta.note)}</span>
-          </div>
-        </div>
+      <button class="runtime-discover-card" data-action="navigate" data-route="${item.route}">
+        <span class="runtime-discover-card__icon">${renderIcon(item.icon, "runtime-discover-card__glyph", item.title)}</span>
+        <strong>${escapeHtml(item.title)}</strong>
+        <span>${escapeHtml(item.badge)}</span>
       </button>
     `;
   }
@@ -3329,15 +3123,9 @@
 
   function renderContactSection(section) {
     return `
-      <section class="contact-section">
-        <div class="contact-section__header">
-          <div class="contact-section__copy">
-            <div class="contact-section__tag">${section.tag}</div>
-            <p>按姓名首字母快速定位资料与关系动作。</p>
-          </div>
-          <span class="badge">${section.items.length}</span>
-        </div>
-        <div class="list-card list-card--embedded">
+      <section class="runtime-contact-section">
+        <div class="runtime-contact-section__heading">${escapeHtml(section.tag)}</div>
+        <div class="runtime-contact-list">
           ${section.items.map((contact) => renderContactRow(contact)).join("")}
         </div>
       </section>
@@ -3345,34 +3133,21 @@
   }
 
   function renderContactRow(contact) {
-    const relatedGroups = groupsForContact(contact.id);
-
     return `
       <button
-        class="list-row list-row--contact"
+        class="runtime-contact-row"
         data-action="navigate"
         data-route="/contacts/profile/${contact.id}"
       >
-        <span class="contact-row__avatar">
+        <span class="runtime-contact-row__avatar">
           ${renderAvatar(contact.name, contact.tone, "avatar--md")}
-          <span class="contact-row__presence ${presenceClass(contact.status)}"></span>
+          <span class="runtime-contact-row__presence ${presenceClass(contact.status)}"></span>
         </span>
-        <span class="list-row__body">
-          <span class="list-row__title">
-            <strong>${escapeHtml(contact.name)}</strong>
-            <span class="contact-row__tail">
-              <span class="badge ${contact.status === "在线" ? "badge--success" : contact.status === "离开" ? "badge--muted" : ""}">${escapeHtml(contact.status)}</span>
-              <span class="list-arrow">→</span>
-            </span>
-          </span>
-          <span class="list-row__summary">${escapeHtml(contact.title)}</span>
-          <span class="contact-row__chips">
-            <span class="chip chip--filled">${escapeHtml(contact.zone)}</span>
-            <span class="chip">@${escapeHtml(contact.username)}</span>
-            ${relatedGroups.length ? `<span class="chip">共同群 ${relatedGroups.length}</span>` : ""}
-          </span>
-          <span class="list-row__note">${escapeHtml(contact.note)}</span>
+        <span class="runtime-contact-row__body">
+          <strong>${escapeHtml(contact.name)}</strong>
+          <span>${escapeHtml(contact.title)}</span>
         </span>
+        <span class="runtime-row-chevron">›</span>
       </button>
     `;
   }
@@ -4073,87 +3848,64 @@
 
   function renderSettingsScreen() {
     return `
-      <section class="screen screen--tabbed">
-        <div class="screen-scroll">
-          ${renderScreenHeader({
-            title: "设置",
-            subtitle: "主导航一级入口，承载账号、聊天与偏好",
-            root: true,
-          })}
-          <div class="screen-stack">
-            <section class="hero-card hero-card--tabbed">
-              <div class="hero-card__metric-row">
-                <span class="hero-metric">
-                  <strong>${themeLabel(state.theme)}</strong>
-                  <span>主题</span>
-                </span>
-                <span class="hero-metric">
-                  <strong>${densityLabel(state.density)}</strong>
-                  <span>密度</span>
-                </span>
-                <span class="hero-metric">
-                  <strong>6</strong>
-                  <span>偏好开关</span>
-                </span>
-              </div>
-            </section>
-            <section class="profile-hero">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+        <div class="screen-scroll runtime-scroll">
+          ${renderScreenHeader({ title: "设置", root: true })}
+          <div class="runtime-list-content runtime-settings-content">
+            <button class="runtime-profile-row" data-action="show-hint" data-message="个人资料编辑入口">
               ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
-              <div class="profile-hero__body">
-                <h3>${escapeHtml(data.currentUser.name)}</h3>
-                <p>${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</p>
-                <div class="chip-row">
-                  <span class="chip chip--filled">${themeLabel(state.theme)}</span>
-                  <span class="chip">${densityLabel(state.density)}</span>
-                </div>
-              </div>
+              <span class="runtime-profile-row__body">
+                <strong>${escapeHtml(data.currentUser.name)}</strong>
+                <span>${escapeHtml(data.currentUser.role)}</span>
+              </span>
+              <span class="runtime-row-chevron">›</span>
+            </button>
+            <section class="runtime-settings-group">
+              <h3>消息通知</h3>
+              ${renderRuntimeSwitchRow("mentions", "提及通知", data.settings.notifications.mentions, "notifications")}
+              ${renderRuntimeSwitchRow("summaries", "消息摘要", data.settings.notifications.summaries, "notifications")}
+              ${renderRuntimeSwitchRow("fileAlerts", "文件提醒", data.settings.notifications.fileAlerts, "notifications")}
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>显示偏好</h3>
-                <span class="badge">Prototype</span>
-              </div>
-              <div class="settings-block">
-                <div class="settings-row">
-                  <span>主题</span>
-                  <div class="segmented">
-                    ${renderThemeButton("light", "浅色")}
-                    ${renderThemeButton("dark", "深色")}
-                  </div>
-                </div>
-                <div class="settings-row">
-                  <span>密度</span>
-                  <div class="segmented">
-                    ${renderDensityButton("regular", "2K")}
-                    ${renderDensityButton("mid", "1.5K")}
-                    ${renderDensityButton("compact", "1K")}
-                  </div>
-                </div>
-              </div>
+            <section class="runtime-settings-group">
+              <h3>隐私</h3>
+              ${renderRuntimeSwitchRow("readReceipt", "已读回执", data.settings.privacy.readReceipt, "privacy")}
+              ${renderRuntimeSwitchRow("typingStatus", "正在输入", data.settings.privacy.typingStatus, "privacy")}
+              ${renderRuntimeSwitchRow("autoDownloadMedia", "自动下载媒体", data.settings.privacy.autoDownloadMedia, "privacy")}
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>消息与隐私</h3>
-                <span class="badge">可持久化</span>
-              </div>
-              <div class="switch-stack">
-                ${renderSwitchRow("mentions", "提及通知", data.settings.notifications.mentions, "notifications")}
-                ${renderSwitchRow("summaries", "消息摘要", data.settings.notifications.summaries, "notifications")}
-                ${renderSwitchRow("fileAlerts", "文件提醒", data.settings.notifications.fileAlerts, "notifications")}
-                ${renderSwitchRow("readReceipt", "已读回执", data.settings.privacy.readReceipt, "privacy")}
-                ${renderSwitchRow("typingStatus", "正在输入", data.settings.privacy.typingStatus, "privacy")}
-                ${renderSwitchRow("autoDownloadMedia", "自动下载媒体", data.settings.privacy.autoDownloadMedia, "privacy")}
-              </div>
-            </section>
-            <section class="settings-list">
-              ${renderMenuRow("账号与安全", "手机号、设备管理、登录态", true)}
-              ${renderMenuRow("聊天", "字体、通知、搜索与存储策略", true)}
-              ${renderMenuRow("隐私协议", "协议与数据使用说明", true)}
-              ${renderMenuRow("关于 Chatly", "品牌、版本与反馈入口", true)}
+            <section class="runtime-settings-group runtime-settings-group--links">
+              ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理")}
+              ${renderRuntimeSettingsLink("聊天", "聊天背景与存储")}
+              ${renderRuntimeSettingsLink("隐私协议", "协议与数据使用说明")}
+              ${renderRuntimeSettingsLink("关于 RedCode IM", "版本与反馈")}
             </section>
           </div>
         </div>
       </section>
+    `;
+  }
+
+  function renderRuntimeSwitchRow(key, label, checked, scope) {
+    return `
+      <label class="runtime-setting-row runtime-setting-row--switch">
+        <span>${escapeHtml(label)}</span>
+        <input
+          class="switch-row__input"
+          type="checkbox"
+          data-kind="setting-toggle"
+          data-scope="${scope}"
+          data-key="${key}"
+          ${checked ? "checked" : ""}
+        />
+      </label>
+    `;
+  }
+
+  function renderRuntimeSettingsLink(title, description) {
+    return `
+      <button class="runtime-setting-row runtime-setting-row--link" data-action="show-hint" data-message="${escapeHtml(description)}">
+        <span class="runtime-setting-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
+        <span class="runtime-row-chevron">›</span>
+      </button>
     `;
   }
 
@@ -4758,7 +4510,7 @@
 
     const content = (state.chatDrafts[chatId] || "").trim();
     if (!content) {
-      showToast("发送失败", "先输入一条 mock 消息再发送。");
+      showToast("发送失败", "请先输入一条消息。");
       return;
     }
 
@@ -4779,7 +4531,7 @@
     promoteChat(chat);
     state.chatDrafts[chatId] = "";
     state.recentMessageId = message.id;
-    showToast("消息已发送", "新的 mock 消息已经进入当前会话流。");
+    showToast("消息已发送", "消息已加入当前会话。");
     render();
   }
 
@@ -4798,7 +4550,7 @@
       senderId: sender ? sender.id : "u_bot",
       senderName: sender ? sender.name : "Ops Copilot",
       senderTone: sender ? sender.tone : "violet",
-      content: "这是模拟新消息，用来验证消息入场动画和列表节奏。",
+      content: "收到一条新消息。",
       time: "刚刚",
       self: false,
       reactions: [{ emoji: "👀", count: 1 }],
@@ -4809,7 +4561,7 @@
     chat.unread = 0;
     promoteChat(chat);
     state.recentMessageId = message.id;
-    showToast("模拟来消息", "已插入一条自下而上的新消息。");
+    showToast("新消息", "已收到一条新消息。");
     render();
   }
 
@@ -4922,7 +4674,7 @@
       return;
     }
     if (action === "show-hint") {
-      showToast("原型说明", target.getAttribute("data-message") || "该能力将在正式重构阶段继续展开。");
+      showToast("提示", target.getAttribute("data-message") || "该功能暂不可用。");
       return;
     }
     if (action === "send-friend-request") {
@@ -4964,32 +4716,55 @@
     }
   }
 
+  let filterRenderTimer = 0;
+
+  function scheduleFilterRender(target) {
+    const inputId = target.id;
+    const caretPosition = typeof target.selectionStart === "number"
+      ? target.selectionStart
+      : target.value.length;
+
+    window.clearTimeout(filterRenderTimer);
+    filterRenderTimer = window.setTimeout(() => {
+      render();
+      window.requestAnimationFrame(() => {
+        const nextInput = document.getElementById(inputId);
+        if (!(nextInput instanceof HTMLInputElement || nextInput instanceof HTMLTextAreaElement)) {
+          return;
+        }
+        nextInput.focus({ preventScroll: true });
+        const nextCaretPosition = Math.min(caretPosition, nextInput.value.length);
+        nextInput.setSelectionRange(nextCaretPosition, nextCaretPosition);
+      });
+    }, 120);
+  }
+
   function handleInput(event) {
     const target = event.target;
 
     if (target.id === "chat-filter-input") {
       state.chatFilter = target.value;
-      render();
+      scheduleFilterRender(target);
       return;
     }
     if (target.id === "contact-filter-input") {
       state.contactFilter = target.value;
-      render();
+      scheduleFilterRender(target);
       return;
     }
     if (target.id === "friend-search-input") {
       state.friendSearch = target.value;
-      render();
+      scheduleFilterRender(target);
       return;
     }
     if (target.id === "global-search-input") {
       state.searchQuery = target.value;
-      render();
+      scheduleFilterRender(target);
       return;
     }
     if (target.id === "group-member-filter-input") {
       state.groupMemberFilter = target.value;
-      render();
+      scheduleFilterRender(target);
       return;
     }
     if (target.id === "group-name-input") {
@@ -5037,7 +4812,7 @@
     const formKind = form.getAttribute("data-form");
     if (formKind === "login-form") {
       event.preventDefault();
-      showToast("已进入原型", "登录流程为 mock，重点是移动端信息架构与 UI 细节。");
+      showToast("登录成功", "欢迎回来。");
       navigate("/chats");
       return;
     }

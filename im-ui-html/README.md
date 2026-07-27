@@ -80,6 +80,23 @@ python3 -m http.server 8020
 http://127.0.0.1:8020/#/entry
 ```
 
+## 预览模式
+
+- **桌面评审**：桌面宽度下访问业务路由时，默认保留工具条、主题/密度控制和手机机框；也可显式使用 `?mode=review`。
+- **手机运行态**：`640px` 以下的业务路由会直接显示应用界面，不再嵌套评审工具条或手机机框。
+- **强制手机运行态**：在桌面浏览器中使用 `index.html?mode=app#/chats`，会显示居中的移动应用画布，便于单页检查。
+
+常用入口：
+
+```text
+#/auth/login
+#/chats
+#/chat/c_room_launch
+#/contacts
+#/discover
+#/settings
+```
+
 ## 推荐评审路径
 
 1. 先看 `#/entry`，确认 3 个总入口是否清楚。
