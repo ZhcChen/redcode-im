@@ -2497,7 +2497,7 @@
     const recentChats = chats.filter((chat) => !chat.pinned);
 
     return `
-      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-screen--chat-list">
         <div class="screen-scroll runtime-scroll">
           ${renderScreenHeader({
             title: "聊天",
@@ -2526,7 +2526,6 @@
       <section class="runtime-conversation-section">
         <div class="runtime-section-heading">
           <h3>${escapeHtml(title)}</h3>
-          <span>${chats.length}</span>
         </div>
         <div class="runtime-conversation-list">
           ${chats.map((chat) => renderConversationRow(chat)).join("")}
@@ -2564,6 +2563,7 @@
       : chat.type === "group"
       ? "群聊"
       : "";
+    const contextLabel = context ? `<span class="runtime-conversation__context">${escapeHtml(context)}</span>` : "";
 
     return `
       <button
@@ -2576,15 +2576,15 @@
           <span class="runtime-conversation__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>
         </span>
         <span class="runtime-conversation__body">
-          <span class="runtime-conversation__top">
-            <strong>${escapeHtml(chat.name)}</strong>
-            <time>${escapeHtml(chat.lastTime)}</time>
+          <strong>${escapeHtml(chat.name)}</strong>
+          <span class="runtime-conversation__summary">
+            ${contextLabel}
+            <span class="runtime-conversation__summary-text">${escapeHtml(chat.lastMessage)}</span>
           </span>
-          <span class="runtime-conversation__summary">${escapeHtml(chat.lastMessage)}</span>
-          <span class="runtime-conversation__bottom">
-            <span>${escapeHtml(context)}</span>
-            ${unread}
-          </span>
+        </span>
+        <span class="runtime-conversation__meta">
+          <time>${escapeHtml(chat.lastTime)}</time>
+          ${unread}
         </span>
       </button>
     `;
