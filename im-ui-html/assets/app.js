@@ -234,7 +234,18 @@
     }
 
     if (segments[0] === "mobile-design") {
-      return { section: "mobile-design" };
+      const previewSegments = segments.slice(1);
+      const previewPath = previewSegments.length ? `/${previewSegments.join("/")}` : "/chats";
+      const nestedRoute = parseRoute(previewPath);
+      const previewRoute = ["entry", "spec", "pc-design", "mobile-design", "not-found"].includes(nestedRoute.section)
+        ? { section: "chats" }
+        : nestedRoute;
+
+      return {
+        section: "mobile-design",
+        previewPath: previewRoute === nestedRoute ? previewPath : "/chats",
+        previewRoute,
+      };
     }
 
     if (segments[0] === "auth") {
@@ -345,20 +356,45 @@
     ].includes(section);
   }
 
+  function resolveMobilePreviewRoute(route) {
+    return route.section === "mobile-design" && route.previewRoute ? route.previewRoute : route;
+  }
+
   function syncSelection(route) {
-    if (route.chatId && findChat(route.chatId)) {
-      state.activeChatId = route.chatId;
+    const selectedRoute = resolveMobilePreviewRoute(route);
+    if (selectedRoute.chatId && findChat(selectedRoute.chatId)) {
+      state.activeChatId = selectedRoute.chatId;
     }
-    if (route.contactId && findContact(route.contactId)) {
-      state.activeContactId = route.contactId;
+    if (selectedRoute.contactId && findContact(selectedRoute.contactId)) {
+      state.activeContactId = selectedRoute.contactId;
     }
-    if (route.groupId && findGroup(route.groupId)) {
-      state.activeGroupId = route.groupId;
+    if (selectedRoute.groupId && findGroup(selectedRoute.groupId)) {
+      state.activeGroupId = selectedRoute.groupId;
     }
   }
 
+  function resolveNavigationPath(path) {
+    const requestedPath = path && path.startsWith("/") ? path : `/${path || "entry"}`;
+    const currentRoute = parseRoute(currentPath());
+
+    if (currentRoute.section !== "mobile-design") {
+      return requestedPath;
+    }
+
+    if (
+      requestedPath === "/entry" ||
+      requestedPath === "/spec" ||
+      requestedPath === "/pc-design" ||
+      requestedPath.startsWith("/mobile-design")
+    ) {
+      return requestedPath;
+    }
+
+    return `/mobile-design${requestedPath}`;
+  }
+
   function navigate(path, options) {
-    const nextPath = path || "/entry";
+    const nextPath = resolveNavigationPath(path);
     if (!options || !options.keepHighlight) {
       state.highlightMessageId = null;
     }
@@ -389,24 +425,25 @@
     applyBodyState();
     const route = parseRoute(currentPath());
     syncSelection(route);
-    const previewMode = resolvePreviewMode(route);
-    const runtimeMode = previewMode === "app" && !isReviewOnlyRoute(route);
-    const wideStage = !runtimeMode && isWideStageRoute(route);
-    const showPrototypeToolbar = !runtimeMode && route.section !== "entry" && route.section !== "spec";
+    const mobilePreviewMode = route.section === "mobile-design";
+    const previewMode = mobilePreviewMode ? "device" : resolvePreviewMode(route);
+    const runtimeMode = !mobilePreviewMode && previewMode === "app" && !isReviewOnlyRoute(route);
+    const wideStage = !runtimeMode && !mobilePreviewMode && isWideStageRoute(route);
+    const showPrototypeToolbar = !runtimeMode && !mobilePreviewMode && route.section !== "entry" && route.section !== "spec";
     const fullBleedStage = route.section === "spec";
     const specWorkspace = route.section === "spec";
 
     root.innerHTML = `
-      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""} ${runtimeMode ? "prototype-shell--app" : ""}" data-preview-mode="${previewMode}">
+      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""} ${runtimeMode ? "prototype-shell--app" : ""} ${mobilePreviewMode ? "prototype-shell--mobile-preview" : ""}" data-preview-mode="${previewMode}">
         ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
-        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""} ${runtimeMode ? "prototype-main--app" : ""}">
-          <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""}">
-            ${renderStage(route, { runtimeMode })}
+        <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""} ${runtimeMode ? "prototype-main--app" : ""} ${mobilePreviewMode ? "prototype-main--mobile-preview" : ""}">
+          <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""} ${mobilePreviewMode ? "prototype-stage--mobile-preview" : ""}">
+            ${renderStage(route, { runtimeMode, mobilePreviewMode })}
           </div>
-          ${runtimeMode ? "" : renderRouteReview(route)}
+          ${runtimeMode || mobilePreviewMode ? "" : renderRouteReview(route)}
         </main>
       </div>
-      ${renderToasts()}
+      ${mobilePreviewMode ? "" : renderToasts()}
     `;
   }
 
@@ -530,6 +567,9 @@
     }
     if (route.section === "pc-design") {
       return renderPCDesignStage();
+    }
+    if (route.section === "mobile-design") {
+      return renderMobileDesignScreen(route);
     }
     if (route.section === "not-found") {
       return renderBrokenRouteStage(route);
@@ -733,110 +773,26 @@
     `;
   }
 
-  function renderMobileDesignScreen() {
-    const system = data.designSystem;
+  function renderMobileDesignScreen(route) {
+    const previewRoute = resolveMobilePreviewRoute(route);
 
     return `
-      <section class="screen">
-        ${renderScreenHeader({
-          title: "移动端 UI 设计",
-          subtitle: "从这里进入手机端主导航与关键二级链路",
-          root: true,
-          actions: [
-            `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/spec">规范页</button>`,
-          ],
-        })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--accent">
-              <span class="eyebrow">Mobile Blueprint</span>
-              <h3>${escapeHtml(system.mobileBlueprint.headline)}</h3>
-              <p>当前移动端主线继续围绕聊天、联系人、发现、设置四个一级入口收敛，再向搜索、建群、资料、申请等二级页发散。</p>
-              <div class="chip-row">
-                <span class="chip chip--filled">聊天输入区优先</span>
-                <span class="chip chip--filled">发现正式一级入口</span>
-                <span class="chip chip--filled">手机单列主流程</span>
-              </div>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>一级入口</h3>
-                <span class="badge">${system.mobileBlueprint.routes.length}</span>
-              </div>
-              <div class="mobile-hub-grid">
-                ${system.mobileBlueprint.routes
-                  .map(
-                    (item, index) => `
-                      <button class="mobile-hub-card" data-action="navigate" data-route="${item.route}">
-                        <span class="mobile-hub-card__index">0${index + 1}</span>
-                        <strong>${escapeHtml(item.title)}</strong>
-                        <span>${escapeHtml(item.note)}</span>
-                      </button>
-                    `,
-                  )
-                  .join("")}
-              </div>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>关键二级链路</h3>
-                <span class="badge">Secondary</span>
-              </div>
-              <div class="quick-action-grid quick-action-grid--compact">
-                ${system.mobileBlueprint.secondary
-                  .map(
-                    (item) => `
-                      <button class="quick-action-card quick-action-card--mini" data-action="navigate" data-route="${item.route}">
-                        <strong>${escapeHtml(item.title)}</strong>
-                        <span>${escapeHtml(item.note)}</span>
-                      </button>
-                    `,
-                  )
-                  .join("")}
-              </div>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>移动端壳层</h3>
-                <span class="badge">App Shell</span>
-              </div>
-              ${renderShellPreview()}
-              <p class="surface-caption">移动端入口页只做导航和重点链路分发，不把真实聊天主视图直接塞进入口首页。</p>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>底部导航正式稿</h3>
-                <span class="badge">Capsule</span>
-              </div>
-              ${renderMobileNavPreview("discover")}
-              <p class="surface-caption">图标、标题、辅助语义三层一起收敛，active / inactive 不再靠临时字符占位。</p>
-            </section>
-
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>优先封装组件</h3>
-                <span class="badge">UI Kit</span>
-              </div>
-              <div class="page-map">
-                ${system.componentInventory
-                  .slice(0, 8)
-                  .map((item) => `<span class="page-map__item">${escapeHtml(item.title)}</span>`)
-                  .join("")}
-              </div>
-            </section>
-          </div>
-        </div>
+      <section class="mobile-preview-canvas" aria-label="RedCode IM 移动端预览">
+        ${renderPhone(previewRoute, { devicePreview: true })}
       </section>
     `;
   }
 
   function renderPhone(route, options = {}) {
+    const screenClasses = [
+      "phone-screen",
+      options.runtimeMode ? "phone-screen--runtime" : "",
+      options.devicePreview ? "phone-screen--preview" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     const screen = `
-      <div class="phone-screen ${options.runtimeMode ? "phone-screen--runtime" : ""}">
+      <div class="${screenClasses}">
         ${options.runtimeMode ? "" : `
           <div class="phone-status-bar">
             <span>9:41</span>
@@ -845,6 +801,7 @@
         `}
         ${renderRoute(route)}
         ${renderTabBar(route)}
+        ${options.devicePreview ? renderToasts({ embedded: true }) : ""}
       </div>
     `;
 
@@ -853,7 +810,7 @@
     }
 
     return `
-      <section class="phone-frame" aria-label="移动端原型画布">
+      <section class="phone-frame ${options.devicePreview ? "phone-frame--mobile-preview" : ""}" aria-label="移动端原型画布">
         <div class="phone-frame__notch"></div>
         ${screen}
       </section>
@@ -911,9 +868,6 @@
   function renderRoute(route) {
     if (route.section === "spec") {
       return renderSpecScreen();
-    }
-    if (route.section === "mobile-design") {
-      return renderMobileDesignScreen();
     }
     if (route.section === "auth") {
       return renderAuthScreen(route);
@@ -1120,7 +1074,7 @@
         <div class="preview-surface preview-surface--shell">
           <p class="section-title">App Shell + Tab Bar</p>
           ${renderShellPreview()}
-          <p class="surface-caption">壳层只做四件事：Safe Area、Root App Bar、内容滚动区、底部胶囊导航。</p>
+          <p class="surface-caption">壳层只做四件事：Safe Area、Root App Bar、内容滚动区、稳定底栏。</p>
         </div>
         <div class="preview-surface">
           <p class="section-title">Search Box + Chip</p>
@@ -1937,7 +1891,7 @@
           </section>
           <section class="surface-card">
             <div class="surface-card__header">
-              <h3>胶囊导航预览</h3>
+              <h3>底部导航预览</h3>
               <span class="badge">Active / Inactive</span>
             </div>
             ${renderMobileNavPreview("discover")}
@@ -1960,7 +1914,7 @@
           <section class="surface-card">
             <div class="surface-card__header">
               <h3>底部导航</h3>
-              <span class="badge">Capsule</span>
+              <span class="badge">Stable Tab Bar</span>
             </div>
             ${renderMobileNavPreview("chats")}
             <p class="surface-caption">底部主导航固定为聊天 / 联系人 / 发现 / 设置四个一级入口。</p>
@@ -4021,12 +3975,12 @@
     }
     if (route.section === "mobile-design") {
       return {
-        title: "移动端入口验证点",
-        label: "Mobile",
+        title: "移动端设备预览验证点",
+        label: "Device",
         items: [
-          "移动端入口页只负责组织聊天、联系人、发现、设置等主链路，不替代真实业务首页。",
-          "一级入口与二级链路的层次要清楚，建群、搜索、资料和申请都应从主入口自然下沉。",
-          "底部胶囊导航、聊天输入区和列表项要统一进同一套组件语言。",
+          "页面外只保留一个手机容器，不展示设计说明、工具条或验证卡。",
+          "聊天、联系人、发现、设置和二级页面都必须在容器内完成跳转。",
+          "稳定底栏、消息输入区和容器内提示都使用同一套产品组件语言。",
         ],
       };
     }
@@ -4596,12 +4550,12 @@
     }, 2800);
   }
 
-  function renderToasts() {
+  function renderToasts(options = {}) {
     if (!state.toasts.length) {
       return "";
     }
     return `
-      <aside class="toast-stack" aria-live="polite">
+      <aside class="toast-stack ${options.embedded ? "toast-stack--embedded" : ""}" aria-live="polite">
         ${state.toasts
           .map(
             (toast) => `
@@ -4662,7 +4616,7 @@
       return;
     }
     if (action === "append-emoji") {
-      const route = parseRoute(currentPath());
+      const route = resolveMobilePreviewRoute(parseRoute(currentPath()));
       if (route.section === "chat-detail" && route.chatId) {
         state.chatDrafts[route.chatId] = `${state.chatDrafts[route.chatId] || ""}${target.getAttribute("data-emoji")}`;
         render();

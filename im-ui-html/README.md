@@ -30,7 +30,7 @@
 - `#/entry`：设计源总入口
 - `#/spec`：设计系统页
 - `#/pc-design`：PC 端蓝图页
-- `#/mobile-design`：移动端链路总览页
+- `#/mobile-design`：独立移动端设备预览，默认进入聊天首页
 
 ## 业务原型路由
 
@@ -82,17 +82,19 @@ http://127.0.0.1:8020/#/entry
 
 ## 预览模式
 
-- **桌面评审**：桌面宽度下访问业务路由时，默认保留工具条、主题/密度控制和手机机框；也可显式使用 `?mode=review`。
-- **手机运行态**：`640px` 以下的业务路由会直接显示应用界面，不再嵌套评审工具条或手机机框。
+- **独立手机预览**：`#/mobile-design` 始终只显示一个可操作的手机容器，默认载入聊天首页；聊天、联系人、发现、设置及其二级页面都在该容器内跳转。
+- **预览内深链**：使用 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts` 等地址可直接打开对应页面，且不会回到设计评审壳。
+- **桌面评审**：桌面宽度下访问普通业务路由时，默认保留工具条、主题/密度控制和手机机框；也可显式使用 `?mode=review`。
+- **手机运行态**：`640px` 以下的普通业务路由会直接显示应用界面，不再嵌套评审工具条或手机机框。
 - **强制手机运行态**：在桌面浏览器中使用 `index.html?mode=app#/chats`，会显示居中的移动应用画布，便于单页检查。
 
 常用入口：
 
 ```text
+#/mobile-design
+#/mobile-design/chat/c_room_launch
+#/mobile-design/contacts
 #/auth/login
-#/chats
-#/chat/c_room_launch
-#/contacts
 #/discover
 #/settings
 ```
@@ -101,11 +103,11 @@ http://127.0.0.1:8020/#/entry
 
 1. 先看 `#/entry`，确认 3 个总入口是否清楚。
 2. 再看 `#/spec`，确认 tokens、icon、组件预览、页面地图和密度策略。
-3. 再看 `#/mobile-design`，确认移动端一级入口与关键二级链路组织。
-4. 再看 `#/chats` -> `#/chat/c_room_launch`，确认列表页与详情页拆分是否稳定。
-5. 再看 `#/contacts`、`#/contacts/requests`、`#/contacts/add`、`#/contacts/profile/u_alice`。
-6. 再看 `#/discover`、`#/discover/moments`、`#/discover/scan`，确认发现正式进入一级主链路。
-7. 再看 `#/groups/create`、`#/groups/settings/g_launch`、`#/settings`。
+3. 再看 `#/mobile-design`，确认单一手机容器内的聊天首页、底栏和二级页面跳转。
+4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/discover`、`#/mobile-design/settings`，确认完整 IM 流程始终留在设备容器内。
+5. 再看 `#/mobile-design/contacts/requests`、`#/mobile-design/contacts/add`、`#/mobile-design/contacts/profile/u_alice`，确认联系人二级页仍留在设备容器内。
+6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`，确认发现链路仍是同一容器内的一级流程。
+7. 再看 `#/mobile-design/groups/create`、`#/mobile-design/groups/settings/g_launch`，确认建群与群设置不跳出预览壳。
 8. 最后看 `#/pc-design`，确认桌面工作台不是手机页拉伸。
 
 ## 当前范围

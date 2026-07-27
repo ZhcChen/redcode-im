@@ -6,12 +6,28 @@
 
 | Route | 作用 | 说明 |
 | --- | --- | --- |
-| `#/entry` | 总入口 | 分流到规范页、PC 蓝图页、移动端入口页 |
+| `#/entry` | 总入口 | 分流到规范页、PC 蓝图页与移动端设备预览 |
 | `#/spec` | 规范源 | 展示 token、icon、组件、流转 |
 | `#/pc-design` | 桌面蓝图 | 展示桌面三栏工作台结构 |
-| `#/mobile-design` | 移动总览 | 展示手机一级入口与关键二级链路 |
+| `#/mobile-design` | 移动端设备预览 | 只显示一个可交互的手机容器，默认进入聊天首页；不显示设计说明或评审侧栏 |
 
-## 2. 移动端业务地图
+## 2. 独立移动端预览
+
+`#/mobile-design` 是设计源内的完整手机设备画布，不是业务页之外的说明页。
+
+| Route | 说明 |
+| --- | --- |
+| `#/mobile-design` | 默认显示聊天首页 |
+| `#/mobile-design/chats` | 会话列表 |
+| `#/mobile-design/chat/:chatId` | 聊天详情 |
+| `#/mobile-design/contacts` | 联系人 |
+| `#/mobile-design/discover` | 发现 |
+| `#/mobile-design/settings` | 设置 |
+| `#/mobile-design/<业务路径>` | 将任意已注册的移动业务路径保留在同一手机容器内 |
+
+容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。
+
+## 3. 移动端业务地图
 
 ### 一级导航
 
@@ -62,7 +78,7 @@
 | `#/lab` | 扩展总览 |
 | `#/lab/:moduleId` | 扩展模块详情 |
 
-## 3. 桌面蓝图地图
+## 4. 桌面蓝图地图
 
 `#/pc-design` 当前不是完整桌面产品页，而是桌面形态说明画布。
 
@@ -79,18 +95,18 @@
 - 先固定桌面信息分区
 - 为后续 Flutter desktop shell 提供布局基线
 
-## 4. 推荐评审顺序
+## 5. 推荐评审顺序
 
 ### 面向设计评审
 
 1. `#/entry`
 2. `#/spec`
 3. `#/mobile-design`
-4. `#/chats`
-5. `#/chat/c_room_launch`
-6. `#/contacts`
-7. `#/groups/create`
-8. `#/discover`
+4. `#/mobile-design/chat/c_room_launch`
+5. `#/mobile-design/contacts`
+6. `#/mobile-design/groups/create`
+7. `#/mobile-design/discover`
+8. `#/mobile-design/settings`
 9. `#/pc-design`
 
 ### 面向 Flutter 实施
@@ -101,14 +117,14 @@
 4. 读 `flutter-handoff.md`
 5. 再进入 `app/` 做主线重构
 
-## 5. 正式 Flutter Route 映射建议
+## 6. 正式 Flutter Route 映射建议
 
 | HTML 设计源 Route | Flutter 运行时建议 |
 | --- | --- |
 | `#/entry` | 不进入正式 runtime；保留在 HTML 设计源 |
 | `#/spec` | 不进入正式 runtime；必要时做 debug-only preview |
 | `#/pc-design` | 映射为 desktop shell 蓝图，不直接作为正式产品路由 |
-| `#/mobile-design` | 作为设计说明页，不直接进入正式 runtime |
+| `#/mobile-design` | 仅作为 HTML 设计源内的设备预览壳，不直接作为正式产品路由 |
 | `#/auth/login` | `auth/login` |
 | `#/chats` | `home/chats` |
 | `#/chat/:chatId` | `chat/detail/:chatId` |
@@ -123,11 +139,11 @@
 | `#/search` | `search/messages` |
 | `#/settings` | `home/settings` |
 
-## 6. 页面地图维护规则
+## 7. 页面地图维护规则
 
 - 新增一级入口时，必须同步更新：
   - `#/entry`
-  - `#/mobile-design`
+  - `#/mobile-design` 及对应 `#/mobile-design/<业务路径>`
   - 本文件
   - `flutter-handoff.md`
 - 新增二级链路时，必须同步更新：

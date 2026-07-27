@@ -44,7 +44,7 @@
 - 这是设计源入口专用组件，不属于正式业务页面。
 - 视觉语言可复用到后续引导卡片，但不应直接照搬为 IM 业务主卡片。
 
-### 2. 移动入口卡片 `Mobile Hub Card`
+### 2. 移动设备预览壳 `Mobile Device Preview`
 
 使用位置：
 
@@ -52,14 +52,16 @@
 
 结构：
 
-- index
-- title
-- note
+- device frame
+- status bar
+- full IM screen
+- embedded toast layer
 
 备注：
 
-- 这是移动端链路总览组件，用于设计评审。
-- 正式 App 可以不保留该页面，但其层级关系必须映射到实际导航结构。
+- 这是设计源专用的单一手机容器，用来串联完整移动端交互。
+- 容器内必须使用真实业务页面，不能再放移动端路线说明、组件说明或评审卡片。
+- 正式 App 不保留设备外框，但应继承其中的 App Shell、导航和页面层级。
 
 ### 3. 发现入口卡片 `Discover Entry Card`
 
