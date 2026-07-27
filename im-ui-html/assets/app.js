@@ -3511,9 +3511,7 @@
   function renderCreateGroupScreen() {
     const contacts = filteredContacts().filter(matchesGroupMemberFilter);
     const selectedMembers = data.contacts.filter((contact) => state.createGroupMembers.has(contact.id));
-    const selectedMemberChips = selectedMembers
-      .map((contact) => `<span class="runtime-group-create__member-chip">${escapeHtml(contact.name)}</span>`)
-      .join("");
+    const selectedMemberNames = selectedMembers.map((contact) => escapeHtml(contact.name)).join("、");
 
     return `
       <section class="screen runtime-screen runtime-group-create-screen">
@@ -3521,33 +3519,28 @@
           title: "创建群聊",
           backPath: "/groups",
         })}
-        <div class="screen-scroll runtime-scroll runtime-group-create-scroll">
-          <form id="group-create-form" class="runtime-group-create-form" data-form="create-group-form">
-            <section class="runtime-group-create__section">
-              <div class="runtime-section-heading">
-                <h3>群聊名称</h3>
-              </div>
-              <label class="runtime-group-create__name-field">
-                <input
-                  id="group-name-input"
-                  value="${escapeHtml(state.createGroupName)}"
-                  placeholder="输入群聊名称"
-                  aria-label="群聊名称"
-                />
-              </label>
-            </section>
-            <section class="runtime-group-create__section">
-              <div class="runtime-section-heading">
-                <h3>已选成员</h3>
+        <form id="group-create-form" class="runtime-group-create-form" data-form="create-group-form">
+          <section class="runtime-group-create__identity">
+            <div class="runtime-section-heading">
+              <h3>群聊名称</h3>
+            </div>
+            <label class="runtime-group-create__name-field">
+              <input
+                id="group-name-input"
+                value="${escapeHtml(state.createGroupName)}"
+                placeholder="输入群聊名称"
+                aria-label="群聊名称"
+              />
+            </label>
+          </section>
+          <section class="runtime-group-create__picker" aria-label="邀请成员">
+            <div class="runtime-group-create__picker-toolbar">
+              <div class="runtime-group-create__selection" role="status" aria-live="polite">
+                <span class="runtime-group-create__selection-copy">
+                  <strong>已选成员</strong>
+                  <span class="runtime-group-create__selection-summary">${selectedMemberNames || "从下方选择联系人"}</span>
+                </span>
                 <span class="runtime-group-create__member-count">${selectedMembers.length} 人</span>
-              </div>
-              <div class="runtime-group-create__selected-members">
-                ${selectedMemberChips || `<span class="runtime-group-create__empty-selection">从下方选择联系人</span>`}
-              </div>
-            </section>
-            <section class="runtime-group-create__section runtime-group-create__section--members">
-              <div class="runtime-section-heading">
-                <h3>邀请成员</h3>
               </div>
               <label class="runtime-search-field runtime-group-create__search">
                 ${renderIcon("search", "runtime-search-field__icon", "筛选成员")}
@@ -3558,12 +3551,12 @@
                   aria-label="筛选成员"
                 />
               </label>
-              <div class="runtime-contact-list runtime-member-picker">
-                ${contacts.length ? contacts.map(renderMemberPickerRow).join("") : renderEmptyState("未找到联系人", "调整搜索条件后重试。")}
-              </div>
-            </section>
-          </form>
-        </div>
+            </div>
+            <div class="runtime-contact-list runtime-member-picker">
+              ${contacts.length ? contacts.map(renderMemberPickerRow).join("") : renderEmptyState("未找到联系人", "调整搜索条件后重试。")}
+            </div>
+          </section>
+        </form>
         <div class="runtime-group-create__footer">
           <button class="runtime-group-create__submit" type="submit" form="group-create-form">创建并进入群聊</button>
         </div>
@@ -4793,6 +4786,16 @@
     }
   }
 
+  function restoreGroupMemberPickerScroll(scrollTop) {
+    window.requestAnimationFrame(() => {
+      const picker = root.querySelector(".runtime-member-picker");
+      if (!(picker instanceof HTMLElement)) {
+        return;
+      }
+      picker.scrollTop = Math.min(scrollTop, Math.max(0, picker.scrollHeight - picker.clientHeight));
+    });
+  }
+
   function handleChange(event) {
     const target = event.target;
 
@@ -4805,6 +4808,8 @@
     }
 
     if (target.getAttribute("data-kind") === "group-member") {
+      const picker = root.querySelector(".runtime-member-picker");
+      const scrollTop = picker instanceof HTMLElement ? picker.scrollTop : 0;
       const contactId = target.getAttribute("data-contact-id");
       if (target.checked) {
         state.createGroupMembers.add(contactId);
@@ -4812,6 +4817,7 @@
         state.createGroupMembers.delete(contactId);
       }
       render();
+      restoreGroupMemberPickerScroll(scrollTop);
     }
   }
 
