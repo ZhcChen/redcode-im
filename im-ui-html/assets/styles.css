@@ -5184,7 +5184,6 @@ body[data-theme="dark"] .phone-screen {
 .runtime-discover-card,
 .runtime-setting-row,
 .runtime-profile-row,
-.runtime-unread-strip,
 .runtime-announcement,
 .runtime-moments-card,
 .runtime-composer-action-card {
@@ -5229,33 +5228,6 @@ body[data-theme="dark"] .phone-screen {
 .runtime-list-content {
   display: grid;
   gap: 18px;
-}
-
-.runtime-unread-strip {
-  width: 100%;
-  min-height: 38px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 8px;
-  color: var(--runtime-accent-deep);
-  background: var(--runtime-accent-soft);
-  font-size: 13px;
-  text-align: left;
-}
-
-.runtime-unread-strip__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--runtime-accent);
-  flex: 0 0 auto;
-}
-
-.runtime-unread-strip__arrow {
-  margin-left: auto;
-  font-weight: 650;
 }
 
 .runtime-conversation-section,
@@ -6731,12 +6703,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 .phone-screen .runtime-header-link {
   min-height: 40px;
   padding: 0 12px;
-  border-radius: var(--runtime-radius-control);
-}
-
-.phone-screen .runtime-unread-strip {
-  min-height: 42px;
-  padding: 0 14px;
   border-radius: var(--runtime-radius-control);
 }
 

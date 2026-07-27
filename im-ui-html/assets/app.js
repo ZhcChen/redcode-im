@@ -2493,7 +2493,6 @@
 
   function renderChatListScreen() {
     const chats = sortedChats();
-    const unreadTotal = chats.reduce((sum, chat) => sum + (chat.unread || 0), 0);
     const pinnedChats = chats.filter((chat) => chat.pinned);
     const recentChats = chats.filter((chat) => !chat.pinned);
 
@@ -2509,11 +2508,6 @@
             ],
           })}
           <div class="runtime-list-content">
-            ${
-              unreadTotal
-                ? `<button class="runtime-unread-strip" data-action="navigate" data-route="/search"><span class="runtime-unread-strip__dot"></span><span>有 ${unreadTotal} 条未读消息</span><span class="runtime-unread-strip__arrow">查看</span></button>`
-                : ""
-            }
             ${renderConversationSection("置顶", pinnedChats)}
             ${renderConversationSection(pinnedChats.length ? "全部消息" : "消息", recentChats)}
             ${chats.length ? "" : renderEmptyState("暂无会话", "从联系人中发起一段新对话。")}
