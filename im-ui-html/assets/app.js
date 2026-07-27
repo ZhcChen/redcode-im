@@ -3510,56 +3510,62 @@
 
   function renderCreateGroupScreen() {
     const contacts = filteredContacts().filter(matchesGroupMemberFilter);
-    const selectedNames = data.contacts
-      .filter((contact) => state.createGroupMembers.has(contact.id))
-      .map((contact) => `<span class="chip chip--filled">${escapeHtml(contact.name)}</span>`)
+    const selectedMembers = data.contacts.filter((contact) => state.createGroupMembers.has(contact.id));
+    const selectedMemberChips = selectedMembers
+      .map((contact) => `<span class="runtime-group-create__member-chip">${escapeHtml(contact.name)}</span>`)
       .join("");
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-group-create-screen">
         ${renderScreenHeader({
           title: "创建群聊",
-          subtitle: "真实移动端流程：命名、选人、创建后进入群会话",
           backPath: "/groups",
         })}
-        <div class="screen-scroll">
-          <form class="screen-stack" data-form="create-group-form">
-            <section class="surface-card">
-              <label class="field">
-                <span>群聊名称</span>
+        <div class="screen-scroll runtime-scroll runtime-group-create-scroll">
+          <form id="group-create-form" class="runtime-group-create-form" data-form="create-group-form">
+            <section class="runtime-group-create__section">
+              <div class="runtime-section-heading">
+                <h3>群聊名称</h3>
+              </div>
+              <label class="runtime-group-create__name-field">
                 <input
                   id="group-name-input"
-                  class="field__input"
                   value="${escapeHtml(state.createGroupName)}"
                   placeholder="输入群聊名称"
+                  aria-label="群聊名称"
                 />
               </label>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
+            <section class="runtime-group-create__section">
+              <div class="runtime-section-heading">
                 <h3>已选成员</h3>
-                <span class="badge">${state.createGroupMembers.size}</span>
+                <span class="runtime-group-create__member-count">${selectedMembers.length} 人</span>
               </div>
-              <div class="chip-row">
-                ${selectedNames || `<span class="empty-inline">至少选择 1 位好友</span>`}
+              <div class="runtime-group-create__selected-members">
+                ${selectedMemberChips || `<span class="runtime-group-create__empty-selection">从下方选择联系人</span>`}
               </div>
             </section>
-            <section class="surface-card">
-              <label class="search-box">
-                <span>筛选成员</span>
+            <section class="runtime-group-create__section runtime-group-create__section--members">
+              <div class="runtime-section-heading">
+                <h3>邀请成员</h3>
+              </div>
+              <label class="runtime-search-field runtime-group-create__search">
+                ${renderIcon("search", "runtime-search-field__icon", "筛选成员")}
                 <input
                   id="group-member-filter-input"
-                  class="search-box__input"
                   value="${escapeHtml(state.groupMemberFilter)}"
-                  placeholder="姓名、组别或职责"
+                  placeholder="搜索联系人"
+                  aria-label="筛选成员"
                 />
               </label>
-              <div class="member-picker">
-                ${contacts.map(renderMemberPickerRow).join("")}
+              <div class="runtime-contact-list runtime-member-picker">
+                ${contacts.length ? contacts.map(renderMemberPickerRow).join("") : renderEmptyState("未找到联系人", "调整搜索条件后重试。")}
               </div>
             </section>
-            <button class="primary-button" type="submit">创建并进入群聊</button>
           </form>
+        </div>
+        <div class="runtime-group-create__footer">
+          <button class="runtime-group-create__submit" type="submit" form="group-create-form">创建并进入群聊</button>
         </div>
       </section>
     `;
@@ -3568,22 +3574,24 @@
   function renderMemberPickerRow(contact) {
     const checked = state.createGroupMembers.has(contact.id);
     return `
-      <label class="list-row list-row--checkable">
-        ${renderAvatar(contact.name, contact.tone, "avatar--md")}
-        <span class="list-row__body">
-          <span class="list-row__title">
-            <strong>${escapeHtml(contact.name)}</strong>
-            <span class="badge">${escapeHtml(contact.status)}</span>
-          </span>
-          <span class="list-row__summary">${escapeHtml(contact.title)}</span>
+      <label class="runtime-contact-row runtime-member-picker__row">
+        <span class="runtime-contact-row__avatar">
+          ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+          <span class="runtime-contact-row__presence ${presenceClass(contact.status)}"></span>
         </span>
+        <span class="runtime-contact-row__body">
+          <strong>${escapeHtml(contact.name)}</strong>
+          <span>${escapeHtml(contact.title)}</span>
+        </span>
+        <span class="runtime-member-picker__status">${escapeHtml(contact.status)}</span>
         <input
-          class="checkbox"
+          class="runtime-member-picker__control"
           type="checkbox"
           data-kind="group-member"
           data-contact-id="${contact.id}"
           ${checked ? "checked" : ""}
         />
+        <span class="runtime-member-picker__check" aria-hidden="true"></span>
       </label>
     `;
   }
