@@ -1567,9 +1567,9 @@
           </div>
         </div>
         <div class="root-page-preview__setting-list">
-          <div class="root-page-preview__setting-row"><span>我的群聊</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>设置</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>隐私协议</span><span class="root-page-preview__chevron"></span></div>
         </div>
       `;
     }
@@ -3914,19 +3914,9 @@
   }
 
   function renderMineScreen() {
-    const groupCount = data.groups.length;
-    const chatCount = data.chats.length;
-
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-mine-screen">
         <div class="screen-scroll runtime-scroll">
-          ${renderScreenHeader({
-            title: "我的",
-            root: true,
-            actions: [
-              `<button class="runtime-icon-button" data-action="navigate" data-route="/settings" aria-label="设置">${renderIcon("settings", "runtime-icon-button__glyph", "设置")}</button>`,
-            ],
-          })}
           <div class="runtime-list-content runtime-mine-content">
             <button class="runtime-mine-profile" data-action="navigate" data-route="/mine/profile">
               <span class="runtime-mine-profile__avatar">
@@ -3940,16 +3930,6 @@
               </span>
               <span class="runtime-row-chevron">›</span>
             </button>
-            <section class="runtime-mine-stats" aria-label="我的概览">
-              ${renderMineStat(groupCount, "我的群聊", "/groups")}
-              ${renderMineStat(chatCount, "进行中会话", "/chats")}
-              ${renderMineStat("1", "登录设备", "/settings/account")}
-            </section>
-            <section class="runtime-settings-group runtime-mine-group">
-              <h3>常用</h3>
-              ${renderMineMenuLink("我的群聊", `${groupCount} 个群聊`, "chats", "/groups")}
-              ${renderMineMenuLink("消息搜索", "查找会话中的消息", "search", "/search")}
-            </section>
             <section class="runtime-settings-group runtime-mine-group">
               <h3>账号与服务</h3>
               ${renderMineMenuLink("账号与安全", "当前设备已受保护", "profile", "/settings/account")}
@@ -3963,15 +3943,6 @@
           </div>
         </div>
       </section>
-    `;
-  }
-
-  function renderMineStat(value, label, route) {
-    return `
-      <button class="runtime-mine-stat" data-action="navigate" data-route="${route}">
-        <strong>${escapeHtml(value)}</strong>
-        <span>${escapeHtml(label)}</span>
-      </button>
     `;
   }
 
@@ -4313,8 +4284,8 @@
         title: "我的页验证点",
         label: "Mine",
         items: [
-          "一级页优先呈现身份、个人概览和高频服务，避免直接堆叠设置开关。",
-          "资料、群聊、消息搜索和设置入口都必须进入真实业务链路。",
+          "一级页以资料、账号安全和设置入口为核心，不混入静态统计或聊天快捷操作。",
+          "个人资料、账号安全、设置和支持入口都必须进入真实业务链路。",
           "设置下沉为二级页后，底栏仍只保留四个稳定入口。",
         ],
       };

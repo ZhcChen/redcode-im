@@ -5177,7 +5177,6 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-mine-profile,
-.runtime-mine-stat,
 .runtime-mine-menu-row {
   border: 0;
   cursor: pointer;
@@ -5919,6 +5918,10 @@ body[data-theme="dark"] .phone-screen {
   gap: 16px;
 }
 
+.runtime-mine-screen .runtime-scroll {
+  padding-top: 16px;
+}
+
 .runtime-mine-profile {
   width: 100%;
   min-height: 116px;
@@ -5986,46 +5989,6 @@ body[data-theme="dark"] .phone-screen {
   font-weight: 650;
 }
 
-.runtime-mine-stats {
-  overflow: hidden;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-radius: 18px;
-  background: var(--runtime-surface);
-}
-
-.runtime-mine-stat {
-  min-width: 0;
-  min-height: 78px;
-  padding: 12px 8px;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 3px;
-  background: var(--runtime-surface);
-  color: var(--runtime-ink);
-  text-align: center;
-}
-
-.runtime-mine-stat + .runtime-mine-stat {
-  box-shadow: inset 1px 0 0 var(--runtime-line);
-}
-
-.runtime-mine-stat strong {
-  font-size: 18px;
-  font-weight: 720;
-  line-height: 1.2;
-}
-
-.runtime-mine-stat span {
-  overflow: hidden;
-  max-width: 100%;
-  color: var(--runtime-muted);
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .runtime-mine-menu-row {
   width: 100%;
   min-height: 62px;
@@ -6085,7 +6048,6 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-mine-profile:active,
-.runtime-mine-stat:active,
 .runtime-mine-menu-row:active {
   background: var(--runtime-soft);
 }
@@ -7290,10 +7252,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 
 .phone-screen .runtime-mine-profile {
   border-radius: var(--runtime-radius-feature);
-}
-
-.phone-screen .runtime-mine-stats {
-  border-radius: var(--runtime-radius-surface);
 }
 
 .phone-screen .runtime-mine-menu-row {
