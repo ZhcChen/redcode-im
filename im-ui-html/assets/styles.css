@@ -6091,20 +6091,12 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-mine-profile__body .runtime-mine-profile__bio {
-  display: -webkit-box;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   color: var(--runtime-muted);
   font-size: 12px;
   line-height: 1.35;
-  white-space: normal;
-}
-
-.runtime-mine-profile__body small {
-  color: var(--runtime-accent-deep);
-  font-size: 12px;
-  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .runtime-mine-menu-row {

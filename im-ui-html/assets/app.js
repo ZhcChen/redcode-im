@@ -3952,7 +3952,6 @@
                 <strong>${escapeHtml(data.currentUser.name)}</strong>
                 <span>${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</span>
                 <span class="runtime-mine-profile__bio">${escapeHtml(data.currentUser.bio)}</span>
-                <small>查看个人资料</small>
               </span>
               ${renderRowChevron()}
             </button>
