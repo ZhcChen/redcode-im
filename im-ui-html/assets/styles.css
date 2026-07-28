@@ -3461,8 +3461,7 @@ body[data-theme="dark"] .spec-stage {
 .special-entry + .special-entry,
 .list-row + .list-row,
 .search-result-row + .search-result-row,
-.menu-row + .menu-row,
-.group-card + .group-card {
+.menu-row + .menu-row {
   border-top: 1px solid var(--line);
 }
 
@@ -3976,10 +3975,6 @@ body[data-theme="dark"] .spec-stage {
   box-shadow: var(--shadow-soft);
 }
 
-.group-card {
-  padding: 0.95em 0;
-}
-
 .hero-card--request-hub,
 .hero-card--add-friend {
   gap: 0.8em;
@@ -4190,23 +4185,20 @@ body[data-theme="dark"] .spec-stage {
   line-height: 1.48;
 }
 
-.request-card__header,
-.group-card__header {
+.request-card__header {
   display: flex;
   gap: 0.8em;
   align-items: flex-start;
 }
 
-.request-card__body,
-.group-card__body {
+.request-card__body {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 0.34em;
 }
 
-.request-card__body p,
-.group-card__body p {
+.request-card__body p {
   margin: 0;
 }
 
@@ -5504,6 +5496,41 @@ body[data-theme="dark"] .phone-screen {
   box-shadow: none;
 }
 
+.runtime-group-avatar {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 13px;
+  background: var(--runtime-line);
+  box-shadow: inset 0 0 0 1px var(--runtime-line);
+}
+
+.runtime-conversation__avatar .runtime-group-avatar__tile.avatar {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  justify-self: stretch;
+  border-radius: 0;
+  font-size: 10px;
+  box-shadow: none;
+}
+
+.runtime-group-avatar__more {
+  display: grid;
+  place-items: center;
+  background: var(--runtime-soft);
+  color: var(--runtime-muted);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .runtime-conversation__presence,
 .runtime-contact-row__presence {
   position: absolute;
@@ -6740,7 +6767,6 @@ body[data-theme="dark"] .phone-screen .switch-row__input {
 .phone-screen--runtime .screen:not(.runtime-screen) .list-card,
 .phone-screen--runtime .screen:not(.runtime-screen) .settings-list,
 .phone-screen--runtime .screen:not(.runtime-screen) .request-card,
-.phone-screen--runtime .screen:not(.runtime-screen) .group-card,
 .phone-screen--runtime .screen:not(.runtime-screen) .moment-card,
 .phone-screen--runtime .screen:not(.runtime-screen) .scan-shell {
   border-color: var(--runtime-line);
@@ -6757,8 +6783,7 @@ body[data-theme="dark"] .phone-screen .switch-row__input {
 
 .phone-screen--runtime .screen:not(.runtime-screen) .surface-card__header h3,
 .phone-screen--runtime .screen:not(.runtime-screen) .list-row__title strong,
-.phone-screen--runtime .screen:not(.runtime-screen) .request-card__title strong,
-.phone-screen--runtime .screen:not(.runtime-screen) .group-card__title strong {
+.phone-screen--runtime .screen:not(.runtime-screen) .request-card__title strong {
   color: var(--runtime-ink);
 }
 
@@ -6868,7 +6893,6 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
 .phone-screen--preview .screen:not(.runtime-screen) .list-card,
 .phone-screen--preview .screen:not(.runtime-screen) .settings-list,
 .phone-screen--preview .screen:not(.runtime-screen) .request-card,
-.phone-screen--preview .screen:not(.runtime-screen) .group-card,
 .phone-screen--preview .screen:not(.runtime-screen) .moment-card,
 .phone-screen--preview .screen:not(.runtime-screen) .scan-shell {
   border-color: var(--runtime-line);
@@ -6885,8 +6909,7 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
 
 .phone-screen--preview .screen:not(.runtime-screen) .surface-card__header h3,
 .phone-screen--preview .screen:not(.runtime-screen) .list-row__title strong,
-.phone-screen--preview .screen:not(.runtime-screen) .request-card__title strong,
-.phone-screen--preview .screen:not(.runtime-screen) .group-card__title strong {
+.phone-screen--preview .screen:not(.runtime-screen) .request-card__title strong {
   color: var(--runtime-ink);
 }
 
@@ -7324,6 +7347,17 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   border-radius: 14px;
 }
 
+.phone-screen .runtime-conversation__avatar .runtime-group-avatar__tile.avatar {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  justify-self: stretch;
+  border-radius: 0;
+  font-size: 10px;
+}
+
 .phone-screen .runtime-contact-row__avatar .avatar {
   width: 46px;
   height: 46px;
@@ -7498,7 +7532,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 .phone-screen--preview .screen:not(.runtime-screen) .list-card,
 .phone-screen--preview .screen:not(.runtime-screen) .settings-list,
 .phone-screen--preview .screen:not(.runtime-screen) .request-card,
-.phone-screen--preview .screen:not(.runtime-screen) .group-card,
 .phone-screen--preview .screen:not(.runtime-screen) .moment-card,
 .phone-screen--preview .screen:not(.runtime-screen) .scan-shell {
   border: 0;

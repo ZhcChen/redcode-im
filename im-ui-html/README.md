@@ -46,7 +46,7 @@
 - `#/contacts/requests`：好友申请
 - `#/contacts/add`：添加好友
 - `#/contacts/profile/:contactId`：联系人详情
-- `#/groups`：群组概览
+- `#/groups`：群会话目录
 - `#/groups/create`：创建群聊
 - `#/groups/settings/:groupId`：群设置
 - `#/search`：消息搜索

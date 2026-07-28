@@ -58,7 +58,7 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/groups` | 群组概览 |
+| `#/groups` | 已加入群会话目录：复用聊天会话行与 2 × 2 成员复合头像，整行进入群聊 |
 | `#/groups/create` | 创建群聊 |
 | `#/groups/settings/:groupId` | 群设置 |
 

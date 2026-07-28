@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
 | `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
-| `Conversation Cell` | 会话、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted` | `Reusable list tile + leading avatar + trailing meta` |
+| `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual` | `Shared search field + optional context label` |
@@ -106,7 +106,26 @@
 - 目录栏仅在滚动后显示弱分隔与阴影；不使用二级页返回式居中标题。
 - 不引入嵌套滚动；字母索引仅在真实分组数量足够多时再启用。
 
-### 5. 好友申请决策卡 `Friend Request Decision Card`
+### 5. 群会话行 `Group Conversation Cell`
+
+使用位置：
+
+- `#/groups`
+- `#/chats` 中的群聊会话
+
+结构：
+
+- 2 × 2 成员复合头像，最多展示四位代表成员；已知成员不足四位时可用余量格表示更多成员
+- 群名称、最后消息摘要、时间与未读状态
+- 整行进入群会话
+
+备注：
+
+- 群目录复用 `Conversation Cell` 的单行节奏，不再使用公告、标签、并列动作组成的资料卡。
+- 群设置从列表下沉到群会话顶部资料入口，避免与“进入聊天”竞争主操作。
+- 群成员关系不是联系人条目；联系人页仅提供进入群目录的快捷入口。
+
+### 6. 好友申请决策卡 `Friend Request Decision Card`
 
 使用位置：
 
@@ -125,7 +144,7 @@
 - 每条申请是独立决策单元，必须由单独表面卡片承载，不能将多条申请塞进一个连续的大容器。
 - 卡片状态变化后保持原有位置，避免处理动作造成无意义的页面跳动。
 
-### 6. 发现入口卡片 `Discover Entry Card`
+### 7. 发现入口卡片 `Discover Entry Card`
 
 使用位置：
 
@@ -142,7 +161,7 @@
 - 快捷入口卡只呈现图标与主标题，三项使用一行等分、内容居中布局，避免副标题和不完整网格制造噪音。
 - Flutter 实现可以抽成同源容器，但保留不同的内容槽位。
 
-### 7. 规范展示卡片 `Spec Surface`
+### 8. 规范展示卡片 `Spec Surface`
 
 使用位置：
 

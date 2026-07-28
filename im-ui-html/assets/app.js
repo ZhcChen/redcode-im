@@ -2653,6 +2653,7 @@
   }
 
   function renderConversationRow(chat) {
+    const group = chat.type === "group" ? findGroupByChatId(chat.id) : null;
     const unread = chat.unread > 0 ? `<span class="runtime-unread-badge">${chat.unread}</span>` : "";
     const context = chat.pinned
       ? "置顶"
@@ -2661,9 +2662,17 @@
       : chat.muted
       ? "已静音"
       : chat.type === "group"
-      ? "群聊"
+      ? group
+        ? `${group.memberCount} 人`
+        : "群聊"
       : "";
     const contextLabel = context ? `<span class="runtime-conversation__context">${escapeHtml(context)}</span>` : "";
+    const avatar = group
+      ? renderGroupAvatar(group)
+      : renderAvatar(chat.name, chat.avatarTone, "avatar--md");
+    const presence = group
+      ? ""
+      : `<span class="runtime-conversation__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>`;
 
     return `
       <button
@@ -2672,8 +2681,8 @@
         data-route="/chat/${chat.id}"
       >
         <span class="runtime-conversation__avatar">
-          ${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}
-          <span class="runtime-conversation__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>
+          ${avatar}
+          ${presence}
         </span>
         <span class="runtime-conversation__body">
           <strong>${escapeHtml(chat.name)}</strong>
@@ -3576,23 +3585,23 @@
 
   function renderGroupsScreen() {
     return `
-      <section class="screen">
-        ${renderScreenHeader({
-          title: "群聊",
-          subtitle: "查看已加入的群聊、公告与群设置",
-          backPath: "/contacts",
-          actions: [
-            `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/groups/create">建群</button>`,
-          ],
-        })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>已有群组</h3>
-                <span class="badge">${data.groups.length}</span>
+      <section class="screen runtime-screen runtime-screen--list runtime-screen--group-list">
+        <div class="screen-scroll runtime-scroll">
+          ${renderScreenHeader({
+            title: "群聊",
+            backPath: "/contacts",
+            actions: [
+              `<button class="runtime-icon-button" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
+            ],
+          })}
+          <div class="runtime-list-content">
+            <section class="runtime-conversation-section">
+              <div class="runtime-section-heading">
+                <h3>已加入</h3>
               </div>
-              ${data.groups.map(renderGroupCard).join("")}
+              <div class="runtime-conversation-list">
+                ${data.groups.length ? data.groups.map(renderGroupConversationRow).join("") : renderEmptyState("暂无群聊", "从聊天页创建一个群聊。")}
+              </div>
             </section>
           </div>
         </div>
@@ -3600,28 +3609,49 @@
     `;
   }
 
-  function renderGroupCard(group) {
+  function renderGroupConversationRow(group) {
+    const chat = findChat(group.chatId);
+    if (chat) {
+      return renderConversationRow(chat);
+    }
+
     return `
-      <div class="group-card">
-        <div class="group-card__header">
-          ${renderAvatar(group.name, "violet", "avatar--md")}
-          <div class="group-card__body">
-            <div class="list-row__title">
-              <strong>${escapeHtml(group.name)}</strong>
-              <span class="badge">${group.memberCount} 人</span>
-            </div>
-            <p>${escapeHtml(group.notice)}</p>
-            <div class="chip-row">
-              ${group.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")}
-            </div>
-          </div>
-        </div>
-        <div class="request-card__actions">
-          <button class="ghost-button" data-action="navigate" data-route="/chat/${group.chatId}">进入聊天</button>
-          <button class="primary-button primary-button--small" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>
-        </div>
-      </div>
+      <button class="runtime-conversation" data-action="navigate" data-route="/chat/${group.chatId}">
+        <span class="runtime-conversation__avatar">
+          ${renderGroupAvatar(group)}
+        </span>
+        <span class="runtime-conversation__body">
+          <strong>${escapeHtml(group.name)}</strong>
+          <span class="runtime-conversation__summary">
+            <span class="runtime-conversation__context">${group.memberCount} 人</span>
+            <span class="runtime-conversation__summary-text">暂无消息</span>
+          </span>
+        </span>
+        <span class="runtime-conversation__meta">
+          <time></time>
+        </span>
+      </button>
     `;
+  }
+
+  function renderGroupAvatar(group) {
+    const chat = findChat(group.chatId);
+    const knownMemberIds = Array.from(
+      new Set([...(group.members || []), ...(chat?.participants || [])]),
+    );
+    const memberIds = knownMemberIds
+      .filter((memberId) => memberId !== data.currentUser.id)
+      .concat(knownMemberIds.includes(data.currentUser.id) ? [data.currentUser.id] : []);
+    const members = memberIds.map(findPerson).filter(Boolean).slice(0, 4);
+    const remainingCount = Math.max(0, Number(group.memberCount || 0) - members.length);
+    const tiles = members
+      .map((member) => renderAvatar(member.name, member.tone || member.avatarTone, "runtime-group-avatar__tile"))
+      .join("");
+    const moreTile = remainingCount > 0 && members.length < 4
+      ? `<span class="runtime-group-avatar__more">+${remainingCount}</span>`
+      : "";
+
+    return `<span class="runtime-group-avatar" aria-hidden="true">${tiles}${moreTile}</span>`;
   }
 
   function renderCreateGroupScreen() {
