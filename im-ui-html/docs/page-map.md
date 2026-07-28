@@ -76,7 +76,7 @@
 | Route | 说明 |
 | --- | --- |
 | `#/mine` | 我的一级页：资料、账户操作与支持入口 |
-| `#/mine/profile` | 个人资料 |
+| `#/mine/profile` | 个人资料，使用紧凑详情导航栏；`#/settings/profile` 保持兼容映射 |
 | `#/settings` | 设置二级页：账号、通知、隐私与偏好 |
 | `#/settings/account` | 账号与安全 |
 | `#/settings/chat` | 聊天偏好与存储 |

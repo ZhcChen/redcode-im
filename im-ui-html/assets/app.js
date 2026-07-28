@@ -4020,11 +4020,16 @@
     if (!detail) {
       return renderFallbackScreen("设置项不存在", "/settings");
     }
+    const compactDetailHeader = section === "profile";
 
     return `
       <section class="screen runtime-screen runtime-screen--list">
-        ${renderScreenHeader({ title: detail.title, backPath: section === "profile" ? "/mine" : "/settings" })}
-        <div class="screen-scroll runtime-scroll">
+        ${renderScreenHeader({
+          title: detail.title,
+          backPath: section === "profile" ? "/mine" : "/settings",
+          variant: compactDetailHeader ? "compact" : undefined,
+        })}
+        <div class="screen-scroll runtime-scroll ${compactDetailHeader ? "runtime-topbar-scroll" : ""}">
           <div class="runtime-list-content runtime-settings-content">
             <section class="runtime-settings-group">
               ${detail.rows.map(renderRuntimeSettingsValueRow).join("")}

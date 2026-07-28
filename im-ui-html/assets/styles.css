@@ -5236,6 +5236,10 @@ body[data-theme="dark"] .phone-screen {
   padding-top: 10px;
 }
 
+.phone-screen .runtime-scroll.runtime-topbar-scroll {
+  padding-top: 10px;
+}
+
 .phone-screen .runtime-header__main,
 .phone-screen .screen-header__main {
   min-width: 0;
