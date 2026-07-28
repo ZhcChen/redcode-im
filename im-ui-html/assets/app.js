@@ -2,7 +2,7 @@
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
   const STORAGE_KEY = "redcode-im-ui-prototype/design-source-v2";
-  const GROUP_MEMBER_PREVIEW_LIMIT = 3;
+  const GROUP_MEMBER_PREVIEW_LIMIT = 5;
   const DEVICE_FRAMES = {
     "iphone-12-pro": {
       label: "iPhone 12 Pro",
@@ -3877,9 +3877,7 @@
     const visibleMembers = isExpanded ? members : members.slice(0, GROUP_MEMBER_PREVIEW_LIMIT);
     const remainingMemberCount = Math.max(0, group.memberCount - members.length);
     const hasMoreMembers = members.length > GROUP_MEMBER_PREVIEW_LIMIT || remainingMemberCount > 0;
-    const memberSummary = isExpanded
-      ? `已显示 ${members.length} 位近期活跃成员`
-      : `已显示 ${visibleMembers.length} 位近期活跃成员`;
+    const memberToggleLabel = isExpanded ? "收起成员" : `查看更多成员 · ${group.memberCount} 人`;
 
     return `
       <section class="runtime-settings-group runtime-group-settings-group runtime-group-members-section">
@@ -3903,11 +3901,8 @@
                 data-group-id="${group.id}"
                 aria-expanded="${isExpanded}"
               >
-                <span class="runtime-group-member-toggle__copy">
-                  <strong>${isExpanded ? "收起成员" : "查看更多成员"}</strong>
-                  <small>${memberSummary}</small>
-                </span>
-                ${renderIcon(isExpanded ? "chevronUp" : "chevronDown", "runtime-group-member-toggle__icon", isExpanded ? "收起成员" : "查看更多成员")}
+                <span class="runtime-group-member-toggle__label">${memberToggleLabel}</span>
+                ${renderIcon(isExpanded ? "chevronUp" : "chevronDown", "runtime-group-member-toggle__icon", memberToggleLabel)}
               </button>
             `
             : ""
