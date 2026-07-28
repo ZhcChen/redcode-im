@@ -450,7 +450,7 @@ window.RedcodeIMPrototypeData = {
       },
       {
         title: "Settings Row",
-        summary: "设置、群规则、资料项都复用同一行高、标题层级和说明文案结构。",
+        summary: "设置、资料项都复用同一行高、标题层级和说明文案结构。",
         states: ["Plain", "Clickable", "Switch", "Danger"],
         flutter: "Row + optional trailing control",
       },
@@ -728,7 +728,7 @@ window.RedcodeIMPrototypeData = {
           senderId: "u_ian",
           senderName: "Ian",
           senderTone: "amber",
-          content: "群设置里记得把公告、规则、管理员和入群申请都摆在一个统一信息架构里。",
+          content: "群设置里记得把公告、管理员和入群申请都摆在一个统一信息架构里。",
           time: "09:18",
           self: false,
           quote: "不要把高级功能藏得太深。",

@@ -19,7 +19,7 @@
 | `Empty State` | 空列表、无结果、未开启功能说明 | `Plain / Actionable / Illustrated` | `Shared empty state widget` |
 | `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Hover / Active / Disabled` | `Pressable surface card` |
 | `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
-| `Settings Row` | 设置、群规则、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
+| `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
 
 ## 页面复合组件
 
@@ -124,7 +124,7 @@
 
 - 群目录复用 `Conversation Cell` 的单行节奏，不再使用公告、标签、并列动作组成的资料卡。
 - 联系人群目录以有效群成员关系为来源；收藏群显示在独立的“收藏群聊”分组，其他群继续直接列表展示，不再增加“已加入”标题。
-- 群设置从列表下沉到群会话顶部资料入口，避免与“进入聊天”竞争主操作；成员预览紧随群概览，按可用宽度在每行五位与四位之间自动切换并限高，仅展示头像和姓名，不重复群总人数或成员状态；底部通过紧凑的“查看更多成员”控件展开已知成员与剩余人数；其余信息使用连续设置组组织公告、权限与规则，不将每项拆成独立资料卡。
+- 群设置从列表下沉到群会话顶部资料入口，避免与“进入聊天”竞争主操作；成员预览紧随群概览，按可用宽度在每行五位与四位之间自动切换并限高，仅展示头像和姓名，不重复群总人数或成员状态；底部通过紧凑的“查看更多成员”控件展开已知成员与剩余人数；其余信息使用连续设置组组织公告与权限，不将每项拆成独立资料卡。
 - 群成员关系不是联系人条目；联系人页仅提供进入群目录的快捷入口。
 
 ### 6. 好友申请决策卡 `Friend Request Decision Card`

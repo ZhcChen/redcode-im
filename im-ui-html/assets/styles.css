@@ -5807,66 +5807,6 @@ body[data-theme="dark"] .phone-screen {
   color: var(--runtime-accent-deep);
 }
 
-.runtime-group-settings-heading {
-  min-height: 42px;
-  padding: 12px 14px 8px;
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.runtime-group-settings-heading h3 {
-  min-height: 0;
-  padding: 0;
-  display: block;
-}
-
-.runtime-group-settings-heading > span {
-  color: var(--runtime-faint);
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.runtime-group-rule-list {
-  margin: 0;
-  padding: 0 14px 8px;
-  display: grid;
-  list-style: none;
-  counter-reset: group-rule;
-}
-
-.runtime-group-rule-list li {
-  min-width: 0;
-  padding: 10px 0;
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 8px;
-  color: var(--runtime-muted);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.runtime-group-rule-list li + li {
-  box-shadow: inset 0 1px 0 var(--runtime-line);
-}
-
-.runtime-group-rule-list li::before {
-  content: counter(group-rule);
-  counter-increment: group-rule;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--runtime-soft);
-  color: var(--runtime-accent-deep);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
-
 .runtime-group-member-preview {
   max-height: 92px;
   overflow: hidden;

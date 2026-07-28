@@ -3857,15 +3857,6 @@
                 </div>
               </div>
             </section>
-            <section class="runtime-settings-group runtime-group-settings-group">
-              <div class="runtime-group-settings-heading">
-                <h3>群规则</h3>
-                <span>${group.rules.length} 条</span>
-              </div>
-              <ol class="runtime-group-rule-list">
-                ${group.rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-              </ol>
-            </section>
           </div>
         </div>
       </section>
