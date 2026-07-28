@@ -5609,14 +5609,14 @@ body[data-theme="dark"] .phone-screen {
   padding: 12px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   border: 1px solid var(--runtime-line);
   border-radius: 8px;
   background: var(--runtime-surface);
   color: var(--runtime-ink);
-  text-align: left;
+  text-align: center;
 }
 
 .runtime-discover-card strong {
