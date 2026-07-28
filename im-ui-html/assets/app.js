@@ -1569,6 +1569,8 @@
         <div class="root-page-preview__setting-list">
           <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>设置</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>隐私协议</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>关于 RedCode IM</span><span class="root-page-preview__chevron"></span></div>
         </div>
       `;
     }
@@ -3925,14 +3927,19 @@
               <span class="runtime-mine-profile__body">
                 <strong>${escapeHtml(data.currentUser.name)}</strong>
                 <span>${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</span>
+                <span class="runtime-mine-profile__bio">${escapeHtml(data.currentUser.bio)}</span>
                 <small>查看个人资料</small>
               </span>
               <span class="runtime-row-chevron">›</span>
             </button>
             <section class="runtime-settings-group runtime-mine-group">
-              <h3>账号与设置</h3>
               ${renderMineMenuLink("账号与安全", "设备与登录管理", "profile", "/settings/account")}
               ${renderMineMenuLink("设置", "通知、隐私、聊天与存储", "settings", "/settings", true)}
+            </section>
+            <section class="runtime-settings-group runtime-mine-group">
+              <h3>支持与关于</h3>
+              ${renderMineMenuLink("隐私协议", "数据使用说明", "shield", "/settings/privacy")}
+              ${renderMineMenuLink("关于 RedCode IM", "版本与反馈", "more", "/settings/about")}
             </section>
           </div>
         </div>
@@ -4278,8 +4285,8 @@
         title: "我的页验证点",
         label: "Mine",
         items: [
-          "一级页以资料和账号设置为核心，不混入静态统计或其他根页的快捷入口。",
-          "个人资料、账号安全和设置入口都必须进入真实业务链路。",
+          "一级页以资料、账户操作和支持入口为核心，不混入静态统计或其他根页的快捷入口。",
+          "个人资料、账号安全、设置、隐私协议和关于入口都必须进入真实业务链路。",
           "设置下沉为二级页后，底栏仍只保留四个稳定入口。",
         ],
       };
