@@ -1,10 +1,11 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool, Row};
 use uuid::Uuid;
 
 use crate::database::member_with_user_info::{RoomMemberRow, RoomMemberWithUserInfo};
 use crate::database::models::{
-    ChatSummaryRow, MemberRole, NotificationSetting, Room, RoomMember, RoomType, UserRoomPin,
+    ChatSummaryRow, GroupDirectoryRow, MemberRole, NotificationSetting, Room, RoomMember, RoomType,
+    UserRoomPin,
 };
 
 pub struct RoomStore<'a> {
@@ -161,14 +162,25 @@ impl<'a> RoomStore<'a> {
     }
 
     pub async fn remove_member(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
-        let res = sqlx::query(
+        let mut tx = self.pool.begin().await?;
+        let result = sqlx::query(
             r#"UPDATE room_members SET deleted_at = NOW() WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL"#,
         )
         .bind(room_id)
         .bind(user_id)
-        .execute(self.pool)
+        .execute(&mut *tx)
         .await?;
-        Ok(res.rows_affected() > 0)
+
+        if result.rows_affected() > 0 {
+            sqlx::query(r#"DELETE FROM user_room_preferences WHERE room_id = $1 AND user_id = $2"#)
+                .bind(room_id)
+                .bind(user_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn is_user_in_room(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
@@ -253,6 +265,156 @@ impl<'a> RoomStore<'a> {
         .fetch_all(self.pool)
         .await?;
         Ok(rows)
+    }
+
+    pub async fn list_group_directory(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<GroupDirectoryRow>, sqlx::Error> {
+        let rows = sqlx::query_as::<_, GroupDirectoryRow>(
+            r#"
+            SELECT
+                r.id AS room_id,
+                r.name AS room_name,
+                r.description AS room_description,
+                r.avatar_url AS room_avatar_url,
+                r.avatar_object_key AS room_avatar_object_key,
+                COUNT(active_members.user_id)::bigint AS member_count,
+                preferences.group_directory_favorited_at
+            FROM room_members membership
+            JOIN rooms r ON r.id = membership.room_id
+            LEFT JOIN room_members active_members
+                ON active_members.room_id = r.id
+               AND active_members.deleted_at IS NULL
+            LEFT JOIN user_room_preferences preferences
+                ON preferences.user_id = membership.user_id
+               AND preferences.room_id = r.id
+            WHERE membership.user_id = $1
+              AND membership.deleted_at IS NULL
+              AND r.deleted_at IS NULL
+              AND r.room_type = $2
+            GROUP BY
+                r.id,
+                r.name,
+                r.description,
+                r.avatar_url,
+                r.avatar_object_key,
+                r.updated_at,
+                r.created_at,
+                preferences.group_directory_favorited_at
+            ORDER BY
+                CASE WHEN preferences.group_directory_favorited_at IS NULL THEN 1 ELSE 0 END,
+                preferences.group_directory_favorited_at DESC NULLS LAST,
+                r.updated_at DESC,
+                r.created_at DESC
+            "#,
+        )
+        .bind(user_id)
+        .bind(RoomType::Group)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(rows)
+    }
+
+    pub async fn favorite_group_directory(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<DateTime<Utc>, sqlx::Error> {
+        sqlx::query_scalar(
+            r#"
+            INSERT INTO user_room_preferences (
+                user_id,
+                room_id,
+                group_directory_favorited_at,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, NOW(), NOW(), NOW())
+            ON CONFLICT (user_id, room_id) DO UPDATE
+            SET group_directory_favorited_at = NOW(),
+                updated_at = NOW()
+            RETURNING group_directory_favorited_at
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await
+    }
+
+    pub async fn unfavorite_group_directory(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE user_room_preferences
+            SET group_directory_favorited_at = NULL,
+                updated_at = NOW()
+            WHERE user_id = $1
+              AND room_id = $2
+              AND group_directory_favorited_at IS NOT NULL
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn archive_chat_for_user(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<DateTime<Utc>, sqlx::Error> {
+        sqlx::query_scalar(
+            r#"
+            INSERT INTO user_room_preferences (
+                user_id,
+                room_id,
+                chat_archived_at,
+                created_at,
+                updated_at
+            )
+            VALUES ($1, $2, NOW(), NOW(), NOW())
+            ON CONFLICT (user_id, room_id) DO UPDATE
+            SET chat_archived_at = NOW(),
+                updated_at = NOW()
+            RETURNING chat_archived_at
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .fetch_one(self.pool)
+        .await
+    }
+
+    pub async fn restore_chat_for_user(
+        &self,
+        user_id: Uuid,
+        room_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE user_room_preferences
+            SET chat_archived_at = NULL,
+                updated_at = NOW()
+            WHERE user_id = $1
+              AND room_id = $2
+              AND chat_archived_at IS NOT NULL
+            "#,
+        )
+        .bind(user_id)
+        .bind(room_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn ensure_favorite_room(&self, user_id: Uuid) -> Result<Room, sqlx::Error> {
@@ -352,6 +514,8 @@ impl<'a> RoomStore<'a> {
             JOIN rooms r ON rm.room_id = r.id
             LEFT JOIN user_room_pins urp
                 ON urp.user_id = rm.user_id AND urp.room_id = r.id
+            LEFT JOIN user_room_preferences preferences
+                ON preferences.user_id = rm.user_id AND preferences.room_id = r.id
             LEFT JOIN LATERAL (
                 SELECT
                     m.id,
@@ -397,6 +561,10 @@ impl<'a> RoomStore<'a> {
             WHERE rm.user_id = $1
               AND rm.deleted_at IS NULL
               AND r.deleted_at IS NULL
+              AND (
+                  preferences.chat_archived_at IS NULL
+                  OR lm.created_at > preferences.chat_archived_at
+              )
             ORDER BY
                 CASE WHEN urp.id IS NULL THEN 1 ELSE 0 END,
                 CASE WHEN r.room_type = $2 THEN 0 ELSE 1 END,
@@ -446,6 +614,8 @@ impl<'a> RoomStore<'a> {
             JOIN rooms r ON rm.room_id = r.id
             LEFT JOIN user_room_pins urp
                 ON urp.user_id = rm.user_id AND urp.room_id = r.id
+            LEFT JOIN user_room_preferences preferences
+                ON preferences.user_id = rm.user_id AND preferences.room_id = r.id
             LEFT JOIN LATERAL (
                 SELECT
                     rm2.user_id AS friend_user_id,
@@ -467,6 +637,7 @@ impl<'a> RoomStore<'a> {
             WHERE rm.user_id = $1
               AND rm.deleted_at IS NULL
               AND r.deleted_at IS NULL
+              AND preferences.chat_archived_at IS NULL
             ORDER BY
                 CASE WHEN urp.id IS NULL THEN 1 ELSE 0 END,
                 CASE WHEN r.room_type = $2 THEN 0 ELSE 1 END,
@@ -502,57 +673,6 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         Ok(())
-    }
-
-    pub async fn delete_chat(&self, room_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
-
-        // 首先检查用户是否有权限删除这个聊天（必须是房间成员）
-        let member_check = sqlx::query(
-            r#"
-            SELECT COUNT(*) as count
-            FROM room_members
-            WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL
-            "#,
-        )
-        .bind(room_id)
-        .bind(user_id)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        let count: i64 = member_check.get("count");
-        if count == 0 {
-            tx.rollback().await?;
-            return Ok(false); // 用户不是房间成员，无权删除
-        }
-
-        // 软删除房间
-        let room_result = sqlx::query(
-            r#"
-            UPDATE rooms
-            SET deleted_at = NOW()
-            WHERE id = $1 AND deleted_at IS NULL
-            "#,
-        )
-        .bind(room_id)
-        .execute(&mut *tx)
-        .await?;
-
-        // 软删除所有房间成员关系
-        let _members_result = sqlx::query(
-            r#"
-            UPDATE room_members
-            SET deleted_at = NOW()
-            WHERE room_id = $1 AND deleted_at IS NULL
-            "#,
-        )
-        .bind(room_id)
-        .execute(&mut *tx)
-        .await?;
-
-        tx.commit().await?;
-
-        Ok(room_result.rows_affected() > 0)
     }
 
     pub async fn dissolve_room(
@@ -595,6 +715,11 @@ impl<'a> RoomStore<'a> {
         .bind(room_id)
         .execute(&mut *tx)
         .await?;
+
+        sqlx::query(r#"DELETE FROM user_room_preferences WHERE room_id = $1"#)
+            .bind(room_id)
+            .execute(&mut *tx)
+            .await?;
 
         tx.commit().await?;
 

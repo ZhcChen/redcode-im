@@ -472,6 +472,18 @@ pub struct UserRoomPin {
     pub pinned_at: DateTime<Utc>,
 }
 
+/// 当前用户联系人群目录的查询行。
+#[derive(Debug, Clone, FromRow)]
+pub struct GroupDirectoryRow {
+    pub room_id: Uuid,
+    pub room_name: String,
+    pub room_description: Option<String>,
+    pub room_avatar_url: Option<String>,
+    pub room_avatar_object_key: Option<String>,
+    pub member_count: i64,
+    pub group_directory_favorited_at: Option<DateTime<Utc>>,
+}
+
 /// 消息类型枚举
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, sqlx::Type,

@@ -68,6 +68,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260703172000_auth_account_default.sql"
         )),
     ),
+    (
+        "20260728175513_user_room_preferences.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260728175513_user_room_preferences.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -539,7 +539,9 @@ pub fn create_routes() -> Router<AppState> {
         .route("/friends/{friend_user_id}", delete(friend::delete_friend))
         // chats
         .route("/chats", get(room::list_chat_summaries))
-        .route("/chats/{room_id}", delete(room::delete_chat))
+        .route("/chats/{room_id}", delete(room::archive_chat))
+        .route("/chats/{room_id}/restore", post(room::restore_chat))
+        .route("/groups/directory", get(room::list_group_directory))
         // rooms
         .route("/rooms", post(room::create_room).get(room::list_my_rooms))
         .route("/rooms/{room_id}/join", post(room::join_room))
@@ -578,6 +580,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/notification-settings",
             post(room::update_notification_settings),
+        )
+        .route(
+            "/rooms/{room_id}/directory-favorite",
+            post(room::favorite_group_directory).delete(room::unfavorite_group_directory),
         )
         .route(
             "/rooms/{room_id}/pin",

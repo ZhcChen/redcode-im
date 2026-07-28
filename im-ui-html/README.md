@@ -46,7 +46,7 @@
 - `#/contacts/requests`：好友申请
 - `#/contacts/add`：添加好友
 - `#/contacts/profile/:contactId`：联系人详情
-- `#/groups`：群会话目录
+- `#/groups`：群会话目录（所有仍在其中的群）；收藏群优先显示，清空或归档会话不影响该目录
 - `#/groups/create`：创建群聊
 - `#/groups/settings/:groupId`：群设置
 - `#/search`：消息搜索
@@ -111,7 +111,7 @@ http://127.0.0.1:8020/#/entry
 1. 先看 `#/entry`，确认 3 个总入口是否清楚。
 2. 再看 `#/spec`，确认 tokens、icon、组件预览、页面地图和密度策略。
 3. 再看 `#/mobile-design`，确认单一手机容器内的聊天首页、底栏和二级页面跳转。
-4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/discover`、`#/mobile-design/mine`、`#/mobile-design/mine/profile` 及 `#/mobile-design/settings`，确认完整 IM 流程始终留在设备容器内。
+4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/groups`、`#/mobile-design/discover`、`#/mobile-design/mine`、`#/mobile-design/mine/profile` 及 `#/mobile-design/settings`，确认完整 IM 流程始终留在设备容器内。
 5. 再看 `#/mobile-design/contacts/requests`、`#/mobile-design/contacts/add`、`#/mobile-design/contacts/profile/u_alice`，确认联系人二级页仍留在设备容器内。
 6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`，确认发现链路仍是同一容器内的一级流程。
 7. 再看 `#/mobile-design/groups/create`、`#/mobile-design/groups/settings/g_launch`，确认建群与群设置不跳出预览壳。
@@ -123,5 +123,5 @@ http://127.0.0.1:8020/#/entry
 - 已覆盖 IM 核心流程：设计系统、聊天、联系人、发现、好友申请、建群、群设置、搜索、我的与设置。
 - 已预留扩展位：通话、AI、文件协作、自动化。
 - 当前全部数据为 mock，不接真实后端。
-- 联系人目录、会话列表和消息线程使用确定性的密集 mock 数据，默认覆盖长列表、长摘要、未读、静音、引用、反应与连续滚动审查。
-- 主题、密度、设备外壳选择与设置开关会写入 `localStorage`，当前设计源 key 为 `redcode-im-ui-prototype/design-source-v2`。
+- 联系人目录、会话列表和消息线程使用确定性的密集 mock 数据，默认覆盖长列表、长摘要、未读、静音、引用、反应与连续滚动审查；会话头像统一为 `48px`，群头像使用对应尺寸的 2 × 2 复合网格。
+- 主题、密度、设备外壳选择、设置开关与群聊收藏会写入 `localStorage`，当前设计源 key 为 `redcode-im-ui-prototype/design-source-v2`。

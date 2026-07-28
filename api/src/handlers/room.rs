@@ -296,6 +296,124 @@ pub async fn list_my_rooms(
     Ok(Json(result))
 }
 
+#[derive(Serialize)]
+pub struct GroupDirectoryEntryResponse {
+    pub room_id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_object_key: Option<String>,
+    pub member_count: i64,
+    pub is_favorited: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub favorited_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct GroupDirectoryFavoriteResponse {
+    pub room_id: Uuid,
+    pub is_favorited: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub favorited_at: Option<String>,
+}
+
+pub async fn list_group_directory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<GroupDirectoryEntryResponse>>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    let entries = store
+        .list_group_directory(user_id)
+        .await?
+        .into_iter()
+        .map(|row| {
+            let is_favorited = row.group_directory_favorited_at.is_some();
+            GroupDirectoryEntryResponse {
+                room_id: row.room_id,
+                name: row.room_name,
+                description: row.room_description,
+                avatar_url: row.room_avatar_url,
+                avatar_object_key: row.room_avatar_object_key,
+                member_count: row.member_count,
+                is_favorited,
+                favorited_at: row
+                    .group_directory_favorited_at
+                    .map(|value| value.to_rfc3339()),
+            }
+        })
+        .collect();
+
+    Ok(Json(entries))
+}
+
+async fn require_group_directory_membership(
+    store: &RoomStore<'_>,
+    user_id: Uuid,
+    room_id: Uuid,
+) -> Result<(), AppError> {
+    if !store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
+    let room = store
+        .get_room(room_id)
+        .await
+        .map_err(|_| AppError::NotFound("Room not found".to_string()))?;
+    if room.room_type != RoomType::Group {
+        return Err(AppError::ValidationError(
+            "Only group rooms can be favorited in the group directory".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+pub async fn favorite_group_directory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<GroupDirectoryFavoriteResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    require_group_directory_membership(&store, user_id, room_id).await?;
+    let favorited_at = store.favorite_group_directory(user_id, room_id).await?;
+
+    Ok(Json(GroupDirectoryFavoriteResponse {
+        room_id,
+        is_favorited: true,
+        favorited_at: Some(favorited_at.to_rfc3339()),
+    }))
+}
+
+pub async fn unfavorite_group_directory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<GroupDirectoryFavoriteResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    require_group_directory_membership(&store, user_id, room_id).await?;
+    let _ = store.unfavorite_group_directory(user_id, room_id).await?;
+
+    Ok(Json(GroupDirectoryFavoriteResponse {
+        room_id,
+        is_favorited: false,
+        favorited_at: None,
+    }))
+}
+
 /// 获取当前用户的会话列表概要
 pub async fn list_chat_summaries(
     State(state): State<AppState>,
@@ -334,7 +452,13 @@ pub struct UpdateNotificationSettingsResponse {
 }
 
 #[derive(Serialize)]
-pub struct DeleteChatResponse {
+pub struct ArchiveChatResponse {
+    pub success: bool,
+    pub archived_at: String,
+}
+
+#[derive(Serialize)]
+pub struct RestoreChatResponse {
     pub success: bool,
 }
 
@@ -360,25 +484,45 @@ pub struct RoomDetailResponse {
     pub room: Room,
 }
 
-pub async fn delete_chat(
+pub async fn archive_chat(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(room_id): Path<Uuid>,
-) -> Result<Json<DeleteChatResponse>, AppError> {
+) -> Result<Json<ArchiveChatResponse>, AppError> {
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
     let store = RoomStore::new(state.database.pool());
-    let success = store.delete_chat(room_id, user_id).await?;
-
-    if !success {
-        return Err(AppError::NotFound(format!(
-            "Chat {} not found or you don't have permission to delete it",
-            room_id
-        )));
+    if !store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
     }
 
-    Ok(Json(DeleteChatResponse { success }))
+    let archived_at = store.archive_chat_for_user(user_id, room_id).await?;
+    Ok(Json(ArchiveChatResponse {
+        success: true,
+        archived_at: archived_at.to_rfc3339(),
+    }))
+}
+
+pub async fn restore_chat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<RestoreChatResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+
+    let store = RoomStore::new(state.database.pool());
+    if !store.is_user_in_room(room_id, user_id).await? {
+        return Err(AppError::Forbidden(
+            "You are not a member of this room".to_string(),
+        ));
+    }
+
+    let _ = store.restore_chat_for_user(user_id, room_id).await?;
+    Ok(Json(RestoreChatResponse { success: true }))
 }
 
 /// 获取房间详情（需要成员身份）

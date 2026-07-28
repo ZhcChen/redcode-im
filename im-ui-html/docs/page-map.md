@@ -58,9 +58,9 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/groups` | 已加入群会话目录：复用聊天会话行与 2 × 2 成员复合头像，整行进入群聊 |
+| `#/groups` | 群会话目录：所有仍有效的群成员关系都会出现；收藏群以“收藏群聊”分组优先展示，未收藏群不重复显示“已加入”标题 |
 | `#/groups/create` | 创建群聊 |
-| `#/groups/settings/:groupId` | 群设置 |
+| `#/groups/settings/:groupId` | 群设置：包含群全局信息和当前用户的收藏群聊偏好 |
 
 ### 发现链路
 
@@ -117,12 +117,13 @@
 3. `#/mobile-design`
 4. `#/mobile-design/chat/c_room_launch`
 5. `#/mobile-design/contacts`
-6. `#/mobile-design/groups/create`
-7. `#/mobile-design/discover`
-8. `#/mobile-design/mine`
-9. `#/mobile-design/mine/profile`
-10. `#/mobile-design/settings`
-11. `#/pc-design`
+6. `#/mobile-design/groups`
+7. `#/mobile-design/groups/create`
+8. `#/mobile-design/discover`
+9. `#/mobile-design/mine`
+10. `#/mobile-design/mine/profile`
+11. `#/mobile-design/settings`
+12. `#/pc-design`
 
 ### 面向 Flutter 实施
 

@@ -33,7 +33,7 @@ content_audit_mode=plaintext
 - 离线 Push：不生成 message 类型的 `push_job_queue` 任务，避免把消息正文或预览作为短期队列 payload 落库。
 - 附件下载：发送附件消息时写入 Redis TTL 临时授权，接收方仍需是房间成员才能换取下载 URL；附件 `object_key` 必须属于当前房间前缀 `messages/{room_id}/`，并且必须已经走上传提交链路形成 completed 上传记录。TTL 内即使后台切回 `persist`，该临时授权仍可用于换取下载 URL；生成的下载 URL 有效期不会超过 Redis grant 剩余 TTL。Redis 授权过期或丢失后，服务端不再能恢复该附件消息的下载授权。
 
-客户端仍可把自己收到或发送过的消息保存到本地 SQLite，用于本机历史展示；换设备或清除本地数据后，服务端无法恢复 `relay_only` 模式下的消息正文。
+客户端仍可把自己收到或发送过的消息保存到本地 SQLite，用于本机历史展示；换设备或清除本地数据后，服务端无法恢复 `relay_only` 模式下的消息正文。群成员关系、群目录收藏和会话归档属于独立的房间元数据，不受消息存储模式影响；具体边界见 `docs/reference/architecture/conversation-state-lifecycle.md`。
 
 注意：`relay_only` 不删除此前 `persist` 模式已经写入的历史消息，只是在当前模式下隐藏依赖服务端消息记录的读取能力；切回 `persist` 后旧历史仍按数据库现状可见。附件上传仍走对象存储与必要审核元数据链路，消息正文/parts 本身不会写入服务端历史；relay-only 附件只在 Redis 临时授权 TTL 内可下载。
 

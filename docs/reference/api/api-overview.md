@@ -74,7 +74,8 @@
 ### 会话/房间
 
 - `GET /chats`
-- `DELETE /chats/{room_id}`
+- `DELETE /chats/{room_id}` / `POST /chats/{room_id}/restore`
+- `GET /groups/directory`
 - `GET /rooms` / `POST /rooms`
 - `POST /rooms/{room_id}/join`
 - `POST /rooms/{room_id}/leave`
@@ -83,6 +84,7 @@
 - `GET /rooms/{room_id}` / `PATCH /rooms/{room_id}` / `DELETE /rooms/{room_id}`
 - `POST /rooms/{room_id}/transfer`
 - `POST /rooms/{room_id}/pin` / `DELETE /rooms/{room_id}/pin`
+- `POST /rooms/{room_id}/directory-favorite` / `DELETE /rooms/{room_id}/directory-favorite`
 - `POST /rooms/{room_id}/notification-settings`
 - 群头像直传：
   - `POST /rooms/{room_id}/avatar/direct-upload`

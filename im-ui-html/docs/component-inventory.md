@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
 | `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
-| `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
+| `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual` | `Shared search field + optional context label` |
@@ -115,13 +115,15 @@
 
 结构：
 
-- 2 × 2 成员复合头像，最多展示四位代表成员；已知成员不足四位时可用余量格表示更多成员
+- 2 × 2 成员复合头像，使用 `48px` 外框，最多展示四位代表成员；已知成员不足四位时可用余量格表示更多成员
 - 群名称、最后消息摘要、时间与未读状态
 - 整行进入群会话
+- 群设置中的当前用户收藏开关；收藏仅调整群目录优先级，不决定群是否可从联系人入口访问
 
 备注：
 
 - 群目录复用 `Conversation Cell` 的单行节奏，不再使用公告、标签、并列动作组成的资料卡。
+- 联系人群目录以有效群成员关系为来源；收藏群显示在独立的“收藏群聊”分组，其他群继续直接列表展示，不再增加“已加入”标题。
 - 群设置从列表下沉到群会话顶部资料入口，避免与“进入聊天”竞争主操作。
 - 群成员关系不是联系人条目；联系人页仅提供进入群目录的快捷入口。
 

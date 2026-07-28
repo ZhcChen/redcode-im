@@ -24,6 +24,7 @@
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
     activeSpecTab: "components",
+    savedGroupIds: new Set(["g_launch"]),
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
@@ -197,6 +198,11 @@
       if (isSupportedDeviceFrame(persisted.deviceFrame)) {
         state.deviceFrame = persisted.deviceFrame;
       }
+      if (Array.isArray(persisted.savedGroupIds)) {
+        state.savedGroupIds = new Set(
+          persisted.savedGroupIds.filter((groupId) => Boolean(findGroup(groupId))),
+        );
+      }
       if (persisted.notifications && typeof persisted.notifications === "object") {
         Object.assign(data.settings.notifications, persisted.notifications);
       }
@@ -218,6 +224,7 @@
           theme: state.theme,
           density: state.density,
           deviceFrame: state.deviceFrame,
+          savedGroupIds: Array.from(state.savedGroupIds),
           notifications: data.settings.notifications,
           privacy: data.settings.privacy,
         }),
@@ -2917,6 +2924,10 @@
     const pendingIncoming = data.friendRequests.filter(
       (item) => item.type === "incoming" && item.status === "pending",
     ).length;
+    const savedGroupCount = data.groups.filter((group) => state.savedGroupIds.has(group.id)).length;
+    const groupDirectorySummary = savedGroupCount
+      ? `${data.groups.length} 个群聊 · ${savedGroupCount} 个收藏`
+      : `${data.groups.length} 个群聊`;
 
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-contacts-screen">
@@ -2938,7 +2949,7 @@
               </button>
               <button class="runtime-contact-shortcut" data-action="navigate" data-route="/groups">
                 <span class="runtime-contact-shortcut__icon">${renderIcon("chats", "runtime-contact-shortcut__glyph", "群聊")}</span>
-                <span class="runtime-contact-shortcut__copy"><strong>群聊</strong><span>${data.groups.length} 个群聊</span></span>
+                <span class="runtime-contact-shortcut__copy"><strong>群聊</strong><span>${escapeHtml(groupDirectorySummary)}</span></span>
                 ${renderRowChevron()}
               </button>
             </div>
@@ -3583,7 +3594,16 @@
     `;
   }
 
+  function groupDirectoryGroups() {
+    const favoriteGroups = data.groups.filter((group) => state.savedGroupIds.has(group.id));
+    const otherGroups = data.groups.filter((group) => !state.savedGroupIds.has(group.id));
+    return { favoriteGroups, otherGroups };
+  }
+
   function renderGroupsScreen() {
+    const { favoriteGroups, otherGroups } = groupDirectoryGroups();
+    const hasGroups = favoriteGroups.length || otherGroups.length;
+
     return `
       <section class="screen runtime-screen runtime-screen--list runtime-screen--group-list">
         <div class="screen-scroll runtime-scroll">
@@ -3595,9 +3615,38 @@
             ],
           })}
           <div class="runtime-list-content">
-            <div class="runtime-conversation-list">
-              ${data.groups.length ? data.groups.map(renderGroupConversationRow).join("") : renderEmptyState("暂无群聊", "从聊天页创建一个群聊。")}
-            </div>
+            ${
+              hasGroups
+                ? `
+                  <div class="runtime-group-directory">
+                    ${
+                      favoriteGroups.length
+                        ? `
+                          <section class="runtime-group-directory__section">
+                            <div class="runtime-section-heading">
+                              <h3>收藏群聊</h3>
+                              <span class="runtime-group-directory__count">${favoriteGroups.length}</span>
+                            </div>
+                            <div class="runtime-conversation-list">
+                              ${favoriteGroups.map(renderGroupConversationRow).join("")}
+                            </div>
+                          </section>
+                        `
+                        : ""
+                    }
+                    ${
+                      otherGroups.length
+                        ? `
+                          <div class="runtime-conversation-list">
+                            ${otherGroups.map(renderGroupConversationRow).join("")}
+                          </div>
+                        `
+                        : ""
+                    }
+                  </div>
+                `
+                : renderEmptyState("暂无群聊", "从聊天页创建一个群聊。")
+            }
           </div>
         </div>
       </section>
@@ -3742,7 +3791,7 @@
       <section class="screen">
         ${renderScreenHeader({
           title: "群设置",
-          subtitle: "公告、规则、加入方式和成员管理",
+          subtitle: "群信息与我的偏好",
           backPath: `/chat/${group.chatId}`,
         })}
         <div class="screen-scroll">
@@ -3756,6 +3805,24 @@
                   ${group.tags.map((tag) => `<span class="chip chip--filled">${escapeHtml(tag)}</span>`).join("")}
                 </div>
               </div>
+            </section>
+            <section class="surface-card">
+              <div class="surface-card__header">
+                <h3>我的群聊</h3>
+              </div>
+              <label class="runtime-group-preference">
+                <span class="runtime-group-preference__copy">
+                  <strong>收藏群聊</strong>
+                  <small>在联系人 > 群聊中优先显示</small>
+                </span>
+                <input
+                  class="switch-row__input"
+                  type="checkbox"
+                  data-kind="group-directory-favorite"
+                  data-group-id="${group.id}"
+                  ${state.savedGroupIds.has(group.id) ? "checked" : ""}
+                />
+              </label>
             </section>
             <section class="surface-card">
               <div class="surface-card__header">
@@ -4848,6 +4915,23 @@
     render();
   }
 
+  function updateGroupDirectoryFavorite(groupId, isFavorited) {
+    const group = findGroup(groupId);
+    if (!group) {
+      return;
+    }
+
+    if (isFavorited) {
+      state.savedGroupIds.add(group.id);
+      showToast("已收藏群聊", `${group.name} 会优先显示在联系人群聊目录中。`);
+    } else {
+      state.savedGroupIds.delete(group.id);
+      showToast("已取消收藏", `${group.name} 仍保留在联系人群聊目录中。`);
+    }
+    persistUiState();
+    render();
+  }
+
   function showToast(title, message) {
     state.toasts.unshift({
       id: `toast_${Date.now()}`,
@@ -5081,6 +5165,11 @@
       const key = target.getAttribute("data-key");
       data.settings[scope][key] = target.checked;
       persistUiState();
+      return;
+    }
+
+    if (target.getAttribute("data-kind") === "group-directory-favorite") {
+      updateGroupDirectoryFavorite(target.getAttribute("data-group-id"), target.checked);
       return;
     }
 

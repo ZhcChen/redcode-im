@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 2;
+const EXPECTED_MIGRATION_COUNT: i64 = 3;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -157,6 +157,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
         "push_job_queue",
         "e2ee_identity_keys",
         "object_storage_configs",
+        "user_room_preferences",
     ] {
         assert!(table_exists(pool, table).await?, "缺少表: {table}");
     }

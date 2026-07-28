@@ -40,6 +40,7 @@
 | [用户资料](reference/api/user-profile.md) | 个人信息管理 |
 | [好友接口](reference/api/friends.md) | 好友关系管理 |
 | [会话接口](reference/api/chats.md) | 聊天会话管理 |
+| [群目录接口](reference/api/group-directory.md) | 联系人群目录与群聊收藏 |
 | [消息接口](reference/api/messages.md) | 消息收发 |
 | [WebSocket](reference/api/websocket.md) | 实时通信协议 |
 | [文件上传](reference/api/file-upload-hash.md) | 文件上传与哈希校验 |
@@ -57,6 +58,7 @@
 | [推送配置需求](reference/architecture/push-provider-config-requirements.md) | Push 凭据后台化 |
 | [端到端加密设计](reference/architecture/end-to-end-encryption-design.md) | E2EE 方案（设计完成，待实现） |
 | [消息运行模式](reference/architecture/message-runtime-modes.md) | 消息服务端持久化与 relay-only 模式 |
+| [会话与历史数据生命周期](reference/architecture/conversation-state-lifecycle.md) | 群目录、会话归档、本机缓存与房间级历史边界 |
 | [消息搜索设计](reference/architecture/message-search-design.md) | 搜索实现方案 |
 | [Redis 配置](reference/architecture/redis-setup.md) | Redis 部署指南 |
 | [Redis 安全](reference/architecture/redis-security.md) | Redis 安全配置 |

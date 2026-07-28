@@ -297,11 +297,38 @@ Authorization: Bearer <your-jwt-token>
 - **功能**: 获取所有聊天的摘要信息（包括最后一条消息、未读数等）
 - **Handler**: `room::list_chat_summaries`
 
-#### 2. 删除聊天会话
+#### 2. 归档聊天会话
 - **接口**: `DELETE /chats/:room_id`
+- **权限**: 需要认证（当前用户必须是房间成员）
+- **功能**: 仅从当前用户的会话收件箱归档指定聊天；不退出群聊、不删除房间、不影响其他成员，也不删除消息历史。
+- **Handler**: `room::archive_chat`
+- **说明**: `persist` 模式下新持久化消息会让会话重新出现在聊天列表；`relay_only` 下客户端收到实时消息后应调用恢复接口或在本机恢复。
+
+#### 3. 恢复聊天会话
+- **接口**: `POST /chats/:room_id/restore`
+- **权限**: 需要认证（当前用户必须是房间成员）
+- **功能**: 恢复当前用户已归档的会话
+- **Handler**: `room::restore_chat`
+
+### 群目录
+
+#### 1. 获取联系人群目录
+- **接口**: `GET /groups/directory`
 - **权限**: 需要认证
-- **功能**: 从会话列表中移除指定聊天（不退出群聊）
-- **Handler**: `room::delete_chat`
+- **功能**: 获取当前用户仍在其中的群聊，独立于聊天列表、消息缓存和消息持久化模式；收藏群优先返回。
+- **Handler**: `room::list_group_directory`
+
+#### 2. 收藏群聊
+- **接口**: `POST /rooms/:room_id/directory-favorite`
+- **权限**: 需要认证（当前用户必须是群成员）
+- **功能**: 收藏群聊，使其在联系人群目录中优先展示。
+- **Handler**: `room::favorite_group_directory`
+
+#### 3. 取消收藏群聊
+- **接口**: `DELETE /rooms/:room_id/directory-favorite`
+- **权限**: 需要认证（当前用户必须是群成员）
+- **功能**: 取消联系人群目录中的收藏状态，不退出群聊。
+- **Handler**: `room::unfavorite_group_directory`
 
 ### 房间管理
 
@@ -447,8 +474,8 @@ Authorization: Bearer <your-jwt-token>
 
 #### 3. 清空房间消息
 - **接口**: `DELETE /rooms/:room_id/messages`
-- **权限**: 需要认证（需要管理员权限）
-- **功能**: 清空房间的所有消息历史；`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
+- **权限**: 需要认证（私聊任一成员；群聊仅群主）
+- **功能**: 清空整个房间的所有消息历史并向成员广播；不是“清除我的聊天记录”接口。`relay_only` 下返回 HTTP 400 ErrorResponse（`code=42201`，`message` 包含 `relay_only`）
 - **Handler**: `message::clear_room_messages`
 
 ### 消息操作

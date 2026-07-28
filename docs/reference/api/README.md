@@ -12,6 +12,7 @@
 - [WebSocket](./websocket.md)
 - [消息](./messages.md)
 - [会话](./chats.md)
+- [群目录](./group-directory.md)
 - [好友](./friends.md)
 - [数据模型](./models.md)
 - [用户资料](./user-profile.md)
