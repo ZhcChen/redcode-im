@@ -53,6 +53,11 @@
 - `#/lab`：扩展总览
 - `#/lab/:moduleId`：扩展详情
 - `#/settings`：设置
+- `#/settings/profile`：个人资料
+- `#/settings/account`：账号与安全
+- `#/settings/chat`：聊天偏好与存储
+- `#/settings/privacy`：隐私协议与数据使用
+- `#/settings/about`：关于与版本信息
 
 ## 附属文档
 
@@ -83,7 +88,7 @@ http://127.0.0.1:8020/#/entry
 ## 预览模式
 
 - **独立手机预览**：`#/mobile-design` 始终只显示一个可操作的手机容器，默认载入聊天首页；宽屏以 `iPhone 12 Pro` 为默认外壳，并提供 `Pixel 8 Pro` 切换。聊天、联系人、发现、设置及其二级页面都在独立屏幕裁切层内跳转，不能露出到设备底部。
-- **预览内深链**：使用 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts` 等地址可直接打开对应页面，且不会回到设计评审壳。
+- **预览内深链**：使用 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts` 等地址可直接打开对应页面；二级页返回优先回到实际来源，深链兜底也会留在设备容器内。
 - **桌面评审**：桌面宽度下访问普通业务路由时，默认保留工具条、主题/密度控制和手机机框；也可显式使用 `?mode=review`。
 - **手机运行态**：`640px` 以下的普通业务路由会直接显示应用界面，不再嵌套评审工具条或手机机框。
 - **强制手机运行态**：在桌面浏览器中使用 `index.html?mode=app#/chats`，会显示居中的移动应用画布，便于单页检查。
@@ -104,7 +109,7 @@ http://127.0.0.1:8020/#/entry
 1. 先看 `#/entry`，确认 3 个总入口是否清楚。
 2. 再看 `#/spec`，确认 tokens、icon、组件预览、页面地图和密度策略。
 3. 再看 `#/mobile-design`，确认单一手机容器内的聊天首页、底栏和二级页面跳转。
-4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/discover`、`#/mobile-design/settings`，确认完整 IM 流程始终留在设备容器内。
+4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/discover`、`#/mobile-design/settings` 及 `#/mobile-design/settings/profile`，确认完整 IM 流程始终留在设备容器内。
 5. 再看 `#/mobile-design/contacts/requests`、`#/mobile-design/contacts/add`、`#/mobile-design/contacts/profile/u_alice`，确认联系人二级页仍留在设备容器内。
 6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`，确认发现链路仍是同一容器内的一级流程。
 7. 再看 `#/mobile-design/groups/create`、`#/mobile-design/groups/settings/g_launch`，确认建群与群设置不跳出预览壳。

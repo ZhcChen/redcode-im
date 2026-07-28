@@ -36,6 +36,8 @@
     composerPanel: null,
     highlightMessageId: null,
     recentMessageId: null,
+    navigationStack: [],
+    pendingNavigationPath: null,
     toasts: [],
     orderCursor: 1000,
   };
@@ -133,7 +135,13 @@
   }
 
   window.addEventListener("hashchange", () => {
-    const route = parseRoute(currentPath());
+    const path = currentPath();
+    if (state.pendingNavigationPath === path) {
+      state.pendingNavigationPath = null;
+    } else {
+      reconcileNavigationStack(path);
+    }
+    const route = parseRoute(path);
     syncSelection(route);
     if (route.section !== "chat-detail") {
       state.composerPanel = null;
@@ -314,6 +322,9 @@
     }
 
     if (segments[0] === "settings") {
+      if (segments[1]) {
+        return { section: "settings-detail", settingsSection: segments[1] };
+      }
       return { section: "settings" };
     }
 
@@ -359,6 +370,7 @@
       "search",
       "lab",
       "settings",
+      "settings-detail",
     ].includes(section);
   }
 
@@ -377,6 +389,23 @@
     if (selectedRoute.groupId && findGroup(selectedRoute.groupId)) {
       state.activeGroupId = selectedRoute.groupId;
     }
+  }
+
+  function isDesignSourceRoutePath(path) {
+    return ["/entry", "/spec", "/pc-design", "/mobile-design"].includes(path);
+  }
+
+  function resolveBackFallbackPath(path) {
+    const route = parseRoute(currentPath());
+    if (route.section === "mobile-design" && isDesignSourceRoutePath(path)) {
+      return "/chats";
+    }
+    return path;
+  }
+
+  function reconcileNavigationStack(path) {
+    const index = state.navigationStack.lastIndexOf(path);
+    state.navigationStack = index >= 0 ? state.navigationStack.slice(0, index) : [];
   }
 
   function resolveNavigationPath(path) {
@@ -399,17 +428,33 @@
     return `/mobile-design${requestedPath}`;
   }
 
-  function navigate(path, options) {
+  function navigate(path, options = {}) {
     const nextPath = resolveNavigationPath(path);
-    if (!options || !options.keepHighlight) {
+    const current = currentPath();
+    if (!options.keepHighlight) {
       state.highlightMessageId = null;
     }
-    const nextHash = `#${nextPath}`;
-    if (window.location.hash === nextHash) {
+    if (current === nextPath) {
       render();
       return;
     }
-    window.location.hash = nextHash;
+    if (options.resetNavigationStack) {
+      state.navigationStack = [];
+    } else if (options.trackNavigation !== false) {
+      state.navigationStack.push(current);
+      state.navigationStack = state.navigationStack.slice(-24);
+    }
+    state.pendingNavigationPath = nextPath;
+    window.location.hash = `#${nextPath}`;
+  }
+
+  function navigateBack(fallbackPath) {
+    let previousPath = state.navigationStack.pop();
+    const route = parseRoute(currentPath());
+    if (route.section === "mobile-design" && (!previousPath || !previousPath.startsWith("/mobile-design"))) {
+      previousPath = null;
+    }
+    navigate(previousPath || resolveBackFallbackPath(fallbackPath) || "/chats", { trackNavigation: false });
   }
 
   function isReviewOnlyRoute(route) {
@@ -970,16 +1015,20 @@
     if (route.section === "settings") {
       return renderSettingsScreen();
     }
+    if (route.section === "settings-detail") {
+      return renderSettingsDetailScreen(route.settingsSection);
+    }
     return renderSpecScreen();
   }
 
   function renderScreenHeader(options) {
-    const backButton = options.backPath
+    const fallbackPath = options.backPath ? resolveBackFallbackPath(options.backPath) : null;
+    const backButton = fallbackPath
       ? `
         <button
           class="icon-button"
-          data-action="navigate"
-          data-route="${options.backPath}"
+          data-action="go-back"
+          data-fallback-route="${escapeHtml(fallbackPath)}"
           aria-label="返回"
         >
           ${renderIcon("back", "icon-button__glyph", "返回")}
@@ -2601,6 +2650,9 @@
     const draft = state.chatDrafts[chat.id] || "";
     const activePanel = state.composerPanel;
     const contextualNote = group?.notice || chat.pinnedMessages?.[0] || "";
+    const contextualNoteAction = group
+      ? `data-action="navigate" data-route="/groups/settings/${group.id}"`
+      : `data-action="show-hint" data-message="${escapeHtml(contextualNote)}"`;
 
     return `
       <section class="screen screen--chat-detail runtime-chat-screen">
@@ -2624,7 +2676,7 @@
           ${
             contextualNote
               ? `
-                <button class="runtime-announcement" data-action="show-hint" data-message="${escapeHtml(contextualNote)}">
+                <button class="runtime-announcement" ${contextualNoteAction}>
                   <span class="runtime-announcement__label">${group ? "群公告" : "置顶消息"}</span>
                   <span class="runtime-announcement__text">${escapeHtml(contextualNote)}</span>
                   <span class="runtime-announcement__arrow">›</span>
@@ -3848,7 +3900,7 @@
         <div class="screen-scroll runtime-scroll">
           ${renderScreenHeader({ title: "设置", root: true })}
           <div class="runtime-list-content runtime-settings-content">
-            <button class="runtime-profile-row" data-action="show-hint" data-message="个人资料编辑入口">
+            <button class="runtime-profile-row" data-action="navigate" data-route="/settings/profile">
               ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
               <span class="runtime-profile-row__body">
                 <strong>${escapeHtml(data.currentUser.name)}</strong>
@@ -3869,14 +3921,91 @@
               ${renderRuntimeSwitchRow("autoDownloadMedia", "自动下载媒体", data.settings.privacy.autoDownloadMedia, "privacy")}
             </section>
             <section class="runtime-settings-group runtime-settings-group--links">
-              ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理")}
-              ${renderRuntimeSettingsLink("聊天", "聊天背景与存储")}
-              ${renderRuntimeSettingsLink("隐私协议", "协议与数据使用说明")}
-              ${renderRuntimeSettingsLink("关于 RedCode IM", "版本与反馈")}
+              ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理", "/settings/account")}
+              ${renderRuntimeSettingsLink("聊天", "聊天背景与存储", "/settings/chat")}
+              ${renderRuntimeSettingsLink("隐私协议", "协议与数据使用说明", "/settings/privacy")}
+              ${renderRuntimeSettingsLink("关于 RedCode IM", "版本与反馈", "/settings/about")}
             </section>
           </div>
         </div>
       </section>
+    `;
+  }
+
+  function renderSettingsDetailScreen(section) {
+    const detail = settingsDetail(section);
+    if (!detail) {
+      return renderFallbackScreen("设置项不存在", "/settings");
+    }
+
+    return `
+      <section class="screen runtime-screen runtime-screen--list">
+        ${renderScreenHeader({ title: detail.title, backPath: "/settings" })}
+        <div class="screen-scroll runtime-scroll">
+          <div class="runtime-list-content runtime-settings-content">
+            <section class="runtime-settings-group">
+              ${detail.rows.map(renderRuntimeSettingsValueRow).join("")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function settingsDetail(section) {
+    const enabledLabel = (enabled) => (enabled ? "已开启" : "已关闭");
+    const details = {
+      profile: {
+        title: "个人资料",
+        rows: [
+          ["姓名", data.currentUser.name],
+          ["身份", data.currentUser.role],
+          ["手机号", data.currentUser.phone],
+          ["邮箱", data.currentUser.email],
+          ["个性签名", data.currentUser.bio],
+        ],
+      },
+      account: {
+        title: "账号与安全",
+        rows: [
+          ["手机号", data.currentUser.phone],
+          ["登录设备", "当前设备已受保护"],
+          ["账号状态", "正常"],
+        ],
+      },
+      chat: {
+        title: "聊天",
+        rows: [
+          ["聊天背景", "跟随当前主题"],
+          ["自动下载媒体", enabledLabel(data.settings.privacy.autoDownloadMedia)],
+          ["消息存储", "保留最近会话记录"],
+        ],
+      },
+      privacy: {
+        title: "隐私协议",
+        rows: [
+          ["已读回执", enabledLabel(data.settings.privacy.readReceipt)],
+          ["正在输入", enabledLabel(data.settings.privacy.typingStatus)],
+          ["数据使用", "仅用于提供 IM 服务"],
+        ],
+      },
+      about: {
+        title: "关于 RedCode IM",
+        rows: [
+          ["版本", "RedCode IM 2.0 Preview"],
+          ["设计源", "im-ui-html"],
+          ["反馈", "产品体验反馈"],
+        ],
+      },
+    };
+    return details[section] || null;
+  }
+
+  function renderRuntimeSettingsValueRow([label, value]) {
+    return `
+      <div class="runtime-setting-row runtime-setting-row--static">
+        <span class="runtime-setting-row__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(value)}</small></span>
+      </div>
     `;
   }
 
@@ -3896,9 +4025,9 @@
     `;
   }
 
-  function renderRuntimeSettingsLink(title, description) {
+  function renderRuntimeSettingsLink(title, description, route) {
     return `
-      <button class="runtime-setting-row runtime-setting-row--link" data-action="show-hint" data-message="${escapeHtml(description)}">
+      <button class="runtime-setting-row runtime-setting-row--link" data-action="navigate" data-route="${route}">
         <span class="runtime-setting-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
         <span class="runtime-row-chevron">›</span>
       </button>
@@ -4495,7 +4624,7 @@
     state.groupMemberFilter = "";
 
     showToast("群聊已创建", `${name} 已创建完成，并进入群会话。`);
-    navigate(`/chat/${chatId}`);
+    navigate(`/chat/${chatId}`, { resetNavigationStack: true });
   }
 
   function sendChatMessage(chatId) {
@@ -4619,6 +4748,11 @@
     }
 
     const action = target.getAttribute("data-action");
+    if (action === "go-back") {
+      event.preventDefault();
+      navigateBack(target.getAttribute("data-fallback-route"));
+      return;
+    }
     if (action === "navigate") {
       event.preventDefault();
       navigate(target.getAttribute("data-route"));

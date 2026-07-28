@@ -25,7 +25,7 @@
 | `#/mobile-design/settings` | 设置 |
 | `#/mobile-design/<业务路径>` | 将任意已注册的移动业务路径保留在同一手机容器内 |
 
-容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。
+容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。二级页返回优先回到实际进入来源；直接打开深链时，使用该业务链路的默认兜底，且仍保留在设备容器内。
 
 ## 3. 移动端业务地图
 
@@ -69,6 +69,16 @@
 | `#/discover/scan` | 扫一扫 |
 | `#/discover/nearby` | 附近的人 |
 | `#/discover/games` | 游戏入口 |
+
+### 设置链路
+
+| Route | 说明 |
+| --- | --- |
+| `#/settings/profile` | 个人资料 |
+| `#/settings/account` | 账号与安全 |
+| `#/settings/chat` | 聊天偏好与存储 |
+| `#/settings/privacy` | 隐私协议与数据使用 |
+| `#/settings/about` | 关于与版本信息 |
 
 ### 其他
 
@@ -138,6 +148,7 @@
 | `#/groups/settings/:groupId` | `groups/settings/:groupId` |
 | `#/search` | `search/messages` |
 | `#/settings` | `home/settings` |
+| `#/settings/:section` | `settings/:section` |
 
 ## 7. 页面地图维护规则
 
