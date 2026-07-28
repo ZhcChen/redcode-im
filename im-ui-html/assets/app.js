@@ -3881,10 +3881,6 @@
 
     return `
       <section class="runtime-settings-group runtime-group-settings-group runtime-group-members-section">
-        <div class="runtime-group-settings-heading">
-          <h3>成员</h3>
-          <span>${group.memberCount} 人</span>
-        </div>
         <div class="runtime-group-member-preview ${isExpanded ? "is-expanded" : ""}">
           <div class="runtime-group-member-grid">
             ${visibleMembers.map(renderGroupSettingsMember).join("")}
@@ -3916,7 +3912,6 @@
       <span class="runtime-group-member runtime-group-member--overflow" aria-label="还有 ${remainingMemberCount} 位成员">
         <span class="runtime-group-member__count">+${remainingMemberCount}</span>
         <strong>其他成员</strong>
-        <small>群成员</small>
       </span>
     `;
   }
@@ -3924,13 +3919,11 @@
   function renderGroupSettingsMember(member) {
     const name = member.name || member.username || "Unknown";
     const tone = member.tone || member.avatarTone || "mint";
-    const status = member.id === data.currentUser.id ? "我" : member.status || "在线";
 
     return `
       <span class="runtime-group-member">
         ${renderAvatar(name, tone, "avatar--sm")}
         <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
-        <small>${escapeHtml(status)}</small>
       </span>
     `;
   }
