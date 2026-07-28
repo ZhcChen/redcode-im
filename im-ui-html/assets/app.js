@@ -2953,7 +2953,6 @@
       <button class="runtime-discover-card" data-action="navigate" data-route="${item.route}">
         <span class="runtime-discover-card__icon">${renderIcon(item.icon, "runtime-discover-card__glyph", item.title)}</span>
         <strong>${escapeHtml(item.title)}</strong>
-        <span>${escapeHtml(item.badge)}</span>
       </button>
     `;
   }

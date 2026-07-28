@@ -5600,16 +5600,18 @@ body[data-theme="dark"] .phone-screen {
 
 .runtime-discover-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
 .runtime-discover-card {
-  min-height: 126px;
-  padding: 14px;
-  display: grid;
-  align-content: start;
-  gap: 8px;
+  min-height: 112px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   border: 1px solid var(--runtime-line);
   border-radius: 8px;
   background: var(--runtime-surface);
@@ -5618,13 +5620,10 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-discover-card strong {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.runtime-discover-card > span:last-child {
-  color: var(--runtime-muted);
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 680;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
 .runtime-tab-bar {

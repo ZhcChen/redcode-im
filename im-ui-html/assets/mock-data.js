@@ -1109,7 +1109,6 @@ window.RedcodeIMPrototypeData = {
         route: "/discover/scan",
         title: "扫一扫",
         icon: "scan",
-        badge: "快捷",
         summary: "扫码加好友、进群、打开活动页或登录桌面端。",
       },
       {
@@ -1117,7 +1116,6 @@ window.RedcodeIMPrototypeData = {
         route: "/discover/nearby",
         title: "附近的人",
         icon: "nearby",
-        badge: "8",
         summary: "基于地理位置扩展弱连接关系和同城社交。",
       },
       {
@@ -1125,7 +1123,6 @@ window.RedcodeIMPrototypeData = {
         route: "/discover/games",
         title: "游戏",
         icon: "games",
-        badge: "入口",
         summary: "先保留统一入口，后续再接小游戏大厅与房间。",
       },
     ],
