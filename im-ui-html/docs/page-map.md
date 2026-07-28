@@ -50,7 +50,7 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/contacts/requests` | 好友申请 |
+| `#/contacts/requests` | 好友申请：按收到 / 发出分组，每条申请使用独立决策卡 |
 | `#/contacts/add` | 添加好友 |
 | `#/contacts/profile/:contactId` | 联系人资料页 |
 

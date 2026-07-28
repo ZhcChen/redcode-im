@@ -3298,8 +3298,8 @@
 
   function renderRequestSection(title, note, requests, type) {
     return `
-      <section class="surface-card surface-card--request-section">
-        <div class="surface-card__header">
+      <section class="request-section request-section--${type}">
+        <div class="surface-card__header request-section__header">
           <div class="surface-card__header-copy">
             <h3>${escapeHtml(title)}</h3>
             <p>${escapeHtml(note)}</p>
@@ -3307,7 +3307,7 @@
           <span class="badge">${requests.length}</span>
         </div>
         ${requests.length
-          ? requests.map((request) => renderRequestCard(request)).join("")
+          ? `<div class="request-section__list">${requests.map((request) => renderRequestCard(request)).join("")}</div>`
           : renderEmptyState(
               type === "incoming" ? "暂无收到的申请" : "暂无发出的申请",
               type === "incoming"
@@ -3323,7 +3323,7 @@
     const pending = request.status === "pending";
 
     return `
-      <div class="request-card request-card--${request.type}">
+      <article class="request-card request-card--${request.type}">
         <div class="request-card__header">
           ${renderAvatar(request.name, request.tone, "avatar--md")}
           <div class="request-card__body">
@@ -3366,7 +3366,7 @@
             `
             : ""
         }
-      </div>
+      </article>
     `;
   }
 

@@ -3462,8 +3462,7 @@ body[data-theme="dark"] .spec-stage {
 .list-row + .list-row,
 .search-result-row + .search-result-row,
 .menu-row + .menu-row,
-.group-card + .group-card,
-.request-card + .request-card {
+.group-card + .group-card {
   border-top: 1px solid var(--line);
 }
 
@@ -3947,7 +3946,36 @@ body[data-theme="dark"] .spec-stage {
   gap: 0.35em;
 }
 
-.request-card,
+.request-section {
+  display: grid;
+  gap: 0.55em;
+}
+
+.request-section__header {
+  margin: 0;
+}
+
+.request-section__list {
+  display: grid;
+  gap: 0.75em;
+}
+
+.request-section > .empty-state {
+  padding: 1.1em;
+  border: 1px solid var(--line);
+  border-radius: 1.2em;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.request-card {
+  padding: 0.95em;
+  border: 1px solid var(--line);
+  border-radius: 1.2em;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
 .group-card {
   padding: 0.95em 0;
 }
@@ -3980,10 +4008,6 @@ body[data-theme="dark"] .spec-stage {
 .request-overview-card span {
   color: var(--text-secondary);
   font-size: 0.8em;
-}
-
-.surface-card--request-section {
-  padding: 0.95em;
 }
 
 .moment-card,
@@ -6726,7 +6750,8 @@ body[data-theme="dark"] .phone-screen .switch-row__input {
 
 .phone-screen--runtime .screen:not(.runtime-screen) .surface-card,
 .phone-screen--runtime .screen:not(.runtime-screen) .list-card,
-.phone-screen--runtime .screen:not(.runtime-screen) .settings-list {
+.phone-screen--runtime .screen:not(.runtime-screen) .settings-list,
+.phone-screen--runtime .screen:not(.runtime-screen) .request-card {
   background: var(--runtime-surface);
 }
 
@@ -6853,7 +6878,8 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
 
 .phone-screen--preview .screen:not(.runtime-screen) .surface-card,
 .phone-screen--preview .screen:not(.runtime-screen) .list-card,
-.phone-screen--preview .screen:not(.runtime-screen) .settings-list {
+.phone-screen--preview .screen:not(.runtime-screen) .settings-list,
+.phone-screen--preview .screen:not(.runtime-screen) .request-card {
   background: var(--runtime-surface);
 }
 
