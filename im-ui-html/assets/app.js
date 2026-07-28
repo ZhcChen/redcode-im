@@ -1567,8 +1567,7 @@
           </div>
         </div>
         <div class="root-page-preview__setting-list">
-          <div class="root-page-preview__setting-row"><span>我的群聊</span><span class="root-page-preview__chevron"></span></div>
-          <div class="root-page-preview__setting-row"><span>消息搜索</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>设置</span><span class="root-page-preview__chevron"></span></div>
         </div>
       `;
@@ -3914,9 +3913,6 @@
   }
 
   function renderMineScreen() {
-    const groupCount = data.groups.length;
-    const groupSummary = groupCount ? `${groupCount} 个群聊` : "创建或加入群聊";
-
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-mine-screen">
         <div class="screen-scroll runtime-scroll">
@@ -3933,11 +3929,6 @@
               </span>
               <span class="runtime-row-chevron">›</span>
             </button>
-            <section class="runtime-settings-group runtime-mine-group">
-              <h3>消息与群组</h3>
-              ${renderMineMenuLink("我的群聊", groupSummary, "chats", "/groups")}
-              ${renderMineMenuLink("消息搜索", "查找会话和聊天记录", "search", "/search")}
-            </section>
             <section class="runtime-settings-group runtime-mine-group">
               <h3>账号与设置</h3>
               ${renderMineMenuLink("账号与安全", "设备与登录管理", "profile", "/settings/account")}
@@ -4287,8 +4278,8 @@
         title: "我的页验证点",
         label: "Mine",
         items: [
-          "一级页以资料、真实会话工具和账号设置为核心，不混入静态统计。",
-          "消息搜索、我的群聊、账号安全和设置入口都必须进入真实业务链路。",
+          "一级页以资料和账号设置为核心，不混入静态统计或其他根页的快捷入口。",
+          "个人资料、账号安全和设置入口都必须进入真实业务链路。",
           "设置下沉为二级页后，底栏仍只保留四个稳定入口。",
         ],
       };
