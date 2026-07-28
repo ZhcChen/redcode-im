@@ -5870,6 +5870,7 @@ body[data-theme="dark"] .phone-screen {
 .runtime-group-member-preview {
   max-height: 92px;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 .runtime-group-member-preview.is-expanded {
@@ -5879,8 +5880,20 @@ body[data-theme="dark"] .phone-screen {
 .runtime-group-member-grid {
   padding: 2px 12px 8px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px 4px;
+}
+
+@container (min-width: 360px) {
+  .runtime-group-member-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 359px) {
+  .runtime-group-member-preview:not(.is-expanded) .runtime-group-member:nth-child(n + 5) {
+    display: none;
+  }
 }
 
 .runtime-group-member {
