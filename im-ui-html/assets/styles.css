@@ -5527,10 +5527,23 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-row-chevron {
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
   color: var(--runtime-faint);
-  font-size: 22px;
-  font-weight: 350;
-  line-height: 1;
+}
+
+.runtime-row-chevron__glyph,
+.runtime-row-chevron__glyph svg {
+  width: 16px;
+  height: 16px;
+}
+
+.runtime-row-chevron__glyph svg {
+  stroke-width: 2.1;
 }
 
 .runtime-discover-content {

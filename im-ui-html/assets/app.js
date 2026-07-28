@@ -80,6 +80,7 @@
       '<path d="M14.9 6.5L8.75 12l6.15 5.5" />',
       '<path d="M9.15 12H19" />',
     ],
+    chevronRight: ['<path d="m9.25 5.5 6.5 6.5-6.5 6.5" />'],
     search: [
       '<circle cx="10.7" cy="10.7" r="4.95" />',
       '<path d="M14.35 14.35 18.65 18.65" />',
@@ -358,6 +359,10 @@
         </svg>
       </span>
     `;
+  }
+
+  function renderRowChevron() {
+    return `<span class="runtime-row-chevron">${renderIcon("chevronRight", "runtime-row-chevron__glyph")}</span>`;
   }
 
   function isWideStageRoute(route) {
@@ -2898,7 +2903,7 @@
               <button class="runtime-contact-shortcut" data-action="navigate" data-route="/groups">
                 <span class="runtime-contact-shortcut__icon">${renderIcon("chats", "runtime-contact-shortcut__glyph", "群聊")}</span>
                 <span class="runtime-contact-shortcut__copy"><strong>群聊</strong><span>${data.groups.length} 个群聊</span></span>
-                <span class="runtime-row-chevron">›</span>
+                ${renderRowChevron()}
               </button>
             </div>
             <label class="runtime-search-field">
@@ -3214,7 +3219,7 @@
           <strong>${escapeHtml(contact.name)}</strong>
           <span>${escapeHtml(contact.title)}</span>
         </span>
-        <span class="runtime-row-chevron">›</span>
+        ${renderRowChevron()}
       </button>
     `;
   }
@@ -3930,7 +3935,7 @@
                 <span class="runtime-mine-profile__bio">${escapeHtml(data.currentUser.bio)}</span>
                 <small>查看个人资料</small>
               </span>
-              <span class="runtime-row-chevron">›</span>
+              ${renderRowChevron()}
             </button>
             <section class="runtime-settings-group runtime-mine-group">
               ${renderMineMenuLink("账号与安全", "设备与登录管理", "profile", "/settings/account")}
@@ -3952,7 +3957,7 @@
       <button class="runtime-mine-menu-row ${emphasized ? "is-emphasized" : ""}" data-action="navigate" data-route="${route}">
         <span class="runtime-mine-menu-row__icon">${renderIcon(icon, "runtime-mine-menu-row__glyph")}</span>
         <span class="runtime-mine-menu-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
-        <span class="runtime-row-chevron">›</span>
+        ${renderRowChevron()}
       </button>
     `;
   }
@@ -4088,7 +4093,7 @@
     return `
       <button class="runtime-setting-row runtime-setting-row--link" data-action="navigate" data-route="${route}">
         <span class="runtime-setting-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
-        <span class="runtime-row-chevron">›</span>
+        ${renderRowChevron()}
       </button>
     `;
   }
