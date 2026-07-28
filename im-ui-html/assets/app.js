@@ -3788,30 +3788,28 @@
     const members = group.members.map((memberId) => findPerson(memberId)).filter(Boolean);
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-screen--group-settings">
         ${renderScreenHeader({
           title: "群设置",
-          subtitle: "群信息与我的偏好",
           backPath: `/chat/${group.chatId}`,
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="profile-hero profile-hero--group">
-              ${renderAvatar(group.name, "violet", "avatar--xl")}
-              <div class="profile-hero__body">
-                <h3>${escapeHtml(group.name)}</h3>
-                <p>${group.memberCount} 位成员 · 在线 ${group.onlineCount}</p>
-                <div class="chip-row">
-                  ${group.tags.map((tag) => `<span class="chip chip--filled">${escapeHtml(tag)}</span>`).join("")}
-                </div>
-              </div>
+        <div class="screen-scroll runtime-scroll runtime-topbar-scroll">
+          <div class="runtime-list-content runtime-group-settings-content">
+            <section class="runtime-group-overview" aria-label="${escapeHtml(group.name)} 群概览">
+              <span class="runtime-group-overview__avatar">${renderGroupAvatar(group)}</span>
+              <span class="runtime-group-overview__copy">
+                <strong>${escapeHtml(group.name)}</strong>
+                <span class="runtime-group-overview__meta">${group.memberCount} 位成员 · ${group.onlineCount} 位在线</span>
+                <span class="runtime-group-overview__tags">
+                  ${group.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}
+                </span>
+              </span>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>我的群聊</h3>
-              </div>
-              <label class="runtime-group-preference">
-                <span class="runtime-group-preference__copy">
+            <section class="runtime-settings-group runtime-group-settings-group">
+              <h3>我的群聊</h3>
+              <label class="runtime-setting-row runtime-setting-row--switch runtime-group-preference">
+                <span class="runtime-setting-row__copy">
                   <strong>收藏群聊</strong>
                   <small>在联系人 > 群聊中优先显示</small>
                 </span>
@@ -3824,69 +3822,60 @@
                 />
               </label>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>群公告</h3>
-                <button class="ghost-button ghost-button--small" data-action="navigate" data-route="/chat/${group.chatId}">返回会话</button>
-              </div>
-              <p>${escapeHtml(group.notice)}</p>
-            </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>加入方式</h3>
-                <span class="badge">${joinPolicyLabel(group.joinPolicy)}</span>
-              </div>
-              <div class="choice-row">
-                ${renderChoiceButton("join-policy", group.id, "invite_only", joinPolicyLabel("invite_only"), group.joinPolicy)}
-                ${renderChoiceButton("join-policy", group.id, "review_required", joinPolicyLabel("review_required"), group.joinPolicy)}
+            <section class="runtime-settings-group runtime-group-settings-group">
+              <h3>群信息</h3>
+              <div class="runtime-group-notice">
+                <strong>群公告</strong>
+                <p>${escapeHtml(group.notice)}</p>
               </div>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>发言策略</h3>
-                <span class="badge">${muteModeLabel(group.muteMode)}</span>
+            <section class="runtime-settings-group runtime-group-settings-group">
+              <h3>群权限</h3>
+              <div class="runtime-group-policy">
+                <span class="runtime-group-policy__copy">
+                  <strong>加入方式</strong>
+                  <small>控制新成员进入此群的方式</small>
+                </span>
+                <div class="choice-row runtime-group-policy__choices" role="group" aria-label="加入方式">
+                  ${renderChoiceButton("join-policy", group.id, "invite_only", joinPolicyLabel("invite_only"), group.joinPolicy)}
+                  ${renderChoiceButton("join-policy", group.id, "review_required", joinPolicyLabel("review_required"), group.joinPolicy)}
+                </div>
               </div>
-              <div class="choice-row">
-                ${renderChoiceButton("mute-mode", group.id, "free", muteModeLabel("free"), group.muteMode)}
-                ${renderChoiceButton("mute-mode", group.id, "admin_only", muteModeLabel("admin_only"), group.muteMode)}
+              <div class="runtime-group-policy">
+                <span class="runtime-group-policy__copy">
+                  <strong>发言策略</strong>
+                  <small>控制群成员的发言范围</small>
+                </span>
+                <div class="choice-row runtime-group-policy__choices" role="group" aria-label="发言策略">
+                  ${renderChoiceButton("mute-mode", group.id, "free", muteModeLabel("free"), group.muteMode)}
+                  ${renderChoiceButton("mute-mode", group.id, "admin_only", muteModeLabel("admin_only"), group.muteMode)}
+                </div>
               </div>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
+            <section class="runtime-settings-group runtime-group-settings-group">
+              <div class="runtime-group-settings-heading">
                 <h3>群规则</h3>
-                <span class="badge">${group.rules.length}</span>
+                <span>${group.rules.length} 条</span>
               </div>
-              <ul class="bullet-list">
+              <ol class="runtime-group-rule-list">
                 ${group.rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
-              </ul>
+              </ol>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
+            <section class="runtime-settings-group runtime-group-settings-group">
+              <div class="runtime-group-settings-heading">
                 <h3>成员</h3>
-                <span class="badge">${members.length}</span>
+                <span>${group.memberCount} 人</span>
               </div>
-              <div class="member-stack">
-                ${members
-                  .map((member) => {
-                    const name = member.name || member.username || "Unknown";
-                    const title = member.title || member.role || "成员";
-                    const tone = member.tone || member.avatarTone || "mint";
-                    const status = member.status || "在线";
-                    return `
-                      <div class="list-row list-row--static">
-                        ${renderAvatar(name, tone, "avatar--md")}
-                        <div class="list-row__body">
-                          <div class="list-row__title">
-                            <strong>${escapeHtml(name)}</strong>
-                            <span class="badge">${escapeHtml(status)}</span>
-                          </div>
-                          <div class="list-row__summary">${escapeHtml(title)}</div>
-                        </div>
-                      </div>
-                    `;
-                  })
-                  .join("")}
-              </div>
+              ${
+                members.length
+                  ? `
+                    <div class="runtime-group-member-grid">
+                      ${members.map(renderGroupSettingsMember).join("")}
+                    </div>
+                    <p class="runtime-group-member-note">已展示 ${members.length} 位近期活跃成员</p>
+                  `
+                  : `<p class="runtime-group-member-note">暂无可展示成员</p>`
+              }
             </section>
           </div>
         </div>
@@ -3894,14 +3883,31 @@
     `;
   }
 
+  function renderGroupSettingsMember(member) {
+    const name = member.name || member.username || "Unknown";
+    const tone = member.tone || member.avatarTone || "mint";
+    const status = member.id === data.currentUser.id ? "我" : member.status || "在线";
+
+    return `
+      <span class="runtime-group-member">
+        ${renderAvatar(name, tone, "avatar--sm")}
+        <strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>
+        <small>${escapeHtml(status)}</small>
+      </span>
+    `;
+  }
+
   function renderChoiceButton(kind, groupId, value, label, currentValue) {
+    const isActive = currentValue === value;
     return `
       <button
-        class="choice-button ${currentValue === value ? "is-active" : ""}"
+        class="choice-button ${isActive ? "is-active" : ""}"
+        type="button"
         data-action="update-group-field"
         data-kind="${kind}"
         data-group-id="${groupId}"
         data-value="${value}"
+        aria-pressed="${isActive}"
       >
         ${label}
       </button>
