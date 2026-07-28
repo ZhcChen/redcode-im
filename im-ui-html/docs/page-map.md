@@ -66,7 +66,7 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/discover/moments` | 朋友圈 |
+| `#/discover/moments` | 朋友圈内容流，使用紧凑固定导航栏 |
 | `#/discover/scan` | 扫一扫 |
 | `#/discover/nearby` | 附近的人 |
 | `#/discover/games` | 游戏入口 |

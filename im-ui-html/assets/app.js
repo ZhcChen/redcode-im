@@ -517,6 +517,26 @@
       </div>
       ${mobilePreviewMode ? "" : renderToasts()}
     `;
+    bindCompactTopbars();
+  }
+
+  function bindCompactTopbars() {
+    root.querySelectorAll(".runtime-topbar-scroll").forEach((scrollContainer) => {
+      const header = scrollContainer.previousElementSibling;
+      if (!(header instanceof HTMLElement) || !header.classList.contains("runtime-header--compact")) {
+        return;
+      }
+
+      const updateScrollState = () => {
+        const isScrolled = scrollContainer.scrollTop > 2;
+        if (header.classList.contains("is-scrolled") !== isScrolled) {
+          header.classList.toggle("is-scrolled", isScrolled);
+        }
+      };
+
+      scrollContainer.addEventListener("scroll", updateScrollState, { passive: true });
+      updateScrollState();
+    });
   }
 
   function renderPrototypeToolbar(route) {
@@ -1046,11 +1066,12 @@
   }
 
   function renderScreenHeader(options) {
+    const compact = options.variant === "compact";
     const fallbackPath = options.backPath ? resolveBackFallbackPath(options.backPath) : null;
     const backButton = fallbackPath
       ? `
         <button
-          class="icon-button"
+          class="icon-button ${compact ? "runtime-topbar__back" : ""}"
           data-action="go-back"
           data-fallback-route="${escapeHtml(fallbackPath)}"
           aria-label="返回"
@@ -1065,7 +1086,7 @@
       : "";
 
     return `
-      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""}">
+      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""}">
         ${backButton}
         <div class="screen-header__main">
           <h2>${escapeHtml(options.title)}</h2>
@@ -2962,10 +2983,10 @@
       <section class="screen">
         ${renderScreenHeader({
           title: "朋友圈",
-          subtitle: "先用单列时间流验证内容型页面节奏",
           backPath: "/discover",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
+        <div class="screen-scroll runtime-topbar-scroll">
           <div class="screen-stack">
             <section class="hero-card hero-card--soft hero-card--moments">
               <span class="eyebrow">Moments Feed</span>

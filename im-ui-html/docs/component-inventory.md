@@ -9,7 +9,7 @@
 | 组件 | 用途 | 状态 | Flutter 映射 |
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
-| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
+| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Fixed Feed / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
 | `Conversation Cell` | 会话、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |

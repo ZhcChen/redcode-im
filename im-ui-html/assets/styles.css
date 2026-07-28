@@ -5149,6 +5149,93 @@ body[data-theme="dark"] .phone-screen {
   padding-bottom: 10px;
 }
 
+.phone-screen .runtime-header--compact {
+  min-height: 56px;
+  padding: 6px 12px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 0;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  background: var(--runtime-canvas);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.phone-screen--runtime .runtime-header--compact {
+  min-height: calc(56px + env(safe-area-inset-top));
+  padding-top: calc(6px + env(safe-area-inset-top));
+}
+
+.phone-screen .runtime-header--compact::after {
+  content: "";
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 16px;
+  height: 1px;
+  background: transparent;
+  transition: background 160ms ease;
+}
+
+.phone-screen .runtime-header--compact.is-scrolled {
+  background: color-mix(in srgb, var(--runtime-canvas) 94%, transparent);
+  box-shadow: 0 5px 16px rgba(15, 23, 42, 0.05);
+}
+
+.phone-screen .runtime-header--compact.is-scrolled::after {
+  background: var(--runtime-line);
+}
+
+.phone-screen .runtime-header--compact .screen-header__main {
+  grid-column: 2;
+  flex: none;
+  min-width: 0;
+  text-align: center;
+}
+
+.phone-screen .runtime-header.runtime-header--compact h2 {
+  overflow: hidden;
+  color: var(--runtime-ink);
+  font-size: 17px;
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-screen .runtime-header--compact .screen-header__actions {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.phone-screen .runtime-header--compact .runtime-topbar__back {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  background: transparent;
+  color: var(--runtime-ink);
+}
+
+.phone-screen .runtime-header--compact .runtime-topbar__back:hover,
+.phone-screen .runtime-header--compact .runtime-topbar__back:active {
+  transform: none;
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-header--compact .runtime-topbar__back .icon-button__glyph {
+  width: 22px;
+  height: 22px;
+}
+
+.runtime-topbar-scroll {
+  padding-top: 10px;
+}
+
 .phone-screen .runtime-header__main,
 .phone-screen .screen-header__main {
   min-width: 0;
@@ -6665,6 +6752,10 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
 
 .phone-screen--preview .screen:not(.runtime-screen) .screen-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.phone-screen--preview .screen:not(.runtime-screen) .runtime-topbar-scroll {
+  padding-top: 10px;
 }
 
 .phone-screen--preview .screen:not(.runtime-screen) .screen-header__main p,
