@@ -2,6 +2,7 @@
   const source = window.RedcodeIMPrototypeData;
   const root = document.getElementById("app");
   const STORAGE_KEY = "redcode-im-ui-prototype/design-source-v2";
+  const GROUP_MEMBER_PREVIEW_LIMIT = 3;
   const DEVICE_FRAMES = {
     "iphone-12-pro": {
       label: "iPhone 12 Pro",
@@ -25,6 +26,7 @@
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
     activeSpecTab: "components",
     savedGroupIds: new Set(["g_launch"]),
+    expandedGroupMemberIds: new Set(),
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
@@ -82,6 +84,8 @@
       '<path d="M9.15 12H19" />',
     ],
     chevronRight: ['<path d="m9.25 5.5 6.5 6.5-6.5 6.5" />'],
+    chevronDown: ['<path d="m5.5 9.25 6.5 6.5 6.5-6.5" />'],
+    chevronUp: ['<path d="m5.5 14.75 6.5-6.5 6.5 6.5" />'],
     search: [
       '<circle cx="10.7" cy="10.7" r="4.95" />',
       '<path d="M14.35 14.35 18.65 18.65" />',
@@ -3806,6 +3810,7 @@
                 </span>
               </span>
             </section>
+            ${renderGroupMembersSection(group, members)}
             <section class="runtime-settings-group runtime-group-settings-group">
               <h3>我的群聊</h3>
               <label class="runtime-setting-row runtime-setting-row--switch runtime-group-preference">
@@ -3861,25 +3866,63 @@
                 ${group.rules.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
               </ol>
             </section>
-            <section class="runtime-settings-group runtime-group-settings-group">
-              <div class="runtime-group-settings-heading">
-                <h3>成员</h3>
-                <span>${group.memberCount} 人</span>
-              </div>
-              ${
-                members.length
-                  ? `
-                    <div class="runtime-group-member-grid">
-                      ${members.map(renderGroupSettingsMember).join("")}
-                    </div>
-                    <p class="runtime-group-member-note">已展示 ${members.length} 位近期活跃成员</p>
-                  `
-                  : `<p class="runtime-group-member-note">暂无可展示成员</p>`
-              }
-            </section>
           </div>
         </div>
       </section>
+    `;
+  }
+
+  function renderGroupMembersSection(group, members) {
+    const isExpanded = state.expandedGroupMemberIds.has(group.id);
+    const visibleMembers = isExpanded ? members : members.slice(0, GROUP_MEMBER_PREVIEW_LIMIT);
+    const remainingMemberCount = Math.max(0, group.memberCount - members.length);
+    const hasMoreMembers = members.length > GROUP_MEMBER_PREVIEW_LIMIT || remainingMemberCount > 0;
+    const memberSummary = isExpanded
+      ? `已显示 ${members.length} 位近期活跃成员`
+      : `已显示 ${visibleMembers.length} 位近期活跃成员`;
+
+    return `
+      <section class="runtime-settings-group runtime-group-settings-group runtime-group-members-section">
+        <div class="runtime-group-settings-heading">
+          <h3>成员</h3>
+          <span>${group.memberCount} 人</span>
+        </div>
+        <div class="runtime-group-member-preview ${isExpanded ? "is-expanded" : ""}">
+          <div class="runtime-group-member-grid">
+            ${visibleMembers.map(renderGroupSettingsMember).join("")}
+            ${isExpanded && remainingMemberCount ? renderGroupMemberOverflow(remainingMemberCount) : ""}
+          </div>
+        </div>
+        ${
+          hasMoreMembers
+            ? `
+              <button
+                class="runtime-group-member-toggle"
+                type="button"
+                data-action="toggle-group-members"
+                data-group-id="${group.id}"
+                aria-expanded="${isExpanded}"
+              >
+                <span class="runtime-group-member-toggle__copy">
+                  <strong>${isExpanded ? "收起成员" : "查看更多成员"}</strong>
+                  <small>${memberSummary}</small>
+                </span>
+                ${renderIcon(isExpanded ? "chevronUp" : "chevronDown", "runtime-group-member-toggle__icon", isExpanded ? "收起成员" : "查看更多成员")}
+              </button>
+            `
+            : ""
+        }
+      </section>
+    `;
+  }
+
+  function renderGroupMemberOverflow(remainingMemberCount) {
+    return `
+      <span class="runtime-group-member runtime-group-member--overflow" aria-label="还有 ${remainingMemberCount} 位成员">
+        <span class="runtime-group-member__count">+${remainingMemberCount}</span>
+        <strong>其他成员</strong>
+        <small>群成员</small>
+      </span>
     `;
   }
 
@@ -4921,6 +4964,19 @@
     render();
   }
 
+  function toggleGroupMembers(groupId) {
+    if (!findGroup(groupId)) {
+      return;
+    }
+
+    if (state.expandedGroupMemberIds.has(groupId)) {
+      state.expandedGroupMemberIds.delete(groupId);
+    } else {
+      state.expandedGroupMemberIds.add(groupId);
+    }
+    render();
+  }
+
   function updateGroupDirectoryFavorite(groupId, isFavorited) {
     const group = findGroup(groupId);
     if (!group) {
@@ -5077,6 +5133,10 @@
     if (action === "prefill-search") {
       state.searchQuery = target.getAttribute("data-value") || "";
       render();
+      return;
+    }
+    if (action === "toggle-group-members") {
+      toggleGroupMembers(target.getAttribute("data-group-id"));
       return;
     }
     if (action === "update-group-field") {
