@@ -5546,6 +5546,10 @@ body[data-theme="dark"] .phone-screen {
   stroke-width: 2.1;
 }
 
+.runtime-discover-screen .runtime-scroll {
+  padding-top: 16px;
+}
+
 .runtime-discover-content {
   gap: 14px;
 }

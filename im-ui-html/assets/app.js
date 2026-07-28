@@ -2930,9 +2930,8 @@
     const quickEntries = discover.entries.filter((item) => item.id !== moments.id);
 
     return `
-      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-discover-screen">
         <div class="screen-scroll runtime-scroll">
-          ${renderScreenHeader({ title: "发现", root: true })}
           <div class="runtime-list-content runtime-discover-content">
             <button class="runtime-moments-card" data-action="navigate" data-route="${moments.route}">
               <span class="runtime-moments-card__eyebrow">朋友圈</span>
