@@ -1220,3 +1220,565 @@ window.RedcodeIMPrototypeData = {
     { id: "mine", label: "我的", icon: "◎", route: "/mine" },
   ],
 };
+
+// Dense deterministic records expose list, directory, and thread states during design review.
+(() => {
+  const data = window.RedcodeIMPrototypeData;
+  const makeMessage = ({ id, senderId, senderName, senderTone, content, time, self = false, status, quote, reactions }) => {
+    const message = { id, senderId, senderName, senderTone, content, time, self };
+    if (self) {
+      message.status = status || "已读";
+    }
+    if (quote) {
+      message.quote = quote;
+    }
+    if (reactions && reactions.length) {
+      message.reactions = reactions;
+    }
+    return message;
+  };
+
+  const additionalContacts = [
+    {
+      id: "u_aaron",
+      name: "Aaron Lin",
+      username: "aaron.lin",
+      title: "Research Operations Specialist",
+      status: "在线",
+      tone: "mint",
+      note: "负责访谈、指标与问题归档",
+      zone: "用户研究组",
+    },
+    {
+      id: "u_ava",
+      name: "Ava Zhao",
+      username: "ava.zhao",
+      title: "Growth Strategist",
+      status: "忙碌中",
+      tone: "violet",
+      note: "负责增长实验与新用户路径",
+      zone: "增长组",
+    },
+    {
+      id: "u_ben",
+      name: "Ben Wu",
+      username: "ben.wu",
+      title: "iOS Engineer",
+      status: "在线",
+      tone: "amber",
+      note: "负责 iOS 端交互与性能",
+      zone: "客户端组",
+    },
+    {
+      id: "u_bella",
+      name: "Bella He",
+      username: "bella.he",
+      title: "Content Designer",
+      status: "离开",
+      tone: "mint",
+      note: "负责系统文案与空状态表达",
+      zone: "品牌体验组",
+    },
+    {
+      id: "u_chloe",
+      name: "Chloe Gu",
+      username: "chloe.gu",
+      title: "Accessibility and Internationalization Lead",
+      status: "在线",
+      tone: "violet",
+      note: "负责无障碍与多语言质量",
+      zone: "体验平台组",
+    },
+    {
+      id: "u_cyrus",
+      name: "Cyrus Rao",
+      username: "cyrus.rao",
+      title: "Data Engineer",
+      status: "忙碌中",
+      tone: "amber",
+      note: "负责事件埋点与数据质量",
+      zone: "数据平台组",
+    },
+    {
+      id: "u_daniel",
+      name: "Daniel Gu",
+      username: "daniel.gu",
+      title: "Release Engineer",
+      status: "在线",
+      tone: "mint",
+      note: "负责构建、发布与回滚策略",
+      zone: "工程效能组",
+    },
+    {
+      id: "u_emma",
+      name: "Emma Qiao",
+      username: "emma.qiao",
+      title: "Customer Success Lead",
+      status: "忙碌中",
+      tone: "violet",
+      note: "负责客户反馈与上线培训",
+      zone: "客户成功组",
+    },
+    {
+      id: "u_felix",
+      name: "Felix Zhou",
+      username: "felix.zhou",
+      title: "Web Engineer",
+      status: "在线",
+      tone: "amber",
+      note: "负责 Web 端体验与性能",
+      zone: "客户端组",
+    },
+    {
+      id: "u_grace",
+      name: "Grace Tao",
+      username: "grace.tao",
+      title: "Community Operations",
+      status: "离开",
+      tone: "mint",
+      note: "负责社区活动与关系维护",
+      zone: "社区运营组",
+    },
+    {
+      id: "u_henry",
+      name: "Henry Luo",
+      username: "henry.luo",
+      title: "Security Engineer",
+      status: "在线",
+      tone: "violet",
+      note: "负责登录、权限与审计策略",
+      zone: "安全平台组",
+    },
+    {
+      id: "u_kira",
+      name: "Kira Fang",
+      username: "kira.fang",
+      title: "QA Automation Engineer",
+      status: "忙碌中",
+      tone: "amber",
+      note: "负责端到端回归与稳定性",
+      zone: "质量组",
+    },
+    {
+      id: "u_leo",
+      name: "Leo Guo",
+      username: "leo.guo",
+      title: "Motion Designer",
+      status: "在线",
+      tone: "mint",
+      note: "负责动效节奏与反馈细节",
+      zone: "产品设计组",
+    },
+    {
+      id: "u_mila",
+      name: "Mila Tang",
+      username: "mila.tang",
+      title: "Product Analyst",
+      status: "在线",
+      tone: "violet",
+      note: "负责核心路径与留存分析",
+      zone: "产品组",
+    },
+    {
+      id: "u_noah",
+      name: "Noah Peng",
+      username: "noah.peng",
+      title: "Platform Engineer",
+      status: "离开",
+      tone: "amber",
+      note: "负责消息网关与基础设施",
+      zone: "基础架构组",
+    },
+    {
+      id: "u_owen",
+      name: "Owen He",
+      username: "owen.he",
+      title: "Finance Operations",
+      status: "在线",
+      tone: "mint",
+      note: "负责订阅、账单与成本校验",
+      zone: "业务运营组",
+    },
+    {
+      id: "u_peter",
+      name: "Peter Han",
+      username: "peter.han",
+      title: "Support Engineer",
+      status: "忙碌中",
+      tone: "violet",
+      note: "负责问题定位与客户支持",
+      zone: "技术支持组",
+    },
+    {
+      id: "u_renee",
+      name: "Renee Gao",
+      username: "renee.gao",
+      title: "Brand Director",
+      status: "在线",
+      tone: "amber",
+      note: "负责品牌一致性与传播素材",
+      zone: "品牌体验组",
+    },
+    {
+      id: "u_sam",
+      name: "Sam Xu",
+      username: "sam.xu",
+      title: "DevRel Manager",
+      status: "在线",
+      tone: "mint",
+      note: "负责开发者沟通与生态内容",
+      zone: "开发者关系组",
+    },
+    {
+      id: "u_tina",
+      name: "Tina Mo",
+      username: "tina.mo",
+      title: "Program Manager",
+      status: "忙碌中",
+      tone: "violet",
+      note: "负责跨团队排期与风险同步",
+      zone: "项目管理组",
+    },
+    {
+      id: "u_victor",
+      name: "Victor Xie",
+      username: "victor.xie",
+      title: "Infrastructure Engineer",
+      status: "离开",
+      tone: "amber",
+      note: "负责可观测性与容量规划",
+      zone: "基础架构组",
+    },
+    {
+      id: "u_will",
+      name: "Will Qian",
+      username: "will.qian",
+      title: "Mobile QA Lead",
+      status: "在线",
+      tone: "mint",
+      note: "负责真机回归与发布验收",
+      zone: "质量组",
+    },
+    {
+      id: "u_xavier",
+      name: "Xavier Luo",
+      username: "xavier.luo",
+      title: "Site Reliability Engineer",
+      status: "在线",
+      tone: "violet",
+      note: "负责线上稳定性与应急响应",
+      zone: "工程效能组",
+    },
+    {
+      id: "u_yuki",
+      name: "Yuki Fan",
+      username: "yuki.fan",
+      title: "UX Researcher",
+      status: "忙碌中",
+      tone: "amber",
+      note: "负责可用性测试与体验洞察",
+      zone: "用户研究组",
+    },
+    {
+      id: "u_zane",
+      name: "Zane Liu",
+      username: "zane.liu",
+      title: "Solution Architect",
+      status: "在线",
+      tone: "mint",
+      note: "负责企业方案与集成架构",
+      zone: "解决方案组",
+    },
+  ];
+
+  data.contacts.push(...additionalContacts);
+
+  const directChatSeeds = [
+    {
+      id: "c_room_ava",
+      contactId: "u_ava",
+      unread: 4,
+      tags: ["增长", "反馈"],
+      lastMessage: "把用户访谈里的搜索反馈归到今天的评审里。",
+      lastTime: "09:34",
+      description: "增长实验与体验反馈协作。",
+      metrics: { activeMembers: 2, todayMessages: 18, unreadMention: 1 },
+      pinnedMessages: ["回收访谈结论时保留原始用户措辞。"],
+      messages: [
+        { content: "上午的访谈里，用户最频繁提到的是联系人搜索入口不够稳定。", time: "09:08" },
+        { content: "我会把固定目录栏和粘性搜索的原型一起放到评审样本里。", time: "09:15", self: true, status: "已读" },
+        { content: "好，记得同时观察长名单下的筛选反馈。", time: "09:22", reactions: [{ emoji: "👀", count: 2 }] },
+      ],
+    },
+    {
+      id: "c_room_ben",
+      contactId: "u_ben",
+      unread: 0,
+      tags: ["iOS", "性能"],
+      lastMessage: "我会补一轮真机滚动和动态字号检查。",
+      lastTime: "09:18",
+      description: "iOS 端体验与性能协作。",
+      metrics: { activeMembers: 2, todayMessages: 11, unreadMention: 0 },
+      pinnedMessages: [],
+      messages: [
+        { content: "联系人目录的粘性搜索在小屏设备上需要留出安全区间距。", time: "08:46" },
+        { content: "HTML 设计源已经把固定栏和搜索层分开，后续可以直接对照。", time: "08:52", self: true, status: "已读" },
+        { content: "我会补一轮真机滚动和动态字号检查。", time: "09:18" },
+      ],
+    },
+    {
+      id: "c_room_chloe",
+      contactId: "u_chloe",
+      unread: 2,
+      pinned: true,
+      tags: ["无障碍", "多语言"],
+      lastMessage: "长姓名和长岗位已经覆盖到联系人评审样本。",
+      lastTime: "09:06",
+      description: "无障碍与国际化体验协作。",
+      metrics: { activeMembers: 2, todayMessages: 22, unreadMention: 1 },
+      pinnedMessages: ["长文本截断必须保留完整可访问名称。"],
+      messages: [
+        { content: "联系人行里的岗位文案需要同时覆盖英文长词和中文混排。", time: "08:31" },
+        { content: "我补充了 Accessibility and Internationalization Lead 这类长标题。", time: "08:42", self: true, status: "已读" },
+        { content: "长姓名和长岗位已经覆盖到联系人评审样本。", time: "09:06", quote: "文本截断不能影响可访问名称。" },
+      ],
+    },
+    {
+      id: "c_room_daniel",
+      contactId: "u_daniel",
+      unread: 0,
+      muted: true,
+      tags: ["发布", "工程效能"],
+      lastMessage: "发布窗口前我会再确认一次静态资源缓存策略。",
+      lastTime: "08:54",
+      description: "构建、发布与回滚策略协作。",
+      metrics: { activeMembers: 2, todayMessages: 9, unreadMention: 0 },
+      pinnedMessages: [],
+      messages: [
+        { content: "设计源的版本参数可以让评审时明确看到当前提交。", time: "08:23" },
+        { content: "缓存策略已经按静态预览服务验证过，后续继续以提交号审查。", time: "08:37", self: true, status: "已读" },
+        { content: "发布窗口前我会再确认一次静态资源缓存策略。", time: "08:54" },
+      ],
+    },
+    {
+      id: "c_room_emma",
+      contactId: "u_emma",
+      unread: 7,
+      tags: ["客户反馈", "上线"],
+      lastMessage: "客户侧的高频联系人分组已经整理成清单。",
+      lastTime: "昨天",
+      description: "客户反馈与上线培训协作。",
+      metrics: { activeMembers: 2, todayMessages: 15, unreadMention: 2 },
+      pinnedMessages: ["上线说明要明确搜索、申请和资料查看路径。"],
+      messages: [
+        { content: "客户常会从联系人列表直接进入资料页确认身份和职责。", time: "昨天 17:14" },
+        { content: "我会保证目录页、资料页和返回路径都能连续演示。", time: "昨天 17:22", self: true, status: "已读" },
+        { content: "客户侧的高频联系人分组已经整理成清单。", time: "昨天 17:39", reactions: [{ emoji: "✅", count: 3 }] },
+      ],
+    },
+    {
+      id: "c_room_felix",
+      contactId: "u_felix",
+      unread: 0,
+      tags: ["Web", "设计源"],
+      lastMessage: "桌面和手机预览都能用同一批密集样本检查。",
+      lastTime: "昨天",
+      description: "Web 端体验与性能协作。",
+      metrics: { activeMembers: 2, todayMessages: 6, unreadMention: 0 },
+      pinnedMessages: [],
+      messages: [
+        { content: "mock 数据放在统一数据源里，桌面蓝图和手机壳都能一起受益。", time: "昨天 15:42" },
+        { content: "这样评审时能直接观察长列表、长摘要和线程滚动。", time: "昨天 15:47", self: true, status: "已读" },
+        { content: "桌面和手机预览都能用同一批密集样本检查。", time: "昨天 15:53" },
+      ],
+    },
+    {
+      id: "c_room_grace",
+      contactId: "u_grace",
+      unread: 1,
+      tags: ["社区", "活动"],
+      lastMessage: "活动群的申请入口和联系人目录可以一起串起来。",
+      lastTime: "昨天",
+      description: "社区活动与关系维护协作。",
+      metrics: { activeMembers: 2, todayMessages: 8, unreadMention: 0 },
+      pinnedMessages: [],
+      messages: [
+        { content: "线下活动后，新增好友通常会在短时间内集中出现。", time: "昨天 14:16" },
+        { content: "新的朋友入口保留在目录起点，长名单时搜索会常驻。", time: "昨天 14:24", self: true, status: "已读" },
+        { content: "活动群的申请入口和联系人目录可以一起串起来。", time: "昨天 14:33" },
+      ],
+    },
+    {
+      id: "c_room_henry",
+      contactId: "u_henry",
+      unread: 0,
+      tags: ["安全", "权限"],
+      lastMessage: "资料页里的账户信息保持静态详情展示就够了。",
+      lastTime: "周一",
+      description: "登录、权限与审计策略协作。",
+      metrics: { activeMembers: 2, todayMessages: 5, unreadMention: 0 },
+      pinnedMessages: ["敏感信息默认不在一级列表展开。"],
+      messages: [
+        { content: "联系人列表只显示身份识别所需的信息，不混入账户敏感字段。", time: "昨天 11:12" },
+        { content: "资料页里的账户信息保持静态详情展示就够了。", time: "昨天 11:20", self: true, status: "已读" },
+        { content: "这样也能让目录浏览维持足够低的视觉噪音。", time: "昨天 11:26" },
+      ],
+    },
+    {
+      id: "c_room_kira",
+      contactId: "u_kira",
+      unread: 3,
+      tags: ["测试", "回归"],
+      lastMessage: "我会把长会话和长线程纳入下一轮截图回归。",
+      lastTime: "周一",
+      description: "端到端回归与稳定性协作。",
+      metrics: { activeMembers: 2, todayMessages: 19, unreadMention: 1 },
+      pinnedMessages: ["截图验收要覆盖首屏、滚动中和底部状态。"],
+      messages: [
+        { content: "当前联系人和会话的默认样本太少，很多滚动问题会被掩盖。", time: "昨天 10:06" },
+        { content: "这次会补充 30 位联系人、14 个会话和多线程消息。", time: "昨天 10:12", self: true, status: "已读" },
+        { content: "我会把长会话和长线程纳入下一轮截图回归。", time: "昨天 10:18", reactions: [{ emoji: "🎯", count: 2 }] },
+      ],
+    },
+    {
+      id: "c_room_leo",
+      contactId: "u_leo",
+      unread: 0,
+      tags: ["动效", "反馈"],
+      lastMessage: "固定栏的分隔线只在滚动后出现，节奏会更安静。",
+      lastTime: "周一",
+      description: "动效节奏与反馈细节协作。",
+      metrics: { activeMembers: 2, todayMessages: 7, unreadMention: 0 },
+      pinnedMessages: [],
+      messages: [
+        { content: "固定目录栏不需要强阴影，轻分隔已经足以表达层级。", time: "昨天 09:41" },
+        { content: "朋友圈和联系人页都遵循弱滚动反馈，不让内容被壳层压住。", time: "昨天 09:49", self: true, status: "已读" },
+        { content: "固定栏的分隔线只在滚动后出现，节奏会更安静。", time: "昨天 09:56" },
+      ],
+    },
+  ];
+
+  const buildDirectChat = (seed) => {
+    const contact = data.contacts.find((item) => item.id === seed.contactId);
+    if (!contact) {
+      return null;
+    }
+    return {
+      id: seed.id,
+      type: "single",
+      name: contact.name,
+      remark: "",
+      participants: [data.currentUser.id, contact.id],
+      avatarTone: contact.tone,
+      unread: seed.unread,
+      pinned: Boolean(seed.pinned),
+      muted: Boolean(seed.muted),
+      tags: seed.tags,
+      lastMessage: seed.lastMessage,
+      lastTime: seed.lastTime,
+      description: seed.description,
+      metrics: seed.metrics,
+      pinnedMessages: seed.pinnedMessages,
+      files: [],
+      messages: seed.messages.map((item, index) =>
+        makeMessage({
+          id: `m_${seed.id.replace("c_room_", "")}_${index + 1}`,
+          senderId: item.self ? data.currentUser.id : contact.id,
+          senderName: item.self ? data.currentUser.name : contact.name,
+          senderTone: item.self ? data.currentUser.avatarTone : contact.tone,
+          content: item.content,
+          time: item.time,
+          self: Boolean(item.self),
+          status: item.status,
+          quote: item.quote,
+          reactions: item.reactions,
+        }),
+      ),
+    };
+  };
+
+  data.chats.push(...directChatSeeds.map(buildDirectChat).filter(Boolean));
+
+  const appendMessages = (chatId, messages) => {
+    const chat = data.chats.find((item) => item.id === chatId);
+    if (chat) {
+      chat.messages.push(...messages);
+    }
+  };
+
+  appendMessages("c_room_launch", [
+    makeMessage({ id: "m_1005", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "我先把会话、联系人和消息线程的密集样本整理出来，评审时不要只看首屏。", time: "09:28" }),
+    makeMessage({ id: "m_1006", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "可以，数据量要足够让滚动、截断、未读和长摘要都自然出现。", time: "09:31", self: true, status: "已读 14" }),
+    makeMessage({ id: "m_1007", senderId: "u_ian", senderName: "Ian", senderTone: "amber", content: "联系人目录最好同时有同字母多行和跨字母长列表，才能看出分组节奏。", time: "09:35", quote: "不要只看首屏。" }),
+    makeMessage({ id: "m_1008", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "我会把首屏、搜索粘住后和底部连续滚动都加入截图回归。", time: "09:39", reactions: [{ emoji: "🎯", count: 3 }] }),
+    makeMessage({ id: "m_1009", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "聊天列表也会补齐置顶、未读、静音和长摘要，避免只在空白状态下讨论层级。", time: "09:44", self: true, status: "已读 13" }),
+    makeMessage({ id: "m_1010", senderId: "u_mia", senderName: "Mia", senderTone: "mint", content: "消息线程里可以保留短句、长句、引用和反应，滚动时更容易发现气泡间距问题。", time: "09:49" }),
+    makeMessage({ id: "m_1011", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "同意，数据不需要模拟真实后端，但要足够像真实协作节奏。", time: "09:55" }),
+    makeMessage({ id: "m_1012", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "我会保留现有深链和群组引用，只在 mock 数据层增加确定性的审查样本。", time: "10:02", self: true, status: "已读 12" }),
+    makeMessage({ id: "m_1013", senderId: "u_ian", senderName: "Ian", senderTone: "amber", content: "长列表还要看 Pixel 8 Pro，较宽设备容易让截断问题被隐藏。", time: "10:10" }),
+    makeMessage({ id: "m_1014", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "我会分别记录 iPhone 12 Pro 和 Pixel 8 Pro 的裁切结果。", time: "10:17" }),
+    makeMessage({ id: "m_1015", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "联系人页面先有固定目录栏和粘性搜索，密集样本正好能验证这层选择。", time: "10:23", self: true, status: "已读 11" }),
+    makeMessage({ id: "m_1016", senderId: "u_mia", senderName: "Mia", senderTone: "mint", content: "消息流滚到底部时，输入区和最后一条消息之间的安全间距也值得确认。", time: "10:31" }),
+    makeMessage({ id: "m_1017", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "不要一次性把字母索引做复杂，先用真实密度观察目录是否已经足够好。", time: "10:38", reactions: [{ emoji: "✅", count: 5 }] }),
+    makeMessage({ id: "m_1018", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "收到，字母索引仍然只在真实分组更多时再进入下一轮。", time: "10:46", self: true, status: "已读 10" }),
+    makeMessage({ id: "m_1019", senderId: "u_ian", senderName: "Ian", senderTone: "amber", content: "模拟数据补齐后，搜索结果页也会自然有足够多的可跳转消息。", time: "10:53" }),
+    makeMessage({ id: "m_1020", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "这批样本会保持确定性，截图和深链审计能重复运行。", time: "11:01", self: true, status: "已读 9" }),
+    makeMessage({ id: "m_1021", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "好，我开始按长列表、长线程和筛选状态安排回归。", time: "11:12" }),
+    makeMessage({ id: "m_1022", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "今天把密集 mock 数据作为 UI 审查基线，后续页面优化都基于这组样本判断。", time: "11:18", self: true, status: "已读 8" }),
+  ]);
+
+  appendMessages("c_room_alice", [
+    makeMessage({ id: "m_2003", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "联系人列表的数据加密度后，卡片圆角和段落节奏终于能看出是否过重。", time: "昨天 19:35" }),
+    makeMessage({ id: "m_2004", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "我会让新增样本覆盖同字母多行，避免每个分组只有一条记录。", time: "昨天 19:39", self: true, status: "已读" }),
+    makeMessage({ id: "m_2005", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "聊天列表也别只放短摘要，至少要有一两条接近真实协作语气的长消息。", time: "昨天 19:44", quote: "避免每个分组只有一条记录。" }),
+    makeMessage({ id: "m_2006", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "已补进会话摘要，所有文本都会经过现有单行截断约束。", time: "昨天 19:51", self: true, status: "已读" }),
+    makeMessage({ id: "m_2007", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "消息详情页的长线程能帮助判断一天标签、气泡留白和输入区是否稳定。", time: "昨天 20:03", reactions: [{ emoji: "💡", count: 2 }] }),
+    makeMessage({ id: "m_2008", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "我会把主群线程扩展到二十多条，并保留引用和反应状态。", time: "昨天 20:10", self: true, status: "已读" }),
+    makeMessage({ id: "m_2009", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "这样在设计审查时就能先发现 UI 问题，再决定是否映射到 Flutter。", time: "昨天 20:18" }),
+    makeMessage({ id: "m_2010", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "对，设计源先稳定，运行时映射继续单独评审。", time: "昨天 20:24", self: true, status: "已读" }),
+  ]);
+
+  appendMessages("c_room_bot", [
+    makeMessage({ id: "m_3002", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "请按联系人、会话和消息线程三个维度检查长内容。", time: "08:06", self: true, status: "已送达" }),
+    makeMessage({ id: "m_3003", senderId: "u_bot", senderName: "Ops Copilot", senderTone: "violet", content: "已生成检查清单：滚动容器、固定栏、截断、未读、输入区和安全区域。", time: "08:07" }),
+    makeMessage({ id: "m_3004", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "把检查范围保持在 HTML 设计源，不要改运行时客户端。", time: "08:09", self: true, status: "已读" }),
+    makeMessage({ id: "m_3005", senderId: "u_bot", senderName: "Ops Copilot", senderTone: "violet", content: "已记录：mock 数据仅用于 UI 密度和交互审查。", time: "08:11", reactions: [{ emoji: "✅", count: 1 }] }),
+  ]);
+
+  appendMessages("c_room_assets", [
+    makeMessage({ id: "m_4003", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "我把联系人和会话的截图基线放到素材群里，后续可以直接比对长列表状态。", time: "昨天 16:24" }),
+    makeMessage({ id: "m_4004", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "好，命名里保留设备型号、路由和提交号，避免缓存误判。", time: "昨天 16:28", self: true, status: "已读" }),
+    makeMessage({ id: "m_4005", senderId: "u_mia", senderName: "Mia", senderTone: "mint", content: "长线程截图需要包含输入区与最后一条消息的间距。", time: "昨天 16:35" }),
+    makeMessage({ id: "m_4006", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "联系人目录则需要首屏、搜索粘住后和滚动到底部三个状态。", time: "昨天 16:41", self: true, status: "已读" }),
+    makeMessage({ id: "m_4007", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "这样可以把样本密度当成设计回归的一部分，而不是临时加几条数据。", time: "昨天 16:47" }),
+    makeMessage({ id: "m_4008", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "同意，后续 UI 调整都以这批确定性样本为默认审查基线。", time: "昨天 16:53", self: true, status: "已读" }),
+  ]);
+
+  const launchChat = data.chats.find((item) => item.id === "c_room_launch");
+  if (launchChat) {
+    launchChat.lastMessage = "今天把密集 mock 数据作为 UI 审查基线，后续页面优化都基于这组样本判断。";
+    launchChat.lastTime = "11:18";
+    launchChat.metrics.todayMessages = 148;
+  }
+
+  const aliceChat = data.chats.find((item) => item.id === "c_room_alice");
+  if (aliceChat) {
+    aliceChat.lastMessage = "对，设计源先稳定，运行时映射继续单独评审。";
+    aliceChat.lastTime = "昨天";
+    aliceChat.metrics.todayMessages = 32;
+  }
+
+  const botChat = data.chats.find((item) => item.id === "c_room_bot");
+  if (botChat) {
+    botChat.lastMessage = "已记录：mock 数据仅用于 UI 密度和交互审查。";
+    botChat.lastTime = "08:11";
+    botChat.metrics.todayMessages = 12;
+  }
+
+  const assetsChat = data.chats.find((item) => item.id === "c_room_assets");
+  if (assetsChat) {
+    assetsChat.lastMessage = "同意，后续 UI 调整都以这批确定性样本为默认审查基线。";
+    assetsChat.lastTime = "昨天";
+    assetsChat.metrics.todayMessages = 18;
+  }
+})();
