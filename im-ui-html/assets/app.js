@@ -3254,13 +3254,17 @@
   function renderFriendRequestsScreen() {
     const incoming = data.friendRequests.filter((item) => item.type === "incoming");
     const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
+    const pendingIncoming = incoming.filter((item) => item.status === "pending").length;
 
     return `
       <section class="screen">
         ${renderScreenHeader({
           title: "新的朋友",
-          subtitle: `${incoming.length} 条收到 · ${outgoing.length} 条发出`,
+          subtitle: "处理收到或发出的好友申请",
           backPath: "/contacts",
+          actions: pendingIncoming
+            ? [`<span class="badge" aria-label="${pendingIncoming} 条待处理">${pendingIncoming}</span>`]
+            : [],
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
@@ -3278,7 +3282,7 @@
                 </span>
               </div>
             </section>
-            ${renderRequestSection("收到的申请", "优先处理待确认的关系请求。", incoming, "incoming")}
+            ${renderRequestSection("收到的申请", "优先处理待确认的关系请求。", incoming, "incoming", { showHeader: false })}
             ${renderRequestSection("发出的申请", "跟踪自己发出的申请是否已经被处理。", outgoing, "outgoing")}
             <section class="surface-card">
               <div class="surface-card__header">
@@ -3296,16 +3300,24 @@
     `;
   }
 
-  function renderRequestSection(title, note, requests, type) {
+  function renderRequestSection(title, note, requests, type, options = {}) {
+    const showHeader = options.showHeader !== false;
+
     return `
       <section class="request-section request-section--${type}">
-        <div class="surface-card__header request-section__header">
-          <div class="surface-card__header-copy">
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(note)}</p>
-          </div>
-          <span class="badge">${requests.length}</span>
-        </div>
+        ${
+          showHeader
+            ? `
+              <div class="surface-card__header request-section__header">
+                <div class="surface-card__header-copy">
+                  <h3>${escapeHtml(title)}</h3>
+                  <p>${escapeHtml(note)}</p>
+                </div>
+                <span class="badge">${requests.length}</span>
+              </div>
+            `
+            : ""
+        }
         ${requests.length
           ? `<div class="request-section__list">${requests.map((request) => renderRequestCard(request)).join("")}</div>`
           : renderEmptyState(
