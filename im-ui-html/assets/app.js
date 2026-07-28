@@ -3595,14 +3595,9 @@
             ],
           })}
           <div class="runtime-list-content">
-            <section class="runtime-conversation-section">
-              <div class="runtime-section-heading">
-                <h3>已加入</h3>
-              </div>
-              <div class="runtime-conversation-list">
-                ${data.groups.length ? data.groups.map(renderGroupConversationRow).join("") : renderEmptyState("暂无群聊", "从聊天页创建一个群聊。")}
-              </div>
-            </section>
+            <div class="runtime-conversation-list">
+              ${data.groups.length ? data.groups.map(renderGroupConversationRow).join("") : renderEmptyState("暂无群聊", "从聊天页创建一个群聊。")}
+            </div>
           </div>
         </div>
       </section>
