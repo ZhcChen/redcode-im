@@ -1567,9 +1567,9 @@
           </div>
         </div>
         <div class="root-page-preview__setting-list">
-          <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>我的群聊</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>消息搜索</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>设置</span><span class="root-page-preview__chevron"></span></div>
-          <div class="root-page-preview__setting-row"><span>隐私协议</span><span class="root-page-preview__chevron"></span></div>
         </div>
       `;
     }
@@ -3534,7 +3534,7 @@
       <section class="screen">
         ${renderScreenHeader({
           title: "群聊",
-          subtitle: "从联系人体系进入群组列表和群设置",
+          subtitle: "查看已加入的群聊、公告与群设置",
           backPath: "/contacts",
           actions: [
             `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/groups/create">建群</button>`,
@@ -3914,6 +3914,9 @@
   }
 
   function renderMineScreen() {
+    const groupCount = data.groups.length;
+    const groupSummary = groupCount ? `${groupCount} 个群聊` : "创建或加入群聊";
+
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-mine-screen">
         <div class="screen-scroll runtime-scroll">
@@ -3931,14 +3934,14 @@
               <span class="runtime-row-chevron">›</span>
             </button>
             <section class="runtime-settings-group runtime-mine-group">
-              <h3>账号与服务</h3>
-              ${renderMineMenuLink("账号与安全", "当前设备已受保护", "profile", "/settings/account")}
-              ${renderMineMenuLink("设置", "通知、隐私、聊天与存储", "settings", "/settings", true)}
+              <h3>消息与群组</h3>
+              ${renderMineMenuLink("我的群聊", groupSummary, "chats", "/groups")}
+              ${renderMineMenuLink("消息搜索", "查找会话和聊天记录", "search", "/search")}
             </section>
             <section class="runtime-settings-group runtime-mine-group">
-              <h3>支持</h3>
-              ${renderMineMenuLink("隐私协议", "数据使用说明", "shield", "/settings/privacy")}
-              ${renderMineMenuLink("关于 RedCode IM", "版本与反馈", "more", "/settings/about")}
+              <h3>账号与设置</h3>
+              ${renderMineMenuLink("账号与安全", "设备与登录管理", "profile", "/settings/account")}
+              ${renderMineMenuLink("设置", "通知、隐私、聊天与存储", "settings", "/settings", true)}
             </section>
           </div>
         </div>
@@ -4284,8 +4287,8 @@
         title: "我的页验证点",
         label: "Mine",
         items: [
-          "一级页以资料、账号安全和设置入口为核心，不混入静态统计或聊天快捷操作。",
-          "个人资料、账号安全、设置和支持入口都必须进入真实业务链路。",
+          "一级页以资料、真实会话工具和账号设置为核心，不混入静态统计。",
+          "消息搜索、我的群聊、账号安全和设置入口都必须进入真实业务链路。",
           "设置下沉为二级页后，底栏仍只保留四个稳定入口。",
         ],
       };
