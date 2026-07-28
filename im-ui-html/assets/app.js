@@ -517,13 +517,17 @@
       </div>
       ${mobilePreviewMode ? "" : renderToasts()}
     `;
-    bindCompactTopbars();
+    bindScrollHeaders();
   }
 
-  function bindCompactTopbars() {
-    root.querySelectorAll(".runtime-topbar-scroll").forEach((scrollContainer) => {
+  function bindScrollHeaders() {
+    root.querySelectorAll(".runtime-topbar-scroll, .runtime-directory-scroll").forEach((scrollContainer) => {
       const header = scrollContainer.previousElementSibling;
-      if (!(header instanceof HTMLElement) || !header.classList.contains("runtime-header--compact")) {
+      const supportsScrollState =
+        header instanceof HTMLElement &&
+        (header.classList.contains("runtime-header--compact") || header.classList.contains("runtime-header--directory"));
+
+      if (!supportsScrollState) {
         return;
       }
 
@@ -1067,6 +1071,7 @@
 
   function renderScreenHeader(options) {
     const compact = options.variant === "compact";
+    const directory = options.variant === "directory";
     const fallbackPath = options.backPath ? resolveBackFallbackPath(options.backPath) : null;
     const backButton = fallbackPath
       ? `
@@ -1086,7 +1091,7 @@
       : "";
 
     return `
-      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""}">
+      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""} ${directory ? "runtime-header--directory" : ""}">
         ${backButton}
         <div class="screen-header__main">
           <h2>${escapeHtml(options.title)}</h2>
@@ -2905,16 +2910,17 @@
     ).length;
 
     return `
-      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
-        <div class="screen-scroll runtime-scroll">
-          ${renderScreenHeader({
-            title: "联系人",
-            root: true,
-            actions: [
-              `<button class="runtime-icon-button" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
-            ],
-          })}
-          <div class="runtime-list-content">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-contacts-screen">
+        ${renderScreenHeader({
+          title: "联系人",
+          root: true,
+          variant: "directory",
+          actions: [
+            `<button class="runtime-icon-button" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
+          ],
+        })}
+        <div class="screen-scroll runtime-scroll runtime-directory-scroll">
+          <div class="runtime-list-content runtime-contacts-content">
             <div class="runtime-contact-shortcuts">
               <button class="runtime-contact-shortcut" data-action="navigate" data-route="/contacts/requests">
                 <span class="runtime-contact-shortcut__icon">${renderIcon("contacts", "runtime-contact-shortcut__glyph", "新的朋友")}</span>
@@ -2927,15 +2933,17 @@
                 ${renderRowChevron()}
               </button>
             </div>
-            <label class="runtime-search-field">
-              ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
-              <input
-                id="contact-filter-input"
-                value="${escapeHtml(state.contactFilter)}"
-                placeholder="搜索联系人"
-                aria-label="搜索联系人"
-              />
-            </label>
+            <div class="runtime-directory-search">
+              <label class="runtime-search-field">
+                ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
+                <input
+                  id="contact-filter-input"
+                  value="${escapeHtml(state.contactFilter)}"
+                  placeholder="搜索联系人"
+                  aria-label="搜索联系人"
+                />
+              </label>
+            </div>
             <div class="runtime-contact-directory">
               ${sections.length ? sections.map(renderContactSection).join("") : renderEmptyState("暂无联系人", "添加好友后会显示在这里。")}
             </div>

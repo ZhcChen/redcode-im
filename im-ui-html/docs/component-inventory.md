@@ -9,7 +9,7 @@
 | 组件 | 用途 | 状态 | Flutter 映射 |
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
-| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
+| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
 | `Conversation Cell` | 会话、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
@@ -87,7 +87,26 @@
 - 隐私协议和关于使用已有设置详情路由，作为低频支持入口保留。
 - 账号安全与设置条目使用真实业务路由，设置入口固定进入 `#/settings`。
 
-### 4. 发现入口卡片 `Discover Entry Card`
+### 4. 联系人目录 `Contact Directory`
+
+使用位置：
+
+- `#/contacts`
+
+结构：
+
+- 固定目录栏：左侧页面标题、右侧添加好友操作
+- 可随内容滚动的新的朋友与群聊快捷入口
+- 固定目录栏下方的粘性联系人搜索
+- 单一字母分组联系人列表滚动面
+
+备注：
+
+- 标题栏与搜索用于高频查找，不随联系人列表离开视口。
+- 目录栏仅在滚动后显示弱分隔与阴影；不使用二级页返回式居中标题。
+- 不引入嵌套滚动；字母索引仅在真实分组数量足够多时再启用。
+
+### 5. 发现入口卡片 `Discover Entry Card`
 
 使用位置：
 
@@ -104,7 +123,7 @@
 - 快捷入口卡只呈现图标与主标题，三项使用一行等分、内容居中布局，避免副标题和不完整网格制造噪音。
 - Flutter 实现可以抽成同源容器，但保留不同的内容槽位。
 
-### 5. 规范展示卡片 `Spec Surface`
+### 6. 规范展示卡片 `Spec Surface`
 
 使用位置：
 
