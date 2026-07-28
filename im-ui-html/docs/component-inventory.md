@@ -18,6 +18,7 @@
 | `Chip` | 轻标签、状态提示、过滤器 | `Soft / Filled / Selected / Dismissible` | `Assist chip / filter chip variants` |
 | `Empty State` | 空列表、无结果、未开启功能说明 | `Plain / Actionable / Illustrated` | `Shared empty state widget` |
 | `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Hover / Active / Disabled` | `Pressable surface card` |
+| `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
 | `Settings Row` | 设置、群规则、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
 
 ## 页面复合组件
@@ -66,7 +67,25 @@
 - 容器内必须使用真实业务页面，不能再放移动端路线说明、组件说明或评审卡片。
 - 正式 App 不保留设备外框，但应继承其中的 App Shell、导航和页面层级。
 
-### 3. 发现入口卡片 `Discover Entry Card`
+### 3. 我的页资料区 `Mine Profile`
+
+使用位置：
+
+- `#/mine`
+
+结构：
+
+- 头像与在线状态
+- 名称、角色与资料入口
+- 个人概览统计
+- 常用服务、账号与设置入口
+
+备注：
+
+- 这是一级“我的”页的身份锚点；通知、隐私和偏好不在这里展开。
+- 所有可点击服务行必须跳到真实业务路由，设置入口固定进入 `#/settings`。
+
+### 4. 发现入口卡片 `Discover Entry Card`
 
 使用位置：
 
@@ -84,7 +103,7 @@
 - 发现页和总入口页都在使用“轻表面卡片 + 明确 CTA”的模式。
 - Flutter 实现可以抽成同源容器，但保留不同的内容槽位。
 
-### 4. 规范展示卡片 `Spec Surface`
+### 5. 规范展示卡片 `Spec Surface`
 
 使用位置：
 
@@ -109,18 +128,19 @@
 
 1. `App Shell`
 2. `App Bar`
-3. `Conversation Cell`
-4. `Message Bubble`
-5. `Composer`
-6. `Search Box`
-7. `Button Set`
-8. `Chip`
-9. `Empty State`
-10. `Settings Row`
+3. `Mine Profile`
+4. `Conversation Cell`
+5. `Message Bubble`
+6. `Composer`
+7. `Search Box`
+8. `Button Set`
+9. `Chip`
+10. `Empty State`
+11. `Settings Row`
 
 原因：
 
-- 前 6 项直接决定聊天、联系人、搜索、设置、群聊等主流程一致性。
+- 会话、联系人、搜索、我的、设置与群聊等主流程直接依赖前 7 项的组件契约。
 - `Button Set / Chip / Empty State` 决定全局反馈语言是否统一，不应等页面写散了再回收。
 - `Action Card` 更多服务于设计入口、发现入口和次级导航，可在主流程稳定后补强。
 

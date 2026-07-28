@@ -22,7 +22,8 @@
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
 | `#/mobile-design/contacts` | 联系人 |
 | `#/mobile-design/discover` | 发现 |
-| `#/mobile-design/settings` | 设置 |
+| `#/mobile-design/mine` | 我的 |
+| `#/mobile-design/settings` | 设置（从“我的”进入） |
 | `#/mobile-design/<业务路径>` | 将任意已注册的移动业务路径保留在同一手机容器内 |
 
 容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。二级页返回优先回到实际进入来源；直接打开深链时，使用该业务链路的默认兜底，且仍保留在设备容器内。
@@ -36,7 +37,7 @@
 | 聊天 | `#/chats` | 会话列表主入口 |
 | 联系人 | `#/contacts` | 联系人与关系链路 |
 | 发现 | `#/discover` | 朋友圈、扫一扫、附近的人、游戏入口 |
-| 设置 | `#/settings` | 主题、密度、通知、隐私与账号偏好 |
+| 我的 | `#/mine` | 身份、个人概览、常用服务与设置入口 |
 
 ### 聊天链路
 
@@ -70,11 +71,13 @@
 | `#/discover/nearby` | 附近的人 |
 | `#/discover/games` | 游戏入口 |
 
-### 设置链路
+### 我的与设置链路
 
 | Route | 说明 |
 | --- | --- |
-| `#/settings/profile` | 个人资料 |
+| `#/mine` | 我的一级页：资料、个人概览、常用服务与设置入口 |
+| `#/mine/profile` | 个人资料 |
+| `#/settings` | 设置二级页：账号、通知、隐私与偏好 |
 | `#/settings/account` | 账号与安全 |
 | `#/settings/chat` | 聊天偏好与存储 |
 | `#/settings/privacy` | 隐私协议与数据使用 |
@@ -116,8 +119,10 @@
 5. `#/mobile-design/contacts`
 6. `#/mobile-design/groups/create`
 7. `#/mobile-design/discover`
-8. `#/mobile-design/settings`
-9. `#/pc-design`
+8. `#/mobile-design/mine`
+9. `#/mobile-design/mine/profile`
+10. `#/mobile-design/settings`
+11. `#/pc-design`
 
 ### 面向 Flutter 实施
 
@@ -147,8 +152,10 @@
 | `#/groups/create` | `groups/create` |
 | `#/groups/settings/:groupId` | `groups/settings/:groupId` |
 | `#/search` | `search/messages` |
-| `#/settings` | `home/settings` |
-| `#/settings/:section` | `settings/:section` |
+| `#/mine` | `home/mine` |
+| `#/mine/profile` | `mine/profile` |
+| `#/settings` | `mine/settings` |
+| `#/settings/:section` | `mine/settings/:section` |
 
 ## 7. 页面地图维护规则
 

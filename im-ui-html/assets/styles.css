@@ -5076,6 +5076,7 @@ body[data-theme="dark"] .spec-stage {
   --runtime-accent-deep: #1d4ed8;
   --runtime-accent-soft: #e8f0ff;
   --runtime-danger: #df5b53;
+  --runtime-success: #17a36f;
   --runtime-radius-control: 14px;
   --runtime-radius-surface: 18px;
   --runtime-radius-feature: 22px;
@@ -5093,6 +5094,7 @@ body[data-theme="dark"] .phone-screen {
   --runtime-accent-deep: #8cb3ff;
   --runtime-accent-soft: #172e5c;
   --runtime-danger: #ff8b81;
+  --runtime-success: #41c994;
   --runtime-radius-control: 14px;
   --runtime-radius-surface: 18px;
   --runtime-radius-feature: 22px;
@@ -5172,6 +5174,15 @@ body[data-theme="dark"] .phone-screen {
 
 .phone-screen .screen-header__actions {
   gap: 8px;
+}
+
+.runtime-mine-profile,
+.runtime-mine-stat,
+.runtime-mine-menu-row {
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
 }
 
 .runtime-icon-button,
@@ -5902,6 +5913,181 @@ body[data-theme="dark"] .phone-screen {
 
 .runtime-settings-content {
   gap: 14px;
+}
+
+.runtime-mine-content {
+  gap: 16px;
+}
+
+.runtime-mine-profile {
+  width: 100%;
+  min-height: 116px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 18px;
+  background: var(--runtime-surface);
+  color: var(--runtime-ink);
+  text-align: left;
+}
+
+.runtime-mine-profile__avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+}
+
+.runtime-mine-profile .avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  font-size: 21px;
+  box-shadow: none;
+}
+
+.runtime-mine-profile__presence {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--runtime-surface);
+  border-radius: 50%;
+  background: var(--runtime-success);
+}
+
+.runtime-mine-profile__body {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.runtime-mine-profile__body strong {
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-mine-profile__body span {
+  overflow: hidden;
+  color: var(--runtime-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-mine-profile__body small {
+  color: var(--runtime-accent-deep);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.runtime-mine-stats {
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: 18px;
+  background: var(--runtime-surface);
+}
+
+.runtime-mine-stat {
+  min-width: 0;
+  min-height: 78px;
+  padding: 12px 8px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  background: var(--runtime-surface);
+  color: var(--runtime-ink);
+  text-align: center;
+}
+
+.runtime-mine-stat + .runtime-mine-stat {
+  box-shadow: inset 1px 0 0 var(--runtime-line);
+}
+
+.runtime-mine-stat strong {
+  font-size: 18px;
+  font-weight: 720;
+  line-height: 1.2;
+}
+
+.runtime-mine-stat span {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--runtime-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-mine-menu-row {
+  width: 100%;
+  min-height: 62px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--runtime-surface);
+  color: var(--runtime-ink);
+  text-align: left;
+}
+
+.runtime-mine-menu-row + .runtime-mine-menu-row {
+  border-top: 1px solid var(--runtime-line);
+}
+
+.runtime-mine-menu-row__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: var(--runtime-soft);
+  color: var(--runtime-muted);
+}
+
+.runtime-mine-menu-row__glyph,
+.runtime-mine-menu-row__glyph svg {
+  width: 19px;
+  height: 19px;
+}
+
+.runtime-mine-menu-row__copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-mine-menu-row__copy strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.runtime-mine-menu-row__copy small {
+  overflow: hidden;
+  color: var(--runtime-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-mine-menu-row.is-emphasized .runtime-mine-menu-row__icon {
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-accent-deep);
+}
+
+.runtime-mine-profile:active,
+.runtime-mine-stat:active,
+.runtime-mine-menu-row:active {
+  background: var(--runtime-soft);
 }
 
 .runtime-profile-row {
@@ -7100,6 +7286,23 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   min-height: 40px;
   border: 0;
   border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-mine-profile {
+  border-radius: var(--runtime-radius-feature);
+}
+
+.phone-screen .runtime-mine-stats {
+  border-radius: var(--runtime-radius-surface);
+}
+
+.phone-screen .runtime-mine-menu-row {
+  min-height: 64px;
+}
+
+.phone-screen .runtime-mine-menu-row + .runtime-mine-menu-row {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 var(--runtime-line);
 }
 
 .phone-screen .runtime-profile-row {

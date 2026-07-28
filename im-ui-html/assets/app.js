@@ -64,9 +64,17 @@
       '<circle cx="12" cy="12" r="8.1" />',
       '<path d="m14.9 9.1-1.72 3.98-3.98 1.72 1.72-3.98L14.9 9.1Z" />',
     ],
+    profile: [
+      '<circle cx="12" cy="8.1" r="3.35" />',
+      '<path d="M5.45 19.25c.78-3.32 3.13-5.1 6.55-5.1s5.77 1.78 6.55 5.1" />',
+    ],
     settings: [
       '<path d="M12.22 3.25h-.44a1.8 1.8 0 0 0-1.8 1.8v.37c0 .64-.34 1.22-.9 1.54l-.32.18a1.8 1.8 0 0 1-1.8 0l-.32-.18a1.8 1.8 0 0 0-2.46.66l-.22.38a1.8 1.8 0 0 0 .66 2.46l.32.19c.56.32.9.9.9 1.54v.36c0 .64-.34 1.22-.9 1.54l-.32.19a1.8 1.8 0 0 0-.66 2.46l.22.38a1.8 1.8 0 0 0 2.46.66l.32-.18a1.8 1.8 0 0 1 1.8 0l.32.18c.56.32.9.9.9 1.54v.37a1.8 1.8 0 0 0 1.8 1.8h.44a1.8 1.8 0 0 0 1.8-1.8v-.37c0-.64.34-1.22.9-1.54l.32-.18a1.8 1.8 0 0 1 1.8 0l.32.18a1.8 1.8 0 0 0 2.46-.66l.22-.38a1.8 1.8 0 0 0-.66-2.46l-.32-.19a1.8 1.8 0 0 1-.9-1.54v-.36c0-.64.34-1.22.9-1.54l.32-.19a1.8 1.8 0 0 0 .66-2.46l-.22-.38a1.8 1.8 0 0 0-2.46-.66l-.32.18a1.8 1.8 0 0 1-1.8 0l-.32-.18a1.8 1.8 0 0 1-.9-1.54v-.37a1.8 1.8 0 0 0-1.8-1.8Z" />',
       '<circle cx="12" cy="12" r="3.1" />',
+    ],
+    shield: [
+      '<path d="M12 3.9 18.1 6.2v4.38c0 4.03-2.28 7.16-6.1 9.02-3.82-1.86-6.1-4.99-6.1-9.02V6.2L12 3.9Z" />',
+      '<path d="m9.1 11.9 1.85 1.85 4.1-4.12" />',
     ],
     back: [
       '<path d="M14.9 6.5L8.75 12l6.15 5.5" />',
@@ -321,6 +329,13 @@
       return { section: "lab", moduleId: segments[1] || null };
     }
 
+    if (segments[0] === "mine") {
+      if (segments[1] === "profile") {
+        return { section: "settings-detail", settingsSection: "profile" };
+      }
+      return { section: "mine" };
+    }
+
     if (segments[0] === "settings") {
       if (segments[1]) {
         return { section: "settings-detail", settingsSection: segments[1] };
@@ -369,6 +384,7 @@
       "group-settings",
       "search",
       "lab",
+      "mine",
       "settings",
       "settings-detail",
     ].includes(section);
@@ -672,7 +688,7 @@
                 <div class="desktop-nav__item is-active">聊天</div>
                 <div class="desktop-nav__item">联系人</div>
                 <div class="desktop-nav__item">发现</div>
-                <div class="desktop-nav__item">设置</div>
+                <div class="desktop-nav__item">我的</div>
               </div>
               <div class="desktop-nav__meta">
                 <span class="badge">AMD64 构建</span>
@@ -930,7 +946,7 @@
   function renderTabBar(route) {
     const items = data.designSystem.mobileBlueprint.routes;
 
-    if (!["chats", "contacts", "discover", "settings"].includes(route.section)) {
+    if (!["chats", "contacts", "discover", "mine"].includes(route.section)) {
       return "";
     }
 
@@ -1011,6 +1027,9 @@
     }
     if (route.section === "lab") {
       return route.moduleId ? renderLabDetailScreen(route.moduleId) : renderLabOverviewScreen();
+    }
+    if (route.section === "mine") {
+      return renderMineScreen();
     }
     if (route.section === "settings") {
       return renderSettingsScreen();
@@ -1537,8 +1556,8 @@
     } else {
       canvas = `
         <div class="root-page-preview__toolbar">
-          <span class="root-page-preview__title">设置</span>
-          <span class="root-page-preview__meta">偏好</span>
+          <span class="root-page-preview__title">我的</span>
+          <span class="root-page-preview__meta">账户</span>
         </div>
         <div class="root-page-preview__profile">
           <span class="root-page-preview__avatar root-page-preview__avatar--lg"></span>
@@ -1548,9 +1567,9 @@
           </div>
         </div>
         <div class="root-page-preview__setting-list">
-          <div class="root-page-preview__setting-row"><span>主题与密度</span><span class="root-page-preview__switch"></span></div>
-          <div class="root-page-preview__setting-row"><span>通知偏好</span><span class="root-page-preview__switch"></span></div>
+          <div class="root-page-preview__setting-row"><span>我的群聊</span><span class="root-page-preview__chevron"></span></div>
           <div class="root-page-preview__setting-row"><span>账号与安全</span><span class="root-page-preview__chevron"></span></div>
+          <div class="root-page-preview__setting-row"><span>设置</span><span class="root-page-preview__chevron"></span></div>
         </div>
       `;
     }
@@ -2013,7 +2032,7 @@
               <span class="badge">Stable Tab Bar</span>
             </div>
             ${renderMobileNavPreview("chats")}
-            <p class="surface-caption">底部主导航固定为聊天 / 联系人 / 发现 / 设置四个一级入口。</p>
+            <p class="surface-caption">底部主导航固定为聊天 / 联系人 / 发现 / 我的四个一级入口。</p>
           </section>
         </div>
       `;
@@ -2055,7 +2074,7 @@
                 <span class="flow-step__index">02</span>
                 <div>
                   <strong>再看移动端</strong>
-                  <p>聊天、联系人、发现、设置作为手机端唯一一级入口。</p>
+                  <p>聊天、联系人、发现、我的作为手机端唯一一级入口。</p>
                 </div>
               </div>
               <div class="flow-step">
@@ -2248,7 +2267,7 @@
             <span class="badge">Registry</span>
           </div>
           <div class="page-map">
-            ${["chats", "contacts", "discover", "settings", "back", "search", "plus", "emoji", "more", "send"]
+            ${["chats", "contacts", "discover", "profile", "settings", "shield", "back", "search", "plus", "emoji", "more", "send"]
               .map((item) => `<span class="page-map__item">icon.${escapeHtml(item)}</span>`)
               .join("")}
           </div>
@@ -3894,20 +3913,89 @@
     `;
   }
 
-  function renderSettingsScreen() {
+  function renderMineScreen() {
+    const groupCount = data.groups.length;
+    const chatCount = data.chats.length;
+
     return `
-      <section class="screen screen--tabbed runtime-screen runtime-screen--list">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-mine-screen">
         <div class="screen-scroll runtime-scroll">
-          ${renderScreenHeader({ title: "设置", root: true })}
-          <div class="runtime-list-content runtime-settings-content">
-            <button class="runtime-profile-row" data-action="navigate" data-route="/settings/profile">
-              ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
-              <span class="runtime-profile-row__body">
+          ${renderScreenHeader({
+            title: "我的",
+            root: true,
+            actions: [
+              `<button class="runtime-icon-button" data-action="navigate" data-route="/settings" aria-label="设置">${renderIcon("settings", "runtime-icon-button__glyph", "设置")}</button>`,
+            ],
+          })}
+          <div class="runtime-list-content runtime-mine-content">
+            <button class="runtime-mine-profile" data-action="navigate" data-route="/mine/profile">
+              <span class="runtime-mine-profile__avatar">
+                ${renderAvatar(data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}
+                <span class="runtime-mine-profile__presence" aria-hidden="true"></span>
+              </span>
+              <span class="runtime-mine-profile__body">
                 <strong>${escapeHtml(data.currentUser.name)}</strong>
-                <span>${escapeHtml(data.currentUser.role)}</span>
+                <span>${escapeHtml(data.currentUser.role)} · ${escapeHtml(data.currentUser.status)}</span>
+                <small>查看个人资料</small>
               </span>
               <span class="runtime-row-chevron">›</span>
             </button>
+            <section class="runtime-mine-stats" aria-label="我的概览">
+              ${renderMineStat(groupCount, "我的群聊", "/groups")}
+              ${renderMineStat(chatCount, "进行中会话", "/chats")}
+              ${renderMineStat("1", "登录设备", "/settings/account")}
+            </section>
+            <section class="runtime-settings-group runtime-mine-group">
+              <h3>常用</h3>
+              ${renderMineMenuLink("我的群聊", `${groupCount} 个群聊`, "chats", "/groups")}
+              ${renderMineMenuLink("消息搜索", "查找会话中的消息", "search", "/search")}
+            </section>
+            <section class="runtime-settings-group runtime-mine-group">
+              <h3>账号与服务</h3>
+              ${renderMineMenuLink("账号与安全", "当前设备已受保护", "profile", "/settings/account")}
+              ${renderMineMenuLink("设置", "通知、隐私、聊天与存储", "settings", "/settings", true)}
+            </section>
+            <section class="runtime-settings-group runtime-mine-group">
+              <h3>支持</h3>
+              ${renderMineMenuLink("隐私协议", "数据使用说明", "shield", "/settings/privacy")}
+              ${renderMineMenuLink("关于 RedCode IM", "版本与反馈", "more", "/settings/about")}
+            </section>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderMineStat(value, label, route) {
+    return `
+      <button class="runtime-mine-stat" data-action="navigate" data-route="${route}">
+        <strong>${escapeHtml(value)}</strong>
+        <span>${escapeHtml(label)}</span>
+      </button>
+    `;
+  }
+
+  function renderMineMenuLink(title, description, icon, route, emphasized = false) {
+    return `
+      <button class="runtime-mine-menu-row ${emphasized ? "is-emphasized" : ""}" data-action="navigate" data-route="${route}">
+        <span class="runtime-mine-menu-row__icon">${renderIcon(icon, "runtime-mine-menu-row__glyph")}</span>
+        <span class="runtime-mine-menu-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
+        <span class="runtime-row-chevron">›</span>
+      </button>
+    `;
+  }
+
+  function renderSettingsScreen() {
+    return `
+      <section class="screen runtime-screen runtime-screen--list runtime-settings-screen">
+        ${renderScreenHeader({ title: "设置", backPath: "/mine" })}
+        <div class="screen-scroll runtime-scroll">
+          <div class="runtime-list-content runtime-settings-content">
+            <section class="runtime-settings-group runtime-settings-group--links">
+              <h3>账号与偏好</h3>
+              ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理", "/settings/account")}
+              ${renderRuntimeSettingsLink("聊天", "聊天背景与存储", "/settings/chat")}
+            </section>
             <section class="runtime-settings-group">
               <h3>消息通知</h3>
               ${renderRuntimeSwitchRow("mentions", "提及通知", data.settings.notifications.mentions, "notifications")}
@@ -3921,8 +4009,7 @@
               ${renderRuntimeSwitchRow("autoDownloadMedia", "自动下载媒体", data.settings.privacy.autoDownloadMedia, "privacy")}
             </section>
             <section class="runtime-settings-group runtime-settings-group--links">
-              ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理", "/settings/account")}
-              ${renderRuntimeSettingsLink("聊天", "聊天背景与存储", "/settings/chat")}
+              <h3>支持</h3>
               ${renderRuntimeSettingsLink("隐私协议", "协议与数据使用说明", "/settings/privacy")}
               ${renderRuntimeSettingsLink("关于 RedCode IM", "版本与反馈", "/settings/about")}
             </section>
@@ -3940,7 +4027,7 @@
 
     return `
       <section class="screen runtime-screen runtime-screen--list">
-        ${renderScreenHeader({ title: detail.title, backPath: "/settings" })}
+        ${renderScreenHeader({ title: detail.title, backPath: section === "profile" ? "/mine" : "/settings" })}
         <div class="screen-scroll runtime-scroll">
           <div class="runtime-list-content runtime-settings-content">
             <section class="runtime-settings-group">
@@ -4150,7 +4237,7 @@
         label: "Device",
         items: [
           "页面外只保留一个手机容器，不展示设计说明、工具条或验证卡。",
-          "聊天、联系人、发现、设置和二级页面都必须在容器内完成跳转。",
+          "聊天、联系人、发现、我的与设置二级页都必须在容器内完成跳转。",
           "稳定底栏、消息输入区和容器内提示都使用同一套产品组件语言。",
         ],
       };
@@ -4221,14 +4308,25 @@
         ],
       };
     }
-    if (route.section === "settings") {
+    if (route.section === "mine") {
       return {
-        title: "设置页验证点",
+        title: "我的页验证点",
+        label: "Mine",
+        items: [
+          "一级页优先呈现身份、个人概览和高频服务，避免直接堆叠设置开关。",
+          "资料、群聊、消息搜索和设置入口都必须进入真实业务链路。",
+          "设置下沉为二级页后，底栏仍只保留四个稳定入口。",
+        ],
+      };
+    }
+    if (route.section === "settings" || route.section === "settings-detail") {
+      return {
+        title: "设置链路验证点",
         label: "Settings",
         items: [
-          "一级入口只放和账号、聊天、偏好相关的事情。",
-          "主题和密度是原型评审手柄，也映射未来正式实现。",
+          "设置从我的页进入，通知、隐私与偏好不再和个人身份信息混排。",
           "开关行高、文本层级和列表结构保持统一。",
+          "深链与返回都应留在移动端设备容器内。",
         ],
       };
     }

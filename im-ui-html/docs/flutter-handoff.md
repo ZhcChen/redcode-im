@@ -33,7 +33,7 @@
 - 发现 / 朋友圈 / 扫一扫 / 附近的人 / 游戏入口
 - 建群 / 群设置
 - 消息搜索
-- 设置
+- 我的 / 设置
 
 ## 2. Flutter 目录落位建议
 
@@ -52,6 +52,7 @@ app/lib/
     discover/
     groups/
     search/
+    mine/
     settings/
   core/
     theme/
@@ -68,6 +69,7 @@ app/lib/
 - `#/chats`
 - `#/contacts`
 - `#/discover`
+- `#/mine`
 - `#/settings`
 
 必须先固定：
@@ -105,6 +107,7 @@ app/lib/
 | `Conversation Cell` | `ConversationListTile` |
 | `Message Bubble` | `MessageBubble` |
 | `Composer` | `ChatComposer` |
+| `Mine Profile` | `ProfileHeader + profile route` |
 | `Settings Row` | `SettingsListRow` |
 | `Action Card` | `ActionSurfaceCard` |
 | `Chip / Badge` | `TagChip` / `StatusBadge` |
@@ -134,7 +137,10 @@ app/lib/
 | `#/groups/create` | `groups/create` |
 | `#/groups/settings/:groupId` | `groups/settings/:groupId` |
 | `#/search` | `search/messages` |
-| `#/settings` | `home/settings` |
+| `#/mine` | `home/mine` |
+| `#/mine/profile` | `mine/profile` |
+| `#/settings` | `mine/settings` |
+| `#/settings/:section` | `mine/settings/:section` |
 
 ## 6. 实施顺序建议
 
@@ -151,13 +157,13 @@ app/lib/
 1. 聊天
 2. 联系人
 3. 发现
-4. 设置
+4. 我的 / 设置
 5. 群聊 / 搜索
 
 原因：
 
 - 聊天输入区、会话列表、消息气泡会最先暴露设计系统是否稳定
-- 联系人、发现、设置能验证列表类组件是否足够统一
+- 联系人、发现、我的与设置能验证资料、服务入口和列表类组件是否足够统一
 
 ### Phase 3：再做桌面壳层重组
 
