@@ -3591,7 +3591,10 @@
           </div>
           <time class="request-card__time">${escapeHtml(request.time)}</time>
         </div>
-        <p class="request-card__message">${escapeHtml(request.message)}</p>
+        <p class="request-card__message">
+          <span class="request-card__message-label">申请留言</span>
+          <span class="request-card__message-copy">${escapeHtml(request.message)}</span>
+        </p>
         ${
           isIncoming && pending
             ? `
