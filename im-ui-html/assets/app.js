@@ -2760,7 +2760,7 @@
     const inFlowPinnedMessage = !isGroupAnnouncement && contextualNote ? contextualNoteMarkup : "";
 
     return `
-      <section class="screen screen--chat-detail runtime-chat-screen">
+      <section class="screen screen--chat-detail runtime-chat-screen ${activePanel ? "runtime-chat-screen--composer-panel-open" : ""}">
         ${renderScreenHeader({
           title: chat.name,
           subtitle: group
@@ -2784,7 +2784,6 @@
             ${renderMessageTimeline(chat)}
           </div>
         </div>
-        ${renderComposerPanel()}
         <form class="runtime-composer" data-form="send-message" data-chat-id="${chat.id}">
           <div class="runtime-composer__inner">
             <button
@@ -2792,6 +2791,8 @@
               type="button"
               data-action="toggle-composer-panel"
               data-panel="emoji"
+              aria-controls="runtime-composer-panel"
+              aria-expanded="${activePanel === "emoji"}"
               aria-label="表情"
             >
               ${renderIcon("emoji", "runtime-composer__glyph", "表情")}
@@ -2809,6 +2810,8 @@
               type="button"
               data-action="toggle-composer-panel"
               data-panel="more"
+              aria-controls="runtime-composer-panel"
+              aria-expanded="${activePanel === "more"}"
               aria-label="更多操作"
             >
               ${renderIcon("plus", "runtime-composer__glyph", "更多操作")}
@@ -2818,15 +2821,31 @@
             </button>
           </div>
         </form>
+        ${renderComposerPanel()}
       </section>
     `;
   }
 
   function renderComposerPanel() {
-    if (state.composerPanel === "emoji") {
-      const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
-      return `
-        <section class="runtime-composer-panel runtime-composer-panel--emoji">
+    const activePanel = state.composerPanel;
+    const isOpen = activePanel === "emoji" || activePanel === "more";
+    const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
+    const actions = [
+      ["图片", "选择图片"],
+      ["文件", "选择文件"],
+      ["拍摄", "打开相机"],
+      ["位置", "发送位置"],
+    ];
+
+    return `
+      <section
+        id="runtime-composer-panel"
+        class="runtime-composer-panel ${activePanel === "emoji" ? "is-open runtime-composer-panel--emoji" : activePanel === "more" ? "is-open runtime-composer-panel--actions" : ""}"
+        data-panel="${isOpen ? activePanel : "none"}"
+        aria-hidden="${!isOpen}"
+        ${isOpen ? "" : "inert"}
+      >
+        <div class="runtime-composer-panel__view runtime-composer-panel__view--emoji">
           <div class="runtime-composer-panel__header"><strong>表情</strong></div>
           <div class="emoji-grid">
             ${emojis
@@ -2845,36 +2864,73 @@
               )
               .join("")}
           </div>
-        </section>
-      `;
-    }
-
-    if (state.composerPanel === "more") {
-      const actions = [
-        ["图片", "选择图片"],
-        ["文件", "选择文件"],
-        ["拍摄", "打开相机"],
-        ["位置", "发送位置"],
-      ];
-      return `
-        <section class="runtime-composer-panel runtime-composer-panel--actions">
+        </div>
+        <div class="runtime-composer-panel__view runtime-composer-panel__view--actions">
           <div class="runtime-composer-panel__header"><strong>更多操作</strong></div>
           <div class="runtime-composer-actions">
             ${actions
               .map(
                 (item) => `
-                  <button class="runtime-composer-action-card" data-action="show-hint" data-message="${item[1]}">
+                  <button
+                    class="runtime-composer-action-card"
+                    type="button"
+                    data-action="show-hint"
+                    data-message="${item[1]}"
+                  >
                     <span>${item[0]}</span>
                   </button>
                 `,
               )
               .join("")}
           </div>
-        </section>
-      `;
+        </div>
+      </section>
+    `;
+  }
+
+  function toggleComposerPanel(panel) {
+    if (!["emoji", "more"].includes(panel)) {
+      return;
     }
 
-    return "";
+    const nextPanel = state.composerPanel === panel ? null : panel;
+    state.composerPanel = nextPanel;
+
+    const chatScreen = root.querySelector(".runtime-chat-screen");
+    const panelElement = root.querySelector(".runtime-composer-panel");
+    if (!chatScreen || !panelElement) {
+      render();
+      return;
+    }
+
+    root.querySelectorAll('[data-action="toggle-composer-panel"]').forEach((button) => {
+      const isActive = button.getAttribute("data-panel") === nextPanel;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-expanded", String(isActive));
+    });
+
+    if (!nextPanel) {
+      chatScreen.classList.remove("runtime-chat-screen--composer-panel-open");
+      panelElement.classList.remove("is-open");
+      panelElement.setAttribute("aria-hidden", "true");
+      panelElement.toggleAttribute("inert", true);
+      return;
+    }
+
+    panelElement.dataset.panel = nextPanel;
+    panelElement.classList.toggle("runtime-composer-panel--emoji", nextPanel === "emoji");
+    panelElement.classList.toggle("runtime-composer-panel--actions", nextPanel === "more");
+    panelElement.setAttribute("aria-hidden", "false");
+    panelElement.toggleAttribute("inert", false);
+
+    // Keep one shell in the DOM so both directions can use CSS transitions.
+    window.requestAnimationFrame(() => {
+      if (state.composerPanel !== nextPanel) {
+        return;
+      }
+      chatScreen.classList.add("runtime-chat-screen--composer-panel-open");
+      panelElement.classList.add("is-open");
+    });
   }
 
   function renderMessageTimeline(chat) {
@@ -5156,9 +5212,7 @@
       return;
     }
     if (action === "toggle-composer-panel") {
-      const panel = target.getAttribute("data-panel");
-      state.composerPanel = state.composerPanel === panel ? null : panel;
-      render();
+      toggleComposerPanel(target.getAttribute("data-panel"));
       return;
     }
     if (action === "append-emoji") {

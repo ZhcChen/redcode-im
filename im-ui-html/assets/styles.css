@@ -6400,11 +6400,35 @@ body[data-theme="dark"] .phone-screen {
 
 .runtime-composer-panel {
   flex: 0 0 auto;
-  max-height: 224px;
-  overflow: auto;
-  padding: 12px 16px;
-  border-top: 1px solid var(--runtime-line);
+  max-height: 0;
+  overflow: hidden;
+  padding: 0 16px;
   background: var(--runtime-surface);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition:
+    max-height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.runtime-composer-panel.is-open {
+  max-height: 224px;
+  padding: 12px 16px calc(12px + var(--runtime-safe-area-bottom));
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.runtime-composer-panel__view {
+  display: none;
+}
+
+.runtime-composer-panel[data-panel="emoji"] .runtime-composer-panel__view--emoji,
+.runtime-composer-panel[data-panel="more"] .runtime-composer-panel__view--actions {
+  display: block;
 }
 
 .runtime-composer-panel__header {
@@ -6443,6 +6467,11 @@ body[data-theme="dark"] .phone-screen {
   padding: 8px 12px calc(8px + var(--runtime-safe-area-bottom));
   border-top: 1px solid var(--runtime-line);
   background: var(--runtime-surface);
+  transition: padding-bottom 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.runtime-chat-screen--composer-panel-open .runtime-composer {
+  padding-bottom: 8px;
 }
 
 .runtime-composer__inner {
@@ -7936,6 +7965,13 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   border: 0;
   border-radius: 10px;
   background: var(--runtime-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runtime-composer-panel,
+  .runtime-composer {
+    transition: none;
+  }
 }
 
 .phone-screen .runtime-composer-panel,
