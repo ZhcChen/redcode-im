@@ -408,8 +408,8 @@ window.RedcodeIMPrototypeData = {
       },
       {
         title: "Message Bubble",
-        summary: "单聊和群聊共用气泡语言，只在发送者、状态位和引用态扩展。",
-        states: ["Incoming", "Outgoing", "Quote", "Recent", "Highlighted"],
+        summary: "单聊和群聊共用气泡语言，只在发送者、状态位和回复来源摘要上扩展。",
+        states: ["Incoming", "Outgoing", "Reply", "Recent", "Highlighted"],
         flutter: "Message bubble component + reaction row",
       },
       {
@@ -705,7 +705,7 @@ window.RedcodeIMPrototypeData = {
           senderId: "u_zoe",
           senderName: "Zoe",
           senderTone: "violet",
-          content: "先把 UI 规范做成独立原型，我不想再被旧页面视觉约束住。",
+          content: "先把 UI 规范做成独立原型，不要把高级功能藏得太深，我不想再被旧页面视觉约束住。",
           time: "09:12",
           self: false,
           reactions: [

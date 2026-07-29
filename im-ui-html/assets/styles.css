@@ -3800,23 +3800,52 @@ body[data-theme="dark"] .spec-stage {
 }
 
 .message-quote {
+  width: 100%;
   margin-bottom: 0.45em;
   padding: 0.52em 0.68em;
-  border-radius: 0.92em;
-  background: var(--surface-soft);
   display: grid;
   gap: 0.18em;
+  border: 0;
+  border-radius: 0.92em;
+  appearance: none;
+  background: var(--surface-soft);
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 
-.message-quote__label {
+.message-quote--jump {
+  cursor: pointer;
+}
+
+.message-quote--jump:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.message-quote__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
   color: var(--text-tertiary);
   font-size: 0.72em;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
-.message-quote p {
+.message-quote__icon,
+.message-quote__icon svg {
+  width: 0.95em;
+  height: 0.95em;
+}
+
+.message-quote__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.message-quote__content {
+  display: block;
   color: var(--text-secondary);
   font-size: 0.82em;
   line-height: 1.48;
@@ -3826,8 +3855,8 @@ body[data-theme="dark"] .spec-stage {
   background: rgba(255, 255, 255, 0.16);
 }
 
-.message-bubble--self .message-quote__label,
-.message-bubble--self .message-quote p {
+.message-bubble--self .message-quote__meta,
+.message-bubble--self .message-quote__content {
   color: rgba(255, 255, 255, 0.84);
 }
 
@@ -6287,17 +6316,50 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .message-quote {
+  width: 100%;
   margin-bottom: 7px;
   padding: 6px 8px;
+  border: 0;
   border-left: 2px solid var(--runtime-accent);
   border-radius: 0 5px 5px 0;
   background: rgba(0, 0, 0, 0.035);
 }
 
-.phone-screen .message-quote p {
-  margin: 3px 0 0;
+.phone-screen .message-quote--jump:active {
+  background: var(--runtime-soft);
+}
+
+.phone-screen .message-quote__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--runtime-faint);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.phone-screen .message-quote__icon,
+.phone-screen .message-quote__icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.phone-screen .message-quote__content {
+  margin-top: 3px;
   color: var(--runtime-muted);
   font-size: 12px;
+  line-height: 1.42;
+}
+
+.phone-screen .message-bubble--self .message-quote {
+  border-left-color: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.phone-screen .message-bubble--self .message-quote__meta,
+.phone-screen .message-bubble--self .message-quote__content {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .phone-screen .reaction-row {

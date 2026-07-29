@@ -11,7 +11,7 @@
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
 | `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
 | `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
-| `Message Bubble` | 单聊/群聊消息体 | `Incoming / Outgoing / Quote / Recent / Highlighted` | `Message bubble + reaction row` |
+| `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Recent / Highlighted` | `Message bubble + reaction row` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual` | `Shared search field + optional context label` |
 | `Button Set` | Primary / Ghost / Icon 三类按钮 | `Default / Pressed / Disabled / Loading` | `Button theme + icon button wrappers` |

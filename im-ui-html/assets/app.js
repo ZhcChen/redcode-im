@@ -83,6 +83,10 @@
       '<path d="M14.9 6.5L8.75 12l6.15 5.5" />',
       '<path d="M9.15 12H19" />',
     ],
+    reply: [
+      '<path d="m9 17-5-5 5-5" />',
+      '<path d="M4 12h9a5 5 0 0 1 5 5v1" />',
+    ],
     chevronRight: ['<path d="m9.25 5.5 6.5 6.5-6.5 6.5" />'],
     chevronDown: ['<path d="m5.5 9.25 6.5 6.5 6.5-6.5" />'],
     chevronUp: ['<path d="m5.5 14.75 6.5-6.5 6.5 6.5" />'],
@@ -2884,7 +2888,67 @@
     return "今天";
   }
 
+  // Legacy mock quotes carry excerpts rather than stable source message IDs.
+  function normalizeQuoteText(value) {
+    return typeof value === "string" ? value.replace(/[\s\p{P}\p{S}]+/gu, "").trim() : "";
+  }
+
+  function resolveQuotedMessage(chat, message) {
+    const messageIndex = chat.messages.findIndex((item) => item.id === message.id);
+    const quoteText = normalizeQuoteText(message.quote);
+    if (!quoteText || messageIndex <= 0) {
+      return null;
+    }
+
+    return chat.messages
+      .slice(0, messageIndex)
+      .reverse()
+      .find((item) => {
+        const content = normalizeQuoteText(item.content);
+        return Boolean(content) && (content.includes(quoteText) || quoteText.includes(content));
+      }) || null;
+  }
+
+  function renderMessageQuote(chat, message) {
+    if (!message.quote) {
+      return "";
+    }
+
+    const source = resolveQuotedMessage(chat, message);
+    const isReplyToSelf = source?.senderId === data.currentUser.id;
+    const replyLabel = source
+      ? (isReplyToSelf ? "回复自己" : `回复 ${source.senderName || "成员"}`)
+      : "回复消息";
+    const quoteContent = `
+      <span class="message-quote__meta">
+        ${renderIcon("reply", "message-quote__icon")}
+        <span>${escapeHtml(replyLabel)}</span>
+      </span>
+      <span class="message-quote__content">${escapeHtml(message.quote)}</span>
+    `;
+
+    if (!source) {
+      return `<div class="message-quote message-quote--static">${quoteContent}</div>`;
+    }
+
+    const jumpLabel = isReplyToSelf
+      ? "跳转至自己的原消息"
+      : `跳转至 ${source.senderName || "成员"} 的原消息`;
+    return `
+      <button
+        class="message-quote message-quote--jump"
+        type="button"
+        data-action="jump-to-message"
+        data-message-id="${source.id}"
+        aria-label="${escapeHtml(jumpLabel)}"
+      >
+        ${quoteContent}
+      </button>
+    `;
+  }
+
   function renderMessageBubble(chat, message) {
+    const quote = renderMessageQuote(chat, message);
     const isHighlighted = state.highlightMessageId === message.id;
     const isRecent = state.recentMessageId === message.id;
     const reactions = Array.isArray(message.reactions) && message.reactions.length
@@ -2898,19 +2962,12 @@
       : "";
 
     return `
-      <div class="message-row ${message.self ? "message-row--self" : ""}">
+      <div class="message-row ${message.self ? "message-row--self" : ""}" data-message-id="${message.id}">
         ${message.self ? "" : renderAvatar(message.senderName, message.senderTone, "avatar--sm")}
         <div class="message-block ${message.self ? "message-block--self" : ""}">
           ${message.self ? "" : `<span class="message-sender">${escapeHtml(message.senderName)}</span>`}
           <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
-            ${message.quote
-              ? `
-                <div class="message-quote">
-                  <span class="message-quote__label">引用</span>
-                  <p>${escapeHtml(message.quote)}</p>
-                </div>
-              `
-              : ""}
+            ${quote}
             <p class="message-bubble__text">${escapeHtml(message.content)}</p>
           </div>
           ${reactions}
@@ -4928,6 +4985,21 @@
     render();
   }
 
+  function jumpToMessage(messageId) {
+    if (!messageId) {
+      return;
+    }
+
+    state.highlightMessageId = messageId;
+    render();
+    window.requestAnimationFrame(() => {
+      const target = root.querySelector(`.message-row[data-message-id="${messageId}"]`);
+      if (target instanceof HTMLElement) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  }
+
   function updateGroupField(groupId, kind, value) {
     const group = findGroup(groupId);
     if (!group) {
@@ -5107,6 +5179,10 @@
       state.activeChatId = target.getAttribute("data-chat-id");
       state.highlightMessageId = target.getAttribute("data-message-id");
       navigate(`/chat/${state.activeChatId}`, { keepHighlight: true });
+      return;
+    }
+    if (action === "jump-to-message") {
+      jumpToMessage(target.getAttribute("data-message-id"));
       return;
     }
     if (action === "prefill-search") {
