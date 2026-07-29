@@ -48,6 +48,7 @@
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
+    friendRequestTab: "incoming",
     friendNote: "你好，我想一起评审 RedCode IM 的移动端重构方案。",
     searchQuery: "",
     groupMemberFilter: "",
@@ -196,6 +197,7 @@
   });
 
   root.addEventListener("click", handleClick);
+  root.addEventListener("keydown", handleKeydown);
   root.addEventListener("input", handleInput);
   root.addEventListener("change", handleChange);
   root.addEventListener("submit", handleSubmit);
@@ -3483,76 +3485,76 @@
     const incoming = data.friendRequests.filter((item) => item.type === "incoming");
     const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
     const pendingIncoming = incoming.filter((item) => item.status === "pending").length;
+    const activeTab = state.friendRequestTab === "outgoing" ? "outgoing" : "incoming";
+    const activeRequests = activeTab === "incoming" ? incoming : outgoing;
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-friend-requests-screen">
         ${renderScreenHeader({
           title: "新的朋友",
-          subtitle: "处理收到或发出的好友申请",
           backPath: "/contacts",
+          variant: "compact",
           actions: pendingIncoming
             ? [`<span class="badge" aria-label="${pendingIncoming} 条待处理">${pendingIncoming}</span>`]
             : [],
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--soft hero-card--request-hub">
-              <span class="eyebrow">Request Inbox</span>
-              <h3>好友申请要先看方向、状态和打招呼内容，再决定通过、忽略或撤回。</h3>
-              <div class="request-overview-grid">
-                <span class="request-overview-card">
-                  <strong>${incoming.length}</strong>
-                  <span>收到申请</span>
-                </span>
-                <span class="request-overview-card">
-                  <strong>${outgoing.length}</strong>
-                  <span>发出申请</span>
-                </span>
-              </div>
-            </section>
-            ${renderRequestSection("收到的申请", "优先处理待确认的关系请求。", incoming, "incoming", { showHeader: false })}
-            ${renderRequestSection("发出的申请", "跟踪自己发出的申请是否已经被处理。", outgoing, "outgoing")}
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>下一步动作</h3>
-                <span class="badge">Flow</span>
-              </div>
-              <div class="inline-actions inline-actions--wide">
-                <button class="ghost-button" data-action="navigate" data-route="/contacts/add">继续搜索好友</button>
-                <button class="ghost-button" data-action="navigate" data-route="/contacts">返回联系人目录</button>
-              </div>
-            </section>
+        ${renderFriendRequestTabs(activeTab)}
+        <div class="screen-scroll runtime-scroll runtime-request-scroll">
+          <div
+            id="friend-requests-panel"
+            class="runtime-request-panel"
+            role="tabpanel"
+            tabindex="0"
+            aria-labelledby="friend-request-tab-${activeTab}"
+          >
+            ${renderRequestSection(activeRequests, activeTab)}
           </div>
         </div>
       </section>
     `;
   }
 
-  function renderRequestSection(title, note, requests, type, options = {}) {
-    const showHeader = options.showHeader !== false;
+  function renderFriendRequestTabs(activeTab) {
+    const tabs = [
+      { id: "incoming", label: "收到的申请" },
+      { id: "outgoing", label: "发出的申请" },
+    ];
 
     return `
+      <nav class="runtime-request-tabs" role="tablist" aria-label="好友申请">
+        ${tabs
+          .map(
+            (tab) => `
+              <button
+                id="friend-request-tab-${tab.id}"
+                class="runtime-request-tabs__item ${activeTab === tab.id ? "is-active" : ""}"
+                type="button"
+                role="tab"
+                data-action="set-request-tab"
+                data-request-tab="${tab.id}"
+                aria-controls="friend-requests-panel"
+                aria-selected="${activeTab === tab.id}"
+                tabindex="${activeTab === tab.id ? "0" : "-1"}"
+              >
+                ${tab.label}
+              </button>
+            `,
+          )
+          .join("")}
+      </nav>
+    `;
+  }
+
+  function renderRequestSection(requests, type) {
+    return `
       <section class="request-section request-section--${type}">
-        ${
-          showHeader
-            ? `
-              <div class="surface-card__header request-section__header">
-                <div class="surface-card__header-copy">
-                  <h3>${escapeHtml(title)}</h3>
-                  <p>${escapeHtml(note)}</p>
-                </div>
-                <span class="badge">${requests.length}</span>
-              </div>
-            `
-            : ""
-        }
         ${requests.length
           ? `<div class="request-section__list">${requests.map((request) => renderRequestCard(request)).join("")}</div>`
           : renderEmptyState(
               type === "incoming" ? "暂无收到的申请" : "暂无发出的申请",
               type === "incoming"
-                ? "后续这里会承接好友验证、打招呼和状态变更。"
-                : "从添加好友页发起申请后，这里会同步展示。",
+                ? "新的好友申请会显示在这里。"
+                : "从添加好友页发出的申请会显示在这里。",
             )}
       </section>
     `;
@@ -3561,7 +3563,8 @@
   function renderRequestCard(request) {
     const isIncoming = request.type === "incoming";
     const pending = request.status === "pending";
-    const requestStatus = statusLabel(request.status);
+    const requestStatus = !isIncoming && pending ? "已发送" : statusLabel(request.status);
+    const requestStatusClass = !isIncoming && pending ? "sent" : request.status;
     const requestLabel = `${request.name}${isIncoming ? "的好友申请" : "发出的好友申请"}，${requestStatus}`;
     const showResult = (isIncoming && !pending) || (!isIncoming && request.status === "withdrawn");
     const resultLabel = request.status === "accepted"
@@ -3579,7 +3582,7 @@
           <div class="request-card__body">
             <div class="request-card__identity">
               <strong>${escapeHtml(request.name)}</strong>
-              <span class="request-card__status request-card__status--${request.status}">${escapeHtml(requestStatus)}</span>
+              <span class="request-card__status request-card__status--${requestStatusClass}">${escapeHtml(requestStatus)}</span>
             </div>
             <div class="request-card__meta">
               <span>@${escapeHtml(request.username)} · ${escapeHtml(request.title)}</span>
@@ -5026,6 +5029,7 @@
       return;
     }
     user.relation = "pending_outgoing";
+    state.friendRequestTab = "outgoing";
     data.friendRequests.unshift({
       id: `fr_${Date.now()}`,
       type: "outgoing",
@@ -5325,6 +5329,41 @@
     `;
   }
 
+  function handleKeydown(event) {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    const tab = event.target.closest('[data-action="set-request-tab"]');
+    if (!tab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+      return;
+    }
+
+    const tabIds = ["incoming", "outgoing"];
+    const currentIndex = tabIds.indexOf(tab.getAttribute("data-request-tab"));
+    let nextIndex = currentIndex;
+
+    if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex + tabIds.length - 1) % tabIds.length;
+    } else if (event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % tabIds.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = tabIds.length - 1;
+    }
+
+    event.preventDefault();
+    state.friendRequestTab = tabIds[nextIndex];
+    render();
+    window.requestAnimationFrame(() => {
+      const nextTab = document.querySelector(`[data-request-tab="${tabIds[nextIndex]}"]`);
+      if (nextTab instanceof HTMLButtonElement) {
+        nextTab.focus({ preventScroll: true });
+      }
+    });
+  }
+
   function handleClick(event) {
     const target = event.target.closest("[data-action]");
     if (!target) {
@@ -5361,6 +5400,14 @@
       if (isSupportedDeviceFrame(deviceFrame)) {
         state.deviceFrame = deviceFrame;
         persistUiState();
+        render();
+      }
+      return;
+    }
+    if (action === "set-request-tab") {
+      const tab = target.getAttribute("data-request-tab");
+      if (tab === "incoming" || tab === "outgoing") {
+        state.friendRequestTab = tab;
         render();
       }
       return;
