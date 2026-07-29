@@ -3587,11 +3587,11 @@
             </div>
             <div class="request-card__meta">
               <span>@${escapeHtml(request.username)} · ${escapeHtml(request.title)}</span>
-              <time>${escapeHtml(request.time)}</time>
             </div>
-            <p class="request-card__message">${escapeHtml(request.message)}</p>
           </div>
+          <time class="request-card__time">${escapeHtml(request.time)}</time>
         </div>
+        <p class="request-card__message">${escapeHtml(request.message)}</p>
         ${
           isIncoming && pending
             ? `
