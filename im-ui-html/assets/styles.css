@@ -5390,6 +5390,16 @@ body[data-theme="dark"] .phone-screen {
   flex: 1;
 }
 
+.phone-screen .runtime-header.runtime-header--directory .screen-header__main--search {
+  display: flex;
+  align-items: center;
+}
+
+.phone-screen .runtime-header.runtime-header--directory .screen-header__main--search .runtime-search-field {
+  width: 100%;
+  min-height: 44px;
+}
+
 .phone-screen .runtime-header.runtime-header--directory h2 {
   overflow: hidden;
   color: var(--runtime-ink);
@@ -5410,15 +5420,6 @@ body[data-theme="dark"] .phone-screen {
 
 .phone-screen .runtime-contacts-content {
   gap: 12px;
-}
-
-.phone-screen .runtime-directory-search {
-  padding: 8px 0;
-  align-self: start;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--runtime-canvas);
 }
 
 .runtime-topbar-scroll {
@@ -5454,6 +5455,18 @@ body[data-theme="dark"] .phone-screen {
 
 .phone-screen .screen-header__actions {
   gap: 8px;
+}
+
+.phone-screen .runtime-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .runtime-mine-profile,
@@ -8038,7 +8051,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   background: var(--runtime-soft);
 }
 
-.phone-screen .runtime-search-field:focus-within,
 .phone-screen .runtime-composer__field:focus-within {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--runtime-accent) 18%, transparent);
 }

@@ -20,7 +20,7 @@
 | `#/mobile-design` | 默认显示聊天首页；宽屏默认 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro` |
 | `#/mobile-design/chats` | 会话列表 |
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
-| `#/mobile-design/contacts` | 联系人目录：固定目录栏与粘性搜索 |
+| `#/mobile-design/contacts` | 联系人目录：固定搜索栏、快捷入口和单一分组列表滚动面 |
 | `#/mobile-design/discover` | 发现 |
 | `#/mobile-design/mine` | 我的 |
 | `#/mobile-design/settings` | 设置（从“我的”进入） |
@@ -35,7 +35,7 @@
 | 一级入口 | Route | 说明 |
 | --- | --- | --- |
 | 聊天 | `#/chats` | 会话列表主入口 |
-| 联系人 | `#/contacts` | 联系人与关系链路；固定目录栏与粘性搜索 |
+| 联系人 | `#/contacts` | 联系人与关系链路；固定搜索栏、快捷入口与单一分组列表滚动面 |
 | 发现 | `#/discover` | 朋友圈、扫一扫、附近的人、游戏入口 |
 | 我的 | `#/mine` | 身份、账户操作与支持入口 |
 

@@ -1128,14 +1128,17 @@
     const actions = options.actions && options.actions.length
       ? `<div class="screen-header__actions">${options.actions.join("")}</div>`
       : "";
-
-    return `
-      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""} ${directory ? "runtime-header--directory" : ""}">
-        ${backButton}
+    const mainContent = options.mainContent || `
         <div class="screen-header__main">
           <h2>${escapeHtml(options.title)}</h2>
           ${options.subtitle ? `<p>${escapeHtml(options.subtitle)}</p>` : ""}
         </div>
+      `;
+
+    return `
+      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""} ${directory ? "runtime-header--directory" : ""}">
+        ${backButton}
+        ${mainContent}
         ${actions}
       </header>
     `;
@@ -3134,9 +3137,23 @@
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-contacts-screen">
         ${renderScreenHeader({
-          title: "联系人",
           root: true,
           variant: "directory",
+          mainContent: `
+            <div class="screen-header__main screen-header__main--search" role="search" aria-label="搜索联系人">
+              <h2 class="runtime-visually-hidden">联系人</h2>
+              <label class="runtime-search-field">
+                ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
+                <input
+                  id="contact-filter-input"
+                  value="${escapeHtml(state.contactFilter)}"
+                  placeholder="搜索联系人"
+                  aria-label="搜索联系人"
+                  aria-controls="contact-directory"
+                />
+              </label>
+            </div>
+          `,
           actions: [
             `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
           ],
@@ -3155,18 +3172,7 @@
                 ${renderRowChevron()}
               </button>
             </div>
-            <div class="runtime-directory-search">
-              <label class="runtime-search-field">
-                ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
-                <input
-                  id="contact-filter-input"
-                  value="${escapeHtml(state.contactFilter)}"
-                  placeholder="搜索联系人"
-                  aria-label="搜索联系人"
-                />
-              </label>
-            </div>
-            <div class="runtime-contact-directory">
+            <div class="runtime-contact-directory" id="contact-directory">
               ${sections.length ? sections.map(renderContactSection).join("") : renderEmptyState("暂无联系人", "添加好友后会显示在这里。")}
             </div>
           </div>
