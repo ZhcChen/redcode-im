@@ -5499,7 +5499,7 @@ body[data-theme="dark"] .phone-screen {
 .phone-screen .runtime-friend-requests-screen .request-card {
   padding: 14px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--runtime-radius-surface);
   background: var(--runtime-surface);
   box-shadow: none;
 }
@@ -5507,33 +5507,32 @@ body[data-theme="dark"] .phone-screen {
 .phone-screen .runtime-friend-requests-screen .request-section > .empty-state {
   padding: 24px 16px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--runtime-radius-surface);
   background: var(--runtime-surface);
   box-shadow: none;
 }
 
 .phone-screen .runtime-request-tabs {
-  min-height: 52px;
-  margin: 8px 16px;
-  padding: 4px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 56px;
+  padding: 8px 16px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
-  border-radius: 8px;
-  background: var(--runtime-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--runtime-line) 72%, transparent);
+  background: var(--runtime-canvas);
 }
 
 .phone-screen .runtime-request-tabs__item {
   min-width: 0;
   min-height: 44px;
-  padding: 0 10px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--runtime-radius-control);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
+  flex: 0 1 auto;
   background: transparent;
   color: var(--runtime-muted);
   font: inherit;
@@ -5543,8 +5542,7 @@ body[data-theme="dark"] .phone-screen {
   text-align: center;
   transition:
     background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease;
+    color 140ms ease;
 }
 
 .phone-screen .runtime-request-tabs__label {
@@ -5555,35 +5553,26 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .runtime-request-tabs__count {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 999px;
-  display: inline-grid;
   flex: 0 0 auto;
-  place-items: center;
-  background: color-mix(in srgb, var(--runtime-surface) 84%, transparent);
   color: var(--runtime-faint);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
 
 .phone-screen .runtime-request-tabs__item.is-active {
-  background: var(--runtime-surface);
+  background: var(--runtime-accent-soft);
   color: var(--runtime-accent-deep);
   font-weight: 750;
-  box-shadow: 0 1px 2px color-mix(in srgb, #0f172a 14%, transparent);
 }
 
 .phone-screen .runtime-request-tabs__item.is-active .runtime-request-tabs__count {
-  background: var(--runtime-accent-soft);
   color: var(--runtime-accent-deep);
 }
 
 .phone-screen .runtime-request-tabs__item:active {
-  background: color-mix(in srgb, var(--runtime-surface) 78%, var(--runtime-soft));
+  background: color-mix(in srgb, var(--runtime-accent-soft) 76%, var(--runtime-soft));
 }
 
 .phone-screen .runtime-request-tabs__item:focus-visible {
@@ -5592,7 +5581,7 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .runtime-request-scroll {
-  padding: 4px 16px calc(20px + var(--runtime-safe-area-bottom));
+  padding: 8px 16px calc(20px + var(--runtime-safe-area-bottom));
 }
 
 .phone-screen .runtime-request-panel {

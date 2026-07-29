@@ -3484,7 +3484,6 @@
   function renderFriendRequestsScreen() {
     const incoming = data.friendRequests.filter((item) => item.type === "incoming");
     const outgoing = data.friendRequests.filter((item) => item.type === "outgoing");
-    const pendingIncoming = incoming.filter((item) => item.status === "pending").length;
     const activeTab = state.friendRequestTab === "outgoing" ? "outgoing" : "incoming";
     const activeRequests = activeTab === "incoming" ? incoming : outgoing;
 
@@ -3494,9 +3493,6 @@
           title: "新的朋友",
           backPath: "/contacts",
           variant: "compact",
-          actions: pendingIncoming
-            ? [`<span class="badge" aria-label="${pendingIncoming} 条待处理">${pendingIncoming}</span>`]
-            : [],
         })}
         ${renderFriendRequestTabs(activeTab, {
           incoming: incoming.length,
