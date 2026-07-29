@@ -1112,6 +1112,7 @@
   function renderScreenHeader(options) {
     const compact = options.variant === "compact";
     const directory = options.variant === "directory";
+    const chat = options.variant === "chat";
     const fallbackPath = options.backPath ? resolveBackFallbackPath(options.backPath) : null;
     const backButton = fallbackPath
       ? `
@@ -1138,7 +1139,7 @@
       `;
 
     return `
-      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""} ${directory ? "runtime-header--directory" : ""}">
+      <header class="screen-header runtime-header ${options.root ? "screen-header--root" : ""} ${compact ? "runtime-header--compact" : ""} ${directory ? "runtime-header--directory" : ""} ${chat ? "runtime-header--chat" : ""}">
         ${backButton}
         ${mainContent}
         ${actions}
@@ -2802,6 +2803,7 @@
             ? targetContact.status
             : "在线",
           backPath: "/chats",
+          variant: "chat",
           actions: [
             group
               ? `<button class="runtime-header-link" data-action="navigate" data-route="/groups/settings/${group.id}">群设置</button>`
