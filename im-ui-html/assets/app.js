@@ -3498,7 +3498,10 @@
             ? [`<span class="badge" aria-label="${pendingIncoming} 条待处理">${pendingIncoming}</span>`]
             : [],
         })}
-        ${renderFriendRequestTabs(activeTab)}
+        ${renderFriendRequestTabs(activeTab, {
+          incoming: incoming.length,
+          outgoing: outgoing.length,
+        })}
         <div class="screen-scroll runtime-scroll runtime-request-scroll">
           <div
             id="friend-requests-panel"
@@ -3514,10 +3517,10 @@
     `;
   }
 
-  function renderFriendRequestTabs(activeTab) {
+  function renderFriendRequestTabs(activeTab, counts) {
     const tabs = [
-      { id: "incoming", label: "收到的申请" },
-      { id: "outgoing", label: "发出的申请" },
+      { id: "incoming", label: "收到的申请", count: counts.incoming },
+      { id: "outgoing", label: "发出的申请", count: counts.outgoing },
     ];
 
     return `
@@ -3534,9 +3537,11 @@
                 data-request-tab="${tab.id}"
                 aria-controls="friend-requests-panel"
                 aria-selected="${activeTab === tab.id}"
+                aria-label="${tab.label}，共 ${tab.count} 条"
                 tabindex="${activeTab === tab.id ? "0" : "-1"}"
               >
-                ${tab.label}
+                <span class="runtime-request-tabs__label">${tab.label}</span>
+                <span class="runtime-request-tabs__count" aria-hidden="true">${tab.count}</span>
               </button>
             `,
           )

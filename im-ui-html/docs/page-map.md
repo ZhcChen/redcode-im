@@ -50,7 +50,7 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/contacts/requests` | 好友申请：页头显示待处理数，固定顶部 Tab 切换收到与发出的申请，每条申请使用独立决策卡 |
+| `#/contacts/requests` | 好友申请：页头显示待处理数，固定顶部的分段 Tab 以分类总数切换收到与发出的申请，每条申请使用独立决策卡 |
 | `#/contacts/add` | 添加好友 |
 | `#/contacts/profile/:contactId` | 联系人资料页 |
 
