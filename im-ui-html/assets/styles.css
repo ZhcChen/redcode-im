@@ -5122,6 +5122,7 @@ body[data-theme="dark"] .spec-stage {
   --runtime-accent-soft: #e8f0ff;
   --runtime-danger: #df5b53;
   --runtime-success: #17a36f;
+  --runtime-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --runtime-radius-control: 14px;
   --runtime-radius-surface: 18px;
   --runtime-radius-feature: 22px;
@@ -5172,7 +5173,7 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .screen--tabbed .runtime-scroll {
-  padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  padding-bottom: calc(82px + var(--runtime-safe-area-bottom));
 }
 
 .phone-screen .runtime-chat-scroll {
@@ -6154,7 +6155,7 @@ body[data-theme="dark"] .phone-screen {
   bottom: 0;
   left: 0;
   z-index: 10;
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: var(--runtime-safe-area-bottom);
   border-top: 1px solid var(--runtime-line);
   background: color-mix(in srgb, var(--runtime-surface) 96%, transparent);
   backdrop-filter: blur(14px);
@@ -6439,7 +6440,7 @@ body[data-theme="dark"] .phone-screen {
 
 .runtime-composer {
   flex: 0 0 auto;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px 12px calc(8px + var(--runtime-safe-area-bottom));
   border-top: 1px solid var(--runtime-line);
   background: var(--runtime-surface);
 }
@@ -6904,7 +6905,7 @@ body[data-theme="dark"] .phone-screen {
 
 .runtime-group-create__footer {
   flex: 0 0 auto;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 16px calc(10px + var(--runtime-safe-area-bottom));
   background: var(--runtime-surface);
   box-shadow: 0 -1px 0 var(--runtime-line);
 }
@@ -6994,7 +6995,7 @@ body[data-theme="dark"] .phone-screen .switch-row__input {
 }
 
 .phone-screen .runtime-auth-scroll {
-  padding: 32px 24px max(24px, env(safe-area-inset-bottom));
+  padding: 32px 24px max(24px, var(--runtime-safe-area-bottom));
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -7327,6 +7328,23 @@ body[data-theme="dark"] .prototype-shell--mobile-preview {
   isolation: isolate;
 }
 
+.phone-frame--mobile-preview .phone-frame__home-indicator {
+  position: absolute;
+  z-index: 20;
+  bottom: 10px;
+  left: 50%;
+  width: 132px;
+  height: 5px;
+  display: none;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.12),
+    0 1px 4px rgba(15, 23, 42, 0.22);
+  pointer-events: none;
+}
+
 .phone-frame--mobile-preview .phone-frame__side-button {
   position: absolute;
   z-index: 4;
@@ -7407,6 +7425,67 @@ body[data-theme="dark"] .phone-frame--mobile-preview .phone-frame__screen-clip {
   height: 64px;
 }
 
+.phone-frame--iphone-16-pro-max {
+  width: min(440px, calc(100vw - 32px));
+  height: min(956px, calc(100dvh - 32px));
+  --device-shell-radius: 56px;
+  --device-screen-radius: 48px;
+  --device-screen-inset: 7px;
+  background: linear-gradient(155deg, #283448, #101722 68%);
+  box-shadow:
+    0 36px 80px rgba(15, 23, 42, 0.3),
+    0 9px 24px rgba(15, 23, 42, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.phone-frame--iphone-16-pro-max .phone-screen--preview {
+  --runtime-safe-area-bottom: 28px;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__sensor {
+  top: 10px;
+  left: 50%;
+  width: 118px;
+  height: 32px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  background: #030509;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.04);
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__earpiece {
+  display: none;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__home-indicator {
+  display: block;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__side-button--action {
+  top: 19%;
+  left: -3px;
+  height: 26px;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__side-button--volume-up {
+  top: 28%;
+  left: -3px;
+  height: 46px;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__side-button--volume-down {
+  top: 35%;
+  left: -3px;
+  height: 46px;
+}
+
+.phone-frame--iphone-16-pro-max .phone-frame__side-button--power {
+  top: 29%;
+  right: -3px;
+  height: 64px;
+}
+
 .phone-frame--pixel-8-pro {
   --device-shell-radius: 40px;
   --device-screen-radius: 32px;
@@ -7471,7 +7550,7 @@ body[data-theme="dark"] .phone-frame--mobile-preview .phone-frame__screen-clip {
   z-index: 10;
   display: grid;
   gap: 4px;
-  width: 148px;
+  width: 176px;
   padding: 4px;
   transform: translateY(-50%);
   border: 1px solid rgba(37, 99, 235, 0.14);
@@ -7495,6 +7574,7 @@ body[data-theme="dark"] .phone-frame--mobile-preview .phone-frame__screen-clip {
   font-weight: 700;
   line-height: 1.2;
   text-align: left;
+  white-space: nowrap;
   transition:
     background 140ms ease,
     color 140ms ease;
@@ -7535,6 +7615,22 @@ body[data-theme="dark"] .phone-frame--mobile-preview .phone-frame__screen-clip {
   left: 50%;
   width: 6px;
   height: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.mobile-preview-device-switcher__glyph--iphone-16-pro-max {
+  border-radius: 5px;
+}
+
+.mobile-preview-device-switcher__glyph--iphone-16-pro-max::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  width: 7px;
+  height: 3px;
   transform: translateX(-50%);
   border-radius: 999px;
   background: currentColor;
@@ -7608,7 +7704,8 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   .phone-frame--mobile-preview::after,
   .phone-frame--mobile-preview .phone-frame__side-button,
   .phone-frame--mobile-preview .phone-frame__earpiece,
-  .phone-frame--mobile-preview .phone-frame__sensor {
+  .phone-frame--mobile-preview .phone-frame__sensor,
+  .phone-frame--mobile-preview .phone-frame__home-indicator {
     display: none;
   }
 
@@ -7620,6 +7717,10 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 
   .phone-frame--mobile-preview .phone-screen--preview {
     border-radius: 0;
+  }
+
+  .phone-frame--iphone-16-pro-max .phone-screen--preview {
+    --runtime-safe-area-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
@@ -7760,7 +7861,7 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 }
 
 .phone-screen .runtime-tab-bar {
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px 12px calc(8px + var(--runtime-safe-area-bottom));
   border: 0;
   background: var(--runtime-surface);
   box-shadow: 0 -1px 0 var(--runtime-line);
@@ -7808,7 +7909,7 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 }
 
 .phone-screen .screen--tabbed .runtime-scroll {
-  padding-bottom: calc(104px + env(safe-area-inset-bottom));
+  padding-bottom: calc(104px + var(--runtime-safe-area-bottom));
 }
 
 .phone-screen .runtime-announcement {
@@ -7921,5 +8022,5 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 }
 
 .phone-screen--preview .toast-stack--embedded {
-  bottom: 96px;
+  bottom: calc(96px + var(--runtime-safe-area-bottom));
 }

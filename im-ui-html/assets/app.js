@@ -7,6 +7,9 @@
     "iphone-12-pro": {
       label: "iPhone 12 Pro",
     },
+    "iphone-16-pro-max": {
+      label: "iPhone 16 Pro Max",
+    },
     "pixel-8-pro": {
       label: "Pixel 8 Pro",
     },
@@ -954,6 +957,7 @@
           <span class="phone-frame__side-button phone-frame__side-button--power" aria-hidden="true"></span>
           <div class="phone-frame__screen-clip">
             ${screen}
+            <span class="phone-frame__home-indicator" aria-hidden="true"></span>
           </div>
           <span class="phone-frame__earpiece" aria-hidden="true"></span>
           <span class="phone-frame__sensor" aria-hidden="true"></span>

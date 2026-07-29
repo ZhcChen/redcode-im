@@ -9,15 +9,15 @@
 | `#/entry` | 总入口 | 分流到规范页、PC 蓝图页与移动端设备预览 |
 | `#/spec` | 规范源 | 展示 token、icon、组件、流转 |
 | `#/pc-design` | 桌面蓝图 | 展示桌面三栏工作台结构 |
-| `#/mobile-design` | 移动端设备预览 | 只显示一个可交互的手机容器，默认使用 `iPhone 12 Pro` 外壳；宽屏可切换 `Pixel 8 Pro`，不显示设计说明或评审侧栏 |
+| `#/mobile-design` | 移动端设备预览 | 只显示一个可交互的手机容器，默认使用 `iPhone 12 Pro` 外壳；宽屏可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`，不显示设计说明或评审侧栏 |
 
 ## 2. 独立移动端预览
 
-`#/mobile-design` 是设计源内的完整手机设备画布，不是业务页之外的说明页。宽屏默认使用 `iPhone 12 Pro`，可切换 `Pixel 8 Pro`；所有业务内容必须受设备内的独立屏幕裁切层约束，不能露出外壳。
+`#/mobile-design` 是设计源内的完整手机设备画布，不是业务页之外的说明页。宽屏默认使用 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`；iPhone 16 Pro Max 包含 Dynamic Island、底部白色 Home Indicator 与独立安全区。所有业务内容必须受设备内的独立屏幕裁切层约束，不能露出外壳。
 
 | Route | 说明 |
 | --- | --- |
-| `#/mobile-design` | 默认显示聊天首页；宽屏默认 `iPhone 12 Pro`，可切换 `Pixel 8 Pro` |
+| `#/mobile-design` | 默认显示聊天首页；宽屏默认 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro` |
 | `#/mobile-design/chats` | 会话列表 |
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
 | `#/mobile-design/contacts` | 联系人目录：固定目录栏与粘性搜索 |

@@ -54,9 +54,9 @@
 
 结构：
 
-- 宽屏设备选择器：默认 `iPhone 12 Pro`，可切换 `Pixel 8 Pro`
-- device frame：独立的机身、侧键与顶部传感器装饰
-- screen clip：独立圆角裁切层，所有 App 内容、导航与 Toast 必须留在其中
+- 宽屏设备选择器：默认 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 与 `Pixel 8 Pro`
+- device frame：独立的机身、侧键与顶部传感器装饰；iPhone 16 Pro Max 包含 Dynamic Island 与底部白色 Home Indicator
+- screen clip：独立圆角裁切层，所有 App 内容、导航与 Toast 必须留在其中，并让底部固定内容避开 Home Indicator 安全区
 - status bar
 - full IM screen
 - embedded toast layer
