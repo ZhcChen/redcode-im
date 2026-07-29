@@ -17,10 +17,10 @@
 | `Custom Emoji` | 通过稳定 emoji ID 解析 fallback、静态资源与播放资源 | `Panel Glyph / Large / Playing / Fallback` | `Emoji registry + asset resolver` |
 | `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual / Clearable` | `Shared search field + optional context label` |
 | `Message Search Result` | 消息检索结果：会话上下文、发件人、时间与关键词高亮 | `Recent / Query / Highlighted / Empty` | `Continuous result row + source message navigation` |
-| `Button Set` | Primary / Ghost / Icon / Quiet Icon 四类按钮 | `Default / Hover / Pressed / Selected / Disabled / Loading` | `Button theme + semantic icon-button variants` |
+| `Button Set` | Primary / Ghost / Icon / Quiet Icon 四类按钮 | `Default / Pressed / Selected / Disabled / Loading` | `Button theme + semantic icon-button variants` |
 | `Chip` | 轻标签、状态提示、过滤器 | `Soft / Filled / Selected / Dismissible` | `Assist chip / filter chip variants` |
 | `Empty State` | 空列表、无结果、未开启功能说明 | `Plain / Actionable / Illustrated` | `Shared empty state widget` |
-| `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Hover / Active / Disabled` | `Pressable surface card` |
+| `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Pressed / Active / Disabled` | `Pressable surface card` |
 | `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
 | `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
 

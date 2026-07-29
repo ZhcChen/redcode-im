@@ -447,7 +447,7 @@ window.RedcodeIMPrototypeData = {
       {
         title: "Action Card",
         summary: "发现页、设计入口页、快速评审路径统一使用的轻面板按钮。",
-        states: ["Default", "Hover", "Active", "Disabled"],
+        states: ["Default", "Pressed", "Active", "Disabled"],
         flutter: "Pressable surface card",
       },
       {
@@ -463,7 +463,7 @@ window.RedcodeIMPrototypeData = {
         summary: "一个输入容器内完成默认、聚焦和上下文提示，不再换壳。",
         items: [
           { state: "Idle", detail: "占位文案 + 搜索 icon", tone: "muted" },
-          { state: "Focused", detail: "主色 ring + 光标定位", tone: "active" },
+          { state: "Focused", detail: "光标定位，不额外使用外发光", tone: "active" },
           { state: "Context", detail: "群聊内 / 联系人内上下文", tone: "filled" },
         ],
       },

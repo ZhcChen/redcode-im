@@ -342,8 +342,8 @@ img {
     transform 140ms ease;
 }
 
-.segmented__item:hover,
-.segmented__item:focus-visible {
+.prototype-toolbar .segmented__item:hover,
+.prototype-toolbar .segmented__item:focus-visible {
   color: var(--text);
 }
 
@@ -515,24 +515,10 @@ img {
 .special-entry,
 .search-result-row {
   transition:
-    transform 140ms ease,
     box-shadow 140ms ease,
     background 140ms ease,
     border-color 140ms ease,
     color 140ms ease;
-}
-
-.icon-button:hover,
-.ghost-button:hover,
-.primary-button:hover,
-.choice-button:hover,
-.quick-action-card:hover,
-.menu-row:hover,
-.tab-bar__item:hover,
-.conversation-row:hover,
-.special-entry:hover,
-.search-result-row:hover {
-  transform: translateY(-1px);
 }
 
 .icon-button {
@@ -7955,12 +7941,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 .phone-screen .runtime-icon-button--quiet {
   background: transparent;
   transition: background 140ms ease;
-}
-
-@media (hover: hover) {
-  .phone-screen .runtime-icon-button--quiet:hover {
-    background: var(--runtime-soft);
-  }
 }
 
 .phone-screen .runtime-icon-button--quiet:active {
