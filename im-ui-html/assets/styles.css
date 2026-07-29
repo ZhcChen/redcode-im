@@ -5361,27 +5361,6 @@ body[data-theme="dark"] .phone-screen {
   justify-self: end;
 }
 
-.phone-screen .runtime-header--compact .runtime-topbar__back {
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--runtime-radius-control);
-  background: transparent;
-  color: var(--runtime-ink);
-}
-
-.phone-screen .runtime-header--compact .runtime-topbar__back:hover,
-.phone-screen .runtime-header--compact .runtime-topbar__back:active {
-  transform: none;
-  background: var(--runtime-soft);
-}
-
-.phone-screen .runtime-header--compact .runtime-topbar__back .icon-button__glyph {
-  width: 22px;
-  height: 22px;
-}
-
 .phone-screen .runtime-header.runtime-header--directory {
   min-height: 60px;
   padding: 8px 16px;
@@ -8272,10 +8251,6 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   border-radius: var(--runtime-radius-control);
   background: var(--runtime-soft);
   color: var(--runtime-faint);
-}
-
-.phone-screen .runtime-message-search__field:focus-within {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--runtime-accent) 18%, transparent);
 }
 
 .phone-screen .runtime-message-search__field-icon,

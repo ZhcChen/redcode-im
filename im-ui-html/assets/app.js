@@ -1114,12 +1114,13 @@
     const backButton = fallbackPath
       ? `
         <button
-          class="icon-button ${compact ? "runtime-topbar__back" : ""}"
+          class="runtime-icon-button ${compact ? "runtime-topbar__back" : ""}"
+          type="button"
           data-action="go-back"
           data-fallback-route="${escapeHtml(fallbackPath)}"
           aria-label="返回"
         >
-          ${renderIcon("back", "icon-button__glyph", "返回")}
+          ${renderIcon("back", "runtime-icon-button__glyph")}
         </button>
       `
       : "";
