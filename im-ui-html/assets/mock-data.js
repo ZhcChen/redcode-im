@@ -303,11 +303,11 @@ window.RedcodeIMPrototypeData = {
           id: "detail",
           title: "聊天详情",
           shell: "Subpage / Thread",
-          summary: "顶部上下文、Pinned 摘要、消息流和输入区构成唯一主链路，资料入口下沉二级。",
-          sections: ["会话头部", "Pinned 摘要", "消息流", "输入区"],
+          summary: "会话头部、固定群公告、Pinned 摘要、消息流和输入区构成唯一主链路，资料入口下沉二级。",
+          sections: ["会话头部", "固定群公告", "Pinned 摘要", "消息流", "输入区"],
           actions: ["返回", "打开资料 / 群设置", "发送消息"],
-          components: ["Message Bubble", "Composer", "Surface Banner", "Reaction Pill"],
-          scrolling: "消息流独立滚动，输入区固定底部，顶部信息不重复挤占主视线。",
+          components: ["Message Bubble", "Group Announcement Context", "Composer", "Reaction Pill"],
+          scrolling: "群公告仅在群聊固定于头部下方；消息流独立滚动，输入区固定底部。",
         },
         {
           id: "emoji",
@@ -332,6 +332,7 @@ window.RedcodeIMPrototypeData = {
       ],
       stateRules: [
         "未读、@我、置顶和静音都在会话行内解决，不额外再造提示区。",
+        "群公告仅在群聊固定于会话头部下方；非公告置顶消息仍在消息流内以轻提示呈现。",,
         "消息高亮、最近发送和引用态都挂在同一气泡体系内，不新增独立卡片。",
         "发送中、失败重试和附件上传状态优先贴近当前消息或动作位呈现。",
       ],
@@ -349,8 +350,8 @@ window.RedcodeIMPrototypeData = {
         },
         {
           title: "聊天详情专项",
-          target: "把阅读流保持成单主轴：顶部上下文、Pinned 摘要、消息气泡、输入区。",
-          checks: ["Pinned 摘要只做轻层级", "引用态和高亮态仍回到气泡体系", "资料页 / 群设置继续下沉二级"],
+          target: "把阅读流保持成单主轴：会话头部、固定群公告、Pinned 摘要、消息气泡、输入区。",
+          checks: ["群公告固定在头部下方且只保留单行摘要", "Pinned 摘要只做轻层级", "引用态和高亮态仍回到气泡体系", "资料页 / 群设置继续下沉二级"],
           handoff: "chat_thread_screen + message bubble + thread sections",
         },
         {
@@ -369,6 +370,7 @@ window.RedcodeIMPrototypeData = {
       signalMatrix: [
         ["未读", "会话列表右上 badge", "只在列表态出现，不进详情头部重复提醒。"],
         ["@我", "会话行底部轻提示", "比未读更弱，但要先于普通标签被看到。"],
+        ["群公告", "群聊头部下方固定摘要", "仅保留单行摘要与进入箭头，不覆盖消息流。"],
         ["置顶", "会话行标签 / 摘要区", "列表里提示已置顶，详情里回到 pinned 摘要。"],
         ["静音", "会话次级状态", "用次级文案和弱状态点表达，不做主色强调。"],
         ["发送中", "当前消息或发送按钮", "贴近消息，不弹额外提示层。"],

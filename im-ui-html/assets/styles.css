@@ -5176,6 +5176,7 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .runtime-chat-scroll {
+  padding-top: 10px;
   padding-bottom: 12px;
 }
 
@@ -6198,6 +6199,19 @@ body[data-theme="dark"] .phone-screen {
   background: var(--runtime-canvas);
 }
 
+.runtime-chat-context {
+  flex: 0 0 auto;
+  padding: 0 16px 10px;
+  position: relative;
+  z-index: 1;
+  border-bottom: 1px solid var(--runtime-line);
+  background: var(--runtime-canvas);
+}
+
+.runtime-chat-context .runtime-announcement {
+  margin-bottom: 0;
+}
+
 .runtime-announcement {
   width: 100%;
   min-height: 40px;
@@ -6227,10 +6241,18 @@ body[data-theme="dark"] .phone-screen {
   white-space: nowrap;
 }
 
+.runtime-announcement__arrow,
+.runtime-announcement__arrow svg {
+  width: 16px;
+  height: 16px;
+}
+
 .runtime-announcement__arrow {
   margin-left: auto;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
   color: var(--runtime-faint);
-  font-size: 18px;
 }
 
 .runtime-message-list {
@@ -7795,6 +7817,10 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   min-height: 44px;
   padding: 10px 12px;
   border-radius: var(--runtime-radius-control);
+}
+
+.phone-screen .runtime-announcement:active {
+  background: color-mix(in srgb, var(--runtime-soft) 72%, var(--runtime-accent-soft));
 }
 
 .phone-screen .message-bubble {

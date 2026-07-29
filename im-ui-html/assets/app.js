@@ -2724,10 +2724,36 @@
     const targetContact = chat.type === "single" ? findDirectContact(chat) : null;
     const draft = state.chatDrafts[chat.id] || "";
     const activePanel = state.composerPanel;
-    const contextualNote = group?.notice || chat.pinnedMessages?.[0] || "";
-    const contextualNoteAction = group
+    const groupAnnouncement = group?.notice || "";
+    const pinnedMessage = chat.pinnedMessages?.[0] || "";
+    const contextualNote = groupAnnouncement || pinnedMessage;
+    const isGroupAnnouncement = Boolean(groupAnnouncement);
+    const contextualNoteAction = isGroupAnnouncement
       ? `data-action="navigate" data-route="/groups/settings/${group.id}"`
       : `data-action="show-hint" data-message="${escapeHtml(contextualNote)}"`;
+    const contextualNoteLabel = isGroupAnnouncement ? "群公告" : "置顶消息";
+    const contextualNoteMarkup = contextualNote
+      ? `
+        <button
+          class="runtime-announcement ${isGroupAnnouncement ? "runtime-announcement--group" : "runtime-announcement--pinned"}"
+          type="button"
+          ${contextualNoteAction}
+          aria-label="查看${contextualNoteLabel}"
+        >
+          <span class="runtime-announcement__label">${contextualNoteLabel}</span>
+          <span class="runtime-announcement__text">${escapeHtml(contextualNote)}</span>
+          ${renderIcon("chevronRight", "runtime-announcement__arrow")}
+        </button>
+      `
+      : "";
+    const fixedGroupAnnouncement = isGroupAnnouncement
+      ? `
+        <div class="runtime-chat-context" role="region" aria-label="群公告">
+          ${contextualNoteMarkup}
+        </div>
+      `
+      : "";
+    const inFlowPinnedMessage = !isGroupAnnouncement && contextualNote ? contextualNoteMarkup : "";
 
     return `
       <section class="screen screen--chat-detail runtime-chat-screen">
@@ -2747,18 +2773,9 @@
               : "",
           ].filter(Boolean),
         })}
+        ${fixedGroupAnnouncement}
         <div class="screen-scroll runtime-scroll runtime-chat-scroll">
-          ${
-            contextualNote
-              ? `
-                <button class="runtime-announcement" ${contextualNoteAction}>
-                  <span class="runtime-announcement__label">${group ? "群公告" : "置顶消息"}</span>
-                  <span class="runtime-announcement__text">${escapeHtml(contextualNote)}</span>
-                  <span class="runtime-announcement__arrow">›</span>
-                </button>
-              `
-              : ""
-          }
+          ${inFlowPinnedMessage}
           <div class="runtime-message-list">
             ${renderMessageTimeline(chat)}
           </div>
