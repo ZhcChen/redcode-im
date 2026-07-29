@@ -112,6 +112,10 @@
       '<circle cx="10.7" cy="10.7" r="4.95" />',
       '<path d="M14.35 14.35 18.65 18.65" />',
     ],
+    close: [
+      '<path d="m7.25 7.25 9.5 9.5" />',
+      '<path d="m16.75 7.25-9.5 9.5" />',
+    ],
     plus: [
       '<path d="M12 5.75v12.5" />',
       '<path d="M5.75 12h12.5" />',
@@ -4130,39 +4134,62 @@
   }
 
   function renderSearchScreen() {
+    const query = state.searchQuery.trim();
+    const hasQuery = Boolean(query);
     const results = searchResults();
+    const resultTitle = hasQuery ? "搜索结果" : "最近消息";
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-message-search-screen">
         ${renderScreenHeader({
           title: "消息搜索",
-          subtitle: "独立二级页，点击结果返回对应会话上下文",
           backPath: "/chats",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <label class="search-box">
-              <span>搜索关键词</span>
-              <input
-                id="global-search-input"
-                class="search-box__input"
-                value="${escapeHtml(state.searchQuery)}"
-                placeholder="例如：发布、规范、AI"
-              />
-            </label>
+        <div class="runtime-message-search__toolbar">
+          <label class="runtime-message-search__field">
+            ${renderIcon("search", "runtime-message-search__field-icon")}
+            <input
+              id="global-search-input"
+              value="${escapeHtml(state.searchQuery)}"
+              placeholder="搜索消息"
+              aria-label="搜索消息"
+              aria-controls="message-search-results"
+              autocomplete="off"
+              enterkeyhint="search"
+              autofocus
+            />
             ${
-              !state.searchQuery.trim()
+              hasQuery
                 ? `
-                  <section class="surface-card">
-                    <div class="surface-card__header">
-                      <h3>推荐关键词</h3>
-                      <span class="badge">Mock</span>
+                  <button
+                    class="runtime-message-search__clear"
+                    type="button"
+                    data-action="prefill-search"
+                    data-value=""
+                    aria-label="清除搜索"
+                  >
+                    ${renderIcon("close", "runtime-message-search__clear-icon")}
+                  </button>
+                `
+                : ""
+            }
+          </label>
+        </div>
+        <div class="screen-scroll runtime-scroll runtime-message-search__scroll">
+          <div class="runtime-message-search__content">
+            ${
+              !hasQuery
+                ? `
+                  <section class="runtime-message-search__suggestions" aria-labelledby="message-search-suggestions-title">
+                    <div class="runtime-message-search__section-heading">
+                      <h3 id="message-search-suggestions-title">常用关键词</h3>
                     </div>
-                    <div class="chip-row">
+                    <div class="runtime-message-search__chips">
                       ${["发布", "设计", "AI", "群公告"]
                         .map(
                           (item) => `
-                            <button class="chip" data-action="prefill-search" data-value="${item}">
+                            <button class="runtime-message-search__chip" type="button" data-action="prefill-search" data-value="${item}">
                               ${item}
                             </button>
                           `,
@@ -4173,12 +4200,22 @@
                 `
                 : ""
             }
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <h3>${state.searchQuery.trim() ? `搜索“${escapeHtml(state.searchQuery)}”` : "最近命中的消息"}</h3>
-                <span class="badge">${results.length}</span>
+            <section class="runtime-message-search__results" aria-labelledby="message-search-results-title">
+              <div class="runtime-message-search__section-heading">
+                <h3 id="message-search-results-title">${resultTitle}</h3>
+                <span class="runtime-message-search__section-count">${results.length} 条</span>
               </div>
-              ${results.length ? results.map(renderSearchResultRow).join("") : renderEmptyState("没有匹配消息", "尝试更换关键词，或先进入聊天列表查看最近会话。")}
+              ${
+                results.length
+                  ? `<div id="message-search-results" class="runtime-message-search__result-list">${results.map(renderSearchResultRow).join("")}</div>`
+                  : `
+                    <div id="message-search-results" class="runtime-message-search__empty" aria-live="polite">
+                      ${renderIcon("search", "runtime-message-search__empty-icon")}
+                      <strong>没有相关消息</strong>
+                      <span>换个关键词试试</span>
+                    </div>
+                  `
+              }
             </section>
           </div>
         </div>
@@ -4187,21 +4224,65 @@
   }
 
   function renderSearchResultRow(item) {
+    const group = findGroupByChatId(item.chat.id);
+    const isGroup = item.chat.type === "group";
+    const conversationName = item.chat.name || "未知会话";
+    const senderName = item.message.self ? "你" : item.message.senderName || "未知";
+    const shouldShowSender = isGroup || senderName !== conversationName;
+    const avatar = group
+      ? renderGroupAvatar(group)
+      : renderAvatar(conversationName, item.chat.avatarTone, "avatar--sm");
+    const senderPrefix = shouldShowSender
+      ? `<span class="runtime-message-search__sender">${renderSearchHighlight(senderName, state.searchQuery)}<span aria-hidden="true"> · </span></span>`
+      : "";
+    const label = `在${conversationName}中查看${senderName}于${item.message.time}发送的消息`;
+
     return `
       <button
-        class="search-result-row"
+        class="runtime-message-search__result"
+        type="button"
         data-action="open-search-result"
         data-chat-id="${item.chat.id}"
         data-message-id="${item.message.id}"
+        aria-label="${escapeHtml(label)}"
       >
-        <span class="search-result-row__title">
-          <strong>${escapeHtml(item.chat.name)}</strong>
-          <span>${escapeHtml(item.message.time)}</span>
+        <span class="runtime-message-search__avatar">${avatar}</span>
+        <span class="runtime-message-search__result-body">
+          <span class="runtime-message-search__result-top">
+            <span class="runtime-message-search__conversation">
+              <strong>${escapeHtml(conversationName)}</strong>
+              <span class="runtime-message-search__kind">${isGroup ? "群聊" : "单聊"}</span>
+            </span>
+            <time>${escapeHtml(item.message.time)}</time>
+          </span>
+          <span class="runtime-message-search__excerpt">${senderPrefix}${renderSearchHighlight(item.message.content, state.searchQuery)}</span>
         </span>
-        <span class="search-result-row__summary">${escapeHtml(item.message.content)}</span>
-        <span class="search-result-row__note">${escapeHtml(item.message.senderName)} · ${item.chat.type === "group" ? "群聊" : "单聊"}</span>
       </button>
     `;
+  }
+
+  function renderSearchHighlight(value, query) {
+    const text = String(value || "");
+    const keyword = String(query || "").trim();
+    if (!keyword) {
+      return escapeHtml(text);
+    }
+
+    const normalizedText = text.toLowerCase();
+    const normalizedKeyword = keyword.toLowerCase();
+    const fragments = [];
+    let cursor = 0;
+    let matchIndex = normalizedText.indexOf(normalizedKeyword, cursor);
+
+    while (matchIndex !== -1) {
+      fragments.push(escapeHtml(text.slice(cursor, matchIndex)));
+      fragments.push(`<mark>${escapeHtml(text.slice(matchIndex, matchIndex + keyword.length))}</mark>`);
+      cursor = matchIndex + keyword.length;
+      matchIndex = normalizedText.indexOf(normalizedKeyword, cursor);
+    }
+
+    fragments.push(escapeHtml(text.slice(cursor)));
+    return fragments.join("");
   }
 
   function renderLabOverviewScreen() {
@@ -5342,6 +5423,12 @@
     if (action === "prefill-search") {
       state.searchQuery = target.getAttribute("data-value") || "";
       render();
+      window.requestAnimationFrame(() => {
+        const input = document.getElementById("global-search-input");
+        if (input instanceof HTMLInputElement) {
+          input.focus({ preventScroll: true });
+        }
+      });
       return;
     }
     if (action === "toggle-group-members") {

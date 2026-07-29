@@ -8250,3 +8250,270 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 .phone-screen--preview .toast-stack--embedded {
   bottom: calc(96px + var(--runtime-safe-area-bottom));
 }
+
+.phone-screen .runtime-message-search-screen {
+  min-height: 0;
+  background: var(--runtime-canvas);
+}
+
+.phone-screen .runtime-message-search__toolbar {
+  flex-shrink: 0;
+  padding: 0 16px 12px;
+  background: var(--runtime-canvas);
+}
+
+.phone-screen .runtime-message-search__field {
+  min-height: 48px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+  color: var(--runtime-faint);
+}
+
+.phone-screen .runtime-message-search__field:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--runtime-accent) 18%, transparent);
+}
+
+.phone-screen .runtime-message-search__field-icon,
+.phone-screen .runtime-message-search__clear-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.phone-screen .runtime-message-search__field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--runtime-ink);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-message-search__field input::placeholder {
+  color: var(--runtime-faint);
+}
+
+.phone-screen .runtime-message-search__clear {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--runtime-muted);
+}
+
+.phone-screen .runtime-message-search__clear:active {
+  background: color-mix(in srgb, var(--runtime-line) 88%, transparent);
+}
+
+.phone-screen .runtime-message-search__scroll {
+  padding: 4px 16px calc(24px + var(--runtime-safe-area-bottom));
+}
+
+.phone-screen .runtime-message-search__content {
+  display: grid;
+  gap: 24px;
+}
+
+.phone-screen .runtime-message-search__suggestions,
+.phone-screen .runtime-message-search__results {
+  display: grid;
+  gap: 10px;
+}
+
+.phone-screen .runtime-message-search__section-heading {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.phone-screen .runtime-message-search__section-heading h3 {
+  margin: 0;
+  color: var(--runtime-ink);
+  font-size: 14px;
+  font-weight: 680;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-message-search__section-count {
+  color: var(--runtime-faint);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-message-search__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.phone-screen .runtime-message-search__chip {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--runtime-soft);
+  color: var(--runtime-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.phone-screen .runtime-message-search__chip:active {
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-accent-deep);
+}
+
+.phone-screen .runtime-message-search__result-list {
+  box-shadow: inset 0 1px 0 var(--runtime-line);
+}
+
+.phone-screen .runtime-message-search__result {
+  width: 100%;
+  min-height: 68px;
+  padding: 12px 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 0;
+  border-bottom: 1px solid var(--runtime-line);
+  background: transparent;
+  color: var(--runtime-ink);
+  text-align: left;
+}
+
+.phone-screen .runtime-message-search__result:active {
+  background: color-mix(in srgb, var(--runtime-soft) 78%, transparent);
+}
+
+.phone-screen .runtime-message-search__result:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 70%, transparent);
+  outline-offset: -2px;
+}
+
+.phone-screen .runtime-message-search__avatar {
+  width: 40px;
+  height: 40px;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.phone-screen .runtime-message-search__avatar > .avatar,
+.phone-screen .runtime-message-search__avatar .runtime-group-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.phone-screen .runtime-message-search__avatar .runtime-group-avatar__tile.avatar {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+}
+
+.phone-screen .runtime-message-search__result-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.phone-screen .runtime-message-search__result-top,
+.phone-screen .runtime-message-search__conversation {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.phone-screen .runtime-message-search__result-top {
+  justify-content: space-between;
+}
+
+.phone-screen .runtime-message-search__conversation {
+  overflow: hidden;
+}
+
+.phone-screen .runtime-message-search__conversation strong {
+  overflow: hidden;
+  color: var(--runtime-ink);
+  font-size: 14px;
+  font-weight: 680;
+  line-height: 1.32;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-screen .runtime-message-search__kind,
+.phone-screen .runtime-message-search__result-top time {
+  flex-shrink: 0;
+  color: var(--runtime-faint);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-message-search__excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--runtime-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.phone-screen .runtime-message-search__sender {
+  color: var(--runtime-ink);
+  font-weight: 650;
+}
+
+.phone-screen .runtime-message-search__excerpt mark {
+  padding: 0 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--runtime-accent) 15%, transparent);
+  color: var(--runtime-accent-deep);
+  font: inherit;
+  font-weight: 700;
+}
+
+.phone-screen .runtime-message-search__empty {
+  min-height: 220px;
+  padding: 24px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  color: var(--runtime-faint);
+  text-align: center;
+}
+
+.phone-screen .runtime-message-search__empty-icon {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 2px;
+  color: var(--runtime-muted);
+}
+
+.phone-screen .runtime-message-search__empty strong {
+  color: var(--runtime-ink);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.phone-screen .runtime-message-search__empty span {
+  font-size: 13px;
+  line-height: 1.4;
+}
