@@ -3561,47 +3561,51 @@
   function renderRequestCard(request) {
     const isIncoming = request.type === "incoming";
     const pending = request.status === "pending";
+    const requestStatus = statusLabel(request.status);
+    const requestLabel = `${request.name}${isIncoming ? "的好友申请" : "发出的好友申请"}，${requestStatus}`;
+    const showResult = (isIncoming && !pending) || (!isIncoming && request.status === "withdrawn");
+    const resultLabel = request.status === "accepted"
+      ? "已建立好友关系"
+      : request.status === "rejected"
+      ? "已忽略该申请"
+      : request.status === "withdrawn"
+      ? "已撤回申请"
+      : requestStatus;
 
     return `
-      <article class="request-card request-card--${request.type}">
+      <article class="request-card request-card--${request.type}" aria-label="${escapeHtml(requestLabel)}">
         <div class="request-card__header">
           ${renderAvatar(request.name, request.tone, "avatar--md")}
           <div class="request-card__body">
-            <div class="request-card__title">
+            <div class="request-card__identity">
               <strong>${escapeHtml(request.name)}</strong>
-              <span class="request-card__status">
-                <span class="chip ${isIncoming ? "chip--filled" : ""}">${requestDirectionLabel(request.type)}</span>
-              </span>
+              <span class="request-card__status request-card__status--${request.status}">${escapeHtml(requestStatus)}</span>
             </div>
             <div class="request-card__meta">
-              <span>@${escapeHtml(request.username)}</span>
-              <span>${escapeHtml(request.title)}</span>
-              <span>${escapeHtml(request.time)}</span>
+              <span>@${escapeHtml(request.username)} · ${escapeHtml(request.title)}</span>
+              <time>${escapeHtml(request.time)}</time>
             </div>
-            <div class="request-card__title">
-              <strong>${isIncoming ? "当前状态" : "申请状态"}</strong>
-              <span class="badge ${request.status === "rejected" ? "badge--muted" : request.status === "accepted" ? "badge--success" : ""}">
-                ${statusLabel(request.status)}
-              </span>
-            </div>
-            <div class="request-card__message">
-              <span>打招呼内容</span>
-              <p>${escapeHtml(request.message)}</p>
-            </div>
+            <p class="request-card__message">${escapeHtml(request.message)}</p>
           </div>
         </div>
         ${
           isIncoming && pending
             ? `
               <div class="request-card__actions">
-                <button class="ghost-button" data-action="update-request" data-request-id="${request.id}" data-status="rejected">忽略</button>
-                <button class="primary-button primary-button--small" data-action="update-request" data-request-id="${request.id}" data-status="accepted">通过</button>
+                <button class="request-card__action request-card__action--secondary" type="button" data-action="update-request" data-request-id="${request.id}" data-status="rejected" aria-label="忽略 ${escapeHtml(request.name)} 的好友申请">忽略</button>
+                <button class="request-card__action request-card__action--primary" type="button" data-action="update-request" data-request-id="${request.id}" data-status="accepted" aria-label="通过 ${escapeHtml(request.name)} 的好友申请">通过</button>
               </div>
             `
             : !isIncoming && pending
             ? `
-              <div class="request-card__actions">
-                <button class="ghost-button" data-action="update-request" data-request-id="${request.id}" data-status="withdrawn">撤回申请</button>
+              <div class="request-card__actions request-card__actions--single">
+                <button class="request-card__action request-card__action--secondary" type="button" data-action="update-request" data-request-id="${request.id}" data-status="withdrawn">撤回申请</button>
+              </div>
+            `
+            : showResult
+            ? `
+              <div class="request-card__actions request-card__actions--single request-card__actions--resolved" role="status">
+                <span class="request-card__result">${escapeHtml(resultLabel)}</span>
               </div>
             `
             : ""
@@ -4845,10 +4849,6 @@
 
   function groupsForContact(contactId) {
     return data.groups.filter((group) => group.members.includes(contactId));
-  }
-
-  function requestDirectionLabel(type) {
-    return type === "incoming" ? "收到申请" : "发出申请";
   }
 
   function searchUserRelationNote(user) {
