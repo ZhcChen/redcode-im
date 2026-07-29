@@ -7952,6 +7952,26 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   color: var(--runtime-ink);
 }
 
+.phone-screen .runtime-icon-button--quiet {
+  background: transparent;
+  transition: background 140ms ease;
+}
+
+@media (hover: hover) {
+  .phone-screen .runtime-icon-button--quiet:hover {
+    background: var(--runtime-soft);
+  }
+}
+
+.phone-screen .runtime-icon-button--quiet:active {
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-icon-button--quiet:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 70%, transparent);
+  outline-offset: -2px;
+}
+
 .phone-screen .runtime-icon-button__glyph,
 .phone-screen .runtime-composer__glyph,
 .phone-screen .runtime-composer__send-icon,
@@ -8134,7 +8154,8 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
 
 @media (prefers-reduced-motion: reduce) {
   .runtime-composer-panel,
-  .runtime-composer {
+  .runtime-composer,
+  .runtime-icon-button--quiet {
     transition: none;
   }
 

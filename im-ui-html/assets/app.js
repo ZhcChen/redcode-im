@@ -1114,7 +1114,7 @@
     const backButton = fallbackPath
       ? `
         <button
-          class="runtime-icon-button ${compact ? "runtime-topbar__back" : ""}"
+          class="runtime-icon-button runtime-icon-button--quiet ${compact ? "runtime-topbar__back" : ""}"
           type="button"
           data-action="go-back"
           data-fallback-route="${escapeHtml(fallbackPath)}"
@@ -2650,8 +2650,8 @@
             title: "聊天",
             root: true,
             actions: [
-              `<button class="runtime-icon-button" data-action="navigate" data-route="/search" aria-label="搜索消息">${renderIcon("search", "runtime-icon-button__glyph", "搜索")}</button>`,
-              `<button class="runtime-icon-button" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
+              `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/search" aria-label="搜索消息">${renderIcon("search", "runtime-icon-button__glyph", "搜索")}</button>`,
+              `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
             ],
           })}
           <div class="runtime-list-content">
@@ -3138,7 +3138,7 @@
           root: true,
           variant: "directory",
           actions: [
-            `<button class="runtime-icon-button" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
+            `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/contacts/add" aria-label="添加好友">${renderIcon("plus", "runtime-icon-button__glyph", "添加好友")}</button>`,
           ],
         })}
         <div class="screen-scroll runtime-scroll runtime-directory-scroll">
@@ -3813,7 +3813,7 @@
             title: "群聊",
             backPath: "/contacts",
             actions: [
-              `<button class="runtime-icon-button" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
+              `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
             ],
           })}
           <div class="runtime-list-content">
