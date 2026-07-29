@@ -14,6 +14,21 @@
       label: "Pixel 8 Pro",
     },
   };
+  const EMOJI_CATALOG = [
+    { id: "smile", fallback: "😀", label: "开心", motion: "bounce" },
+    { id: "laugh", fallback: "😂", label: "大笑", motion: "bounce" },
+    { id: "handshake", fallback: "🤝", label: "握手", motion: "swing" },
+    { id: "fire", fallback: "🔥", label: "火焰", motion: "pulse" },
+    { id: "check", fallback: "✅", label: "完成", motion: "pulse" },
+    { id: "target", fallback: "🎯", label: "目标", motion: "launch" },
+    { id: "paperclip", fallback: "📎", label: "附件", motion: "swing" },
+    { id: "rocket", fallback: "🚀", label: "火箭", motion: "launch" },
+    { id: "eyes", fallback: "👀", label: "关注", motion: "pulse" },
+    { id: "idea", fallback: "💡", label: "想法", motion: "launch" },
+    { id: "clap", fallback: "👏", label: "鼓掌", motion: "bounce" },
+    { id: "raise", fallback: "🙌", label: "庆祝", motion: "bounce" },
+  ];
+  const EMOJI_BY_FALLBACK = new Map(EMOJI_CATALOG.map((emoji) => [emoji.fallback, emoji]));
 
   if (!source || !root) {
     return;
@@ -1843,7 +1858,7 @@
   function renderChatSpecPhoneDeck(chat) {
     const secondaryChat = sortedChats().find((item) => item.id !== chat.id) || chat;
     const previewMessages = chat.messages.slice(0, 3);
-    const emojiSamples = ["😀", "😂", "🤝", "🔥", "✅", "🚀"];
+    const emojiSamples = EMOJI_CATALOG.slice(0, 6);
 
     return `
       <div class="chat-spec-preview-stack">
@@ -1905,8 +1920,16 @@
                   <strong>表情面板</strong>
                   <span>发送后仍留在当前面板，适合连续输入。</span>
                 </div>
-                <div class="emoji-grid">
-                  ${emojiSamples.map((emoji) => `<span class="emoji-grid__item">${emoji}</span>`).join("")}
+                <div class="emoji-grid emoji-grid--glyphs">
+                  ${emojiSamples
+                    .map(
+                      (emoji) => `
+                        <span class="emoji-grid__item" data-emoji-id="${emoji.id}">
+                          <span class="emoji-grid__glyph" aria-hidden="true">${escapeHtml(emoji.fallback)}</span>
+                        </span>
+                      `,
+                    )
+                    .join("")}
                 </div>
               </article>
               <article class="chat-spec-panel-card">
@@ -2829,7 +2852,7 @@
   function renderComposerPanel() {
     const activePanel = state.composerPanel;
     const isOpen = activePanel === "emoji" || activePanel === "more";
-    const emojis = ["😀", "😂", "🤝", "🔥", "✅", "🎯", "📎", "🚀", "👀", "💡", "👏", "🙌"];
+    const emojis = EMOJI_CATALOG;
     const actions = [
       ["图片", "选择图片"],
       ["文件", "选择文件"],
@@ -2855,10 +2878,11 @@
                     class="emoji-grid__item"
                     type="button"
                     data-action="append-emoji"
-                    data-emoji="${emoji}"
-                    aria-label="${emoji}"
+                    data-emoji="${emoji.fallback}"
+                    data-emoji-id="${emoji.id}"
+                    aria-label="${emoji.label}表情"
                   >
-                    ${emoji}
+                    <span class="emoji-grid__glyph emoji-grid__glyph--${emoji.motion}" aria-hidden="true">${escapeHtml(emoji.fallback)}</span>
                   </button>
                 `,
               )
@@ -3024,10 +3048,45 @@
     `;
   }
 
+  function resolveStandaloneEmojiMessage(content) {
+    const glyphs = Array.from(typeof content === "string" ? content.trim() : "");
+    if (!glyphs.length || glyphs.length > 3) {
+      return null;
+    }
+
+    const emojis = glyphs.map((glyph) => EMOJI_BY_FALLBACK.get(glyph));
+    return emojis.every(Boolean) ? emojis : null;
+  }
+
+  function renderStandaloneEmojiMessage(emojis) {
+    const label = emojis.map((emoji) => emoji.label).join("、");
+    const sizeClass = emojis.length === 1 ? "message-emoji--single" : "message-emoji--cluster";
+    return `
+      <span class="message-emoji ${sizeClass}" role="img" aria-label="${escapeHtml(label)}表情">
+        ${emojis
+          .map(
+            (emoji, index) => `
+              <span
+                class="message-emoji__glyph message-emoji__glyph--${emoji.motion}"
+                data-emoji-id="${emoji.id}"
+                style="--emoji-index: ${index};"
+                aria-hidden="true"
+              >${escapeHtml(emoji.fallback)}</span>
+            `,
+          )
+          .join("")}
+      </span>
+    `;
+  }
+
   function renderMessageBubble(chat, message) {
     const quote = renderMessageQuote(chat, message);
     const isHighlighted = state.highlightMessageId === message.id;
     const isRecent = state.recentMessageId === message.id;
+    const emojis = quote ? null : resolveStandaloneEmojiMessage(message.content);
+    const content = emojis
+      ? renderStandaloneEmojiMessage(emojis)
+      : `<p class="message-bubble__text">${escapeHtml(message.content)}</p>`;
     const reactions = Array.isArray(message.reactions) && message.reactions.length
       ? `
         <div class="reaction-row">
@@ -3043,9 +3102,9 @@
         ${message.self ? "" : renderAvatar(message.senderName, message.senderTone, "avatar--sm")}
         <div class="message-block ${message.self ? "message-block--self" : ""}">
           ${message.self ? "" : `<span class="message-sender">${escapeHtml(message.senderName)}</span>`}
-          <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
+          <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${emojis ? "message-bubble--emoji-only" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
             ${quote}
-            <p class="message-bubble__text">${escapeHtml(message.content)}</p>
+            ${content}
           </div>
           ${reactions}
           <div class="message-meta">
@@ -5030,6 +5089,26 @@
     state.recentMessageId = message.id;
     showToast("消息已发送", "消息已加入当前会话。");
     render();
+    presentRecentMessage(message.id);
+  }
+
+  function presentRecentMessage(messageId) {
+    window.requestAnimationFrame(() => {
+      const scroll = root.querySelector(".runtime-chat-scroll");
+      if (scroll instanceof HTMLElement) {
+        scroll.scrollTop = scroll.scrollHeight;
+      }
+    });
+
+    window.setTimeout(() => {
+      if (state.recentMessageId !== messageId) {
+        return;
+      }
+      state.recentMessageId = null;
+      root
+        .querySelector(`.message-row[data-message-id="${messageId}"] .message-bubble`)
+        ?.classList.remove("is-recent");
+    }, 960);
   }
 
   function simulateIncomingMessage(chatId) {

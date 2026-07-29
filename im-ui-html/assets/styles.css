@@ -3269,6 +3269,25 @@ body[data-theme="dark"] .spec-stage {
   font-size: 1.08em;
 }
 
+.emoji-grid--glyphs {
+  gap: 0.22em;
+}
+
+.emoji-grid--glyphs .emoji-grid__item {
+  height: 2.1em;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0.45em;
+  background: transparent;
+}
+
+.emoji-grid__glyph {
+  display: block;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  line-height: 1;
+}
+
 .search-box,
 .field {
   display: grid;
@@ -4811,6 +4830,91 @@ body[data-theme="dark"] .spec-stage {
   }
 }
 
+@keyframes emoji-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.38) rotate(-8deg);
+  }
+  56% {
+    opacity: 1;
+    transform: scale(1.18) rotate(4deg);
+  }
+  78% {
+    transform: scale(0.94) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes emoji-bounce {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.42);
+  }
+  52% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1.16);
+  }
+  74% {
+    transform: translateY(3px) scale(0.96);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes emoji-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  54% {
+    opacity: 1;
+    transform: scale(1.24);
+  }
+  76% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes emoji-launch {
+  0% {
+    opacity: 0;
+    transform: translate(-10px, 14px) scale(0.48) rotate(-12deg);
+  }
+  56% {
+    opacity: 1;
+    transform: translate(4px, -8px) scale(1.14) rotate(6deg);
+  }
+  78% {
+    transform: translate(-2px, 2px) scale(0.96) rotate(-2deg);
+  }
+  100% {
+    transform: translate(0) scale(1) rotate(0);
+  }
+}
+
+@keyframes emoji-swing {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.52) rotate(-18deg);
+  }
+  54% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.12) rotate(12deg);
+  }
+  76% {
+    transform: translateY(1px) scale(0.97) rotate(-5deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0);
+  }
+}
+
 @media (max-width: 1220px) {
   .spec-stage {
     width: 100%;
@@ -6329,6 +6433,66 @@ body[data-theme="dark"] .phone-screen {
   background: var(--runtime-accent-soft);
 }
 
+.phone-screen .message-bubble.message-bubble--emoji-only,
+.phone-screen .message-bubble.message-bubble--emoji-only.message-bubble--self {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent {
+  animation: none;
+}
+
+.phone-screen .message-emoji {
+  min-height: 60px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phone-screen .message-emoji--cluster {
+  gap: 2px;
+}
+
+.phone-screen .message-emoji__glyph {
+  display: block;
+  color: initial;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 60px;
+  line-height: 1;
+  filter: drop-shadow(0 3px 5px rgba(23, 32, 51, 0.12));
+  transform-origin: 50% 82%;
+}
+
+.phone-screen .message-emoji--cluster .message-emoji__glyph {
+  font-size: 44px;
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent .message-emoji__glyph {
+  animation: emoji-pop 680ms cubic-bezier(0.2, 0.9, 0.25, 1.2) both;
+  animation-delay: calc(var(--emoji-index) * 60ms);
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent .message-emoji__glyph--bounce {
+  animation-name: emoji-bounce;
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent .message-emoji__glyph--pulse {
+  animation-name: emoji-pulse;
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent .message-emoji__glyph--launch {
+  animation-name: emoji-launch;
+}
+
+.phone-screen .message-bubble--emoji-only.is-recent .message-emoji__glyph--swing {
+  animation-name: emoji-swing;
+}
+
 .phone-screen .message-bubble__text {
   margin: 0;
   color: var(--runtime-ink);
@@ -6438,14 +6602,36 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .phone-screen .emoji-grid {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px 4px;
+  margin: 0 -4px;
 }
 
 .phone-screen .emoji-grid__item {
-  min-height: 38px;
+  width: 100%;
+  min-height: 34px;
+  height: 34px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
   border-radius: 8px;
-  background: var(--runtime-soft);
+  background: transparent;
+  color: inherit;
+}
+
+.phone-screen .emoji-grid__item:active .emoji-grid__glyph {
+  transform: scale(0.86);
+}
+
+.phone-screen .emoji-grid__item:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 62%, transparent);
+  outline-offset: 1px;
+}
+
+.phone-screen .emoji-grid__glyph {
+  font-size: 24px;
+  transition: transform 120ms ease;
 }
 
 .runtime-composer-actions {
@@ -7971,6 +8157,10 @@ body[data-theme="dark"] .mobile-preview-device-switcher__item.is-active {
   .runtime-composer-panel,
   .runtime-composer {
     transition: none;
+  }
+
+  .message-emoji__glyph {
+    animation: none !important;
   }
 }
 
