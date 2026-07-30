@@ -3627,10 +3627,7 @@
     const pendingIncoming = data.friendRequests.filter(
       (item) => item.type === "incoming" && item.status === "pending",
     ).length;
-    const savedGroupCount = data.groups.filter((group) => state.savedGroupIds.has(group.id)).length;
-    const groupDirectorySummary = savedGroupCount
-      ? `${data.groups.length} 个群聊 · ${savedGroupCount} 个收藏`
-      : `${data.groups.length} 个群聊`;
+    const groupDirectorySummary = `${data.groups.length} 个群聊`;
 
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-contacts-screen">
