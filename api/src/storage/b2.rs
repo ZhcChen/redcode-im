@@ -566,7 +566,9 @@ impl StorageService for BackblazeB2Service {
             .await
             .map_err(|e| AppError::InternalError(format!("生成 B2 下载链接失败: {}", e)))?;
 
-        Ok(rewrite_presigned_url_for_client(presigned.uri().to_string()))
+        Ok(rewrite_presigned_url_for_client(
+            presigned.uri().to_string(),
+        ))
     }
 }
 

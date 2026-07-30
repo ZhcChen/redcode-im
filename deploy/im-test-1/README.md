@@ -92,6 +92,10 @@ docker save rustfs/rustfs:1.0.0-beta.11 | gzip -c > rustfs-rustfs-1.0.0-beta.11.
    - `JWT_SECRET`
    - `DATA_ENCRYPTION_KEY`
 
+   另外，`RUSTFS_INTERNAL_ENDPOINT` 应保持为容器网络内的 `rustfs:9000`。
+   不要把它改成 `im-test-1.codelib.cc` 这类经由 Caddy 的公网域名，否则 API 服务端生成 / 校验 S3
+   签名时会把对象存储流量绕回反向代理，导致附件上传、审核和下载链路异常。
+
    这些值建议都用 URL-safe 随机串，避免拼接出来的 PostgreSQL / Redis 连接串失效。
    `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` 在卷里已有数据后不要随意更换。
 
@@ -223,6 +227,8 @@ docker save rustfs/rustfs:1.0.0-beta.11 | gzip -c > rustfs-rustfs-1.0.0-beta.11.
 - RustFS 也只在容器网络内使用，不映射宿主机端口。
 - API 暴露为 `${API_BIND_IP}:${API_PORT}`，容器内端口固定是 `8010`。
 - Admin 不映射宿主机端口，由宿主机 Caddy 直接反代到容器桥接网段固定 IP。
+- API 服务端访问 RustFS 时固定走 `${RUSTFS_INTERNAL_ENDPOINT}`（默认 `rustfs:9000`）；
+  仅返回给客户端的 presigned URL 会被改写成 `https://${API_PUBLIC_HOST}`。
 - 当前推荐由宿主机 Caddy 对外承接 `80/443`：
   - `im-test-1.codelib.cc` -> `127.0.0.1:8010`（API）
   - `im-test-1.codelib.cc/{bucket}/...` -> `172.29.240.12:9000`（RustFS）

@@ -143,8 +143,9 @@ services:
       REDIS_SESSION_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       REDIS_PUBSUB_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       REDIS_CACHE_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      REDCODE_IM_STORAGE_SCHEME: https
-      REDCODE_IM_B2_ENDPOINT: https://${API_PUBLIC_HOST}
+      # 服务端与 RustFS 直接走内网 HTTP；给客户端的 presigned URL 再改写回外部域名。
+      REDCODE_IM_STORAGE_SCHEME: http
+      REDCODE_IM_B2_ENDPOINT: ${RUSTFS_INTERNAL_ENDPOINT}
       REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: https://${API_PUBLIC_HOST}
       REDCODE_IM_B2_REGION: ${RUSTFS_REGION}
       REDCODE_IM_B2_KEY_ID: ${RUSTFS_ACCESS_KEY}
@@ -160,8 +161,6 @@ services:
       METRICS_FLUSH_BATCH_SIZE: ${METRICS_FLUSH_BATCH_SIZE}
       METRICS_FLUSH_INTERVAL_SECONDS: ${METRICS_FLUSH_INTERVAL_SECONDS}
       METRICS_SAMPLE_RATE: ${METRICS_SAMPLE_RATE}
-    extra_hosts:
-      - "${API_PUBLIC_HOST}:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
