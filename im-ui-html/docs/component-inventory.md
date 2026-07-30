@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
 | `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Fixed Content-aligned List / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
-| `Input Field` | 单行表单、搜索与聊天输入的尺寸和聚焦语言 | `Composer 40px / Toolbar Search 44px / Standard Field 48px / Surface Focus / Keyboard Focus` | `TextField + semantic size token + FocusVisible treatment` |
+| `Input Field` | 单行表单、搜索与聊天输入的尺寸和聚焦语言 | `Composer 40px / Toolbar Search 44px / Standard Field 48px / Surface Focus` | `TextField + semantic size token + container surface treatment` |
 | `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Recent / Highlighted / Large Emoji / Playing` | `Message bubble + reaction row` |
 | `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
@@ -27,7 +27,7 @@
 
 App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚动时标题和工具操作保持可见；嵌在已提供横向内容边距的列表滚动容器内时，页头不再额外添加横向 padding；左侧返回或标题与列表左线对齐，右侧操作与列表右线对齐。页面直接承载的普通页头保留一层内容边距；紧凑居中导航维持其独立的固定布局。
 
-输入控件规则：聊天 composer 使用 `40px`，固定导航内搜索使用 `44px`，页面内搜索与单行表单字段使用 `48px`。触摸和鼠标聚焦只改变 `Surface Soft` 表面色，不增加边框或外发光；键盘操作仍通过 `:focus-visible` 提供可见焦点。
+输入控件规则：聊天 composer 使用 `40px`，固定导航内搜索使用 `44px`，页面内搜索与单行表单字段使用 `48px`。触摸、鼠标和键盘聚焦均只改变外层 `Surface Soft` 表面色；内部 `input` 和 `textarea` 不增加边框、轮廓或外发光。
 
 ## 页面复合组件
 

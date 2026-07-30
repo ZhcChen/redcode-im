@@ -8385,16 +8385,6 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   background: color-mix(in srgb, var(--runtime-soft) 72%, var(--runtime-accent-soft));
 }
 
-.phone-screen .runtime-search-field input:focus-visible,
-.phone-screen .runtime-message-search__field input:focus-visible,
-.phone-screen .runtime-group-create__name-field input:focus-visible,
-.phone-screen .runtime-composer__field textarea:focus-visible,
-.phone-screen .runtime-auth-field input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 72%, transparent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
 .phone-screen .runtime-moments-card {
   min-height: 156px;
   border-radius: var(--runtime-radius-feature);
@@ -8576,12 +8566,6 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 .phone-screen .screen:not(.runtime-screen) .field__input:focus {
   background: color-mix(in srgb, var(--runtime-soft) 72%, var(--runtime-accent-soft));
   box-shadow: none;
-}
-
-.phone-screen .screen:not(.runtime-screen) .search-box__input:focus-visible,
-.phone-screen .screen:not(.runtime-screen) .field__input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 72%, transparent);
-  outline-offset: 2px;
 }
 
 .phone-screen--preview .screen:not(.runtime-screen) .primary-button,

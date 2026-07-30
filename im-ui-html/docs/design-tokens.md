@@ -84,7 +84,7 @@
 - 底部导航的 icon 视觉尺寸固定为 `26px`，每项保留至少 `44px` 热区；激活态只为 icon 提供局部弱高亮，不做覆盖内容的大型浮动胶囊。
 - 顶部返回与工具操作使用 `Quiet Icon`：默认透明且保持 `44px` 热区，仅在按下时使用 `Surface Soft`；键盘焦点保留可访问性描边。
 - `Primary Soft` 只表达激活/选中状态，例如底部当前 tab、选中筛选或已打开的面板，不能作为所有 icon button 的默认底色。
-- 搜索等输入容器可持续使用 `Surface Soft`；触摸或鼠标聚焦仅切换更浅的 Surface 色，不出现边框或常驻外发光；键盘焦点仍使用 `:focus-visible` 轮廓。
+- 搜索等输入容器可持续使用 `Surface Soft`；触摸、鼠标和键盘聚焦仅切换外层更浅的 Surface 色，内部 `input` 与 `textarea` 不出现边框、轮廓或常驻外发光。
 - 当前正式 key 统一收敛为三组：
   - 一级导航：`chats / contacts / discover / profile`
   - 基础操作：`back / search / plus / emoji / more / send / settings / shield`
