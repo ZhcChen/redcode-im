@@ -5320,34 +5320,8 @@ body[data-theme="dark"] .phone-screen {
   padding-bottom: 10px;
 }
 
-.phone-screen .runtime-header--chat {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.phone-screen .runtime-header--chat > .runtime-icon-button {
-  grid-column: 1;
-}
-
-.phone-screen .runtime-header--chat .screen-header__main {
-  grid-column: 2;
-  min-width: 0;
-  text-align: left;
-}
-
-.phone-screen .runtime-header--chat .screen-header__main h2 {
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.phone-screen .runtime-header--chat .screen-header__actions {
-  grid-column: 3;
-  justify-self: end;
-  margin-left: 0;
+.phone-screen .runtime-screen--chat-list > .runtime-scroll > .runtime-header {
+  padding-inline: 0;
 }
 
 .phone-screen .runtime-header--compact {
