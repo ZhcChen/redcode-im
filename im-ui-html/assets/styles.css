@@ -9758,6 +9758,20 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   background: var(--runtime-surface);
 }
 
+.phone-screen:has(.runtime-moment-detail-screen),
+.phone-screen:has(.runtime-moment-detail-screen) .phone-status-bar,
+.phone-screen .runtime-moment-detail-screen > .runtime-header--compact {
+  background: var(--runtime-surface);
+}
+
+.phone-screen .runtime-moment-detail-screen > .runtime-header--compact {
+  box-shadow: none;
+}
+
+.phone-screen .runtime-moment-detail-screen > .runtime-header--compact::after {
+  background: transparent;
+}
+
 .phone-screen--preview .screen.runtime-moment-detail-screen:not(.runtime-screen) .screen-scroll.runtime-moment-detail__scroll,
 .phone-screen .screen-scroll.runtime-moment-detail__scroll {
   padding: 0 0 28px;
