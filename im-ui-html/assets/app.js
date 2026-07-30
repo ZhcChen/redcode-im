@@ -3822,6 +3822,7 @@
     const relatedGroups = groupsForContact(contact.id);
     const statusTone = contact.status === "在线" ? "online" : contact.status === "忙碌中" ? "busy" : "away";
     const note = contact.note || "暂无备注";
+    const sharedGroupLabel = relatedGroups.length ? `${relatedGroups.length} 个` : "暂无";
 
     return `
       <section class="screen runtime-contact-profile-screen">
@@ -3832,78 +3833,45 @@
         })}
         <div class="screen-scroll runtime-contact-profile-scroll">
           <div class="runtime-contact-profile">
-            <section class="runtime-contact-profile__identity" aria-label="${escapeHtml(contact.name)} 的联系人资料">
-              <div class="runtime-contact-profile__identity-main">
-                <span class="runtime-contact-profile__avatar">
-                  ${renderAvatar(contact.name, contact.tone, "avatar--xl")}
-                </span>
-                <div class="runtime-contact-profile__identity-copy">
-                  <div class="runtime-contact-profile__name-line">
-                    <h3>${escapeHtml(contact.name)}</h3>
-                    <span class="runtime-contact-profile__status runtime-contact-profile__status--${statusTone}">${escapeHtml(contact.status)}</span>
-                  </div>
-                  <p class="runtime-contact-profile__role">${escapeHtml(contact.title)}<span aria-hidden="true"> · </span>${escapeHtml(contact.zone)}</p>
-                  <span class="runtime-contact-profile__handle">@${escapeHtml(contact.username)}</span>
+            <section class="runtime-contact-profile__hero" aria-label="${escapeHtml(contact.name)} 的联系人资料">
+              <span class="runtime-contact-profile__portrait">
+                ${renderAvatar(contact.name, contact.tone, "avatar--xl")}
+              </span>
+              <div class="runtime-contact-profile__identity-meta">
+                <div class="runtime-contact-profile__name-line">
+                  <h3>${escapeHtml(contact.name)}</h3>
+                  <span class="runtime-contact-profile__presence runtime-contact-profile__presence--${statusTone}">${escapeHtml(contact.status)}</span>
                 </div>
-              </div>
-              <div class="runtime-contact-profile__note">
-                <span>备注</span>
-                <p>${escapeHtml(note)}</p>
+                <p class="runtime-contact-profile__role">${escapeHtml(contact.title)}</p>
+                <p class="runtime-contact-profile__handle">@${escapeHtml(contact.username)}</p>
               </div>
             </section>
 
-            <div class="runtime-contact-profile__actions" aria-label="${escapeHtml(contact.name)} 的操作">
-              <button class="runtime-contact-profile__message" type="button" data-action="open-direct-chat" data-contact-id="${contact.id}">
-                ${renderIcon("send", "runtime-contact-profile__message-icon")}
-                <span>发送消息</span>
-              </button>
-              <button
-                class="runtime-contact-profile__more"
-                type="button"
-                data-action="show-hint"
-                data-message="后续这里可承接音视频、备注、共享文件等能力。"
-                aria-label="更多联系人操作"
-                title="更多联系人操作"
-              >
-                ${renderIcon("more", "runtime-contact-profile__more-icon")}
-              </button>
-            </div>
-
-            <section class="runtime-contact-profile__relationship" aria-label="联系状态">
-              <div class="runtime-contact-profile__relationship-item">
-                <span>关系</span>
-                <strong>已添加</strong>
-              </div>
-              <div class="runtime-contact-profile__relationship-item">
-                <span>共同群聊</span>
-                <strong>${relatedGroups.length}</strong>
-              </div>
-              <div class="runtime-contact-profile__relationship-item">
-                <span>当前状态</span>
-                <strong class="runtime-contact-profile__relationship-status runtime-contact-profile__relationship-status--${statusTone}">${escapeHtml(contact.status)}</strong>
-              </div>
+            <section class="runtime-contact-profile__note-strip" aria-label="联系人备注">
+              <span>备注</span>
+              <p>${escapeHtml(note)}</p>
             </section>
 
-            <section class="runtime-contact-profile__details" aria-labelledby="contact-profile-details-title">
+            <section class="runtime-contact-profile__section" aria-labelledby="contact-profile-info-title">
               <div class="runtime-contact-profile__section-heading">
-                <h3 id="contact-profile-details-title">资料</h3>
+                <h3 id="contact-profile-info-title">联系信息</h3>
               </div>
-              <dl class="runtime-contact-profile__detail-list">
-                <div class="runtime-contact-profile__detail-row">
+              <dl class="runtime-contact-profile__fact-list">
+                <div class="runtime-contact-profile__fact-row">
                   <dt>账号</dt>
                   <dd>@${escapeHtml(contact.username)}</dd>
                 </div>
-                <div class="runtime-contact-profile__detail-row">
-                  <dt>职责</dt>
-                  <dd>${escapeHtml(contact.title)}</dd>
-                </div>
-                <div class="runtime-contact-profile__detail-row">
-                  <dt>所在组</dt>
+                <div class="runtime-contact-profile__fact-row">
+                  <dt>团队</dt>
                   <dd>${escapeHtml(contact.zone)}</dd>
                 </div>
-                <div class="runtime-contact-profile__detail-row runtime-contact-profile__detail-row--note">
-                  <dt>备注</dt>
-                  <dd>${escapeHtml(note)}</dd>
+                <div class="runtime-contact-profile__fact-row">
+                  <dt>关系</dt>
+                  <dd>已添加</dd>
+                </div>
+                <div class="runtime-contact-profile__fact-row">
+                  <dt>共同群聊</dt>
+                  <dd>${sharedGroupLabel}</dd>
                 </div>
               </dl>
             </section>
@@ -3911,29 +3879,29 @@
             ${
               relatedGroups.length
                 ? `
-                  <section class="runtime-contact-profile__groups" aria-labelledby="contact-profile-groups-title">
+                  <section class="runtime-contact-profile__section runtime-contact-profile__section--shared" aria-labelledby="contact-profile-groups-title">
                     <div class="runtime-contact-profile__section-heading">
                       <h3 id="contact-profile-groups-title">共同群聊</h3>
                       <span>${relatedGroups.length}</span>
                     </div>
-                    <div class="runtime-contact-profile__group-list">
+                    <div class="runtime-contact-profile__shared-list">
                       ${relatedGroups
                         .map(
                           (group) => `
                             <button
-                              class="runtime-contact-profile__group-row"
+                              class="runtime-contact-profile__shared-row"
                               type="button"
                               data-action="navigate"
                               data-route="/chat/${group.chatId}"
                               aria-label="打开 ${escapeHtml(group.name)} 群聊"
                             >
-                              <span class="runtime-contact-profile__group-avatar">${renderGroupAvatar(group)}</span>
-                              <span class="runtime-contact-profile__group-copy">
+                              <span class="runtime-contact-profile__shared-avatar">${renderGroupAvatar(group)}</span>
+                              <span class="runtime-contact-profile__shared-copy">
                                 <strong>${escapeHtml(group.name)}</strong>
                                 <small>${escapeHtml(group.notice || "暂无群公告")}</small>
                               </span>
-                              <span class="runtime-contact-profile__group-meta">${group.memberCount} 人</span>
-                              ${renderIcon("chevronRight", "runtime-contact-profile__group-chevron")}
+                              <span class="runtime-contact-profile__shared-meta">${group.memberCount} 人</span>
+                              ${renderIcon("chevronRight", "runtime-contact-profile__shared-chevron")}
                             </button>
                           `,
                         )
@@ -3945,6 +3913,22 @@
             }
           </div>
         </div>
+        <footer class="runtime-contact-profile__action-dock" aria-label="${escapeHtml(contact.name)} 的操作">
+          <button
+            class="runtime-contact-profile__more-action"
+            type="button"
+            data-action="show-hint"
+            data-message="后续这里可承接音视频、备注、共享文件等能力。"
+            aria-label="更多联系人操作"
+            title="更多联系人操作"
+          >
+            ${renderIcon("more", "runtime-contact-profile__more-icon")}
+          </button>
+          <button class="runtime-contact-profile__message-action" type="button" data-action="open-direct-chat" data-contact-id="${contact.id}">
+            ${renderIcon("send", "runtime-contact-profile__message-icon")}
+            <span>发送消息</span>
+          </button>
+        </footer>
       </section>
     `;
   }
