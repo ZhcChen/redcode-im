@@ -67,7 +67,8 @@
 
 | Route | 说明 |
 | --- | --- |
-| `#/discover/moments` | 朋友圈内容流，使用紧凑固定导航栏 |
+| `#/discover/moments` | 朋友圈内容流，使用紧凑固定导航栏；图片数量布局遵循 `moments-media-layout.md` |
+| `#/discover/moments/:momentId` | 朋友圈动态详情；复用内容流的图片分栏规则并提供点赞、评论交互 |
 | `#/discover/scan` | 扫一扫 |
 | `#/discover/nearby` | 附近的人 |
 | `#/discover/games` | 游戏入口 |

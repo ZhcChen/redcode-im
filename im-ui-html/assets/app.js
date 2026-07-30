@@ -3779,6 +3779,7 @@
   function renderMomentCard(item) {
     const liked = state.likedMomentIds.has(item.id);
     const submittedComments = state.momentComments[item.id] || [];
+    const mediaCount = getMomentMediaCount(item);
 
     return `
       <article class="moment-card">
@@ -3790,7 +3791,7 @@
           </div>
         </div>
         <p class="moment-card__text">${escapeHtml(item.text)}</p>
-        <div class="moment-card__media">${escapeHtml(item.media)}</div>
+        ${mediaCount ? renderMomentMediaGrid(item, mediaCount, "feed") : ""}
         <div class="moment-card__footer">
           <button
             class="moment-card__like ${liked ? "is-active" : ""}"
@@ -3824,7 +3825,7 @@
     const comments = [...submittedComments, ...(MOMENT_COMMENTS[item.id] || [])];
     const commentCount = item.comments + submittedComments.length;
     const draft = state.momentCommentDrafts[item.id] || "";
-    const hasMedia = !["无媒体", "文字"].includes(item.media);
+    const mediaCount = getMomentMediaCount(item);
 
     return `
       <section class="screen runtime-moment-detail-screen">
@@ -3842,7 +3843,7 @@
               </span>
             </header>
             <p class="runtime-moment-detail__text">${escapeHtml(item.text)}</p>
-            ${hasMedia ? renderMomentDetailMedia(item) : ""}
+            ${mediaCount ? renderMomentMediaGrid(item, mediaCount, "detail") : ""}
             <div class="runtime-moment-detail__engagement" aria-label="动态互动">
               <time>${escapeHtml(item.time)}</time>
               <button
@@ -3886,15 +3887,23 @@
     `;
   }
 
-  function renderMomentDetailMedia(item) {
-    const mediaCount = Number.parseInt(item.media, 10) || 1;
-    const visibleCount = Math.min(mediaCount, 3);
+  function getMomentMediaCount(item) {
+    if (!item || ["无媒体", "文字"].includes(item.media)) {
+      return 0;
+    }
+
+    return Math.min(Math.max(Number.parseInt(item.media, 10) || 0, 0), 9);
+  }
+
+  function renderMomentMediaGrid(item, mediaCount, variant) {
     return `
-      <div class="runtime-moment-detail__media runtime-moment-detail__media--${visibleCount}" aria-label="${escapeHtml(item.media)}">
-        ${Array.from({ length: visibleCount }, (_, index) => `
-          <div class="runtime-moment-detail__media-item">
-            ${renderIcon("image", "runtime-moment-detail__media-icon")}
-            <span>设计图 ${String(index + 1).padStart(2, "0")}</span>
+      <div
+        class="moment-media-grid moment-media-grid--${variant} moment-media-grid--count-${mediaCount}"
+        aria-label="${escapeHtml(item.media)}"
+      >
+        ${Array.from({ length: mediaCount }, (_, index) => `
+          <div class="moment-media-grid__item" aria-label="第 ${index + 1} 张图片">
+            ${renderIcon("image", "moment-media-grid__icon")}
           </div>
         `).join("")}
       </div>

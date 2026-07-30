@@ -67,6 +67,7 @@
 - `docs/design-tokens.md`
 - `docs/component-inventory.md`
 - `docs/page-map.md`
+- `docs/moments-media-layout.md`
 - `docs/flutter-handoff.md`
 
 ## 启动方式
