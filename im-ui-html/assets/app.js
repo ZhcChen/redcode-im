@@ -34,7 +34,9 @@
     return;
   }
 
-  const data = JSON.parse(JSON.stringify(source));
+  const demoData = JSON.parse(JSON.stringify(source));
+  const emptyData = createEmptyPreviewData(demoData);
+  let data = demoData;
   const state = {
     theme: "light",
     density: "regular",
@@ -52,7 +54,7 @@
     friendNote: "你好，我想一起评审 RedCode IM 的移动端重构方案。",
     searchQuery: "",
     groupMemberFilter: "",
-    createGroupName: "移动端重构评审群",
+    createGroupName: "",
     createGroupMembers: new Set(["u_alice", "u_zoe"]),
     chatDrafts: {},
     composerPanel: null,
@@ -63,6 +65,26 @@
     toasts: [],
     orderCursor: 1000,
   };
+
+  function createEmptyPreviewData(sourceData) {
+    const emptyPreviewData = JSON.parse(JSON.stringify(sourceData));
+    emptyPreviewData.chats = [];
+    emptyPreviewData.contacts = [];
+    emptyPreviewData.friendRequests = [];
+    emptyPreviewData.searchUsers = [];
+    emptyPreviewData.groups = [];
+    emptyPreviewData.discover.moments = [];
+    emptyPreviewData.discover.nearbyPeople = [];
+    emptyPreviewData.discover.games = [];
+
+    const momentsEntry = emptyPreviewData.discover.entries.find((item) => item.id === "moments");
+    if (momentsEntry) {
+      momentsEntry.badge = "0";
+      momentsEntry.summary = "还没有朋友动态。";
+    }
+
+    return emptyPreviewData;
+  }
 
   const toneClassMap = {
     amber: "avatar--amber",
@@ -183,6 +205,7 @@
       reconcileNavigationStack(path);
     }
     const route = parseRoute(path);
+    activatePreviewData(route);
     syncSelection(route);
     if (route.section !== "chat-detail") {
       state.composerPanel = null;
@@ -275,6 +298,22 @@
     return Object.prototype.hasOwnProperty.call(DEVICE_FRAMES, value);
   }
 
+  function isEmptyPreviewDataMode(route) {
+    return route.section === "mobile-design" && route.previewDataMode === "empty";
+  }
+
+  function activatePreviewData(route) {
+    data = isEmptyPreviewDataMode(route) ? emptyData : demoData;
+    data.settings.theme = state.theme;
+    data.settings.density = state.density;
+  }
+
+  function mobilePreviewPath(previewPath, dataMode) {
+    const safePath = previewPath && previewPath.startsWith("/") ? previewPath : "/chats";
+    const prefix = dataMode === "empty" ? "/mobile-design/empty" : "/mobile-design";
+    return `${prefix}${safePath}`;
+  }
+
   function currentPath() {
     const hash = window.location.hash.replace(/^#/, "").trim();
     return hash || "/entry";
@@ -297,7 +336,9 @@
 
     if (segments[0] === "mobile-design") {
       const previewSegments = segments.slice(1);
-      const previewPath = previewSegments.length ? `/${previewSegments.join("/")}` : "/chats";
+      const previewDataMode = previewSegments[0] === "empty" ? "empty" : "demo";
+      const previewAppSegments = previewDataMode === "empty" ? previewSegments.slice(1) : previewSegments;
+      const previewPath = previewAppSegments.length ? `/${previewAppSegments.join("/")}` : "/chats";
       const nestedRoute = parseRoute(previewPath);
       const previewRoute = ["entry", "spec", "pc-design", "mobile-design", "not-found"].includes(nestedRoute.section)
         ? { section: "chats" }
@@ -305,6 +346,7 @@
 
       return {
         section: "mobile-design",
+        previewDataMode,
         previewPath: previewRoute === nestedRoute ? previewPath : "/chats",
         previewRoute,
       };
@@ -485,7 +527,8 @@
       return requestedPath;
     }
 
-    return `/mobile-design${requestedPath}`;
+    const previewPrefix = currentRoute.previewDataMode === "empty" ? "/mobile-design/empty" : "/mobile-design";
+    return `${previewPrefix}${requestedPath}`;
   }
 
   function navigate(path, options = {}) {
@@ -535,6 +578,7 @@
   function render() {
     applyBodyState();
     const route = parseRoute(currentPath());
+    activatePreviewData(route);
     syncSelection(route);
     const mobilePreviewMode = route.section === "mobile-design";
     const previewMode = mobilePreviewMode ? "device" : resolvePreviewMode(route);
@@ -910,42 +954,71 @@
 
   function renderMobileDesignScreen(route) {
     const previewRoute = resolveMobilePreviewRoute(route);
+    const previewDataMode = route.previewDataMode === "empty" ? "empty" : "demo";
+    const demoPreviewPath = mobilePreviewPath(route.previewPath, "demo");
+    const emptyPreviewPath = mobilePreviewPath(route.previewPath, "empty");
 
     return `
-      <section class="mobile-preview-canvas" aria-label="RedCode IM 移动端预览">
-        <div class="mobile-preview-device-switcher" role="group" aria-label="设备外壳选择">
-          ${Object.entries(DEVICE_FRAMES)
-            .map(
-              ([id, device]) => `
-                <button
-                  class="mobile-preview-device-switcher__item ${state.deviceFrame === id ? "is-active" : ""}"
-                  type="button"
-                  data-action="set-device-frame"
-                  data-device-frame="${id}"
-                  aria-pressed="${state.deviceFrame === id}"
-                >
-                  <span class="mobile-preview-device-switcher__glyph mobile-preview-device-switcher__glyph--${id}" aria-hidden="true"></span>
-                  <span>${escapeHtml(device.label)}</span>
-                </button>
-              `,
-            )
-            .join("")}
+      <section class="mobile-preview-canvas" data-preview-data-mode="${previewDataMode}" aria-label="RedCode IM 移动端预览">
+        <div class="mobile-preview-control-stack">
+          <div class="mobile-preview-device-switcher" role="group" aria-label="设备外壳选择">
+            ${Object.entries(DEVICE_FRAMES)
+              .map(
+                ([id, device]) => `
+                  <button
+                    class="mobile-preview-device-switcher__item ${state.deviceFrame === id ? "is-active" : ""}"
+                    type="button"
+                    data-action="set-device-frame"
+                    data-device-frame="${id}"
+                    aria-pressed="${state.deviceFrame === id}"
+                  >
+                    <span class="mobile-preview-device-switcher__glyph mobile-preview-device-switcher__glyph--${id}" aria-hidden="true"></span>
+                    <span>${escapeHtml(device.label)}</span>
+                  </button>
+                `,
+              )
+              .join("")}
+          </div>
+          <div class="mobile-preview-data-switcher" role="group" aria-label="预览数据状态">
+            <button
+              class="mobile-preview-data-switcher__item ${previewDataMode === "demo" ? "is-active" : ""}"
+              type="button"
+              data-action="navigate"
+              data-route="${demoPreviewPath}"
+              aria-pressed="${previewDataMode === "demo"}"
+            >
+              <span class="mobile-preview-data-switcher__indicator mobile-preview-data-switcher__indicator--demo" aria-hidden="true"></span>
+              <span>演示数据</span>
+            </button>
+            <button
+              class="mobile-preview-data-switcher__item ${previewDataMode === "empty" ? "is-active" : ""}"
+              type="button"
+              data-action="navigate"
+              data-route="${emptyPreviewPath}"
+              aria-pressed="${previewDataMode === "empty"}"
+            >
+              <span class="mobile-preview-data-switcher__indicator mobile-preview-data-switcher__indicator--empty" aria-hidden="true"></span>
+              <span>空数据</span>
+            </button>
+          </div>
         </div>
-        ${renderPhone(previewRoute, { devicePreview: true })}
+        ${renderPhone(previewRoute, { devicePreview: true, dataMode: previewDataMode })}
       </section>
     `;
   }
 
   function renderPhone(route, options = {}) {
+    const previewDataMode = options.dataMode === "empty" ? "empty" : "demo";
     const screenClasses = [
       "phone-screen",
       options.runtimeMode ? "phone-screen--runtime" : "",
       options.devicePreview ? "phone-screen--preview" : "",
+      options.dataMode === "empty" ? "phone-screen--empty-data" : "",
     ]
       .filter(Boolean)
       .join(" ");
     const screen = `
-      <div class="${screenClasses}">
+      <div class="${screenClasses}" data-preview-data-mode="${previewDataMode}">
         ${options.runtimeMode ? "" : `
           <div class="phone-status-bar">
             <span>9:41</span>
@@ -965,12 +1038,14 @@
     if (options.devicePreview) {
       const deviceId = isSupportedDeviceFrame(state.deviceFrame) ? state.deviceFrame : "iphone-12-pro";
       const device = DEVICE_FRAMES[deviceId];
+      const dataModeLabel = previewDataMode === "empty" ? "空数据" : "演示数据";
 
       return `
         <section
           class="phone-frame phone-frame--mobile-preview phone-frame--${deviceId}"
           data-device-frame="${deviceId}"
-          aria-label="${escapeHtml(device.label)} 设备预览画布"
+          data-preview-data-mode="${previewDataMode}"
+          aria-label="${escapeHtml(device.label)} ${dataModeLabel}设备预览画布"
         >
           <span class="phone-frame__side-button phone-frame__side-button--action" aria-hidden="true"></span>
           <span class="phone-frame__side-button phone-frame__side-button--volume-up" aria-hidden="true"></span>
@@ -3185,22 +3260,32 @@
 
   function renderDiscoverScreen() {
     const discover = data.discover;
-    const moments = discover.entries.find((item) => item.id === "moments") || discover.entries[0];
-    const quickEntries = discover.entries.filter((item) => item.id !== moments.id);
+    const entries = Array.isArray(discover.entries) ? discover.entries : [];
+    const moments = entries.find((item) => item.id === "moments") || entries[0] || null;
+    const quickEntries = moments ? entries.filter((item) => item.id !== moments.id) : entries;
+    const hasMoments = Array.isArray(discover.moments) && discover.moments.length > 0;
 
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-discover-screen">
         <div class="screen-scroll runtime-scroll">
           <div class="runtime-list-content runtime-discover-content">
-            <button class="runtime-moments-card" data-action="navigate" data-route="${moments.route}">
-              <span class="runtime-moments-card__eyebrow">朋友圈</span>
-              <strong>看看朋友最近的动态</strong>
-              <span>${escapeHtml(moments.summary)}</span>
-              <span class="runtime-moments-card__meta">${escapeHtml(moments.badge)} 条新动态 <b>›</b></span>
-            </button>
-            <section class="runtime-discover-grid" aria-label="发现功能">
-              ${quickEntries.map(renderDiscoverEntryCard).join("")}
-            </section>
+            ${
+              moments
+                ? `
+                  <button class="runtime-moments-card" data-action="navigate" data-route="${moments.route}">
+                    <span class="runtime-moments-card__eyebrow">朋友圈</span>
+                    <strong>${hasMoments ? "看看朋友最近的动态" : "还没有朋友动态"}</strong>
+                    <span>${escapeHtml(hasMoments ? moments.summary : "添加好友后，新动态会显示在这里。")}</span>
+                    <span class="runtime-moments-card__meta">${hasMoments ? `${escapeHtml(moments.badge)} 条新动态` : "暂无新动态"} <b>›</b></span>
+                  </button>
+                `
+                : renderEmptyState("暂无发现内容", "服务入口准备完成后会显示在这里。")
+            }
+            ${quickEntries.length ? `
+              <section class="runtime-discover-grid" aria-label="发现功能">
+                ${quickEntries.map(renderDiscoverEntryCard).join("")}
+              </section>
+            ` : ""}
           </div>
         </div>
       </section>
@@ -3217,6 +3302,8 @@
   }
 
   function renderDiscoverMomentsScreen() {
+    const moments = data.discover.moments || [];
+
     return `
       <section class="screen">
         ${renderScreenHeader({
@@ -3234,7 +3321,7 @@
                 <button class="ghost-button" data-action="show-hint" data-message="后续这里可接仅朋友可见、分组可见和草稿箱。">可见范围</button>
               </div>
             </section>
-            ${data.discover.moments.map(renderMomentCard).join("")}
+            ${moments.length ? moments.map(renderMomentCard).join("") : renderEmptyState("暂无朋友圈动态", "添加好友后，最新动态会显示在这里。")}
           </div>
         </div>
       </section>
@@ -3326,6 +3413,8 @@
   }
 
   function renderDiscoverNearbyScreen() {
+    const nearbyPeople = data.discover.nearbyPeople || [];
+
     return `
       <section class="screen">
         ${renderScreenHeader({
@@ -3345,9 +3434,9 @@
                   <h3>附近在线</h3>
                   <p>先看距离和场景，再决定查看资料、发招呼或拉进同城群。</p>
                 </div>
-                <span class="badge">${data.discover.nearbyPeople.length}</span>
+                <span class="badge">${nearbyPeople.length}</span>
               </div>
-              ${data.discover.nearbyPeople.map(renderNearbyPersonCard).join("")}
+              ${nearbyPeople.length ? nearbyPeople.map(renderNearbyPersonCard).join("") : renderEmptyState("暂无附近的人", "开启位置权限后，附近在线的人会显示在这里。")}
             </section>
           </div>
         </div>
@@ -3376,6 +3465,8 @@
   }
 
   function renderDiscoverGamesScreen() {
+    const games = data.discover.games || [];
+
     return `
       <section class="screen">
         ${renderScreenHeader({
@@ -3399,21 +3490,25 @@
                   <h3>当前入口规划</h3>
                   <p>先把入口和状态语言做对，后续再扩小游戏大厅与房间链路。</p>
                 </div>
-                <span class="badge">${data.discover.games.length}</span>
+                <span class="badge">${games.length}</span>
               </div>
-              ${data.discover.games
-                .map(
-                  (item) => `
-                    <div class="game-entry-card">
-                      <div class="game-entry-card__body">
-                        <strong>${escapeHtml(item.title)}</strong>
-                        <span>${escapeHtml(item.summary)}</span>
-                      </div>
-                      <span class="badge">入口</span>
-                    </div>
-                  `,
-                )
-                .join("")}
+              ${
+                games.length
+                  ? games
+                      .map(
+                        (item) => `
+                          <div class="game-entry-card">
+                            <div class="game-entry-card__body">
+                              <strong>${escapeHtml(item.title)}</strong>
+                              <span>${escapeHtml(item.summary)}</span>
+                            </div>
+                            <span class="badge">入口</span>
+                          </div>
+                        `,
+                      )
+                      .join("")
+                  : renderEmptyState("暂无游戏内容", "新的游戏内容会显示在这里。")
+              }
             </section>
           </div>
         </div>
@@ -5146,7 +5241,7 @@
 
     state.activeGroupId = groupId;
     state.activeChatId = chatId;
-    state.createGroupName = "移动端重构评审群";
+    state.createGroupName = "";
     state.createGroupMembers = new Set(["u_alice", "u_zoe"]);
     state.groupMemberFilter = "";
 

@@ -31,7 +31,8 @@
 - `#/entry`：设计源总入口
 - `#/spec`：设计系统页
 - `#/pc-design`：PC 端蓝图页
-- `#/mobile-design`：独立移动端设备预览，默认进入聊天首页；宽屏默认使用 `iPhone 12 Pro` 外壳，可切换到 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`
+- `#/mobile-design`：独立移动端设备预览，默认进入聊天首页；宽屏默认使用 `iPhone 12 Pro` 外壳，可切换到 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`，并支持演示数据与空数据场景
+- `#/mobile-design/empty`：空数据手机壳，默认进入空会话首页；二级跳转保持 `#/mobile-design/empty/<业务路径>`
 
 ## 业务原型路由
 
@@ -89,7 +90,7 @@ http://127.0.0.1:8020/#/entry
 
 ## 预览模式
 
-- **独立手机预览**：`#/mobile-design` 始终只显示一个可操作的手机容器，默认载入聊天首页；宽屏以 `iPhone 12 Pro` 为默认外壳，并提供 `iPhone 16 Pro Max` 与 `Pixel 8 Pro` 切换。iPhone 16 Pro Max 预览包含 Dynamic Island、底部白色 Home Indicator 与对应安全区，聊天、联系人、发现、我的及设置二级页都在独立屏幕裁切层内跳转，不能露出到设备底部。
+- **独立手机预览**：`#/mobile-design` 始终只显示一个可操作的手机容器，默认载入聊天首页；宽屏以 `iPhone 12 Pro` 为默认外壳，并提供 `iPhone 16 Pro Max`、`Pixel 8 Pro`、演示数据与空数据切换。空数据模式从 `#/mobile-design/empty` 进入，会清空会话、联系人、群聊、关系申请、搜索用户和发现内容，同时保留账号、设置和静态服务入口；所有二级跳转保持 `#/mobile-design/empty/...`。iPhone 16 Pro Max 预览包含 Dynamic Island、底部白色 Home Indicator 与对应安全区，聊天、联系人、发现、我的及设置二级页都在独立屏幕裁切层内跳转，不能露出到设备底部。
 - **预览内深链**：使用 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts` 等地址可直接打开对应页面；二级页返回优先回到实际来源，深链兜底也会留在设备容器内。
 - **桌面评审**：桌面宽度下访问普通业务路由时，默认保留工具条、主题/密度控制和手机机框；也可显式使用 `?mode=review`。
 - **手机运行态**：`640px` 以下的普通业务路由会直接显示应用界面，不再嵌套评审工具条或手机机框。
@@ -99,6 +100,7 @@ http://127.0.0.1:8020/#/entry
 
 ```text
 #/mobile-design
+#/mobile-design/empty
 #/mobile-design/chat/c_room_launch
 #/mobile-design/contacts
 #/mobile-design/mine

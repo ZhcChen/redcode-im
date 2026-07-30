@@ -10,6 +10,7 @@
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
 | `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Fixed Content-aligned List / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
+| `Input Field` | 单行表单、搜索与聊天输入的尺寸和聚焦语言 | `Composer 40px / Toolbar Search 44px / Standard Field 48px / Surface Focus / Keyboard Focus` | `TextField + semantic size token + FocusVisible treatment` |
 | `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Recent / Highlighted / Large Emoji / Playing` | `Message bubble + reaction row` |
 | `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
@@ -25,6 +26,8 @@
 | `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
 
 App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚动时标题和工具操作保持可见；嵌在已提供横向内容边距的列表滚动容器内时，页头不再额外添加横向 padding；左侧返回或标题与列表左线对齐，右侧操作与列表右线对齐。页面直接承载的普通页头保留一层内容边距；紧凑居中导航维持其独立的固定布局。
+
+输入控件规则：聊天 composer 使用 `40px`，固定导航内搜索使用 `44px`，页面内搜索与单行表单字段使用 `48px`。触摸和鼠标聚焦只改变 `Surface Soft` 表面色，不增加边框或外发光；键盘操作仍通过 `:focus-visible` 提供可见焦点。
 
 ## 页面复合组件
 
@@ -59,6 +62,7 @@ App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚
 结构：
 
 - 宽屏设备选择器：默认 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 与 `Pixel 8 Pro`
+- 宽屏数据模式选择器：`演示数据` 与 `空数据`；空数据场景保留账号、设置和静态服务入口，但会话、联系人、群聊、关系申请、搜索用户、动态、附近的人和游戏内容均为空
 - device frame：独立的机身、侧键与顶部传感器装饰；iPhone 16 Pro Max 包含 Dynamic Island 与底部白色 Home Indicator
 - screen clip：独立圆角裁切层，所有 App 内容、导航与 Toast 必须留在其中，并让底部固定内容避开 Home Indicator 安全区
 - status bar
@@ -68,6 +72,7 @@ App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚
 备注：
 
 - 这是设计源专用的单一手机容器，用来串联完整移动端交互。
+- `#/mobile-design/empty` 默认打开空会话首页，二级跳转保持 `#/mobile-design/empty/...` 前缀，避免空态审查回落到演示数据。
 - 宽屏使用设备外壳进行尺寸和安全区审查；`640px` 以下直接显示 App，不展示外壳或切换器。
 - 容器内必须使用真实业务页面，不能再放移动端路线说明、组件说明或评审卡片。
 - 正式 App 不保留设备外框，但应继承其中的 App Shell、导航和页面层级。

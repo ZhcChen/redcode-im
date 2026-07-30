@@ -9,15 +9,16 @@
 | `#/entry` | 总入口 | 分流到规范页、PC 蓝图页与移动端设备预览 |
 | `#/spec` | 规范源 | 展示 token、icon、组件、流转 |
 | `#/pc-design` | 桌面蓝图 | 展示桌面三栏工作台结构 |
-| `#/mobile-design` | 移动端设备预览 | 只显示一个可交互的手机容器，默认使用 `iPhone 12 Pro` 外壳；宽屏可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`，不显示设计说明或评审侧栏 |
+| `#/mobile-design` | 移动端设备预览 | 只显示一个可交互的手机容器，默认使用 `iPhone 12 Pro` 外壳；宽屏可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`，并可在演示数据与空数据间切换，不显示设计说明或评审侧栏 |
 
 ## 2. 独立移动端预览
 
-`#/mobile-design` 是设计源内的完整手机设备画布，不是业务页之外的说明页。宽屏默认使用 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`；iPhone 16 Pro Max 包含 Dynamic Island、底部白色 Home Indicator 与独立安全区。所有业务内容必须受设备内的独立屏幕裁切层约束，不能露出外壳。
+`#/mobile-design` 是设计源内的完整手机设备画布，不是业务页之外的说明页。宽屏默认使用 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro`；同时可切换演示数据与空数据场景。空数据仅清空会话、联系人、群聊、关系申请、搜索用户与发现内容，账号、设置和服务入口保持可用。iPhone 16 Pro Max 包含 Dynamic Island、底部白色 Home Indicator 与独立安全区。所有业务内容必须受设备内的独立屏幕裁切层约束，不能露出外壳。
 
 | Route | 说明 |
 | --- | --- |
 | `#/mobile-design` | 默认显示聊天首页；宽屏默认 `iPhone 12 Pro`，可切换 `iPhone 16 Pro Max` 或 `Pixel 8 Pro` |
+| `#/mobile-design/empty` | 空数据手机壳，默认显示空会话；二级页面使用 `#/mobile-design/empty/<业务路径>` 并始终保持空数据场景 |
 | `#/mobile-design/chats` | 会话列表 |
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
 | `#/mobile-design/contacts` | 联系人目录：固定搜索栏、快捷入口和单一分组列表滚动面 |
@@ -26,7 +27,7 @@
 | `#/mobile-design/settings` | 设置（从“我的”进入） |
 | `#/mobile-design/<业务路径>` | 将任意已注册的移动业务路径保留在同一手机容器内 |
 
-容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。二级页返回优先回到实际进入来源；直接打开深链时，使用该业务链路的默认兜底，且仍保留在设备容器内。
+容器内的一级导航、二级跳转、输入、Toast 和返回操作都不能跳出 `#/mobile-design/...`。空数据场景内的跳转必须保留 `#/mobile-design/empty/...` 前缀。二级页返回优先回到实际进入来源；直接打开深链时，使用该业务链路的默认兜底，且仍保留在设备容器内。
 
 ## 3. 移动端业务地图
 
