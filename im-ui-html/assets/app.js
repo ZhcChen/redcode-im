@@ -63,6 +63,9 @@
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
+    contactActionSheetContactId: null,
+    contactRemarkEditorContactId: null,
+    contactRemarkDraft: "",
     orderCursor: 1000,
   };
 
@@ -159,6 +162,17 @@
       '<path d="M4.95 11.75 12.55 13.95" />',
       '<path d="M12.55 13.95 18.2 8.65" />',
       '<path d="M12.55 13.95 11.4 18.2" />',
+    ],
+    edit: [
+      '<path d="m5.35 18.65 1.1-3.9L15.7 5.5a1.8 1.8 0 0 1 2.55 2.55l-9.25 9.25-3.65 1.35Z" />',
+      '<path d="m13.9 7.3 2.8 2.8" />',
+    ],
+    phone: [
+      '<path d="M8.15 4.95 6.7 5.7c-.72.37-1.08 1.2-.87 1.98 1.25 4.62 4.95 8.32 9.57 9.57.78.21 1.61-.15 1.98-.87l.75-1.45a1.54 1.54 0 0 0-.53-1.95l-2.05-1.38a1.54 1.54 0 0 0-1.93.18l-.95.95a10.1 10.1 0 0 1-2.44-2.44l.95-.95a1.54 1.54 0 0 0 .18-1.93L10.1 5.48a1.54 1.54 0 0 0-1.95-.53Z" />',
+    ],
+    video: [
+      '<rect x="4.8" y="7.15" width="10.75" height="9.7" rx="2.3" />',
+      '<path d="m15.55 10.15 3.65-2.05v7.8l-3.65-2.05" />',
     ],
     moments: [
       '<rect x="4.9" y="5.3" width="14.2" height="13.4" rx="3.3" />',
@@ -532,6 +546,7 @@
   }
 
   function navigate(path, options = {}) {
+    closeContactProfileOverlay();
     const nextPath = resolveNavigationPath(path);
     const current = currentPath();
     if (!options.keepHighlight) {
@@ -1028,6 +1043,7 @@
         ${renderRoute(route)}
         ${renderTabBar(route)}
         ${options.devicePreview ? renderToasts({ embedded: true }) : ""}
+        ${renderContactProfileOverlay(route)}
       </div>
     `;
 
@@ -3853,7 +3869,18 @@
               <dl class="runtime-contact-profile__fact-list">
                 <div class="runtime-contact-profile__fact-row runtime-contact-profile__fact-row--remark">
                   <dt>备注名</dt>
-                  <dd class="${remark ? "" : "is-empty"}">${escapeHtml(remark || "未设置")}</dd>
+                  <dd>
+                    <button
+                      class="runtime-contact-profile__remark-edit"
+                      type="button"
+                      data-action="edit-contact-remark"
+                      data-contact-id="${escapeHtml(contact.id)}"
+                      aria-label="编辑 ${escapeHtml(contact.name)} 的备注名，当前为${escapeHtml(remark || "未设置")}"
+                    >
+                      <span class="runtime-contact-profile__remark-value ${remark ? "" : "is-empty"}">${escapeHtml(remark || "未设置")}</span>
+                      ${renderIcon("chevronRight", "runtime-contact-profile__remark-chevron")}
+                    </button>
+                  </dd>
                 </div>
                 <div class="runtime-contact-profile__fact-row">
                   <dt>账号</dt>
@@ -3907,8 +3934,8 @@
           <button
             class="runtime-contact-profile__more-action"
             type="button"
-            data-action="show-hint"
-            data-message="后续这里可承接音视频、备注、共享文件等能力。"
+            data-action="open-contact-actions"
+            data-contact-id="${escapeHtml(contact.id)}"
             aria-label="更多联系人操作"
             title="更多联系人操作"
           >
@@ -3920,6 +3947,82 @@
           </button>
         </footer>
       </section>
+    `;
+  }
+
+  function renderContactProfileOverlay(route) {
+    const editorContactId = state.contactRemarkEditorContactId;
+    const actionContactId = state.contactActionSheetContactId;
+    const contactId = editorContactId || actionContactId;
+    if (!contactId || route.section !== "contact-profile" || route.contactId !== contactId) {
+      return "";
+    }
+
+    const contact = findContact(contactId);
+    if (!contact) {
+      return "";
+    }
+
+    if (editorContactId) {
+      return `
+        <div class="runtime-contact-profile__overlay">
+          <button class="runtime-contact-profile__overlay-scrim" type="button" data-action="close-contact-profile-overlay" aria-label="关闭修改备注名"></button>
+          <section class="runtime-contact-profile__sheet runtime-contact-profile__remark-sheet" role="dialog" aria-modal="true" aria-labelledby="contact-remark-editor-title">
+            <span class="runtime-contact-profile__sheet-handle" aria-hidden="true"></span>
+            <form class="runtime-contact-profile__remark-form" data-form="contact-remark-form" data-contact-id="${escapeHtml(contact.id)}">
+              <div class="runtime-contact-profile__sheet-heading">
+                <h3 id="contact-remark-editor-title">修改备注名</h3>
+                <p>${escapeHtml(contact.name)}</p>
+              </div>
+              <label class="runtime-contact-profile__remark-field" for="contact-remark-input">
+                <span>备注名</span>
+                <input
+                  id="contact-remark-input"
+                  type="text"
+                  value="${escapeHtml(state.contactRemarkDraft)}"
+                  maxlength="24"
+                  autocomplete="off"
+                  autocapitalize="words"
+                  aria-describedby="contact-remark-help"
+                >
+              </label>
+              <p class="runtime-contact-profile__remark-help" id="contact-remark-help">仅自己可见</p>
+              <div class="runtime-contact-profile__sheet-actions">
+                <button class="runtime-contact-profile__sheet-button runtime-contact-profile__sheet-button--secondary" type="button" data-action="close-contact-profile-overlay">取消</button>
+                <button class="runtime-contact-profile__sheet-button runtime-contact-profile__sheet-button--primary" type="submit">保存</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="runtime-contact-profile__overlay">
+        <button class="runtime-contact-profile__overlay-scrim" type="button" data-action="close-contact-profile-overlay" aria-label="关闭联系人操作"></button>
+        <section class="runtime-contact-profile__sheet runtime-contact-profile__actions-sheet" role="dialog" aria-modal="true" aria-labelledby="contact-actions-title">
+          <span class="runtime-contact-profile__sheet-handle" aria-hidden="true"></span>
+          <div class="runtime-contact-profile__sheet-heading">
+            <h3 id="contact-actions-title">联系人操作</h3>
+            <p>${escapeHtml(contact.name)}</p>
+          </div>
+          <div class="runtime-contact-profile__action-list" role="group" aria-label="${escapeHtml(contact.name)} 的更多操作">
+            <button type="button" data-action="edit-contact-remark" data-contact-id="${escapeHtml(contact.id)}">
+              ${renderIcon("edit", "runtime-contact-profile__action-icon")}
+              <span>修改备注</span>
+            </button>
+            <button type="button" data-action="start-contact-action" data-contact-action="voice" data-contact-id="${escapeHtml(contact.id)}">
+              ${renderIcon("phone", "runtime-contact-profile__action-icon")}
+              <span>语音通话</span>
+            </button>
+            <button type="button" data-action="start-contact-action" data-contact-action="video" data-contact-id="${escapeHtml(contact.id)}">
+              ${renderIcon("video", "runtime-contact-profile__action-icon")}
+              <span>视频通话</span>
+            </button>
+          </div>
+          <button class="runtime-contact-profile__sheet-cancel" type="button" data-action="close-contact-profile-overlay">取消</button>
+        </section>
+      </div>
     `;
   }
 
@@ -5408,6 +5511,62 @@
     render();
   }
 
+  function closeContactProfileOverlay() {
+    state.contactActionSheetContactId = null;
+    state.contactRemarkEditorContactId = null;
+    state.contactRemarkDraft = "";
+  }
+
+  function openContactActionSheet(contactId) {
+    if (!findContact(contactId)) {
+      return;
+    }
+    state.contactRemarkEditorContactId = null;
+    state.contactActionSheetContactId = contactId;
+    render();
+  }
+
+  function openContactRemarkEditor(contactId) {
+    const contact = findContact(contactId);
+    if (!contact) {
+      return;
+    }
+    state.contactActionSheetContactId = null;
+    state.contactRemarkEditorContactId = contact.id;
+    state.contactRemarkDraft = typeof contact.remark === "string" ? contact.remark : "";
+    render();
+    window.requestAnimationFrame(() => {
+      const input = document.getElementById("contact-remark-input");
+      if (input instanceof HTMLInputElement) {
+        input.focus({ preventScroll: true });
+        input.select();
+      }
+    });
+  }
+
+  function saveContactRemark(contactId) {
+    const contact = findContact(contactId);
+    if (!contact) {
+      return;
+    }
+    const nextRemark = state.contactRemarkDraft.trim().slice(0, 24);
+    contact.remark = nextRemark;
+    closeContactProfileOverlay();
+    showToast(nextRemark ? "备注已更新" : "备注已清除", nextRemark ? `${contact.name} 的备注名已更新为 ${nextRemark}。` : `${contact.name} 的备注名已恢复为未设置。`);
+    render();
+  }
+
+  function startContactAction(contactId, kind) {
+    const contact = findContact(contactId);
+    const actionLabel = kind === "voice" ? "语音通话" : kind === "video" ? "视频通话" : "";
+    if (!contact || !actionLabel) {
+      return;
+    }
+    closeContactProfileOverlay();
+    showToast(`${actionLabel}已发起`, `已向 ${contact.name} 发送${actionLabel}邀请。`);
+    render();
+  }
+
   function showToast(title, message) {
     state.toasts.unshift({
       id: `toast_${Date.now()}`,
@@ -5445,6 +5604,13 @@
   }
 
   function handleKeydown(event) {
+    if (event.key === "Escape" && (state.contactActionSheetContactId || state.contactRemarkEditorContactId)) {
+      event.preventDefault();
+      closeContactProfileOverlay();
+      render();
+      return;
+    }
+
     if (!(event.target instanceof Element)) {
       return;
     }
@@ -5561,6 +5727,23 @@
       render();
       return;
     }
+    if (action === "open-contact-actions") {
+      openContactActionSheet(target.getAttribute("data-contact-id"));
+      return;
+    }
+    if (action === "edit-contact-remark") {
+      openContactRemarkEditor(target.getAttribute("data-contact-id"));
+      return;
+    }
+    if (action === "close-contact-profile-overlay") {
+      closeContactProfileOverlay();
+      render();
+      return;
+    }
+    if (action === "start-contact-action") {
+      startContactAction(target.getAttribute("data-contact-id"), target.getAttribute("data-contact-action"));
+      return;
+    }
     if (action === "send-friend-request") {
       sendFriendRequest(target.getAttribute("data-user-id"));
       render();
@@ -5640,6 +5823,10 @@
   function handleInput(event) {
     const target = event.target;
 
+    if (target.id === "contact-remark-input") {
+      state.contactRemarkDraft = target.value;
+      return;
+    }
     if (target.id === "chat-filter-input") {
       state.chatFilter = target.value;
       scheduleFilterRender(target);
@@ -5726,6 +5913,11 @@
     }
 
     const formKind = form.getAttribute("data-form");
+    if (formKind === "contact-remark-form") {
+      event.preventDefault();
+      saveContactRemark(form.getAttribute("data-contact-id"));
+      return;
+    }
     if (formKind === "login-form") {
       event.preventDefault();
       showToast("登录成功", "欢迎回来。");
