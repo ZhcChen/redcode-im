@@ -34,3 +34,13 @@ playwright-report/
 test-results/
 h5-app/playwright-report/
 h5-app/test-results/
+
+# Agent/local automation artifacts
+.pi/
+.pi-subagent/
+.pi-subagents/
+nul
+NUL
+.cache/
+.playwright-mcp/
+.artifacts/
