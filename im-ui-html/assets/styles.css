@@ -4055,17 +4055,34 @@ body[data-theme="dark"] .spec-stage {
   font-size: 0.84em;
 }
 
-.moment-card__stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.38em;
-}
-
 .moment-card__footer {
+  min-height: 30px;
   display: flex;
   align-items: center;
   gap: 1em;
   flex-wrap: wrap;
+}
+
+.moment-card__like {
+  min-width: 38px;
+  min-height: 30px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+}
+
+.moment-card__like.is-active {
+  color: var(--primary-strong);
+}
+
+.moment-card__like-icon,
+.moment-card__like-icon svg {
+  width: 17px;
+  height: 17px;
 }
 
 .moment-card__detail {

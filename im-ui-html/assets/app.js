@@ -3777,6 +3777,9 @@
   }
 
   function renderMomentCard(item) {
+    const liked = state.likedMomentIds.has(item.id);
+    const submittedComments = state.momentComments[item.id] || [];
+
     return `
       <article class="moment-card">
         <div class="moment-card__header">
@@ -3788,13 +3791,19 @@
         </div>
         <p class="moment-card__text">${escapeHtml(item.text)}</p>
         <div class="moment-card__media">${escapeHtml(item.media)}</div>
-        <div class="moment-card__stats">
-          <span class="chip chip--filled">内容流</span>
-          <span class="chip">${escapeHtml(item.media)}</span>
-        </div>
         <div class="moment-card__footer">
-          <span>赞 ${item.likes}</span>
-          <span>评论 ${item.comments}</span>
+          <button
+            class="moment-card__like ${liked ? "is-active" : ""}"
+            type="button"
+            data-action="toggle-moment-like"
+            data-moment-id="${escapeHtml(item.id)}"
+            aria-pressed="${liked}"
+            aria-label="${liked ? "取消点赞" : "点赞"}"
+          >
+            ${renderIcon("heart", "moment-card__like-icon")}
+            <span class="moment-card__like-count">${item.likes + (liked ? 1 : 0)}</span>
+          </button>
+          <span>评论 ${item.comments + submittedComments.length}</span>
           <button class="moment-card__detail" type="button" data-action="navigate" data-route="/discover/moments/${escapeHtml(item.id)}">
             查看详情
             ${renderIcon("chevronRight", "moment-card__detail-icon")}
@@ -6347,8 +6356,7 @@
       target.classList.toggle("is-active", !liked);
       target.setAttribute("aria-pressed", String(!liked));
       target.setAttribute("aria-label", liked ? "点赞" : "取消点赞");
-      const detail = target.closest(".runtime-moment-detail");
-      const count = detail?.querySelector(".runtime-moment-detail__like-count");
+      const count = target.querySelector(".runtime-moment-detail__like-count, .moment-card__like-count");
       if (count) {
         count.textContent = String(moment.likes + (liked ? 0 : 1));
       }
