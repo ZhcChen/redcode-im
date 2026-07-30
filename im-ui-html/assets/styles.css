@@ -4077,13 +4077,11 @@ body[data-theme="dark"] .spec-stage {
 }
 
 .moment-media-grid--count-1 {
-  max-width: 240px;
   grid-template-columns: minmax(0, 1fr);
   aspect-ratio: 4 / 3;
 }
 
 .moment-media-grid--count-2 {
-  max-width: 280px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   aspect-ratio: 2 / 1;
 }
@@ -4094,14 +4092,12 @@ body[data-theme="dark"] .spec-stage {
 }
 
 .moment-media-grid--count-4 {
-  max-width: 220px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   aspect-ratio: 1;
 }
 
 .moment-media-grid--count-5,
 .moment-media-grid--count-6 {
-  max-width: 282px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   aspect-ratio: 3 / 2;
@@ -4110,7 +4106,6 @@ body[data-theme="dark"] .spec-stage {
 .moment-media-grid--count-7,
 .moment-media-grid--count-8,
 .moment-media-grid--count-9 {
-  max-width: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
   aspect-ratio: 1;
