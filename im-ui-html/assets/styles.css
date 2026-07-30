@@ -6878,15 +6878,59 @@ body[data-theme="dark"] .phone-screen {
 .runtime-composer-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 12px;
 }
 
 .runtime-composer-action-card {
-  min-height: 54px;
-  border-radius: 8px;
-  background: var(--runtime-soft);
+  min-width: 0;
+  min-height: 76px;
+  padding: 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 7px;
+  border-radius: 10px;
+  background: transparent;
   color: var(--runtime-ink);
   font-size: 12px;
+}
+
+.runtime-composer-action-card__icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--runtime-soft);
+  color: var(--runtime-muted);
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.runtime-composer-action-card__glyph,
+.runtime-composer-action-card__glyph svg {
+  width: 23px;
+  height: 23px;
+}
+
+.runtime-composer-action-card__label {
+  color: var(--runtime-muted);
+  font-size: 12px;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.runtime-composer-action-card:active .runtime-composer-action-card__icon {
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-accent-deep);
+  transform: scale(0.94);
+}
+
+.runtime-composer-action-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 62%, transparent);
+  outline-offset: 2px;
 }
 
 .runtime-composer {

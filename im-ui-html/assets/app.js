@@ -174,6 +174,24 @@
       '<rect x="4.8" y="7.15" width="10.75" height="9.7" rx="2.3" />',
       '<path d="m15.55 10.15 3.65-2.05v7.8l-3.65-2.05" />',
     ],
+    image: [
+      '<rect x="3.5" y="4.5" width="17" height="15" rx="2.25" />',
+      '<circle cx="8.5" cy="9" r="1.5" />',
+      '<path d="m20.5 15-4.25-4.25L6.5 19.5" />',
+    ],
+    file: [
+      '<path d="M6.5 3.5h7l4 4v13h-11Z" />',
+      '<path d="M13.5 3.5v4h4" />',
+      '<path d="M9.5 12h5M9.5 15.5h5" />',
+    ],
+    camera: [
+      '<path d="M8.25 6.25 9.4 4.5h5.2l1.15 1.75h2.5a2.25 2.25 0 0 1 2.25 2.25v8.75a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25V8.5a2.25 2.25 0 0 1 2.25-2.25Z" />',
+      '<circle cx="12" cy="12.75" r="3.25" />',
+    ],
+    mapPin: [
+      '<path d="M19 10.25c0 5-7 10.25-7 10.25S5 15.25 5 10.25a7 7 0 1 1 14 0Z" />',
+      '<circle cx="12" cy="10.25" r="2.25" />',
+    ],
     moments: [
       '<rect x="4.9" y="5.3" width="14.2" height="13.4" rx="3.3" />',
       '<path d="M7.65 14.5 10.25 11.95l2.2 2.1 3.95-4.05 2.2 2.3" />',
@@ -2955,10 +2973,10 @@
     const isOpen = activePanel === "emoji" || activePanel === "more";
     const emojis = EMOJI_CATALOG;
     const actions = [
-      ["图片", "选择图片"],
-      ["文件", "选择文件"],
-      ["拍摄", "打开相机"],
-      ["位置", "发送位置"],
+      { label: "图片", message: "选择图片", icon: "image" },
+      { label: "文件", message: "选择文件", icon: "file" },
+      { label: "拍摄", message: "打开相机", icon: "camera" },
+      { label: "位置", message: "发送位置", icon: "mapPin" },
     ];
 
     return `
@@ -2999,9 +3017,12 @@
                     class="runtime-composer-action-card"
                     type="button"
                     data-action="show-hint"
-                    data-message="${item[1]}"
+                    data-message="${item.message}"
                   >
-                    <span>${item[0]}</span>
+                    <span class="runtime-composer-action-card__icon">
+                      ${renderIcon(item.icon, "runtime-composer-action-card__glyph")}
+                    </span>
+                    <span class="runtime-composer-action-card__label">${item.label}</span>
                   </button>
                 `,
               )
