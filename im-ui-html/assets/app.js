@@ -71,6 +71,11 @@
       { id: "mc_1003_1", author: "Zoe Wang", tone: "violet", time: "昨天", text: "先保留统一入口，后续扩展会更稳。" },
     ],
   };
+  const MOMENT_LIKER_NAMES = [
+    "Zoe Wang", "Ian Chen", "Mia Sun", "Nora", "Olivia", "Jules", "Evan", "Lena", "Alice Li",
+    "Leo", "Ava", "Noah", "Emma", "Liam", "Sophia", "Mason", "Isla", "Lucas", "Ella", "James",
+    "Chloe", "Henry", "Grace", "Daniel", "Lily", "Oscar",
+  ];
 
   if (!source || !root) {
     return;
@@ -102,6 +107,7 @@
     composerPanel: null,
     composerPicker: null,
     likedMomentIds: new Set(),
+    expandedMomentLikeIds: new Set(),
     momentCommentDrafts: {},
     momentComments: {},
     highlightMessageId: null,
@@ -3832,6 +3838,8 @@
     const commentCount = item.comments + submittedComments.length;
     const draft = state.momentCommentDrafts[item.id] || "";
     const mediaCount = getMomentMediaCount(item);
+    const likers = getMomentLikers(item, liked);
+    const likersExpanded = state.expandedMomentLikeIds.has(item.id);
 
     return `
       <section class="screen runtime-moment-detail-screen">
@@ -3853,6 +3861,20 @@
             ${mediaCount ? renderMomentMediaGrid(item, mediaCount, "detail") : ""}
             <div class="runtime-moment-detail__engagement" aria-label="动态互动">
               <button
+                class="runtime-moment-detail__likers-toggle ${likersExpanded ? "is-expanded" : ""}"
+                type="button"
+                data-action="toggle-moment-likers"
+                data-moment-id="${escapeHtml(item.id)}"
+                aria-expanded="${likersExpanded}"
+                aria-controls="moment-likers-${escapeHtml(item.id)}"
+                aria-label="${likersExpanded ? "收起点赞用户" : "查看点赞用户"}"
+              >
+                <span class="runtime-moment-detail__liker-stack">
+                  ${likers.slice(0, 4).map(renderMomentLikerAvatar).join("")}
+                </span>
+                ${renderIcon("chevronDown", "runtime-moment-detail__likers-chevron")}
+              </button>
+              <button
                 class="runtime-moment-detail__like ${liked ? "is-active" : ""}"
                 type="button"
                 data-action="toggle-moment-like"
@@ -3863,6 +3885,14 @@
                 ${renderIcon("heart", "runtime-moment-detail__like-icon")}
                 <span class="runtime-moment-detail__like-count">${item.likes + (liked ? 1 : 0)}</span>
               </button>
+            </div>
+            <div
+              id="moment-likers-${escapeHtml(item.id)}"
+              class="runtime-moment-detail__likers"
+              aria-label="点赞用户"
+              ${likersExpanded ? "" : "hidden"}
+            >
+              ${likers.map(renderMomentLikerAvatar).join("")}
             </div>
           </article>
           <section class="runtime-moment-comments" aria-labelledby="moment-comments-title">
@@ -3899,6 +3929,19 @@
     }
 
     return Math.min(Math.max(Number.parseInt(item.media, 10) || 0, 0), 9);
+  }
+
+  function getMomentLikers(item, liked) {
+    const baseLikers = MOMENT_LIKER_NAMES.slice(0, item.likes).map((name, index) => ({
+      name,
+      tone: ["violet", "mint", "amber"][index % 3],
+    }));
+
+    return liked ? [{ name: "Chen Atlas", tone: "mint" }, ...baseLikers] : baseLikers;
+  }
+
+  function renderMomentLikerAvatar(liker) {
+    return `<span class="runtime-moment-detail__liker" title="${escapeHtml(liker.name)}" aria-label="${escapeHtml(liker.name)}">${renderAvatar(liker.name, liker.tone, "avatar--sm")}</span>`;
   }
 
   function renderMomentMediaGrid(item, mediaCount, variant) {
@@ -6368,12 +6411,33 @@
       } else {
         state.likedMomentIds.add(moment.id);
       }
+      if (target.closest(".runtime-moment-detail")) {
+        render();
+        return;
+      }
       target.classList.toggle("is-active", !liked);
       target.setAttribute("aria-pressed", String(!liked));
       target.setAttribute("aria-label", liked ? "点赞" : "取消点赞");
       const count = target.querySelector(".runtime-moment-detail__like-count, .moment-card__like-count");
       if (count) {
         count.textContent = String(moment.likes + (liked ? 0 : 1));
+      }
+      return;
+    }
+    if (action === "toggle-moment-likers") {
+      const momentId = target.getAttribute("data-moment-id");
+      const panel = document.getElementById(`moment-likers-${momentId}`);
+      const expanded = state.expandedMomentLikeIds.has(momentId);
+      if (expanded) {
+        state.expandedMomentLikeIds.delete(momentId);
+      } else {
+        state.expandedMomentLikeIds.add(momentId);
+      }
+      target.classList.toggle("is-expanded", !expanded);
+      target.setAttribute("aria-expanded", String(!expanded));
+      target.setAttribute("aria-label", expanded ? "查看点赞用户" : "收起点赞用户");
+      if (panel) {
+        panel.hidden = expanded;
       }
       return;
     }
