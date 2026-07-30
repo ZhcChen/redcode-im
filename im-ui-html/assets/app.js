@@ -3835,29 +3835,27 @@
             </header>
             <p class="runtime-moment-detail__text">${escapeHtml(item.text)}</p>
             ${hasMedia ? renderMomentDetailMedia(item) : ""}
-            <p class="runtime-moment-detail__timestamp">发布于 ${escapeHtml(item.time)}</p>
-            <div class="runtime-moment-detail__actions" aria-label="动态互动">
+            <div class="runtime-moment-detail__engagement" aria-label="动态互动">
+              <p>
+                <span><b class="runtime-moment-detail__like-count">${item.likes + (liked ? 1 : 0)}</b> 人赞过</span>
+                <i aria-hidden="true"></i>
+                <span>${commentCount} 条评论</span>
+              </p>
               <button
-                class="runtime-moment-detail__action ${liked ? "is-active" : ""}"
+                class="runtime-moment-detail__like ${liked ? "is-active" : ""}"
                 type="button"
                 data-action="toggle-moment-like"
                 data-moment-id="${escapeHtml(item.id)}"
                 aria-pressed="${liked}"
+                aria-label="${liked ? "取消点赞" : "点赞"}"
               >
-                ${renderIcon("heart", "runtime-moment-detail__action-icon")}
-                <span class="runtime-moment-detail__action-label">${liked ? "已赞" : "点赞"}</span>
-                <b>${item.likes + (liked ? 1 : 0)}</b>
-              </button>
-              <button class="runtime-moment-detail__action" type="button" data-action="focus-moment-comment">
-                ${renderIcon("comment", "runtime-moment-detail__action-icon")}
-                <span>评论</span>
-                <b>${commentCount}</b>
+                ${renderIcon("heart", "runtime-moment-detail__like-icon")}
               </button>
             </div>
           </article>
           <section class="runtime-moment-comments" aria-labelledby="moment-comments-title">
             <div class="runtime-moment-comments__heading">
-              <h3 id="moment-comments-title">最新评论</h3>
+              <h3 id="moment-comments-title">评论</h3>
               <span>${commentCount} 条</span>
             </div>
             <div class="runtime-moment-comments__list">
@@ -6353,20 +6351,11 @@
       }
       target.classList.toggle("is-active", !liked);
       target.setAttribute("aria-pressed", String(!liked));
-      const label = target.querySelector(".runtime-moment-detail__action-label");
-      const count = target.querySelector("b");
-      if (label) {
-        label.textContent = liked ? "点赞" : "已赞";
-      }
+      target.setAttribute("aria-label", liked ? "点赞" : "取消点赞");
+      const detail = target.closest(".runtime-moment-detail");
+      const count = detail?.querySelector(".runtime-moment-detail__like-count");
       if (count) {
         count.textContent = String(moment.likes + (liked ? 0 : 1));
-      }
-      return;
-    }
-    if (action === "focus-moment-comment") {
-      const input = document.getElementById("moment-comment-input");
-      if (input instanceof HTMLInputElement) {
-        input.focus({ preventScroll: true });
       }
       return;
     }
