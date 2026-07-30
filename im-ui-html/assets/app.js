@@ -3821,8 +3821,7 @@
     }
     const relatedGroups = groupsForContact(contact.id);
     const statusTone = contact.status === "在线" ? "online" : contact.status === "忙碌中" ? "busy" : "away";
-    const note = contact.note || "暂无备注";
-    const sharedGroupLabel = relatedGroups.length ? `${relatedGroups.length} 个` : "暂无";
+    const remark = typeof contact.remark === "string" ? contact.remark.trim() : "";
 
     return `
       <section class="screen runtime-contact-profile-screen">
@@ -3847,16 +3846,15 @@
               </div>
             </section>
 
-            <section class="runtime-contact-profile__note-strip" aria-label="联系人备注">
-              <span>备注</span>
-              <p>${escapeHtml(note)}</p>
-            </section>
-
             <section class="runtime-contact-profile__section" aria-labelledby="contact-profile-info-title">
               <div class="runtime-contact-profile__section-heading">
-                <h3 id="contact-profile-info-title">联系信息</h3>
+                <h3 id="contact-profile-info-title">联系人信息</h3>
               </div>
               <dl class="runtime-contact-profile__fact-list">
+                <div class="runtime-contact-profile__fact-row runtime-contact-profile__fact-row--remark">
+                  <dt>备注名</dt>
+                  <dd class="${remark ? "" : "is-empty"}">${escapeHtml(remark || "未设置")}</dd>
+                </div>
                 <div class="runtime-contact-profile__fact-row">
                   <dt>账号</dt>
                   <dd>@${escapeHtml(contact.username)}</dd>
@@ -3864,14 +3862,6 @@
                 <div class="runtime-contact-profile__fact-row">
                   <dt>团队</dt>
                   <dd>${escapeHtml(contact.zone)}</dd>
-                </div>
-                <div class="runtime-contact-profile__fact-row">
-                  <dt>关系</dt>
-                  <dd>已添加</dd>
-                </div>
-                <div class="runtime-contact-profile__fact-row">
-                  <dt>共同群聊</dt>
-                  <dd>${sharedGroupLabel}</dd>
                 </div>
               </dl>
             </section>
@@ -4928,7 +4918,7 @@
       return data.contacts.slice();
     }
     return data.contacts.filter((contact) =>
-      [contact.name, contact.title, contact.zone, contact.note, contact.username]
+      [contact.name, contact.title, contact.zone, contact.remark, contact.workFocus, contact.username]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -5133,7 +5123,8 @@
       title: request.title,
       status: "在线",
       tone: request.tone,
-      note: "由好友申请转入联系人列表",
+      remark: "",
+      workFocus: "由好友申请转入联系人列表",
       zone: "新的好友",
     };
     data.contacts.push(contact);

@@ -1639,6 +1639,26 @@ window.RedcodeIMPrototypeData = {
 
   data.contacts.push(...additionalContacts);
 
+  const contactRemarks = {
+    u_alice: "Alice",
+    u_zoe: "Zoe（产品）",
+    u_ian: "Ian（安卓）",
+    u_mia: "Mia（后端）",
+    u_jules: "Jules（测试）",
+    u_aaron: "阿伦",
+    u_ava: "Ava（增长）",
+    u_ben: "Ben（iOS）",
+    u_bella: "贝拉",
+    u_chloe: "Chloe（无障碍）",
+  };
+
+  data.contacts.forEach((contact) => {
+    // Existing mock notes describe a work focus; contact remarks are user-owned aliases.
+    contact.workFocus = contact.note || "";
+    delete contact.note;
+    contact.remark = contactRemarks[contact.id] || "";
+  });
+
   const directChatSeeds = [
     {
       id: "c_room_ava",

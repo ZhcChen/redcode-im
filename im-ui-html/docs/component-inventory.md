@@ -23,7 +23,7 @@
 | `Empty State` | 空列表、无结果、未开启功能说明 | `Plain / Actionable / Illustrated` | `Shared empty state widget` |
 | `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Pressed / Active / Disabled` | `Pressable surface card` |
 | `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
-| `Contact Profile` | 居中身份区、备注条、连续资料行、按需共同群聊与固定底部操作栏 | `Online / Away / Busy / Shared Groups / No Shared Groups` | `ContactIdentity + note strip + detail rows + fixed message dock` |
+| `Contact Profile` | 居中身份区、用户备注名、连续资料行、按需共同群聊与固定底部操作栏 | `Online / Away / Busy / Remark Set / Remark Unset / Shared Groups / No Shared Groups` | `ContactIdentity + user-owned remark row + detail rows + fixed message dock` |
 | `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
 
 App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚动时标题和工具操作保持可见；嵌在已提供横向内容边距的列表滚动容器内时，页头不再额外添加横向 padding；左侧返回或标题与列表左线对齐，右侧操作与列表右线对齐。页面直接承载的普通页头保留一层内容边距；紧凑居中导航维持其独立的固定布局。

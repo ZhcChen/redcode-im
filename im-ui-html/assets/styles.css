@@ -9101,31 +9101,6 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   white-space: normal;
 }
 
-.phone-screen .runtime-contact-profile__note-strip {
-  padding: 15px 0;
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  border-top: 1px solid var(--runtime-line);
-  border-bottom: 1px solid var(--runtime-line);
-}
-
-.phone-screen .runtime-contact-profile__note-strip > span {
-  padding-top: 1px;
-  color: var(--runtime-accent-deep);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.phone-screen .runtime-contact-profile__note-strip p {
-  margin: 0;
-  color: var(--runtime-ink);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 .phone-screen .runtime-contact-profile__section {
   display: grid;
   gap: 10px;
@@ -9191,6 +9166,16 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   font-weight: 620;
   line-height: 1.42;
   text-align: right;
+}
+
+.phone-screen .runtime-contact-profile__fact-row--remark dd {
+  color: var(--runtime-accent-deep);
+  font-weight: 720;
+}
+
+.phone-screen .runtime-contact-profile__fact-row--remark dd.is-empty {
+  color: var(--runtime-faint);
+  font-weight: 620;
 }
 
 .phone-screen .runtime-contact-profile__shared-row {
