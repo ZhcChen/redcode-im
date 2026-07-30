@@ -6822,8 +6822,8 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-composer-panel.is-open {
-  max-height: 224px;
-  padding: 12px 16px calc(12px + var(--runtime-safe-area-bottom));
+  max-height: 240px;
+  padding: 16px 16px calc(16px + var(--runtime-safe-area-bottom));
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
