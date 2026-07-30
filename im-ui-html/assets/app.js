@@ -4162,15 +4162,14 @@
                 />
               </div>
             </label>
-            <section class="surface-card surface-card--search-results">
-              <div class="surface-card__header">
-                <div class="surface-card__header-copy">
-                  <h3>搜索结果</h3>
-                  <p>动作按钮随关系状态变化，不让用户在“添加 / 处理 / 发消息”之间猜测。</p>
-                </div>
-                <span class="badge">${users.length}</span>
+            <section class="surface-card surface-card--search-results runtime-add-friend-results">
+              <div class="runtime-add-friend-results__header">
+                <h3>搜索结果</h3>
+                <span>${users.length} 位</span>
               </div>
-              ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
+              <div class="runtime-add-friend-results__list">
+                ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
+              </div>
             </section>
             <section class="surface-card surface-card--friend-note">
               <div class="surface-card__header">
@@ -4201,35 +4200,32 @@
     const action = renderSearchUserAction(user);
 
     return `
-      <div class="list-row list-row--static list-row--search-user">
-        ${renderAvatar(user.name, user.tone, "avatar--md")}
-        <div class="list-row__body">
-          <div class="list-row__title">
-            <strong>${escapeHtml(user.name)}</strong>
-            <span class="badge">${relationLabel(user.relation)}</span>
-          </div>
-          <div class="list-row__summary">${escapeHtml(user.username)} · ${escapeHtml(user.title)}</div>
-          <div class="contact-row__chips">
-            <span class="chip chip--filled">${escapeHtml(user.city)}</span>
-            <span class="chip">${escapeHtml(searchUserRelationNote(user))}</span>
-          </div>
-        </div>
-        ${action}
-      </div>
+      <article class="runtime-add-friend-result">
+        <span class="runtime-add-friend-result__avatar">${renderAvatar(user.name, user.tone, "avatar--md")}</span>
+        <span class="runtime-add-friend-result__body">
+          <strong>${escapeHtml(user.name)}</strong>
+          <span class="runtime-add-friend-result__identity">@${escapeHtml(user.username)} · ${escapeHtml(user.title)}</span>
+          <span class="runtime-add-friend-result__city">
+            ${renderIcon("mapPin", "runtime-add-friend-result__city-icon")}
+            ${escapeHtml(user.city)}
+          </span>
+        </span>
+        <span class="runtime-add-friend-result__action">${action}</span>
+      </article>
     `;
   }
 
   function renderSearchUserAction(user) {
     if (user.relation === "pending_incoming") {
-      return `<button class="ghost-button ghost-button--small" data-action="navigate" data-route="/contacts/requests">去处理</button>`;
+      return `<button class="runtime-add-friend-result__button runtime-add-friend-result__button--secondary" type="button" data-action="navigate" data-route="/contacts/requests">去处理</button>`;
     }
     if (user.relation === "pending_outgoing") {
-      return `<button class="ghost-button ghost-button--small" type="button" disabled>已发送</button>`;
+      return `<button class="runtime-add-friend-result__button runtime-add-friend-result__button--disabled" type="button" disabled>已发送</button>`;
     }
     if (user.relation === "friend") {
-      return `<button class="ghost-button ghost-button--small" data-action="open-direct-chat" data-contact-id="${user.id}">发消息</button>`;
+      return `<button class="runtime-add-friend-result__button runtime-add-friend-result__button--secondary" type="button" data-action="open-direct-chat" data-contact-id="${user.id}">发消息</button>`;
     }
-    return `<button class="primary-button primary-button--small" data-action="send-friend-request" data-user-id="${user.id}">添加</button>`;
+    return `<button class="runtime-add-friend-result__button runtime-add-friend-result__button--primary" type="button" data-action="send-friend-request" data-user-id="${user.id}">添加</button>`;
   }
 
   function renderContactProfileScreen(contactId) {
@@ -5473,19 +5469,6 @@
     return data.groups.filter((group) => group.members.includes(contactId));
   }
 
-  function searchUserRelationNote(user) {
-    if (user.relation === "pending_incoming") {
-      return "等你处理";
-    }
-    if (user.relation === "pending_outgoing") {
-      return "等待对方";
-    }
-    if (user.relation === "friend") {
-      return "已是好友";
-    }
-    return "可发申请";
-  }
-
   function matchesGroupMemberFilter(contact) {
     const keyword = state.groupMemberFilter.trim().toLowerCase();
     if (!keyword) {
@@ -6479,19 +6462,6 @@
       event.preventDefault();
       createGroupFromForm();
     }
-  }
-
-  function relationLabel(value) {
-    if (value === "pending_incoming") {
-      return "待处理";
-    }
-    if (value === "pending_outgoing") {
-      return "已申请";
-    }
-    if (value === "friend") {
-      return "好友";
-    }
-    return "可添加";
   }
 
   function statusLabel(value) {
