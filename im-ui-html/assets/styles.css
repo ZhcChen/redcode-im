@@ -8976,6 +8976,10 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   background: var(--runtime-canvas);
 }
 
+.phone-screen .runtime-contact-profile-scroll {
+  padding-inline: 16px;
+}
+
 .phone-screen .runtime-contact-profile {
   padding: 18px 0 26px;
   display: grid;
