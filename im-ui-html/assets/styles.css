@@ -5320,7 +5320,7 @@ body[data-theme="dark"] .phone-screen {
   padding-bottom: 10px;
 }
 
-.phone-screen .runtime-screen--chat-list > .runtime-scroll > .runtime-header {
+.phone-screen .runtime-scroll > .runtime-header:not(.runtime-header--compact) {
   padding-inline: 0;
 }
 

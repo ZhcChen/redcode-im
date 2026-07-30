@@ -9,7 +9,7 @@
 | 组件 | 用途 | 状态 | Flutter 映射 |
 | --- | --- | --- | --- |
 | `App Shell` | 状态栏、App Bar、根滚动区、页面容器 | `Root / Subpage / Overlay` | `Scaffold + SafeArea + custom shell` |
-| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
+| `App Bar` | 标题、返回、右侧轻操作统一头部结构 | `Root / Subpage / Action / Dense / Content-aligned List / Compact Detail / Compact Fixed Feed / Fixed Directory / Source-aware Back` | `PreferredSizeWidget + shared title/action slots` |
 | `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Recent / Highlighted / Large Emoji / Playing` | `Message bubble + reaction row` |
 | `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
@@ -23,6 +23,8 @@
 | `Action Card` | 设计入口、发现入口、快速评审卡片 | `Default / Pressed / Active / Disabled` | `Pressable surface card` |
 | `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
 | `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
+
+App Bar 对齐规则：嵌在已提供横向内容边距的列表滚动容器内时，页头不再额外添加横向 padding；左侧返回或标题与列表左线对齐，右侧操作与列表右线对齐。页面直接承载的普通页头保留一层内容边距；紧凑居中导航维持其独立的固定布局。
 
 ## 页面复合组件
 
