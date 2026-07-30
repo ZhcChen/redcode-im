@@ -29,6 +29,29 @@
     { id: "raise", fallback: "🙌", label: "庆祝", motion: "bounce" },
   ];
   const EMOJI_BY_FALLBACK = new Map(EMOJI_CATALOG.map((emoji) => [emoji.fallback, emoji]));
+  const SHAREABLE_FAVORITES = [
+    {
+      id: "fav_mobile-review",
+      kind: "文本",
+      title: "移动端重构评审要点",
+      summary: "先收敛输入区、操作面板与会话页面的层级。",
+      icon: "bookmark",
+    },
+    {
+      id: "fav_design-source",
+      kind: "文件",
+      title: "RedCode IM 2.0 设计源说明.pdf",
+      summary: "PDF · 2.8 MB · 今天更新",
+      icon: "file",
+    },
+    {
+      id: "fav_sync-notes",
+      kind: "链接",
+      title: "产品评审会议纪要",
+      summary: "docs.redcode.im/reviews/mobile-im",
+      icon: "link",
+    },
+  ];
 
   if (!source || !root) {
     return;
@@ -58,6 +81,7 @@
     createGroupMembers: new Set(["u_alice", "u_zoe"]),
     chatDrafts: {},
     composerPanel: null,
+    composerPicker: null,
     highlightMessageId: null,
     recentMessageId: null,
     navigationStack: [],
@@ -201,6 +225,10 @@
     bookmark: [
       '<path d="M6.5 4.5h11v16L12 17l-5.5 3.5Z" />',
     ],
+    link: [
+      '<path d="M10.2 13.8a4 4 0 0 0 5.65.02l2.45-2.45a4 4 0 0 0-5.66-5.66l-1.4 1.4" />',
+      '<path d="M13.8 10.2a4 4 0 0 0-5.65-.02L5.7 12.63a4 4 0 0 0 5.66 5.66l1.4-1.4" />',
+    ],
     microphone: [
       '<rect x="9" y="3.5" width="6" height="11" rx="3" />',
       '<path d="M5.75 11.5a6.25 6.25 0 0 0 12.5 0M12 17.75v3" />',
@@ -272,6 +300,7 @@
     const activeRoute = resolveMobilePreviewRoute(route);
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
+      state.composerPicker = null;
     }
     if (
       state.callSession &&
@@ -3008,6 +3037,7 @@
           </div>
         </form>
         ${renderComposerPanel(chat)}
+        ${renderComposerPicker(chat)}
       </section>
     `;
   }
@@ -3024,8 +3054,8 @@
       { label: isGroup ? "视频会议" : "视频通话", callType: "video", icon: "video" },
       { label: "文件", message: "选择文件", icon: "file" },
       { label: "位置", message: "发送位置", icon: "mapPin" },
-      { label: "名片", message: "选择联系人名片", icon: "contactCard" },
-      { label: "收藏", message: "选择收藏内容", icon: "bookmark" },
+      { label: "名片", picker: "contact-card", icon: "contactCard" },
+      { label: "收藏", picker: "favorite", icon: "bookmark" },
     ];
 
     return `
@@ -3064,8 +3094,14 @@
                   <button
                     class="runtime-composer-action-card"
                     type="button"
-                    data-action="${item.callType ? "start-call" : "show-hint"}"
-                    ${item.callType ? `data-call-type="${item.callType}"` : `data-message="${item.message}"`}
+                    data-action="${item.callType ? "start-call" : item.picker ? "open-composer-picker" : "show-hint"}"
+                    ${
+                      item.callType
+                        ? `data-call-type="${item.callType}"`
+                        : item.picker
+                        ? `data-picker-type="${item.picker}"`
+                        : `data-message="${item.message}"`
+                    }
                   >
                     <span class="runtime-composer-action-card__icon">
                       ${renderIcon(item.icon, "runtime-composer-action-card__glyph")}
@@ -3076,6 +3112,91 @@
               )
               .join("")}
           </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderComposerPicker(chat) {
+    const picker = state.composerPicker;
+    if (!picker || picker.chatId !== chat.id) {
+      return "";
+    }
+
+    const isContactPicker = picker.type === "contact-card";
+    const title = isContactPicker ? "发送名片" : "发送收藏";
+    const description = isContactPicker ? "选择一位联系人发送到当前会话" : "选择一条收藏内容发送到当前会话";
+    const directContact = chat.type === "single" ? findDirectContact(chat) : null;
+    const contacts = data.contacts.filter((contact) => contact.id !== directContact?.id);
+    const content = isContactPicker
+      ? `
+          <p class="runtime-composer-picker__section-label">联系人</p>
+          <div class="runtime-composer-picker__list">
+            ${
+              contacts.length
+                ? contacts
+                    .map(
+                      (contact) => `
+                        <button
+                          class="runtime-composer-picker__row runtime-composer-picker__row--contact"
+                          type="button"
+                          data-action="send-composer-picker-item"
+                          data-picker-type="contact-card"
+                          data-item-id="${escapeHtml(contact.id)}"
+                        >
+                          ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+                          <span class="runtime-composer-picker__row-copy">
+                            <strong>${escapeHtml(contact.name)}</strong>
+                            <small>${escapeHtml(contact.title)} · @${escapeHtml(contact.username)}</small>
+                          </span>
+                          ${renderIcon("chevronRight", "runtime-composer-picker__row-chevron")}
+                        </button>
+                      `,
+                    )
+                    .join("")
+                : renderEmptyState("暂无可发送联系人", "添加联系人后可在这里发送名片。")
+            }
+          </div>
+        `
+      : `
+          <p class="runtime-composer-picker__section-label">我的收藏</p>
+          <div class="runtime-composer-picker__list">
+            ${SHAREABLE_FAVORITES.map(
+              (favorite) => `
+                <button
+                  class="runtime-composer-picker__row runtime-composer-picker__row--favorite"
+                  type="button"
+                  data-action="send-composer-picker-item"
+                  data-picker-type="favorite"
+                  data-item-id="${escapeHtml(favorite.id)}"
+                >
+                  <span class="runtime-composer-picker__favorite-icon">
+                    ${renderIcon(favorite.icon, "runtime-composer-picker__favorite-glyph")}
+                  </span>
+                  <span class="runtime-composer-picker__row-copy">
+                    <small>${escapeHtml(favorite.kind)}</small>
+                    <strong>${escapeHtml(favorite.title)}</strong>
+                    <em>${escapeHtml(favorite.summary)}</em>
+                  </span>
+                  ${renderIcon("chevronRight", "runtime-composer-picker__row-chevron")}
+                </button>
+              `,
+            ).join("")}
+          </div>
+        `;
+
+    return `
+      <section class="runtime-composer-picker" role="dialog" aria-modal="true" aria-labelledby="composer-picker-title">
+        <header class="runtime-composer-picker__header">
+          <button class="runtime-icon-button runtime-icon-button--quiet" type="button" data-action="close-composer-picker" aria-label="关闭${title}">
+            ${renderIcon("close", "runtime-icon-button__glyph")}
+          </button>
+          <h2 id="composer-picker-title">${title}</h2>
+          <span class="runtime-composer-picker__header-spacer" aria-hidden="true"></span>
+        </header>
+        <div class="runtime-composer-picker__scroll">
+          <p class="runtime-composer-picker__description">${description}</p>
+          ${content}
         </div>
       </section>
     `;
@@ -3356,12 +3477,41 @@
     `;
   }
 
+  function renderSharedMessage(share) {
+    if (share.type === "contact") {
+      return `
+        <div class="message-share message-share--contact">
+          ${renderAvatar(share.name, share.tone, "avatar--md")}
+          <span class="message-share__copy">
+            <strong>${escapeHtml(share.name)}</strong>
+            <small>${escapeHtml(share.title)} · @${escapeHtml(share.username)}</small>
+          </span>
+          ${renderIcon("chevronRight", "message-share__chevron")}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="message-share message-share--favorite">
+        <span class="message-share__favorite-icon">${renderIcon(share.icon, "message-share__favorite-glyph")}</span>
+        <span class="message-share__copy">
+          <small>${escapeHtml(share.kind)}</small>
+          <strong>${escapeHtml(share.title)}</strong>
+          <em>${escapeHtml(share.summary)}</em>
+        </span>
+        ${renderIcon("chevronRight", "message-share__chevron")}
+      </div>
+    `;
+  }
+
   function renderMessageBubble(chat, message) {
     const quote = renderMessageQuote(chat, message);
     const isHighlighted = state.highlightMessageId === message.id;
     const isRecent = state.recentMessageId === message.id;
-    const emojis = quote ? null : resolveStandaloneEmojiMessage(message.content);
-    const content = emojis
+    const emojis = quote || message.share ? null : resolveStandaloneEmojiMessage(message.content);
+    const content = message.share
+      ? renderSharedMessage(message.share)
+      : emojis
       ? renderStandaloneEmojiMessage(emojis)
       : `<p class="message-bubble__text">${escapeHtml(message.content)}</p>`;
     const reactions = Array.isArray(message.reactions) && message.reactions.length
@@ -3379,7 +3529,7 @@
         ${message.self ? "" : renderAvatar(message.senderName, message.senderTone, "avatar--sm")}
         <div class="message-block ${message.self ? "message-block--self" : ""}">
           ${message.self ? "" : `<span class="message-sender">${escapeHtml(message.senderName)}</span>`}
-          <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${emojis ? "message-bubble--emoji-only" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
+          <div class="message-bubble ${message.self ? "message-bubble--self" : ""} ${message.share ? "message-bubble--share" : ""} ${emojis ? "message-bubble--emoji-only" : ""} ${isHighlighted ? "is-highlighted" : ""} ${isRecent ? "is-recent" : ""}">
             ${quote}
             ${content}
           </div>
@@ -5544,6 +5694,79 @@
     navigate(`/chat/${chatId}`, { resetNavigationStack: true });
   }
 
+  function openComposerPicker(type) {
+    const route = resolveMobilePreviewRoute(parseRoute(currentPath()));
+    if (route.section !== "chat-detail" || !route.chatId || !["contact-card", "favorite"].includes(type)) {
+      return;
+    }
+
+    state.composerPanel = null;
+    state.composerPicker = { type, chatId: route.chatId };
+    render();
+    window.requestAnimationFrame(() => {
+      root.querySelector('[data-action="close-composer-picker"]')?.focus({ preventScroll: true });
+    });
+  }
+
+  function sendComposerPickerItem(type, itemId) {
+    const picker = state.composerPicker;
+    const chat = picker?.chatId ? findChat(picker.chatId) : null;
+    if (!chat || picker.type !== type) {
+      return;
+    }
+
+    let share;
+    if (type === "contact-card") {
+      const contact = findContact(itemId);
+      if (!contact) {
+        return;
+      }
+      share = {
+        type: "contact",
+        name: contact.name,
+        username: contact.username,
+        title: contact.title,
+        tone: contact.tone,
+      };
+    } else if (type === "favorite") {
+      const favorite = SHAREABLE_FAVORITES.find((item) => item.id === itemId);
+      if (!favorite) {
+        return;
+      }
+      share = {
+        type: "favorite",
+        kind: favorite.kind,
+        title: favorite.title,
+        summary: favorite.summary,
+        icon: favorite.icon,
+      };
+    } else {
+      return;
+    }
+
+    const message = {
+      id: `m_${Date.now()}`,
+      senderId: data.currentUser.id,
+      senderName: data.currentUser.name,
+      senderTone: data.currentUser.avatarTone,
+      content: type === "contact-card" ? `名片：${share.name}` : `收藏：${share.title}`,
+      share,
+      time: "刚刚",
+      self: true,
+      status: "已送达",
+    };
+    chat.messages.push(message);
+    chat.lastMessage = message.content;
+    chat.lastTime = "刚刚";
+    chat.unread = 0;
+    promoteChat(chat);
+    state.composerPicker = null;
+    state.recentMessageId = message.id;
+    showToast(type === "contact-card" ? "名片已发送" : "收藏已发送", message.content);
+    render();
+    presentRecentMessage(message.id);
+  }
+
   function sendChatMessage(chatId) {
     const chat = findChat(chatId);
     if (!chat) {
@@ -5755,8 +5978,25 @@
     }
     toastTimerId = window.setTimeout(() => {
       state.toasts.pop();
-      render();
+      renderPreservingChatScroll();
     }, 2800);
+  }
+
+  function renderPreservingChatScroll() {
+    const scroll = root.querySelector(".runtime-chat-scroll");
+    const distanceFromBottom =
+      scroll instanceof HTMLElement ? Math.max(0, scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop) : null;
+    render();
+
+    if (distanceFromBottom === null) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const nextScroll = root.querySelector(".runtime-chat-scroll");
+      if (nextScroll instanceof HTMLElement) {
+        nextScroll.scrollTop = Math.max(0, nextScroll.scrollHeight - nextScroll.clientHeight - distanceFromBottom);
+      }
+    });
   }
 
   function renderToasts(options = {}) {
@@ -5892,6 +6132,19 @@
         state.chatDrafts[route.chatId] = `${state.chatDrafts[route.chatId] || ""}${target.getAttribute("data-emoji")}`;
         render();
       }
+      return;
+    }
+    if (action === "open-composer-picker") {
+      openComposerPicker(target.getAttribute("data-picker-type"));
+      return;
+    }
+    if (action === "close-composer-picker") {
+      state.composerPicker = null;
+      render();
+      return;
+    }
+    if (action === "send-composer-picker-item") {
+      sendComposerPickerItem(target.getAttribute("data-picker-type"), target.getAttribute("data-item-id"));
       return;
     }
     if (action === "simulate-message") {
