@@ -3007,8 +3007,7 @@
               .join("")}
           </div>
         </div>
-        <div class="runtime-composer-panel__view runtime-composer-panel__view--actions">
-          <div class="runtime-composer-panel__header"><strong>更多操作</strong></div>
+        <div class="runtime-composer-panel__view runtime-composer-panel__view--actions" aria-label="更多操作面板">
           <div class="runtime-composer-actions">
             ${actions
               .map(
