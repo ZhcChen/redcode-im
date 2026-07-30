@@ -3162,24 +3162,75 @@
     if (!nextPanel) {
       chatScreen.classList.remove("runtime-chat-screen--composer-panel-open");
       panelElement.classList.remove("is-open");
+      panelElement.classList.remove("is-resizing");
+      panelElement.style.height = "";
       panelElement.setAttribute("aria-hidden", "true");
       panelElement.toggleAttribute("inert", true);
       return;
     }
 
-    panelElement.dataset.panel = nextPanel;
-    panelElement.classList.toggle("runtime-composer-panel--emoji", nextPanel === "emoji");
-    panelElement.classList.toggle("runtime-composer-panel--actions", nextPanel === "more");
     panelElement.setAttribute("aria-hidden", "false");
     panelElement.toggleAttribute("inert", false);
 
-    // Keep one shell in the DOM so both directions can use CSS transitions.
+    if (panelElement.classList.contains("is-open")) {
+      transitionComposerPanelHeight(panelElement, nextPanel);
+      return;
+    }
+
+    setComposerPanelMode(panelElement, nextPanel);
+
+    // Keep one shell in the DOM so initial expansion and panel switches are continuous.
     window.requestAnimationFrame(() => {
       if (state.composerPanel !== nextPanel) {
         return;
       }
       chatScreen.classList.add("runtime-chat-screen--composer-panel-open");
       panelElement.classList.add("is-open");
+    });
+  }
+
+  function setComposerPanelMode(panelElement, panel) {
+    panelElement.dataset.panel = panel;
+    panelElement.classList.toggle("runtime-composer-panel--emoji", panel === "emoji");
+    panelElement.classList.toggle("runtime-composer-panel--actions", panel === "more");
+  }
+
+  function transitionComposerPanelHeight(panelElement, nextPanel) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setComposerPanelMode(panelElement, nextPanel);
+      return;
+    }
+
+    const currentHeight = panelElement.getBoundingClientRect().height;
+    panelElement.classList.remove("is-resizing");
+    panelElement.style.height = `${currentHeight}px`;
+    void panelElement.offsetHeight;
+
+    setComposerPanelMode(panelElement, nextPanel);
+    panelElement.style.height = "auto";
+    const targetHeight = panelElement.getBoundingClientRect().height;
+    panelElement.style.height = `${currentHeight}px`;
+    void panelElement.offsetHeight;
+    if (Math.abs(targetHeight - currentHeight) < 1) {
+      panelElement.style.height = "";
+      return;
+    }
+
+    const finish = (event) => {
+      if (event.target !== panelElement || event.propertyName !== "height") {
+        return;
+      }
+      panelElement.removeEventListener("transitionend", finish);
+      panelElement.classList.remove("is-resizing");
+      panelElement.style.height = "";
+    };
+
+    panelElement.addEventListener("transitionend", finish);
+    panelElement.classList.add("is-resizing");
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        panelElement.style.height = `${targetHeight}px`;
+      });
     });
   }
 

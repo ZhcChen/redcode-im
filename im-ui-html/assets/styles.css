@@ -6828,6 +6828,14 @@ body[data-theme="dark"] .phone-screen {
   transform: translateY(0);
 }
 
+.runtime-composer-panel.is-resizing {
+  transition:
+    height 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .runtime-composer-panel__view {
   display: none;
 }
