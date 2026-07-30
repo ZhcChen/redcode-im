@@ -9667,17 +9667,16 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .runtime-moment-detail-screen {
   min-height: 0;
-  background: var(--runtime-canvas);
+  background: var(--runtime-surface);
 }
 
 .phone-screen .runtime-moment-detail__scroll {
-  padding: 12px 16px 28px;
+  padding: 0 0 28px;
+  background: var(--runtime-surface);
 }
 
 .phone-screen .runtime-moment-detail {
-  padding: 16px;
-  border-radius: var(--runtime-radius-surface);
-  background: var(--runtime-surface);
+  padding: 20px 18px 8px;
 }
 
 .phone-screen .runtime-moment-detail__author {
@@ -9690,18 +9689,16 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 .phone-screen .runtime-moment-detail__author > .avatar {
   width: 46px;
   height: 46px;
-  border-radius: 16px;
+  border-radius: 14px;
   font-size: 15px;
 }
 
 .phone-screen .runtime-moment-detail__author > span {
   min-width: 0;
-  display: grid;
-  gap: 3px;
 }
 
-.phone-screen .runtime-moment-detail__author strong,
-.phone-screen .runtime-moment-detail__author small {
+.phone-screen .runtime-moment-detail__author strong {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -9714,21 +9711,15 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   line-height: 1.35;
 }
 
-.phone-screen .runtime-moment-detail__author small {
-  color: var(--runtime-faint);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
 .phone-screen .runtime-moment-detail__text {
-  margin: 16px 0;
+  margin: 18px 0 16px;
   color: var(--runtime-ink);
   font-size: 16px;
   line-height: 1.68;
 }
 
 .phone-screen .runtime-moment-detail__media {
-  height: 208px;
+  height: 196px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
@@ -9775,57 +9766,42 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-detail__engagement {
-  min-height: 48px;
-  margin-top: 14px;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid var(--runtime-line);
 }
 
-.phone-screen .runtime-moment-detail__engagement p {
-  min-width: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--runtime-muted);
+.phone-screen .runtime-moment-detail__engagement time {
+  color: var(--runtime-faint);
   font-size: 12px;
   line-height: 1.4;
 }
 
-.phone-screen .runtime-moment-detail__engagement p span {
-  white-space: nowrap;
-}
-
-.phone-screen .runtime-moment-detail__engagement p b {
-  color: var(--runtime-ink);
-  font-weight: 680;
-}
-
-.phone-screen .runtime-moment-detail__engagement p i {
-  width: 3px;
-  height: 3px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--runtime-faint);
-}
-
 .phone-screen .runtime-moment-detail__like {
-  width: 36px;
+  min-width: 42px;
   height: 36px;
-  flex: 0 0 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--runtime-soft);
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  background: transparent;
   color: var(--runtime-muted);
 }
 
 .phone-screen .runtime-moment-detail__like.is-active {
-  background: var(--runtime-accent-soft);
   color: var(--runtime-accent-deep);
+}
+
+.phone-screen .runtime-moment-detail__like-count {
+  min-width: 16px;
+  color: currentColor;
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1;
+  text-align: left;
 }
 
 .phone-screen .runtime-moment-detail__like-icon,
@@ -9840,11 +9816,10 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-comments {
-  margin-top: 12px;
-  padding: 16px;
+  padding: 17px 18px 0;
   display: grid;
-  gap: 10px;
-  border-radius: var(--runtime-radius-surface);
+  gap: 8px;
+  border-top: 8px solid var(--runtime-canvas);
   background: var(--runtime-surface);
 }
 
@@ -9864,9 +9839,11 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   line-height: 1.3;
 }
 
-.phone-screen .runtime-moment-comments__heading span {
+.phone-screen .runtime-moment-comments__heading h3 span {
+  margin-left: 3px;
   color: var(--runtime-faint);
   font-size: 12px;
+  font-weight: 600;
   line-height: 1.3;
 }
 

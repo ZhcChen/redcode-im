@@ -3830,17 +3830,12 @@
               ${renderAvatar(item.author, item.tone, "avatar--md")}
               <span>
                 <strong>${escapeHtml(item.author)}</strong>
-                <small>${escapeHtml(item.time)}</small>
               </span>
             </header>
             <p class="runtime-moment-detail__text">${escapeHtml(item.text)}</p>
             ${hasMedia ? renderMomentDetailMedia(item) : ""}
             <div class="runtime-moment-detail__engagement" aria-label="动态互动">
-              <p>
-                <span><b class="runtime-moment-detail__like-count">${item.likes + (liked ? 1 : 0)}</b> 人赞过</span>
-                <i aria-hidden="true"></i>
-                <span>${commentCount} 条评论</span>
-              </p>
+              <time>${escapeHtml(item.time)}</time>
               <button
                 class="runtime-moment-detail__like ${liked ? "is-active" : ""}"
                 type="button"
@@ -3850,13 +3845,13 @@
                 aria-label="${liked ? "取消点赞" : "点赞"}"
               >
                 ${renderIcon("heart", "runtime-moment-detail__like-icon")}
+                <span class="runtime-moment-detail__like-count">${item.likes + (liked ? 1 : 0)}</span>
               </button>
             </div>
           </article>
           <section class="runtime-moment-comments" aria-labelledby="moment-comments-title">
             <div class="runtime-moment-comments__heading">
-              <h3 id="moment-comments-title">评论</h3>
-              <span>${commentCount} 条</span>
+              <h3 id="moment-comments-title">评论 <span>${commentCount}</span></h3>
             </div>
             <div class="runtime-moment-comments__list">
               ${comments.map(renderMomentComment).join("")}
