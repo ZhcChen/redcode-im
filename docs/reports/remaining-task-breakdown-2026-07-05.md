@@ -33,7 +33,7 @@
 - Android 真机、iPhone 真机、真实 APNs/FCM/厂商 ROM 行为按用户要求跳过并记录，
   不伪造通过。
 - Superpowers 不再作为当前仓库工作流入口；当前 active 工作流以根目录
-  `AGENTS.md` 的 Compound Engineering (CE) 为准。
+  `AGENTS.md` 的 `agent-light-workflow` 轻量五阶段与 CE 兼容映射为准。
 
 ## 1. 状态定义
 

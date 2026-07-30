@@ -11,29 +11,28 @@
 - **App 真机测试设备**：默认使用 `Pixel 8 Pro (3A091FDJG001DN)` 进行 app 模块的真机 smoke、integration 与联调验证；除非用户明确指定其他设备。
 - **App 真机测试网络**：每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址。
 - **工具**：优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
-- **文档结构**：`docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/solutions/`、`docs/reference/`、`docs/reports/`）。
+- **文档结构**：`docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/reviews/`、`docs/solutions/`、`docs/prompts/`、`docs/reference/`、`docs/reports/`）。
 - **Docker Compose**：本机统一使用 `docker compose`；API 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
 - **端口占用处理**：启动模块遇到端口冲突时，必须先停止占用进程再启动，禁止改用其他端口。
 
-## 2. 当前默认 AI 工作流（Compound Engineering, CE）
-- 当前仓库统一采用 **Compound Engineering (CE)** 作为默认 AI 工作流。
-- 默认工作流顺序：
-  1. `ce:brainstorm`
-  2. `ce:plan`
-  3. `ce:work`
-  4. `ce:review`
-  5. `ce:compound`
+## 2. 当前默认 AI 工作流（agent-light-workflow + CE 兼容）
+- 当前仓库采用 `agent-light-workflow` 风格的轻量五阶段：
+  `brainstorm -> plan -> execute -> review -> compound`。
+- 在 Codex 中保留 CE 技能映射：
+  1. `brainstorm` -> `ce:brainstorm`
+  2. `plan` -> `ce:plan`
+  3. `execute` -> `ce:work`
+  4. `review` -> `ce:review`
+  5. `compound` -> `ce:compound`
+- 需求已经清晰时可直接进入 `plan`，不强制先写 brainstorm。
 - 产物目录约定：
   - `docs/brainstorms/`
   - `docs/plans/`
+  - `docs/reviews/`
   - `docs/solutions/`
-  - `.context/compound-engineering/`
-- 全局安装位置约定：
-  - `~/.codex/prompts/ce-*.md`
-  - `~/.codex/skills/ce-*`
-  - `~/.codex/CE_AGENTS.md`
-  - `~/.codex/scripts/ce-init`
-- 仓库工作流以 CE 目录约定与根目录 `AGENTS.md` 为准。
+  - `docs/prompts/`
+  - `.context/compound-engineering/`（仅作 CE 运行期临时上下文）
+- 仓库工作流以根目录 `AGENTS.md`、`docs/index.md` 和 `docs/prompts/` 为准。
 
 ## 3. 本地开发约定（关键项）
 - **API 开发调试（dev）**：`api/docker/dev/docker-compose.yml`
@@ -54,4 +53,4 @@
 - 测试流程总览：`docs/reference/testing/README.md`
 
 ---
-*上次更新: 2026-04-09（同步到 CE 工作流并转为兼容入口）*
+*上次更新: 2026-07-30（对齐 agent-light-workflow 并保留 CE 兼容入口）*

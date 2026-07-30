@@ -2,29 +2,32 @@
 
 > 本文档用于索引 `docs/` 目录下的核心文档。快速开始请查看仓库根目录 `README.md`。
 
-## AI 工作流（Compound Engineering, CE）
+## AI 工作流（agent-light-workflow + CE 兼容）
 
 | 文档 | 说明 |
 |------|------|
-| [需求/方向讨论](brainstorms/) | `ce:brainstorm` 产出目录 |
-| [规划文档目录](plans/) | `ce:plan` 产出目录 |
+| [需求/方向讨论](brainstorms/) | `brainstorm` / `ce:brainstorm` 产出目录 |
+| [规划文档目录](plans/) | `plan` / `ce:plan` 产出目录 |
+| [审查/验证记录](reviews/) | `review` / `ce:review` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
 | [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 当前 2.0 主线方向：`app/` 单 Flutter 工程承载移动端 + 桌面端 |
 | [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 当前 2.0 设计入口：先在 `im-ui-html/` 收敛规范、组件和页面 |
 | [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史方向参考：已不作为 2.0 主线 |
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
-| [解决方案沉淀](solutions/) | `ce:compound` 产出目录 |
+| [解决方案沉淀](solutions/) | `compound` / `ce:compound` 产出目录 |
+| [参考提示词](prompts/) | 可复制或改写给 Codex 的轻工作流提示词 |
 
-> CE 采用全局安装：`~/.codex/prompts/ce-*.md`、`~/.codex/skills/ce-*`、`~/.codex/scripts/ce-init`。
+> 当前仓库以 `agent-light-workflow` 的文档结构为主；CE 全局资源仅作为本机 Codex
+> 技能兼容入口。
 
 ### 工作流骨架
 
-1. `ce:brainstorm`
-2. `ce:plan`
-3. `ce:work`
-4. `ce:review`
-5. `ce:compound`
+1. `brainstorm`（需求清晰时可跳过）
+2. `plan`
+3. `execute`（Codex 中映射为 `ce:work`）
+4. `review`
+5. `compound`
 
 ---
 
@@ -142,4 +145,4 @@
 
 ---
 
-**文档最后更新**: 2026-07-26
+**文档最后更新**: 2026-07-30

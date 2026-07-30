@@ -4,7 +4,7 @@
 工作树：`/Users/chen/code/redcode-im/.worktrees/full-test-rebuild`  
 分支：`feat/full-test-rebuild`
 
-> 说明：本文为 2026-03-06 的测试重建交接快照；当前仓库工作流以最新 `AGENTS.md` 中的 **Compound Engineering (CE)** 规范为准。
+> 说明：本文为 2026-03-06 的测试重建交接快照；当前仓库工作流以最新 `AGENTS.md` 中的 `agent-light-workflow` 轻量五阶段与 CE 兼容映射为准。
 
 ## 1. 这份文档的用途
 
@@ -36,7 +36,7 @@
 
 ### 3.1 架构与流程
 
-- 当前仓库工作流以根目录 `AGENTS.md` 中的 CE 规范为准。
+- 当前仓库工作流以根目录 `AGENTS.md` 中的 `agent-light-workflow` 轻量五阶段与 CE 兼容映射为准。
 - `bear-chat-tauri`、`bear-chat-uniapp` 两个参考模块允许删除。
 - 需结合本文历史上下文，并以仓库最新 `AGENTS.md` 作为当前流程规范来源。
 
@@ -66,8 +66,8 @@
 这些规则来自仓库根 `AGENTS.md`，后续 AI 必须遵守：
 
 - 默认使用简体中文沟通、文档、说明。
-- 当前默认工作流为 CE。
-- 本仓库只保留流程产出目录：`docs/plans/`。
+- 当前默认工作流为 `brainstorm -> plan -> execute -> review -> compound`，CE 技能名作为 Codex 兼容映射。
+- 本仓库流程产出目录：`docs/brainstorms/`、`docs/plans/`、`docs/reviews/`、`docs/solutions/`、`docs/prompts/`。
 - 测试入口与矩阵以 `docs/reference/testing/README.md` 为准。
 - Backend 本地开发、Admin 启停方式、Docker Compose 约定都在根 `AGENTS.md` 中有明确规定。
 - 不要擅自改端口；有冲突应先停止占用进程。

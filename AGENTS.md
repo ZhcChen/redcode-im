@@ -1,7 +1,9 @@
 # RedCode IM 全局导航与代理规则 (AGENTS.md)
 
 > [!IMPORTANT]
-> 本文件定义 AI 代理在 **RedCode IM** 仓库中的全局行为准则与 **Compound Engineering (CE)** 工作流入口。
+> 本文件定义 AI 代理在 **RedCode IM** 仓库中的全局行为准则，以及基于
+> `agent-light-workflow` 的轻量工作流入口。仓库保留 Compound Engineering（CE）
+> 命名作为 Codex 技能兼容层。
 
 ## 1. 全局行为准则
 - **语言**: 默认使用 **简体中文** 回复，保留专业技术词汇原文。
@@ -12,7 +14,7 @@
 - **iOS 原生 App 验收设备**: `ios-app` 模块默认使用本机 iOS Simulator 进行开发、smoke、UI test 与 H5/API 联调验收；不套用 `Pixel 8 Pro` 优先规则。只有 APNs、相机、麦克风、后台通知、签名发布等 Simulator 无法完整验证的能力，才单独安排 iPhone 真机验证。
 - **App 真机测试网络**: 每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
-- **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/solutions/`、`docs/reference/`、`docs/reports/`）。
+- **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/reviews/`、`docs/solutions/`、`docs/prompts/`、`docs/reference/`、`docs/reports/`）。
 - **Docker Compose**: 本机统一使用 `docker compose`；API 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
 - **端口占用处理**: 启动模块遇到端口冲突时，必须先停止占用进程再启动，禁止改用其他端口。
 - **Git 提交与推送默认策略**:
@@ -57,32 +59,36 @@
   - 入口：`make api.perf.smoke` / `make api.perf.healthz` / `make api.perf.readyz` / `make api.perf.auth` / `make api.perf`
   - 性能测试必须走 `tests/docker-compose.test.yml`，由 Compose 限制 API/PG/Redis/mock 资源；压测容器在 Compose 网络内访问 `http://api:8010`，不要映射 PG/Redis/mock 宿主端口。
 
-## 2. AI 工作流（Compound Engineering, CE）
-- 当前仓库统一采用 **Compound Engineering (CE)** 作为默认 AI 工作流。
-- 在没有用户明确要求切换流程的情况下，优先使用 CE 的工作流。
-- **同一项任务默认只采用一套主工作流。** 若当前任务已明确选择 CE，就不要再混入其他工作流的设计、计划、执行流程，除非用户明确要求。
-- 默认工作流顺序：
-  1. `ce:brainstorm`
-  2. `ce:plan`
-  3. `ce:work`
-  4. `ce:review`
-  5. `ce:compound`
+## 2. AI 工作流（agent-light-workflow + CE 兼容）
+- 当前仓库默认采用 `agent-light-workflow` 风格的轻量五阶段工作流：
+  `brainstorm -> plan -> execute -> review -> compound`。
+- 在 Codex 中，五阶段与 CE 技能的默认映射为：
+  1. `brainstorm` -> `ce:brainstorm`
+  2. `plan` -> `ce:plan`
+  3. `execute` -> `ce:work`
+  4. `review` -> `ce:review`
+  5. `compound` -> `ce:compound`
+- **同一项任务默认只采用一套主工作流。** 若当前任务已经选择轻工作流/CE
+  映射，就不要再混入其他流程，除非用户明确要求。
+- `brainstorm` 只在需求不清、范围未定、方案分叉或未知项较多时启用；需求已经清晰时，可直接进入 `plan`。
+- 非微小任务开始前，先确认已有正式 plan；缺少 plan 时，优先补 `docs/plans/`。
+- `execute` 阶段按小步、可验证闭环推进；完成一个闭环后先验证，再决定继续执行或进入 `review`。
+- `compound` 只沉淀可复用决策、复发坑点、稳定排查路径或长期模式，不把一次性执行日志原样搬入方案库。
 - 产物目录约定：
   - 需求/方向讨论：`docs/brainstorms/`
   - 技术计划：`docs/plans/`
+  - 审查/验证记录：`docs/reviews/`
   - 解决方案/经验沉淀：`docs/solutions/`
-  - CE 运行期中间产物：`.context/compound-engineering/`
-- 全局安装位置约定：
-  - `~/.codex/prompts/ce-*.md`
-  - `~/.codex/skills/ce-*`
-  - `~/.codex/CE_AGENTS.md`
-  - `~/.codex/scripts/ce-init`
-- 若任务已经有现成的 brainstorm、plan 或 solution 文档，优先续写与复用，不要重复生成平行文档。
-- 仓库工作流以本节和 CE 目录约定为准。
+  - 可复制或改写给 Codex 的参考提示词：`docs/prompts/`
+  - CE 运行期中间产物：`.context/compound-engineering/`（仅作临时上下文，不作为长期文档入口）
+- `docs/*/TEMPLATE.md` 只作结构参考；正式内容优先写入同目录下的具体文件，例如 `docs/plans/YYYY-MM-DD-short-name.md`。
+- `docs/prompts/*.md` 是参考提示词资产，不假设隐藏命令、后台调度器或专用 runtime。
+- 全局 CE 资源（如 `~/.codex/prompts/ce-*.md`、`~/.codex/skills/ce-*`、`~/.codex/CE_AGENTS.md`、`~/.codex/scripts/ce-init`）仅作为本机 Codex 兼容入口；仓库内工作流事实以本节、`docs/index.md` 和 `docs/prompts/` 为准。
+- 若任务已经有现成的 brainstorm、plan、review 或 solution 文档，优先续写与复用，不要重复生成平行文档。
 
-## 3. Compound Codex Tool Mapping (Claude Compatibility)
+## 3. Agent-light / CE Codex Tool Mapping (Claude Compatibility)
 
-此节用于给未来代理说明 CE 在 Codex 中的常见工具映射。
+此节用于给未来代理说明轻工作流与 CE 兼容层在 Codex 中的常见工具映射。
 
 Tool mapping:
 - Read: 使用 shell 读取（`cat`/`sed`）或 `rg`
@@ -102,7 +108,9 @@ Tool mapping:
 - 项目索引：`docs/index.md`
 - 需求/方向讨论：`docs/brainstorms/`
 - 技术计划：`docs/plans/`
+- 审查/验证记录：`docs/reviews/`
 - 解决方案沉淀：`docs/solutions/`
+- 参考提示词：`docs/prompts/`
 - 任务清单：`docs/reports/task-list.md`
 - 项目评估报告：`docs/reports/project-status-assessment-report-2025-11-08.md`
 - 测试流程总览：`docs/reference/testing/README.md`
@@ -115,4 +123,4 @@ Tool mapping:
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`
 
 ---
-*上次更新: 2026-04-04（迁移到 Compound Engineering 工作流）*
+*上次更新: 2026-07-30（对齐 agent-light-workflow 并保留 CE 兼容层）*

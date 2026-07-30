@@ -4,23 +4,21 @@
 
 ## AI 工作流
 
-仓库当前默认采用 **Compound Engineering (CE)** 工作流。
+仓库当前默认采用 `agent-light-workflow` 风格的轻量五阶段工作流，并保留
+Compound Engineering（CE）技能命名作为 Codex 兼容层。
 
 - 工作流顺序：
-  - `ce:brainstorm`
-  - `ce:plan`
-  - `ce:work`
-  - `ce:review`
-  - `ce:compound`
-- 全局资源位置：
-  - `~/.codex/prompts/ce-*.md`
-  - `~/.codex/skills/ce-*`
-  - `~/.codex/scripts/ce-init`
+  - `brainstorm`：需求不清、范围未定或方案分叉时才启用
+  - `plan`：形成正式计划并落到 `docs/plans/`
+  - `execute`：按计划小步执行并持续验证（Codex 中可映射为 `ce:work`）
+  - `review`：对照计划检查结果、回归和偏差
+  - `compound`：把可复用经验沉淀到 `docs/solutions/`
 - 文档产物目录：
   - `docs/brainstorms/`
   - `docs/plans/`
+  - `docs/reviews/`
   - `docs/solutions/`
-  - `.context/compound-engineering/`
+  - `docs/prompts/`
 
 ## 快速开始
 

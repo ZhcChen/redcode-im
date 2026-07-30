@@ -35,7 +35,8 @@
   APNs。
 - API、PG、Redis、external-mock 和性能压测保持 Compose-first；测试栈 PG/Redis
   不映射宿主端口，Redis 只启动一个实例供 session/pubsub/cache 共用。
-- Superpowers 不作为当前 active 工作流；当前以 CE 工作流为准。
+- Superpowers 不作为当前 active 工作流；当前以根目录 `AGENTS.md` 的
+  `agent-light-workflow` 轻量五阶段与 CE 兼容映射为准。
 
 ## 当前立即队列
 
