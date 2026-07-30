@@ -3125,80 +3125,159 @@
 
     const isContactPicker = picker.type === "contact-card";
     const title = isContactPicker ? "发送名片" : "发送收藏";
-    const description = isContactPicker ? "选择一位联系人发送到当前会话" : "选择一条收藏内容发送到当前会话";
     const directContact = chat.type === "single" ? findDirectContact(chat) : null;
-    const contacts = data.contacts.filter((contact) => contact.id !== directContact?.id);
+    const query = String(picker.query || "").trim().toLowerCase();
+    const contacts = data.contacts.filter(
+      (contact) =>
+        contact.id !== directContact?.id &&
+        (!query ||
+          [contact.name, contact.title, contact.username].some((value) =>
+            String(value || "").toLowerCase().includes(query),
+          )),
+    );
+    const contactSections = groupContacts(contacts);
+    const favoriteFilter = ["all", "文本", "文件", "链接"].includes(picker.filter) ? picker.filter : "all";
+    const favorites = SHAREABLE_FAVORITES.filter(
+      (favorite) => favoriteFilter === "all" || favorite.kind === favoriteFilter,
+    );
     const content = isContactPicker
       ? `
-          <p class="runtime-composer-picker__section-label">联系人</p>
-          <div class="runtime-composer-picker__list">
-            ${
-              contacts.length
-                ? contacts
-                    .map(
-                      (contact) => `
-                        <button
-                          class="runtime-composer-picker__row runtime-composer-picker__row--contact"
-                          type="button"
-                          data-action="send-composer-picker-item"
-                          data-picker-type="contact-card"
-                          data-item-id="${escapeHtml(contact.id)}"
-                        >
-                          ${renderAvatar(contact.name, contact.tone, "avatar--md")}
-                          <span class="runtime-composer-picker__row-copy">
-                            <strong>${escapeHtml(contact.name)}</strong>
-                            <small>${escapeHtml(contact.title)} · @${escapeHtml(contact.username)}</small>
-                          </span>
-                          ${renderIcon("chevronRight", "runtime-composer-picker__row-chevron")}
-                        </button>
-                      `,
-                    )
-                    .join("")
-                : renderEmptyState("暂无可发送联系人", "添加联系人后可在这里发送名片。")
-            }
+          <div class="runtime-composer-picker__toolbar" role="search" aria-label="搜索联系人名片">
+            <label class="runtime-search-field">
+              ${renderIcon("search", "runtime-search-field__icon", "搜索联系人")}
+              <input
+                id="composer-picker-search"
+                value="${escapeHtml(picker.query || "")}"
+                placeholder="搜索联系人"
+                aria-label="搜索联系人"
+                aria-controls="composer-picker-results"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+          <div class="screen-scroll runtime-scroll runtime-composer-picker__scroll">
+            <div class="runtime-composer-picker__content" id="composer-picker-results">
+              ${
+                contactSections.length
+                  ? contactSections
+                      .map(
+                        (section) => `
+                          <section class="runtime-composer-picker__section">
+                            <div class="runtime-composer-picker__section-heading">${escapeHtml(section.tag)}</div>
+                            <div class="runtime-composer-picker__list">
+                              ${section.items.map(renderComposerContactRow).join("")}
+                            </div>
+                          </section>
+                        `,
+                      )
+                      .join("")
+                  : renderEmptyState("没有匹配的联系人", "换个名字或职位试试。")
+              }
+            </div>
           </div>
         `
       : `
-          <p class="runtime-composer-picker__section-label">我的收藏</p>
-          <div class="runtime-composer-picker__list">
-            ${SHAREABLE_FAVORITES.map(
-              (favorite) => `
-                <button
-                  class="runtime-composer-picker__row runtime-composer-picker__row--favorite"
-                  type="button"
-                  data-action="send-composer-picker-item"
-                  data-picker-type="favorite"
-                  data-item-id="${escapeHtml(favorite.id)}"
-                >
-                  <span class="runtime-composer-picker__favorite-icon">
-                    ${renderIcon(favorite.icon, "runtime-composer-picker__favorite-glyph")}
-                  </span>
-                  <span class="runtime-composer-picker__row-copy">
-                    <small>${escapeHtml(favorite.kind)}</small>
-                    <strong>${escapeHtml(favorite.title)}</strong>
-                    <em>${escapeHtml(favorite.summary)}</em>
-                  </span>
-                  ${renderIcon("chevronRight", "runtime-composer-picker__row-chevron")}
-                </button>
-              `,
-            ).join("")}
+          <div class="runtime-composer-picker__toolbar">
+            <div class="runtime-composer-picker__filters" role="tablist" aria-label="收藏类型">
+              ${[
+                ["all", "全部"],
+                ["文本", "文本"],
+                ["文件", "文件"],
+                ["链接", "链接"],
+              ]
+                .map(
+                  ([value, label]) => `
+                    <button
+                      class="runtime-composer-picker__filter ${favoriteFilter === value ? "is-active" : ""}"
+                      type="button"
+                      role="tab"
+                      aria-selected="${favoriteFilter === value}"
+                      data-action="set-composer-picker-filter"
+                      data-filter="${value}"
+                    >
+                      ${label}
+                    </button>
+                  `,
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="screen-scroll runtime-scroll runtime-composer-picker__scroll">
+            <div class="runtime-composer-picker__content">
+              <section class="runtime-composer-picker__section">
+                <div class="runtime-composer-picker__section-heading">
+                  <span>收藏内容</span>
+                  <span>${favorites.length} 条</span>
+                </div>
+                <div class="runtime-composer-picker__list">
+                  ${favorites.map(renderComposerFavoriteRow).join("")}
+                </div>
+              </section>
+            </div>
           </div>
         `;
 
     return `
       <section class="runtime-composer-picker" role="dialog" aria-modal="true" aria-labelledby="composer-picker-title">
-        <header class="runtime-composer-picker__header">
-          <button class="runtime-icon-button runtime-icon-button--quiet" type="button" data-action="close-composer-picker" aria-label="关闭${title}">
-            ${renderIcon("close", "runtime-icon-button__glyph")}
+        <header class="screen-header runtime-header runtime-header--compact runtime-composer-picker__header">
+          <button class="runtime-icon-button runtime-icon-button--quiet runtime-topbar__back" type="button" data-action="close-composer-picker" aria-label="返回聊天">
+            ${renderIcon("back", "runtime-icon-button__glyph")}
           </button>
-          <h2 id="composer-picker-title">${title}</h2>
+          <div class="screen-header__main">
+            <h2 id="composer-picker-title">${title}</h2>
+          </div>
           <span class="runtime-composer-picker__header-spacer" aria-hidden="true"></span>
         </header>
-        <div class="runtime-composer-picker__scroll">
-          <p class="runtime-composer-picker__description">${description}</p>
-          ${content}
-        </div>
+        ${content}
       </section>
+    `;
+  }
+
+  function renderComposerContactRow(contact) {
+    return `
+      <button
+        class="runtime-composer-picker__row runtime-composer-picker__row--contact"
+        type="button"
+        data-action="send-composer-picker-item"
+        data-picker-type="contact-card"
+        data-item-id="${escapeHtml(contact.id)}"
+      >
+        <span class="runtime-composer-picker__avatar">
+          ${renderAvatar(contact.name, contact.tone, "avatar--md")}
+          <span class="runtime-contact-row__presence ${presenceClass(contact.status)}"></span>
+        </span>
+        <span class="runtime-composer-picker__row-copy">
+          <strong>${escapeHtml(contact.name)}</strong>
+          <small>${escapeHtml(contact.title)}</small>
+        </span>
+        <span class="runtime-composer-picker__send-icon">
+          ${renderIcon("send", "runtime-composer-picker__send-glyph")}
+        </span>
+      </button>
+    `;
+  }
+
+  function renderComposerFavoriteRow(favorite) {
+    return `
+      <button
+        class="runtime-composer-picker__row runtime-composer-picker__row--favorite"
+        type="button"
+        data-action="send-composer-picker-item"
+        data-picker-type="favorite"
+        data-item-id="${escapeHtml(favorite.id)}"
+      >
+        <span class="runtime-composer-picker__favorite-icon">
+          ${renderIcon(favorite.icon, "runtime-composer-picker__favorite-glyph")}
+        </span>
+        <span class="runtime-composer-picker__row-copy">
+          <small>${escapeHtml(favorite.kind)}收藏</small>
+          <strong>${escapeHtml(favorite.title)}</strong>
+          <em>${escapeHtml(favorite.summary)}</em>
+        </span>
+        <span class="runtime-composer-picker__send-icon">
+          ${renderIcon("send", "runtime-composer-picker__send-glyph")}
+        </span>
+      </button>
     `;
   }
 
@@ -5701,7 +5780,7 @@
     }
 
     state.composerPanel = null;
-    state.composerPicker = { type, chatId: route.chatId };
+    state.composerPicker = { type, chatId: route.chatId, query: "", filter: "all" };
     render();
     window.requestAnimationFrame(() => {
       root.querySelector('[data-action="close-composer-picker"]')?.focus({ preventScroll: true });
@@ -6143,6 +6222,13 @@
       render();
       return;
     }
+    if (action === "set-composer-picker-filter") {
+      if (state.composerPicker?.type === "favorite") {
+        state.composerPicker.filter = target.getAttribute("data-filter") || "all";
+        render();
+      }
+      return;
+    }
     if (action === "send-composer-picker-item") {
       sendComposerPickerItem(target.getAttribute("data-picker-type"), target.getAttribute("data-item-id"));
       return;
@@ -6292,6 +6378,11 @@
     }
     if (target.id === "contact-filter-input") {
       state.contactFilter = target.value;
+      scheduleFilterRender(target);
+      return;
+    }
+    if (target.id === "composer-picker-search" && state.composerPicker?.type === "contact-card") {
+      state.composerPicker.query = target.value;
       scheduleFilterRender(target);
       return;
     }
