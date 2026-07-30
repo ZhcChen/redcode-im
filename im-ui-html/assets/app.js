@@ -2969,8 +2969,7 @@
         aria-hidden="${!isOpen}"
         ${isOpen ? "" : "inert"}
       >
-        <div class="runtime-composer-panel__view runtime-composer-panel__view--emoji">
-          <div class="runtime-composer-panel__header"><strong>表情</strong></div>
+        <div class="runtime-composer-panel__view runtime-composer-panel__view--emoji" aria-label="表情面板">
           <div class="emoji-grid">
             ${emojis
               .map(
