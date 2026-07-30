@@ -66,6 +66,7 @@
     contactActionSheetContactId: null,
     contactRemarkEditorContactId: null,
     contactRemarkDraft: "",
+    callSession: null,
     orderCursor: 1000,
   };
 
@@ -192,6 +193,35 @@
       '<path d="M19 10.25c0 5-7 10.25-7 10.25S5 15.25 5 10.25a7 7 0 1 1 14 0Z" />',
       '<circle cx="12" cy="10.25" r="2.25" />',
     ],
+    contactCard: [
+      '<rect x="3.5" y="5" width="17" height="14" rx="2.25" />',
+      '<circle cx="9" cy="10" r="2" />',
+      '<path d="M5.9 15c.45-1.75 1.5-2.6 3.1-2.6s2.65.85 3.1 2.6M14.5 9h3M14.5 12h3" />',
+    ],
+    bookmark: [
+      '<path d="M6.5 4.5h11v16L12 17l-5.5 3.5Z" />',
+    ],
+    microphone: [
+      '<rect x="9" y="3.5" width="6" height="11" rx="3" />',
+      '<path d="M5.75 11.5a6.25 6.25 0 0 0 12.5 0M12 17.75v3" />',
+    ],
+    speaker: [
+      '<path d="M5 9.5h3L12.5 6v12L8 14.5H5Z" />',
+      '<path d="M15.5 9a4.25 4.25 0 0 1 0 6M17.75 6.75a7.4 7.4 0 0 1 0 10.5" />',
+    ],
+    cameraOff: [
+      '<path d="m3.5 3.5 17 17" />',
+      '<path d="M10.2 7.15h-3.1A2.3 2.3 0 0 0 4.8 9.45v5.1a2.3 2.3 0 0 0 2.3 2.3h8.45v-2.3M15.55 10.15l3.65-2.05v7.8l-1.4-.8" />',
+    ],
+    switchCamera: [
+      '<path d="M7.5 7.5A6.5 6.5 0 0 1 18 9l1.5-1.5M19.5 7.5V4.75" />',
+      '<path d="M16.5 16.5A6.5 6.5 0 0 1 6 15l-1.5 1.5M4.5 16.5v2.75" />',
+      '<circle cx="12" cy="12" r="2.25" />',
+    ],
+    phoneOff: [
+      '<path d="m4 4 16 16" />',
+      '<path d="M8.15 4.95 6.7 5.7c-.72.37-1.08 1.2-.87 1.98.35 1.3.9 2.52 1.62 3.62M10.23 10.29c.68.93 1.51 1.76 2.44 2.44l.95-.95a1.54 1.54 0 0 1 1.93-.18l2.05 1.38a1.54 1.54 0 0 1 .53 1.95l-.75 1.45c-.37.72-1.2 1.08-1.98.87a15.7 15.7 0 0 1-2.75-1.06" />',
+    ],
     moments: [
       '<rect x="4.9" y="5.3" width="14.2" height="13.4" rx="3.3" />',
       '<path d="M7.65 14.5 10.25 11.95l2.2 2.1 3.95-4.05 2.2 2.3" />',
@@ -239,8 +269,15 @@
     const route = parseRoute(path);
     activatePreviewData(route);
     syncSelection(route);
-    if (route.section !== "chat-detail") {
+    const activeRoute = resolveMobilePreviewRoute(route);
+    if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
+    }
+    if (
+      state.callSession &&
+      (activeRoute.section !== "chat-detail" || activeRoute.chatId !== state.callSession.chatId)
+    ) {
+      state.callSession = null;
     }
     render();
   });
@@ -2868,6 +2905,13 @@
 
     const group = findGroupByChatId(chat.id);
     const targetContact = chat.type === "single" ? findDirectContact(chat) : null;
+    if (state.callSession?.chatId === chat.id) {
+      return `
+        <section class="screen screen--chat-detail runtime-chat-screen runtime-chat-screen--call-active">
+          ${renderCallOverlay(chat)}
+        </section>
+      `;
+    }
     const draft = state.chatDrafts[chat.id] || "";
     const activePanel = state.composerPanel;
     const groupAnnouncement = group?.notice || "";
@@ -2963,20 +3007,25 @@
             </button>
           </div>
         </form>
-        ${renderComposerPanel()}
+        ${renderComposerPanel(chat)}
       </section>
     `;
   }
 
-  function renderComposerPanel() {
+  function renderComposerPanel(chat) {
     const activePanel = state.composerPanel;
     const isOpen = activePanel === "emoji" || activePanel === "more";
     const emojis = EMOJI_CATALOG;
+    const isGroup = chat.type === "group";
     const actions = [
       { label: "图片", message: "选择图片", icon: "image" },
-      { label: "文件", message: "选择文件", icon: "file" },
       { label: "拍摄", message: "打开相机", icon: "camera" },
+      { label: isGroup ? "语音会议" : "语音通话", callType: "voice", icon: "phone" },
+      { label: isGroup ? "视频会议" : "视频通话", callType: "video", icon: "video" },
+      { label: "文件", message: "选择文件", icon: "file" },
       { label: "位置", message: "发送位置", icon: "mapPin" },
+      { label: "名片", message: "选择联系人名片", icon: "contactCard" },
+      { label: "收藏", message: "选择收藏内容", icon: "bookmark" },
     ];
 
     return `
@@ -3015,8 +3064,8 @@
                   <button
                     class="runtime-composer-action-card"
                     type="button"
-                    data-action="show-hint"
-                    data-message="${item.message}"
+                    data-action="${item.callType ? "start-call" : "show-hint"}"
+                    ${item.callType ? `data-call-type="${item.callType}"` : `data-message="${item.message}"`}
                   >
                     <span class="runtime-composer-action-card__icon">
                       ${renderIcon(item.icon, "runtime-composer-action-card__glyph")}
@@ -3027,6 +3076,63 @@
               )
               .join("")}
           </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderCallOverlay(chat) {
+    const session = state.callSession;
+    if (!session || session.chatId !== chat.id) {
+      return "";
+    }
+
+    const isVideo = session.type === "video";
+    const isGroup = chat.type === "group";
+    const callLabel = isGroup
+      ? isVideo ? "视频会议" : "语音会议"
+      : isVideo ? "视频通话" : "语音通话";
+
+    return `
+      <section class="runtime-call runtime-call--${session.type}" role="dialog" aria-modal="true" aria-label="与 ${escapeHtml(chat.name)} 的${callLabel}">
+        <div class="runtime-call__topbar">
+          <span class="runtime-call__secure">${renderIcon("shield", "runtime-call__secure-icon")} 端到端加密</span>
+          <span class="runtime-call__type">${callLabel}</span>
+        </div>
+        <div class="runtime-call__identity">
+          <span class="runtime-call__avatar">${renderAvatar(chat.name, chat.avatarTone, "avatar--xl")}</span>
+          <h2>${escapeHtml(chat.name)}</h2>
+          <p>${isGroup ? `正在邀请群成员加入${callLabel}` : `正在呼叫 ${escapeHtml(chat.name)}...`}</p>
+        </div>
+        ${isVideo ? `<div class="runtime-call__self-preview" aria-label="本地视频预览"><span>你</span></div>` : ""}
+        <div class="runtime-call__controls" role="group" aria-label="通话控制">
+          <button class="runtime-call__control ${session.muted ? "is-active" : ""}" type="button" data-action="toggle-call-control" data-control="muted" aria-pressed="${session.muted}">
+            <span>${renderIcon("microphone", "runtime-call__control-icon")}</span>
+            <small>${session.muted ? "取消静音" : "静音"}</small>
+          </button>
+          ${
+            isVideo
+              ? `
+                <button class="runtime-call__control ${session.cameraOff ? "is-active" : ""}" type="button" data-action="toggle-call-control" data-control="cameraOff" aria-pressed="${session.cameraOff}">
+                  <span>${renderIcon(session.cameraOff ? "cameraOff" : "video", "runtime-call__control-icon")}</span>
+                  <small>${session.cameraOff ? "开启摄像头" : "摄像头"}</small>
+                </button>
+                <button class="runtime-call__control" type="button" data-action="show-hint" data-message="已切换摄像头">
+                  <span>${renderIcon("switchCamera", "runtime-call__control-icon")}</span>
+                  <small>翻转</small>
+                </button>
+              `
+              : `
+                <button class="runtime-call__control ${session.speaker ? "is-active" : ""}" type="button" data-action="toggle-call-control" data-control="speaker" aria-pressed="${session.speaker}">
+                  <span>${renderIcon("speaker", "runtime-call__control-icon")}</span>
+                  <small>扬声器</small>
+                </button>
+              `
+          }
+          <button class="runtime-call__control runtime-call__control--end" type="button" data-action="end-call">
+            <span>${renderIcon("phoneOff", "runtime-call__control-icon")}</span>
+            <small>挂断</small>
+          </button>
         </div>
       </section>
     `;
@@ -5739,6 +5845,35 @@
     }
     if (action === "simulate-message") {
       simulateIncomingMessage(target.getAttribute("data-chat-id"));
+      return;
+    }
+    if (action === "start-call") {
+      const route = resolveMobilePreviewRoute(parseRoute(currentPath()));
+      const callType = target.getAttribute("data-call-type");
+      if (route.section === "chat-detail" && route.chatId && ["voice", "video"].includes(callType)) {
+        state.composerPanel = null;
+        state.callSession = {
+          chatId: route.chatId,
+          type: callType,
+          muted: false,
+          speaker: callType === "video",
+          cameraOff: false,
+        };
+        render();
+      }
+      return;
+    }
+    if (action === "toggle-call-control") {
+      const control = target.getAttribute("data-control");
+      if (state.callSession && ["muted", "speaker", "cameraOff"].includes(control)) {
+        state.callSession[control] = !state.callSession[control];
+        render();
+      }
+      return;
+    }
+    if (action === "end-call") {
+      state.callSession = null;
+      render();
       return;
     }
     if (action === "show-hint") {

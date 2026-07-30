@@ -6541,6 +6541,8 @@ body[data-theme="dark"] .phone-screen {
 }
 
 .runtime-chat-screen {
+  position: relative;
+  overflow: hidden;
   background: var(--runtime-canvas);
 }
 
@@ -6931,6 +6933,184 @@ body[data-theme="dark"] .phone-screen {
 .runtime-composer-action-card:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--runtime-accent) 62%, transparent);
   outline-offset: 2px;
+}
+
+.runtime-call {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  padding: 18px 20px calc(22px + var(--runtime-safe-area-bottom));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #151b26;
+  color: #f7f9fc;
+  animation: runtime-call-enter 180ms ease-out both;
+}
+
+.runtime-call--video {
+  background: #0b1018;
+}
+
+.runtime-call__topbar {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(247, 249, 252, 0.64);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.runtime-call__secure,
+.runtime-call__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.runtime-call__secure-icon,
+.runtime-call__secure-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.runtime-call__identity {
+  align-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.runtime-call__avatar,
+.runtime-call__avatar .avatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 34px;
+}
+
+.runtime-call__avatar .avatar {
+  font-size: 30px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.runtime-call__identity h2,
+.runtime-call__identity p {
+  margin: 0;
+}
+
+.runtime-call__identity h2 {
+  max-width: 280px;
+  overflow: hidden;
+  color: #f7f9fc;
+  font-size: 24px;
+  font-weight: 720;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-call__identity p {
+  color: rgba(247, 249, 252, 0.62);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.runtime-call__self-preview {
+  width: 88px;
+  height: 124px;
+  padding: 8px;
+  position: absolute;
+  top: 62px;
+  right: 16px;
+  display: flex;
+  align-items: flex-end;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: #242d3b;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.runtime-call__self-preview span {
+  color: rgba(247, 249, 252, 0.72);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.runtime-call__controls {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.runtime-call__control {
+  min-width: 0;
+  padding: 0;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  color: rgba(247, 249, 252, 0.78);
+}
+
+.runtime-call__control > span {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  transition:
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.runtime-call__control-icon,
+.runtime-call__control-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.runtime-call__control small {
+  min-height: 28px;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.runtime-call__control.is-active > span {
+  background: #f7f9fc;
+  color: #151b26;
+}
+
+.runtime-call__control--end > span {
+  background: #e34f48;
+  color: #fff;
+}
+
+.runtime-call__control:active > span {
+  transform: scale(0.92);
+}
+
+.runtime-call__control:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.82);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+
+@keyframes runtime-call-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .runtime-composer {
@@ -8521,8 +8701,12 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 @media (prefers-reduced-motion: reduce) {
   .runtime-composer-panel,
   .runtime-composer,
-  .runtime-icon-button--quiet {
+  .runtime-icon-button--quiet,
+  .runtime-composer-action-card__icon,
+  .runtime-call,
+  .runtime-call__control > span {
     transition: none;
+    animation: none;
   }
 
   .message-emoji__glyph {
