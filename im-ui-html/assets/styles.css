@@ -4110,7 +4110,7 @@ body[data-theme="dark"] .spec-stage {
 .moment-media-grid--count-7,
 .moment-media-grid--count-8,
 .moment-media-grid--count-9 {
-  max-width: 282px;
+  max-width: none;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-rows: repeat(3, minmax(0, 1fr));
   aspect-ratio: 1;
