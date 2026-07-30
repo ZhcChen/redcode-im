@@ -2650,15 +2650,15 @@
 
     return `
       <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-screen--chat-list">
+        ${renderScreenHeader({
+          title: "聊天",
+          root: true,
+          actions: [
+            `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/search" aria-label="搜索消息">${renderIcon("search", "runtime-icon-button__glyph", "搜索")}</button>`,
+            `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
+          ],
+        })}
         <div class="screen-scroll runtime-scroll">
-          ${renderScreenHeader({
-            title: "聊天",
-            root: true,
-            actions: [
-              `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/search" aria-label="搜索消息">${renderIcon("search", "runtime-icon-button__glyph", "搜索")}</button>`,
-              `<button class="runtime-icon-button runtime-icon-button--quiet" data-action="navigate" data-route="/groups/create" aria-label="创建群聊">${renderIcon("plus", "runtime-icon-button__glyph", "创建群聊")}</button>`,
-            ],
-          })}
           <div class="runtime-list-content">
             ${renderConversationSection("置顶", pinnedChats)}
             ${renderConversationSection(pinnedChats.length ? "全部消息" : "消息", recentChats)}
