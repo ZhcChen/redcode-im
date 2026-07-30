@@ -9755,31 +9755,20 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .screen.runtime-moment-detail-screen {
   min-height: 0;
-  background: var(--runtime-surface);
-}
-
-.phone-screen:has(.runtime-moment-detail-screen),
-.phone-screen:has(.runtime-moment-detail-screen) .phone-status-bar,
-.phone-screen .runtime-moment-detail-screen > .runtime-header--compact {
-  background: var(--runtime-surface);
-}
-
-.phone-screen .runtime-moment-detail-screen > .runtime-header--compact {
-  box-shadow: none;
-}
-
-.phone-screen .runtime-moment-detail-screen > .runtime-header--compact::after {
-  background: transparent;
+  background: var(--runtime-canvas);
 }
 
 .phone-screen--preview .screen.runtime-moment-detail-screen:not(.runtime-screen) .screen-scroll.runtime-moment-detail__scroll,
 .phone-screen .screen-scroll.runtime-moment-detail__scroll {
-  padding: 0 0 28px;
-  background: var(--runtime-surface);
+  padding: 10px 16px 28px;
+  background: var(--runtime-canvas);
 }
 
 .phone-screen .runtime-moment-detail {
-  padding: 18px 18px 0;
+  padding: 16px;
+  border-radius: var(--runtime-radius-feature);
+  background: var(--runtime-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .phone-screen .runtime-moment-detail__author {
@@ -9824,10 +9813,10 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-detail__text {
-  margin: 16px 0;
+  margin: 14px 0;
   color: var(--runtime-ink);
-  font-size: 16px;
-  line-height: 1.68;
+  font-size: 15px;
+  line-height: 1.62;
 }
 
 .phone-screen .moment-media-grid--detail {
@@ -9843,13 +9832,12 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-detail__engagement {
-  min-height: 48px;
-  margin-top: 14px;
+  min-height: 34px;
+  margin-top: 6px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  border-top: 1px solid var(--runtime-line);
 }
 
 .phone-screen .runtime-moment-detail__like {
@@ -9898,11 +9886,13 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-comments {
-  padding: 16px 18px 0;
+  margin-top: 12px;
+  padding: 16px;
   display: grid;
   gap: 8px;
-  border-top: 6px solid var(--runtime-canvas);
+  border-radius: var(--runtime-radius-feature);
   background: var(--runtime-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .phone-screen .runtime-moment-comments__heading {
