@@ -52,6 +52,19 @@
       icon: "link",
     },
   ];
+  const MOMENT_COMMENTS = {
+    mom_1001: [
+      { id: "mc_1001_1", author: "Zoe Wang", tone: "violet", time: "6 分钟前", text: "输入区和底部导航的节奏现在统一多了。" },
+      { id: "mc_1001_2", author: "Ian Chen", tone: "mint", time: "3 分钟前", text: "设计图里的状态切换也可以一起补进评审。" },
+    ],
+    mom_1002: [
+      { id: "mc_1002_1", author: "Alice Li", tone: "amber", time: "42 分钟前", text: "同城兴趣标签适合先从轻量筛选开始。" },
+      { id: "mc_1002_2", author: "Mia Sun", tone: "violet", time: "18 分钟前", text: "活动群入口可以和附近的人保持同一套权限边界。" },
+    ],
+    mom_1003: [
+      { id: "mc_1003_1", author: "Zoe Wang", tone: "violet", time: "昨天", text: "先保留统一入口，后续扩展会更稳。" },
+    ],
+  };
 
   if (!source || !root) {
     return;
@@ -82,6 +95,9 @@
     chatDrafts: {},
     composerPanel: null,
     composerPicker: null,
+    likedMomentIds: new Set(),
+    momentCommentDrafts: {},
+    momentComments: {},
     highlightMessageId: null,
     recentMessageId: null,
     navigationStack: [],
@@ -176,6 +192,13 @@
       '<path d="M9.15 10.3h.01" />',
       '<path d="M14.85 10.3h.01" />',
       '<path d="M8.95 13.9c.74 1.13 1.8 1.7 3.05 1.7 1.25 0 2.31-.57 3.05-1.7" />',
+    ],
+    heart: [
+      '<path d="M12 20.1S4.7 15.75 4.7 9.65A4.05 4.05 0 0 1 12 7.2a4.05 4.05 0 0 1 7.3 2.45c0 6.1-7.3 10.45-7.3 10.45Z" />',
+    ],
+    comment: [
+      '<path d="M5.15 17.35 4.5 20l2.85-.82A7.65 7.65 0 1 0 4.35 16Z" />',
+      '<path d="M8.25 11.9h7.5M8.25 14.75h4.6" />',
     ],
     more: [
       '<circle cx="6.9" cy="12" r="1.2" />',
@@ -477,6 +500,9 @@
 
     if (segments[0] === "discover") {
       if (segments[1] === "moments") {
+        if (segments[2]) {
+          return { section: "discover-moment-detail", momentId: segments[2] };
+        }
         return { section: "discover-moments" };
       }
       if (segments[1] === "scan") {
@@ -560,6 +586,7 @@
       "contact-profile",
       "discover",
       "discover-moments",
+      "discover-moment-detail",
       "discover-scan",
       "discover-nearby",
       "discover-games",
@@ -1238,6 +1265,9 @@
     }
     if (route.section === "discover-moments") {
       return renderDiscoverMomentsScreen();
+    }
+    if (route.section === "discover-moment-detail") {
+      return renderDiscoverMomentDetailScreen(route.momentId);
     }
     if (route.section === "discover-scan") {
       return renderDiscoverScanScreen();
@@ -3755,7 +3785,6 @@
             <strong>${escapeHtml(item.author)}</strong>
             <span>${escapeHtml(item.time)}</span>
           </div>
-          <span class="badge">动态</span>
         </div>
         <p class="moment-card__text">${escapeHtml(item.text)}</p>
         <div class="moment-card__media">${escapeHtml(item.media)}</div>
@@ -3766,10 +3795,148 @@
         <div class="moment-card__footer">
           <span>赞 ${item.likes}</span>
           <span>评论 ${item.comments}</span>
-          <span>查看详情 →</span>
+          <button class="moment-card__detail" type="button" data-action="navigate" data-route="/discover/moments/${escapeHtml(item.id)}">
+            查看详情
+            ${renderIcon("chevronRight", "moment-card__detail-icon")}
+          </button>
         </div>
       </article>
     `;
+  }
+
+  function renderDiscoverMomentDetailScreen(momentId) {
+    const item = findMoment(momentId);
+    if (!item) {
+      return renderFallbackScreen("动态不存在", "/discover/moments");
+    }
+
+    const liked = state.likedMomentIds.has(item.id);
+    const submittedComments = state.momentComments[item.id] || [];
+    const comments = [...submittedComments, ...(MOMENT_COMMENTS[item.id] || [])];
+    const commentCount = item.comments + submittedComments.length;
+    const draft = state.momentCommentDrafts[item.id] || "";
+    const hasMedia = !["无媒体", "文字"].includes(item.media);
+
+    return `
+      <section class="screen runtime-moment-detail-screen">
+        ${renderScreenHeader({
+          title: "动态详情",
+          backPath: "/discover/moments",
+          variant: "compact",
+        })}
+        <div class="screen-scroll runtime-moment-detail__scroll">
+          <article class="runtime-moment-detail">
+            <header class="runtime-moment-detail__author">
+              ${renderAvatar(item.author, item.tone, "avatar--md")}
+              <span>
+                <strong>${escapeHtml(item.author)}</strong>
+                <small>${escapeHtml(item.time)}</small>
+              </span>
+            </header>
+            <p class="runtime-moment-detail__text">${escapeHtml(item.text)}</p>
+            ${hasMedia ? renderMomentDetailMedia(item) : ""}
+            <p class="runtime-moment-detail__timestamp">发布于 ${escapeHtml(item.time)}</p>
+            <div class="runtime-moment-detail__actions" aria-label="动态互动">
+              <button
+                class="runtime-moment-detail__action ${liked ? "is-active" : ""}"
+                type="button"
+                data-action="toggle-moment-like"
+                data-moment-id="${escapeHtml(item.id)}"
+                aria-pressed="${liked}"
+              >
+                ${renderIcon("heart", "runtime-moment-detail__action-icon")}
+                <span class="runtime-moment-detail__action-label">${liked ? "已赞" : "点赞"}</span>
+                <b>${item.likes + (liked ? 1 : 0)}</b>
+              </button>
+              <button class="runtime-moment-detail__action" type="button" data-action="focus-moment-comment">
+                ${renderIcon("comment", "runtime-moment-detail__action-icon")}
+                <span>评论</span>
+                <b>${commentCount}</b>
+              </button>
+            </div>
+          </article>
+          <section class="runtime-moment-comments" aria-labelledby="moment-comments-title">
+            <div class="runtime-moment-comments__heading">
+              <h3 id="moment-comments-title">最新评论</h3>
+              <span>${commentCount} 条</span>
+            </div>
+            <div class="runtime-moment-comments__list">
+              ${comments.map(renderMomentComment).join("")}
+            </div>
+          </section>
+        </div>
+        <form class="runtime-moment-comment-dock" data-form="moment-comment-form" data-moment-id="${escapeHtml(item.id)}">
+          <label class="runtime-moment-comment-dock__field">
+            <span class="runtime-visually-hidden">发表评论</span>
+            <input
+              id="moment-comment-input"
+              value="${escapeHtml(draft)}"
+              data-moment-id="${escapeHtml(item.id)}"
+              placeholder="写评论"
+              autocomplete="off"
+            />
+          </label>
+          <button class="runtime-moment-comment-dock__send" type="submit" ${draft.trim() ? "" : "disabled"} aria-label="发送评论">
+            ${renderIcon("send", "runtime-moment-comment-dock__send-icon")}
+          </button>
+        </form>
+      </section>
+    `;
+  }
+
+  function renderMomentDetailMedia(item) {
+    const mediaCount = Number.parseInt(item.media, 10) || 1;
+    const visibleCount = Math.min(mediaCount, 3);
+    return `
+      <div class="runtime-moment-detail__media runtime-moment-detail__media--${visibleCount}" aria-label="${escapeHtml(item.media)}">
+        ${Array.from({ length: visibleCount }, (_, index) => `
+          <div class="runtime-moment-detail__media-item">
+            ${renderIcon("image", "runtime-moment-detail__media-icon")}
+            <span>设计图 ${String(index + 1).padStart(2, "0")}</span>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  function renderMomentComment(comment) {
+    return `
+      <article class="runtime-moment-comment" data-comment-id="${escapeHtml(comment.id)}">
+        ${renderAvatar(comment.author, comment.tone, "avatar--sm")}
+        <span class="runtime-moment-comment__body">
+          <span class="runtime-moment-comment__meta">
+            <strong>${escapeHtml(comment.author)}</strong>
+            <time>${escapeHtml(comment.time)}</time>
+          </span>
+          <p>${escapeHtml(comment.text)}</p>
+        </span>
+      </article>
+    `;
+  }
+
+  function submitMomentComment(momentId) {
+    const moment = findMoment(momentId);
+    const text = String(state.momentCommentDrafts[momentId] || "").trim();
+    if (!moment || !text) {
+      return;
+    }
+
+    const comment = {
+      id: `mc_${Date.now()}`,
+      author: data.currentUser.name,
+      tone: data.currentUser.avatarTone,
+      time: "刚刚",
+      text,
+    };
+    state.momentComments[momentId] = [comment, ...(state.momentComments[momentId] || [])];
+    state.momentCommentDrafts[momentId] = "";
+    render();
+    window.requestAnimationFrame(() => {
+      root.querySelector(`[data-comment-id="${comment.id}"]`)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+        block: "center",
+      });
+    });
   }
 
   function renderDiscoverScanScreen() {
@@ -5326,6 +5493,7 @@
     if (
       route.section === "discover" ||
       route.section === "discover-moments" ||
+      route.section === "discover-moment-detail" ||
       route.section === "discover-scan" ||
       route.section === "discover-nearby" ||
       route.section === "discover-games"
@@ -5514,6 +5682,10 @@
 
   function findGroupByChatId(chatId) {
     return data.groups.find((group) => group.chatId === chatId) || null;
+  }
+
+  function findMoment(momentId) {
+    return data.discover.moments.find((moment) => moment.id === momentId) || null;
   }
 
   function findPerson(personId) {
@@ -6168,6 +6340,36 @@
       }
       return;
     }
+    if (action === "toggle-moment-like") {
+      const moment = findMoment(target.getAttribute("data-moment-id"));
+      if (!moment) {
+        return;
+      }
+      const liked = state.likedMomentIds.has(moment.id);
+      if (liked) {
+        state.likedMomentIds.delete(moment.id);
+      } else {
+        state.likedMomentIds.add(moment.id);
+      }
+      target.classList.toggle("is-active", !liked);
+      target.setAttribute("aria-pressed", String(!liked));
+      const label = target.querySelector(".runtime-moment-detail__action-label");
+      const count = target.querySelector("b");
+      if (label) {
+        label.textContent = liked ? "点赞" : "已赞";
+      }
+      if (count) {
+        count.textContent = String(moment.likes + (liked ? 0 : 1));
+      }
+      return;
+    }
+    if (action === "focus-moment-comment") {
+      const input = document.getElementById("moment-comment-input");
+      if (input instanceof HTMLInputElement) {
+        input.focus({ preventScroll: true });
+      }
+      return;
+    }
     if (action === "set-desktop-chat") {
       const chatId = target.getAttribute("data-chat-id");
       if (chatId && findChat(chatId)) {
@@ -6389,6 +6591,16 @@
       state.friendNote = target.value;
       return;
     }
+    if (target.id === "moment-comment-input") {
+      const momentId = target.getAttribute("data-moment-id");
+      state.momentCommentDrafts[momentId] = target.value;
+      const form = target.closest('[data-form="moment-comment-form"]');
+      const button = form?.querySelector('button[type="submit"]');
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = !target.value.trim();
+      }
+      return;
+    }
     if (target.id === "chat-draft-input") {
       const chatId = target.getAttribute("data-chat-id");
       state.chatDrafts[chatId] = target.value;
@@ -6442,6 +6654,11 @@
     }
 
     const formKind = form.getAttribute("data-form");
+    if (formKind === "moment-comment-form") {
+      event.preventDefault();
+      submitMomentComment(form.getAttribute("data-moment-id"));
+      return;
+    }
     if (formKind === "contact-remark-form") {
       event.preventDefault();
       saveContactRemark(form.getAttribute("data-contact-id"));

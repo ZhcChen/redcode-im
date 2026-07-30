@@ -4039,10 +4039,6 @@ body[data-theme="dark"] .spec-stage {
   font-size: 0.82em;
 }
 
-.moment-card__header > .badge {
-  margin-left: auto;
-}
-
 .moment-card__text {
   margin: 0;
   line-height: 1.65;
@@ -4070,6 +4066,24 @@ body[data-theme="dark"] .spec-stage {
   align-items: center;
   gap: 1em;
   flex-wrap: wrap;
+}
+
+.moment-card__detail {
+  min-height: 28px;
+  margin-left: auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+}
+
+.moment-card__detail-icon,
+.moment-card__detail-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .scan-shell {
@@ -9649,6 +9663,307 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 .phone-screen .runtime-message-search__empty span {
   font-size: 13px;
   line-height: 1.4;
+}
+
+.phone-screen .runtime-moment-detail-screen {
+  min-height: 0;
+  background: var(--runtime-canvas);
+}
+
+.phone-screen .runtime-moment-detail__scroll {
+  padding: 0 16px 28px;
+}
+
+.phone-screen .runtime-moment-detail {
+  padding: 18px 0 20px;
+}
+
+.phone-screen .runtime-moment-detail__author {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.phone-screen .runtime-moment-detail__author > .avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  font-size: 15px;
+}
+
+.phone-screen .runtime-moment-detail__author > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.phone-screen .runtime-moment-detail__author strong,
+.phone-screen .runtime-moment-detail__author small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-screen .runtime-moment-detail__author strong {
+  color: var(--runtime-ink);
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.phone-screen .runtime-moment-detail__author small {
+  color: var(--runtime-faint);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.phone-screen .runtime-moment-detail__text {
+  margin: 18px 0 16px;
+  color: var(--runtime-ink);
+  font-size: 16px;
+  line-height: 1.68;
+}
+
+.phone-screen .runtime-moment-detail__media {
+  height: 238px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  overflow: hidden;
+  border-radius: var(--runtime-radius-surface);
+}
+
+.phone-screen .runtime-moment-detail__media-item {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 7px;
+  background: var(--runtime-accent-soft);
+  color: var(--runtime-accent-deep);
+}
+
+.phone-screen .runtime-moment-detail__media-item:nth-child(2n) {
+  background: var(--runtime-soft);
+  color: var(--runtime-muted);
+}
+
+.phone-screen .runtime-moment-detail__media--3 .runtime-moment-detail__media-item:first-child {
+  grid-row: 1 / 3;
+}
+
+.phone-screen .runtime-moment-detail__media--1 .runtime-moment-detail__media-item:first-child {
+  grid-row: 1 / 3;
+  grid-column: 1 / 3;
+}
+
+.phone-screen .runtime-moment-detail__media-icon,
+.phone-screen .runtime-moment-detail__media-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.phone-screen .runtime-moment-detail__media-item span {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-moment-detail__timestamp {
+  margin: 12px 0 16px;
+  color: var(--runtime-faint);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.phone-screen .runtime-moment-detail__actions {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--runtime-line);
+  border-bottom: 1px solid var(--runtime-line);
+}
+
+.phone-screen .runtime-moment-detail__action {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--runtime-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.phone-screen .runtime-moment-detail__action + .runtime-moment-detail__action {
+  border-left: 1px solid var(--runtime-line);
+}
+
+.phone-screen .runtime-moment-detail__action b {
+  color: var(--runtime-faint);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.phone-screen .runtime-moment-detail__action.is-active {
+  color: var(--runtime-accent-deep);
+}
+
+.phone-screen .runtime-moment-detail__action-icon,
+.phone-screen .runtime-moment-detail__action-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.phone-screen .runtime-moment-detail__action:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--runtime-accent) 68%, transparent);
+  outline-offset: -2px;
+}
+
+.phone-screen .runtime-moment-comments {
+  padding-top: 4px;
+  display: grid;
+  gap: 10px;
+}
+
+.phone-screen .runtime-moment-comments__heading {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.phone-screen .runtime-moment-comments__heading h3 {
+  margin: 0;
+  color: var(--runtime-ink);
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-moment-comments__heading span {
+  color: var(--runtime-faint);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-moment-comments__list {
+  border-top: 1px solid var(--runtime-line);
+}
+
+.phone-screen .runtime-moment-comment {
+  min-height: 72px;
+  padding: 12px 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.phone-screen .runtime-moment-comment + .runtime-moment-comment {
+  border-top: 1px solid var(--runtime-line);
+}
+
+.phone-screen .runtime-moment-comment > .avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.phone-screen .runtime-moment-comment__body {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.phone-screen .runtime-moment-comment__meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.phone-screen .runtime-moment-comment__meta strong {
+  overflow: hidden;
+  color: var(--runtime-ink);
+  font-size: 13px;
+  font-weight: 680;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phone-screen .runtime-moment-comment__meta time {
+  flex-shrink: 0;
+  color: var(--runtime-faint);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.phone-screen .runtime-moment-comment__body p {
+  margin: 0;
+  color: var(--runtime-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.phone-screen .runtime-moment-comment-dock {
+  flex-shrink: 0;
+  padding: 10px 16px calc(10px + var(--runtime-safe-area-bottom));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 10px;
+  background: var(--runtime-surface);
+  box-shadow: 0 -1px 0 var(--runtime-line);
+}
+
+.phone-screen .runtime-moment-comment-dock__field {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+}
+
+.phone-screen .runtime-moment-comment-dock__field input {
+  width: 100%;
+  min-width: 0;
+  color: var(--runtime-ink);
+  font-size: 14px;
+}
+
+.phone-screen .runtime-moment-comment-dock__field input::placeholder {
+  color: var(--runtime-faint);
+}
+
+.phone-screen .runtime-moment-comment-dock__send {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-accent);
+  color: #fff;
+}
+
+.phone-screen .runtime-moment-comment-dock__send:disabled {
+  background: var(--runtime-soft);
+  color: var(--runtime-faint);
+}
+
+.phone-screen .runtime-moment-comment-dock__send-icon,
+.phone-screen .runtime-moment-comment-dock__send-icon svg {
+  width: 19px;
+  height: 19px;
 }
 
 /* The contact profile is a continuous identity sheet with a fixed primary action. */
