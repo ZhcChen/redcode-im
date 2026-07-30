@@ -4065,24 +4065,39 @@ body[data-theme="dark"] .spec-stage {
 
 .moment-card__like {
   min-width: 38px;
-  min-height: 30px;
+  height: 30px;
   padding: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 5px;
   color: inherit;
   font: inherit;
   font-weight: 650;
+  line-height: 1;
 }
 
 .moment-card__like.is-active {
-  color: var(--primary-strong);
+  color: var(--danger);
 }
 
 .moment-card__like-icon,
 .moment-card__like-icon svg {
+  display: block;
   width: 17px;
   height: 17px;
+}
+
+.moment-card__like.is-active .moment-card__like-icon path {
+  fill: currentColor;
+}
+
+.moment-card__like-count {
+  min-width: 16px;
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  line-height: 17px;
 }
 
 .moment-card__detail {
@@ -9806,14 +9821,18 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   gap: 6px;
   background: transparent;
   color: var(--runtime-muted);
+  line-height: 1;
 }
 
 .phone-screen .runtime-moment-detail__like.is-active {
-  color: var(--runtime-accent-deep);
+  color: var(--runtime-danger);
 }
 
 .phone-screen .runtime-moment-detail__like-count {
   min-width: 16px;
+  height: 19px;
+  display: inline-flex;
+  align-items: center;
   color: currentColor;
   font-size: 12px;
   font-weight: 680;
@@ -9823,8 +9842,13 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .runtime-moment-detail__like-icon,
 .phone-screen .runtime-moment-detail__like-icon svg {
+  display: block;
   width: 19px;
   height: 19px;
+}
+
+.phone-screen .runtime-moment-detail__like.is-active .runtime-moment-detail__like-icon path {
+  fill: currentColor;
 }
 
 .phone-screen .runtime-moment-detail__like:focus-visible {
