@@ -9753,18 +9753,18 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   line-height: 1.4;
 }
 
-.phone-screen .runtime-moment-detail-screen {
+.phone-screen .screen.runtime-moment-detail-screen {
   min-height: 0;
   background: var(--runtime-surface);
 }
 
-.phone-screen .runtime-moment-detail__scroll {
+.phone-screen .screen-scroll.runtime-moment-detail__scroll {
   padding: 0 0 28px;
   background: var(--runtime-surface);
 }
 
 .phone-screen .runtime-moment-detail {
-  padding: 20px 18px 8px;
+  padding: 18px 18px 0;
 }
 
 .phone-screen .runtime-moment-detail__author {
@@ -9783,9 +9783,12 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .runtime-moment-detail__author > span {
   min-width: 0;
+  display: grid;
+  gap: 3px;
 }
 
-.phone-screen .runtime-moment-detail__author strong {
+.phone-screen .runtime-moment-detail__author strong,
+.phone-screen .runtime-moment-detail__author small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9796,6 +9799,12 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
   color: var(--runtime-ink);
   font-size: 15px;
   font-weight: 720;
+  line-height: 1.35;
+}
+
+.phone-screen .runtime-moment-detail__author small {
+  color: var(--runtime-faint);
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -9819,17 +9828,13 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-detail__engagement {
-  min-height: 50px;
+  min-height: 48px;
+  margin-top: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
-}
-
-.phone-screen .runtime-moment-detail__engagement time {
-  color: var(--runtime-faint);
-  font-size: 12px;
-  line-height: 1.4;
+  border-top: 1px solid var(--runtime-line);
 }
 
 .phone-screen .runtime-moment-detail__like {
@@ -9878,7 +9883,7 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 .phone-screen .runtime-moment-comments {
-  padding: 17px 18px 0;
+  padding: 16px 18px 0;
   display: grid;
   gap: 8px;
   border-top: 8px solid var(--runtime-canvas);
@@ -9973,7 +9978,7 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .runtime-moment-comment-dock {
   flex-shrink: 0;
-  padding: 10px 16px calc(10px + var(--runtime-safe-area-bottom));
+  padding: 9px 18px calc(9px + var(--runtime-safe-area-bottom));
   display: grid;
   grid-template-columns: minmax(0, 1fr) 40px;
   gap: 10px;

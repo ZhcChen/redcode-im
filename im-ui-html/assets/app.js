@@ -56,6 +56,12 @@
     mom_1001: [
       { id: "mc_1001_1", author: "Zoe Wang", tone: "violet", time: "6 分钟前", text: "输入区和底部导航的节奏现在统一多了。" },
       { id: "mc_1001_2", author: "Ian Chen", tone: "mint", time: "3 分钟前", text: "设计图里的状态切换也可以一起补进评审。" },
+      { id: "mc_1001_3", author: "Mia Sun", tone: "amber", time: "2 分钟前", text: "三图横排的信息密度现在更适合快速浏览。" },
+      { id: "mc_1001_4", author: "Nora", tone: "mint", time: "1 分钟前", text: "详情页和列表页共用图片规则会更容易维护。" },
+      { id: "mc_1001_5", author: "Olivia", tone: "violet", time: "刚刚", text: "点赞状态从列表带到详情的反馈也很自然。" },
+      { id: "mc_1001_6", author: "Jules", tone: "amber", time: "刚刚", text: "评论区可以继续保持这种连续阅读节奏。" },
+      { id: "mc_1001_7", author: "Evan", tone: "mint", time: "刚刚", text: "底部输入不会遮住最后一条评论，体验不错。" },
+      { id: "mc_1001_8", author: "Lena", tone: "violet", time: "刚刚", text: "这一版的信息层级已经清楚很多。" },
     ],
     mom_1002: [
       { id: "mc_1002_1", author: "Alice Li", tone: "amber", time: "42 分钟前", text: "同城兴趣标签适合先从轻量筛选开始。" },
@@ -3840,12 +3846,12 @@
               ${renderAvatar(item.author, item.tone, "avatar--md")}
               <span>
                 <strong>${escapeHtml(item.author)}</strong>
+                <small>${escapeHtml(item.time)}</small>
               </span>
             </header>
             <p class="runtime-moment-detail__text">${escapeHtml(item.text)}</p>
             ${mediaCount ? renderMomentMediaGrid(item, mediaCount, "detail") : ""}
             <div class="runtime-moment-detail__engagement" aria-label="动态互动">
-              <time>${escapeHtml(item.time)}</time>
               <button
                 class="runtime-moment-detail__like ${liked ? "is-active" : ""}"
                 type="button"
