@@ -96,6 +96,23 @@
 | `#/settings/chat` | 聊天偏好与存储 |
 | `#/settings/privacy` | 隐私协议与数据使用 |
 | `#/settings/about` | 关于与版本信息 |
+| `#/settings/profile/edit` | 编辑头像和昵称；用户名、邮箱只读，不提供个性签名编辑 |
+| `#/settings/feedback` | 正式反馈表单，分类前缀合并进正文，失败保留当前会话输入 |
+| `#/settings/password` | 使用当前密码修改密码；至少 8 位并包含字母和数字，不提供 SMS 重置 |
+| `#/settings/deactivate` | 文本确认、影响勾选和二次危险确认组成的账号注销流程 |
+| `#/settings/version` | 版本检查、可选/强制更新、下载、失败重试、热更新和应用结果 |
+
+版本状态通过 `?version=latest|optional|forced|downloading|error|hot|applied` 固定预览。强制更新状态不提供返回操作；下载或重试后进入可观察的下载进度与应用结果。
+
+### 贴纸链路
+
+| Route | 说明 |
+| --- | --- |
+| `#/stickers` | 我的贴纸包，只展示已添加的单包并允许逐包移除 |
+| `#/stickers/store` | 贴纸商店，支持搜索、添加、下载中、失败重试和空结果 |
+| `#/stickers/packs/:packId` | 贴纸包详情；未添加套装只展示元数据，添加后才展示贴纸内容 |
+
+聊天表情面板与“我的贴纸”读取同一份已添加状态；添加或移除单包后立即同步。API 不支持整套批量移除，因此页面不提供该操作。`?state=error` 提供稳定的下载失败预览。
 
 ### 其他业务页
 

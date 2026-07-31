@@ -31,12 +31,13 @@
 ### 会进入正式 runtime 的业务链路
 
 - 登录
-- 聊天 / 聊天详情
-- 联系人 / 好友申请 / 添加好友 / 资料页
+- 聊天 / 聊天详情 / 消息管理 / 已读详情 / 转发
+- 联系人 / 好友申请 / 添加好友 / 资料页 / 举报
 - 发现 / 朋友圈 / 扫一扫 / 附近的人 / 游戏入口
-- 建群 / 群设置
+- 建群 / 群设置 / 成员与角色治理
 - 消息搜索
-- 我的 / 设置
+- 贴纸中心
+- 我的 / 设置 / 反馈 / 资料 / 密码 / 注销 / 版本更新
 
 ## 2. Flutter 目录落位建议
 
@@ -57,6 +58,7 @@ app/lib/
     search/
     mine/
     settings/
+    stickers/
   core/
     theme/
     routing/
@@ -118,6 +120,12 @@ app/lib/
 | `Nearby Person Row` | `NearbyPersonTile` |
 | `Game Entry` | `GameEntryTile` |
 | `Settings Detail Sheet` | `SettingsDetailSheet` |
+| `Capability State` | `CapabilityStatePanel` |
+| `Action Dialog` | `ConfirmActionDialog` |
+| `Action Toast` | `UndoSnackBar` |
+| `Sticker Pack` | `StickerPackTile + StickerPackController` |
+| `Account Form` | `SettingsFormScaffold + ephemeral form state` |
+| `Version Update Panel` | `VersionUpdateGate + progress state` |
 
 暂不建议直接产品化的设计源专用内容：
 
@@ -133,10 +141,13 @@ app/lib/
 | `#/auth/login` | `auth/login` |
 | `#/chats` | `home/chats` |
 | `#/chat/:chatId` | `chat/detail/:chatId` |
+| `#/chat/:chatId/message/:messageId/reads` | `chat/message/:messageId/reads` |
+| `#/chat/:chatId/forward/:messageId` | `chat/message/:messageId/forward` |
 | `#/contacts` | `home/contacts` |
 | `#/contacts/requests` | `contacts/requests` |
 | `#/contacts/add` | `contacts/add` |
 | `#/contacts/profile/:contactId` | `contacts/profile/:contactId` |
+| `#/contacts/profile/:contactId/report` | `contacts/profile/:contactId/report` |
 | `#/discover` | `home/discover` |
 | `#/discover/moments` | `discover/moments` |
 | `#/discover/scan` | `discover/scan` |
@@ -144,6 +155,8 @@ app/lib/
 | `#/discover/games` | `discover/games` |
 | `#/groups/create` | `groups/create` |
 | `#/groups/settings/:groupId` | `groups/settings/:groupId` |
+| `#/groups/:groupId/*` | `groups/:groupId/<governance-section>` |
+| `#/stickers`、`#/stickers/store`、`#/stickers/packs/:packId` | `stickers/*` |
 | `#/search` | `search/messages` |
 | `#/mine` | `home/mine` |
 | `#/mine/profile` | `mine/profile` |
@@ -197,6 +210,17 @@ app/lib/
 
 - Flutter 落地前，如果 HTML 设计源又改了 token、路由或组件状态，必须先回写这 4 份文档
 - 正式实现不能绕开 `im-ui-html/docs/` 自行发明状态约定
+
+### API 契约边界
+
+- 会话归档只提供归档后的即时撤销，不实现 API 无法查询的归档中心。
+- 邀请只支持创建和按已知 ID 响应，不实现邀请列表。
+- 群资料只编辑名称、头像和 `description`，不新增独立群公告字段。
+- 未添加贴纸套装只显示元数据，添加后才能请求并展示子包内容；移除按单包执行。
+- 反馈分类在客户端合并为 `content` 前缀，不映射成独立 API 字段。
+- 资料只编辑头像和昵称；用户名、邮箱只读，不提交个性签名。
+- 密码、注销确认、反馈联系方式和举报附件不得进入持久化状态。
+- SMS 登录、短信重置密码和更换手机号不在本轮 Flutter 对齐范围。
 
 ## 8. 进入 Flutter 开发前的最小检查
 

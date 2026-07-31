@@ -134,6 +134,15 @@
     groupRuleEditors: {},
     groupMuteDuration: "2h",
     groupOperationLogLimits: {},
+    stickerSearch: "",
+    stickerDownloadStates: {},
+    feedbackForm: { category: "体验问题", content: "", contact: "", status: "idle", error: "" },
+    profileForm: { nickname: data.currentUser.name, avatarState: "idle", status: "idle", error: "" },
+    passwordForm: { current: "", next: "", confirm: "", status: "idle", error: "" },
+    deactivateForm: { confirmation: "", agreed: false, status: "idle", error: "" },
+    versionPreviewState: "latest",
+    versionInteractionActive: false,
+    versionProgress: 50,
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
@@ -398,6 +407,15 @@
     }
     if (activeRoute.section !== "contact-report") {
       state.contactReport = { reason: "", detail: "", screenshots: [], status: "idle", error: "" };
+    }
+    if (activeRoute.section !== "settings-feedback") {
+      state.feedbackForm = { category: "体验问题", content: "", contact: "", status: "idle", error: "" };
+    }
+    if (activeRoute.section !== "settings-password") {
+      state.passwordForm = { current: "", next: "", confirm: "", status: "idle", error: "" };
+    }
+    if (activeRoute.section !== "settings-deactivate") {
+      state.deactivateForm = { confirmation: "", agreed: false, status: "idle", error: "" };
     }
     if (
       state.callSession &&
@@ -1481,8 +1499,9 @@
       if (route.section === "sticker-pack" && !route.packId) {
         return renderFallbackScreen("贴纸包不存在", "/stickers/store");
       }
-      const title = route.section === "sticker-store" ? "贴纸商店" : route.section === "sticker-pack" ? "贴纸包" : "我的贴纸";
-      return renderCapabilityRouteScreen(title, route.section === "sticker-pack" ? "/stickers/store" : "/settings", "暂无贴纸");
+      if (route.section === "stickers") return renderMyStickersScreen();
+      if (route.section === "sticker-store") return renderStickerStoreScreen();
+      return renderStickerPackScreen(route.packId);
     }
     if (route.section === "report-create") {
       return renderCapabilityRouteScreen("举报", "/mine", "请选择举报对象");
@@ -1503,14 +1522,14 @@
       return renderSettingsDetailScreen(route.settingsSection);
     }
     if (route.section.startsWith("settings-")) {
-      const settingsTitles = {
-        "settings-feedback": "体验反馈",
-        "settings-profile-edit": "编辑资料",
-        "settings-password": "修改密码",
-        "settings-deactivate": "注销账号",
-        "settings-version": "版本更新",
+      const renderers = {
+        "settings-feedback": renderFeedbackScreen,
+        "settings-profile-edit": renderProfileEditScreen,
+        "settings-password": renderPasswordScreen,
+        "settings-deactivate": renderDeactivateScreen,
+        "settings-version": renderVersionScreen,
       };
-      return renderCapabilityRouteScreen(settingsTitles[route.section] || "设置", "/settings", "暂无内容");
+      return renderers[route.section] ? renderers[route.section]() : renderFallbackScreen("设置页面不存在", "/settings");
     }
     return renderSpecScreen();
   }
@@ -3289,6 +3308,7 @@
     const activePanel = state.composerPanel;
     const isOpen = activePanel === "emoji" || activePanel === "more";
     const emojis = EMOJI_CATALOG;
+    const stickerPacks = data.stickerPacks.filter((pack) => pack.added);
     const isGroup = chat.type === "group";
     const actions = [
       { label: "图片", message: "选择图片", icon: "image" },
@@ -3327,6 +3347,22 @@
                 `,
               )
               .join("")}
+          </div>
+          <div class="runtime-composer-stickers">
+            <div class="runtime-composer-stickers__header">
+              <strong>我的贴纸</strong>
+              <button type="button" data-action="open-sticker-store">管理</button>
+            </div>
+            ${stickerPacks.length
+              ? stickerPacks.map((pack) => `
+                <section class="runtime-composer-sticker-pack" aria-label="${escapeHtml(pack.name)}">
+                  <small>${escapeHtml(pack.name)}</small>
+                  <div class="runtime-composer-sticker-grid">
+                    ${pack.items.map((emoji) => `<button type="button" data-action="append-emoji" data-emoji="${escapeHtml(emoji)}" aria-label="发送 ${escapeHtml(emoji)}">${escapeHtml(emoji)}</button>`).join("")}
+                  </div>
+                </section>
+              `).join("")
+              : `<p class="runtime-composer-stickers__empty">还没有已添加的贴纸包</p>`}
           </div>
         </div>
         <div class="runtime-composer-panel__view runtime-composer-panel__view--actions" aria-label="更多操作面板">
@@ -5894,6 +5930,7 @@
               <h3>账号与偏好</h3>
               ${renderRuntimeSettingsLink("账号与安全", "手机号、设备与登录管理", "/settings/account")}
               ${renderRuntimeSettingsLink("聊天", "聊天背景与存储", "/settings/chat")}
+              ${renderRuntimeSettingsLink("我的贴纸", "管理聊天中可用的贴纸包", "/stickers")}
             </section>
             <section class="runtime-settings-group">
               <h3>消息通知</h3>
@@ -5950,6 +5987,7 @@
         groups: [
           {
             rows: [
+              { type: "route", label: "编辑资料", description: "修改头像和昵称", route: "/settings/profile/edit" },
               { type: "value", label: "姓名", description: data.currentUser.name },
               { type: "value", label: "身份", description: data.currentUser.role },
               { type: "value", label: "手机号", description: data.currentUser.phone },
@@ -5973,7 +6011,13 @@
             title: "登录安全",
             rows: [
               { type: "action", label: "登录设备", description: "当前有 2 台设备在线", value: "2 台", action: "devices" },
-              { type: "action", label: "更换手机号", description: "验证当前手机号后修改", action: "phone" },
+              { type: "route", label: "修改密码", description: "使用当前密码设置新密码", route: "/settings/password" },
+            ],
+          },
+          {
+            title: "账号操作",
+            rows: [
+              { type: "route", label: "注销账号", description: "永久删除账号及关系数据", route: "/settings/deactivate" },
             ],
           },
         ],
@@ -6027,7 +6071,7 @@
           {
             title: "产品信息",
             rows: [
-              { type: "action", label: "版本信息", description: "RedCode IM 2.0 Preview", value: "最新", action: "version" },
+              { type: "route", label: "版本信息", description: "检查客户端与热更新状态", value: "检查", route: "/settings/version" },
               { type: "value", label: "设计源", description: "im-ui-html" },
             ],
           },
@@ -6035,7 +6079,7 @@
             title: "支持",
             rows: [
               { type: "action", label: "隐私政策", description: "隐私保护与数据使用说明", action: "privacyPolicy" },
-              { type: "action", label: "体验反馈", description: "告诉我们哪里可以做得更好", action: "feedback" },
+              { type: "route", label: "体验反馈", description: "告诉我们哪里可以做得更好", route: "/settings/feedback" },
             ],
           },
         ],
@@ -6069,6 +6113,9 @@
   function renderSettingsDetailRow(row) {
     if (row.type === "switch") {
       return renderRuntimeSwitchRow(row.key, row.label, row.checked, row.scope, row.description);
+    }
+    if (row.type === "route") {
+      return renderRuntimeSettingsLink(row.label, row.description, row.route, row.value);
     }
     if (row.type === "action" || row.type === "instant") {
       return `
@@ -6123,11 +6170,6 @@
         successTitle: "其他设备已退出",
         successMessage: "当前设备保持登录状态。",
       },
-      phone: {
-        title: "更换手机号",
-        description: "修改前需要验证当前手机号",
-        items: [`当前号码 ${data.currentUser.phone}`, "验证码仅发送到当前绑定号码"],
-      },
       chatBackground: {
         title: "聊天背景",
         description: "当前跟随应用主题",
@@ -6153,19 +6195,6 @@
         title: "数据使用说明",
         description: "账号与消息数据用途",
         items: ["账号信息用于身份识别与安全保护", "消息元数据用于同步、送达与已读状态", "诊断数据仅用于定位稳定性问题"],
-      },
-      version: {
-        title: "版本信息",
-        description: "RedCode IM 2.0 Preview",
-        items: ["设计源：im-ui-html", "当前版本已是最新预览版本"],
-      },
-      feedback: {
-        title: "体验反馈",
-        description: "帮助我们持续改进 RedCode IM",
-        items: ["页面与交互问题", "消息、通话与通知体验", "其他产品建议"],
-        actionLabel: "提交反馈",
-        successTitle: "反馈已提交",
-        successMessage: "感谢你的产品体验反馈。",
       },
     };
     return sheets[key] || null;
@@ -6216,11 +6245,11 @@
     render();
   }
 
-  function renderRuntimeSettingsLink(title, description, route) {
+  function renderRuntimeSettingsLink(title, description, route, value = "") {
     return `
       <button class="runtime-setting-row runtime-setting-row--link" data-action="navigate" data-route="${route}">
         <span class="runtime-setting-row__copy"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(description)}</small></span>
-        ${renderRowChevron()}
+        <span class="runtime-setting-row__tail">${value ? `<span>${escapeHtml(value)}</span>` : ""}${renderRowChevron()}</span>
       </button>
     `;
   }
@@ -6434,6 +6463,243 @@
     const limit = state.groupOperationLogLimits[group.id] || 2;
     const logs = (group.operationLogs || []).slice(0, limit);
     return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "操作日志", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${logs.length ? `<div class="runtime-operation-log">${logs.map((log) => { const actor = findPerson(log.actorId); return `<article><span></span><div><strong>${escapeHtml(log.action)}</strong><p>${escapeHtml(actor?.name || "群管理员")} · ${escapeHtml(log.time)}</p></div></article>`; }).join("")}</div>${limit < (group.operationLogs || []).length ? `<button class="runtime-load-more" type="button" data-action="load-more-group-logs" data-group-id="${group.id}">加载更多</button>` : ""}` : renderCapabilityState("empty", "暂无操作日志", "群管理操作会按时间显示。")}</div></div></section>`;
+  }
+
+  function renderMyStickersScreen() {
+    const packs = data.stickerPacks.filter((pack) => pack.added);
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "我的贴纸", backPath: "/settings", variant: "compact", actions: [`<button class="runtime-header-link" type="button" data-action="navigate" data-route="/stickers/store">贴纸商店</button>`] })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${packs.length ? `<div class="runtime-sticker-list">${packs.map(renderStickerPackRow).join("")}</div>` : renderCapabilityState("empty", "还没有贴纸包", "前往贴纸商店添加贴纸包。", { name: "open-sticker-store", label: "浏览贴纸" })}</div></div></section>`;
+  }
+
+  function renderStickerStoreScreen() {
+    const query = state.stickerSearch.trim().toLowerCase();
+    const packs = data.stickerPacks.filter((pack) => !query || [pack.name, pack.description].join(" ").toLowerCase().includes(query));
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "贴纸商店", backPath: "/stickers", variant: "compact" })}<div class="runtime-forward-search"><label class="runtime-search-field">${renderIcon("search", "runtime-search-field__icon")}<input id="sticker-search" value="${escapeHtml(state.stickerSearch)}" placeholder="搜索贴纸包" aria-label="搜索贴纸包"></label></div><div class="screen-scroll runtime-scroll"><div class="runtime-list-content">${packs.length ? `<div class="runtime-sticker-list">${packs.map(renderStickerPackRow).join("")}</div>` : renderCapabilityState("empty", "没有匹配的贴纸包", "换个关键词试试。")}</div></div></section>`;
+  }
+
+  function renderStickerPackRow(pack) {
+    const download = state.stickerDownloadStates[pack.id];
+    return `<article class="runtime-sticker-row"><button type="button" data-action="navigate" data-route="/stickers/packs/${pack.id}"><span>${pack.icon}</span><div><strong>${escapeHtml(pack.name)}</strong><small>${escapeHtml(pack.description)}</small></div></button><button type="button" data-action="${pack.added ? "remove-sticker-pack" : "add-sticker-pack"}" data-pack-id="${pack.id}" ${download === "loading" ? "disabled" : ""}>${download === "loading" ? "下载中" : pack.added ? "移除" : "添加"}</button></article>`;
+  }
+
+  function addStickerPack(packId) {
+    const pack = data.stickerPacks.find((item) => item.id === packId);
+    if (!pack || state.stickerDownloadStates[packId] === "loading") return;
+    state.stickerDownloadStates[packId] = "loading";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "error") {
+        state.stickerDownloadStates[packId] = "error";
+      } else {
+        pack.added = true;
+        state.stickerDownloadStates[packId] = "added";
+        showToast("贴纸包已添加", `${pack.name} 已同步到聊天表情面板。`);
+      }
+      render();
+    }, 420);
+  }
+
+  function removeStickerPack(packId) {
+    const pack = data.stickerPacks.find((item) => item.id === packId);
+    if (!pack || !pack.added) return;
+    pack.added = false;
+    delete state.stickerDownloadStates[packId];
+    showToast("贴纸包已移除", `${pack.name} 已从我的贴纸中移除。`);
+    render();
+  }
+
+  function renderStickerPackScreen(packId) {
+    const pack = data.stickerPacks.find((item) => item.id === packId);
+    if (!pack) return renderFallbackScreen("贴纸包不存在", "/stickers/store");
+    const download = state.stickerDownloadStates[pack.id];
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "贴纸包", backPath: "/stickers/store", variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content"><section class="runtime-sticker-detail"><span>${pack.icon}</span><h3>${escapeHtml(pack.name)}</h3><p>${escapeHtml(pack.description)}</p>${pack.suiteId ? `<small>套装 · ${escapeHtml(pack.suiteId)}</small>` : ""}</section>${download === "error" ? `<div class="runtime-inline-error"><strong>下载失败</strong><button type="button" data-action="add-sticker-pack" data-pack-id="${pack.id}">重试</button></div>` : ""}${pack.added ? `<div class="runtime-sticker-grid">${pack.items.map((emoji) => `<span>${emoji}</span>`).join("")}</div><button class="runtime-sticker-action is-danger" type="button" data-action="remove-sticker-pack" data-pack-id="${pack.id}">移除此贴纸包</button>` : `<p class="runtime-sticker-boundary">添加后可查看和使用套装中的贴纸。</p><button class="runtime-sticker-action" type="button" data-action="add-sticker-pack" data-pack-id="${pack.id}" ${download === "loading" ? "disabled" : ""}>${download === "loading" ? "正在下载" : "添加贴纸包"}</button>`}</div></div></section>`;
+  }
+
+  function renderSettingsFormShell(title, content, options = {}) {
+    const header = options.locked
+      ? `<header class="runtime-topbar runtime-topbar--compact"><span class="runtime-topbar__side" aria-hidden="true"></span><h2>${escapeHtml(title)}</h2><span class="runtime-topbar__side" aria-hidden="true"></span></header>`
+      : renderScreenHeader({ title, backPath: "/settings", variant: "compact" });
+    return `<section class="screen runtime-screen runtime-screen--list">${header}${content}</section>`;
+  }
+
+  function renderFeedbackScreen() {
+    const form = state.feedbackForm;
+    if (form.status === "success") return renderSettingsFormShell("体验反馈", `<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${renderCapabilityState("success", "反馈已提交", "感谢你的反馈，我们会持续改进体验。", { name: "reset-feedback", label: "继续反馈" })}</div></div>`);
+    return renderSettingsFormShell("体验反馈", `<form class="screen-scroll runtime-scroll runtime-topbar-scroll runtime-account-form" data-form="feedback"><fieldset><legend>反馈分类</legend><div class="runtime-report-reasons">${["体验问题", "功能建议", "性能问题", "其他"].map((category) => `<label><input type="radio" name="feedback-category" data-kind="feedback-category" value="${category}" ${form.category === category ? "checked" : ""}><span>${category}</span></label>`).join("")}</div></fieldset><label><span>反馈内容</span><textarea id="feedback-content" rows="7" maxlength="1000" placeholder="请详细描述你的体验或建议">${escapeHtml(form.content)}</textarea><small>${form.content.length}/1000</small></label><label><span>联系方式 <small>选填</small></span><input id="feedback-contact" value="${escapeHtml(form.contact)}" maxlength="120" placeholder="邮箱或其他联系方式"></label>${form.error ? `<p class="runtime-report-error" role="alert">${escapeHtml(form.error)}</p>` : ""}<button type="submit" ${form.content.trim() && form.status !== "submitting" ? "" : "disabled"}>${form.status === "submitting" ? "提交中" : "提交反馈"}</button></form>`);
+  }
+
+  function renderProfileEditScreen() {
+    const form = state.profileForm;
+    const avatarCopy = { idle: "更换头像", uploading: "上传中", preview: "使用此头像", success: "重新选择", error: "重试上传" };
+    const dirty = form.nickname.trim() !== data.currentUser.name || form.avatarState === "preview";
+    return renderSettingsFormShell("编辑资料", `<form class="screen-scroll runtime-scroll runtime-topbar-scroll runtime-account-form" data-form="profile"><div class="runtime-profile-avatar-edit ${form.avatarState === "preview" ? "is-preview" : ""}">${renderAvatar(form.nickname || data.currentUser.name, data.currentUser.avatarTone, "avatar--xl")}<button type="button" data-action="select-profile-avatar" ${form.avatarState === "uploading" ? "disabled" : ""}>${avatarCopy[form.avatarState] || avatarCopy.idle}</button>${form.avatarState === "preview" ? `<small>头像已裁剪并可预览</small>` : form.avatarState === "success" ? `<small>头像上传成功</small>` : ""}</div><label><span>昵称</span><input id="profile-nickname" value="${escapeHtml(form.nickname)}" maxlength="40"></label><label><span>用户名</span><input value="chen.atlas" readonly></label><label><span>邮箱</span><input value="${escapeHtml(data.currentUser.email)}" readonly></label>${form.error ? `<p class="runtime-report-error" role="alert">${escapeHtml(form.error)}</p>` : ""}<button type="submit" ${form.nickname.trim() && dirty && form.status !== "saving" ? "" : "disabled"}>${form.status === "saving" ? "保存中" : "保存资料"}</button></form>`);
+  }
+
+  function renderPasswordScreen() {
+    const form = state.passwordForm;
+    if (form.status === "success") return renderSettingsFormShell("修改密码", `<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${renderCapabilityState("success", "密码已修改", "下次登录请使用新密码。")}</div></div>`);
+    return renderSettingsFormShell("修改密码", `<form class="screen-scroll runtime-scroll runtime-topbar-scroll runtime-account-form" data-form="password"><label><span>当前密码</span><input id="password-current" type="password" autocomplete="current-password" value="${escapeHtml(form.current)}"></label><label><span>新密码</span><input id="password-next" type="password" autocomplete="new-password" value="${escapeHtml(form.next)}"><small>至少 8 位，包含字母和数字</small></label><label><span>确认新密码</span><input id="password-confirm" type="password" autocomplete="new-password" value="${escapeHtml(form.confirm)}"></label>${form.error ? `<p class="runtime-report-error" role="alert">${escapeHtml(form.error)}</p>` : ""}<button type="submit" ${form.current && form.next && form.confirm && form.status !== "submitting" ? "" : "disabled"}>${form.status === "submitting" ? "修改中" : "修改密码"}</button></form>`);
+  }
+
+  function renderDeactivateScreen() {
+    const form = state.deactivateForm;
+    if (form.status === "success") return renderSettingsFormShell("注销账号", `<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${renderCapabilityState("success", "注销申请已完成", "账号数据删除流程已开始处理。")}</div></div>`);
+    return renderSettingsFormShell("注销账号", `<form class="screen-scroll runtime-scroll runtime-topbar-scroll runtime-account-form runtime-deactivate-form" data-form="deactivate"><div class="runtime-danger-summary">${renderIcon("alertTriangle", "runtime-danger-summary__icon")}<div><strong>账号注销不可撤销</strong><p>个人资料、好友关系和服务端账号数据将被永久删除。</p></div></div><label><span>输入“注销账号”确认</span><input id="deactivate-confirmation" value="${escapeHtml(form.confirmation)}" autocomplete="off"></label><label class="runtime-consent"><input type="checkbox" data-kind="deactivate-agreement" ${form.agreed ? "checked" : ""}><span>我已了解注销后的影响</span></label>${form.error ? `<p class="runtime-report-error">${escapeHtml(form.error)}</p>` : ""}<button class="is-danger" type="submit" ${form.confirmation === "注销账号" && form.agreed && form.status !== "submitting" ? "" : "disabled"}>${form.status === "submitting" ? "注销中" : "永久注销账号"}</button></form>`);
+  }
+
+  function submitFeedback() {
+    const form = state.feedbackForm;
+    if (!form.content.trim() || form.status === "submitting") return;
+    form.status = "submitting";
+    form.error = "";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "error") {
+        form.status = "idle";
+        form.error = "提交失败，请检查网络后重试。";
+      } else {
+        form.submittedContent = `【${form.category}】${form.content.trim()}`;
+        form.status = "success";
+      }
+      render();
+    }, 420);
+  }
+
+  function selectProfileAvatar() {
+    const form = state.profileForm;
+    if (form.avatarState === "preview") {
+      form.avatarState = "success";
+      form.error = "";
+      render();
+      return;
+    }
+    form.avatarState = "uploading";
+    form.error = "";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "avatar-error") {
+        form.avatarState = "error";
+        form.error = "头像上传失败，请重新选择。";
+      } else {
+        form.avatarState = "preview";
+      }
+      render();
+    }, 420);
+  }
+
+  function submitProfile() {
+    const form = state.profileForm;
+    const nickname = form.nickname.trim();
+    if (!nickname || form.status === "saving") return;
+    form.status = "saving";
+    form.error = "";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "profile-error") {
+        form.status = "idle";
+        form.error = "资料保存失败，请重试。";
+      } else {
+        data.currentUser.name = nickname;
+        form.nickname = nickname;
+        form.avatarState = form.avatarState === "preview" ? "success" : form.avatarState;
+        form.status = "idle";
+        showToast("资料已保存", "头像和昵称已更新。");
+      }
+      render();
+    }, 420);
+  }
+
+  function submitPassword() {
+    const form = state.passwordForm;
+    form.error = "";
+    if (form.next.length < 8 || !/[A-Za-z]/.test(form.next) || !/\d/.test(form.next)) {
+      form.error = "新密码至少 8 位，并同时包含字母和数字。";
+      render();
+      return;
+    }
+    if (form.next !== form.confirm) {
+      form.error = "两次输入的新密码不一致。";
+      render();
+      return;
+    }
+    form.status = "submitting";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "password-error") {
+        form.status = "idle";
+        form.error = "当前密码不正确，请重新输入。";
+      } else {
+        form.status = "success";
+      }
+      render();
+    }, 420);
+  }
+
+  function requestDeactivate() {
+    openActionDialog({
+      title: "永久注销账号？",
+      description: "账号、好友关系及服务端数据将被永久删除，此操作无法撤销。",
+      confirmLabel: "确认注销",
+      tone: "danger",
+      onConfirm: async () => {
+        state.deactivateForm.status = "submitting";
+        await new Promise((resolve) => window.setTimeout(resolve, 420));
+        if (new URLSearchParams(window.location.search).get("state") === "deactivate-error") {
+          state.deactivateForm.status = "idle";
+          state.deactivateForm.error = "注销请求失败，账号仍保持正常状态。";
+          throw new Error("注销请求失败，账号仍保持正常状态。");
+        }
+        state.deactivateForm = { confirmation: "", agreed: false, status: "success", error: "" };
+      },
+    });
+  }
+
+  function renderVersionScreen() {
+    const requested = new URLSearchParams(window.location.search).get("version");
+    const mode = state.versionInteractionActive ? state.versionPreviewState : requested || state.versionPreviewState;
+    const info = data.versionInfo;
+    const states = {
+      latest: ["已是最新版本", `当前版本 ${info.current}`],
+      optional: [`发现新版本 ${info.latest}`, "可以稍后更新，不影响继续使用。"],
+      forced: [`必须更新到 ${info.latest}`, "此版本包含必要的兼容性更新。"],
+      downloading: ["正在下载更新", "50%"],
+      error: ["下载失败", "网络连接不稳定，请重试。"],
+      hot: ["热更新已就绪", `资源版本 ${info.hotUpdate}`],
+      applying: ["正在应用热更新", "完成后将自动刷新资源。"],
+      applied: ["更新已应用", `当前资源版本 ${info.hotUpdate}`],
+    };
+    const copy = states[mode] || states.latest;
+    const action = mode === "optional" || mode === "forced" || mode === "error" ? `<button type="button" data-action="start-version-download">${mode === "error" ? "重试下载" : "下载更新"}</button>` : mode === "hot" ? `<button type="button" data-action="apply-hot-update">应用热更新</button>` : "";
+    const progress = state.versionInteractionActive ? state.versionProgress : 50;
+    return renderSettingsFormShell("版本更新", `<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-version-panel"><span class="runtime-version-mark">R</span><h3>${escapeHtml(copy[0])}</h3><p>${escapeHtml(copy[1])}</p>${mode === "downloading" ? `<div class="runtime-version-progress" role="progressbar" aria-label="更新下载进度" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"><span style="width:${progress}%"></span></div><small>${progress}%</small>` : ""}${mode === "applying" ? `<div class="runtime-version-spinner" aria-label="正在应用"></div>` : ""}${action}${mode === "forced" ? `<small>更新完成前无法关闭此页面</small>` : mode === "hot" ? `<small>应用失败时将自动回退到当前资源版本</small>` : ""}</div></div>`, { locked: mode === "forced" });
+  }
+
+  function startVersionDownload() {
+    state.versionInteractionActive = true;
+    state.versionPreviewState = "downloading";
+    state.versionProgress = 0;
+    render();
+    window.setTimeout(() => {
+      state.versionProgress = 50;
+      render();
+    }, 280);
+    window.setTimeout(() => {
+      state.versionProgress = 100;
+      render();
+    }, 560);
+    window.setTimeout(() => {
+      state.versionPreviewState = "applied";
+      render();
+    }, 820);
+  }
+
+  function applyHotUpdate() {
+    state.versionInteractionActive = true;
+    state.versionPreviewState = "applying";
+    render();
+    window.setTimeout(() => {
+      state.versionPreviewState = "applied";
+      render();
+    }, 520);
   }
 
   function renderCapabilityState(kind, title, description, action = null) {
@@ -7834,6 +8100,36 @@
       navigate(target.getAttribute("data-route"));
       return;
     }
+    if (action === "open-sticker-store") {
+      state.composerPanel = null;
+      navigate("/stickers/store");
+      return;
+    }
+    if (action === "add-sticker-pack") {
+      addStickerPack(target.getAttribute("data-pack-id"));
+      return;
+    }
+    if (action === "remove-sticker-pack") {
+      removeStickerPack(target.getAttribute("data-pack-id"));
+      return;
+    }
+    if (action === "reset-feedback") {
+      state.feedbackForm = { category: "体验问题", content: "", contact: "", status: "idle", error: "" };
+      render();
+      return;
+    }
+    if (action === "select-profile-avatar") {
+      selectProfileAvatar();
+      return;
+    }
+    if (action === "start-version-download") {
+      startVersionDownload();
+      return;
+    }
+    if (action === "apply-hot-update") {
+      applyHotUpdate();
+      return;
+    }
     if (action === "close-action-dialog") {
       closeActionDialog();
       return;
@@ -8465,6 +8761,43 @@
       if (submit instanceof HTMLButtonElement) submit.disabled = !target.value.trim();
       return;
     }
+    if (target.id === "sticker-search") {
+      state.stickerSearch = target.value;
+      scheduleFilterRender(target);
+      return;
+    }
+    if (target.id === "feedback-content") {
+      state.feedbackForm.content = target.value;
+      state.feedbackForm.error = "";
+      const count = target.parentElement?.querySelector("small");
+      if (count) count.textContent = `${target.value.length}/1000`;
+      const submit = target.closest("form")?.querySelector('button[type="submit"]');
+      if (submit instanceof HTMLButtonElement) submit.disabled = !target.value.trim();
+      return;
+    }
+    if (target.id === "feedback-contact") {
+      state.feedbackForm.contact = target.value;
+      return;
+    }
+    if (target.id === "profile-nickname") {
+      state.profileForm.nickname = target.value;
+      const submit = target.closest("form")?.querySelector('button[type="submit"]');
+      if (submit instanceof HTMLButtonElement) submit.disabled = !target.value.trim() || target.value.trim() === data.currentUser.name;
+      return;
+    }
+    if (["password-current", "password-next", "password-confirm"].includes(target.id)) {
+      const key = target.id.replace("password-", "");
+      state.passwordForm[key] = target.value;
+      state.passwordForm.error = "";
+      return;
+    }
+    if (target.id === "deactivate-confirmation") {
+      state.deactivateForm.confirmation = target.value;
+      state.deactivateForm.error = "";
+      const submit = target.closest("form")?.querySelector('button[type="submit"]');
+      if (submit instanceof HTMLButtonElement) submit.disabled = target.value !== "注销账号" || !state.deactivateForm.agreed;
+      return;
+    }
     if (target.getAttribute("data-kind") === "group-rule-edit") {
       const groupId = target.getAttribute("data-group-id");
       if (state.groupRuleEditors[groupId]) state.groupRuleEditors[groupId].value = target.value;
@@ -8501,6 +8834,15 @@
         showToast("通知设置已更新", `${chat.name}：${target.value === "all" ? "全部通知" : target.value === "mentions" ? "仅提及" : "静音"}。`);
         render();
       }
+      return;
+    }
+    if (target.getAttribute("data-kind") === "feedback-category") {
+      state.feedbackForm.category = target.value;
+      return;
+    }
+    if (target.getAttribute("data-kind") === "deactivate-agreement") {
+      state.deactivateForm.agreed = target.checked;
+      render();
       return;
     }
 
@@ -8631,6 +8973,26 @@
         state.groupRuleDrafts[groupId] = "";
         render();
       }
+      return;
+    }
+    if (formKind === "feedback") {
+      event.preventDefault();
+      submitFeedback();
+      return;
+    }
+    if (formKind === "profile") {
+      event.preventDefault();
+      submitProfile();
+      return;
+    }
+    if (formKind === "password") {
+      event.preventDefault();
+      submitPassword();
+      return;
+    }
+    if (formKind === "deactivate") {
+      event.preventDefault();
+      requestDeactivate();
     }
   }
 

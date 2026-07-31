@@ -39,6 +39,8 @@
 - `#/auth/login`：登录页
 - `#/chats`：会话列表
 - `#/chat/:chatId`：聊天详情
+- `#/chat/:chatId/message/:messageId/reads`：消息已读与未读成员
+- `#/chat/:chatId/forward/:messageId`：消息转发与部分失败结果
 - `#/contacts`：联系人
 - `#/discover`：发现首页
 - `#/discover/moments`：朋友圈
@@ -48,9 +50,13 @@
 - `#/contacts/requests`：好友申请
 - `#/contacts/add`：添加好友
 - `#/contacts/profile/:contactId`：联系人详情
+- `#/contacts/profile/:contactId/report`：联系人举报
 - `#/groups`：群会话目录（所有仍在其中的群）；收藏群优先显示，清空或归档会话不影响该目录
 - `#/groups/create`：创建群聊
 - `#/groups/settings/:groupId`：群设置
+- `#/groups/:groupId/members`、`admins`、`join-requests`、`invite`：群成员与角色治理
+- `#/groups/:groupId/rules`、`mutes`、`operation-logs`：群规则、禁言和日志
+- `#/stickers`、`#/stickers/store`、`#/stickers/packs/:packId`：贴纸管理
 - `#/search`：消息搜索
 - `#/mine`：我的
 - `#/mine/profile`：个人资料
@@ -59,6 +65,11 @@
 - `#/settings/chat`：聊天偏好与存储
 - `#/settings/privacy`：隐私协议与数据使用
 - `#/settings/about`：关于与版本信息
+- `#/settings/profile/edit`：头像与昵称编辑
+- `#/settings/feedback`：体验反馈
+- `#/settings/password`：修改密码
+- `#/settings/deactivate`：注销账号
+- `#/settings/version`：版本与热更新状态
 
 ## 设计源内部工具
 
@@ -111,6 +122,9 @@ http://127.0.0.1:8020/#/entry
 #/auth/login
 #/discover
 #/settings
+#/stickers/store
+#/settings/feedback
+#/settings/version
 ```
 
 ## 推荐评审路径
@@ -122,14 +136,17 @@ http://127.0.0.1:8020/#/entry
 5. 再看 `#/mobile-design/contacts/requests`、`#/mobile-design/contacts/add`、`#/mobile-design/contacts/profile/u_alice`，确认联系人二级页仍留在设备容器内。
 6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`、`#/mobile-design/discover/nearby`、`#/mobile-design/discover/games`，确认发现链路的内容、工具、人员列表和游戏入口使用同一运行时语言。
 7. 再看 `#/mobile-design/groups/create`、`#/mobile-design/groups/settings/g_launch`，确认建群与群设置不跳出预览壳。
-8. 最后看 `#/pc-design`，确认桌面工作台不是手机页拉伸。
+8. 再看 `#/mobile-design/stickers/store`、`#/mobile-design/settings/feedback`、`#/mobile-design/settings/profile/edit`、`#/mobile-design/settings/password`、`#/mobile-design/settings/deactivate` 与 `#/mobile-design/settings/version`，确认内容、账号和版本能力具备完整状态。
+9. 最后看 `#/pc-design`，确认桌面工作台不是手机页拉伸。
 
 ## 当前范围
 
 - 已覆盖设计源入口、规范页、移动端主流程和桌面蓝图页。
-- 已覆盖 IM 核心流程：设计系统、聊天、联系人、发现、好友申请、建群、群设置、搜索、我的与设置。
+- 已覆盖 IM 核心流程及 API 已有的消息管理、会话归档撤销、联系人危险操作、群治理、举报反馈、贴纸、资料账号和版本状态。
 - 已预留扩展位：通话、AI、文件协作、自动化。
 - `#/lab` 仅保留为设计源内部实验工具，不属于正式移动端业务地图。
 - 当前全部数据为 mock，不接真实后端。
 - 联系人目录、会话列表和消息线程使用确定性的密集 mock 数据，默认覆盖长列表、长摘要、未读、静音、引用、反应与连续滚动审查；会话头像统一为 `48px`，群头像使用对应尺寸的 2 × 2 复合网格。
 - 主题、密度、设备外壳选择、设置开关与群聊收藏会写入 `localStorage`，当前设计源 key 为 `redcode-im-ui-prototype/design-source-v2`。
+- 举报、反馈、密码与注销确认只保留在当前页面内存中，离开流程即清理，不写入 `localStorage`、URL 或 mock 数据。
+- SMS 登录、短信重置密码、更换手机号、归档中心、邀请列表、独立群公告和整套贴纸批量移除不在本设计源能力对齐范围内。

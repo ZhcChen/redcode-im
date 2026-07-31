@@ -1214,6 +1214,40 @@ window.RedcodeIMPrototypeData = {
       operationLogs: [],
     },
   ],
+  stickerPacks: [
+    {
+      id: "pack_focus",
+      suiteId: "suite_work",
+      name: "专注协作",
+      description: "用于确认、进度和协作反馈的常用贴纸。",
+      icon: "🎯",
+      added: true,
+      items: ["👍", "🎉", "❤️", "😂"],
+    },
+    {
+      id: "pack_launch",
+      suiteId: "suite_launch",
+      name: "发布日",
+      description: "发布节奏、里程碑和庆祝主题套装。",
+      icon: "🚀",
+      added: false,
+      items: ["🚀", "✨", "🏁", "🥳"],
+    },
+    {
+      id: "pack_calm",
+      suiteId: null,
+      name: "安静回应",
+      description: "适合轻量回应和状态确认。",
+      icon: "🙂",
+      added: true,
+      items: ["🙂", "👌", "🙏", "💬"],
+    },
+  ],
+  versionInfo: {
+    current: "2.0.0-beta.6",
+    latest: "2.0.0-beta.7",
+    hotUpdate: "2026.08.01.1",
+  },
   extensions: [
     {
       id: "calls",
