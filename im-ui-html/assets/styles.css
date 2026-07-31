@@ -86,7 +86,7 @@
 .runtime-dialog-layer {
   position: absolute;
   inset: 0;
-  z-index: 80;
+  z-index: 100;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -205,7 +205,7 @@
 .runtime-sheet-layer {
   position: absolute;
   inset: 0;
-  z-index: 75;
+  z-index: 90;
   display: flex;
   align-items: flex-end;
 }
@@ -541,6 +541,88 @@
 
 .runtime-chat-actions > button:disabled {
   opacity: 0.45;
+}
+
+.runtime-conversation-sheet {
+  position: relative;
+  width: 100%;
+  padding: 20px 18px max(22px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 10px;
+  border-radius: 8px 8px 0 0;
+  background: var(--runtime-surface, var(--surface));
+  box-shadow: 0 -12px 36px rgb(15 23 42 / 16%);
+}
+
+.runtime-conversation-sheet__heading {
+  padding-bottom: 6px;
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-conversation-sheet__heading strong {
+  color: var(--runtime-text, var(--text));
+  font-size: 17px;
+}
+
+.runtime-conversation-sheet__heading small,
+.runtime-conversation-sheet legend {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+}
+
+.runtime-conversation-sheet > button {
+  min-height: 44px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+  font-weight: 650;
+}
+
+.runtime-conversation-sheet > button.is-danger {
+  color: var(--danger);
+}
+
+.runtime-conversation-sheet fieldset {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  border: 0;
+}
+
+.runtime-conversation-sheet fieldset legend {
+  grid-column: 1 / -1;
+  margin-bottom: 8px;
+}
+
+.runtime-conversation-sheet fieldset label {
+  position: relative;
+}
+
+.runtime-conversation-sheet fieldset input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.runtime-conversation-sheet fieldset span {
+  min-height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 13px;
+}
+
+.runtime-conversation-sheet fieldset input:checked + span {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
 }
 
 body[data-theme="dark"] {
@@ -6210,6 +6292,19 @@ body[data-theme="dark"] .spec-stage {
   font-size: 0.88rem;
 }
 
+.toast button {
+  margin-top: 10px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 8px;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 @keyframes screen-enter {
   from {
     opacity: 0;
@@ -6680,6 +6775,11 @@ body[data-theme="dark"] .phone-screen {
 .phone-screen .runtime-screen {
   min-height: 0;
   background: var(--runtime-canvas);
+}
+
+.phone-screen .runtime-screen.has-overlay {
+  position: relative;
+  z-index: 20;
 }
 
 .phone-screen .runtime-scroll {
@@ -7238,14 +7338,45 @@ body[data-theme="dark"] .phone-screen {
 .runtime-conversation {
   width: 100%;
   min-height: 76px;
-  padding: 12px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 0;
+  background: var(--runtime-surface);
+  color: var(--runtime-ink);
+  text-align: left;
+}
+
+.runtime-conversation__open {
+  min-width: 0;
+  min-height: 76px;
+  padding: 12px 4px 12px 12px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) minmax(32px, auto);
   align-items: center;
   gap: 12px;
-  background: var(--runtime-surface);
-  color: var(--runtime-ink);
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
   text-align: left;
+}
+
+.runtime-conversation__menu {
+  width: 38px;
+  min-height: 76px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--runtime-faint);
+  background: transparent;
+}
+
+.runtime-conversation__menu-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .runtime-conversation + .runtime-conversation,

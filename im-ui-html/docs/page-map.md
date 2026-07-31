@@ -23,6 +23,7 @@
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
 | `#/mobile-design/chat/:chatId/message/:messageId/reads` | 群消息已读详情：已读成员由 API 结果提供，未读成员按群成员差集计算 |
 | `#/mobile-design/chat/:chatId/forward/:messageId` | 消息转发：支持搜索、多选目标和部分失败结果 |
+| `#/mobile-design/chats` 会话操作 | 置顶、全部通知/仅提及/静音和归档后限时撤销；不提供归档列表 |
 | `#/mobile-design/contacts` | 联系人目录：固定搜索栏、快捷入口和单一分组列表滚动面 |
 | `#/mobile-design/discover` | 发现 |
 | `#/mobile-design/mine` | 我的 |

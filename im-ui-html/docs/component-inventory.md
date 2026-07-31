@@ -15,6 +15,7 @@
 | `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Edited / Pinned / Recent / Highlighted / Large Emoji / Playing / Action Menu` | `Message bubble + reaction row + context actions` |
 | `Capability State` | 深层能力页面的空态、成功态与错误态 | `Empty / Success / Error / Retry` | `State panel` |
 | `Action Dialog` | 删除、清空、移除、退出、转让、解散、注销等高影响操作 | `Default / Danger / Pending / Disabled` | `AlertDialog` |
+| `Action Toast` | 归档等短时可撤销操作的结果反馈 | `Success / Undo Available / Expired / Restore Failed` | `SnackBar + action` |
 | `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Compact Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Custom Emoji` | 通过稳定 emoji ID 解析 fallback、静态资源与播放资源 | `Panel Glyph / Large / Playing / Fallback` | `Emoji registry + asset resolver` |

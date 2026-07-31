@@ -125,6 +125,7 @@
     forwardQuery: "",
     messageReadsTab: "read",
     chatActionsChatId: null,
+    conversationMenuChatId: null,
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
@@ -382,6 +383,7 @@
     state.messageMenu = null;
     state.messageEditor = null;
     state.chatActionsChatId = null;
+    state.conversationMenuChatId = null;
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
       state.composerPicker = null;
@@ -3042,7 +3044,7 @@
     const recentChats = chats.filter((chat) => !chat.pinned);
 
     return `
-      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-screen--chat-list">
+      <section class="screen screen--tabbed runtime-screen runtime-screen--list runtime-screen--chat-list ${state.conversationMenuChatId ? "has-overlay" : ""}">
         ${renderScreenHeader({
           title: "聊天",
           root: true,
@@ -3058,6 +3060,7 @@
             ${chats.length ? "" : renderEmptyState("暂无会话", "从联系人中发起一段新对话。")}
           </div>
         </div>
+        ${renderConversationActionSheet()}
       </section>
     `;
   }
@@ -3120,27 +3123,47 @@
       : `<span class="runtime-conversation__presence ${chat.type === "group" ? "is-group" : chat.muted ? "is-muted" : "is-online"}"></span>`;
 
     return `
-      <button
-        class="runtime-conversation"
-        data-action="navigate"
-        data-route="/chat/${chat.id}"
-      >
-        <span class="runtime-conversation__avatar">
-          ${avatar}
-          ${presence}
-        </span>
-        <span class="runtime-conversation__body">
-          <strong>${escapeHtml(chat.name)}</strong>
-          <span class="runtime-conversation__summary">
-            ${contextLabel}
-            <span class="runtime-conversation__summary-text">${escapeHtml(chat.lastMessage)}</span>
+      <div class="runtime-conversation">
+        <button class="runtime-conversation__open" type="button" data-action="navigate" data-route="/chat/${chat.id}">
+          <span class="runtime-conversation__avatar">
+            ${avatar}
+            ${presence}
           </span>
-        </span>
-        <span class="runtime-conversation__meta">
-          <time>${escapeHtml(chat.lastTime)}</time>
-          ${unread}
-        </span>
-      </button>
+          <span class="runtime-conversation__body">
+            <strong>${escapeHtml(chat.name)}</strong>
+            <span class="runtime-conversation__summary">
+              ${contextLabel}
+              <span class="runtime-conversation__summary-text">${escapeHtml(chat.lastMessage)}</span>
+            </span>
+          </span>
+          <span class="runtime-conversation__meta">
+            <time>${escapeHtml(chat.lastTime)}</time>
+            ${unread}
+          </span>
+        </button>
+        <button class="runtime-conversation__menu" type="button" data-action="open-conversation-menu" data-chat-id="${chat.id}" aria-label="${escapeHtml(chat.name)} 会话操作">${renderIcon("more", "runtime-conversation__menu-icon")}</button>
+      </div>
+    `;
+  }
+
+  function renderConversationActionSheet() {
+    const chat = findChat(state.conversationMenuChatId);
+    if (!chat) return "";
+    const notificationMode = chat.notificationMode || (chat.muted ? "muted" : "all");
+    return `
+      <div class="runtime-sheet-layer">
+        <button class="runtime-sheet-layer__scrim" type="button" data-action="close-conversation-menu" aria-label="关闭会话操作"></button>
+        <section class="runtime-conversation-sheet" role="dialog" aria-modal="true" aria-label="${escapeHtml(chat.name)} 会话操作">
+          <div class="runtime-conversation-sheet__heading"><strong>${escapeHtml(chat.name)}</strong><small>${chatTypeLabel(chat)}</small></div>
+          <button type="button" data-action="toggle-conversation-pin" data-chat-id="${chat.id}">${chat.pinned ? "取消置顶" : "置顶会话"}</button>
+          <fieldset>
+            <legend>消息通知</legend>
+            ${[["all", "全部"], ["mentions", "仅提及"], ["muted", "静音"]].map(([value, label]) => `<label><input type="radio" name="notification-mode" data-kind="conversation-notification" data-chat-id="${chat.id}" value="${value}" ${notificationMode === value ? "checked" : ""}><span>${label}</span></label>`).join("")}
+          </fieldset>
+          <button class="is-danger" type="button" data-action="archive-conversation" data-chat-id="${chat.id}">归档会话</button>
+          <button type="button" data-action="close-conversation-menu">取消</button>
+        </section>
+      </div>
     `;
   }
 
@@ -6500,7 +6523,7 @@
   }
 
   function sortedChats() {
-    return data.chats.slice().sort((left, right) => {
+    return data.chats.filter((chat) => !chat.archived).sort((left, right) => {
       const pinnedDiff = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
       if (pinnedDiff !== 0) {
         return pinnedDiff;
@@ -7273,11 +7296,12 @@
     render();
   }
 
-  function showToast(title, message) {
+  function showToast(title, message, action = null) {
     state.toasts.unshift({
       id: `toast_${Date.now()}`,
       title,
       message,
+      action,
     });
     state.toasts = state.toasts.slice(0, 3);
     if (toastTimerId) {
@@ -7318,12 +7342,58 @@
               <div class="toast">
                 <strong>${escapeHtml(toast.title)}</strong>
                 <p>${escapeHtml(toast.message)}</p>
+                ${toast.action ? `<button type="button" data-action="perform-toast-action" data-toast-id="${toast.id}">${escapeHtml(toast.action.label)}</button>` : ""}
               </div>
             `,
           )
           .join("")}
       </aside>
     `;
+  }
+
+  function archiveConversation(chatId) {
+    const chat = findChat(chatId);
+    if (!chat) return;
+    if (new URLSearchParams(window.location.search).get("state") === "archive-error") {
+      state.conversationMenuChatId = null;
+      showToast("归档失败", `${chat.name} 仍保留在原来的位置，请稍后重试。`);
+      render();
+      return;
+    }
+    chat.archived = true;
+    state.conversationMenuChatId = null;
+    showToast("会话已归档", `${chat.name} 已从聊天列表移除。`, {
+      label: "撤销",
+      name: "restore-conversation",
+      payload: { chatId },
+    });
+    render();
+  }
+
+  function performToastAction(toastId) {
+    const toast = state.toasts.find((item) => item.id === toastId);
+    if (!toast?.action) return;
+    if (toast.action.name === "restore-conversation") {
+      const chat = findChat(toast.action.payload?.chatId);
+      if (new URLSearchParams(window.location.search).get("state") === "restore-error") {
+        toast.title = "恢复失败";
+        toast.message = "网络连接不稳定，请重试。";
+        toast.action.label = "重试";
+        render();
+        return;
+      }
+      if (!chat) {
+        toast.title = "恢复失败";
+        toast.message = "会话不存在，请稍后重试。";
+        toast.action = null;
+        render();
+        return;
+      }
+      chat.archived = false;
+      state.toasts = state.toasts.filter((item) => item.id !== toastId);
+      showToast("会话已恢复", `${chat.name} 已回到原来的位置。`);
+      render();
+    }
   }
 
   function handleKeydown(event) {
@@ -7348,7 +7418,7 @@
 
     if (
       event.key === "Escape" &&
-      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey || state.actionDialog || state.messageMenu || state.messageEditor || state.chatActionsChatId)
+      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey || state.actionDialog || state.messageMenu || state.messageEditor || state.chatActionsChatId || state.conversationMenuChatId)
     ) {
       event.preventDefault();
       if (state.actionDialog) {
@@ -7359,6 +7429,8 @@
         state.messageMenu = null;
       } else if (state.chatActionsChatId) {
         state.chatActionsChatId = null;
+      } else if (state.conversationMenuChatId) {
+        state.conversationMenuChatId = null;
       } else if (state.settingsSheetKey) {
         state.settingsSheetKey = null;
       } else {
@@ -7430,6 +7502,34 @@
     if (action === "open-message-menu") {
       state.messageMenu = { chatId: target.getAttribute("data-chat-id"), messageId: target.getAttribute("data-message-id") };
       render();
+      return;
+    }
+    if (action === "open-conversation-menu") {
+      state.conversationMenuChatId = target.getAttribute("data-chat-id");
+      render();
+      return;
+    }
+    if (action === "close-conversation-menu") {
+      state.conversationMenuChatId = null;
+      render();
+      return;
+    }
+    if (action === "toggle-conversation-pin") {
+      const chat = findChat(target.getAttribute("data-chat-id"));
+      if (chat) {
+        chat.pinned = !chat.pinned;
+        state.conversationMenuChatId = null;
+        showToast(chat.pinned ? "会话已置顶" : "已取消置顶", chat.name);
+        render();
+      }
+      return;
+    }
+    if (action === "archive-conversation") {
+      archiveConversation(target.getAttribute("data-chat-id"));
+      return;
+    }
+    if (action === "perform-toast-action") {
+      performToastAction(target.getAttribute("data-toast-id"));
       return;
     }
     if (action === "close-message-menu") {
@@ -7893,6 +7993,17 @@
       const key = target.getAttribute("data-key");
       data.settings[scope][key] = target.checked;
       persistUiState();
+      return;
+    }
+
+    if (target.getAttribute("data-kind") === "conversation-notification") {
+      const chat = findChat(target.getAttribute("data-chat-id"));
+      if (chat && ["all", "mentions", "muted"].includes(target.value)) {
+        chat.notificationMode = target.value;
+        chat.muted = target.value === "muted";
+        showToast("通知设置已更新", `${chat.name}：${target.value === "all" ? "全部通知" : target.value === "mentions" ? "仅提及" : "静音"}。`);
+        render();
+      }
       return;
     }
 
