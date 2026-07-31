@@ -711,8 +711,8 @@ window.RedcodeIMPrototypeData = {
           time: "09:12",
           self: false,
           reactions: [
-            { emoji: "🔥", count: 4 },
-            { emoji: "✅", count: 2 },
+            { emoji: "🎉", count: 4 },
+            { emoji: "👍", count: 2 },
           ],
         },
         {
@@ -724,6 +724,7 @@ window.RedcodeIMPrototypeData = {
           time: "09:15",
           self: true,
           status: "已读 12",
+          readBy: ["u_zoe", "u_ian", "u_mia"],
         },
         {
           id: "m_1003",
@@ -824,6 +825,7 @@ window.RedcodeIMPrototypeData = {
     },
     {
       id: "c_room_assets",
+      relayOnly: true,
       type: "group",
       name: "Media Vault",
       remark: "",
@@ -1153,6 +1155,7 @@ window.RedcodeIMPrototypeData = {
   groups: [
     {
       id: "g_launch",
+      ownerId: "u_me",
       chatId: "c_room_launch",
       name: "Launch War Room",
       members: ["u_me", "u_zoe", "u_ian", "u_mia", "u_jules"],
@@ -1169,6 +1172,7 @@ window.RedcodeIMPrototypeData = {
     },
     {
       id: "g_files",
+      ownerId: "u_alice",
       chatId: "c_room_assets",
       name: "Media Vault",
       members: ["u_me", "u_alice", "u_nora"],
@@ -1781,7 +1785,7 @@ window.RedcodeIMPrototypeData = {
       messages: [
         { content: "上午的访谈里，用户最频繁提到的是联系人搜索入口不够稳定。", time: "09:08" },
         { content: "我会把固定目录栏和粘性搜索的原型一起放到评审样本里。", time: "09:15", self: true, status: "已读" },
-        { content: "好，记得同时观察长名单下的筛选反馈。", time: "09:22", reactions: [{ emoji: "👀", count: 2 }] },
+        { content: "好，记得同时观察长名单下的筛选反馈。", time: "09:22", reactions: [{ emoji: "😮", count: 2 }] },
       ],
     },
     {
@@ -1847,7 +1851,7 @@ window.RedcodeIMPrototypeData = {
       messages: [
         { content: "客户常会从联系人列表直接进入资料页确认身份和职责。", time: "昨天 17:14" },
         { content: "我会保证目录页、资料页和返回路径都能连续演示。", time: "昨天 17:22", self: true, status: "已读" },
-        { content: "客户侧的高频联系人分组已经整理成清单。", time: "昨天 17:39", reactions: [{ emoji: "✅", count: 3 }] },
+        { content: "客户侧的高频联系人分组已经整理成清单。", time: "昨天 17:39", reactions: [{ emoji: "👍", count: 3 }] },
       ],
     },
     {
@@ -1911,7 +1915,7 @@ window.RedcodeIMPrototypeData = {
       messages: [
         { content: "当前联系人和会话的默认样本太少，很多滚动问题会被掩盖。", time: "昨天 10:06" },
         { content: "这次会补充 30 位联系人、14 个会话和多线程消息。", time: "昨天 10:12", self: true, status: "已读" },
-        { content: "我会把长会话和长线程纳入下一轮截图回归。", time: "昨天 10:18", reactions: [{ emoji: "🎯", count: 2 }] },
+        { content: "我会把长会话和长线程纳入下一轮截图回归。", time: "昨天 10:18", reactions: [{ emoji: "🎉", count: 2 }] },
       ],
     },
     {
@@ -1984,7 +1988,7 @@ window.RedcodeIMPrototypeData = {
     makeMessage({ id: "m_1005", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "我先把会话、联系人和消息线程的密集样本整理出来，评审时不要只看首屏。", time: "09:28" }),
     makeMessage({ id: "m_1006", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "可以，数据量要足够让滚动、截断、未读和长摘要都自然出现。", time: "09:31", self: true, status: "已读 14" }),
     makeMessage({ id: "m_1007", senderId: "u_ian", senderName: "Ian", senderTone: "amber", content: "联系人目录最好同时有同字母多行和跨字母长列表，才能看出分组节奏。", time: "09:35", quote: "不要只看首屏。" }),
-    makeMessage({ id: "m_1008", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "我会把首屏、搜索粘住后和底部连续滚动都加入截图回归。", time: "09:39", reactions: [{ emoji: "🎯", count: 3 }] }),
+    makeMessage({ id: "m_1008", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "我会把首屏、搜索粘住后和底部连续滚动都加入截图回归。", time: "09:39", reactions: [{ emoji: "🎉", count: 3 }] }),
     makeMessage({ id: "m_1009", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "聊天列表也会补齐置顶、未读、静音和长摘要，避免只在空白状态下讨论层级。", time: "09:44", self: true, status: "已读 13" }),
     makeMessage({ id: "m_1010", senderId: "u_mia", senderName: "Mia", senderTone: "mint", content: "消息线程里可以保留短句、长句、引用和反应，滚动时更容易发现气泡间距问题。", time: "09:49" }),
     makeMessage({ id: "m_1011", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "同意，数据不需要模拟真实后端，但要足够像真实协作节奏。", time: "09:55" }),
@@ -1993,7 +1997,7 @@ window.RedcodeIMPrototypeData = {
     makeMessage({ id: "m_1014", senderId: "u_jules", senderName: "Jules", senderTone: "violet", content: "我会分别记录 iPhone 12 Pro 和 Pixel 8 Pro 的裁切结果。", time: "10:17" }),
     makeMessage({ id: "m_1015", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "联系人页面先有固定目录栏和粘性搜索，密集样本正好能验证这层选择。", time: "10:23", self: true, status: "已读 11" }),
     makeMessage({ id: "m_1016", senderId: "u_mia", senderName: "Mia", senderTone: "mint", content: "消息流滚到底部时，输入区和最后一条消息之间的安全间距也值得确认。", time: "10:31" }),
-    makeMessage({ id: "m_1017", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "不要一次性把字母索引做复杂，先用真实密度观察目录是否已经足够好。", time: "10:38", reactions: [{ emoji: "✅", count: 5 }] }),
+    makeMessage({ id: "m_1017", senderId: "u_zoe", senderName: "Zoe", senderTone: "violet", content: "不要一次性把字母索引做复杂，先用真实密度观察目录是否已经足够好。", time: "10:38", reactions: [{ emoji: "👍", count: 5 }] }),
     makeMessage({ id: "m_1018", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "收到，字母索引仍然只在真实分组更多时再进入下一轮。", time: "10:46", self: true, status: "已读 10" }),
     makeMessage({ id: "m_1019", senderId: "u_ian", senderName: "Ian", senderTone: "amber", content: "模拟数据补齐后，搜索结果页也会自然有足够多的可跳转消息。", time: "10:53" }),
     makeMessage({ id: "m_1020", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "这批样本会保持确定性，截图和深链审计能重复运行。", time: "11:01", self: true, status: "已读 9" }),
@@ -2006,7 +2010,7 @@ window.RedcodeIMPrototypeData = {
     makeMessage({ id: "m_2004", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "我会让新增样本覆盖同字母多行，避免每个分组只有一条记录。", time: "昨天 19:39", self: true, status: "已读" }),
     makeMessage({ id: "m_2005", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "聊天列表也别只放短摘要，至少要有一两条接近真实协作语气的长消息。", time: "昨天 19:44", quote: "避免每个分组只有一条记录。" }),
     makeMessage({ id: "m_2006", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "已补进会话摘要，所有文本都会经过现有单行截断约束。", time: "昨天 19:51", self: true, status: "已读" }),
-    makeMessage({ id: "m_2007", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "消息详情页的长线程能帮助判断一天标签、气泡留白和输入区是否稳定。", time: "昨天 20:03", reactions: [{ emoji: "💡", count: 2 }] }),
+    makeMessage({ id: "m_2007", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "消息详情页的长线程能帮助判断一天标签、气泡留白和输入区是否稳定。", time: "昨天 20:03", reactions: [{ emoji: "❤️", count: 2 }] }),
     makeMessage({ id: "m_2008", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "我会把主群线程扩展到二十多条，并保留引用和反应状态。", time: "昨天 20:10", self: true, status: "已读" }),
     makeMessage({ id: "m_2009", senderId: "u_alice", senderName: "Alice Li", senderTone: "amber", content: "这样在设计审查时就能先发现 UI 问题，再决定是否映射到 Flutter。", time: "昨天 20:18" }),
     makeMessage({ id: "m_2010", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "对，设计源先稳定，运行时映射继续单独评审。", time: "昨天 20:24", self: true, status: "已读" }),
@@ -2016,7 +2020,7 @@ window.RedcodeIMPrototypeData = {
     makeMessage({ id: "m_3002", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "请按联系人、会话和消息线程三个维度检查长内容。", time: "08:06", self: true, status: "已送达" }),
     makeMessage({ id: "m_3003", senderId: "u_bot", senderName: "Ops Copilot", senderTone: "violet", content: "已生成检查清单：滚动容器、固定栏、截断、未读、输入区和安全区域。", time: "08:07" }),
     makeMessage({ id: "m_3004", senderId: "u_me", senderName: "Chen Atlas", senderTone: "mint", content: "把检查范围保持在 HTML 设计源，不要改运行时客户端。", time: "08:09", self: true, status: "已读" }),
-    makeMessage({ id: "m_3005", senderId: "u_bot", senderName: "Ops Copilot", senderTone: "violet", content: "已记录：mock 数据仅用于 UI 密度和交互审查。", time: "08:11", reactions: [{ emoji: "✅", count: 1 }] }),
+    makeMessage({ id: "m_3005", senderId: "u_bot", senderName: "Ops Copilot", senderTone: "violet", content: "已记录：mock 数据仅用于 UI 密度和交互审查。", time: "08:11", reactions: [{ emoji: "👍", count: 1 }] }),
   ]);
 
   appendMessages("c_room_assets", [

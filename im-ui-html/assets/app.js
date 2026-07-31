@@ -118,6 +118,13 @@
     momentComments: {},
     highlightMessageId: null,
     recentMessageId: null,
+    messageMenu: null,
+    messageEditor: null,
+    replyTargets: {},
+    forwardSelection: new Set(),
+    forwardQuery: "",
+    messageReadsTab: "read",
+    chatActionsChatId: null,
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
@@ -372,6 +379,9 @@
     syncSelection(route);
     const activeRoute = resolveMobilePreviewRoute(route);
     state.settingsSheetKey = null;
+    state.messageMenu = null;
+    state.messageEditor = null;
+    state.chatActionsChatId = null;
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
       state.composerPicker = null;
@@ -1392,17 +1402,19 @@
     }
     if (route.section === "message-reads") {
       const chat = findChat(route.chatId);
-      if (!chat || !findMessage(chat, route.messageId)) {
+      const message = findMessage(chat, route.messageId);
+      if (!chat || !message) {
         return renderFallbackScreen("消息不存在", chat ? `/chat/${chat.id}` : "/chats");
       }
-      return renderCapabilityRouteScreen("已读详情", `/chat/${route.chatId}`, "还没有已读成员");
+      return renderMessageReadsScreen(chat, message);
     }
     if (route.section === "message-forward") {
       const chat = findChat(route.chatId);
-      if (!chat || !findMessage(chat, route.messageId)) {
+      const message = findMessage(chat, route.messageId);
+      if (!chat || !message) {
         return renderFallbackScreen("消息不存在", chat ? `/chat/${chat.id}` : "/chats");
       }
-      return renderCapabilityRouteScreen("转发消息", `/chat/${route.chatId}`, "没有可转发的会话");
+      return renderMessageForwardScreen(chat, message);
     }
     if (route.section === "contacts") {
       return renderContactsScreen();
@@ -3148,6 +3160,7 @@
       `;
     }
     const draft = state.chatDrafts[chat.id] || "";
+    const replyTarget = findMessage(chat, state.replyTargets[chat.id]);
     const activePanel = state.composerPanel;
     const groupAnnouncement = group?.notice || "";
     const pinnedMessage = chat.pinnedMessages?.[0] || "";
@@ -3196,6 +3209,7 @@
               : targetContact
               ? `<button class="runtime-header-link" data-action="navigate" data-route="/contacts/profile/${targetContact.id}">资料</button>`
               : "",
+            `<button class="runtime-icon-button runtime-icon-button--quiet" type="button" data-action="open-chat-actions" data-chat-id="${chat.id}" aria-label="会话操作">${renderIcon("more", "runtime-icon-button__glyph")}</button>`,
           ].filter(Boolean),
         })}
         ${fixedGroupAnnouncement}
@@ -3206,6 +3220,7 @@
           </div>
         </div>
         <form class="runtime-composer" data-form="send-message" data-chat-id="${chat.id}">
+          ${replyTarget ? `<div class="runtime-composer-reply"><span><small>回复 ${escapeHtml(replyTarget.self ? "自己" : replyTarget.senderName)}</small><strong>${escapeHtml(replyTarget.content)}</strong></span><button type="button" data-action="cancel-message-reply" data-chat-id="${chat.id}" aria-label="取消引用">${renderIcon("close", "runtime-composer-reply__icon")}</button></div>` : ""}
           <div class="runtime-composer__inner">
             <button
               class="runtime-composer__action ${activePanel === "emoji" ? "is-active" : ""}"
@@ -3244,6 +3259,9 @@
         </form>
         ${renderComposerPanel(chat)}
         ${renderComposerPicker(chat)}
+        ${renderMessageActionSheet(chat)}
+        ${renderMessageEditor(chat)}
+        ${renderChatActionSheet(chat)}
       </section>
     `;
   }
@@ -3641,6 +3659,9 @@
   }
 
   function renderMessageTimeline(chat) {
+    if (!chat.messages.length) {
+      return renderCapabilityState("empty", "还没有聊天记录", "发送一条消息开始对话。");
+    }
     let previousBucket = "";
 
     return chat.messages
@@ -3678,6 +3699,9 @@
   }
 
   function resolveQuotedMessage(chat, message) {
+    if (message.quoteMessageId) {
+      return findMessage(chat, message.quoteMessageId);
+    }
     const messageIndex = chat.messages.findIndex((item) => item.id === message.id);
     const quoteText = normalizeQuoteText(message.quote);
     if (!quoteText || messageIndex <= 0) {
@@ -3803,7 +3827,7 @@
       ? `
         <div class="reaction-row">
           ${message.reactions
-            .map((item) => `<span class="reaction-pill">${escapeHtml(item.emoji)} ${item.count}</span>`)
+            .map((item) => `<button class="reaction-pill ${item.self ? "is-active" : ""}" type="button" data-action="toggle-message-reaction" data-chat-id="${chat.id}" data-message-id="${message.id}" data-emoji="${escapeHtml(item.emoji)}">${escapeHtml(item.emoji)} ${item.count}</button>`)
             .join("")}
         </div>
       `
@@ -3821,11 +3845,166 @@
           ${reactions}
           <div class="message-meta">
             <span>${escapeHtml(message.time)}</span>
-            ${message.self ? `<span>${escapeHtml(message.status || "已送达")}</span>` : ""}
+            ${message.self && chat.type === "group" ? `<button class="message-meta__reads" type="button" data-action="navigate" data-route="/chat/${chat.id}/message/${message.id}/reads">${escapeHtml(message.status || "已送达")}</button>` : message.self ? `<span>${escapeHtml(message.status || "已送达")}</span>` : ""}
+            ${message.edited ? "<span>已编辑</span>" : ""}
+            ${message.pinned ? "<span>已置顶</span>" : ""}
+            <button class="message-meta__menu" type="button" data-action="open-message-menu" data-chat-id="${chat.id}" data-message-id="${message.id}" aria-label="消息操作">${renderIcon("more", "message-meta__menu-icon")}</button>
           </div>
         </div>
       </div>
     `;
+  }
+
+  function messageActions(chat, message) {
+    const relayOnly = Boolean(chat.relayOnly);
+    return [
+      { id: "forward", label: "转发", disabled: relayOnly },
+      { id: "quote", label: "引用", disabled: relayOnly },
+      { id: "edit", label: "编辑", hidden: !message.self || message.share || !message.content, disabled: relayOnly },
+      { id: "delete", label: "删除", hidden: !message.self, danger: true },
+      { id: "pin", label: message.pinned ? "取消置顶" : "置顶", disabled: relayOnly },
+    ].filter((item) => !item.hidden);
+  }
+
+  function renderMessageActionSheet(chat) {
+    const menu = state.messageMenu;
+    if (!menu || menu.chatId !== chat.id) {
+      return "";
+    }
+    const message = findMessage(chat, menu.messageId);
+    if (!message) {
+      return "";
+    }
+    return `
+      <div class="runtime-sheet-layer">
+        <button class="runtime-sheet-layer__scrim" type="button" data-action="close-message-menu" aria-label="关闭消息操作"></button>
+        <section class="runtime-message-sheet" role="dialog" aria-modal="true" aria-label="消息操作">
+          <div class="runtime-message-sheet__reactions" aria-label="添加回应">
+            ${["👍", "❤️", "😂", "🎉", "😮", "😢"].map((emoji) => `<button type="button" data-action="toggle-message-reaction" data-chat-id="${chat.id}" data-message-id="${message.id}" data-emoji="${emoji}" aria-label="回应 ${emoji}">${emoji}</button>`).join("")}
+          </div>
+          <div class="runtime-message-sheet__actions">
+            ${messageActions(chat, message).map((item) => `
+              <button class="${item.danger ? "is-danger" : ""}" type="button" data-action="perform-message-action" data-message-action="${item.id}" data-chat-id="${chat.id}" data-message-id="${message.id}" ${item.disabled ? "disabled" : ""}>
+                <span>${escapeHtml(item.label)}</span>
+                ${item.disabled ? "<small>中继会话不可用</small>" : ""}
+              </button>
+            `).join("")}
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
+  function renderMessageEditor(chat) {
+    const editor = state.messageEditor;
+    if (!editor || editor.chatId !== chat.id) {
+      return "";
+    }
+    return `
+      <div class="runtime-sheet-layer">
+        <button class="runtime-sheet-layer__scrim" type="button" data-action="close-message-editor" aria-label="关闭编辑"></button>
+        <form class="runtime-message-editor" data-form="edit-message" data-chat-id="${chat.id}" data-message-id="${editor.messageId}">
+          <label for="message-editor-input">编辑消息</label>
+          <textarea id="message-editor-input" rows="4" maxlength="2000">${escapeHtml(editor.content)}</textarea>
+          <div class="runtime-message-editor__actions">
+            <button type="button" data-action="close-message-editor">取消</button>
+            <button class="is-primary" type="submit" ${editor.content.trim() ? "" : "disabled"}>保存</button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  function renderMessageReadsScreen(chat, message) {
+    const group = findGroupByChatId(chat.id);
+    const memberIds = group?.members || chat.participants || [];
+    const readIds = new Set((message.readBy || []).filter((id) => id !== message.senderId));
+    const unreadIds = memberIds.filter((id) => id !== message.senderId && !readIds.has(id));
+    const activeIds = state.messageReadsTab === "unread" ? unreadIds : Array.from(readIds);
+    const title = state.messageReadsTab === "unread" ? `未读 ${unreadIds.length}` : `已读 ${readIds.size}`;
+    return `
+      <section class="screen runtime-screen runtime-screen--list">
+        ${renderScreenHeader({ title: "已读详情", backPath: `/chat/${chat.id}`, variant: "compact" })}
+        <div class="runtime-segmented" role="tablist" aria-label="阅读状态">
+          <button type="button" role="tab" aria-selected="${state.messageReadsTab === "read"}" class="${state.messageReadsTab === "read" ? "is-active" : ""}" data-action="set-message-reads-tab" data-tab="read">已读 ${readIds.size}</button>
+          <button type="button" role="tab" aria-selected="${state.messageReadsTab === "unread"}" class="${state.messageReadsTab === "unread" ? "is-active" : ""}" data-action="set-message-reads-tab" data-tab="unread">未读 ${unreadIds.length}</button>
+        </div>
+        <div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">
+          <h3 class="runtime-list-title">${title}</h3>
+          ${activeIds.length ? `<div class="runtime-member-status-list">${activeIds.map((id) => renderMessageMemberRow(id)).join("")}</div>` : renderCapabilityState("empty", `没有${state.messageReadsTab === "read" ? "已读" : "未读"}成员`, "成员状态会在这里更新。")}
+        </div></div>
+      </section>
+    `;
+  }
+
+  function renderMessageMemberRow(personId) {
+    const person = findPerson(personId);
+    if (!person) return "";
+    return `<div class="runtime-member-status-row">${renderAvatar(person.name, person.tone || person.avatarTone, "avatar--md")}<span><strong>${escapeHtml(person.name)}</strong><small>@${escapeHtml(person.username || person.id)}</small></span>${renderIcon("checkCircle", "runtime-member-status-row__icon")}</div>`;
+  }
+
+  function renderMessageForwardScreen(sourceChat, message) {
+    const query = state.forwardQuery.trim().toLowerCase();
+    const targets = sortedChats().filter((chat) => chat.id !== sourceChat.id && (!query || chat.name.toLowerCase().includes(query)));
+    return `
+      <section class="screen runtime-screen runtime-screen--list">
+        ${renderScreenHeader({ title: "转发消息", backPath: `/chat/${sourceChat.id}`, variant: "compact" })}
+        <div class="runtime-forward-search"><label class="runtime-search-field">${renderIcon("search", "runtime-search-field__icon")}<input id="message-forward-search" value="${escapeHtml(state.forwardQuery)}" placeholder="搜索会话" aria-label="搜索会话"></label></div>
+        <div class="screen-scroll runtime-scroll"><div class="runtime-list-content">
+          <div class="runtime-forward-preview"><small>将转发</small><p>${escapeHtml(message.content)}</p></div>
+          ${targets.length ? `<div class="runtime-forward-list">${targets.map((chat) => `<label class="runtime-forward-row">${renderAvatar(chat.name, chat.avatarTone, "avatar--md")}<span><strong>${escapeHtml(chat.name)}</strong><small>${chat.relayOnly ? "中继会话可能发送失败" : chatTypeLabel(chat)}</small></span><input type="checkbox" data-kind="forward-target" data-chat-id="${chat.id}" ${state.forwardSelection.has(chat.id) ? "checked" : ""}></label>`).join("")}</div>` : renderCapabilityState("empty", "没有匹配的会话", "换个关键词试试。")}
+        </div></div>
+        <div class="runtime-forward-footer"><button type="button" data-action="submit-message-forward" data-source-chat-id="${sourceChat.id}" data-message-id="${message.id}" ${state.forwardSelection.size ? "" : "disabled"}>转发给 ${state.forwardSelection.size || 0} 个会话</button></div>
+      </section>
+    `;
+  }
+
+  function renderChatActionSheet(chat) {
+    if (state.chatActionsChatId !== chat.id) return "";
+    const group = findGroupByChatId(chat.id);
+    const canClear = !chat.relayOnly && (chat.type === "single" || group?.ownerId === data.currentUser.id);
+    const reason = chat.relayOnly
+      ? "中继会话不支持清空记录"
+      : chat.type === "group" && !canClear
+      ? "只有群主可以清空群聊记录"
+      : chat.type === "single"
+      ? "清空后，双方的聊天记录都会被删除"
+      : "清空后，所有群成员都无法查看历史记录";
+    return `
+      <div class="runtime-sheet-layer">
+        <button class="runtime-sheet-layer__scrim" type="button" data-action="close-chat-actions" aria-label="关闭会话操作"></button>
+        <section class="runtime-chat-actions" role="dialog" aria-modal="true" aria-label="会话操作">
+          <div><strong>会话操作</strong><p>${escapeHtml(reason)}</p></div>
+          <button class="is-danger" type="button" data-action="clear-chat-history" data-chat-id="${chat.id}" ${canClear ? "" : "disabled"}>清空聊天记录</button>
+          <button type="button" data-action="close-chat-actions">取消</button>
+        </section>
+      </div>
+    `;
+  }
+
+  function requestClearChatHistory(chatId) {
+    const chat = findChat(chatId);
+    const group = findGroupByChatId(chatId);
+    const canClear = chat && !chat.relayOnly && (chat.type === "single" || group?.ownerId === data.currentUser.id);
+    if (!canClear) return;
+    state.chatActionsChatId = null;
+    openActionDialog({
+      title: "清空全部聊天记录？",
+      description: chat.type === "single"
+        ? "此操作会删除双方的全部聊天记录，且无法恢复。"
+        : "此操作会删除所有群成员可见的历史记录，且无法恢复。",
+      confirmLabel: "清空记录",
+      tone: "danger",
+      payload: { chatId },
+      onConfirm: ({ chatId: targetId }) => {
+        const target = findChat(targetId);
+        if (!target) throw new Error("会话不存在，无法清空记录。");
+        target.messages = [];
+        target.lastMessage = "暂无消息";
+        target.lastTime = "刚刚";
+        target.unread = 0;
+      },
+    });
   }
 
   function renderContactsScreen() {
@@ -6785,12 +6964,18 @@
       self: true,
       status: "已送达",
     };
+    const replyTarget = findMessage(chat, state.replyTargets[chatId]);
+    if (replyTarget) {
+      message.quote = replyTarget.content;
+      message.quoteMessageId = replyTarget.id;
+    }
     chat.messages.push(message);
     chat.lastMessage = content;
     chat.lastTime = "刚刚";
     chat.unread = 0;
     promoteChat(chat);
     state.chatDrafts[chatId] = "";
+    delete state.replyTargets[chatId];
     state.recentMessageId = message.id;
     showToast("消息已发送", "消息已加入当前会话。");
     render();
@@ -6834,7 +7019,7 @@
       content: "收到一条新消息。",
       time: "刚刚",
       self: false,
-      reactions: [{ emoji: "👀", count: 1 }],
+      reactions: [{ emoji: "😮", count: 1 }],
     };
     chat.messages.push(message);
     chat.lastMessage = message.content;
@@ -6859,6 +7044,132 @@
         target.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     });
+  }
+
+  function toggleMessageReaction(chatId, messageId, emoji) {
+    if (!["👍", "❤️", "😂", "🎉", "😮", "😢"].includes(emoji)) return;
+    const message = findMessage(findChat(chatId), messageId);
+    if (!message) return;
+    message.reactions ||= [];
+    const reaction = message.reactions.find((item) => item.emoji === emoji);
+    if (reaction?.self) {
+      reaction.count -= 1;
+      reaction.self = false;
+      if (reaction.count <= 0) message.reactions = message.reactions.filter((item) => item !== reaction);
+    } else if (reaction) {
+      reaction.count += 1;
+      reaction.self = true;
+    } else {
+      message.reactions.push({ emoji, count: 1, self: true });
+    }
+    state.messageMenu = null;
+    render();
+  }
+
+  function performMessageAction(chatId, messageId, action) {
+    const chat = findChat(chatId);
+    const message = findMessage(chat, messageId);
+    if (!chat || !message) return;
+    state.messageMenu = null;
+    if (action === "forward") {
+      state.forwardSelection = new Set();
+      state.forwardQuery = "";
+      navigate(`/chat/${chat.id}/forward/${message.id}`);
+      return;
+    }
+    if (action === "quote") {
+      state.replyTargets[chat.id] = message.id;
+      showToast("已引用消息", "输入回复内容后发送。");
+      render();
+      window.requestAnimationFrame(() => document.getElementById("chat-draft-input")?.focus({ preventScroll: true }));
+      return;
+    }
+    if (action === "edit" && message.self && !message.share) {
+      state.messageEditor = { chatId, messageId, content: message.content };
+      render();
+      window.requestAnimationFrame(() => document.getElementById("message-editor-input")?.focus({ preventScroll: true }));
+      return;
+    }
+    if (action === "pin") {
+      message.pinned = !message.pinned;
+      if (message.pinned) {
+        chat.pinnedMessages = [message.content].concat((chat.pinnedMessages || []).filter((item) => item !== message.content));
+      } else {
+        chat.pinnedMessages = (chat.pinnedMessages || []).filter((item) => item !== message.content);
+      }
+      showToast(message.pinned ? "消息已置顶" : "已取消置顶", message.content);
+      render();
+      return;
+    }
+    if (action === "delete" && message.self) {
+      openActionDialog({
+        title: "删除这条消息？",
+        description: "删除后，会话中的所有成员都无法再看到这条消息。",
+        confirmLabel: "删除",
+        tone: "danger",
+        payload: { chatId, messageId },
+        onConfirm: ({ chatId: targetChatId, messageId: targetMessageId }) => {
+          const targetChat = findChat(targetChatId);
+          if (!targetChat) throw new Error("会话不存在，无法删除消息。");
+          targetChat.messages = targetChat.messages.filter((item) => item.id !== targetMessageId);
+          const latest = targetChat.messages[targetChat.messages.length - 1];
+          targetChat.lastMessage = latest?.content || "暂无消息";
+        },
+      });
+    }
+  }
+
+  function saveMessageEdit(chatId, messageId) {
+    const message = findMessage(findChat(chatId), messageId);
+    const content = state.messageEditor?.content.trim();
+    if (!message || !message.self || !content) return;
+    message.content = content;
+    message.edited = true;
+    const chat = findChat(chatId);
+    if (chat?.messages[chat.messages.length - 1]?.id === message.id) chat.lastMessage = content;
+    state.messageEditor = null;
+    showToast("消息已编辑", "修改已同步到当前会话。");
+    render();
+  }
+
+  function submitMessageForward(sourceChatId, messageId) {
+    const source = findChat(sourceChatId);
+    const message = findMessage(source, messageId);
+    if (!message || !state.forwardSelection.size) return;
+    const failed = [];
+    let succeeded = 0;
+    state.forwardSelection.forEach((targetId) => {
+      const target = findChat(targetId);
+      if (!target || target.relayOnly) {
+        if (target) failed.push(target.name);
+        return;
+      }
+      const forwarded = {
+        ...message,
+        id: `m_${Date.now()}_${targetId}`,
+        senderId: data.currentUser.id,
+        senderName: data.currentUser.name,
+        senderTone: data.currentUser.avatarTone,
+        self: true,
+        status: "已送达",
+        time: "刚刚",
+        forwarded: true,
+        reactions: [],
+      };
+      target.messages.push(forwarded);
+      target.lastMessage = `[转发] ${message.content}`;
+      target.lastTime = "刚刚";
+      promoteChat(target);
+      succeeded += 1;
+    });
+    state.forwardSelection = new Set();
+    if (failed.length) {
+      showToast("部分转发失败", `已发送 ${succeeded} 个会话；${failed.join("、")} 不支持该消息。`);
+      render();
+      return;
+    }
+    showToast("转发成功", `已发送到 ${succeeded} 个会话。`);
+    navigate(`/chat/${sourceChatId}`);
   }
 
   function updateGroupField(groupId, kind, value) {
@@ -7037,11 +7348,17 @@
 
     if (
       event.key === "Escape" &&
-      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey || state.actionDialog)
+      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey || state.actionDialog || state.messageMenu || state.messageEditor || state.chatActionsChatId)
     ) {
       event.preventDefault();
       if (state.actionDialog) {
         closeActionDialog();
+      } else if (state.messageEditor) {
+        state.messageEditor = null;
+      } else if (state.messageMenu) {
+        state.messageMenu = null;
+      } else if (state.chatActionsChatId) {
+        state.chatActionsChatId = null;
       } else if (state.settingsSheetKey) {
         state.settingsSheetKey = null;
       } else {
@@ -7108,6 +7425,57 @@
     }
     if (action === "confirm-action-dialog") {
       void confirmActionDialog();
+      return;
+    }
+    if (action === "open-message-menu") {
+      state.messageMenu = { chatId: target.getAttribute("data-chat-id"), messageId: target.getAttribute("data-message-id") };
+      render();
+      return;
+    }
+    if (action === "close-message-menu") {
+      state.messageMenu = null;
+      render();
+      return;
+    }
+    if (action === "close-message-editor") {
+      state.messageEditor = null;
+      render();
+      return;
+    }
+    if (action === "perform-message-action") {
+      performMessageAction(target.getAttribute("data-chat-id"), target.getAttribute("data-message-id"), target.getAttribute("data-message-action"));
+      return;
+    }
+    if (action === "toggle-message-reaction") {
+      toggleMessageReaction(target.getAttribute("data-chat-id"), target.getAttribute("data-message-id"), target.getAttribute("data-emoji"));
+      return;
+    }
+    if (action === "set-message-reads-tab") {
+      state.messageReadsTab = target.getAttribute("data-tab") === "unread" ? "unread" : "read";
+      render();
+      return;
+    }
+    if (action === "cancel-message-reply") {
+      delete state.replyTargets[target.getAttribute("data-chat-id")];
+      render();
+      return;
+    }
+    if (action === "submit-message-forward") {
+      submitMessageForward(target.getAttribute("data-source-chat-id"), target.getAttribute("data-message-id"));
+      return;
+    }
+    if (action === "open-chat-actions") {
+      state.chatActionsChatId = target.getAttribute("data-chat-id");
+      render();
+      return;
+    }
+    if (action === "close-chat-actions") {
+      state.chatActionsChatId = null;
+      render();
+      return;
+    }
+    if (action === "clear-chat-history") {
+      requestClearChatHistory(target.getAttribute("data-chat-id"));
       return;
     }
     if (action === "set-theme") {
@@ -7493,6 +7861,17 @@
     if (target.id === "chat-draft-input") {
       const chatId = target.getAttribute("data-chat-id");
       state.chatDrafts[chatId] = target.value;
+      return;
+    }
+    if (target.id === "message-editor-input" && state.messageEditor) {
+      state.messageEditor.content = target.value;
+      const submit = target.closest("form")?.querySelector('button[type="submit"]');
+      if (submit instanceof HTMLButtonElement) submit.disabled = !target.value.trim();
+      return;
+    }
+    if (target.id === "message-forward-search") {
+      state.forwardQuery = target.value;
+      scheduleFilterRender(target);
     }
   }
 
@@ -7533,6 +7912,13 @@
       }
       render();
       restoreGroupMemberPickerScroll(scrollTop);
+      return;
+    }
+    if (target.getAttribute("data-kind") === "forward-target") {
+      const chatId = target.getAttribute("data-chat-id");
+      if (target.checked) state.forwardSelection.add(chatId);
+      else state.forwardSelection.delete(chatId);
+      render();
     }
   }
 
@@ -7567,6 +7953,11 @@
     if (formKind === "create-group-form") {
       event.preventDefault();
       createGroupFromForm();
+      return;
+    }
+    if (formKind === "edit-message") {
+      event.preventDefault();
+      saveMessageEdit(form.getAttribute("data-chat-id"), form.getAttribute("data-message-id"));
     }
   }
 

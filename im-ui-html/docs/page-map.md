@@ -21,6 +21,8 @@
 | `#/mobile-design/empty` | 空数据手机壳，默认显示空会话；二级页面使用 `#/mobile-design/empty/<业务路径>` 并始终保持空数据场景 |
 | `#/mobile-design/chats` | 会话列表 |
 | `#/mobile-design/chat/:chatId` | 聊天详情 |
+| `#/mobile-design/chat/:chatId/message/:messageId/reads` | 群消息已读详情：已读成员由 API 结果提供，未读成员按群成员差集计算 |
+| `#/mobile-design/chat/:chatId/forward/:messageId` | 消息转发：支持搜索、多选目标和部分失败结果 |
 | `#/mobile-design/contacts` | 联系人目录：固定搜索栏、快捷入口和单一分组列表滚动面 |
 | `#/mobile-design/discover` | 发现 |
 | `#/mobile-design/mine` | 我的 |
