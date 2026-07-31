@@ -1,7 +1,7 @@
 ---
 title: "refactor: 收敛 im-ui-html 移动端页面设计规范"
 type: refactor
-status: active
+status: completed
 date: 2026-07-31
 origin: docs/plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md
 ---
