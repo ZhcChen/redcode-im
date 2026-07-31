@@ -124,6 +124,7 @@
     contactActionSheetContactId: null,
     contactRemarkEditorContactId: null,
     contactRemarkDraft: "",
+    settingsSheetKey: null,
     callSession: null,
     orderCursor: 1000,
   };
@@ -356,6 +357,7 @@
     activatePreviewData(route);
     syncSelection(route);
     const activeRoute = resolveMobilePreviewRoute(route);
+    state.settingsSheetKey = null;
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
       state.composerPicker = null;
@@ -5484,73 +5486,170 @@
     const compactDetailHeader = section === "profile";
 
     return `
-      <section class="screen runtime-screen runtime-screen--list">
+      <section class="screen runtime-screen runtime-screen--list runtime-settings-detail-screen">
         ${renderScreenHeader({
           title: detail.title,
           backPath: section === "profile" ? "/mine" : "/settings",
           variant: compactDetailHeader ? "compact" : undefined,
         })}
         <div class="screen-scroll runtime-scroll ${compactDetailHeader ? "runtime-topbar-scroll" : ""}">
-          <div class="runtime-list-content runtime-settings-content">
-            <section class="runtime-settings-group">
-              ${detail.rows.map(renderRuntimeSettingsValueRow).join("")}
-            </section>
+          <div class="runtime-list-content runtime-settings-content runtime-settings-detail-content">
+            ${detail.hero ? renderSettingsDetailHero(detail.hero) : ""}
+            ${detail.groups.map(renderSettingsDetailGroup).join("")}
           </div>
         </div>
+        ${renderSettingsDetailOverlay()}
       </section>
     `;
   }
 
   function settingsDetail(section) {
-    const enabledLabel = (enabled) => (enabled ? "已开启" : "已关闭");
     const details = {
       profile: {
         title: "个人资料",
-        rows: [
-          ["姓名", data.currentUser.name],
-          ["身份", data.currentUser.role],
-          ["手机号", data.currentUser.phone],
-          ["邮箱", data.currentUser.email],
-          ["个性签名", data.currentUser.bio],
+        groups: [
+          {
+            rows: [
+              { type: "value", label: "姓名", description: data.currentUser.name },
+              { type: "value", label: "身份", description: data.currentUser.role },
+              { type: "value", label: "手机号", description: data.currentUser.phone },
+              { type: "value", label: "邮箱", description: data.currentUser.email },
+              { type: "value", label: "个性签名", description: data.currentUser.bio },
+            ],
+          },
         ],
       },
       account: {
         title: "账号与安全",
-        rows: [
-          ["手机号", data.currentUser.phone],
-          ["登录设备", "当前设备已受保护"],
-          ["账号状态", "正常"],
+        groups: [
+          {
+            title: "账号信息",
+            rows: [
+              { type: "value", label: "手机号", description: data.currentUser.phone },
+              { type: "value", label: "账号状态", description: "正常" },
+            ],
+          },
+          {
+            title: "登录安全",
+            rows: [
+              { type: "action", label: "登录设备", description: "当前有 2 台设备在线", value: "2 台", action: "devices" },
+              { type: "action", label: "更换手机号", description: "验证当前手机号后修改", action: "phone" },
+            ],
+          },
         ],
       },
       chat: {
         title: "聊天",
-        rows: [
-          ["聊天背景", "跟随当前主题"],
-          ["自动下载媒体", enabledLabel(data.settings.privacy.autoDownloadMedia)],
-          ["消息存储", "保留最近会话记录"],
+        groups: [
+          {
+            title: "显示与媒体",
+            rows: [
+              { type: "action", label: "聊天背景", description: "跟随当前主题", value: state.theme === "dark" ? "深色" : "浅色", action: "chatBackground" },
+              { type: "switch", key: "autoDownloadMedia", scope: "privacy", label: "自动下载媒体", description: "仅在当前设备生效", checked: data.settings.privacy.autoDownloadMedia },
+            ],
+          },
+          {
+            title: "消息与存储",
+            rows: [
+              { type: "action", label: "消息保留", description: "保留最近一年的会话记录", value: "1 年", action: "messageStorage" },
+              { type: "instant", label: "清理缓存", description: "图片、视频与临时文件", value: "186 MB", action: "clearCache" },
+            ],
+          },
         ],
       },
       privacy: {
         title: "隐私协议",
-        rows: [
-          ["已读回执", enabledLabel(data.settings.privacy.readReceipt)],
-          ["正在输入", enabledLabel(data.settings.privacy.typingStatus)],
-          ["数据使用", "仅用于提供 IM 服务"],
+        groups: [
+          {
+            title: "聊天隐私",
+            rows: [
+              { type: "switch", key: "readReceipt", scope: "privacy", label: "已读回执", description: "允许好友查看消息已读状态", checked: data.settings.privacy.readReceipt },
+              { type: "switch", key: "typingStatus", scope: "privacy", label: "正在输入", description: "允许好友查看输入状态", checked: data.settings.privacy.typingStatus },
+            ],
+          },
+          {
+            title: "协议与数据",
+            rows: [
+              { type: "action", label: "隐私政策", description: "查看隐私保护与权限说明", action: "privacyPolicy" },
+              { type: "action", label: "数据使用说明", description: "了解账号与消息数据用途", action: "dataUsage" },
+            ],
+          },
         ],
       },
       about: {
         title: "关于 RedCode IM",
-        rows: [
-          ["版本", "RedCode IM 2.0 Preview"],
-          ["设计源", "im-ui-html"],
-          ["反馈", "产品体验反馈"],
+        hero: {
+          title: "RedCode IM",
+          description: "清晰、可靠的即时沟通",
+          version: "2.0 Preview",
+        },
+        groups: [
+          {
+            title: "产品信息",
+            rows: [
+              { type: "action", label: "版本信息", description: "RedCode IM 2.0 Preview", value: "最新", action: "version" },
+              { type: "value", label: "设计源", description: "im-ui-html" },
+            ],
+          },
+          {
+            title: "支持",
+            rows: [
+              { type: "action", label: "隐私政策", description: "隐私保护与数据使用说明", action: "privacyPolicy" },
+              { type: "action", label: "体验反馈", description: "告诉我们哪里可以做得更好", action: "feedback" },
+            ],
+          },
         ],
       },
     };
     return details[section] || null;
   }
 
-  function renderRuntimeSettingsValueRow([label, value]) {
+  function renderSettingsDetailHero(hero) {
+    return `
+      <section class="runtime-settings-about-hero" aria-label="${escapeHtml(hero.title)}">
+        <span class="runtime-settings-about-hero__mark" aria-hidden="true">R</span>
+        <span class="runtime-settings-about-hero__copy">
+          <strong>${escapeHtml(hero.title)}</strong>
+          <span>${escapeHtml(hero.description)}</span>
+          <small>${escapeHtml(hero.version)}</small>
+        </span>
+      </section>
+    `;
+  }
+
+  function renderSettingsDetailGroup(group) {
+    return `
+      <section class="runtime-settings-group">
+        ${group.title ? `<h3>${escapeHtml(group.title)}</h3>` : ""}
+        ${group.rows.map(renderSettingsDetailRow).join("")}
+      </section>
+    `;
+  }
+
+  function renderSettingsDetailRow(row) {
+    if (row.type === "switch") {
+      return renderRuntimeSwitchRow(row.key, row.label, row.checked, row.scope, row.description);
+    }
+    if (row.type === "action" || row.type === "instant") {
+      return `
+        <button
+          class="runtime-setting-row runtime-setting-row--link"
+          type="button"
+          data-action="${row.type === "instant" ? "perform-settings-action" : "open-settings-detail"}"
+          data-settings-key="${escapeHtml(row.action)}"
+        >
+          <span class="runtime-setting-row__copy"><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.description)}</small></span>
+          <span class="runtime-setting-row__tail">
+            ${row.value ? `<span>${escapeHtml(row.value)}</span>` : ""}
+            ${renderRowChevron()}
+          </span>
+        </button>
+      `;
+    }
+    return renderRuntimeSettingsValueRow(row.label, row.description);
+  }
+
+  function renderRuntimeSettingsValueRow(label, value) {
     return `
       <div class="runtime-setting-row runtime-setting-row--static">
         <span class="runtime-setting-row__copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml(value)}</small></span>
@@ -5558,10 +5657,10 @@
     `;
   }
 
-  function renderRuntimeSwitchRow(key, label, checked, scope) {
+  function renderRuntimeSwitchRow(key, label, checked, scope, description = "") {
     return `
       <label class="runtime-setting-row runtime-setting-row--switch">
-        <span>${escapeHtml(label)}</span>
+        <span class="runtime-setting-row__copy"><strong>${escapeHtml(label)}</strong>${description ? `<small>${escapeHtml(description)}</small>` : ""}</span>
         <input
           class="switch-row__input"
           type="checkbox"
@@ -5572,6 +5671,109 @@
         />
       </label>
     `;
+  }
+
+  function settingsSheetContent(key) {
+    const sheets = {
+      devices: {
+        title: "登录设备",
+        description: "最近使用 RedCode IM 的设备",
+        items: ["iPhone 16 Pro Max · 当前设备", "MacBook Pro · 3 小时前"],
+        actionLabel: "退出其他设备",
+        successTitle: "其他设备已退出",
+        successMessage: "当前设备保持登录状态。",
+      },
+      phone: {
+        title: "更换手机号",
+        description: "修改前需要验证当前手机号",
+        items: [`当前号码 ${data.currentUser.phone}`, "验证码仅发送到当前绑定号码"],
+      },
+      chatBackground: {
+        title: "聊天背景",
+        description: "当前跟随应用主题",
+        items: [state.theme === "dark" ? "深色背景" : "浅色背景", "所有会话使用相同背景"],
+        actionLabel: "应用当前主题",
+        successTitle: "聊天背景已更新",
+        successMessage: "所有会话将跟随当前主题。",
+      },
+      messageStorage: {
+        title: "消息保留",
+        description: "管理当前设备上的消息记录",
+        items: ["当前保留最近一年", "收藏与已下载文件不会自动删除"],
+        actionLabel: "保持一年",
+        successTitle: "保留策略已确认",
+        successMessage: "消息将在当前设备保留一年。",
+      },
+      privacyPolicy: {
+        title: "隐私政策",
+        description: "我们如何保护你的信息",
+        items: ["消息内容仅用于即时通信服务", "相机、麦克风与位置权限按功能单独申请", "你可以在设置中随时调整隐私偏好"],
+      },
+      dataUsage: {
+        title: "数据使用说明",
+        description: "账号与消息数据用途",
+        items: ["账号信息用于身份识别与安全保护", "消息元数据用于同步、送达与已读状态", "诊断数据仅用于定位稳定性问题"],
+      },
+      version: {
+        title: "版本信息",
+        description: "RedCode IM 2.0 Preview",
+        items: ["设计源：im-ui-html", "当前版本已是最新预览版本"],
+      },
+      feedback: {
+        title: "体验反馈",
+        description: "帮助我们持续改进 RedCode IM",
+        items: ["页面与交互问题", "消息、通话与通知体验", "其他产品建议"],
+        actionLabel: "提交反馈",
+        successTitle: "反馈已提交",
+        successMessage: "感谢你的产品体验反馈。",
+      },
+    };
+    return sheets[key] || null;
+  }
+
+  function renderSettingsDetailOverlay() {
+    const content = settingsSheetContent(state.settingsSheetKey);
+    if (!content) {
+      return "";
+    }
+    return `
+      <div class="runtime-settings-detail-overlay">
+        <button class="runtime-settings-detail-overlay__scrim" type="button" data-action="close-settings-detail" aria-label="关闭${escapeHtml(content.title)}"></button>
+        <section class="runtime-settings-detail-sheet" role="dialog" aria-modal="true" aria-labelledby="settings-detail-sheet-title">
+          <span class="runtime-settings-detail-sheet__handle" aria-hidden="true"></span>
+          <div class="runtime-settings-detail-sheet__heading">
+            <h3 id="settings-detail-sheet-title">${escapeHtml(content.title)}</h3>
+            <p>${escapeHtml(content.description)}</p>
+          </div>
+          <div class="runtime-settings-detail-sheet__items">
+            ${content.items.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}
+          </div>
+          ${
+            content.actionLabel
+              ? `<button class="runtime-settings-detail-sheet__primary" type="button" data-action="perform-settings-sheet-action">${escapeHtml(content.actionLabel)}</button>`
+              : ""
+          }
+          <button class="runtime-settings-detail-sheet__cancel" type="button" data-action="close-settings-detail">完成</button>
+        </section>
+      </div>
+    `;
+  }
+
+  function performSettingsAction(key) {
+    if (key === "clearCache") {
+      showToast("缓存已清理", "已释放 186 MB 本地存储空间。");
+      render();
+    }
+  }
+
+  function completeSettingsSheetAction() {
+    const content = settingsSheetContent(state.settingsSheetKey);
+    if (!content || !content.actionLabel) {
+      return;
+    }
+    state.settingsSheetKey = null;
+    showToast(content.successTitle, content.successMessage);
+    render();
   }
 
   function renderRuntimeSettingsLink(title, description, route) {
@@ -6503,9 +6705,16 @@
   }
 
   function handleKeydown(event) {
-    if (event.key === "Escape" && (state.contactActionSheetContactId || state.contactRemarkEditorContactId)) {
+    if (
+      event.key === "Escape" &&
+      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey)
+    ) {
       event.preventDefault();
-      closeContactProfileOverlay();
+      if (state.settingsSheetKey) {
+        state.settingsSheetKey = null;
+      } else {
+        closeContactProfileOverlay();
+      }
       render();
       return;
     }
@@ -6756,6 +6965,27 @@
       window.requestAnimationFrame(() => {
         document.getElementById("friend-search-input")?.focus({ preventScroll: true });
       });
+      return;
+    }
+    if (action === "open-settings-detail") {
+      const key = target.getAttribute("data-settings-key");
+      if (settingsSheetContent(key)) {
+        state.settingsSheetKey = key;
+        render();
+      }
+      return;
+    }
+    if (action === "close-settings-detail") {
+      state.settingsSheetKey = null;
+      render();
+      return;
+    }
+    if (action === "perform-settings-action") {
+      performSettingsAction(target.getAttribute("data-settings-key"));
+      return;
+    }
+    if (action === "perform-settings-sheet-action") {
+      completeSettingsSheetAction();
       return;
     }
     if (action === "open-contact-actions") {
