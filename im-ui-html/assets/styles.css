@@ -4004,12 +4004,7 @@ body[data-theme="dark"] .spec-stage {
   box-shadow: var(--shadow-soft);
 }
 
-.hero-card--add-friend {
-  gap: 0.8em;
-}
-
-.moment-card,
-.nearby-card {
+.moment-card {
   border-radius: 1.2em;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -4172,58 +4167,6 @@ body[data-theme="dark"] .spec-stage {
 .moment-card__detail-icon svg {
   width: 14px;
   height: 14px;
-}
-
-.scan-shell {
-  border-radius: 1.25em;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  box-shadow: var(--shadow-soft);
-  padding: 1.2em 1em;
-  display: grid;
-  gap: 0.95em;
-}
-
-.scan-shell__header {
-  display: grid;
-  gap: 0.22em;
-}
-
-.scan-shell__header strong {
-  font-size: 1em;
-  line-height: 1.4;
-}
-
-.scan-shell__frame {
-  width: min(100%, 13.5em);
-  aspect-ratio: 1;
-  margin: 0 auto;
-  border-radius: 1.4em;
-  border: 1px solid var(--line);
-  background:
-    linear-gradient(90deg, transparent 0, transparent 47%, color-mix(in srgb, var(--primary) 22%, transparent) 47%, color-mix(in srgb, var(--primary) 22%, transparent) 53%, transparent 53%),
-    linear-gradient(0deg, transparent 0, transparent 47%, color-mix(in srgb, var(--primary) 22%, transparent) 47%, color-mix(in srgb, var(--primary) 22%, transparent) 53%, transparent 53%),
-    var(--surface-soft);
-  position: relative;
-  overflow: hidden;
-}
-
-.scan-shell__line {
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  top: 24%;
-  height: 2px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, var(--primary), transparent);
-  box-shadow: 0 0 24px var(--primary-ring);
-}
-
-.scan-shell p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 0.86em;
-  line-height: 1.55;
 }
 
 .runtime-discover-tool-screen {
@@ -5186,39 +5129,110 @@ body[data-theme="dark"] .spec-stage {
   color: #fff;
 }
 
-.surface-card--friend-note {
-  padding: 0.95em;
+.runtime-add-friend-scroll {
+  padding: 8px 16px 24px;
 }
 
-.friend-note-card {
+.runtime-add-friend-content {
+  min-width: 0;
   display: grid;
-  gap: 0.65em;
-  margin-bottom: 0.75em;
+  gap: 18px;
 }
 
-.friend-note-card__preview {
-  padding: 0.68em 0.8em;
-  border-radius: 1em;
-  border: 1px solid var(--line);
-  background: var(--surface-soft);
+.runtime-add-friend-search {
+  position: relative;
+}
+
+.runtime-add-friend-search input {
+  padding-right: 38px;
+}
+
+.runtime-add-friend-search__clear {
+  width: 36px;
+  height: 36px;
+  padding: 0;
   display: grid;
-  gap: 0.22em;
+  place-items: center;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--runtime-faint);
 }
 
-.friend-note-card__preview strong {
-  font-size: 0.86em;
+.runtime-add-friend-search__clear-icon,
+.runtime-add-friend-search__clear-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
-.friend-note-card__preview p {
+.runtime-add-friend-note {
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  border-radius: var(--runtime-radius-surface);
+  background: var(--runtime-surface);
+}
+
+.runtime-add-friend-note__heading {
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runtime-add-friend-note__heading h3,
+.runtime-add-friend-note__heading span {
   margin: 0;
-  color: var(--text-secondary);
+  color: var(--runtime-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.runtime-add-friend-note__heading span {
+  color: var(--runtime-faint);
+  font-weight: 600;
+}
+
+.runtime-add-friend-note__field {
+  min-height: 84px;
+  padding: 10px 12px;
+  display: block;
+  border-radius: var(--runtime-radius-control);
+  background: var(--runtime-soft);
+}
+
+.runtime-add-friend-note__field:focus-within {
+  background: color-mix(in srgb, var(--runtime-soft) 72%, var(--runtime-accent-soft));
+}
+
+.runtime-add-friend-note__field textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--runtime-ink);
+  font: inherit;
+  font-size: 14px;
   line-height: 1.5;
 }
 
-.friend-note-card__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35em;
+.runtime-add-friend-note__field textarea::placeholder {
+  color: var(--runtime-faint);
+}
+
+.runtime-add-friend-results {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--runtime-radius-surface);
+  background: var(--runtime-surface);
 }
 
 .profile-hero {

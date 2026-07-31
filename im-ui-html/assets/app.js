@@ -97,6 +97,7 @@
     chatFilter: "",
     contactFilter: "",
     friendSearch: "",
+    friendSearchPending: false,
     friendRequestTab: "incoming",
     friendNote: "你好，我想一起评审 RedCode IM 的移动端重构方案。",
     scanTorchOn: false,
@@ -4544,59 +4545,69 @@
 
   function renderAddFriendScreen() {
     const users = filteredSearchUsers();
+    const hasQuery = Boolean(state.friendSearch.trim());
+    const resultTitle = state.friendSearchPending ? "正在搜索" : hasQuery ? "搜索结果" : "推荐联系人";
+    const resultMeta = state.friendSearchPending ? "请稍候" : `${users.length} 位`;
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-screen--list runtime-add-friend-screen">
         ${renderScreenHeader({
           title: "添加好友",
-          subtitle: "搜索账号、写打招呼，再进入好友申请流转",
           backPath: "/contacts",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--soft hero-card--add-friend">
-              <span class="eyebrow">Search & Greeting</span>
-              <h3>先搜到人，再决定是添加、处理现有关系，还是直接进入聊天。</h3>
-            </section>
-            <label class="search-box search-box--conversation">
-              <span>搜索昵称、账号或城市</span>
-              <div class="search-box__field">
-                ${renderIcon("search", "search-box__icon", "搜索")}
+        <div class="screen-scroll runtime-scroll runtime-add-friend-scroll">
+          <div class="runtime-add-friend-content">
+            <label class="runtime-search-field runtime-add-friend-search" role="search">
+              ${renderIcon("search", "runtime-search-field__icon", "搜索好友")}
                 <input
                   id="friend-search-input"
-                  class="search-box__input"
                   value="${escapeHtml(state.friendSearch)}"
-                  placeholder="例如：nora、Shanghai"
+                  placeholder="搜索昵称、账号或城市"
+                  aria-label="搜索昵称、账号或城市"
+                  aria-controls="add-friend-results"
                 />
-              </div>
+              ${
+                hasQuery
+                  ? `<button class="runtime-add-friend-search__clear" type="button" data-action="clear-friend-search" aria-label="清空搜索">${renderIcon("close", "runtime-add-friend-search__clear-icon")}</button>`
+                  : ""
+              }
             </label>
-            <section class="surface-card surface-card--search-results runtime-add-friend-results">
+            <section class="runtime-add-friend-note" aria-labelledby="friend-note-title">
+              <div class="runtime-add-friend-note__heading">
+                <h3 id="friend-note-title">申请留言</h3>
+                <span class="runtime-add-friend-note__count">${state.friendNote.trim().length}/80</span>
+              </div>
+              <label class="runtime-add-friend-note__field">
+                <span class="runtime-visually-hidden">申请留言</span>
+                <textarea
+                  id="friend-note-input"
+                  rows="3"
+                  maxlength="80"
+                  placeholder="简单介绍一下自己"
+                >${escapeHtml(state.friendNote)}</textarea>
+              </label>
+            </section>
+            <section
+              id="add-friend-results"
+              class="runtime-add-friend-results"
+              aria-labelledby="add-friend-results-title"
+              aria-busy="${state.friendSearchPending}"
+            >
               <div class="runtime-add-friend-results__header">
-                <h3>搜索结果</h3>
-                <span>${users.length} 位</span>
+                <h3 id="add-friend-results-title">${resultTitle}</h3>
+                <span data-role="friend-search-status">${resultMeta}</span>
               </div>
               <div class="runtime-add-friend-results__list">
-                ${users.length ? users.map(renderSearchUserItem).join("") : renderEmptyState("没有匹配结果", "换个关键词，或者先从新的朋友里处理已有申请。")}
+                ${
+                  users.length
+                    ? users.map(renderSearchUserItem).join("")
+                    : renderEmptyState(
+                        hasQuery ? "没有匹配结果" : "暂无推荐联系人",
+                        hasQuery ? "换个昵称、账号或城市再试试。" : "搜索昵称或账号来添加新的朋友。",
+                      )
+                }
               </div>
-            </section>
-            <section class="surface-card surface-card--friend-note">
-              <div class="surface-card__header">
-                <h3>打招呼内容</h3>
-                <span class="badge">添加时会携带</span>
-              </div>
-              <div class="friend-note-card">
-                <div class="friend-note-card__preview">
-                  <strong>当前预览</strong>
-                  <p>${escapeHtml(state.friendNote)}</p>
-                </div>
-                <div class="friend-note-card__meta">
-                  <span class="chip chip--filled">${state.friendNote.trim().length} 字</span>
-                  <span class="chip">申请消息</span>
-                </div>
-              </div>
-              <label class="field field--textarea">
-                <textarea id="friend-note-input" class="field__input field__input--textarea" rows="3">${escapeHtml(state.friendNote)}</textarea>
-              </label>
             </section>
           </div>
         </div>
@@ -6738,6 +6749,15 @@
       launchGame(target.getAttribute("data-game-id"));
       return;
     }
+    if (action === "clear-friend-search") {
+      state.friendSearch = "";
+      state.friendSearchPending = false;
+      render();
+      window.requestAnimationFrame(() => {
+        document.getElementById("friend-search-input")?.focus({ preventScroll: true });
+      });
+      return;
+    }
     if (action === "open-contact-actions") {
       openContactActionSheet(target.getAttribute("data-contact-id"));
       return;
@@ -6818,6 +6838,9 @@
 
     window.clearTimeout(filterRenderTimer);
     filterRenderTimer = window.setTimeout(() => {
+      if (inputId === "friend-search-input") {
+        state.friendSearchPending = false;
+      }
       render();
       window.requestAnimationFrame(() => {
         const nextInput = document.getElementById(inputId);
@@ -6855,6 +6878,13 @@
     }
     if (target.id === "friend-search-input") {
       state.friendSearch = target.value;
+      state.friendSearchPending = true;
+      const resultSection = document.getElementById("add-friend-results");
+      resultSection?.setAttribute("aria-busy", "true");
+      const status = resultSection?.querySelector('[data-role="friend-search-status"]');
+      if (status) {
+        status.textContent = "搜索中";
+      }
       scheduleFilterRender(target);
       return;
     }
@@ -6874,6 +6904,10 @@
     }
     if (target.id === "friend-note-input") {
       state.friendNote = target.value;
+      const count = root.querySelector(".runtime-add-friend-note__count");
+      if (count) {
+        count.textContent = `${target.value.trim().length}/80`;
+      }
       return;
     }
     if (target.id === "moment-comment-input") {
