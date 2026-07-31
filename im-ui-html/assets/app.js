@@ -54,12 +54,12 @@
   ];
   const MOMENT_COMMENTS = {
     mom_1001: [
-      { id: "mc_1001_1", author: "Zoe Wang", tone: "violet", time: "6 分钟前", text: "输入区和底部导航的节奏现在统一多了。" },
-      { id: "mc_1001_2", author: "Ian Chen", tone: "mint", time: "3 分钟前", text: "设计图里的状态切换也可以一起补进评审。" },
+      { id: "mc_1001_1", author: "Zoe Wang", tone: "violet", time: "6 分钟前", text: "输入区和底部导航的节奏现在统一多了，尤其是评论较长时，正文自然换行后仍然能和头像、发布时间保持清晰的阅读顺序。" },
+      { id: "mc_1001_2", author: "Ian Chen", tone: "mint", time: "3 分钟前", text: "设计图里的状态切换也可以一起补进评审，重点检查从列表点赞后进入详情、展开点赞用户，再返回列表时状态是否仍然一致。" },
       { id: "mc_1001_3", author: "Mia Sun", tone: "amber", time: "2 分钟前", text: "三图横排的信息密度现在更适合快速浏览。" },
-      { id: "mc_1001_4", author: "Nora", tone: "mint", time: "1 分钟前", text: "详情页和列表页共用图片规则会更容易维护。" },
+      { id: "mc_1001_4", author: "Nora", tone: "mint", time: "1 分钟前", text: "详情页和列表页共用图片规则会更容易维护。后续接入真实图片时，只需要替换缩略图资源和加载状态，不应该重新定义每种数量的网格结构。" },
       { id: "mc_1001_5", author: "Olivia", tone: "violet", time: "刚刚", text: "点赞状态从列表带到详情的反馈也很自然。" },
-      { id: "mc_1001_6", author: "Jules", tone: "amber", time: "刚刚", text: "评论区可以继续保持这种连续阅读节奏。" },
+      { id: "mc_1001_6", author: "Jules", tone: "amber", time: "刚刚", text: "评论区可以继续保持这种连续阅读节奏，不过还要覆盖更小的设备尺寸，确保三行以上的评论不会把右侧时间挤出内容区，也不会被底部输入栏遮住。" },
       { id: "mc_1001_7", author: "Evan", tone: "mint", time: "刚刚", text: "底部输入不会遮住最后一条评论，体验不错。" },
       { id: "mc_1001_8", author: "Lena", tone: "violet", time: "刚刚", text: "这一版的信息层级已经清楚很多。" },
     ],
