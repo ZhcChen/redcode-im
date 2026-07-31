@@ -86,6 +86,14 @@
 - 全局 CE 资源（如 `~/.codex/prompts/ce-*.md`、`~/.codex/skills/ce-*`、`~/.codex/CE_AGENTS.md`、`~/.codex/scripts/ce-init`）仅作为本机 Codex 兼容入口；仓库内工作流事实以本节、`docs/index.md` 和 `docs/prompts/` 为准。
 - 若任务已经有现成的 brainstorm、plan、review 或 solution 文档，优先续写与复用，不要重复生成平行文档。
 
+### Code Review Graph 受控使用
+- Code Review Graph（CRG）仅是 `plan` / `review` 阶段的可选旁路证据源，不构成第六个工作流阶段，也不替代源码阅读、测试或运行时验收。
+- 仅在跨模块改动、公共符号/契约重构、调用链不明确或改动面较大时显式使用；小型文档、静态 CSS 和局部 UI 调整默认跳过。
+- 使用前先冻结主线程依据源码得到的首轮候选文件，再查询 CRG，用于补充调用者、测试和影响范围；不得让图结果覆盖运行时、测试或当前源码证据。
+- CRG 不可用、图数据陈旧或结果低置信时，立即降级到原 CE 流程、`rg`、源码、测试和运行时验证，不得阻塞计划、审查、提交或推送。
+- 只允许手工运行 `make crg.build`、`make crg.update`、`make crg.status`、`make crg.review BASE=<git-ref>`，不得启用 install、hooks、daemon、watch、embeddings 或默认测试/提交链集成。
+- 完整操作、触发矩阵、证据优先级与回滚方式见 `docs/reference/tooling/code-review-graph.md`。
+
 ## 3. Agent-light / CE Codex Tool Mapping (Claude Compatibility)
 
 此节用于给未来代理说明轻工作流与 CE 兼容层在 Codex 中的常见工具映射。

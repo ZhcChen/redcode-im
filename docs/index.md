@@ -17,6 +17,7 @@
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `compound` / `ce:compound` 产出目录 |
 | [参考提示词](prompts/) | 可复制或改写给 Codex 的轻工作流提示词 |
+| [Code Review Graph 受控使用](reference/tooling/code-review-graph.md) | CE 旁路证据的触发、操作、降级与回滚边界 |
 
 > 当前仓库以 `agent-light-workflow` 的文档结构为主；CE 全局资源仅作为本机 Codex
 > 技能兼容入口。
