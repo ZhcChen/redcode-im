@@ -99,6 +99,9 @@
     friendSearch: "",
     friendRequestTab: "incoming",
     friendNote: "你好，我想一起评审 RedCode IM 的移动端重构方案。",
+    scanTorchOn: false,
+    scanStatus: "scanning",
+    scanSimulationCount: 0,
     searchQuery: "",
     groupMemberFilter: "",
     createGroupName: "",
@@ -247,6 +250,11 @@
     camera: [
       '<path d="M8.25 6.25 9.4 4.5h5.2l1.15 1.75h2.5a2.25 2.25 0 0 1 2.25 2.25v8.75a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25V8.5a2.25 2.25 0 0 1 2.25-2.25Z" />',
       '<circle cx="12" cy="12.75" r="3.25" />',
+    ],
+    flashlight: [
+      '<path d="M8.25 3.75h7.5l-1.15 5.1H9.4Z" />',
+      '<path d="M9.4 8.85h5.2l1.15 2.4-2.15 9h-3.2l-2.15-9Z" />',
+      '<path d="M10.15 12.1h3.7" />',
     ],
     mapPin: [
       '<path d="M19 10.25c0 5-7 10.25-7 10.25S5 15.25 5 10.25a7 7 0 1 1 14 0Z" />',
@@ -4000,61 +4008,114 @@
   }
 
   function renderDiscoverScanScreen() {
+    const result = state.scanStatus === "success"
+      ? {
+          tone: "success",
+          title: "识别到群聊邀请",
+          summary: "Launch War Room · 18 位成员",
+        }
+      : state.scanStatus === "error"
+      ? {
+          tone: "error",
+          title: "未识别到二维码",
+          summary: "请将二维码完整放入框内。",
+        }
+      : null;
+
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-discover-tool-screen runtime-scan-screen">
         ${renderScreenHeader({
           title: "扫一扫",
-          subtitle: "扫码属于高频快捷入口，单独承载更合理",
           backPath: "/discover",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="scan-shell">
-              <div class="scan-shell__header">
-                <span class="eyebrow">Scan Gateway</span>
-                <strong>把扫码动作单独抽出来，保证它是高频快捷入口。</strong>
-              </div>
-              <div class="scan-shell__frame">
-                <div class="scan-shell__line"></div>
-              </div>
-              <p>后续可接加好友、进群、打开活动页、桌面端登录确认等二维码流程。</p>
-            </section>
-            <section class="quick-action-grid quick-action-grid--compact">
-              ${[
-                ["加好友", "扫个人二维码直接发起关系请求"],
-                ["进群", "扫码加入活动群或协作群"],
-                ["登录桌面端", "手机确认桌面登录动作"],
-                ["活动页", "打开外部落地页或设备配网"],
-              ]
-                .map(
-                  (item) => `
-                    <button class="quick-action-card quick-action-card--mini" data-action="show-hint" data-message="${item[1]}">
-                      <strong>${item[0]}</strong>
-                      <span>${item[1]}</span>
+        <div class="screen-scroll runtime-scroll runtime-discover-tool-scroll">
+          <div class="runtime-scan-workspace ${state.scanTorchOn ? "is-torch-on" : ""}">
+            <div class="runtime-scan-status runtime-scan-status--${state.scanStatus}" role="status">
+              <span class="runtime-scan-status__dot" aria-hidden="true"></span>
+              <span>${
+                state.scanStatus === "success"
+                  ? "识别完成"
+                  : state.scanStatus === "error"
+                  ? "暂未识别"
+                  : state.scanTorchOn
+                  ? "手电筒已开启"
+                  : "正在识别二维码"
+              }</span>
+            </div>
+            <button
+              class="runtime-scan-viewport"
+              type="button"
+              data-action="simulate-scan"
+              aria-label="模拟识别二维码"
+            >
+              <span class="runtime-scan-viewport__shade" aria-hidden="true"></span>
+              <span class="runtime-scan-frame" aria-hidden="true">
+                <span class="runtime-scan-frame__corner runtime-scan-frame__corner--tl"></span>
+                <span class="runtime-scan-frame__corner runtime-scan-frame__corner--tr"></span>
+                <span class="runtime-scan-frame__corner runtime-scan-frame__corner--bl"></span>
+                <span class="runtime-scan-frame__corner runtime-scan-frame__corner--br"></span>
+                <span class="runtime-scan-frame__line"></span>
+              </span>
+            </button>
+            <p class="runtime-scan-guidance">将二维码放入框内，即可自动识别</p>
+            <div class="runtime-scan-actions" aria-label="扫一扫操作">
+              <button class="runtime-scan-action" type="button" data-action="scan-from-gallery">
+                <span class="runtime-scan-action__icon">${renderIcon("image", "runtime-scan-action__glyph")}</span>
+                <span>相册</span>
+              </button>
+              <button class="runtime-scan-action runtime-scan-action--primary" type="button" data-action="simulate-scan">
+                <span class="runtime-scan-action__icon">${renderIcon("scan", "runtime-scan-action__glyph")}</span>
+                <span>识别</span>
+              </button>
+              <button
+                class="runtime-scan-action ${state.scanTorchOn ? "is-active" : ""}"
+                type="button"
+                data-action="toggle-scan-torch"
+                aria-pressed="${state.scanTorchOn}"
+              >
+                <span class="runtime-scan-action__icon">${renderIcon("flashlight", "runtime-scan-action__glyph")}</span>
+                <span>手电筒</span>
+              </button>
+            </div>
+            ${
+              result
+                ? `
+                  <section class="runtime-scan-result runtime-scan-result--${result.tone}" role="dialog" aria-modal="false" aria-labelledby="scan-result-title">
+                    <span class="runtime-scan-result__icon">
+                      ${renderIcon(result.tone === "success" ? "contacts" : "close", "runtime-scan-result__glyph")}
+                    </span>
+                    <span class="runtime-scan-result__copy">
+                      <strong id="scan-result-title">${result.title}</strong>
+                      <span>${result.summary}</span>
+                    </span>
+                    ${
+                      result.tone === "success"
+                        ? `<button class="runtime-scan-result__button" type="button" data-action="navigate" data-route="/groups/settings/g_launch">查看</button>`
+                        : `<button class="runtime-scan-result__button" type="button" data-action="reset-scan">重试</button>`
+                    }
+                    <button class="runtime-scan-result__close" type="button" data-action="reset-scan" aria-label="关闭识别结果">
+                      ${renderIcon("close", "runtime-scan-result__close-icon")}
                     </button>
-                  `,
-                )
-                .join("")}
-            </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <div class="surface-card__header-copy">
-                  <h3>扫码入口优先承载</h3>
-                  <p>二维码是流程跳板，不应该被挤进其它页面做附属按钮。</p>
-                </div>
-                <span class="badge">Quick Action</span>
-              </div>
-              <ul class="bullet-list">
-                <li>加好友二维码</li>
-                <li>群邀请二维码</li>
-                <li>桌面端登录确认</li>
-                <li>活动页 / 设备配网等后续能力</li>
-              </ul>
-            </section>
+                  </section>
+                `
+                : ""
+            }
           </div>
         </div>
       </section>
     `;
+  }
+
+  function simulateScan(forceSuccess = false) {
+    state.scanSimulationCount += 1;
+    state.scanStatus = forceSuccess || state.scanSimulationCount % 2 === 1 ? "success" : "error";
+    render();
+  }
+
+  function resetScan() {
+    state.scanStatus = "scanning";
+    render();
   }
 
   function renderDiscoverNearbyScreen() {
@@ -6522,6 +6583,23 @@
     if (action === "show-hint") {
       showToast("提示", target.getAttribute("data-message") || "该功能暂不可用。");
       render();
+      return;
+    }
+    if (action === "toggle-scan-torch") {
+      state.scanTorchOn = !state.scanTorchOn;
+      render();
+      return;
+    }
+    if (action === "simulate-scan") {
+      simulateScan();
+      return;
+    }
+    if (action === "scan-from-gallery") {
+      simulateScan(true);
+      return;
+    }
+    if (action === "reset-scan") {
+      resetScan();
       return;
     }
     if (action === "open-contact-actions") {
