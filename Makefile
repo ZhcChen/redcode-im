@@ -123,6 +123,9 @@ ANDROID_APP_LIVE_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 ANDROID_APP_LIVE_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
 ANDROID_APP_PACKAGE := com.redcode.im.androidapp
 ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
+CRG_VERSION ?= 2.3.7
+CRG := uvx --from code-review-graph==$(CRG_VERSION) code-review-graph
+BASE ?= HEAD~1
 
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
@@ -135,7 +138,7 @@ if [ "$(ANDROID_APP_API_BASE_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ] || [ "$
 fi
 endef
 
-.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs \
+.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review \
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
@@ -154,6 +157,23 @@ endef
 
 help: ## 显示所有可用命令
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+crg.build: ## 手工完整构建 Code Review Graph 本地图数据
+	@$(call require_cmd,uvx)
+	@$(CRG) build --repo "$(ROOT_DIR)"
+
+crg.update: ## 手工增量更新 Code Review Graph 本地图数据
+	@$(call require_cmd,uvx)
+	@$(CRG) update --repo "$(ROOT_DIR)"
+
+crg.status: ## 手工查看 Code Review Graph 本地图状态
+	@$(call require_cmd,uvx)
+	@$(CRG) status --repo "$(ROOT_DIR)"
+
+crg.review: ## 手工审查当前改动影响（可传 BASE=<git-ref>，默认 HEAD~1）
+	@$(call require_cmd,uvx)
+	@echo "[crg] 审查基线: $(BASE)"
+	@$(CRG) detect-changes --repo "$(ROOT_DIR)" --base "$(BASE)" --brief
 
 status: ## 查看各模块状态（api / admin / desktop / h5-app / app / website）
 	@echo "[api]"

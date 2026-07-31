@@ -109,6 +109,45 @@ func TestRootMakefileExposesUnifiedModuleTargets(t *testing.T) {
 	}
 }
 
+func TestCodeReviewGraphIsExplicitAndIsolated(t *testing.T) {
+	makefile := readRepoFile(t, "Makefile")
+	gitignore := readRepoFile(t, ".gitignore")
+	preCommit := readRepoFile(t, "admin", ".husky", "pre-commit")
+	commitMsg := readRepoFile(t, "admin", ".husky", "commit-msg")
+
+	requiredSnippets := []string{
+		"CRG_VERSION ?= 2.3.7",
+		"uvx --from code-review-graph==$(CRG_VERSION) code-review-graph",
+		"crg.build:",
+		"crg.update:",
+		"crg.status:",
+		"crg.review:",
+		"detect-changes --repo \"$(ROOT_DIR)\" --base \"$(BASE)\" --brief",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(makefile, snippet) {
+			t.Fatalf("expected Makefile to contain controlled CRG entry %q", snippet)
+		}
+	}
+
+	if !strings.Contains(gitignore, ".code-review-graph/") {
+		t.Fatal("expected .gitignore to exclude local Code Review Graph data")
+	}
+
+	for _, target := range []string{"test.all", "test.live"} {
+		body := makeTargetBody(makefile, target)
+		if strings.Contains(body, "crg.") || strings.Contains(body, "code-review-graph") {
+			t.Fatalf("expected %s to exclude Code Review Graph automatic triggers", target)
+		}
+	}
+
+	for name, hook := range map[string]string{"pre-commit": preCommit, "commit-msg": commitMsg} {
+		if strings.Contains(hook, "crg.") || strings.Contains(hook, "code-review-graph") {
+			t.Fatalf("expected %s hook to exclude Code Review Graph automatic triggers", name)
+		}
+	}
+}
+
 func makeTargetBody(makefile, target string) string {
 	startMarker := target + ":"
 	start := strings.Index(makefile, startMarker)

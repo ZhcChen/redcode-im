@@ -36,6 +36,7 @@ h5-app/playwright-report/
 h5-app/test-results/
 
 # Agent/local automation artifacts
+.code-review-graph/
 .pi/
 .pi-subagent/
 .pi-subagents/
