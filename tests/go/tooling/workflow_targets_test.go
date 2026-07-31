@@ -118,11 +118,12 @@ func TestCodeReviewGraphIsExplicitAndIsolated(t *testing.T) {
 	requiredSnippets := []string{
 		"CRG_VERSION ?= 2.3.7",
 		"uvx --from code-review-graph==$(CRG_VERSION) code-review-graph",
+		"CRG_BASE = $(if $(strip $(BASE)),$(BASE),HEAD~1)",
 		"crg.build:",
 		"crg.update:",
 		"crg.status:",
 		"crg.review:",
-		"detect-changes --repo \"$(ROOT_DIR)\" --base \"$(BASE)\" --brief",
+		"detect-changes --repo \"$(ROOT_DIR)\" --base \"$(CRG_BASE)\" --brief",
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(makefile, snippet) {

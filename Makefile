@@ -125,7 +125,7 @@ ANDROID_APP_PACKAGE := com.redcode.im.androidapp
 ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
 CRG_VERSION ?= 2.3.7
 CRG := uvx --from code-review-graph==$(CRG_VERSION) code-review-graph
-BASE ?= HEAD~1
+CRG_BASE = $(if $(strip $(BASE)),$(BASE),HEAD~1)
 
 define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
@@ -172,8 +172,8 @@ crg.status: ## 手工查看 Code Review Graph 本地图状态
 
 crg.review: ## 手工审查当前改动影响（可传 BASE=<git-ref>，默认 HEAD~1）
 	@$(call require_cmd,uvx)
-	@echo "[crg] 审查基线: $(BASE)"
-	@$(CRG) detect-changes --repo "$(ROOT_DIR)" --base "$(BASE)" --brief
+	@echo "[crg] 审查基线: $(CRG_BASE)"
+	@$(CRG) detect-changes --repo "$(ROOT_DIR)" --base "$(CRG_BASE)" --brief
 
 status: ## 查看各模块状态（api / admin / desktop / h5-app / app / website）
 	@echo "[api]"
