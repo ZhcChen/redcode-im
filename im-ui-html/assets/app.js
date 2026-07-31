@@ -126,6 +126,7 @@
     messageReadsTab: "read",
     chatActionsChatId: null,
     conversationMenuChatId: null,
+    contactReport: { reason: "", detail: "", screenshots: [], status: "idle", error: "" },
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
@@ -387,6 +388,9 @@
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
       state.composerPicker = null;
+    }
+    if (activeRoute.section !== "contact-report") {
+      state.contactReport = { reason: "", detail: "", screenshots: [], status: "idle", error: "" };
     }
     if (
       state.callSession &&
@@ -1452,7 +1456,7 @@
       if (!findContact(route.contactId)) {
         return renderFallbackScreen("联系人不存在", "/contacts");
       }
-      return renderCapabilityRouteScreen("举报用户", `/contacts/profile/${route.contactId}`, "请选择举报原因");
+      return renderContactReportScreen(route.contactId);
     }
     if (route.section === "groups") {
       return renderGroupsScreen();
@@ -5003,7 +5007,6 @@
       <section class="screen runtime-contact-profile-screen">
         ${renderScreenHeader({
           title: "联系人资料",
-          subtitle: "单独承载联系人详情，而不是和列表并排",
           backPath: "/contacts",
         })}
         <div class="screen-scroll runtime-contact-profile-scroll">
@@ -5179,11 +5182,92 @@
               ${renderIcon("video", "runtime-contact-profile__action-icon")}
               <span>视频通话</span>
             </button>
+            <button type="button" data-action="navigate" data-route="/contacts/profile/${escapeHtml(contact.id)}/report">
+              ${renderIcon("alertTriangle", "runtime-contact-profile__action-icon")}
+              <span>举报</span>
+            </button>
+            <button class="is-danger" type="button" data-action="delete-contact" data-contact-id="${escapeHtml(contact.id)}">
+              ${renderIcon("trash", "runtime-contact-profile__action-icon")}
+              <span>删除好友</span>
+            </button>
           </div>
           <button class="runtime-contact-profile__sheet-cancel" type="button" data-action="close-contact-profile-overlay">取消</button>
         </section>
       </div>
     `;
+  }
+
+  function renderContactReportScreen(contactId) {
+    const contact = findContact(contactId);
+    const report = state.contactReport;
+    const canSubmit = report.reason && report.detail.trim() && report.screenshots.length > 0 && report.status !== "submitting";
+    if (report.status === "success") {
+      return `
+        <section class="screen runtime-screen runtime-screen--list">
+          ${renderScreenHeader({ title: "举报用户", backPath: `/contacts/profile/${contact.id}`, variant: "compact" })}
+          <div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${renderCapabilityState("success", "举报已提交", "我们会尽快审核，并在处理后通知你。", { name: "finish-contact-report", label: "返回联系人" })}</div></div>
+        </section>
+      `;
+    }
+    return `
+      <section class="screen runtime-screen runtime-screen--list runtime-report-screen">
+        ${renderScreenHeader({ title: "举报用户", backPath: `/contacts/profile/${contact.id}`, variant: "compact" })}
+        <form class="screen-scroll runtime-scroll runtime-topbar-scroll runtime-report-form" data-form="contact-report" data-contact-id="${contact.id}">
+          <div class="runtime-report-target">${renderAvatar(contact.name, contact.tone, "avatar--md")}<span><small>举报对象</small><strong>${escapeHtml(contact.name)}</strong></span></div>
+          <fieldset><legend>举报原因</legend><div class="runtime-report-reasons">${["骚扰信息", "欺诈风险", "不当内容", "其他"].map((reason) => `<label><input type="radio" name="report-reason" data-kind="report-reason" value="${reason}" ${report.reason === reason ? "checked" : ""}><span>${reason}</span></label>`).join("")}</div></fieldset>
+          <label class="runtime-report-field"><span>情况说明</span><textarea id="contact-report-detail" rows="5" maxlength="500" placeholder="请描述具体情况">${escapeHtml(report.detail)}</textarea><small>${report.detail.length}/500</small></label>
+          <fieldset><legend>相关截图 <span>至少 1 张，最多 4 张</span></legend><label class="runtime-report-upload">${renderIcon("image", "runtime-report-upload__icon")}<span>添加截图</span><input id="contact-report-screenshots" type="file" accept="image/*" multiple></label>${report.screenshots.length ? `<div class="runtime-report-files">${report.screenshots.map((name, index) => `<span>${escapeHtml(name)}<button type="button" data-action="remove-report-screenshot" data-index="${index}" aria-label="移除 ${escapeHtml(name)}">${renderIcon("close", "runtime-report-file__icon")}</button></span>`).join("")}</div>` : ""}</fieldset>
+          ${report.error ? `<p class="runtime-report-error" role="alert">${escapeHtml(report.error)}</p>` : ""}
+          <button class="runtime-report-submit" type="submit" ${canSubmit ? "" : "disabled"}>${report.status === "submitting" ? "提交中" : "提交举报"}</button>
+        </form>
+      </section>
+    `;
+  }
+
+  function requestDeleteContact(contactId) {
+    const contact = findContact(contactId);
+    if (!contact) return;
+    closeContactProfileOverlay();
+    openActionDialog({
+      title: `删除 ${contact.name}？`,
+      description: "删除后将解除好友关系，但已有聊天记录仍会保留。",
+      confirmLabel: "删除好友",
+      tone: "danger",
+      payload: { contactId },
+      onConfirm: ({ contactId: targetId }) => {
+        const index = data.contacts.findIndex((item) => item.id === targetId);
+        if (index < 0) throw new Error("联系人不存在，无法删除。");
+        data.contacts.splice(index, 1);
+        updateSearchUserRelation(targetId, "none");
+        navigate("/contacts", { resetNavigationStack: true });
+      },
+    });
+  }
+
+  function submitContactReport(contactId) {
+    const report = state.contactReport;
+    report.error = "";
+    if (!report.reason || !report.detail.trim()) {
+      report.error = "请选择原因并填写情况说明。";
+      render();
+      return;
+    }
+    if (!report.screenshots.length) {
+      report.error = "请至少添加一张相关截图。";
+      render();
+      return;
+    }
+    report.status = "submitting";
+    render();
+    window.setTimeout(() => {
+      if (new URLSearchParams(window.location.search).get("state") === "error") {
+        report.status = "error";
+        report.error = "提交失败，已保留当前填写内容，请重试。";
+      } else {
+        report.status = "success";
+      }
+      render();
+    }, 420);
   }
 
   function groupDirectoryGroups() {
@@ -7532,6 +7616,21 @@
       performToastAction(target.getAttribute("data-toast-id"));
       return;
     }
+    if (action === "delete-contact") {
+      requestDeleteContact(target.getAttribute("data-contact-id"));
+      return;
+    }
+    if (action === "remove-report-screenshot") {
+      state.contactReport.screenshots.splice(Number(target.getAttribute("data-index")), 1);
+      state.contactReport.error = "";
+      render();
+      return;
+    }
+    if (action === "finish-contact-report") {
+      const route = resolveMobilePreviewRoute(parseRoute(currentPath()));
+      navigate(route.contactId ? `/contacts/profile/${route.contactId}` : "/contacts");
+      return;
+    }
     if (action === "close-message-menu") {
       state.messageMenu = null;
       render();
@@ -7972,6 +8071,14 @@
     if (target.id === "message-forward-search") {
       state.forwardQuery = target.value;
       scheduleFilterRender(target);
+      return;
+    }
+    if (target.id === "contact-report-detail") {
+      state.contactReport.detail = target.value;
+      state.contactReport.error = "";
+      const count = target.parentElement?.querySelector("small");
+      if (count) count.textContent = `${target.value.length}/500`;
+      return;
     }
   }
 
@@ -8004,6 +8111,20 @@
         showToast("通知设置已更新", `${chat.name}：${target.value === "all" ? "全部通知" : target.value === "mentions" ? "仅提及" : "静音"}。`);
         render();
       }
+      return;
+    }
+
+    if (target.getAttribute("data-kind") === "report-reason") {
+      state.contactReport.reason = target.value;
+      state.contactReport.error = "";
+      render();
+      return;
+    }
+
+    if (target.id === "contact-report-screenshots") {
+      state.contactReport.screenshots = Array.from(target.files || []).slice(0, 4).map((file) => file.name);
+      state.contactReport.error = "";
+      render();
       return;
     }
 
@@ -8069,6 +8190,11 @@
     if (formKind === "edit-message") {
       event.preventDefault();
       saveMessageEdit(form.getAttribute("data-chat-id"), form.getAttribute("data-message-id"));
+      return;
+    }
+    if (formKind === "contact-report") {
+      event.preventDefault();
+      submitContactReport(form.getAttribute("data-contact-id"));
     }
   }
 

@@ -625,6 +625,192 @@
   background: var(--primary-soft);
 }
 
+.runtime-contact-profile__action-list button.is-danger {
+  color: var(--danger);
+}
+
+.runtime-report-form {
+  padding-bottom: 28px;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+}
+
+.runtime-report-target {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-report-target .avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+
+.runtime-report-target > span {
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-report-target small,
+.runtime-report-field small,
+.runtime-report-form legend span {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+}
+
+.runtime-report-form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.runtime-report-form legend,
+.runtime-report-field > span {
+  margin-bottom: 10px;
+  color: var(--runtime-text, var(--text));
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.runtime-report-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.runtime-report-reasons label {
+  position: relative;
+}
+
+.runtime-report-reasons input {
+  position: absolute;
+  opacity: 0;
+}
+
+.runtime-report-reasons span {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 13px;
+}
+
+.runtime-report-reasons input:checked + span {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.runtime-report-field {
+  display: grid;
+}
+
+.runtime-report-field textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  resize: none;
+  border: 1px solid var(--runtime-line-strong, var(--line-strong));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+  line-height: 1.55;
+}
+
+.runtime-report-field small {
+  margin-top: 5px;
+  text-align: right;
+}
+
+.runtime-report-upload {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed var(--runtime-line-strong, var(--line-strong));
+  border-radius: 8px;
+  color: var(--primary);
+  background: var(--runtime-soft, var(--surface-soft));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.runtime-report-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.runtime-report-upload__icon {
+  width: 20px;
+  height: 20px;
+}
+
+.runtime-report-files {
+  margin-top: 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.runtime-report-files > span {
+  min-height: 38px;
+  padding: 0 6px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-report-files button {
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  flex: 0 0 30px;
+  border: 0;
+  color: var(--runtime-muted, var(--text-secondary));
+  background: transparent;
+}
+
+.runtime-report-file__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.runtime-report-error {
+  margin: -8px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.runtime-report-submit {
+  min-height: 46px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--primary);
+  font: inherit;
+  font-weight: 700;
+}
+
+.runtime-report-submit:disabled {
+  opacity: 0.42;
+}
+
 body[data-theme="dark"] {
   color-scheme: dark;
   --canvas: #0b1017;

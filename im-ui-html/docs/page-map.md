@@ -25,6 +25,7 @@
 | `#/mobile-design/chat/:chatId/forward/:messageId` | 消息转发：支持搜索、多选目标和部分失败结果 |
 | `#/mobile-design/chats` 会话操作 | 置顶、全部通知/仅提及/静音和归档后限时撤销；不提供归档列表 |
 | `#/mobile-design/contacts` | 联系人目录：固定搜索栏、快捷入口和单一分组列表滚动面 |
+| `#/mobile-design/contacts/profile/:contactId/report` | 举报联系人：原因与说明合并提交，至少一张截图，覆盖失败保留和成功结果 |
 | `#/mobile-design/discover` | 发现 |
 | `#/mobile-design/mine` | 我的 |
 | `#/mobile-design/settings` | 设置（从“我的”进入） |
