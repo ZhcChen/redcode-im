@@ -32,6 +32,155 @@
     "Microsoft YaHei", sans-serif;
 }
 
+.runtime-capability-screen__content {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.runtime-capability-state {
+  width: min(100%, 320px);
+  min-height: 220px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.runtime-capability-state__icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+}
+
+.runtime-capability-state__glyph {
+  width: 24px;
+  height: 24px;
+}
+
+.runtime-capability-state strong {
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.runtime-capability-state p {
+  margin: 8px 0 0;
+  max-width: 260px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.runtime-capability-state .runtime-secondary-button {
+  margin-top: 20px;
+}
+
+.runtime-dialog-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.runtime-dialog-layer__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(15 23 42 / 42%);
+  backdrop-filter: blur(2px);
+}
+
+.runtime-action-dialog {
+  position: relative;
+  width: min(100%, 320px);
+  padding: 24px 20px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 20px 48px rgb(15 23 42 / 24%);
+}
+
+.runtime-action-dialog__icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.runtime-action-dialog__icon--danger {
+  color: #c83d4f;
+  background: rgb(200 61 79 / 10%);
+}
+
+.runtime-action-dialog__glyph {
+  width: 22px;
+  height: 22px;
+}
+
+.runtime-action-dialog__copy h3 {
+  margin: 16px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.runtime-action-dialog__copy p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.runtime-action-dialog__actions {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.runtime-dialog-button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.runtime-dialog-button--default {
+  border-color: var(--primary);
+  color: #fff;
+  background: var(--primary);
+}
+
+.runtime-dialog-button--danger {
+  border-color: #c83d4f;
+  color: #fff;
+  background: #c83d4f;
+}
+
+.runtime-dialog-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 body[data-theme="dark"] {
   color-scheme: dark;
   --canvas: #0b1017;

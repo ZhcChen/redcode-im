@@ -121,6 +121,8 @@
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
+    actionDialog: null,
+    actionDialogReturnAction: null,
     contactActionSheetContactId: null,
     contactRemarkEditorContactId: null,
     contactRemarkDraft: "",
@@ -334,6 +336,18 @@
       '<path d="M6.25 20.25V4.1" />',
       '<path d="M6.25 5.1c3.25-2.1 5.45 2.1 9.1 0l2.4-1.15v8.2l-2.4 1.15c-3.65 2.1-5.85-2.1-9.1 0" />',
     ],
+    checkCircle: [
+      '<circle cx="12" cy="12" r="8.25" />',
+      '<path d="m8.4 12.2 2.35 2.35 4.9-5.1" />',
+    ],
+    alertTriangle: [
+      '<path d="M10.25 4.8 3.9 16.05a2 2 0 0 0 1.75 2.95h12.7a2 2 0 0 0 1.75-2.95L13.75 4.8a2 2 0 0 0-3.5 0Z" />',
+      '<path d="M12 9v4.25M12 16.4h.01" />',
+    ],
+    trash: [
+      '<path d="M5.5 7.2h13M9.1 7.2V4.75h5.8V7.2M7.3 7.2l.65 12h8.1l.65-12" />',
+      '<path d="M10 10.5v5.25M14 10.5v5.25" />',
+    ],
   };
 
   let toastTimerId = 0;
@@ -519,6 +533,20 @@
     }
 
     if (segments[0] === "chat") {
+      if (segments[2] === "message" && segments[4] === "reads") {
+        return {
+          section: "message-reads",
+          chatId: segments[1] || state.activeChatId,
+          messageId: segments[3] || null,
+        };
+      }
+      if (segments[2] === "forward") {
+        return {
+          section: "message-forward",
+          chatId: segments[1] || state.activeChatId,
+          messageId: segments[3] || null,
+        };
+      }
       return { section: "chat-detail", chatId: segments[1] || state.activeChatId };
     }
 
@@ -530,6 +558,9 @@
         return { section: "contact-add" };
       }
       if (segments[1] === "profile") {
+        if (segments[3] === "report") {
+          return { section: "contact-report", contactId: segments[2] || state.activeContactId };
+        }
         return { section: "contact-profile", contactId: segments[2] || state.activeContactId };
       }
       return { section: "contacts" };
@@ -561,7 +592,38 @@
       if (segments[1] === "settings") {
         return { section: "group-settings", groupId: segments[2] || state.activeGroupId };
       }
+      if (segments[1] && segments[2]) {
+        const groupSections = {
+          members: "group-members",
+          admins: "group-admins",
+          "join-requests": "group-join-requests",
+          invite: "group-invite",
+          rules: "group-rules",
+          mutes: "group-mutes",
+          "operation-logs": "group-operation-logs",
+        };
+        if (segments[2] === "invitations" && segments[3]) {
+          return { section: "group-invitation", groupId: segments[1], invitationId: segments[3] };
+        }
+        if (groupSections[segments[2]]) {
+          return { section: groupSections[segments[2]], groupId: segments[1] };
+        }
+      }
       return { section: "groups" };
+    }
+
+    if (segments[0] === "stickers") {
+      if (segments[1] === "store") {
+        return { section: "sticker-store" };
+      }
+      if (segments[1] === "packs") {
+        return { section: "sticker-pack", packId: segments[2] || null };
+      }
+      return { section: "stickers" };
+    }
+
+    if (segments[0] === "reports" && segments[1] === "new") {
+      return { section: "report-create" };
     }
 
     if (segments[0] === "search") {
@@ -580,6 +642,18 @@
     }
 
     if (segments[0] === "settings") {
+      const dedicatedSettingsSections = {
+        feedback: "settings-feedback",
+        password: "settings-password",
+        deactivate: "settings-deactivate",
+        version: "settings-version",
+      };
+      if (segments[1] === "profile" && segments[2] === "edit") {
+        return { section: "settings-profile-edit" };
+      }
+      if (dedicatedSettingsSections[segments[1]]) {
+        return { section: dedicatedSettingsSections[segments[1]] };
+      }
       if (segments[1]) {
         return { section: "settings-detail", settingsSection: segments[1] };
       }
@@ -617,10 +691,13 @@
       "auth",
       "chats",
       "chat-detail",
+      "message-reads",
+      "message-forward",
       "contacts",
       "contact-requests",
       "contact-add",
       "contact-profile",
+      "contact-report",
       "discover",
       "discover-moments",
       "discover-moment-detail",
@@ -630,11 +707,28 @@
       "groups",
       "group-create",
       "group-settings",
+      "group-members",
+      "group-admins",
+      "group-join-requests",
+      "group-invite",
+      "group-invitation",
+      "group-rules",
+      "group-mutes",
+      "group-operation-logs",
+      "stickers",
+      "sticker-store",
+      "sticker-pack",
+      "report-create",
       "search",
       "lab",
       "mine",
       "settings",
       "settings-detail",
+      "settings-feedback",
+      "settings-profile-edit",
+      "settings-password",
+      "settings-deactivate",
+      "settings-version",
     ].includes(section);
   }
 
@@ -764,6 +858,7 @@
       ${mobilePreviewMode ? "" : renderToasts()}
     `;
     bindScrollHeaders();
+    focusActionDialog();
   }
 
   function bindScrollHeaders() {
@@ -1192,6 +1287,7 @@
         ${renderTabBar(route)}
         ${options.devicePreview ? renderToasts({ embedded: true }) : ""}
         ${renderContactProfileOverlay(route)}
+        ${renderActionDialog()}
       </div>
     `;
 
@@ -1294,6 +1390,20 @@
     if (route.section === "chat-detail") {
       return renderChatDetailScreen(route.chatId);
     }
+    if (route.section === "message-reads") {
+      const chat = findChat(route.chatId);
+      if (!chat || !findMessage(chat, route.messageId)) {
+        return renderFallbackScreen("消息不存在", chat ? `/chat/${chat.id}` : "/chats");
+      }
+      return renderCapabilityRouteScreen("已读详情", `/chat/${route.chatId}`, "还没有已读成员");
+    }
+    if (route.section === "message-forward") {
+      const chat = findChat(route.chatId);
+      if (!chat || !findMessage(chat, route.messageId)) {
+        return renderFallbackScreen("消息不存在", chat ? `/chat/${chat.id}` : "/chats");
+      }
+      return renderCapabilityRouteScreen("转发消息", `/chat/${route.chatId}`, "没有可转发的会话");
+    }
     if (route.section === "contacts") {
       return renderContactsScreen();
     }
@@ -1324,6 +1434,12 @@
     if (route.section === "contact-profile") {
       return renderContactProfileScreen(route.contactId);
     }
+    if (route.section === "contact-report") {
+      if (!findContact(route.contactId)) {
+        return renderFallbackScreen("联系人不存在", "/contacts");
+      }
+      return renderCapabilityRouteScreen("举报用户", `/contacts/profile/${route.contactId}`, "请选择举报原因");
+    }
     if (route.section === "groups") {
       return renderGroupsScreen();
     }
@@ -1332,6 +1448,19 @@
     }
     if (route.section === "group-settings") {
       return renderGroupSettingsScreen(route.groupId);
+    }
+    if (route.section.startsWith("group-") && route.section !== "group-create") {
+      return renderGroupCapabilityRouteScreen(route);
+    }
+    if (["stickers", "sticker-store", "sticker-pack"].includes(route.section)) {
+      if (route.section === "sticker-pack" && !route.packId) {
+        return renderFallbackScreen("贴纸包不存在", "/stickers/store");
+      }
+      const title = route.section === "sticker-store" ? "贴纸商店" : route.section === "sticker-pack" ? "贴纸包" : "我的贴纸";
+      return renderCapabilityRouteScreen(title, route.section === "sticker-pack" ? "/stickers/store" : "/settings", "暂无贴纸");
+    }
+    if (route.section === "report-create") {
+      return renderCapabilityRouteScreen("举报", "/mine", "请选择举报对象");
     }
     if (route.section === "search") {
       return renderSearchScreen();
@@ -1347,6 +1476,16 @@
     }
     if (route.section === "settings-detail") {
       return renderSettingsDetailScreen(route.settingsSection);
+    }
+    if (route.section.startsWith("settings-")) {
+      const settingsTitles = {
+        "settings-feedback": "体验反馈",
+        "settings-profile-edit": "编辑资料",
+        "settings-password": "修改密码",
+        "settings-deactivate": "注销账号",
+        "settings-version": "版本更新",
+      };
+      return renderCapabilityRouteScreen(settingsTitles[route.section] || "设置", "/settings", "暂无内容");
     }
     return renderSpecScreen();
   }
@@ -5841,6 +5980,166 @@
     `;
   }
 
+  function renderCapabilityRouteScreen(title, backPath, emptyTitle) {
+    const requestedState = new URLSearchParams(window.location.search).get("state");
+    const stateKind = ["empty", "success", "error", "loading"].includes(requestedState) ? requestedState : "empty";
+    const stateCopy = {
+      empty: [emptyTitle, "当前没有需要处理的内容。"],
+      success: ["操作已完成", "变更已经保存。"],
+      error: ["暂时无法加载", "请稍后重试。"],
+      loading: ["正在加载", "请稍候。"],
+    };
+    return `
+      <section class="screen runtime-screen runtime-screen--list runtime-capability-screen">
+        ${renderScreenHeader({ title, backPath, variant: "compact" })}
+        <div class="screen-scroll runtime-scroll runtime-topbar-scroll">
+          <div class="runtime-list-content runtime-capability-screen__content">
+            ${renderCapabilityState(stateKind, stateCopy[stateKind][0], stateCopy[stateKind][1])}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderGroupCapabilityRouteScreen(route) {
+    const group = findGroup(route.groupId);
+    if (!group) {
+      return renderFallbackScreen("群聊不存在", "/groups");
+    }
+    if (route.section === "group-invitation" && !route.invitationId) {
+      return renderFallbackScreen("群聊邀请不存在", `/groups/settings/${group.id}`);
+    }
+    const titles = {
+      "group-members": "群成员",
+      "group-admins": "群管理员",
+      "group-join-requests": "入群申请",
+      "group-invite": "邀请成员",
+      "group-invitation": "群聊邀请",
+      "group-rules": "群规则",
+      "group-mutes": "禁言管理",
+      "group-operation-logs": "操作日志",
+    };
+    return renderCapabilityRouteScreen(titles[route.section] || "群管理", `/groups/settings/${group.id}`, "暂无记录");
+  }
+
+  function renderCapabilityState(kind, title, description, action = null) {
+    const icon = kind === "error" ? "alertTriangle" : kind === "success" ? "checkCircle" : "file";
+    return `
+      <section class="runtime-capability-state runtime-capability-state--${escapeHtml(kind)}" role="status">
+        <span class="runtime-capability-state__icon">${renderIcon(icon, "runtime-capability-state__glyph")}</span>
+        <strong>${escapeHtml(title)}</strong>
+        <p>${escapeHtml(description)}</p>
+        ${
+          action
+            ? `<button class="runtime-secondary-button" type="button" data-action="${escapeHtml(action.name)}">${escapeHtml(action.label)}</button>`
+            : ""
+        }
+      </section>
+    `;
+  }
+
+  function openActionDialog(options) {
+    const activeElement = document.activeElement;
+    state.actionDialogReturnAction = activeElement instanceof Element ? activeElement.getAttribute("data-action") : null;
+    state.actionDialog = {
+      title: options.title,
+      description: options.description,
+      confirmLabel: options.confirmLabel || "确认",
+      cancelLabel: options.cancelLabel || "取消",
+      tone: options.tone === "danger" ? "danger" : "default",
+      onConfirm: typeof options.onConfirm === "function" ? options.onConfirm : null,
+      payload: options.payload || null,
+      pending: false,
+    };
+    render();
+  }
+
+  function closeActionDialog() {
+    if (state.actionDialog?.pending) {
+      return;
+    }
+    state.actionDialog = null;
+    render();
+    restoreActionDialogFocus();
+  }
+
+  function focusActionDialog() {
+    if (!state.actionDialog) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const button = root.querySelector('[data-action="confirm-action-dialog"]');
+      if (button instanceof HTMLButtonElement) {
+        button.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  function restoreActionDialogFocus() {
+    const action = state.actionDialogReturnAction;
+    state.actionDialogReturnAction = null;
+    if (!action) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const trigger = root.querySelector(`[data-action="${CSS.escape(action)}"]`);
+      if (trigger instanceof HTMLElement) {
+        trigger.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  async function confirmActionDialog() {
+    const dialog = state.actionDialog;
+    if (!dialog || dialog.pending) {
+      return;
+    }
+    dialog.pending = true;
+    render();
+    try {
+      if (dialog.onConfirm) {
+        await dialog.onConfirm(dialog.payload);
+      }
+      if (state.actionDialog === dialog) {
+        state.actionDialog = null;
+        showToast("操作已完成", dialog.title);
+        render();
+        restoreActionDialogFocus();
+      }
+    } catch (error) {
+      if (state.actionDialog === dialog) {
+        dialog.pending = false;
+        dialog.description = error instanceof Error ? error.message : "操作失败，请稍后重试。";
+        render();
+      }
+    }
+  }
+
+  function renderActionDialog() {
+    const dialog = state.actionDialog;
+    if (!dialog) {
+      return "";
+    }
+    return `
+      <div class="runtime-dialog-layer">
+        <button class="runtime-dialog-layer__scrim" type="button" data-action="close-action-dialog" aria-label="关闭对话框"></button>
+        <section class="runtime-action-dialog" role="dialog" aria-modal="true" aria-labelledby="runtime-action-dialog-title" aria-describedby="runtime-action-dialog-description">
+          <span class="runtime-action-dialog__icon runtime-action-dialog__icon--${escapeHtml(dialog.tone)}">
+            ${renderIcon(dialog.tone === "danger" ? "alertTriangle" : "checkCircle", "runtime-action-dialog__glyph")}
+          </span>
+          <div class="runtime-action-dialog__copy">
+            <h3 id="runtime-action-dialog-title">${escapeHtml(dialog.title)}</h3>
+            <p id="runtime-action-dialog-description">${escapeHtml(dialog.description)}</p>
+          </div>
+          <div class="runtime-action-dialog__actions">
+            <button class="runtime-dialog-button" type="button" data-action="close-action-dialog" ${dialog.pending ? "disabled" : ""}>${escapeHtml(dialog.cancelLabel)}</button>
+            <button class="runtime-dialog-button runtime-dialog-button--${escapeHtml(dialog.tone)}" type="button" data-action="confirm-action-dialog" ${dialog.pending ? "disabled" : ""}>${escapeHtml(dialog.pending ? "处理中" : dialog.confirmLabel)}</button>
+          </div>
+        </section>
+      </div>
+    `;
+  }
+
   function renderEmptyState(title, description) {
     return `
       <div class="empty-state">
@@ -6132,6 +6431,10 @@
 
   function findChat(chatId) {
     return data.chats.find((chat) => chat.id === chatId) || null;
+  }
+
+  function findMessage(chat, messageId) {
+    return chat?.messages?.find((message) => message.id === messageId) || null;
   }
 
   function findContact(contactId) {
@@ -6713,12 +7016,33 @@
   }
 
   function handleKeydown(event) {
+    if (event.key === "Tab" && state.actionDialog) {
+      const dialog = root.querySelector(".runtime-action-dialog");
+      const focusable = dialog
+        ? Array.from(dialog.querySelectorAll("button:not(:disabled)"))
+        : [];
+      if (focusable.length) {
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
+
     if (
       event.key === "Escape" &&
-      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey)
+      (state.contactActionSheetContactId || state.contactRemarkEditorContactId || state.settingsSheetKey || state.actionDialog)
     ) {
       event.preventDefault();
-      if (state.settingsSheetKey) {
+      if (state.actionDialog) {
+        closeActionDialog();
+      } else if (state.settingsSheetKey) {
         state.settingsSheetKey = null;
       } else {
         closeContactProfileOverlay();
@@ -6776,6 +7100,14 @@
     if (action === "navigate") {
       event.preventDefault();
       navigate(target.getAttribute("data-route"));
+      return;
+    }
+    if (action === "close-action-dialog") {
+      closeActionDialog();
+      return;
+    }
+    if (action === "confirm-action-dialog") {
+      void confirmActionDialog();
       return;
     }
     if (action === "set-theme") {

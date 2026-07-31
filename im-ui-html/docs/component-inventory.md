@@ -13,6 +13,8 @@
 | `Input Field` | 单行表单、搜索与聊天输入的尺寸和聚焦语言 | `Composer 40px / Toolbar Search 44px / Standard Field 48px / Surface Focus` | `TextField + semantic size token + container surface treatment` |
 | `Conversation Cell` | 会话、群目录、联系人、搜索结果等列表基础行 | `Default / Pinned / Unread / Muted / 48px Avatar / Group Composite Avatar` | `Reusable list tile + leading avatar + trailing meta` |
 | `Message Bubble` | 单聊/群聊消息体，引用态显示回复来源与摘要 | `Incoming / Outgoing / Reply / Recent / Highlighted / Large Emoji / Playing` | `Message bubble + reaction row` |
+| `Capability State` | 深层能力页面的空态、成功态与错误态 | `Empty / Success / Error / Retry` | `State panel` |
+| `Action Dialog` | 删除、清空、移除、退出、转让、解散、注销等高影响操作 | `Default / Danger / Pending / Disabled` | `AlertDialog` |
 | `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Compact Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Custom Emoji` | 通过稳定 emoji ID 解析 fallback、静态资源与播放资源 | `Panel Glyph / Large / Playing / Fallback` | `Emoji registry + asset resolver` |
