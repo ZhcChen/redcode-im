@@ -1269,7 +1269,7 @@ window.RedcodeIMPrototypeData = {
         route: "/discover/games",
         title: "游戏",
         icon: "games",
-        summary: "先保留统一入口，后续再接小游戏大厅与房间。",
+        summary: "查看最近玩过、好友活动和多人轻游戏。",
       },
     ],
     moments: [

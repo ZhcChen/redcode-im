@@ -15,6 +15,8 @@
 - `#/spec`
 - `#/pc-design`
 - `#/mobile-design`
+- `#/lab`
+- `#/lab/:moduleId`
 
 这些页面的作用是：
 
@@ -22,6 +24,7 @@
 - 固定 token / 组件 / 页面地图
 - 说明桌面与移动端的设计边界
 - 让 `#/mobile-design` 以单一手机容器串联完整移动 IM 交互
+- 让 `#/lab` 记录内部实验方向，但不污染正式产品信息架构
 
 它们不是正式 IM 用户会看到的业务页面。
 
@@ -111,12 +114,17 @@ app/lib/
 | `Settings Row` | `SettingsListRow` |
 | `Action Card` | `ActionSurfaceCard` |
 | `Chip / Badge` | `TagChip` / `StatusBadge` |
+| `Scanner Workspace` | `ScannerScaffold + scanner state controller` |
+| `Nearby Person Row` | `NearbyPersonTile` |
+| `Game Entry` | `GameEntryTile` |
+| `Settings Detail Sheet` | `SettingsDetailSheet` |
 
 暂不建议直接产品化的设计源专用内容：
 
 - 设计源总入口卡片
 - Token 展示网格
 - Desktop Blueprint 说明块
+- `#/lab` 的实验状态卡与概念说明
 
 ## 5. Route 映射建议
 
@@ -141,6 +149,7 @@ app/lib/
 | `#/mine/profile` | `mine/profile` |
 | `#/settings` | `mine/settings` |
 | `#/settings/:section` | `mine/settings/:section` |
+| `#/lab`、`#/lab/:moduleId` | 不映射；仅保留在 HTML 设计源内部 |
 
 ## 6. 实施顺序建议
 
@@ -180,6 +189,8 @@ app/lib/
 ### 组件复用
 
 - 会话行、联系人行、搜索结果行优先共用一套信息层级
+- 附近人员行沿用联系人行的头像、正文与尾部元信息节奏，但保留距离和打招呼语义
+- 扫描工作区、游戏封面和设置详情 sheet 作为明确复合组件落地，不拆成页面内临时样式
 - 单聊 / 群聊消息气泡优先共用一套骨架
 
 ### 设计源一致性

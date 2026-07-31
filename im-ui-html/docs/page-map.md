@@ -69,9 +69,9 @@
 | --- | --- |
 | `#/discover/moments` | 朋友圈内容流，使用紧凑固定导航栏；图片数量布局遵循 `moments-media-layout.md` |
 | `#/discover/moments/:momentId` | 朋友圈动态详情；复用内容流的图片分栏规则并提供点赞、评论交互 |
-| `#/discover/scan` | 扫一扫 |
-| `#/discover/nearby` | 附近的人 |
-| `#/discover/games` | 游戏入口 |
+| `#/discover/scan` | 扫一扫：全宽扫描工作区，提供相册、模拟识别、手电筒及成功/失败结果状态 |
+| `#/discover/nearby` | 附近的人：位置状态、距离/在线筛选、连续人员列表和打招呼反馈 |
+| `#/discover/games` | 游戏：最近玩过、全部游戏、可进入/维护中及空数据状态 |
 
 ### 我的与设置链路
 
@@ -85,13 +85,18 @@
 | `#/settings/privacy` | 隐私协议与数据使用 |
 | `#/settings/about` | 关于与版本信息 |
 
-### 其他
+### 其他业务页
 
 | Route | 说明 |
 | --- | --- |
 | `#/auth/login` | 登录页 |
-| `#/lab` | 扩展总览 |
-| `#/lab/:moduleId` | 扩展模块详情 |
+
+### 设计源内部工具
+
+| Route | 说明 |
+| --- | --- |
+| `#/lab` | 实验模块总览，仅用于概念、状态与方向评审 |
+| `#/lab/:moduleId` | 实验模块详情；不进入正式 App 导航或 Flutter route 映射 |
 
 ## 4. 桌面蓝图地图
 
@@ -159,6 +164,7 @@
 | `#/mine/profile` | `mine/profile` |
 | `#/settings` | `mine/settings` |
 | `#/settings/:section` | `mine/settings/:section` |
+| `#/lab`、`#/lab/:moduleId` | 不进入正式 runtime；保留为 HTML 设计源内部工具 |
 
 ## 7. 页面地图维护规则
 

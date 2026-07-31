@@ -25,6 +25,10 @@
 | `Mine Profile` | 我的页资料主卡、在线状态与资料入口 | `Default / Online / Pressed` | `ProfileHeader + profile route` |
 | `Contact Profile` | 居中身份区、可编辑的用户备注名、连续资料行、按需共同群聊、联系人操作面板与固定底部操作栏 | `Online / Away / Busy / Remark Set / Remark Unset / Remark Editing / Contact Actions / Shared Groups / No Shared Groups` | `ContactIdentity + editable user-owned remark row + contact action sheet + fixed message dock` |
 | `Settings Row` | 设置、资料字段等通用行 | `Plain / Clickable / Switch / Static Detail / Danger` | `Row + optional trailing control` |
+| `Scanner Workspace` | 扫描取景框、相册、手电筒和识别结果 | `Scanning / Torch On / Success / Error` | `Scanner scaffold + permission/result state` |
+| `Nearby Person Row` | 附近人员、距离、在线状态与打招呼 | `Default / Filtered / Greeting Sent / Empty` | `Nearby person tile + greeting action` |
+| `Game Entry` | 最近玩过与全部游戏内容单元 | `Recent / Available / Maintenance / Empty` | `Game cover tile + availability state` |
+| `Settings Detail Sheet` | 设备、协议、存储和反馈的设备内详情面板 | `Informational / Actionable / Completed` | `Modal bottom sheet + settings action` |
 
 App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚动时标题和工具操作保持可见；嵌在已提供横向内容边距的列表滚动容器内时，页头不再额外添加横向 padding；左侧返回或标题与列表左线对齐，右侧操作与列表右线对齐。页面直接承载的普通页头保留一层内容边距；紧凑居中导航维持其独立的固定布局。
 
@@ -193,6 +197,35 @@ App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚
 
 - 这是设计源内部说明容器，不直接映射到正式业务页面。
 - 可以作为 Flutter 的开发预览或调试页容器参考，但不是产品组件。
+
+### 9. 发现工具与内容单元
+
+使用位置：
+
+- `#/discover/scan`
+- `#/discover/nearby`
+- `#/discover/games`
+
+规则：
+
+- 扫一扫使用独立扫描工作区，不放入说明卡；相册、识别和手电筒保持稳定热区，结果由设备内面层承接。
+- 附近的人复用连续列表节奏，一行只展示一处距离；整行进入资料，独立“打招呼”动作提供发送状态。
+- 游戏页按“最近玩过 + 全部游戏”分组；封面使用可识别的本地图形资产，并明确可进入、维护中和空数据状态。
+
+### 10. 设置详情面板
+
+使用位置：
+
+- `#/settings/account`
+- `#/settings/chat`
+- `#/settings/privacy`
+- `#/settings/about`
+
+规则：
+
+- 静态值、链接和开关必须具有不同语义，不能统一渲染为不可操作的信息行。
+- 设备、协议、存储策略和反馈详情使用设备内 bottom sheet；即时操作使用 Toast 完成反馈。
+- bottom sheet 离开当前 route 时必须关闭，不能泄漏到其他设置页面。
 
 ## 高优先级组件实现顺序
 

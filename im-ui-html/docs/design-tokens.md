@@ -89,6 +89,7 @@
   - 一级导航：`chats / contacts / discover / profile`
   - 基础操作：`back / search / plus / emoji / more / send / settings / shield`
   - 发现功能：`moments / scan / nearby / games`
+- 发现二级页允许补充语义操作 key：`image / flashlight / mapPin / puzzle / music / flag`；这些 key 只描述功能，不绑定具体页面颜色。
 - Flutter 落地时优先把 icon key 当语义层，不要把某页临时字符或图片资源继续带进组件实现。
 
 ## 壳层规则

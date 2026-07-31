@@ -5337,14 +5337,18 @@
 
   function renderLabOverviewScreen() {
     return `
-      <section class="screen">
+      <section class="screen design-tool-screen design-tool-screen--lab">
         ${renderScreenHeader({
-          title: "扩展模块",
-          subtitle: "未来能力全部拆成独立场景页，不绑在主聊天视图里",
+          title: "实验模块",
+          subtitle: "设计源内部工具 · 不进入正式 App",
           backPath: "/spec",
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
+            <aside class="design-tool-notice" role="note">
+              <strong>仅用于内部评审</strong>
+              <span>这里记录概念状态和模块方向，不属于移动端产品信息架构。</span>
+            </aside>
             ${data.extensions.map(renderExtensionCard).join("")}
           </div>
         </div>
@@ -5357,7 +5361,7 @@
       <button class="surface-card surface-card--button" data-action="navigate" data-route="${item.route}">
         <div class="surface-card__header">
           <h3>${escapeHtml(item.title)}</h3>
-          <span class="badge">${escapeHtml(item.status)}</span>
+          <span class="badge">内部 · ${escapeHtml(item.status)}</span>
         </div>
         <p>${escapeHtml(item.summary)}</p>
         <ul class="bullet-list">
@@ -5374,16 +5378,20 @@
     }
 
     return `
-      <section class="screen">
+      <section class="screen design-tool-screen design-tool-screen--lab">
         ${renderScreenHeader({
           title: item.title,
-          subtitle: "未来扩展方向",
+          subtitle: "设计源内部实验模块",
           backPath: "/lab",
         })}
         <div class="screen-scroll">
           <div class="screen-stack">
+            <aside class="design-tool-notice" role="note">
+              <strong>内部概念页</strong>
+              <span>本页不映射为正式移动端或 Flutter 产品路由。</span>
+            </aside>
             <section class="hero-card hero-card--soft">
-              <span class="eyebrow">Future Module</span>
+              <span class="eyebrow">Internal Concept</span>
               <h3>${escapeHtml(item.summary)}</h3>
               <span class="badge">${escapeHtml(item.status)}</span>
             </section>

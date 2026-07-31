@@ -52,8 +52,6 @@
 - `#/groups/create`：创建群聊
 - `#/groups/settings/:groupId`：群设置
 - `#/search`：消息搜索
-- `#/lab`：扩展总览
-- `#/lab/:moduleId`：扩展详情
 - `#/mine`：我的
 - `#/mine/profile`：个人资料
 - `#/settings`：设置（从“我的”进入）
@@ -61,6 +59,11 @@
 - `#/settings/chat`：聊天偏好与存储
 - `#/settings/privacy`：隐私协议与数据使用
 - `#/settings/about`：关于与版本信息
+
+## 设计源内部工具
+
+- `#/lab`：实验模块总览，仅用于概念与状态评审
+- `#/lab/:moduleId`：实验模块详情，不进入正式 App 导航或 Flutter route
 
 ## 附属文档
 
@@ -117,7 +120,7 @@ http://127.0.0.1:8020/#/entry
 3. 再看 `#/mobile-design`，确认单一手机容器内的聊天首页、底栏和二级页面跳转。
 4. 再看 `#/mobile-design/chat/c_room_launch`、`#/mobile-design/contacts`、`#/mobile-design/groups`、`#/mobile-design/discover`、`#/mobile-design/mine`、`#/mobile-design/mine/profile` 及 `#/mobile-design/settings`，确认完整 IM 流程始终留在设备容器内。
 5. 再看 `#/mobile-design/contacts/requests`、`#/mobile-design/contacts/add`、`#/mobile-design/contacts/profile/u_alice`，确认联系人二级页仍留在设备容器内。
-6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`，确认发现链路仍是同一容器内的一级流程。
+6. 再看 `#/mobile-design/discover/moments`、`#/mobile-design/discover/scan`、`#/mobile-design/discover/nearby`、`#/mobile-design/discover/games`，确认发现链路的内容、工具、人员列表和游戏入口使用同一运行时语言。
 7. 再看 `#/mobile-design/groups/create`、`#/mobile-design/groups/settings/g_launch`，确认建群与群设置不跳出预览壳。
 8. 最后看 `#/pc-design`，确认桌面工作台不是手机页拉伸。
 
@@ -126,6 +129,7 @@ http://127.0.0.1:8020/#/entry
 - 已覆盖设计源入口、规范页、移动端主流程和桌面蓝图页。
 - 已覆盖 IM 核心流程：设计系统、聊天、联系人、发现、好友申请、建群、群设置、搜索、我的与设置。
 - 已预留扩展位：通话、AI、文件协作、自动化。
+- `#/lab` 仅保留为设计源内部实验工具，不属于正式移动端业务地图。
 - 当前全部数据为 mock，不接真实后端。
 - 联系人目录、会话列表和消息线程使用确定性的密集 mock 数据，默认覆盖长列表、长摘要、未读、静音、引用、反应与连续滚动审查；会话头像统一为 `48px`，群头像使用对应尺寸的 2 × 2 复合网格。
 - 主题、密度、设备外壳选择、设置开关与群聊收藏会写入 `localStorage`，当前设计源 key 为 `redcode-im-ui-prototype/design-source-v2`。
