@@ -52,21 +52,21 @@ execution: code
 - R1. 聊天消息必须提供符合消息归属和类型的操作菜单，覆盖转发、引用、编辑、删除、置顶、取消置顶和 reaction。
 - R2. 自己发送的消息必须能进入已读详情，展示已读/未读成员、计数、长名单和空态。
 - R3. 编辑、删除、清空聊天记录等不可逆或高影响操作必须有明确确认状态、处理中状态、成功反馈和失败恢复。
-- R4. 会话列表必须提供归档操作，并新增归档会话页面，覆盖恢复、空态和搜索筛选。
+- R4. 会话列表必须提供置顶/取消置顶、通知静音/恢复和归档操作，并在归档成功后提供可撤销恢复入口；当前 API 没有归档会话列表查询，因此不得设计成可长期浏览和恢复的归档中心。
 - R5. `relay_only` 等能力受限状态应在相关操作中表达不可用原因，但不在本计划设计运行模式开关本身。
 
 **联系人与安全操作**
 
 - R6. 联系人资料页必须补齐修改备注、删除好友和发起举报，危险操作与普通信息分区。
-- R7. 举报页面必须覆盖举报对象、原因、补充说明、附件、提交中、成功和失败状态，并对应现有举报 API。
+- R7. 举报页面必须覆盖举报对象、原因、补充说明、至少一张截图、提交中、成功和失败状态；原因与补充说明按明确格式合并到 API 的 `content` 字段。
 - R8. 删除好友后必须表达联系人列表、资料页和已有私聊之间的状态变化，不假设删除历史消息。
 
 **群治理**
 
-- R9. 群设置必须按信息架构拆出群资料、成员、管理员、入群申请、邀请、群规则、禁言管理和操作日志。
+- R9. 群设置必须按信息架构拆出群资料、成员、管理员、入群申请、邀请成员、群规则、禁言管理和操作日志；群资料覆盖群头像、群名称、描述和公告的查看与可编辑状态。
 - R10. 所有群治理页面必须提供群主、管理员、普通成员三种确定性角色预览，隐藏或禁用无权限操作并说明原因。
 - R11. 群成员管理必须覆盖添加、移除、搜索、角色标识、长名单和成员资料入口。
-- R12. 入群申请和邀请必须覆盖待处理、已同意、已拒绝、已过期及批量处理前的确认状态。
+- R12. 入群申请必须覆盖待处理、已同意和已拒绝状态；邀请能力覆盖邀请成员的目标选择、创建结果，以及已知邀请 ID 的待响应、已接受、已拒绝和已过期状态，不提供 API 无法支撑的邀请列表。
 - R13. 禁言管理必须覆盖全员禁言、单成员禁言、时长选择、解除禁言和当前用户被禁言状态。
 - R14. 群规则必须覆盖列表、创建、编辑、删除、排序展示和空态。
 - R15. 转让群主、退出群聊和解散群聊必须使用独立确认流程，明确结果和不可撤销影响。
@@ -74,7 +74,7 @@ execution: code
 **内容、账号与支持**
 
 - R16. 贴纸管理必须覆盖可用贴纸包、搜索、我的贴纸包、套装详情、添加、移除、下载/加载和错误状态。
-- R17. 体验反馈必须从简化 Sheet 升级为正式页面，覆盖分类、正文、联系方式可选项、提交状态和成功结果。
+- R17. 体验反馈必须从简化 Sheet 升级为正式页面，覆盖分类、正文、联系方式可选项、提交状态和成功结果；分类作为客户端预设前缀合并进 API 的 `content` 字段。
 - R18. 个人资料必须表达头像上传、昵称和个性签名编辑，以及上传中、裁剪/预览、失败和保存状态。
 - R19. 账号与安全必须补齐修改密码和注销账号；SMS 登录、短信重置密码、更换手机号不在本轮完善。
 - R20. 关于页面必须补齐版本检查、可选更新、强制更新、下载进度、失败重试和热更新状态。
@@ -88,9 +88,9 @@ execution: code
   - **Steps:** 操作菜单按消息归属显示动作 -> 用户选择动作 -> 进入确认、选择器或详情状态 -> 显示结果并保持聊天上下文。
   - **Outcome:** R1-R3 可在同一聊天深链连续演示。
 
-- F2. 会话归档恢复
+- F2. 会话归档与撤销
   - **Trigger:** 用户在会话列表侧滑或打开会话菜单。
-  - **Steps:** 归档会话 -> 会话从主列表移除 -> 进入归档页面 -> 搜索并恢复 -> 会话回到主列表。
+  - **Steps:** 归档会话 -> 会话从主列表移除 -> 显示带“撤销”的结果提示 -> 撤销后调用指定会话恢复能力并回到原位置。
   - **Outcome:** R4-R5 有完整状态连续性。
 
 - F3. 联系人删除与举报
@@ -112,7 +112,7 @@ execution: code
 
 - AE1. 给定一条自己发送且部分成员未读的群消息，长按后应显示编辑、删除、转发、置顶等适用动作；进入已读详情后可分别查看已读和未读成员。
 - AE2. 给定一条他人消息，菜单不得显示编辑；选择 reaction 后消息下方计数和当前用户选中态同步变化。
-- AE3. 给定归档页面存在多个会话，恢复其中一个后该项从归档列表移除，主会话列表可再次看到该会话。
+- AE3. 给定用户归档一个会话，成功提示在有效时间内提供“撤销”；撤销后该会话回到主列表，提示消失后不再展示无法由 API 查询的数据。
 - AE4. 给定普通群成员进入管理员页面，只能查看管理员列表，不显示任命和移除操作。
 - AE5. 给定群管理员审核申请，可以同意或拒绝，但不能看到转让群主和解散群聊动作。
 - AE6. 给定贴纸包下载失败，页面保留包详情和重试入口，不显示已添加状态。
@@ -164,10 +164,9 @@ execution: code
 | 页面组 | 建议路由 |
 | --- | --- |
 | 消息详情 | `#/chat/:chatId/message/:messageId/reads`、`#/chat/:chatId/forward/:messageId` |
-| 会话归档 | `#/chats/archived` |
 | 联系人操作 | `#/contacts/profile/:contactId/report` |
 | 群成员与角色 | `#/groups/:groupId/members`、`#/groups/:groupId/admins` |
-| 群申请与邀请 | `#/groups/:groupId/join-requests`、`#/groups/:groupId/invitations` |
+| 群申请与邀请 | `#/groups/:groupId/join-requests`、`#/groups/:groupId/invite`、`#/groups/:groupId/invitations/:invitationId` |
 | 群规则与禁言 | `#/groups/:groupId/rules`、`#/groups/:groupId/mutes` |
 | 群日志 | `#/groups/:groupId/operation-logs` |
 | 贴纸 | `#/stickers`、`#/stickers/store`、`#/stickers/packs/:packId` |
@@ -181,16 +180,17 @@ execution: code
 
 | UI 能力 | API 依据 |
 | --- | --- |
-| 归档/恢复会话 | `DELETE /chats/{room_id}`、`POST /chats/{room_id}/restore` |
+| 归档/撤销恢复会话 | `DELETE /chats/{room_id}`、`POST /chats/{room_id}/restore`；当前没有归档列表查询 |
+| 会话置顶/通知 | `POST/DELETE /rooms/{room_id}/pin`、`POST /rooms/{room_id}/notification-settings` |
 | 消息转发/编辑/删除/置顶 | `/rooms/{room_id}/messages/forward`、`PATCH/DELETE /rooms/{room_id}/messages/{message_id}`、`POST/DELETE .../pin` |
 | Reaction/已读详情 | `GET/POST/DELETE .../reactions`、`GET .../reads` |
 | 删除好友/备注 | `DELETE /friends/{friend_user_id}`、`PATCH /friends/{friend_user_id}/remark` |
-| 举报/附件 | `POST /reports`、`POST /reports/attachments/signature`、`POST /reports/attachments/commit` |
-| 群成员/资料/退出/转让/解散 | `/rooms/{room_id}`、`/members`、`/leave`、`/transfer` |
-| 群申请/邀请/管理员 | `/join-requests`、`/invitations`、`/admins` |
+| 举报/附件 | `POST /reports`、`POST /reports/attachments/signature`、`POST /reports/attachments/commit`；仅支持用户/群聊目标且至少一张截图 |
+| 群成员/资料/头像/退出/转让/解散 | `/rooms/{room_id}`、`/rooms/{room_id}/avatar/*`、`/members`、`/leave`、`/transfer` |
+| 群申请/邀请/管理员 | `/join-requests`、`/invitations`、`/admins`；邀请只支持创建和按 ID 响应，没有列表查询 |
 | 群禁言/规则/日志 | `/mutes`、`/rules`、`/operation-logs` |
 | 贴纸包 | `/emoji-packs/available`、`/search`、`/my`、`/{pack_id}/add`、`/{pack_id}/remove` |
-| 反馈 | `POST /feedbacks` |
+| 反馈 | `POST /feedbacks`；请求字段仅为 `content` 和可选 `contact` |
 | 个人资料/头像/密码/注销 | `PATCH/DELETE /users/me`、`POST /users/me/password`、`/users/me/avatar/*` |
 | 版本与热更新 | `/versions/latest`、`/versions/hot-update`、对应下载与事件上报接口 |
 
@@ -225,14 +225,14 @@ execution: code
 - **Test Scenarios:** 自己/他人消息动作不同；文本与附件动作不同；编辑后状态可见；删除确认可取消；转发支持搜索和多选；已读 0 人、部分已读、全部已读和长名单；`relay_only` 禁用依赖历史的动作。
 - **Verification:** 从 `#/chat/:chatId` 连续走通所有动作；独立打开已读/转发深链；检查状态回写到聊天 mock。
 
-### U3. 会话归档与恢复
+### U3. 会话归档与撤销恢复
 
-- **Goal:** 补齐会话归档入口、归档列表、搜索和恢复流程。
+- **Goal:** 补齐会话置顶、通知静音、归档入口和归档后的限时撤销恢复流程，不虚构归档列表能力。
 - **Requirements:** R4、R5、R21。
 - **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/mock-data.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/page-map.md`。
-- **Patterns:** 复用会话列表密度、搜索栏和空态，不复制新的会话卡片。
-- **Test Scenarios:** 普通会话归档；置顶会话归档；归档列表搜索；恢复后列表同步；全部恢复后的空态；失败后原位置保持。
-- **Verification:** 主列表与 `#/chats/archived` 状态连续，刷新后确定性示例仍可评审。
+- **Patterns:** 复用会话列表和现有 Toast/结果提示，通过侧滑或会话菜单提供动作，在提示中增加明确的撤销命令，不新增归档列表页面。
+- **Test Scenarios:** 置顶/取消置顶后排序同步；静音/恢复后状态同步；普通会话归档；置顶会话归档；撤销后恢复原位置；归档失败后原位置保持；撤销失败后给出重试；提示超时后不再展示恢复入口。
+- **Verification:** 主列表中的置顶、静音、归档、撤销、失败和超时状态连续，页面不出现 API 无数据来源的归档列表入口。
 
 ### U4. 联系人备注、删除与举报
 
@@ -240,16 +240,16 @@ execution: code
 - **Requirements:** R6-R8、R21-R22。
 - **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/mock-data.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/page-map.md`。
 - **Patterns:** 复用联系人资料页、设置表单和危险操作确认组件。
-- **Test Scenarios:** 备注编辑为空/超长/保存成功；删除好友取消/确认/失败；举报原因选择、长说明、0/多附件、上传中、提交失败和成功；删除后已有会话仍可见但关系标识变化。
+- **Test Scenarios:** 备注编辑为空/超长/保存成功；删除好友取消/确认/失败；举报原因选择、长说明、缺少截图校验、1/多张截图、上传中、提交失败和成功；删除后已有会话仍可见但关系标识变化。
 - **Verification:** 从资料页进入所有流程并正确返回；举报深链可独立评审。
 
 ### U5. 群成员、管理员与群生命周期
 
-- **Goal:** 补齐成员列表、角色管理、退出、转让和解散页面状态。
+- **Goal:** 补齐群资料编辑、成员列表、角色管理、退出、转让和解散页面状态。
 - **Requirements:** R9-R11、R15、R21。
 - **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/mock-data.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/page-map.md`。
 - **Patterns:** 复用群目录成员列表、联系人选择器和统一确认组件。
-- **Test Scenarios:** 长成员列表搜索；群主任命/移除管理员；管理员移除普通成员；普通成员只读；不能移除群主；转让目标选择；退出和解散的不同影响文案；处理失败后保留当前页。
+- **Test Scenarios:** 群头像预览/上传失败；群名称、描述和公告编辑；普通成员只读；长成员列表搜索；群主任命/移除管理员；管理员移除普通成员；不能移除群主；转让目标选择；退出和解散的不同影响文案；处理失败后保留当前页。
 - **Verification:** owner/admin/member 三种角色深链截图，动作矩阵与 API 权限一致。
 
 ### U6. 群申请、邀请、规则、禁言与日志
@@ -258,7 +258,7 @@ execution: code
 - **Requirements:** R9-R10、R12-R14、R21。
 - **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/mock-data.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/page-map.md`。
 - **Patterns:** 复用分段筛选、状态标签、列表行、表单和时间线样式。
-- **Test Scenarios:** 申请待处理/通过/拒绝；邀请待响应/过期；规则增改删和空态；全员禁言开关；单人定时禁言和解除；当前用户被禁言；日志按操作人/类型筛选；普通成员无写权限。
+- **Test Scenarios:** 申请待处理/通过/拒绝；邀请成员搜索、多选和创建结果；通过已知邀请 ID 展示待响应/接受/拒绝/过期；不存在邀请列表入口；规则增改删和空态；全员禁言开关；单人定时禁言和解除；当前用户被禁言；日志按操作人/类型筛选；普通成员无写权限。
 - **Verification:** 各子页固定路由可打开，角色切换后操作显隐和状态说明正确。
 
 ### U7. 贴纸中心与聊天入口
@@ -303,7 +303,7 @@ execution: code
 
 | 验证层 | 适用单元 | 方法 | 通过信号 |
 | --- | --- | --- | --- |
-| 静态质量 | U1-U10 | JavaScript 语法检查、`git diff --check`、资源和深链扫描 | 无语法错误、空链接、未知路由或格式错误 |
+| 静态质量 | U1-U10 | `node --check im-ui-html/assets/app.js`、`node --check im-ui-html/assets/mock-data.js`、`git diff --check`、资源和深链扫描 | 无语法错误、空链接、未知路由或格式错误 |
 | 路由巡检 | U1-U10 | 启动现有静态预览后逐条打开 `page-map` 路由 | 页面可刷新、返回路径正确、无 fallback 误判 |
 | 交互状态 | U2-U9 | 单一浏览器会话连续执行正常、取消、失败和重试流程 | 状态连续且 mock 数据变化符合页面语义 |
 | 角色矩阵 | U5-U6 | owner/admin/member 固定 mock 预览 | 无越权动作，受限原因清晰 |
@@ -318,7 +318,7 @@ execution: code
 ## Definition of Done
 
 - D1. R1-R22 均至少由一个实施单元和一个明确测试场景覆盖。
-- D2. API 已有的消息管理、归档恢复、好友危险操作、群治理、举报反馈、贴纸、资料账号和版本能力均在设计源有正式入口。
+- D2. API 已有的消息管理、会话归档及即时撤销恢复、好友危险操作、群治理、举报反馈、贴纸、资料账号和版本能力均在设计源有正式入口。
 - D3. 所有复杂功能都有独立深链，能直接刷新、截图和返回，不依赖先执行隐藏操作才能进入。
 - D4. owner/admin/member、demo/empty/error/loading 等关键状态可确定性复现。
 - D5. SMS 登录、短信重置密码及 API 尚未具备的发现能力未被误标为本计划成果。
@@ -326,6 +326,7 @@ execution: code
 - D7. `im-ui-html/docs/page-map.md`、`component-inventory.md`、`flutter-handoff.md` 与实际路由一致。
 - D8. 移动与宽屏验收无页面重叠、文字溢出、底部操作遮挡或失效返回链路。
 - D9. 每个独立功能闭环通过静态检查和浏览器验收后再提交，提交保持最小可解释业务边界。
+- D10. 设计源不出现归档会话列表、邀请列表、无截图举报，也不把反馈分类映射为独立 API 字段等当前 API 无法直接支撑的契约。
 
 ## Appendix
 
