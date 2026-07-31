@@ -17,7 +17,8 @@
 | `Action Dialog` | 删除、清空、移除、退出、转让、解散、注销等高影响操作 | `Default / Danger / Pending / Disabled` | `AlertDialog` |
 | `Action Toast` | 归档等短时可撤销操作的结果反馈 | `Success / Undo Available / Expired / Restore Failed` | `SnackBar + action` |
 | `Report Form` | 用户与群聊举报，敏感输入仅保留在当前内存流程 | `Default / Validation / Uploading / Error / Success` | `Form + attachment picker + result state` |
-| `Group Announcement Context` | 群聊顶部导航栏下方的固定单行公告摘要入口 | `Default / Updated / Truncated` | `Fixed context row + announcement detail route` |
+| `Pinned Message Context` | 聊天顶部导航栏下方的固定单行置顶消息摘要 | `Default / Updated / Truncated` | `Fixed context row + message jump` |
+| `Group Role Badge` | 群成员、管理员和治理动作中的角色说明 | `Owner / Admin / Member / Readonly` | `Role chip + permission-aware actions` |
 | `Composer` | 输入框、表情、更多面板、发送动作 | `Idle / Typing / Compact Emoji Panel / Attachment Panel` | `Bottom composer + panel controller` |
 | `Custom Emoji` | 通过稳定 emoji ID 解析 fallback、静态资源与播放资源 | `Panel Glyph / Large / Playing / Fallback` | `Emoji registry + asset resolver` |
 | `Search Box` | 搜索 icon、输入框、上下文标签共用容器 | `Idle / Focused / Typing / Contextual / Clearable` | `Shared search field + optional context label` |

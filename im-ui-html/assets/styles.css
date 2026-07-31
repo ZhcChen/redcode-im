@@ -811,6 +811,449 @@
   opacity: 0.42;
 }
 
+.runtime-group-profile-form,
+.runtime-group-profile-form label {
+  display: grid;
+  gap: 9px;
+}
+
+.runtime-group-profile-form {
+  padding: 14px;
+  gap: 14px;
+}
+
+.runtime-group-profile-form label span {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.runtime-group-profile-form input,
+.runtime-group-profile-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-soft, var(--surface-soft));
+  font: inherit;
+}
+
+.runtime-group-profile-form textarea {
+  resize: none;
+  line-height: 1.5;
+}
+
+.runtime-group-profile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.runtime-group-profile-actions button,
+.runtime-group-lifecycle button {
+  min-height: 42px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.runtime-group-profile-actions button.is-primary {
+  border-color: var(--primary);
+  color: #fff;
+  background: var(--primary);
+}
+
+.runtime-group-lifecycle {
+  display: grid;
+  gap: 8px;
+}
+
+.runtime-group-lifecycle button.is-danger {
+  color: var(--danger);
+}
+
+.runtime-group-member-list,
+.runtime-group-admin-section {
+  display: grid;
+}
+
+.runtime-group-member-row,
+.runtime-group-admin-row {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-bottom: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-group-member-row > .avatar,
+.runtime-group-admin-row > .avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+}
+
+.runtime-group-member-row > button:first-of-type {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+  border: 0;
+  color: var(--runtime-text, var(--text));
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.runtime-group-member-row small,
+.runtime-group-admin-row small {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+}
+
+.runtime-role-badge {
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.runtime-member-remove {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+}
+
+.runtime-member-remove__icon {
+  width: 17px;
+  height: 17px;
+}
+
+.runtime-group-admin-section {
+  gap: 0;
+}
+
+.runtime-group-admin-section h3 {
+  margin: 6px 0 8px;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 13px;
+}
+
+.runtime-group-admin-row > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-group-admin-row > div {
+  display: grid;
+  gap: 5px;
+}
+
+.runtime-group-admin-row > div button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 6px;
+  color: var(--primary);
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+}
+
+.runtime-group-admin-row > div button.is-danger {
+  color: var(--danger);
+}
+
+.runtime-group-limit,
+.runtime-mute-all {
+  min-height: 58px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-group-limit > span,
+.runtime-mute-all > span {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 3px;
+}
+
+.runtime-group-limit small,
+.runtime-mute-all small {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+}
+
+.runtime-group-limit input {
+  width: 82px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-soft, var(--surface-soft));
+  font: inherit;
+  text-align: center;
+}
+
+.runtime-governance-list,
+.runtime-operation-log {
+  display: grid;
+}
+
+.runtime-governance-row {
+  padding: 14px 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 11px;
+  border-bottom: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-governance-row > .avatar {
+  width: 44px;
+  height: 44px;
+}
+
+.runtime-governance-row > div p {
+  margin: 4px 0;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.runtime-governance-row > div small {
+  color: var(--primary);
+  font-size: 11px;
+}
+
+.runtime-governance-row > span {
+  grid-column: 2;
+  display: flex;
+  gap: 8px;
+}
+
+.runtime-governance-row > span button,
+.runtime-invitation-detail button,
+.runtime-rule-form button,
+.runtime-rule-list button,
+.runtime-add-mute,
+.runtime-load-more {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+  font-size: 12px;
+}
+
+.runtime-governance-row > span button.is-primary,
+.runtime-invitation-detail button.is-primary {
+  border-color: var(--primary);
+  color: #fff;
+  background: var(--primary);
+}
+
+.runtime-invitation-detail {
+  min-height: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.runtime-invitation-detail > .avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.runtime-invitation-detail h3 {
+  margin: 14px 0 3px;
+}
+
+.runtime-invitation-detail p {
+  margin: 0;
+  color: var(--runtime-muted, var(--text-secondary));
+}
+
+.runtime-invitation-detail > strong {
+  margin-top: 14px;
+  color: var(--primary);
+}
+
+.runtime-invitation-detail > div {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.runtime-rule-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.runtime-rule-form input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+}
+
+.runtime-rule-form button {
+  min-height: 42px;
+  color: #fff;
+  background: var(--primary);
+}
+
+.runtime-rule-form button:disabled {
+  opacity: 0.45;
+}
+
+.runtime-rule-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  list-style: none;
+}
+
+.runtime-rule-list li {
+  padding: 13px 0;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 9px;
+  border-bottom: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-rule-list li > span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-size: 11px;
+}
+
+.runtime-rule-list p {
+  margin: 2px 0 8px;
+  line-height: 1.5;
+}
+
+.runtime-rule-edit-input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+}
+
+.runtime-rule-list li > div {
+  grid-column: 2;
+  display: flex;
+  gap: 5px;
+}
+
+.runtime-rule-list button.is-danger {
+  color: var(--danger);
+}
+
+.runtime-add-mute,
+.runtime-load-more {
+  width: 100%;
+  min-height: 42px;
+  color: var(--primary);
+}
+
+.runtime-mute-create {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.runtime-mute-create select {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 8px;
+  border: 1px solid var(--runtime-line, var(--line));
+  border-radius: 8px;
+  color: var(--runtime-text, var(--text));
+  background: var(--runtime-surface, var(--surface));
+  font: inherit;
+  font-size: 12px;
+}
+
+.runtime-operation-log article {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.runtime-operation-log article > span {
+  position: relative;
+}
+
+.runtime-operation-log article > span::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  left: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.runtime-operation-log article > span::after {
+  content: "";
+  position: absolute;
+  top: 20px;
+  bottom: 0;
+  left: 8px;
+  width: 1px;
+  background: var(--runtime-line, var(--line));
+}
+
+.runtime-operation-log article:last-child > span::after {
+  display: none;
+}
+
+.runtime-operation-log p {
+  margin: 4px 0 0;
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 12px;
+}
+
 body[data-theme="dark"] {
   color-scheme: dark;
   --canvas: #0b1017;

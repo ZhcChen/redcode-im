@@ -127,6 +127,13 @@
     chatActionsChatId: null,
     conversationMenuChatId: null,
     contactReport: { reason: "", detail: "", screenshots: [], status: "idle", error: "" },
+    groupProfileDrafts: {},
+    groupMemberSearch: "",
+    groupInviteSelection: new Set(),
+    groupRuleDrafts: {},
+    groupRuleEditors: {},
+    groupMuteDuration: "2h",
+    groupOperationLogLimits: {},
     navigationStack: [],
     pendingNavigationPath: null,
     toasts: [],
@@ -3189,36 +3196,22 @@
     const draft = state.chatDrafts[chat.id] || "";
     const replyTarget = findMessage(chat, state.replyTargets[chat.id]);
     const activePanel = state.composerPanel;
-    const groupAnnouncement = group?.notice || "";
     const pinnedMessage = chat.pinnedMessages?.[0] || "";
-    const contextualNote = groupAnnouncement || pinnedMessage;
-    const isGroupAnnouncement = Boolean(groupAnnouncement);
-    const contextualNoteAction = isGroupAnnouncement
-      ? `data-action="navigate" data-route="/groups/settings/${group.id}"`
-      : `data-action="show-hint" data-message="${escapeHtml(contextualNote)}"`;
-    const contextualNoteLabel = isGroupAnnouncement ? "群公告" : "置顶消息";
-    const contextualNoteMarkup = contextualNote
+    const pinnedMessageMarkup = pinnedMessage
       ? `
         <button
-          class="runtime-announcement ${isGroupAnnouncement ? "runtime-announcement--group" : "runtime-announcement--pinned"}"
+          class="runtime-announcement runtime-announcement--pinned"
           type="button"
-          ${contextualNoteAction}
-          aria-label="查看${contextualNoteLabel}"
+          data-action="show-hint"
+          data-message="${escapeHtml(pinnedMessage)}"
+          aria-label="查看置顶消息"
         >
-          <span class="runtime-announcement__label">${contextualNoteLabel}</span>
-          <span class="runtime-announcement__text">${escapeHtml(contextualNote)}</span>
+          <span class="runtime-announcement__label">置顶消息</span>
+          <span class="runtime-announcement__text">${escapeHtml(pinnedMessage)}</span>
           ${renderIcon("chevronRight", "runtime-announcement__arrow")}
         </button>
       `
       : "";
-    const fixedGroupAnnouncement = isGroupAnnouncement
-      ? `
-        <div class="runtime-chat-context" role="region" aria-label="群公告">
-          ${contextualNoteMarkup}
-        </div>
-      `
-      : "";
-    const inFlowPinnedMessage = !isGroupAnnouncement && contextualNote ? contextualNoteMarkup : "";
 
     return `
       <section class="screen screen--chat-detail runtime-chat-screen ${activePanel ? "runtime-chat-screen--composer-panel-open" : ""}">
@@ -3239,9 +3232,8 @@
             `<button class="runtime-icon-button runtime-icon-button--quiet" type="button" data-action="open-chat-actions" data-chat-id="${chat.id}" aria-label="会话操作">${renderIcon("more", "runtime-icon-button__glyph")}</button>`,
           ].filter(Boolean),
         })}
-        ${fixedGroupAnnouncement}
         <div class="screen-scroll runtime-scroll runtime-chat-scroll">
-          ${inFlowPinnedMessage}
+          ${pinnedMessageMarkup}
           <div class="runtime-message-list">
             ${renderMessageTimeline(chat)}
           </div>
@@ -5078,7 +5070,7 @@
                               <span class="runtime-contact-profile__shared-avatar">${renderGroupAvatar(group)}</span>
                               <span class="runtime-contact-profile__shared-copy">
                                 <strong>${escapeHtml(group.name)}</strong>
-                                <small>${escapeHtml(group.notice || "暂无群公告")}</small>
+                                <small>${escapeHtml(group.description || "暂无群介绍")}</small>
                               </span>
                               <span class="runtime-contact-profile__shared-meta">${group.memberCount} 人</span>
                               ${renderIcon("chevronRight", "runtime-contact-profile__shared-chevron")}
@@ -5462,6 +5454,9 @@
     }
 
     const members = group.members.map((memberId) => findPerson(memberId)).filter(Boolean);
+    const role = resolveGroupRole(group);
+    const canManage = role === "owner" || role === "admin";
+    const draft = groupProfileDraft(group);
 
     return `
       <section class="screen runtime-screen runtime-screen--group-settings">
@@ -5501,13 +5496,19 @@
             </section>
             <section class="runtime-settings-group runtime-group-settings-group">
               <h3>群信息</h3>
-              <div class="runtime-group-notice">
-                <strong>群公告</strong>
-                <p>${escapeHtml(group.notice)}</p>
-              </div>
+              ${canManage ? `<div class="runtime-group-profile-form"><label><span>群名称</span><input id="group-profile-name" data-group-id="${group.id}" value="${escapeHtml(draft.name)}" maxlength="40"></label><label><span>群介绍</span><textarea id="group-profile-description" data-group-id="${group.id}" rows="3" maxlength="200">${escapeHtml(draft.description)}</textarea></label><div class="runtime-group-profile-actions"><button type="button" data-action="simulate-group-avatar" data-group-id="${group.id}">更新群头像</button><button class="is-primary" type="button" data-action="save-group-profile" data-group-id="${group.id}">保存群资料</button></div></div>` : `<div class="runtime-group-notice"><strong>群介绍</strong><p>${escapeHtml(group.description || "暂未填写群介绍")}</p></div>`}
             </section>
             <section class="runtime-settings-group runtime-group-settings-group">
-              <h3>群权限</h3>
+              <h3>群管理 · ${groupRoleLabel(role)}</h3>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/members"><span class="runtime-setting-row__copy"><strong>群成员</strong><small>${group.memberCount} 位成员</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/admins"><span class="runtime-setting-row__copy"><strong>群管理员</strong><small>${(group.adminIds || []).length} 位管理员</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/join-requests"><span class="runtime-setting-row__copy"><strong>入群申请</strong><small>${canManage ? "审核待处理申请" : "仅管理员可处理"}</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/invite"><span class="runtime-setting-row__copy"><strong>邀请成员</strong><small>${canManage ? "选择联系人创建邀请" : "当前角色不可邀请"}</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/rules"><span class="runtime-setting-row__copy"><strong>群规则</strong><small>${(group.rules || []).length} 条</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/mutes"><span class="runtime-setting-row__copy"><strong>禁言管理</strong><small>${group.muteMode === "admin_only" ? "全员禁言中" : "正常发言"}</small></span>${renderRowChevron()}</button>
+              <button class="runtime-setting-row" type="button" data-action="navigate" data-route="/groups/${group.id}/operation-logs"><span class="runtime-setting-row__copy"><strong>操作日志</strong><small>查看最近的群管理记录</small></span>${renderRowChevron()}</button>
+            </section>
+            ${canManage ? `<section class="runtime-settings-group runtime-group-settings-group"><h3>群权限</h3>
               <div class="runtime-group-policy">
                 <span class="runtime-group-policy__copy">
                   <strong>加入方式</strong>
@@ -5528,6 +5529,12 @@
                   ${renderChoiceButton("mute-mode", group.id, "admin_only", muteModeLabel("admin_only"), group.muteMode)}
                 </div>
               </div>
+              <label class="runtime-setting-row runtime-setting-row--switch"><span class="runtime-setting-row__copy"><strong>允许成员邀请</strong><small>普通成员可以创建群邀请</small></span><input class="switch-row__input" type="checkbox" data-kind="group-permission" data-group-id="${group.id}" data-key="allowMemberInvites" ${group.allowMemberInvites ? "checked" : ""}></label>
+              <label class="runtime-setting-row runtime-setting-row--switch"><span class="runtime-setting-row__copy"><strong>成员间添加好友</strong><small>允许从群成员资料发起好友申请</small></span><input class="switch-row__input" type="checkbox" data-kind="group-permission" data-group-id="${group.id}" data-key="allowMemberFriendRequests" ${group.allowMemberFriendRequests ? "checked" : ""}></label>
+              <label class="runtime-group-limit"><span><strong>人数上限</strong><small>当前 ${group.memberCount} 人</small></span><input type="number" min="2" max="2000" step="1" data-kind="group-member-limit" data-group-id="${group.id}" value="${group.memberLimit || 200}"></label>
+            </section>` : ""}
+            <section class="runtime-group-lifecycle">
+              ${role === "owner" ? `<button type="button" data-action="navigate" data-route="/groups/${group.id}/admins">转让群主</button><button class="is-danger" type="button" data-action="dissolve-group" data-group-id="${group.id}">解散群聊</button>` : `<button class="is-danger" type="button" data-action="leave-group" data-group-id="${group.id}">退出群聊</button>`}
             </section>
           </div>
         </div>
@@ -5661,7 +5668,7 @@
                       <h3 id="message-search-suggestions-title">常用关键词</h3>
                     </div>
                     <div class="runtime-message-search__chips">
-                      ${["发布", "设计", "AI", "群公告"]
+                      ${["发布", "设计", "AI", "群介绍"]
                         .map(
                           (item) => `
                             <button class="runtime-message-search__chip" type="button" data-action="prefill-search" data-value="${item}">
@@ -6295,6 +6302,19 @@
     if (route.section === "group-invitation" && !route.invitationId) {
       return renderFallbackScreen("群聊邀请不存在", `/groups/settings/${group.id}`);
     }
+    const renderers = {
+      "group-members": () => renderGroupMembersScreen(group),
+      "group-admins": () => renderGroupAdminsScreen(group),
+      "group-join-requests": () => renderGroupJoinRequestsScreen(group),
+      "group-invite": () => renderGroupInviteScreen(group),
+      "group-invitation": () => renderGroupInvitationScreen(group, route.invitationId),
+      "group-rules": () => renderGroupRulesScreen(group),
+      "group-mutes": () => renderGroupMutesScreen(group),
+      "group-operation-logs": () => renderGroupOperationLogsScreen(group),
+    };
+    if (renderers[route.section]) {
+      return renderers[route.section]();
+    }
     const titles = {
       "group-members": "群成员",
       "group-admins": "群管理员",
@@ -6306,6 +6326,114 @@
       "group-operation-logs": "操作日志",
     };
     return renderCapabilityRouteScreen(titles[route.section] || "群管理", `/groups/settings/${group.id}`, "暂无记录");
+  }
+
+  function resolveGroupRole(group) {
+    const previewRole = new URLSearchParams(window.location.search).get("role");
+    if (["owner", "admin", "member"].includes(previewRole)) return previewRole;
+    if (group.ownerId === data.currentUser.id) return "owner";
+    if ((group.adminIds || []).includes(data.currentUser.id)) return "admin";
+    return "member";
+  }
+
+  function groupRoleLabel(role) {
+    return role === "owner" ? "群主" : role === "admin" ? "管理员" : "普通成员";
+  }
+
+  function groupProfileDraft(group) {
+    state.groupProfileDrafts[group.id] ||= { name: group.name, description: group.description || "" };
+    return state.groupProfileDrafts[group.id];
+  }
+
+  function groupMemberRole(group, memberId) {
+    if (memberId === group.ownerId) return "群主";
+    if ((group.adminIds || []).includes(memberId)) return "管理员";
+    return "成员";
+  }
+
+  function renderGroupMembersScreen(group) {
+    const role = resolveGroupRole(group);
+    const canRemove = role === "owner" || role === "admin";
+    const query = state.groupMemberSearch.trim().toLowerCase();
+    const members = group.members.map(findPerson).filter(Boolean).filter((person) => !query || [person.name, person.username].some((value) => String(value || "").toLowerCase().includes(query)));
+    return `
+      <section class="screen runtime-screen runtime-screen--list">
+        ${renderScreenHeader({ title: `群成员 ${group.memberCount}`, backPath: `/groups/settings/${group.id}`, variant: "compact" })}
+        <div class="runtime-forward-search"><label class="runtime-search-field">${renderIcon("search", "runtime-search-field__icon")}<input id="group-members-search" value="${escapeHtml(state.groupMemberSearch)}" placeholder="搜索群成员" aria-label="搜索群成员"></label></div>
+        <div class="screen-scroll runtime-scroll"><div class="runtime-list-content"><div class="runtime-group-member-list">${members.map((member) => `<div class="runtime-group-member-row">${renderAvatar(member.name, member.tone || member.avatarTone, "avatar--md")}<button type="button" data-action="show-hint" data-message="@${escapeHtml(member.username || member.id)}"><strong>${escapeHtml(member.name)}</strong><small>@${escapeHtml(member.username || member.id)}</small></button><span class="runtime-role-badge">${groupMemberRole(group, member.id)}</span>${canRemove && member.id !== group.ownerId && member.id !== data.currentUser.id ? `<button class="runtime-member-remove" type="button" data-action="remove-group-member" data-group-id="${group.id}" data-member-id="${member.id}" aria-label="移除 ${escapeHtml(member.name)}">${renderIcon("close", "runtime-member-remove__icon")}</button>` : ""}</div>`).join("")}</div></div></div>
+      </section>
+    `;
+  }
+
+  function renderGroupAdminsScreen(group) {
+    const role = resolveGroupRole(group);
+    const owner = findPerson(group.ownerId);
+    const admins = (group.adminIds || []).map(findPerson).filter(Boolean);
+    const candidates = group.members.filter((id) => id !== group.ownerId && !(group.adminIds || []).includes(id)).map(findPerson).filter(Boolean).slice(0, 6);
+    return `
+      <section class="screen runtime-screen runtime-screen--list">
+        ${renderScreenHeader({ title: "群管理员", backPath: `/groups/settings/${group.id}`, variant: "compact" })}
+        <div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">
+          <section class="runtime-group-admin-section"><h3>群主</h3>${owner ? renderGroupAdminRow(group, owner, "owner", role) : ""}</section>
+          <section class="runtime-group-admin-section"><h3>管理员 · ${admins.length}</h3>${admins.length ? admins.map((person) => renderGroupAdminRow(group, person, "admin", role)).join("") : renderCapabilityState("empty", "暂无管理员", "群主可以从成员中任命管理员。")}</section>
+          ${role === "owner" ? `<section class="runtime-group-admin-section"><h3>任命管理员</h3>${candidates.map((person) => renderGroupAdminRow(group, person, "candidate", role)).join("")}</section>` : ""}
+        </div></div>
+      </section>
+    `;
+  }
+
+  function renderGroupAdminRow(group, person, kind, viewerRole) {
+    const action = kind === "admin"
+      ? `<button type="button" data-action="toggle-group-admin" data-group-id="${group.id}" data-member-id="${person.id}">移除管理员</button>`
+      : kind === "candidate"
+      ? `<button type="button" data-action="toggle-group-admin" data-group-id="${group.id}" data-member-id="${person.id}">任命</button>`
+      : viewerRole === "owner"
+      ? ""
+      : "";
+    const transfer = viewerRole === "owner" && kind !== "owner" ? `<button class="is-danger" type="button" data-action="transfer-group-owner" data-group-id="${group.id}" data-member-id="${person.id}">转让群主</button>` : "";
+    return `<div class="runtime-group-admin-row">${renderAvatar(person.name, person.tone || person.avatarTone, "avatar--md")}<span><strong>${escapeHtml(person.name)}</strong><small>${kind === "owner" ? "拥有全部群权限" : "可管理成员、申请和群内容"}</small></span><div>${viewerRole === "owner" ? action : ""}${transfer}</div></div>`;
+  }
+
+  function renderGroupJoinRequestsScreen(group) {
+    const canManage = ["owner", "admin"].includes(resolveGroupRole(group));
+    const requests = group.joinRequests || [];
+    return `
+      <section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "入群申请", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${requests.length ? `<div class="runtime-governance-list">${requests.map((request) => { const person = findPerson(request.userId); return `<article class="runtime-governance-row">${person ? renderAvatar(person.name, person.tone || person.avatarTone, "avatar--md") : ""}<div><strong>${escapeHtml(person?.name || "未知用户")}</strong><p>${escapeHtml(request.message)}</p><small>${request.status === "pending" ? "待处理" : request.status === "accepted" ? "已同意" : "已拒绝"}</small></div>${canManage && request.status === "pending" ? `<span><button type="button" data-action="review-join-request" data-group-id="${group.id}" data-request-id="${request.id}" data-status="rejected">拒绝</button><button class="is-primary" type="button" data-action="review-join-request" data-group-id="${group.id}" data-request-id="${request.id}" data-status="accepted">同意</button></span>` : ""}</article>`; }).join("")}</div>` : renderCapabilityState("empty", "暂无入群申请", "新的申请会显示在这里。")}</div></div></section>
+    `;
+  }
+
+  function renderGroupInviteScreen(group) {
+    const canInvite = ["owner", "admin"].includes(resolveGroupRole(group)) || group.allowMemberInvites;
+    const candidates = data.contacts.filter((contact) => !group.members.includes(contact.id));
+    return `
+      <section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "邀请成员", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${canInvite ? `<div class="runtime-forward-list">${candidates.map((person) => `<label class="runtime-forward-row">${renderAvatar(person.name, person.tone, "avatar--md")}<span><strong>${escapeHtml(person.name)}</strong><small>@${escapeHtml(person.username)}</small></span><input type="checkbox" data-kind="group-invite-target" data-user-id="${person.id}" ${state.groupInviteSelection.has(person.id) ? "checked" : ""}></label>`).join("")}</div>` : renderCapabilityState("error", "当前不能邀请成员", "群管理员关闭了成员邀请权限。")}</div></div>${canInvite ? `<div class="runtime-forward-footer"><button type="button" data-action="create-group-invitation" data-group-id="${group.id}" ${state.groupInviteSelection.size ? "" : "disabled"}>创建 ${state.groupInviteSelection.size} 个邀请</button></div>` : ""}</section>
+    `;
+  }
+
+  function renderGroupInvitationScreen(group, invitationId) {
+    const invitation = (group.invitations || []).find((item) => item.id === invitationId);
+    if (!invitation) return renderFallbackScreen("群聊邀请不存在", `/groups/settings/${group.id}`);
+    const person = findPerson(invitation.userId);
+    const statusCopy = { pending: "等待响应", accepted: "已接受", rejected: "已拒绝", expired: "已过期" };
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "群聊邀请", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content"><section class="runtime-invitation-detail">${person ? renderAvatar(person.name, person.tone || person.avatarTone, "avatar--md") : ""}<h3>${escapeHtml(person?.name || "群成员")}</h3><p>邀请加入 ${escapeHtml(group.name)}</p><strong>${statusCopy[invitation.status] || invitation.status}</strong>${invitation.status === "pending" ? `<div><button type="button" data-action="respond-group-invitation" data-group-id="${group.id}" data-invitation-id="${invitation.id}" data-status="rejected">拒绝</button><button class="is-primary" type="button" data-action="respond-group-invitation" data-group-id="${group.id}" data-invitation-id="${invitation.id}" data-status="accepted">接受</button></div>` : ""}</section></div></div></section>`;
+  }
+
+  function renderGroupRulesScreen(group) {
+    const canManage = ["owner", "admin"].includes(resolveGroupRole(group));
+    const draft = state.groupRuleDrafts[group.id] || "";
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "群规则", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${canManage ? `<form class="runtime-rule-form" data-form="group-rule" data-group-id="${group.id}"><input id="group-rule-input" data-group-id="${group.id}" value="${escapeHtml(draft)}" maxlength="120" placeholder="输入一条群规则"><button type="submit" ${draft.trim() ? "" : "disabled"}>添加</button></form>` : ""}${group.rules.length ? `<ol class="runtime-rule-list">${group.rules.map((rule, index) => { const editor = state.groupRuleEditors[group.id]; const editing = editor?.index === index; return `<li><span>${index + 1}</span>${editing ? `<input class="runtime-rule-edit-input" data-kind="group-rule-edit" data-group-id="${group.id}" data-index="${index}" value="${escapeHtml(editor.value)}" maxlength="120">` : `<p>${escapeHtml(rule)}</p>`}${canManage ? `<div>${editing ? `<button type="button" data-action="save-group-rule-edit" data-group-id="${group.id}" data-index="${index}">保存</button><button type="button" data-action="cancel-group-rule-edit" data-group-id="${group.id}">取消</button>` : `<button type="button" data-action="start-group-rule-edit" data-group-id="${group.id}" data-index="${index}">编辑</button><button type="button" data-action="move-group-rule" data-group-id="${group.id}" data-index="${index}" data-direction="up" aria-label="上移规则" ${index === 0 ? "disabled" : ""}>↑</button><button type="button" data-action="move-group-rule" data-group-id="${group.id}" data-index="${index}" data-direction="down" aria-label="下移规则" ${index === group.rules.length - 1 ? "disabled" : ""}>↓</button><button class="is-danger" type="button" data-action="delete-group-rule" data-group-id="${group.id}" data-index="${index}">删除</button>`}</div>` : ""}</li>`; }).join("")}</ol>` : renderCapabilityState("empty", "暂无群规则", canManage ? "添加第一条群规则。" : "管理员暂未设置群规则。")}</div></div></section>`;
+  }
+
+  function renderGroupMutesScreen(group) {
+    const canManage = ["owner", "admin"].includes(resolveGroupRole(group));
+    const muted = group.mutedMembers || [];
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "禁言管理", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content"><label class="runtime-mute-all"><span><strong>全员禁言</strong><small>开启后仅管理员可以发言</small></span><input type="checkbox" data-kind="group-mute-all" data-group-id="${group.id}" ${group.muteMode === "admin_only" ? "checked" : ""} ${canManage ? "" : "disabled"}></label><section class="runtime-group-admin-section"><h3>已禁言成员 · ${muted.length}</h3>${muted.length ? muted.map((item) => { const person = findPerson(item.userId); return `<div class="runtime-group-admin-row">${person ? renderAvatar(person.name, person.tone || person.avatarTone, "avatar--md") : ""}<span><strong>${escapeHtml(person?.name || item.userId)}</strong><small>${escapeHtml(item.duration)} · 至 ${escapeHtml(item.until)}</small></span>${canManage ? `<div><button type="button" data-action="unmute-group-member" data-group-id="${group.id}" data-member-id="${item.userId}">解除</button></div>` : ""}</div>`; }).join("") : renderCapabilityState("empty", "暂无禁言成员", "单成员禁言记录会显示在这里。")}</section>${canManage ? `<div class="runtime-mute-create"><select data-kind="group-mute-duration" aria-label="禁言时长"><option value="30m" ${state.groupMuteDuration === "30m" ? "selected" : ""}>30 分钟</option><option value="2h" ${state.groupMuteDuration === "2h" ? "selected" : ""}>2 小时</option><option value="1d" ${state.groupMuteDuration === "1d" ? "selected" : ""}>1 天</option></select><button class="runtime-add-mute" type="button" data-action="mute-sample-member" data-group-id="${group.id}">选择成员并禁言</button></div>` : ""}</div></div></section>`;
+  }
+
+  function renderGroupOperationLogsScreen(group) {
+    const limit = state.groupOperationLogLimits[group.id] || 2;
+    const logs = (group.operationLogs || []).slice(0, limit);
+    return `<section class="screen runtime-screen runtime-screen--list">${renderScreenHeader({ title: "操作日志", backPath: `/groups/settings/${group.id}`, variant: "compact" })}<div class="screen-scroll runtime-scroll runtime-topbar-scroll"><div class="runtime-list-content">${logs.length ? `<div class="runtime-operation-log">${logs.map((log) => { const actor = findPerson(log.actorId); return `<article><span></span><div><strong>${escapeHtml(log.action)}</strong><p>${escapeHtml(actor?.name || "群管理员")} · ${escapeHtml(log.time)}</p></div></article>`; }).join("")}</div>${limit < (group.operationLogs || []).length ? `<button class="runtime-load-more" type="button" data-action="load-more-group-logs" data-group-id="${group.id}">加载更多</button>` : ""}` : renderCapabilityState("empty", "暂无操作日志", "群管理操作会按时间显示。")}</div></div></section>`;
   }
 
   function renderCapabilityState(kind, title, description, action = null) {
@@ -6918,7 +7046,9 @@
       chatId,
       name,
       members: memberIds,
-      notice: "刚创建的群聊，建议先把当前评审目标写进公告。",
+      description: "围绕当前评审目标协作的新群聊。",
+      ownerId: data.currentUser.id,
+      adminIds: [],
       rules: ["围绕移动端体验推进结论。", "设计变更先回到规范页达成共识。"],
       joinPolicy: "invite_only",
       muteMode: "free",
@@ -7294,6 +7424,135 @@
     render();
   }
 
+  function saveGroupProfile(groupId) {
+    const group = findGroup(groupId);
+    const draft = group ? groupProfileDraft(group) : null;
+    if (!group || !draft || !draft.name.trim()) return;
+    group.name = draft.name.trim();
+    group.description = draft.description.trim();
+    const chat = findChat(group.chatId);
+    if (chat) chat.name = group.name;
+    showToast("群资料已保存", group.name);
+    render();
+  }
+
+  function removeGroupMember(groupId, memberId) {
+    const group = findGroup(groupId);
+    const person = findPerson(memberId);
+    if (!group || !person || memberId === group.ownerId) return;
+    openActionDialog({
+      title: `移除 ${person.name}？`,
+      description: "移除后，该成员将无法继续查看群聊的新消息。",
+      confirmLabel: "移除成员",
+      tone: "danger",
+      payload: { groupId, memberId },
+      onConfirm: ({ groupId: targetGroupId, memberId: targetMemberId }) => {
+        const targetGroup = findGroup(targetGroupId);
+        if (!targetGroup) throw new Error("群聊不存在。");
+        targetGroup.members = targetGroup.members.filter((id) => id !== targetMemberId);
+        targetGroup.adminIds = (targetGroup.adminIds || []).filter((id) => id !== targetMemberId);
+        targetGroup.memberCount = Math.max(0, targetGroup.memberCount - 1);
+      },
+    });
+  }
+
+  function toggleGroupAdmin(groupId, memberId) {
+    const group = findGroup(groupId);
+    if (!group || resolveGroupRole(group) !== "owner" || memberId === group.ownerId) return;
+    group.adminIds ||= [];
+    if (group.adminIds.includes(memberId)) group.adminIds = group.adminIds.filter((id) => id !== memberId);
+    else group.adminIds.push(memberId);
+    showToast("管理员已更新", `${findPerson(memberId)?.name || "成员"} 的角色已变更。`);
+    render();
+  }
+
+  function transferGroupOwner(groupId, memberId) {
+    const group = findGroup(groupId);
+    const person = findPerson(memberId);
+    if (!group || !person || resolveGroupRole(group) !== "owner") return;
+    openActionDialog({
+      title: `转让群主给 ${person.name}？`,
+      description: "转让后，你将成为普通成员，并失去群主专属权限。",
+      confirmLabel: "确认转让",
+      tone: "danger",
+      payload: { groupId, memberId },
+      onConfirm: ({ groupId: targetGroupId, memberId: targetMemberId }) => {
+        const targetGroup = findGroup(targetGroupId);
+        if (!targetGroup) throw new Error("群聊不存在。");
+        targetGroup.ownerId = targetMemberId;
+        targetGroup.adminIds = (targetGroup.adminIds || []).filter((id) => id !== targetMemberId && id !== data.currentUser.id);
+      },
+    });
+  }
+
+  function requestGroupLifecycle(groupId, kind) {
+    const group = findGroup(groupId);
+    if (!group) return;
+    const dissolve = kind === "dissolve";
+    openActionDialog({
+      title: dissolve ? "解散群聊？" : "退出群聊？",
+      description: dissolve ? "解散后所有成员都无法继续访问此群，操作不可撤销。" : "退出后将不再接收新消息，已有聊天记录仍会保留。",
+      confirmLabel: dissolve ? "解散群聊" : "退出群聊",
+      tone: "danger",
+      payload: { groupId, dissolve },
+      onConfirm: ({ groupId: targetId, dissolve: shouldDissolve }) => {
+        const targetGroup = findGroup(targetId);
+        if (!targetGroup) throw new Error("群聊不存在。");
+        if (shouldDissolve) {
+          data.groups = data.groups.filter((item) => item.id !== targetId);
+          data.chats = data.chats.filter((item) => item.id !== targetGroup.chatId);
+        } else {
+          targetGroup.members = targetGroup.members.filter((id) => id !== data.currentUser.id);
+          targetGroup.memberCount = Math.max(0, targetGroup.memberCount - 1);
+        }
+        navigate("/groups", { resetNavigationStack: true });
+      },
+    });
+  }
+
+  function reviewJoinRequest(groupId, requestId, status) {
+    const group = findGroup(groupId);
+    const request = group?.joinRequests?.find((item) => item.id === requestId);
+    if (!request || !["accepted", "rejected"].includes(status)) return;
+    request.status = status;
+    if (status === "accepted" && !group.members.includes(request.userId)) {
+      group.members.push(request.userId);
+      group.memberCount += 1;
+    }
+    showToast(status === "accepted" ? "已同意申请" : "已拒绝申请", findPerson(request.userId)?.name || "申请人");
+    render();
+  }
+
+  function createGroupInvitations(groupId) {
+    const group = findGroup(groupId);
+    if (!group || !state.groupInviteSelection.size) return;
+    const created = Array.from(state.groupInviteSelection).map((userId, index) => ({ id: `inv_${Date.now()}_${index}`, userId, status: "pending" }));
+    group.invitations = (group.invitations || []).concat(created);
+    state.groupInviteSelection = new Set();
+    showToast("邀请已创建", `已向 ${created.length} 位联系人发送邀请。`);
+    render();
+  }
+
+  function respondGroupInvitation(groupId, invitationId, status) {
+    const group = findGroup(groupId);
+    const invitation = group?.invitations?.find((item) => item.id === invitationId);
+    if (!invitation || invitation.status !== "pending" || !["accepted", "rejected"].includes(status)) return;
+    invitation.status = status;
+    if (status === "accepted" && !group.members.includes(invitation.userId)) {
+      group.members.push(invitation.userId);
+      group.memberCount += 1;
+    }
+    render();
+  }
+
+  function moveGroupRule(groupId, index, direction) {
+    const group = findGroup(groupId);
+    const nextIndex = direction === "up" ? index - 1 : index + 1;
+    if (!group || index < 0 || nextIndex < 0 || nextIndex >= group.rules.length) return;
+    [group.rules[index], group.rules[nextIndex]] = [group.rules[nextIndex], group.rules[index]];
+    render();
+  }
+
   function toggleGroupMembers(groupId) {
     if (!findGroup(groupId)) {
       return;
@@ -7618,6 +7877,111 @@
     }
     if (action === "delete-contact") {
       requestDeleteContact(target.getAttribute("data-contact-id"));
+      return;
+    }
+    if (action === "save-group-profile") {
+      saveGroupProfile(target.getAttribute("data-group-id"));
+      return;
+    }
+    if (action === "simulate-group-avatar") {
+      showToast("群头像已更新", "新头像已完成预览并保存。");
+      render();
+      return;
+    }
+    if (action === "remove-group-member") {
+      removeGroupMember(target.getAttribute("data-group-id"), target.getAttribute("data-member-id"));
+      return;
+    }
+    if (action === "toggle-group-admin") {
+      toggleGroupAdmin(target.getAttribute("data-group-id"), target.getAttribute("data-member-id"));
+      return;
+    }
+    if (action === "transfer-group-owner") {
+      transferGroupOwner(target.getAttribute("data-group-id"), target.getAttribute("data-member-id"));
+      return;
+    }
+    if (action === "dissolve-group") {
+      requestGroupLifecycle(target.getAttribute("data-group-id"), "dissolve");
+      return;
+    }
+    if (action === "leave-group") {
+      requestGroupLifecycle(target.getAttribute("data-group-id"), "leave");
+      return;
+    }
+    if (action === "review-join-request") {
+      reviewJoinRequest(target.getAttribute("data-group-id"), target.getAttribute("data-request-id"), target.getAttribute("data-status"));
+      return;
+    }
+    if (action === "create-group-invitation") {
+      createGroupInvitations(target.getAttribute("data-group-id"));
+      return;
+    }
+    if (action === "respond-group-invitation") {
+      respondGroupInvitation(target.getAttribute("data-group-id"), target.getAttribute("data-invitation-id"), target.getAttribute("data-status"));
+      return;
+    }
+    if (action === "move-group-rule") {
+      moveGroupRule(target.getAttribute("data-group-id"), Number(target.getAttribute("data-index")), target.getAttribute("data-direction"));
+      return;
+    }
+    if (action === "delete-group-rule") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) {
+        group.rules.splice(Number(target.getAttribute("data-index")), 1);
+        render();
+      }
+      return;
+    }
+    if (action === "start-group-rule-edit") {
+      const groupId = target.getAttribute("data-group-id");
+      const group = findGroup(groupId);
+      const index = Number(target.getAttribute("data-index"));
+      if (group?.rules[index] != null) {
+        state.groupRuleEditors[groupId] = { index, value: group.rules[index] };
+        render();
+      }
+      return;
+    }
+    if (action === "cancel-group-rule-edit") {
+      delete state.groupRuleEditors[target.getAttribute("data-group-id")];
+      render();
+      return;
+    }
+    if (action === "save-group-rule-edit") {
+      const groupId = target.getAttribute("data-group-id");
+      const group = findGroup(groupId);
+      const editor = state.groupRuleEditors[groupId];
+      if (group && editor?.value.trim()) {
+        group.rules[editor.index] = editor.value.trim();
+        delete state.groupRuleEditors[groupId];
+        render();
+      }
+      return;
+    }
+    if (action === "unmute-group-member") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) {
+        group.mutedMembers = (group.mutedMembers || []).filter((item) => item.userId !== target.getAttribute("data-member-id"));
+        render();
+      }
+      return;
+    }
+    if (action === "mute-sample-member") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      const memberId = group?.members.find((id) => id !== group.ownerId && !(group.mutedMembers || []).some((item) => item.userId === id));
+      if (group && memberId) {
+        group.mutedMembers ||= [];
+        const duration = state.groupMuteDuration === "30m" ? "30 分钟" : state.groupMuteDuration === "1d" ? "1 天" : "2 小时";
+        const until = state.groupMuteDuration === "30m" ? "12:00" : state.groupMuteDuration === "1d" ? "明天 11:30" : "13:30";
+        group.mutedMembers.push({ userId: memberId, duration, until });
+        render();
+      }
+      return;
+    }
+    if (action === "load-more-group-logs") {
+      const groupId = target.getAttribute("data-group-id");
+      state.groupOperationLogLimits[groupId] = (state.groupOperationLogLimits[groupId] || 2) + 2;
+      render();
       return;
     }
     if (action === "remove-report-screenshot") {
@@ -8080,6 +8444,32 @@
       if (count) count.textContent = `${target.value.length}/500`;
       return;
     }
+    if (target.id === "group-profile-name") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) groupProfileDraft(group).name = target.value;
+      return;
+    }
+    if (target.id === "group-profile-description") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) groupProfileDraft(group).description = target.value;
+      return;
+    }
+    if (target.id === "group-members-search") {
+      state.groupMemberSearch = target.value;
+      scheduleFilterRender(target);
+      return;
+    }
+    if (target.id === "group-rule-input") {
+      state.groupRuleDrafts[target.getAttribute("data-group-id")] = target.value;
+      const submit = target.closest("form")?.querySelector('button[type="submit"]');
+      if (submit instanceof HTMLButtonElement) submit.disabled = !target.value.trim();
+      return;
+    }
+    if (target.getAttribute("data-kind") === "group-rule-edit") {
+      const groupId = target.getAttribute("data-group-id");
+      if (state.groupRuleEditors[groupId]) state.groupRuleEditors[groupId].value = target.value;
+      return;
+    }
   }
 
   function restoreGroupMemberPickerScroll(scrollTop) {
@@ -8152,6 +8542,40 @@
       else state.forwardSelection.delete(chatId);
       render();
     }
+    if (target.getAttribute("data-kind") === "group-invite-target") {
+      const userId = target.getAttribute("data-user-id");
+      if (target.checked) state.groupInviteSelection.add(userId);
+      else state.groupInviteSelection.delete(userId);
+      render();
+      return;
+    }
+    if (target.getAttribute("data-kind") === "group-mute-all") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) {
+        group.muteMode = target.checked ? "admin_only" : "free";
+        render();
+      }
+      return;
+    }
+    if (target.getAttribute("data-kind") === "group-permission") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      const key = target.getAttribute("data-key");
+      if (group && ["allowMemberInvites", "allowMemberFriendRequests"].includes(key)) {
+        group[key] = target.checked;
+        render();
+      }
+      return;
+    }
+    if (target.getAttribute("data-kind") === "group-member-limit") {
+      const group = findGroup(target.getAttribute("data-group-id"));
+      if (group) group.memberLimit = Math.max(group.memberCount, Math.min(2000, Number(target.value) || group.memberLimit));
+      render();
+      return;
+    }
+    if (target.getAttribute("data-kind") === "group-mute-duration") {
+      state.groupMuteDuration = target.value;
+      return;
+    }
   }
 
   function handleSubmit(event) {
@@ -8195,6 +8619,18 @@
     if (formKind === "contact-report") {
       event.preventDefault();
       submitContactReport(form.getAttribute("data-contact-id"));
+      return;
+    }
+    if (formKind === "group-rule") {
+      event.preventDefault();
+      const groupId = form.getAttribute("data-group-id");
+      const group = findGroup(groupId);
+      const value = (state.groupRuleDrafts[groupId] || "").trim();
+      if (group && value) {
+        group.rules.push(value);
+        state.groupRuleDrafts[groupId] = "";
+        render();
+      }
     }
   }
 
