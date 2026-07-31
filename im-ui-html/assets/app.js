@@ -320,6 +320,18 @@
       '<circle cx="15.7" cy="11.2" r="0.9" />',
       '<circle cx="17.55" cy="13.05" r="0.9" />',
     ],
+    puzzle: [
+      '<path d="M4.5 5.25h5.05a2.45 2.45 0 1 1 4.9 0h5.05v5.05a2.45 2.45 0 1 0 0 4.9v4.55h-5.05a2.45 2.45 0 1 1-4.9 0H4.5V15.2a2.45 2.45 0 1 0 0-4.9Z" />',
+    ],
+    music: [
+      '<path d="M9.25 17.15a2.75 2.75 0 1 1-2.75-2.75h2.75Z" />',
+      '<path d="M18.25 14.65a2.75 2.75 0 1 1-2.75-2.75h2.75Z" />',
+      '<path d="M9.25 14.4V6.25l9-2v7.65M9.25 9.2l9-2" />',
+    ],
+    flag: [
+      '<path d="M6.25 20.25V4.1" />',
+      '<path d="M6.25 5.1c3.25-2.1 5.45 2.1 9.1 0l2.4-1.15v8.2l-2.4 1.15c-3.65 2.1-5.85-2.1-9.1 0" />',
+    ],
   };
 
   let toastTimerId = 0;
@@ -4235,54 +4247,99 @@
 
   function renderDiscoverGamesScreen() {
     const games = data.discover.games || [];
+    const recentGame = games.find((game) => game.recent && game.status === "available") || null;
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-screen--list runtime-games-screen">
         ${renderScreenHeader({
           title: "游戏",
-          subtitle: "这一轮先只保留统一入口，后续再接小游戏大厅",
           backPath: "/discover",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--soft hero-card--games">
-              <span class="eyebrow">Game Entry</span>
-              <h3>先保留一个成熟的入口位置，不急着把小游戏本体塞进这轮 UI 重构。</h3>
-              <div class="inline-actions inline-actions--wide">
-                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接小游戏大厅与最近玩过。">小游戏大厅</button>
-                <button class="ghost-button" data-action="show-hint" data-message="后续这里可接群内发起房间与好友邀请。">组队房间</button>
-              </div>
-            </section>
-            <section class="surface-card surface-card--games">
-              <div class="surface-card__header">
-                <div class="surface-card__header-copy">
-                  <h3>当前入口规划</h3>
-                  <p>先把入口和状态语言做对，后续再扩小游戏大厅与房间链路。</p>
-                </div>
-                <span class="badge">${games.length}</span>
+        <div class="screen-scroll runtime-scroll runtime-games-scroll">
+          <div class="runtime-games-content">
+            ${
+              recentGame
+                ? `
+                  <section class="runtime-games-section" aria-labelledby="recent-games-title">
+                    <div class="runtime-games-section__heading">
+                      <h3 id="recent-games-title">最近玩过</h3>
+                      <span>今天</span>
+                    </div>
+                    <button
+                      class="runtime-game-feature"
+                      type="button"
+                      data-action="launch-game"
+                      data-game-id="${escapeHtml(recentGame.id)}"
+                    >
+                      ${renderGameCover(recentGame, "feature")}
+                      <span class="runtime-game-feature__body">
+                        <strong>${escapeHtml(recentGame.title)}</strong>
+                        <span>${escapeHtml(recentGame.summary)}</span>
+                        <small>${escapeHtml(recentGame.activity)}</small>
+                      </span>
+                      <span class="runtime-game-feature__resume">继续</span>
+                    </button>
+                  </section>
+                `
+                : ""
+            }
+            <section class="runtime-games-section" aria-labelledby="all-games-title">
+              <div class="runtime-games-section__heading">
+                <h3 id="all-games-title">全部游戏</h3>
+                <span>${games.length} 款</span>
               </div>
               ${
                 games.length
-                  ? games
-                      .map(
-                        (item) => `
-                          <div class="game-entry-card">
-                            <div class="game-entry-card__body">
-                              <strong>${escapeHtml(item.title)}</strong>
-                              <span>${escapeHtml(item.summary)}</span>
-                            </div>
-                            <span class="badge">入口</span>
-                          </div>
-                        `,
-                      )
-                      .join("")
-                  : renderEmptyState("暂无游戏内容", "新的游戏内容会显示在这里。")
+                  ? `<div class="runtime-game-list">${games.map(renderGameRow).join("")}</div>`
+                  : renderEmptyState("暂无游戏", "新游戏上线后会显示在这里。")
               }
             </section>
           </div>
         </div>
       </section>
     `;
+  }
+
+  function renderGameCover(game, variant = "row") {
+    return `
+      <span class="runtime-game-cover runtime-game-cover--${variant} runtime-game-cover--${escapeHtml(game.tone)}" aria-hidden="true">
+        ${renderIcon(game.icon, "runtime-game-cover__glyph")}
+      </span>
+    `;
+  }
+
+  function renderGameRow(game) {
+    const available = game.status === "available";
+    return `
+      <button
+        class="runtime-game-row"
+        type="button"
+        data-action="${available ? "launch-game" : "show-hint"}"
+        ${available ? `data-game-id="${escapeHtml(game.id)}"` : `data-message="${escapeHtml(game.title)}正在维护中。"`}
+        aria-label="${escapeHtml(game.title)}，${available ? "进入游戏" : "维护中"}"
+      >
+        ${renderGameCover(game)}
+        <span class="runtime-game-row__body">
+          <span class="runtime-game-row__title">
+            <strong>${escapeHtml(game.title)}</strong>
+            <small>${escapeHtml(game.category)}</small>
+          </span>
+          <span>${escapeHtml(game.summary)}</span>
+          <small>${escapeHtml(game.activity)}</small>
+        </span>
+        <span class="runtime-game-row__status ${available ? "is-available" : "is-maintenance"}">${available ? "进入" : "维护中"}</span>
+      </button>
+    `;
+  }
+
+  function launchGame(gameId) {
+    const game = (data.discover.games || []).find((item) => item.id === gameId && item.status === "available");
+    if (!game) {
+      return;
+    }
+    showToast("正在进入游戏", `${game.title} 已准备就绪。`);
+    render();
   }
 
   function discoverEntryMeta(item) {
@@ -6675,6 +6732,10 @@
     }
     if (action === "send-nearby-greeting") {
       sendNearbyGreeting(target.getAttribute("data-nearby-id"));
+      return;
+    }
+    if (action === "launch-game") {
+      launchGame(target.getAttribute("data-game-id"));
       return;
     }
     if (action === "open-contact-actions") {
