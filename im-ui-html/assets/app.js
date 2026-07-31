@@ -102,6 +102,8 @@
     scanTorchOn: false,
     scanStatus: "scanning",
     scanSimulationCount: 0,
+    nearbyFilter: "all",
+    greetedNearbyIds: new Set(),
     searchQuery: "",
     groupMemberFilter: "",
     createGroupName: "",
@@ -4120,29 +4122,64 @@
 
   function renderDiscoverNearbyScreen() {
     const nearbyPeople = data.discover.nearbyPeople || [];
+    const filteredPeople = nearbyPeople.filter((person) => {
+      if (state.nearbyFilter === "near") {
+        return person.distanceMeters <= 1000;
+      }
+      if (state.nearbyFilter === "online") {
+        return person.status === "在线";
+      }
+      return true;
+    });
+    const filterItems = [
+      { id: "all", label: "全部" },
+      { id: "near", label: "1 公里内" },
+      { id: "online", label: "在线" },
+    ];
 
     return `
-      <section class="screen">
+      <section class="screen runtime-screen runtime-screen--list runtime-nearby-screen">
         ${renderScreenHeader({
           title: "附近的人",
-          subtitle: "用于弱关系扩展和同城场景，不混入联系人主列表",
           backPath: "/discover",
+          variant: "compact",
         })}
-        <div class="screen-scroll">
-          <div class="screen-stack">
-            <section class="hero-card hero-card--soft hero-card--nearby">
-              <span class="eyebrow">Nearby People</span>
-              <h3>附近的人属于弱关系扩展页：看距离、场景和打招呼，不混进联系人主目录。</h3>
+        <div class="screen-scroll runtime-scroll runtime-nearby-scroll">
+          <div class="runtime-nearby-content">
+            <section class="runtime-nearby-location" aria-label="当前位置">
+              <span class="runtime-nearby-location__icon">${renderIcon("mapPin", "runtime-nearby-location__glyph")}</span>
+              <span class="runtime-nearby-location__copy">
+                <strong>上海 · 徐汇滨江</strong>
+                <span>位置服务已开启</span>
+              </span>
+              <button type="button" data-action="show-hint" data-message="位置已更新为徐汇滨江。">更新</button>
             </section>
-            <section class="surface-card">
-              <div class="surface-card__header">
-                <div class="surface-card__header-copy">
-                  <h3>附近在线</h3>
-                  <p>先看距离和场景，再决定查看资料、发招呼或拉进同城群。</p>
-                </div>
-                <span class="badge">${nearbyPeople.length}</span>
+            <div class="runtime-nearby-filters" role="tablist" aria-label="附近的人筛选">
+              ${filterItems
+                .map(
+                  (filter) => `
+                    <button
+                      class="runtime-nearby-filter ${state.nearbyFilter === filter.id ? "is-active" : ""}"
+                      type="button"
+                      role="tab"
+                      data-action="set-nearby-filter"
+                      data-nearby-filter="${filter.id}"
+                      aria-selected="${state.nearbyFilter === filter.id}"
+                    >${filter.label}</button>
+                  `,
+                )
+                .join("")}
+            </div>
+            <section class="runtime-nearby-section" aria-labelledby="nearby-results-heading">
+              <div class="runtime-nearby-section__heading">
+                <h3 id="nearby-results-heading">发现 ${filteredPeople.length} 人</h3>
+                <span>按距离排序</span>
               </div>
-              ${nearbyPeople.length ? nearbyPeople.map(renderNearbyPersonCard).join("") : renderEmptyState("暂无附近的人", "开启位置权限后，附近在线的人会显示在这里。")}
+              ${
+                filteredPeople.length
+                  ? `<div class="runtime-nearby-list">${filteredPeople.map(renderNearbyPersonCard).join("")}</div>`
+                  : renderEmptyState("暂无匹配的人", "调整筛选条件后再看看。")
+              }
             </section>
           </div>
         </div>
@@ -4151,23 +4188,49 @@
   }
 
   function renderNearbyPersonCard(item) {
+    const greeted = state.greetedNearbyIds.has(item.id);
+
     return `
-      <div class="nearby-card">
-        ${renderAvatar(item.name, item.tone, "avatar--md")}
-        <div class="nearby-card__body">
-          <div class="nearby-card__title">
+      <article class="runtime-nearby-person">
+        <button
+          class="runtime-nearby-person__profile"
+          type="button"
+          data-action="navigate"
+          data-route="/contacts/profile/${escapeHtml(item.contactId)}"
+          aria-label="查看 ${escapeHtml(item.name)} 的资料"
+        >
+          <span class="runtime-nearby-person__avatar">
+            ${renderAvatar(item.name, item.tone, "avatar--md")}
+            <span class="runtime-nearby-person__presence ${presenceClass(item.status)}" aria-hidden="true"></span>
+          </span>
+          <span class="runtime-nearby-person__body">
+            <span class="runtime-nearby-person__title">
             <strong>${escapeHtml(item.name)}</strong>
-            <span class="badge">${escapeHtml(item.distance)}</span>
-          </div>
-          <p>${escapeHtml(item.note)}</p>
-          <div class="chip-row">
-            <span class="chip chip--filled">附近的人</span>
-            <span class="chip">${escapeHtml(item.distance)}</span>
-          </div>
-        </div>
-        <button class="ghost-button ghost-button--small" data-action="show-hint" data-message="后续这里可接发招呼、查看资料、发起同城群。">看看</button>
-      </div>
+              <span>${escapeHtml(item.distance)}</span>
+            </span>
+            <span class="runtime-nearby-person__meta">${escapeHtml(item.title)} · ${escapeHtml(item.status)}</span>
+            <span class="runtime-nearby-person__note">${escapeHtml(item.note)}</span>
+          </span>
+        </button>
+        <button
+          class="runtime-nearby-person__greet ${greeted ? "is-sent" : ""}"
+          type="button"
+          data-action="send-nearby-greeting"
+          data-nearby-id="${escapeHtml(item.id)}"
+          ${greeted ? "disabled" : ""}
+        >${greeted ? "已发送" : "打招呼"}</button>
+      </article>
     `;
+  }
+
+  function sendNearbyGreeting(personId) {
+    const person = (data.discover.nearbyPeople || []).find((item) => item.id === personId);
+    if (!person || state.greetedNearbyIds.has(personId)) {
+      return;
+    }
+    state.greetedNearbyIds.add(personId);
+    showToast("招呼已发送", `已向 ${person.name} 发送招呼。`);
+    render();
   }
 
   function renderDiscoverGamesScreen() {
@@ -6600,6 +6663,18 @@
     }
     if (action === "reset-scan") {
       resetScan();
+      return;
+    }
+    if (action === "set-nearby-filter") {
+      const filter = target.getAttribute("data-nearby-filter");
+      if (["all", "near", "online"].includes(filter)) {
+        state.nearbyFilter = filter;
+        render();
+      }
+      return;
+    }
+    if (action === "send-nearby-greeting") {
+      sendNearbyGreeting(target.getAttribute("data-nearby-id"));
       return;
     }
     if (action === "open-contact-actions") {
