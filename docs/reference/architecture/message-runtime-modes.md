@@ -16,10 +16,14 @@ server_storage_mode=persist
 content_audit_mode=plaintext
 ```
 
-`content_audit_mode` 目前用于声明运行目标：
+`content_audit_mode` 是全局消息加密发送策略：
 
-- `plaintext`：服务端可处理明文内容。
-- `e2ee`：目标为端侧加密；当前不代表完整 E2EE 协议已经切换。
+- `plaintext`：只接受普通消息端点，服务端可处理明文内容。
+- `e2ee`：只接受加密消息端点，普通消息发送返回 HTTP 409，`code=40902`。
+
+两个发送端点按模式互斥，客户端不得在加密失败时静默降级为明文。模式切换不会转换历史消息，历史明文与新密文可以共存。
+
+> 当前 API 已完成发送端点强制约束，但 Flutter 尚未完成密钥生命周期、标准协议加解密、多设备和群聊密钥分发。因此在正式客户端 E2EE 闭环上线前，不应在生产环境开启 `e2ee`。仅把明文 Base64 编码后调用加密端点不构成端到端加密。
 
 ## relay_only 功能边界
 
@@ -76,4 +80,5 @@ make api.test
 ```bash
 docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --test admin_integration message_runtime_settings_can_be_updated_and_read_publicly
 docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --test websocket_integration relay_only_message_broadcasts_without_server_persistence
+docker compose -f tests/docker-compose.test.yml run --rm rust-tests cargo test --test websocket_integration message_send_endpoints_follow_content_audit_mode
 ```

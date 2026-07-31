@@ -366,14 +366,13 @@
               </template>
             </a-form-item>
 
-            <a-form-item field="content_audit_mode" label="内容审计模式">
+            <a-form-item field="content_audit_mode" label="加密发送">
               <a-radio-group v-model="messageRuntimeForm.content_audit_mode">
-                <a-radio value="plaintext">plaintext（明文可审计）</a-radio>
-                <a-radio value="e2ee">e2ee（端侧加密）</a-radio>
+                <a-radio value="plaintext">关闭（发送明文消息）</a-radio>
+                <a-radio value="e2ee">开启（端到端加密发送）</a-radio>
               </a-radio-group>
               <template #help>
-                当前版本先记录运行模式；切换到 e2ee
-                不会立即改动现有消息收发主链路。
+                开启后服务端仅接受加密消息，旧版本客户端将无法发送；关闭后仅接受普通消息。模式切换不会转换历史消息。
               </template>
             </a-form-item>
 

@@ -34,6 +34,7 @@ pub enum AppError {
     // 资源相关错误
     NotFound(String),
     AlreadyExists(String),
+    MessageRuntimeConflict(String),
 
     // 验证错误
     ValidationError(String),
@@ -92,6 +93,7 @@ impl fmt::Display for AppError {
                     write!(f, "{}", msg)
                 }
             }
+            AppError::MessageRuntimeConflict(msg) => write!(f, "{}", msg),
             AppError::ValidationError(msg) => {
                 if msg.is_empty() {
                     write!(f, "验证失败")
@@ -179,6 +181,7 @@ impl AppError {
 
             // 冲突相关 (40901-40999)
             AppError::AlreadyExists(_) => 40901,
+            AppError::MessageRuntimeConflict(_) => 40902,
 
             // 限流相关 (42901-42999)
             AppError::RateLimitExceeded(_) => 42901,
@@ -213,7 +216,9 @@ impl AppError {
 
             AppError::ValidationError(_) | AppError::InvalidInput(_) => StatusCode::BAD_REQUEST,
 
-            AppError::AlreadyExists(_) => StatusCode::CONFLICT,
+            AppError::AlreadyExists(_) | AppError::MessageRuntimeConflict(_) => {
+                StatusCode::CONFLICT
+            }
 
             AppError::RateLimitExceeded(_) | AppError::TooManyRequests => {
                 StatusCode::TOO_MANY_REQUESTS

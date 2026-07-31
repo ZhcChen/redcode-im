@@ -81,6 +81,24 @@ impl MessageRuntimeSettings {
     pub fn is_relay_only(&self) -> bool {
         self.server_storage_mode == MessageServerStorageMode::RelayOnly
     }
+
+    pub fn ensure_plaintext_sending(&self) -> Result<(), AppError> {
+        if self.content_audit_mode == MessageContentAuditMode::E2ee {
+            return Err(AppError::MessageRuntimeConflict(
+                "后台已开启加密发送，请刷新配置后使用加密消息接口".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn ensure_encrypted_sending(&self) -> Result<(), AppError> {
+        if self.content_audit_mode == MessageContentAuditMode::Plaintext {
+            return Err(AppError::MessageRuntimeConflict(
+                "后台未开启加密发送，请刷新配置后使用普通消息接口".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 pub fn relay_only_unsupported(action: &str) -> AppError {
@@ -227,5 +245,17 @@ mod tests {
             MessageContentAuditMode::Plaintext
         );
         assert!(!settings.is_relay_only());
+        assert!(settings.ensure_plaintext_sending().is_ok());
+        assert!(settings.ensure_encrypted_sending().is_err());
+    }
+
+    #[test]
+    fn e2ee_runtime_only_accepts_encrypted_sending() {
+        let settings = MessageRuntimeSettings {
+            content_audit_mode: MessageContentAuditMode::E2ee,
+            ..MessageRuntimeSettings::default()
+        };
+        assert!(settings.ensure_plaintext_sending().is_err());
+        assert!(settings.ensure_encrypted_sending().is_ok());
     }
 }

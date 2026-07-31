@@ -71,10 +71,15 @@ async fn create_room(app: &TestApp, owner: &TestUser, members: &[&TestUser]) -> 
         .to_string()
 }
 
-async fn set_message_runtime(app: &TestApp, admin_token: &str, server_storage_mode: &str) {
+async fn set_message_runtime_modes(
+    app: &TestApp,
+    admin_token: &str,
+    server_storage_mode: &str,
+    content_audit_mode: &str,
+) {
     let payload = json!({
         "server_storage_mode": server_storage_mode,
-        "content_audit_mode": "plaintext"
+        "content_audit_mode": content_audit_mode
     })
     .to_string();
     let (status, body) = app
@@ -83,9 +88,13 @@ async fn set_message_runtime(app: &TestApp, admin_token: &str, server_storage_mo
     assert_eq!(
         status,
         StatusCode::OK,
-        "切换 {server_storage_mode} 消息运行模式: {}",
+        "切换 {server_storage_mode}/{content_audit_mode} 消息运行模式: {}",
         String::from_utf8_lossy(&body)
     );
+}
+
+async fn set_message_runtime(app: &TestApp, admin_token: &str, server_storage_mode: &str) {
+    set_message_runtime_modes(app, admin_token, server_storage_mode, "plaintext").await;
 }
 
 async fn set_relay_only_runtime(app: &TestApp, admin_token: &str) {
@@ -440,6 +449,58 @@ async fn websocket_auth_join_ping_and_message_broadcast_succeeds() {
 }
 
 #[tokio::test]
+async fn message_send_endpoints_follow_content_audit_mode() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "mode-owner").await;
+    let member = register_and_login(&app, "mode-member").await;
+    let room_id = create_room(&app, &owner, &[&member]).await;
+    let admin_token = bootstrap_admin_token(&app).await;
+    let encrypted_body = json!({
+        "content_summary": "[加密消息]",
+        "encrypted_content": "aGVsbG8=",
+        "encryption_metadata": {"alg": "test"}
+    })
+    .to_string();
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_body,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body_json(&body)["code"].as_u64(), Some(40902));
+
+    set_message_runtime_modes(&app, &admin_token, "persist", "e2ee").await;
+
+    let plaintext_body = json!({"content": "must not leak"}).to_string();
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &owner.token,
+            &plaintext_body,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body_json(&body)["code"].as_u64(), Some(40902));
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "e2ee 模式应接受加密消息: {}",
+        String::from_utf8_lossy(&body)
+    );
+}
+
+#[tokio::test]
 async fn persist_mode_rejects_uncommitted_attachment_keys() {
     let app = spawn_test_app().await;
     let owner = register_and_login(&app, "pao").await;
@@ -642,6 +703,7 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
     assert_message_persistence(&app, &message_id, 0).await;
     assert_no_message_push_job(&app, &message_id).await;
 
+    set_message_runtime_modes(&app, &admin_token, "relay_only", "e2ee").await;
     let encrypted_body = json!({
         "content_summary": "[加密消息]",
         "encrypted_content": "aGVsbG8=",
@@ -691,6 +753,7 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
     );
     assert_message_persistence(&app, &encrypted_message_id, 0).await;
     assert_no_message_push_job(&app, &encrypted_message_id).await;
+    set_message_runtime(&app, &admin_token, "relay_only").await;
 
     let ungranted_key = format!("messages/{room_id}/images_20260723/ungranted.png");
     let (status, ungranted_download_body) = app

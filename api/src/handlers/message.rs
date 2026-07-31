@@ -10,6 +10,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use crate::database::settings_store::SettingsStore;
 use crate::database::{
     file_upload_audit_store::FileUploadAuditStore,
     file_upload_multipart_store::FileUploadMultipartStore,
@@ -36,7 +37,9 @@ use crate::redis::models::{
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
     RoomHistoryClearedPayload,
 };
-use crate::services::message_runtime::{is_relay_only_runtime, relay_only_unsupported};
+use crate::services::message_runtime::{
+    is_relay_only_runtime, load_message_runtime_settings, relay_only_unsupported,
+};
 use crate::services::multipart_upload;
 use crate::services::push::PushMessageSnapshot;
 use crate::storage;
@@ -974,7 +977,10 @@ pub async fn send_message(
 ) -> Result<Json<SendMessageResponse>, AppError> {
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
-    let relay_only_runtime = is_relay_only_runtime(&state).await?;
+    let runtime =
+        load_message_runtime_settings(&SettingsStore::new(state.database.clone())).await?;
+    runtime.ensure_plaintext_sending()?;
+    let relay_only_runtime = runtime.is_relay_only();
 
     let store = MessageStore::new(state.database.pool());
 
@@ -1324,7 +1330,10 @@ pub async fn send_encrypted_message(
 ) -> Result<Json<SendMessageResponse>, AppError> {
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
-    let relay_only_runtime = is_relay_only_runtime(&state).await?;
+    let runtime =
+        load_message_runtime_settings(&SettingsStore::new(state.database.clone())).await?;
+    runtime.ensure_encrypted_sending()?;
+    let relay_only_runtime = runtime.is_relay_only();
 
     let store = MessageStore::new(state.database.pool());
 
