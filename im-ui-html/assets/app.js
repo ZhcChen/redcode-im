@@ -3198,7 +3198,7 @@
         <button class="runtime-sheet-layer__scrim" type="button" data-action="close-conversation-menu" aria-label="关闭会话操作"></button>
         <section class="runtime-conversation-menu" style="--conversation-menu-left: ${anchor.left}px; --conversation-menu-top: ${anchor.top}px;" role="dialog" aria-modal="true" aria-label="${escapeHtml(chat.name)} 会话操作">
           <button type="button" data-action="toggle-conversation-pin" data-chat-id="${chat.id}">${chat.pinned ? "取消置顶" : "置顶会话"}</button>
-          ${[["all", "全部通知"], ["mentions", "仅提及"], ["muted", "静音"]].map(([value, label]) => `<button class="${notificationMode === value ? "is-active" : ""}" type="button" data-action="set-conversation-notification" data-chat-id="${chat.id}" data-notification-mode="${value}">${label}</button>`).join("")}
+          ${[["mentions", "仅提及"], ["muted", "静音"]].map(([value, label]) => `<button class="${notificationMode === value ? "is-active" : ""}" type="button" data-action="set-conversation-notification" data-chat-id="${chat.id}" data-notification-mode="${value}">${label}</button>`).join("")}
           <button class="is-danger" type="button" data-action="archive-conversation" data-chat-id="${chat.id}">归档会话</button>
         </section>
       </div>
@@ -8122,7 +8122,7 @@
     const rect = screen?.getBoundingClientRect();
     if (!rect) return { left: 12, top: 96 };
     const width = 210;
-    const height = 210;
+    const height = 172;
     const edge = 12;
     const localX = clientX - rect.left;
     const localY = clientY - rect.top;
@@ -8286,13 +8286,15 @@
     }
     if (action === "set-conversation-notification") {
       const chat = findChat(target.getAttribute("data-chat-id"));
-      const mode = target.getAttribute("data-notification-mode");
-      if (chat && ["all", "mentions", "muted"].includes(mode)) {
-        chat.notificationMode = mode;
-        chat.muted = mode === "muted";
+      const requestedMode = target.getAttribute("data-notification-mode");
+      if (chat && ["mentions", "muted"].includes(requestedMode)) {
+        const currentMode = chat.notificationMode || (chat.muted ? "muted" : "all");
+        const nextMode = currentMode === requestedMode ? "all" : requestedMode;
+        chat.notificationMode = nextMode;
+        chat.muted = nextMode === "muted";
         state.conversationMenuChatId = null;
         state.conversationMenuAnchor = null;
-        showToast("通知设置已更新", `${chat.name}：${mode === "all" ? "全部通知" : mode === "mentions" ? "仅提及" : "静音"}。`);
+        showToast("通知设置已更新", `${chat.name}：${nextMode === "all" ? "已恢复默认通知" : nextMode === "mentions" ? "仅提及" : "静音"}。`);
         render();
       }
       return;
