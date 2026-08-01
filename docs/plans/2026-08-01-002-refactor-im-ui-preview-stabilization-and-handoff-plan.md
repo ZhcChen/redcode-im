@@ -65,7 +65,7 @@ execution: code
 - AE3. 给定用户短按会话 item，应进入聊天；长按同一 item，应只在触点附近打开悬浮菜单且底部导航保持可见。
 - AE4. 给定表情面板已打开，再切换到功能面板，容器高度平滑过渡并由内容撑开，不出现固定高度裁切。
 - AE5. 给定朋友圈 1 至 9 张图片的确定性数据，每种数量都匹配 `im-ui-html/docs/moments-media-layout.md`，宽度填充和间距一致。
-- AE6. 给定多端实现人员阅读交付文档，可明确找到页面、组件、状态、交互及 iOS/Android/H5 的差异和实施顺序。
+- AE6. 给定多端实现人员阅读交付文档，可明确找到页面、组件、状态、交互、Flutter 目标平台与 H5 的正式差异，以及原生历史实现差异和实施顺序。
 
 ### Scope Boundaries
 
@@ -101,10 +101,9 @@ execution: code
 ```mermaid
 flowchart TB
   A[Route and state inventory] --> B[Consistency review record]
-  B --> C[Minimal visual and data fixes]
   B --> D[Playwright behavior baseline]
+  D --> C[Minimal visual and data fixes]
   C --> E[Three-device regression]
-  D --> E
   E --> F[Frozen design documents]
   F --> G[Flutter platforms and H5 difference matrix]
 ```
@@ -112,9 +111,9 @@ flowchart TB
 ### Sequence
 
 1. 冻结路由、状态和既有规范事实，输出一致性审查记录。
-2. 补齐极端 mock 数据并修复审查确认的布局问题。
-3. 收敛 Overlay、动画、长按和滚动/焦点行为。
-4. 建立 Playwright 冒烟与三设备回归入口，反向验证前述修复。
+2. 建立 Playwright 基础设施、全路由冒烟和高风险行为刻画；尚未修复的问题以 `test.fixme` 关联审查记录，不以失败测试作为稳定基线。
+3. 补齐极端 mock 数据并修复审查确认的布局问题，同时启用对应布局回归断言。
+4. 收敛 Overlay、动画、长按和滚动/焦点行为，同时移除对应 `test.fixme` 并启用交互回归断言。
 5. 更新设计文档、测试索引和多端差异矩阵，宣布设计基线冻结。
 
 ### Risks and Dependencies
@@ -140,8 +139,8 @@ flowchart TB
 
 - **Goal:** 让公共布局和内容组件在目标设备及边界数据下保持稳定。
 - **Requirements:** R4-R6。
-- **Dependencies:** U1。
-- **Files:** `im-ui-html/assets/mock-data.js`、`im-ui-html/assets/app.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/moments-media-layout.md`、`docs/reviews/2026-08-01-im-ui-preview-device-regression.md`。
+- **Dependencies:** U1、U4。
+- **Files:** `im-ui-html/assets/mock-data.js`、`im-ui-html/assets/app.js`、`im-ui-html/assets/styles.css`、`im-ui-html/tests/ui-preview-smoke.spec.ts`、`im-ui-html/tests/visual-routes.ts`、`im-ui-html/docs/moments-media-layout.md`、`docs/reviews/2026-08-01-im-ui-preview-device-regression.md`。
 - **Approach:** 增加确定性的长文本、三位数计数、大成员数、空/错/加载和 1 至 9 张图片场景；仅通过公共 token、约束和组件规则修复，不为单条 mock 数据写页面特例。
 - **Test Scenarios:** 三种设备上的会话、聊天、联系人、群成员、搜索、朋友圈、设置表单；输入聚焦、composer/viewport 和预览安全区；横竖边缘内容；长中文、长英文连续串和混合内容。真实系统软键盘不在本单元模拟。
 - **Verification:** 三设备代表截图无横向滚动、遮挡、越界或不可点击区域，图片数量规则与文档逐项对应。
@@ -150,8 +149,8 @@ flowchart TB
 
 - **Goal:** 消除同页操作闪烁、层级错误、长按冲突和面板切换跳变。
 - **Requirements:** R7-R10。
-- **Dependencies:** U1。
-- **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/styles.css`、`im-ui-html/docs/component-inventory.md`。
+- **Dependencies:** U1、U4。
+- **Files:** `im-ui-html/assets/app.js`、`im-ui-html/assets/styles.css`、`im-ui-html/tests/ui-preview-interactions.spec.ts`、`im-ui-html/docs/component-inventory.md`。
 - **Approach:** 统一页面切换与同页 render 的动画判定；核对 Overlay stacking context、定位边界和底部导航层级；完善短按/长按取消条件、原生 callout 抑制、遮罩/`Escape`/焦点恢复；核验 accessible name、dialog semantics、键盘导航、`44px` 热区和 reduced motion；先保留全量 render，仅对可复现的滚动或焦点问题做局部 DOM 更新。
 - **Test Scenarios:** 会话四边触点长按、长按后取消、短按进入详情、菜单动作；Sheet/Popover/Toast 连续切换；表情与功能面板不同高度切换；同页状态操作和真实路由跳转；滚动后打开/关闭 Overlay；仅键盘完成打开、操作和关闭；减少动效模式。
 - **Verification:** 同页操作 `.screen` 不重放 `screen-enter`，路由变化会播放；Overlay 下底部导航按交互契约可见；面板高度由内容撑开且过渡连续。
@@ -160,11 +159,11 @@ flowchart TB
 
 - **Goal:** 为预览模块建立独立、可重复、无业务后端依赖的关键回归入口。
 - **Requirements:** R7-R12。
-- **Dependencies:** U1-U3。
-- **Files:** `im-ui-html/package.json`、`im-ui-html/bun.lock`、`im-ui-html/playwright.config.ts`、`im-ui-html/tests/routes.ts`、`im-ui-html/tests/ui-preview-smoke.spec.ts`、`im-ui-html/tests/ui-preview-interactions.spec.ts`、`im-ui-html/README.md`、`docs/reference/testing/README.md`、`Makefile`。
-- **Approach:** 使用 `@playwright/test` 启动固定 `8020` 静态服务；配置 iPhone 12 Pro、iPhone 16 Pro Max、Pixel 8 Pro 三个项目；以 `im-ui-html/tests/routes.ts` 作为自动化唯一机器可读 route manifest，测试检查它与 `page-map.md` 和运行态一致，禁止解析 Markdown 驱动测试或在多个 spec 复制路由。`make im-ui.test` 负责端口 preflight、停止既有占用并调用 Playwright，Playwright 只回收自身启动的服务；失败时保留截图和 trace。
-- **Test Scenarios:** 全路由 HTTP/渲染成功、Console error、文档宽度与设备画布溢出、会话短按/长按、动画类切换、底部导航可见、面板高度过渡、朋友圈多图布局、accessible name、dialog semantics、键盘导航、`44px` 热区和 reduced motion。
-- **Verification:** `cd im-ui-html && bun install --frozen-lockfile` 可复现依赖；`make im-ui.test` 可在干净环境完成端口 preflight、启动静态服务并完成测试；重复执行结果确定；测试结束不残留 `8020` 服务进程。
+- **Dependencies:** U1。
+- **Files:** `im-ui-html/package.json`、`im-ui-html/bun.lock`、`im-ui-html/playwright.config.ts`、`im-ui-html/tests/routes.ts`、`im-ui-html/tests/visual-routes.ts`、`im-ui-html/tests/ui-preview-smoke.spec.ts`、`im-ui-html/tests/ui-preview-interactions.spec.ts`、`im-ui-html/README.md`、`docs/reference/testing/README.md`、`Makefile`。
+- **Approach:** 在 `package.json` 固定 `packageManager: bun@1.3.11`，与仓库发布工作流一致；使用 `@playwright/test` 启动固定 `8020` 静态服务并配置 iPhone 12 Pro、iPhone 16 Pro Max、Pixel 8 Pro 三个项目。以 `im-ui-html/tests/routes.ts` 作为自动化唯一机器可读 route manifest，以 `im-ui-html/tests/visual-routes.ts` 维护高风险截图清单；测试检查 route manifest 与 `page-map.md`、运行态一致，禁止解析 Markdown 驱动测试或在多个 spec 复制路由。U4 先建立可通过的冒烟和行为刻画基线，已确认但尚未修复的问题使用带审查记录引用的 `test.fixme`，由 U2/U3 修复后移除。`make im-ui.test` 负责端口 preflight、停止既有占用并调用 Playwright，Playwright 只回收自身启动的服务；失败时保留截图和 trace。
+- **Test Scenarios:** 全路由 HTTP/渲染成功、Console error、文档宽度与设备画布溢出、会话短按/长按、动画类切换、底部导航可见、面板高度过渡、朋友圈多图布局、accessible name、dialog semantics、键盘导航、`44px` 热区和 reduced motion；按 `visual-routes.ts` 在三设备生成代表性截图到 `im-ui-html/test-results/visual-review/`，只用于人工评审，不执行像素断言。
+- **Verification:** Bun `1.3.11` 下执行 `cd im-ui-html && bun install --frozen-lockfile` 可复现依赖；`make im-ui.test` 可在干净环境完成端口 preflight、启动静态服务并完成测试；重复执行结果确定；测试结束不残留 `8020` 服务进程。U4 允许存在引用 U1 审查项的 `test.fixme`，但 U5 冻结前必须全部移除。
 
 ### U5. 设计基线冻结与多端 handoff
 
@@ -184,8 +183,9 @@ flowchart TB
 | --- | --- | --- | --- |
 | 静态差异检查 | `git diff --check` | U1-U5 | 无空白错误 |
 | JavaScript 语法 | `node --check im-ui-html/assets/app.js`、`node --check im-ui-html/assets/mock-data.js` | U2-U3 | 两个文件均退出 0 |
-| 测试依赖复现 | `cd im-ui-html && bun install --frozen-lockfile` | U4 | 严格使用已提交的 `bun.lock` 完成安装 |
+| 测试依赖复现 | `bun --version`、`cd im-ui-html && bun install --frozen-lockfile` | U4 | Bun 为 `1.3.11`，严格使用已提交的 `bun.lock` 完成安装 |
 | UI 预览回归 | `make im-ui.test` | U4-U5 | 三设备项目全部通过，无 Console error 或布局溢出 |
+| 代表性截图评审 | 检查 `im-ui-html/test-results/visual-review/` | U2-U5 | `visual-routes.ts` 中的高风险页面均生成三设备截图，人工评审完成且临时输出不提交 |
 | 人工视觉审查 | `http://127.0.0.1:8020/#/mobile-design/chats` 及审查记录中的高风险深链 | U1-U3 | 三设备截图与问题清单逐项关闭或明确延期 |
 | 文档一致性 | 对照 `im-ui-html/docs/page-map.md`、测试路由清单和实际 router | U1、U5 | 三者页面集合一致，所有 repo-relative 链接有效 |
 
@@ -199,6 +199,6 @@ flowchart TB
 - U2 完成时，三种目标设备和极端 mock 数据均通过布局审查，1 至 9 张图片排版与文档一致。
 - U3 完成时，同页操作、路由动画、长按、Overlay、面板切换、滚动和焦点行为满足 R7-R10。
 - U4 完成时，`make im-ui.test` 在无业务后端条件下稳定通过，失败证据可定位到路由、设备和交互步骤。
-- U5 完成时，设计基线、测试入口、多端差异和变更准入规则已写入正式文档并完成交叉校验。
+- U5 完成时，设计基线、测试入口、多端差异和变更准入规则已写入正式文档并完成交叉校验，U1 产生的 `test.fixme` 已全部移除。
 - 本计划不包含临时调试样式、失效截图、重复路由清单、废弃实验代码或未使用测试依赖。
 - 所有改动按最小可解释闭环提交并推送，提交前通过适用的语法、测试、文档和 diff 检查。
