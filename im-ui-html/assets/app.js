@@ -434,6 +434,11 @@
 
   root.addEventListener("click", handleClick);
   root.addEventListener("keydown", handleKeydown);
+  root.addEventListener("pointerdown", handleConversationPointerDown);
+  root.addEventListener("pointermove", handleConversationPointerMove);
+  root.addEventListener("pointerup", cancelConversationLongPress);
+  root.addEventListener("pointercancel", cancelConversationLongPress);
+  root.addEventListener("contextmenu", handleConversationContextMenu);
   root.addEventListener("input", handleInput);
   root.addEventListener("change", handleChange);
   root.addEventListener("submit", handleSubmit);
@@ -3154,7 +3159,7 @@
 
     return `
       <div class="runtime-conversation">
-        <button class="runtime-conversation__open" type="button" data-action="navigate" data-route="/chat/${chat.id}">
+        <button class="runtime-conversation__open" type="button" data-action="navigate" data-route="/chat/${chat.id}" data-chat-id="${chat.id}" aria-haspopup="dialog">
           <span class="runtime-conversation__avatar">
             ${avatar}
             ${presence}
@@ -3171,7 +3176,6 @@
             ${unread}
           </span>
         </button>
-        <button class="runtime-conversation__menu" type="button" data-action="open-conversation-menu" data-chat-id="${chat.id}" aria-label="${escapeHtml(chat.name)} 会话操作">${renderIcon("more", "runtime-conversation__menu-icon")}</button>
       </div>
     `;
   }
@@ -8006,6 +8010,15 @@
   }
 
   function handleKeydown(event) {
+    if (event.target instanceof Element) {
+      const conversation = event.target.closest(".runtime-conversation__open[data-chat-id]");
+      if (conversation && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) {
+        event.preventDefault();
+        openConversationMenu(conversation.getAttribute("data-chat-id"));
+        return;
+      }
+    }
+
     if (event.key === "Tab" && state.actionDialog) {
       const dialog = root.querySelector(".runtime-action-dialog");
       const focusable = dialog
@@ -8083,6 +8096,69 @@
     });
   }
 
+  const CONVERSATION_LONG_PRESS_MS = 500;
+  const CONVERSATION_LONG_PRESS_MOVE_TOLERANCE = 10;
+  let conversationLongPressTimer = 0;
+  let conversationLongPressOrigin = null;
+  let suppressConversationNavigation = false;
+  let suppressConversationNavigationTimer = 0;
+
+  function openConversationMenu(chatId) {
+    if (!findChat(chatId)) return;
+    state.conversationMenuChatId = chatId;
+    render();
+  }
+
+  function handleConversationPointerDown(event) {
+    if (event.button !== 0 || !(event.target instanceof Element)) return;
+    const conversation = event.target.closest(".runtime-conversation__open[data-chat-id]");
+    if (!conversation) return;
+
+    cancelConversationLongPress();
+    conversationLongPressOrigin = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      chatId: conversation.getAttribute("data-chat-id"),
+    };
+    conversationLongPressTimer = window.setTimeout(() => {
+      const chatId = conversationLongPressOrigin?.chatId;
+      conversationLongPressTimer = 0;
+      conversationLongPressOrigin = null;
+      suppressConversationNavigation = true;
+      window.clearTimeout(suppressConversationNavigationTimer);
+      suppressConversationNavigationTimer = window.setTimeout(() => {
+        suppressConversationNavigation = false;
+      }, 800);
+      if (window.navigator.vibrate) window.navigator.vibrate(10);
+      openConversationMenu(chatId);
+    }, CONVERSATION_LONG_PRESS_MS);
+  }
+
+  function handleConversationPointerMove(event) {
+    if (!conversationLongPressOrigin || event.pointerId !== conversationLongPressOrigin.pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - conversationLongPressOrigin.x,
+      event.clientY - conversationLongPressOrigin.y,
+    );
+    if (distance > CONVERSATION_LONG_PRESS_MOVE_TOLERANCE) cancelConversationLongPress();
+  }
+
+  function cancelConversationLongPress() {
+    window.clearTimeout(conversationLongPressTimer);
+    conversationLongPressTimer = 0;
+    conversationLongPressOrigin = null;
+  }
+
+  function handleConversationContextMenu(event) {
+    if (!(event.target instanceof Element)) return;
+    const conversation = event.target.closest(".runtime-conversation__open[data-chat-id]");
+    if (!conversation) return;
+    event.preventDefault();
+    cancelConversationLongPress();
+    openConversationMenu(conversation.getAttribute("data-chat-id"));
+  }
+
   function handleClick(event) {
     const target = event.target.closest("[data-action]");
     if (!target) {
@@ -8090,6 +8166,14 @@
     }
 
     const action = target.getAttribute("data-action");
+    if (action === "navigate" && target.matches(".runtime-conversation__open")) {
+      if (suppressConversationNavigation) {
+        event.preventDefault();
+        suppressConversationNavigation = false;
+        window.clearTimeout(suppressConversationNavigationTimer);
+        return;
+      }
+    }
     if (action === "go-back") {
       event.preventDefault();
       navigateBack(target.getAttribute("data-fallback-route"));
@@ -8140,11 +8224,6 @@
     }
     if (action === "open-message-menu") {
       state.messageMenu = { chatId: target.getAttribute("data-chat-id"), messageId: target.getAttribute("data-message-id") };
-      render();
-      return;
-    }
-    if (action === "open-conversation-menu") {
-      state.conversationMenuChatId = target.getAttribute("data-chat-id");
       render();
       return;
     }
