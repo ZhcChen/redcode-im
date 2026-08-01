@@ -126,6 +126,7 @@
     messageReadsTab: "read",
     chatActionsChatId: null,
     conversationMenuChatId: null,
+    conversationMenuAnchor: null,
     contactReport: { reason: "", detail: "", screenshots: [], status: "idle", error: "" },
     groupProfileDrafts: {},
     groupMemberSearch: "",
@@ -401,6 +402,7 @@
     state.messageEditor = null;
     state.chatActionsChatId = null;
     state.conversationMenuChatId = null;
+    state.conversationMenuAnchor = null;
     if (activeRoute.section !== "chat-detail") {
       state.composerPanel = null;
       state.composerPicker = null;
@@ -3186,18 +3188,18 @@
     const chat = findChat(state.conversationMenuChatId);
     if (!chat) return "";
     const notificationMode = chat.notificationMode || (chat.muted ? "muted" : "all");
+    const anchor = state.conversationMenuAnchor || { left: 12, top: 96 };
     return `
-      <div class="runtime-sheet-layer">
+      <div class="runtime-conversation-menu-layer">
         <button class="runtime-sheet-layer__scrim" type="button" data-action="close-conversation-menu" aria-label="关闭会话操作"></button>
-        <section class="runtime-conversation-sheet" role="dialog" aria-modal="true" aria-label="${escapeHtml(chat.name)} 会话操作">
-          <div class="runtime-conversation-sheet__heading"><strong>${escapeHtml(chat.name)}</strong><small>${chatTypeLabel(chat)}</small></div>
+        <section class="runtime-conversation-menu" style="--conversation-menu-left: ${anchor.left}px; --conversation-menu-top: ${anchor.top}px;" role="dialog" aria-modal="true" aria-label="${escapeHtml(chat.name)} 会话操作">
+          <div class="runtime-conversation-menu__heading"><strong>${escapeHtml(chat.name)}</strong><small>${chatTypeLabel(chat)}</small></div>
           <button type="button" data-action="toggle-conversation-pin" data-chat-id="${chat.id}">${chat.pinned ? "取消置顶" : "置顶会话"}</button>
           <fieldset>
             <legend>消息通知</legend>
-            ${[["all", "全部"], ["mentions", "仅提及"], ["muted", "静音"]].map(([value, label]) => `<label><input type="radio" name="notification-mode" data-kind="conversation-notification" data-chat-id="${chat.id}" value="${value}" ${notificationMode === value ? "checked" : ""}><span>${label}</span></label>`).join("")}
+            ${[["all", "全部通知"], ["mentions", "仅提及"], ["muted", "静音"]].map(([value, label]) => `<label><input type="radio" name="notification-mode" data-kind="conversation-notification" data-chat-id="${chat.id}" value="${value}" ${notificationMode === value ? "checked" : ""}><span>${label}${notificationMode === value ? renderIcon("checkCircle", "runtime-conversation-menu__check") : ""}</span></label>`).join("")}
           </fieldset>
           <button class="is-danger" type="button" data-action="archive-conversation" data-chat-id="${chat.id}">归档会话</button>
-          <button type="button" data-action="close-conversation-menu">取消</button>
         </section>
       </div>
     `;
@@ -7971,12 +7973,14 @@
     if (!chat) return;
     if (new URLSearchParams(window.location.search).get("state") === "archive-error") {
       state.conversationMenuChatId = null;
+      state.conversationMenuAnchor = null;
       showToast("归档失败", `${chat.name} 仍保留在原来的位置，请稍后重试。`);
       render();
       return;
     }
     chat.archived = true;
     state.conversationMenuChatId = null;
+    state.conversationMenuAnchor = null;
     showToast("会话已归档", `${chat.name} 已从聊天列表移除。`, {
       label: "撤销",
       name: "restore-conversation",
@@ -8016,7 +8020,7 @@
       const conversation = event.target.closest(".runtime-conversation__open[data-chat-id]");
       if (conversation && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) {
         event.preventDefault();
-        openConversationMenu(conversation.getAttribute("data-chat-id"));
+        openConversationMenu(conversation.getAttribute("data-chat-id"), conversationAnchorForKeyboard(conversation));
         return;
       }
     }
@@ -8055,6 +8059,7 @@
         state.chatActionsChatId = null;
       } else if (state.conversationMenuChatId) {
         state.conversationMenuChatId = null;
+        state.conversationMenuAnchor = null;
       } else if (state.settingsSheetKey) {
         state.settingsSheetKey = null;
       } else {
@@ -8105,10 +8110,32 @@
   let suppressConversationNavigation = false;
   let suppressConversationNavigationTimer = 0;
 
-  function openConversationMenu(chatId) {
+  function openConversationMenu(chatId, anchor) {
     if (!findChat(chatId)) return;
     state.conversationMenuChatId = chatId;
+    state.conversationMenuAnchor = anchor || { left: 12, top: 96 };
     render();
+  }
+
+  function conversationAnchorAtPoint(conversation, clientX, clientY) {
+    const screen = conversation.closest(".runtime-screen") || conversation.closest(".phone-screen");
+    const rect = screen?.getBoundingClientRect();
+    if (!rect) return { left: 12, top: 96 };
+    const width = 210;
+    const height = 286;
+    const edge = 12;
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    const left = Math.min(Math.max(edge, localX - width / 2), Math.max(edge, rect.width - width - edge));
+    const maxTop = Math.max(edge, rect.height - 82 - height - edge);
+    const above = localY - height - 14;
+    const top = above >= edge ? above : Math.min(localY + 14, maxTop);
+    return { left: Math.round(left), top: Math.round(Math.max(edge, top)) };
+  }
+
+  function conversationAnchorForKeyboard(conversation) {
+    const rect = conversation.getBoundingClientRect();
+    return conversationAnchorAtPoint(conversation, rect.right - 24, rect.top + rect.height / 2);
   }
 
   function handleConversationPointerDown(event) {
@@ -8122,9 +8149,11 @@
       x: event.clientX,
       y: event.clientY,
       chatId: conversation.getAttribute("data-chat-id"),
+      anchor: conversationAnchorAtPoint(conversation, event.clientX, event.clientY),
     };
     conversationLongPressTimer = window.setTimeout(() => {
       const chatId = conversationLongPressOrigin?.chatId;
+      const anchor = conversationLongPressOrigin?.anchor;
       conversationLongPressTimer = 0;
       conversationLongPressOrigin = null;
       suppressConversationNavigation = true;
@@ -8133,7 +8162,7 @@
         suppressConversationNavigation = false;
       }, 800);
       if (window.navigator.vibrate) window.navigator.vibrate(10);
-      openConversationMenu(chatId);
+      openConversationMenu(chatId, anchor);
     }, CONVERSATION_LONG_PRESS_MS);
   }
 
@@ -8158,7 +8187,10 @@
     if (!conversation) return;
     event.preventDefault();
     cancelConversationLongPress();
-    openConversationMenu(conversation.getAttribute("data-chat-id"));
+    openConversationMenu(
+      conversation.getAttribute("data-chat-id"),
+      conversationAnchorAtPoint(conversation, event.clientX, event.clientY),
+    );
   }
 
   function preventConversationNativeGesture(event) {
@@ -8237,6 +8269,7 @@
     }
     if (action === "close-conversation-menu") {
       state.conversationMenuChatId = null;
+      state.conversationMenuAnchor = null;
       render();
       return;
     }
@@ -8245,6 +8278,7 @@
       if (chat) {
         chat.pinned = !chat.pinned;
         state.conversationMenuChatId = null;
+        state.conversationMenuAnchor = null;
         showToast(chat.pinned ? "会话已置顶" : "已取消置顶", chat.name);
         render();
       }
@@ -8918,6 +8952,8 @@
       if (chat && ["all", "mentions", "muted"].includes(target.value)) {
         chat.notificationMode = target.value;
         chat.muted = target.value === "muted";
+        state.conversationMenuChatId = null;
+        state.conversationMenuAnchor = null;
         showToast("通知设置已更新", `${chat.name}：${target.value === "all" ? "全部通知" : target.value === "mentions" ? "仅提及" : "静音"}。`);
         render();
       }

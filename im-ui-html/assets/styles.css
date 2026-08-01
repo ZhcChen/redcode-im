@@ -543,86 +543,121 @@
   opacity: 0.45;
 }
 
-.runtime-conversation-sheet {
-  position: relative;
-  width: 100%;
-  padding: 20px 18px max(22px, env(safe-area-inset-bottom));
+.runtime-conversation-menu-layer {
+  position: absolute;
+  z-index: 90;
+  inset: 0;
+}
+
+.runtime-conversation-menu-layer .runtime-sheet-layer__scrim {
+  background: rgb(15 23 42 / 12%);
+}
+
+.runtime-conversation-menu {
+  position: absolute;
+  top: var(--conversation-menu-top);
+  left: var(--conversation-menu-left);
+  width: 210px;
+  padding: 6px;
   display: grid;
-  gap: 10px;
-  border-radius: 8px 8px 0 0;
-  background: var(--runtime-surface, var(--surface));
-  box-shadow: 0 -12px 36px rgb(15 23 42 / 16%);
-}
-
-.runtime-conversation-sheet__heading {
-  padding-bottom: 6px;
-  display: grid;
-  gap: 3px;
-}
-
-.runtime-conversation-sheet__heading strong {
-  color: var(--runtime-text, var(--text));
-  font-size: 17px;
-}
-
-.runtime-conversation-sheet__heading small,
-.runtime-conversation-sheet legend {
-  color: var(--runtime-muted, var(--text-secondary));
-  font-size: 12px;
-}
-
-.runtime-conversation-sheet > button {
-  min-height: 44px;
+  gap: 2px;
   border: 1px solid var(--runtime-line, var(--line));
   border-radius: 8px;
-  color: var(--runtime-text, var(--text));
   background: var(--runtime-surface, var(--surface));
-  font: inherit;
-  font-weight: 650;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 20%);
+  animation: runtime-context-menu-in 140ms ease-out both;
 }
 
-.runtime-conversation-sheet > button.is-danger {
+.runtime-conversation-menu__heading {
+  padding: 8px 10px 7px;
+  display: grid;
+  gap: 2px;
+  border-bottom: 1px solid var(--runtime-line, var(--line));
+}
+
+.runtime-conversation-menu__heading strong {
+  overflow: hidden;
+  color: var(--runtime-text, var(--text));
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runtime-conversation-menu__heading small,
+.runtime-conversation-menu legend {
+  color: var(--runtime-muted, var(--text-secondary));
+  font-size: 11px;
+}
+
+.runtime-conversation-menu > button,
+.runtime-conversation-menu fieldset span {
+  min-height: 38px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 6px;
+  color: var(--runtime-text, var(--text));
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 620;
+  text-align: left;
+}
+
+.runtime-conversation-menu > button:active,
+.runtime-conversation-menu fieldset label:active span {
+  background: var(--runtime-soft);
+}
+
+.runtime-conversation-menu > button.is-danger {
   color: var(--danger);
 }
 
-.runtime-conversation-sheet fieldset {
+.runtime-conversation-menu fieldset {
   margin: 0;
-  padding: 0;
+  padding: 5px 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 1px;
   border: 0;
+  border-top: 1px solid var(--runtime-line, var(--line));
+  border-bottom: 1px solid var(--runtime-line, var(--line));
 }
 
-.runtime-conversation-sheet fieldset legend {
-  grid-column: 1 / -1;
-  margin-bottom: 8px;
+.runtime-conversation-menu fieldset legend {
+  padding: 3px 10px 4px;
 }
 
-.runtime-conversation-sheet fieldset label {
+.runtime-conversation-menu fieldset label {
   position: relative;
 }
 
-.runtime-conversation-sheet fieldset input {
+.runtime-conversation-menu fieldset input {
   position: absolute;
   opacity: 0;
   pointer-events: none;
 }
 
-.runtime-conversation-sheet fieldset span {
-  min-height: 38px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--runtime-line, var(--line));
-  border-radius: 8px;
-  color: var(--runtime-muted, var(--text-secondary));
-  font-size: 13px;
+.runtime-conversation-menu fieldset input:checked + span {
+  color: var(--runtime-accent-deep);
 }
 
-.runtime-conversation-sheet fieldset input:checked + span {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--primary-soft);
+.runtime-conversation-menu__check {
+  width: 16px;
+  height: 16px;
+}
+
+@keyframes runtime-context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .runtime-contact-profile__action-list button.is-danger {
