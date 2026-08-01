@@ -11556,7 +11556,7 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 
 .phone-screen .runtime-conversation {
   min-height: 76px;
-  padding: 12px 14px;
+  padding: 0;
 }
 
 .phone-screen .runtime-contact-row {
