@@ -135,14 +135,14 @@ const adminUserRoleAssignments: Record<
 
 const storageProvider = {
   id: 'sp-1',
-  provider_type: 'backblaze_b2',
-  name: '测试 B2 配置',
+  provider_type: 's3_compatible',
+  name: '测试 S3 配置',
   secret_id: '',
   secret_key: '',
   secret_id_configured: true,
   secret_key_configured: true,
-  region: 'us-east-005',
-  endpoint: 'https://s3.us-east-005.backblazeb2.com',
+  region: 'us-east-1',
+  endpoint: 'http://rustfs:9000',
   bucket_name: 'demo-private-bucket',
   is_active: true,
   is_default: true,
@@ -155,9 +155,9 @@ const storageProvider = {
 const objectStorageCurrent = {
   source: 'database',
   version: 3,
-  provider: 'backblaze_b2',
-  endpoint: 'https://s3.us-east-005.backblazeb2.com',
-  region: 'us-east-005',
+  provider: 's3_compatible',
+  endpoint: 'http://rustfs:9000',
+  region: 'us-east-1',
   private_bucket: 'demo-private-bucket',
   public_bucket: 'demo-public-bucket',
   public_base_url: 'https://cdn.example.com',
@@ -175,7 +175,7 @@ const objectStorageHistory = [
   {
     ...objectStorageCurrent,
     status: 'active',
-    change_note: '切换到新的 B2 Key',
+    change_note: '切换到新的 S3 Key',
     created_by: 'admin',
     created_at: now,
     applied_by: 'admin',
@@ -185,7 +185,7 @@ const objectStorageHistory = [
     ...objectStorageCurrent,
     version: 2,
     status: 'superseded',
-    change_note: '初始接入 B2',
+    change_note: '初始接入 S3',
     created_by: 'admin',
     created_at: now,
     applied_by: 'admin',
@@ -198,15 +198,20 @@ const objectStorageProbePayload = {
   probe: {
     status: 'pass',
     allowed_capabilities: [
-      'listBuckets',
-      'readFiles',
-      'writeBuckets',
-      'writeFiles',
+      's3:ListBucket',
+      's3:GetObject',
+      's3:PutObject',
+      's3:DeleteObject',
     ],
-    required_runtime_capabilities: ['readFiles', 'writeFiles'],
+    required_runtime_capabilities: [
+      's3:ListBucket',
+      's3:GetObject',
+      's3:PutObject',
+      's3:DeleteObject',
+    ],
     missing_runtime_capabilities: [],
     bucket_init_supported: true,
-    s3_api_url: 'https://s3.us-east-005.backblazeb2.com',
+    s3_api_url: 'http://rustfs:9000',
     allowed: {
       buckets: [
         {
@@ -218,19 +223,14 @@ const objectStorageProbePayload = {
     },
     checks: [
       {
-        code: 'authorize_account',
+        code: 's3_connection',
         status: 'pass',
-        message: 'B2 authorize_account 成功。',
+        message: 'S3 endpoint 与凭据验证成功。',
       },
       {
-        code: 'runtime_capabilities',
+        code: 'private_bucket',
         status: 'pass',
-        message: '运行时所需能力齐全。',
-      },
-      {
-        code: 'bucket_init_capability',
-        status: 'pass',
-        message: '当前 key 具备 writeBuckets，可执行初始化桶。',
+        message: 'private bucket demo-private-bucket 可访问。',
       },
     ],
   },

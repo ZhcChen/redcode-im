@@ -1,6 +1,6 @@
 export function getProviderTypeLabel(type: string) {
   const labels: Record<string, string> = {
-    backblaze_b2: 'Backblaze B2',
+    s3_compatible: 'S3 兼容对象存储',
     unknown: '未知',
   };
 
@@ -9,7 +9,7 @@ export function getProviderTypeLabel(type: string) {
 
 export function getProviderTypeColor(type: string) {
   const colors: Record<string, string> = {
-    backblaze_b2: 'arcoblue',
+    s3_compatible: 'arcoblue',
     unknown: 'gray',
   };
 

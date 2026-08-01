@@ -212,7 +212,7 @@ test.describe('admin live backend smoke', () => {
           .locator('.arco-breadcrumb-item')
           .filter({ hasText: '对象存储配置' })
       ).toBeVisible();
-      await expect(page.getByText('Backblaze B2 运行时配置')).toBeVisible();
+      await expect(page.getByText('S3 兼容对象存储 运行时配置')).toBeVisible();
       await expect(page.getByText('当前生效配置')).toBeVisible();
       await expect(page.getByText('配置历史')).toBeVisible();
       await expect(

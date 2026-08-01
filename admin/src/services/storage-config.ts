@@ -144,7 +144,7 @@ function mapSummary(
   return {
     source: payload.source ?? 'env_fallback',
     version: payload.version ?? null,
-    provider: payload.provider ?? 'backblaze_b2',
+    provider: payload.provider ?? 's3_compatible',
     endpoint: payload.endpoint ?? null,
     region: payload.region ?? '',
     privateBucket: payload.private_bucket ?? '',
@@ -169,7 +169,7 @@ function mapHistoryItem(
     ...(summary ?? {
       source: 'database',
       version: null,
-      provider: 'backblaze_b2',
+      provider: 's3_compatible',
       endpoint: null,
       region: '',
       privateBucket: '',

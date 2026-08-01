@@ -15,13 +15,13 @@
       :wrapper-col-props="{ span: 18 }"
     >
       <a-form-item field="provider_type" label="提供商类型">
-        <a-input value="Backblaze B2" disabled />
+        <a-input value="S3 兼容对象存储" disabled />
       </a-form-item>
 
       <a-form-item field="name" label="配置名称">
         <a-input
           v-model="formData.name"
-          placeholder="请输入配置名称（如：生产 B2）"
+          placeholder="请输入配置名称（如：生产 RustFS）"
         />
       </a-form-item>
 
@@ -29,7 +29,7 @@
         <a-input
           v-model="formData.secret_id"
           :placeholder="
-            isEditing ? '留空表示沿用当前 Key ID' : '请输入 Backblaze B2 Key ID'
+            isEditing ? '留空表示沿用当前 Access Key' : '请输入 S3 Access Key'
           "
         />
         <template #help>
@@ -47,31 +47,26 @@
           :placeholder="
             isEditing
               ? '留空表示沿用当前 Application Key'
-              : '请输入 Backblaze B2 Application Key'
+              : '请输入 S3 Secret Key'
           "
         />
         <template #help>
           {{
             editingProvider?.secret_key_configured
               ? '当前已配置 Application Key；输入新值才会替换，留空则沿用当前配置。'
-              : '当前页只维护 B2 凭证，不回显历史明文。'
+              : '当前页只维护 S3 凭证，不回显历史明文。'
           }}
         </template>
       </a-form-item>
 
       <a-form-item field="region" label="Region">
-        <a-input v-model="formData.region" placeholder="us-east-005" />
-        <template #help>B2 Region，例如：us-east-005。</template>
+        <a-input v-model="formData.region" placeholder="us-east-1" />
+        <template #help>S3 Region，RustFS 通常可使用 us-east-1。</template>
       </a-form-item>
 
       <a-form-item field="endpoint" label="S3 Endpoint">
-        <a-input
-          v-model="formData.endpoint"
-          placeholder="https://s3.us-east-005.backblazeb2.com"
-        />
-        <template #help>
-          B2 使用 S3 兼容 Endpoint，例如：https://s3.us-east-005.backblazeb2.com
-        </template>
+        <a-input v-model="formData.endpoint" placeholder="http://rustfs:9000" />
+        <template #help> S3 兼容 Endpoint，例如：http://rustfs:9000 </template>
       </a-form-item>
 
       <a-form-item field="bucket_name" label="私有 Bucket">
@@ -79,7 +74,7 @@
           v-model="formData.bucket_name"
           placeholder="请输入私有 Bucket 名称"
         />
-        <template #help>当前仅支持 Backblaze B2 私有 Bucket。</template>
+        <template #help>用于头像、图片、附件和版本文件的私有 Bucket。</template>
       </a-form-item>
 
       <a-form-item field="is_active" label="启用状态">
@@ -145,7 +140,7 @@
   const formData = reactive<
     CreateStorageProviderPayload & { description?: string }
   >({
-    provider_type: 'backblaze_b2',
+    provider_type: 's3_compatible',
     name: '',
     secret_id: '',
     secret_key: '',
@@ -209,13 +204,13 @@
   };
 
   const modalTitle = computed(() =>
-    isEditing.value ? '编辑 B2 存储配置' : '新增 B2 存储配置'
+    isEditing.value ? '编辑 S3 存储配置' : '新增 S3 存储配置'
   );
 
   function syncForm() {
     if (props.provider) {
       Object.assign(formData, {
-        provider_type: 'backblaze_b2',
+        provider_type: 's3_compatible',
         name: props.provider.name,
         secret_id: '',
         secret_key: '',
@@ -230,7 +225,7 @@
     }
 
     Object.assign(formData, {
-      provider_type: 'backblaze_b2',
+      provider_type: 's3_compatible',
       name: '',
       secret_id: '',
       secret_key: '',
@@ -258,7 +253,7 @@
     }
 
     return props.submit({
-      provider_type: 'backblaze_b2',
+      provider_type: 's3_compatible',
       name: formData.name,
       secret_id: formData.secret_id,
       secret_key: formData.secret_key,

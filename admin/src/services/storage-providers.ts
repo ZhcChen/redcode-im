@@ -32,7 +32,7 @@ export interface ApiResponse<T> {
 }
 
 export interface CreateStorageProviderPayload {
-  provider_type: 'backblaze_b2';
+  provider_type: 's3_compatible';
   name: string;
   secret_id: string;
   secret_key: string;
@@ -45,7 +45,7 @@ export interface CreateStorageProviderPayload {
 }
 
 export interface UpdateStorageProviderPayload {
-  provider_type?: 'backblaze_b2';
+  provider_type?: 's3_compatible';
   name?: string;
   secret_id?: string;
   secret_key?: string;

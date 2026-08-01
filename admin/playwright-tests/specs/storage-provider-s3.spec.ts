@@ -3,14 +3,14 @@ import { test, expect } from '@playwright/test';
 import { adminE2EEnabled } from '../support/test-context';
 import { installAdminMockServer } from '../support/mock-server';
 
-test.describe('admin storage config b2 page', () => {
+test.describe('admin S3-compatible storage config page', () => {
   test.beforeEach(async () => {
     if (!adminE2EEnabled) {
       test.skip();
     }
   });
 
-  test('renders B2 runtime config workflow and keeps secret inputs empty', async ({
+  test('renders S3 runtime config workflow and keeps secret inputs empty', async ({
     page,
   }) => {
     await installAdminMockServer(page);
@@ -29,25 +29,25 @@ test.describe('admin storage config b2 page', () => {
     ).toBeVisible();
 
     await expect(
-      page.getByPlaceholder('https://s3.us-east-005.backblazeb2.com', {
+      page.getByPlaceholder('http://rustfs:9000', {
         exact: true,
       })
-    ).toHaveValue('https://s3.us-east-005.backblazeb2.com');
+    ).toHaveValue('http://rustfs:9000');
     await expect(
-      page.getByPlaceholder('us-east-005', { exact: true })
-    ).toHaveValue('us-east-005');
+      page.getByPlaceholder('us-east-1', { exact: true })
+    ).toHaveValue('us-east-1');
     await expect(page.getByPlaceholder('请输入私有 Bucket 名称')).toHaveValue(
       'demo-private-bucket'
     );
 
-    await expect(page.getByPlaceholder('留空表示沿用当前 Key ID')).toHaveValue(
-      ''
-    );
     await expect(
-      page.getByPlaceholder('留空表示沿用当前 Application Key')
+      page.getByPlaceholder('留空表示沿用当前 Access Key')
     ).toHaveValue('');
-    await expect(page.getByText('当前已配置 Key ID')).toBeVisible();
-    await expect(page.getByText('当前已配置 Application Key')).toBeVisible();
+    await expect(
+      page.getByPlaceholder('留空表示沿用当前 Secret Key')
+    ).toHaveValue('');
+    await expect(page.getByText('当前已配置 Access Key')).toBeVisible();
+    await expect(page.getByText('当前已配置 Secret Key')).toBeVisible();
 
     await page.getByRole('button', { name: '探测配置' }).click();
 
@@ -55,12 +55,12 @@ test.describe('admin storage config b2 page', () => {
     await expect(
       page.getByText('运行时所需能力', { exact: true })
     ).toBeVisible();
-    await expect(page.getByText('readFiles').first()).toBeVisible();
-    await expect(page.getByText('writeFiles').first()).toBeVisible();
-    await expect(page.getByText('writeBuckets').first()).toBeVisible();
+    await expect(page.getByText('s3:GetObject').first()).toBeVisible();
+    await expect(page.getByText('s3:PutObject').first()).toBeVisible();
+    await expect(page.getByText('s3:DeleteObject').first()).toBeVisible();
 
     await expect(page.getByText('v3').first()).toBeVisible();
-    await expect(page.getByText('切换到新的 B2 Key')).toBeVisible();
+    await expect(page.getByText('切换到新的 S3 Key')).toBeVisible();
     await expect(page.getByRole('button', { name: '回滚到 v2' })).toBeVisible();
   });
 });

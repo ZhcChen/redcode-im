@@ -6,8 +6,8 @@
 
     <a-space direction="vertical" :size="16" fill class="content-space">
       <a-alert type="info" :closable="false">
-        <template #title>Backblaze B2 运行时配置</template>
-        当前页直接管理 B2
+        <template #title>S3 兼容对象存储运行时配置</template>
+        当前页直接管理 RustFS、MinIO 等 S3 兼容对象存储
         的运行时配置版本。应用后会同步默认对象存储提供商，现有上传链路无需改动。
       </a-alert>
 
@@ -63,12 +63,12 @@
                 <a-descriptions-item label="下载签名 TTL">
                   {{ current.downloadUrlTtlSeconds }} 秒
                 </a-descriptions-item>
-                <a-descriptions-item label="Key ID">
+                <a-descriptions-item label="Access Key">
                   <a-tag :color="current.keyIdConfigured ? 'green' : 'gray'">
                     {{ current.keyIdConfigured ? '已配置' : '未配置' }}
                   </a-tag>
                 </a-descriptions-item>
-                <a-descriptions-item label="Application Key">
+                <a-descriptions-item label="Secret Key">
                   <a-tag
                     :color="current.applicationKeyConfigured ? 'green' : 'gray'"
                   >
@@ -84,20 +84,20 @@
               </a-descriptions>
             </a-card>
 
-            <a-card class="inner-card" title="编辑 / 应用 B2 配置" size="small">
+            <a-card class="inner-card" title="编辑 / 应用 S3 配置" size="small">
               <a-form :model="form" layout="vertical">
                 <a-form-item label="Endpoint">
                   <a-input
                     v-model="form.endpoint"
                     allow-clear
-                    placeholder="https://s3.us-east-005.backblazeb2.com"
+                    placeholder="http://rustfs:9000"
                   />
                 </a-form-item>
                 <a-form-item label="Region">
                   <a-input
                     v-model="form.region"
                     allow-clear
-                    placeholder="us-east-005"
+                    placeholder="us-east-1"
                   />
                 </a-form-item>
                 <a-form-item label="Private Bucket">
@@ -139,27 +139,27 @@
                     />
                   </a-form-item>
                 </div>
-                <a-form-item label="Key ID">
+                <a-form-item label="Access Key">
                   <a-input
                     v-model="form.keyId"
                     allow-clear
-                    placeholder="留空表示沿用当前 Key ID"
+                    placeholder="留空表示沿用当前 Access Key"
                   />
                   <div v-if="current?.keyIdConfigured" class="secret-hint">
-                    当前已配置 Key ID
+                    当前已配置 Access Key
                   </div>
                 </a-form-item>
-                <a-form-item label="Application Key">
+                <a-form-item label="Secret Key">
                   <a-input-password
                     v-model="form.applicationKey"
                     allow-clear
-                    placeholder="留空表示沿用当前 Application Key"
+                    placeholder="留空表示沿用当前 Secret Key"
                   />
                   <div
                     v-if="current?.applicationKeyConfigured"
                     class="secret-hint"
                   >
-                    当前已配置 Application Key
+                    当前已配置 Secret Key
                   </div>
                 </a-form-item>
                 <a-form-item label="变更说明">
@@ -430,7 +430,7 @@
 
   const form = reactive<StorageConfigFormState>({
     endpoint: '',
-    region: 'us-east-005',
+    region: 'us-east-1',
     privateBucket: '',
     publicBucket: '',
     publicBaseUrl: '',
@@ -470,9 +470,8 @@
   ];
 
   function fillFormFromCurrent(summary: ObjectStorageConfigSummary | null) {
-    form.endpoint =
-      summary?.endpoint || 'https://s3.us-east-005.backblazeb2.com';
-    form.region = summary?.region || 'us-east-005';
+    form.endpoint = summary?.endpoint || 'http://rustfs:9000';
+    form.region = summary?.region || 'us-east-1';
     form.privateBucket = summary?.privateBucket || '';
     form.publicBucket = summary?.publicBucket || '';
     form.publicBaseUrl = summary?.publicBaseUrl || '';
@@ -555,13 +554,13 @@
   }
 
   function capabilityColor(capability: string) {
-    if (capability === 'writeBuckets') {
+    if (capability === 's3:CreateBucket') {
       return 'purple';
     }
-    if (capability === 'writeFiles') {
+    if (capability === 's3:PutObject' || capability === 's3:DeleteObject') {
       return 'green';
     }
-    if (capability === 'readFiles') {
+    if (capability === 's3:GetObject' || capability === 's3:ListBucket') {
       return 'arcoblue';
     }
     return 'gray';
