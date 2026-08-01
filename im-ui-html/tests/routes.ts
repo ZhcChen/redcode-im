@@ -1,0 +1,52 @@
+export type PreviewRoute = {
+  id: string;
+  path: string;
+};
+
+export const previewRoutes: PreviewRoute[] = [
+  { id: 'auth-login', path: '/auth/login' },
+  { id: 'chats', path: '/chats' },
+  { id: 'chat-detail', path: '/chat/c_room_launch' },
+  { id: 'message-reads', path: '/chat/c_room_launch/message/m_1001/reads' },
+  { id: 'message-forward', path: '/chat/c_room_launch/forward/m_1001' },
+  { id: 'contacts', path: '/contacts' },
+  { id: 'contact-requests', path: '/contacts/requests' },
+  { id: 'contact-add', path: '/contacts/add' },
+  { id: 'contact-profile', path: '/contacts/profile/u_alice' },
+  { id: 'contact-report', path: '/contacts/profile/u_alice/report' },
+  { id: 'discover', path: '/discover' },
+  { id: 'moments', path: '/discover/moments' },
+  { id: 'moment-detail', path: '/discover/moments/mom_1002' },
+  { id: 'scan', path: '/discover/scan' },
+  { id: 'nearby', path: '/discover/nearby' },
+  { id: 'games', path: '/discover/games' },
+  { id: 'groups', path: '/groups' },
+  { id: 'group-create', path: '/groups/create' },
+  { id: 'group-settings', path: '/groups/settings/g_launch' },
+  { id: 'group-members', path: '/groups/g_launch/members' },
+  { id: 'group-admins', path: '/groups/g_launch/admins' },
+  { id: 'group-join-requests', path: '/groups/g_launch/join-requests' },
+  { id: 'group-invite', path: '/groups/g_launch/invite' },
+  { id: 'group-invitation', path: '/groups/g_launch/invitations/inv_1' },
+  { id: 'group-rules', path: '/groups/g_launch/rules' },
+  { id: 'group-mutes', path: '/groups/g_launch/mutes' },
+  { id: 'group-operation-logs', path: '/groups/g_launch/operation-logs' },
+  { id: 'stickers', path: '/stickers' },
+  { id: 'sticker-store', path: '/stickers/store' },
+  { id: 'sticker-pack', path: '/stickers/packs/pack_focus' },
+  { id: 'search', path: '/search' },
+  { id: 'mine', path: '/mine' },
+  { id: 'mine-profile', path: '/mine/profile' },
+  { id: 'settings', path: '/settings' },
+  { id: 'settings-account', path: '/settings/account' },
+  { id: 'settings-chat', path: '/settings/chat' },
+  { id: 'settings-privacy', path: '/settings/privacy' },
+  { id: 'settings-about', path: '/settings/about' },
+  { id: 'settings-profile-edit', path: '/settings/profile/edit' },
+  { id: 'settings-feedback', path: '/settings/feedback' },
+  { id: 'settings-password', path: '/settings/password' },
+  { id: 'settings-deactivate', path: '/settings/deactivate' },
+  { id: 'settings-version', path: '/settings/version' },
+];
+
+export const previewHash = (path: string) => `/#/mobile-design${path}`;

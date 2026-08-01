@@ -1,0 +1,17 @@
+{
+  "name": "redcode-im-ui-preview",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "bun@1.3.11",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:visual": "playwright test --grep @visual"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  },
+  "engines": {
+    "bun": "1.3.11"
+  }
+}

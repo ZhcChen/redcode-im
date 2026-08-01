@@ -8058,8 +8058,8 @@
       } else if (state.chatActionsChatId) {
         state.chatActionsChatId = null;
       } else if (state.conversationMenuChatId) {
-        state.conversationMenuChatId = null;
-        state.conversationMenuAnchor = null;
+        closeConversationMenu(true);
+        return;
       } else if (state.settingsSheetKey) {
         state.settingsSheetKey = null;
       } else {
@@ -8115,6 +8115,21 @@
     state.conversationMenuChatId = chatId;
     state.conversationMenuAnchor = anchor || { left: 12, top: 96 };
     render();
+    window.requestAnimationFrame(() => {
+      root.querySelector(".runtime-conversation-menu button")?.focus({ preventScroll: true });
+    });
+  }
+
+  function closeConversationMenu(restoreFocus = false) {
+    const chatId = state.conversationMenuChatId;
+    state.conversationMenuChatId = null;
+    state.conversationMenuAnchor = null;
+    render();
+    if (restoreFocus && chatId) {
+      window.requestAnimationFrame(() => {
+        root.querySelector(`.runtime-conversation__open[data-chat-id="${CSS.escape(chatId)}"]`)?.focus({ preventScroll: true });
+      });
+    }
   }
 
   function conversationAnchorAtPoint(conversation, clientX, clientY) {
@@ -8268,9 +8283,7 @@
       return;
     }
     if (action === "close-conversation-menu") {
-      state.conversationMenuChatId = null;
-      state.conversationMenuAnchor = null;
-      render();
+      closeConversationMenu(true);
       return;
     }
     if (action === "toggle-conversation-pin") {

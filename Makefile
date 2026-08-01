@@ -91,6 +91,9 @@ H5_APP_LOG := /tmp/redcode-h5-app.log
 H5_APP_BASE_URL ?= http://localhost:$(H5_APP_PORT)
 H5_APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 
+IM_UI_DIR := $(ROOT_DIR)/im-ui-html
+IM_UI_PORT := 8020
+
 IOS_APP_DIR := $(ROOT_DIR)/ios-app
 IOS_APP_PROJECT := $(IOS_APP_DIR)/RedCodeIM.xcodeproj
 IOS_APP_SCHEME := RedCodeIM
@@ -142,7 +145,7 @@ endef
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -154,6 +157,20 @@ endef
 	desktop-up desktop-down desktop-logs \
 	h5-app-up h5-app-down h5-app-logs \
 	website-up website-down website-logs
+
+im-ui.install: ## 安装 IM UI 预览测试依赖
+	@$(call require_cmd,$(BUN))
+	@cd "$(IM_UI_DIR)" && $(BUN) install --frozen-lockfile
+
+im-ui.test: ## 运行 IM UI 预览三设备 Playwright 回归
+	@$(call require_cmd,$(BUN))
+	@if lsof -tiTCP:$(IM_UI_PORT) -sTCP:LISTEN >/dev/null 2>&1; then lsof -tiTCP:$(IM_UI_PORT) -sTCP:LISTEN | xargs kill -9; fi
+	@cd "$(IM_UI_DIR)" && $(BUN) run test:e2e
+
+im-ui.test.visual: ## 生成 IM UI 预览三设备人工评审截图
+	@$(call require_cmd,$(BUN))
+	@if lsof -tiTCP:$(IM_UI_PORT) -sTCP:LISTEN >/dev/null 2>&1; then lsof -tiTCP:$(IM_UI_PORT) -sTCP:LISTEN | xargs kill -9; fi
+	@cd "$(IM_UI_DIR)" && $(BUN) run test:e2e:visual
 
 help: ## 显示所有可用命令
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "%-28s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
