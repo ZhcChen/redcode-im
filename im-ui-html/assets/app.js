@@ -438,7 +438,9 @@
   root.addEventListener("pointermove", handleConversationPointerMove);
   root.addEventListener("pointerup", cancelConversationLongPress);
   root.addEventListener("pointercancel", cancelConversationLongPress);
-  root.addEventListener("contextmenu", handleConversationContextMenu);
+  root.addEventListener("contextmenu", handleConversationContextMenu, { capture: true });
+  root.addEventListener("dragstart", preventConversationNativeGesture, { capture: true });
+  root.addEventListener("selectstart", preventConversationNativeGesture, { capture: true });
   root.addEventListener("input", handleInput);
   root.addEventListener("change", handleChange);
   root.addEventListener("submit", handleSubmit);
@@ -8157,6 +8159,12 @@
     event.preventDefault();
     cancelConversationLongPress();
     openConversationMenu(conversation.getAttribute("data-chat-id"));
+  }
+
+  function preventConversationNativeGesture(event) {
+    if (event.target instanceof Element && event.target.closest(".runtime-conversation__open")) {
+      event.preventDefault();
+    }
   }
 
   function handleClick(event) {
