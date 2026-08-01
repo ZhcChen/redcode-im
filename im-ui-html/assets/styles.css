@@ -568,29 +568,7 @@
   animation: runtime-context-menu-in 140ms ease-out both;
 }
 
-.runtime-conversation-menu__heading {
-  padding: 8px 10px 7px;
-  display: grid;
-  gap: 2px;
-  border-bottom: 1px solid var(--runtime-line, var(--line));
-}
-
-.runtime-conversation-menu__heading strong {
-  overflow: hidden;
-  color: var(--runtime-text, var(--text));
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.runtime-conversation-menu__heading small,
-.runtime-conversation-menu legend {
-  color: var(--runtime-muted, var(--text-secondary));
-  font-size: 11px;
-}
-
-.runtime-conversation-menu > button,
-.runtime-conversation-menu fieldset span {
+.runtime-conversation-menu > button {
   min-height: 38px;
   padding: 0 10px;
   display: flex;
@@ -606,46 +584,17 @@
   text-align: left;
 }
 
-.runtime-conversation-menu > button:active,
-.runtime-conversation-menu fieldset label:active span {
+.runtime-conversation-menu > button:active {
   background: var(--runtime-soft);
+}
+
+.runtime-conversation-menu > button.is-active {
+  color: var(--runtime-accent-deep);
+  background: var(--runtime-accent-soft);
 }
 
 .runtime-conversation-menu > button.is-danger {
   color: var(--danger);
-}
-
-.runtime-conversation-menu fieldset {
-  margin: 0;
-  padding: 5px 0;
-  display: grid;
-  gap: 1px;
-  border: 0;
-  border-top: 1px solid var(--runtime-line, var(--line));
-  border-bottom: 1px solid var(--runtime-line, var(--line));
-}
-
-.runtime-conversation-menu fieldset legend {
-  padding: 3px 10px 4px;
-}
-
-.runtime-conversation-menu fieldset label {
-  position: relative;
-}
-
-.runtime-conversation-menu fieldset input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.runtime-conversation-menu fieldset input:checked + span {
-  color: var(--runtime-accent-deep);
-}
-
-.runtime-conversation-menu__check {
-  width: 16px;
-  height: 16px;
 }
 
 @keyframes runtime-context-menu-in {
