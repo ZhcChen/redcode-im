@@ -377,6 +377,7 @@
   };
 
   let toastTimerId = 0;
+  let lastRenderedPath = null;
 
   initializeChats();
   hydrateUiState();
@@ -884,7 +885,9 @@
 
   function render() {
     applyBodyState();
-    const route = parseRoute(currentPath());
+    const path = currentPath();
+    const route = parseRoute(path);
+    const routeEntering = lastRenderedPath !== path;
     activatePreviewData(route);
     syncSelection(route);
     const mobilePreviewMode = route.section === "mobile-design";
@@ -896,7 +899,7 @@
     const specWorkspace = route.section === "spec";
 
     root.innerHTML = `
-      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""} ${runtimeMode ? "prototype-shell--app" : ""} ${mobilePreviewMode ? "prototype-shell--mobile-preview" : ""}" data-preview-mode="${previewMode}">
+      <div class="prototype-shell ${specWorkspace ? "prototype-shell--spec" : ""} ${runtimeMode ? "prototype-shell--app" : ""} ${mobilePreviewMode ? "prototype-shell--mobile-preview" : ""} ${routeEntering ? "is-route-entering" : ""}" data-preview-mode="${previewMode}">
         ${showPrototypeToolbar ? renderPrototypeToolbar(route) : ""}
         <main class="prototype-main ${wideStage ? "prototype-main--wide" : ""} ${specWorkspace ? "prototype-main--spec" : ""} ${runtimeMode ? "prototype-main--app" : ""} ${mobilePreviewMode ? "prototype-main--mobile-preview" : ""}">
           <div class="prototype-stage ${wideStage ? "prototype-stage--wide" : ""} ${fullBleedStage ? "prototype-stage--bleed" : ""} ${mobilePreviewMode ? "prototype-stage--mobile-preview" : ""}">
@@ -907,6 +910,7 @@
       </div>
       ${mobilePreviewMode ? "" : renderToasts()}
     `;
+    lastRenderedPath = path;
     bindScrollHeaders();
     focusActionDialog();
   }

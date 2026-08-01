@@ -1678,6 +1678,9 @@ img {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.prototype-shell.is-route-entering .screen {
   animation: screen-enter 220ms ease both;
 }
 
