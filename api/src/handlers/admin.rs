@@ -2489,10 +2489,10 @@ pub async fn create_storage_provider(
 
     // 解析提供商类型
     let provider_type = match req.provider_type.as_str() {
-        "backblaze_b2" => StorageProviderType::BackblazeB2,
+        "s3_compatible" | "backblaze_b2" => StorageProviderType::S3Compatible,
         _ => {
             return Err(AppError::ValidationError(format!(
-                "当前仅支持 Backblaze B2，收到: {}",
+                "当前仅支持 S3 兼容对象存储，收到: {}",
                 req.provider_type
             )));
         }
@@ -2510,9 +2510,9 @@ pub async fn create_storage_provider(
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
-    if provider_type == StorageProviderType::BackblazeB2 && bucket_name.is_none() {
+    if provider_type == StorageProviderType::S3Compatible && bucket_name.is_none() {
         return Err(AppError::ValidationError(
-            "Backblaze B2 需要配置 bucket_name".to_string(),
+            "S3 兼容对象存储需要配置 bucket_name".to_string(),
         ));
     }
 
@@ -2564,10 +2564,10 @@ pub async fn update_storage_provider(
     // 解析提供商类型（如果提供）
     let provider_type = if let Some(ref pt) = req.provider_type {
         match pt.as_str() {
-            "backblaze_b2" => Some(StorageProviderType::BackblazeB2),
+            "s3_compatible" | "backblaze_b2" => Some(StorageProviderType::S3Compatible),
             _ => {
                 return Err(AppError::ValidationError(format!(
-                    "当前仅支持 Backblaze B2，收到: {}",
+                    "当前仅支持 S3 兼容对象存储，收到: {}",
                     pt
                 )));
             }
@@ -2631,14 +2631,14 @@ pub async fn update_storage_provider(
             .or(existing_provider.bucket_name.as_deref())
     };
 
-    if effective_provider_type == StorageProviderType::BackblazeB2
+    if effective_provider_type == StorageProviderType::S3Compatible
         && effective_bucket_name
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .is_none()
     {
         return Err(AppError::ValidationError(
-            "Backblaze B2 需要配置 bucket_name".to_string(),
+            "S3 兼容对象存储需要配置 bucket_name".to_string(),
         ));
     }
 

@@ -62,6 +62,24 @@ func TestCORSPreflightForBrowserDirectUpload(t *testing.T) {
 	}
 }
 
+func TestS3HeadBucket(t *testing.T) {
+	_, ts := newTestServer()
+	defer ts.Close()
+
+	req, err := http.NewRequest(http.MethodHead, ts.URL+"/mock-bucket", nil)
+	if err != nil {
+		t.Fatalf("build request failed: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("head bucket request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expect 200, got %d", resp.StatusCode)
+	}
+}
+
 func TestB2AuthorizeAccount(t *testing.T) {
 	_, ts := newTestServer()
 	defer ts.Close()

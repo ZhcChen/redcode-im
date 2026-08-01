@@ -1,4 +1,4 @@
-pub mod b2;
+pub mod s3;
 
 use crate::database::models::{StorageProvider, StorageProviderType};
 use crate::error::AppError;
@@ -137,13 +137,13 @@ pub fn create_storage_service(
     provider: &StorageProvider,
 ) -> Result<Box<dyn StorageService>, AppError> {
     match provider.provider_type {
-        StorageProviderType::BackblazeB2 => {
+        StorageProviderType::S3Compatible => {
             if provider.bucket_name.is_none() {
                 return Err(AppError::ValidationError(
-                    "Backblaze B2 需要配置 bucket_name".to_string(),
+                    "S3 兼容对象存储需要配置 bucket_name".to_string(),
                 ));
             }
-            Ok(Box::new(b2::BackblazeB2Service::new(
+            Ok(Box::new(s3::S3CompatibleService::new(
                 provider.secret_id.clone(),
                 provider.secret_key.clone(),
                 provider.region.clone(),
@@ -163,8 +163,8 @@ pub fn create_storage_service_without_bucket(
     provider: &StorageProvider,
 ) -> Result<Box<dyn StorageService>, AppError> {
     match provider.provider_type {
-        StorageProviderType::BackblazeB2 => {
-            Ok(Box::new(b2::BackblazeB2Service::new_without_bucket(
+        StorageProviderType::S3Compatible => {
+            Ok(Box::new(s3::S3CompatibleService::new_without_bucket(
                 provider.secret_id.clone(),
                 provider.secret_key.clone(),
                 provider.region.clone(),
@@ -186,58 +186,57 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn test_b2_sanitize_endpoint_trims_scheme_and_trailing_slash() {
+    fn test_s3_sanitize_endpoint_preserves_scheme_and_trims_trailing_slash() {
         assert_eq!(
-            crate::storage::b2::sanitize_endpoint("https://s3.us-east-005.backblazeb2.com/"),
-            "s3.us-east-005.backblazeb2.com"
+            crate::storage::s3::sanitize_endpoint("http://rustfs:9000/"),
+            "http://rustfs:9000"
         );
         assert_eq!(
-            crate::storage::b2::sanitize_endpoint("s3.us-east-005.backblazeb2.com"),
-            "s3.us-east-005.backblazeb2.com"
+            crate::storage::s3::sanitize_endpoint("rustfs:9000"),
+            "https://rustfs:9000"
         );
     }
 
     #[test]
-    fn test_b2_clamp_signature_ttl_uses_default_and_max() {
-        assert_eq!(crate::storage::b2::clamp_signature_ttl(0), 900);
-        assert_eq!(crate::storage::b2::clamp_signature_ttl(100), 100);
-        assert_eq!(crate::storage::b2::clamp_signature_ttl(999_999), 86_400);
+    fn test_s3_clamp_signature_ttl_uses_default_and_max() {
+        assert_eq!(crate::storage::s3::clamp_signature_ttl(0), 900);
+        assert_eq!(crate::storage::s3::clamp_signature_ttl(100), 100);
+        assert_eq!(crate::storage::s3::clamp_signature_ttl(999_999), 86_400);
     }
 
     #[test]
-    fn test_b2_get_file_url_uses_path_style_endpoint() {
-        let service = crate::storage::b2::BackblazeB2Service::new(
-            "key-id".to_string(),
-            "application-key".to_string(),
-            "us-east-005".to_string(),
-            "https://s3.us-east-005.backblazeb2.com/".to_string(),
-            "demo-private-bucket".to_string(),
+    fn test_s3_get_file_url_uses_rustfs_path_style_endpoint() {
+        let service = crate::storage::s3::S3CompatibleService::new(
+            "access-key".to_string(),
+            "secret-key".to_string(),
+            "us-east-1".to_string(),
+            "http://rustfs:9000/".to_string(),
+            "redcode-im-private".to_string(),
         )
         .expect("service should build");
 
         let url = service.get_file_url("avatars/demo user.png");
         assert!(
-            url.starts_with("https://s3.us-east-005.backblazeb2.com/demo-private-bucket/")
-                || url.starts_with("http://s3.us-east-005.backblazeb2.com/demo-private-bucket/"),
+            url.starts_with("http://rustfs:9000/redcode-im-private/"),
             "unexpected host/path style url: {url}"
         );
         assert!(
-            url.ends_with("/demo-private-bucket/avatars/demo%20user.png"),
+            url.ends_with("/redcode-im-private/avatars/demo%20user.png"),
             "unexpected encoded object key: {url}"
         );
     }
 
     #[test]
-    fn test_create_storage_service_supports_b2_provider() {
+    fn test_create_storage_service_supports_s3_provider() {
         let provider = StorageProvider {
             id: Uuid::new_v4(),
-            provider_type: StorageProviderType::BackblazeB2,
-            name: "b2".to_string(),
-            secret_id: "key-id".to_string(),
-            secret_key: "application-key".to_string(),
-            region: "us-east-005".to_string(),
-            endpoint: "https://s3.us-east-005.backblazeb2.com".to_string(),
-            bucket_name: Some("demo-private-bucket".to_string()),
+            provider_type: StorageProviderType::S3Compatible,
+            name: "rustfs".to_string(),
+            secret_id: "access-key".to_string(),
+            secret_key: "secret-key".to_string(),
+            region: "us-east-1".to_string(),
+            endpoint: "http://rustfs:9000".to_string(),
+            bucket_name: Some("redcode-im-private".to_string()),
             is_active: true,
             is_default: true,
             description: None,
@@ -247,7 +246,7 @@ mod tests {
         };
 
         let result = create_storage_service(&provider);
-        assert!(result.is_ok(), "B2 provider should be accepted");
+        assert!(result.is_ok(), "S3-compatible provider should be accepted");
     }
 
     #[test]
@@ -258,8 +257,8 @@ mod tests {
             name: "unknown".to_string(),
             secret_id: "key-id".to_string(),
             secret_key: "application-key".to_string(),
-            region: "us-east-005".to_string(),
-            endpoint: "https://s3.us-east-005.backblazeb2.com".to_string(),
+            region: "us-east-1".to_string(),
+            endpoint: "http://rustfs:9000".to_string(),
             bucket_name: Some("demo-private-bucket".to_string()),
             is_active: true,
             is_default: false,

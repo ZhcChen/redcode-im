@@ -890,7 +890,7 @@ pub struct Friendship {
 #[sqlx(type_name = "int2")]
 pub enum StorageProviderType {
     Unknown = 0,
-    BackblazeB2 = 5, // Backblaze B2
+    S3Compatible = 5, // S3 兼容对象存储
 }
 
 impl Default for StorageProviderType {
@@ -903,7 +903,7 @@ impl fmt::Display for StorageProviderType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let text = match self {
             StorageProviderType::Unknown => "unknown",
-            StorageProviderType::BackblazeB2 => "backblaze_b2",
+            StorageProviderType::S3Compatible => "s3_compatible",
         };
         f.write_str(text)
     }

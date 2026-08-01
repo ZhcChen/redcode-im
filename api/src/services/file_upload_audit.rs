@@ -159,9 +159,9 @@ async fn process_task(
         return Ok(());
     }
 
-    if provider.provider_type != StorageProviderType::BackblazeB2 {
+    if provider.provider_type != StorageProviderType::S3Compatible {
         let _ = audit_store
-            .mark_failed(&task.id, "当前审核链路仅支持 Backblaze B2")
+            .mark_failed(&task.id, "当前审核链路仅支持 S3 兼容对象存储")
             .await;
         return Ok(());
     }
@@ -171,7 +171,7 @@ async fn process_task(
         Ok(object_head) => {
             let audited_at = Utc::now();
             let result = json!({
-                "vendor": "backblaze_b2",
+                "vendor": "s3_compatible",
                 "check": "head_object",
                 "provider_type": provider.provider_type.to_string(),
                 "media_kind": normalize_media_kind(&task.media_kind),
@@ -190,7 +190,7 @@ async fn process_task(
             let _ = audit_store
                 .mark_retry(
                     &task.id,
-                    "对象尚未同步到 Backblaze B2，稍后重试",
+                    "对象尚未同步到 S3 兼容对象存储，稍后重试",
                     Utc::now() + Duration::seconds(cfg.poll_interval_seconds.max(1)),
                 )
                 .await;

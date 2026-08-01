@@ -47,7 +47,7 @@ services:
       timeout: 3s
       retries: 3
 
-  # 外部依赖 Mock（B2/S3、FCM、APNs、IPInfo），本地联调不访问线上对象存储/推送服务
+  # 外部依赖 Mock（S3-compatible、FCM、APNs、IPInfo），本地联调不访问线上对象存储/推送服务
   external-mock:
     build:
       context: ../../../tests/mocks/external
@@ -97,17 +97,14 @@ services:
       REDIS_PUBSUB_URL: redis://:123456@redis:6379/0
       REDIS_CACHE_URL: redis://:123456@redis:6379/0
       EXTERNAL_MOCK_BASE_URL: http://external-mock:19080
-      REDCODE_IM_STORAGE_SCHEME: http
-      REDCODE_IM_B2_ENDPOINT: http://external-mock:19080
-      REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: http://127.0.0.1:19080
-      REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL: http://external-mock:19080/b2api/v4/b2_authorize_account
-      REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT: "true"
-      REDCODE_IM_B2_REGION: us-east-005
-      REDCODE_IM_B2_KEY_ID: mock-key-id
-      REDCODE_IM_B2_APPLICATION_KEY: mock-application-key
-      REDCODE_IM_B2_PRIVATE_BUCKET: mock-bucket
-      REDCODE_IM_B2_PUBLIC_BUCKET: mock-bucket
-      REDCODE_IM_B2_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
+      REDCODE_IM_S3_ENDPOINT: http://external-mock:19080
+      REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT: http://127.0.0.1:19080
+      REDCODE_IM_S3_REGION: us-east-1
+      REDCODE_IM_S3_ACCESS_KEY: mock-access-key
+      REDCODE_IM_S3_SECRET_KEY: mock-secret-key
+      REDCODE_IM_S3_PRIVATE_BUCKET: mock-bucket
+      REDCODE_IM_S3_PUBLIC_BUCKET: mock-bucket
+      REDCODE_IM_S3_PUBLIC_BASE_URL: http://external-mock:19080/mock-bucket
       IPINFO_BASE_URL: http://external-mock:19080/ipinfo
       PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
       PUSH_APNS_BASE_URL: http://external-mock:19080/apns

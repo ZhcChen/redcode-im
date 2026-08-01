@@ -904,7 +904,7 @@ COMMENT ON COLUMN public.messages.encryption_metadata IS 'E2EE 元数据（JSON�
 
 CREATE TABLE public.object_storage_configs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    provider character varying(50) DEFAULT 'backblaze_b2'::character varying NOT NULL,
+    provider character varying(50) DEFAULT 's3_compatible'::character varying NOT NULL,
     endpoint text,
     region character varying(50) NOT NULL,
     encrypted_key_id text,
@@ -4387,5 +4387,4 @@ ALTER TABLE ONLY public.user_room_pins
 --
 -- PostgreSQL database dump complete
 --
-
 

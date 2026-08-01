@@ -1,6 +1,6 @@
 # 版本管理 API
 
-本文记录 Admin 端应用版本管理接口以及客户端获取最新版本的公开端点。所有示例均基于已启用的 **Backblaze B2** 直传能力。
+本文记录 Admin 端应用版本管理接口以及客户端获取最新版本的公开端点。所有示例均基于已启用的 **S3 兼容对象存储** 直传能力。
 
 ## 1. Admin 模块
 
@@ -32,7 +32,7 @@
   "message": "生成安装包直传签名成功",
   "key": "releases/desktop/stable/20260413120000-demo.dmg",
   "signature": {
-    "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/releases/desktop/stable/20260413120000-demo.dmg",
+    "url": "http://rustfs:9000/demo-private-bucket/releases/desktop/stable/20260413120000-demo.dmg",
     "method": "PUT",
     "headers": {
       "Authorization": "AWS4-HMAC-SHA256 Credential=...",
@@ -113,7 +113,7 @@
 {
   "success": true,
   "message": "生成下载链接成功",
-  "download_url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/releases/...?..."
+  "download_url": "http://rustfs:9000/demo-private-bucket/releases/...?..."
 }
 ```
 

@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 const DEFAULT_SIGNATURE_TTL: i64 = 900;
 const MAX_SIGNATURE_TTL: i64 = 24 * 3600;
-const DEFAULT_REGION: &str = "us-east-005";
+const DEFAULT_REGION: &str = "us-east-1";
 
 fn is_storage_network_disabled() -> bool {
     std::env::var("REDCODE_IM_STORAGE_DISABLE_NETWORK")
@@ -24,34 +24,24 @@ fn is_storage_network_disabled() -> bool {
         .is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true"))
 }
 
-fn storage_request_scheme() -> &'static str {
-    match std::env::var("REDCODE_IM_STORAGE_SCHEME") {
-        Ok(v) if v.trim().eq_ignore_ascii_case("http") => "http",
-        _ => "https",
-    }
-}
-
 pub(crate) fn sanitize_endpoint(endpoint: &str) -> String {
-    endpoint
-        .trim()
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .trim_start_matches("//")
-        .trim_end_matches('/')
-        .to_string()
+    let endpoint = endpoint.trim().trim_end_matches('/');
+    if endpoint.is_empty() {
+        String::new()
+    } else if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+        endpoint.to_string()
+    } else {
+        format!("https://{endpoint}")
+    }
 }
 
 fn ensure_endpoint_url(endpoint: &str) -> String {
-    let sanitized = sanitize_endpoint(endpoint);
-    if sanitized.is_empty() {
-        String::new()
-    } else {
-        format!("{}://{}", storage_request_scheme(), sanitized)
-    }
+    sanitize_endpoint(endpoint)
 }
 
 fn presign_public_endpoint() -> Option<String> {
-    std::env::var("REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT")
+    std::env::var("REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT")
+        .or_else(|_| std::env::var("REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT"))
         .ok()
         .map(|value| value.trim().trim_end_matches('/').to_string())
         .filter(|value| !value.is_empty())
@@ -126,14 +116,14 @@ fn is_not_found_error_message(message: &str) -> bool {
         || normalized.contains("http status: 404")
 }
 
-pub struct BackblazeB2Service {
+pub struct S3CompatibleService {
     region: String,
     endpoint: String,
     bucket_name: String,
     client: Client,
 }
 
-impl BackblazeB2Service {
+impl S3CompatibleService {
     pub fn new(
         secret_id: String,
         secret_key: String,
@@ -167,7 +157,7 @@ impl BackblazeB2Service {
         let bucket_name = self.bucket_name.trim();
         if bucket_name.is_empty() {
             Err(AppError::ValidationError(
-                "Backblaze B2 需要配置 bucket_name".to_string(),
+                "S3 兼容对象存储需要配置 bucket_name".to_string(),
             ))
         } else {
             Ok(bucket_name)
@@ -193,12 +183,12 @@ impl BackblazeB2Service {
             .map(|value| value as i64)
             .unwrap_or(DEFAULT_SIGNATURE_TTL);
         PresigningConfig::expires_in(Duration::from_secs(clamp_signature_ttl(ttl) as u64))
-            .map_err(|e| AppError::InternalError(format!("创建 B2 presign 配置失败: {}", e)))
+            .map_err(|e| AppError::InternalError(format!("创建 S3 presign 配置失败: {}", e)))
     }
 }
 
 #[async_trait]
-impl StorageService for BackblazeB2Service {
+impl StorageService for S3CompatibleService {
     async fn upload_file(
         &self,
         key: &str,
@@ -208,7 +198,7 @@ impl StorageService for BackblazeB2Service {
         if is_storage_network_disabled() {
             let url = self.get_file_url(key);
             debug!(
-                "跳过 B2 upload_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, url={}",
+                "跳过 S3 upload_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, url={}",
                 key, url
             );
             return Ok(url);
@@ -229,8 +219,8 @@ impl StorageService for BackblazeB2Service {
         }
 
         request.send().await.map_err(|e| {
-            error!("上传文件到 B2 失败: key={}, error={}", key, e);
-            AppError::InternalError(format!("上传文件到 Backblaze B2 失败: {}", e))
+            error!("上传文件到 S3 失败: key={}, error={}", key, e);
+            AppError::InternalError(format!("上传文件到 S3 兼容对象存储 失败: {}", e))
         })?;
 
         Ok(self.get_file_url(key))
@@ -239,7 +229,7 @@ impl StorageService for BackblazeB2Service {
     async fn delete_file(&self, key: &str) -> Result<(), AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 delete_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                "跳过 S3 delete_file（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
                 key
             );
             return Ok(());
@@ -253,8 +243,8 @@ impl StorageService for BackblazeB2Service {
             .send()
             .await
             .map_err(|e| {
-                error!("删除 B2 文件失败: key={}, error={}", key, e);
-                AppError::InternalError(format!("删除 Backblaze B2 文件失败: {}", e))
+                error!("删除 S3 文件失败: key={}, error={}", key, e);
+                AppError::InternalError(format!("删除 S3 兼容对象存储 文件失败: {}", e))
             })?;
         Ok(())
     }
@@ -262,7 +252,7 @@ impl StorageService for BackblazeB2Service {
     async fn file_exists(&self, key: &str) -> Result<bool, AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 file_exists（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                "跳过 S3 file_exists（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
                 key
             );
             return Ok(true);
@@ -278,7 +268,7 @@ impl StorageService for BackblazeB2Service {
     async fn head_object(&self, key: &str) -> Result<ObjectHead, AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 head_object（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
+                "跳过 S3 head_object（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}",
                 key
             );
             return Ok(ObjectHead {
@@ -300,9 +290,9 @@ impl StorageService for BackblazeB2Service {
                 if is_not_found_error_message(&message) {
                     AppError::NotFound("对象不存在".to_string())
                 } else {
-                    error!("获取 B2 对象元数据失败: key={}, error={}", key, message);
+                    error!("获取 S3 对象元数据失败: key={}, error={}", key, message);
                     AppError::InternalError(format!(
-                        "获取 Backblaze B2 对象元数据失败: {}",
+                        "获取 S3 兼容对象存储 对象元数据失败: {}",
                         message
                     ))
                 }
@@ -325,13 +315,13 @@ impl StorageService for BackblazeB2Service {
 
     async fn list_buckets(&self) -> Result<Vec<BucketInfo>, AppError> {
         if is_storage_network_disabled() {
-            debug!("跳过 B2 list_buckets（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）");
+            debug!("跳过 S3 list_buckets（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）");
             return Ok(Vec::new());
         }
 
         let output = self.client.list_buckets().send().await.map_err(|e| {
-            error!("获取 B2 bucket 列表失败: {}", e);
-            AppError::InternalError(format!("获取 Backblaze B2 bucket 列表失败: {}", e))
+            error!("获取 S3 bucket 列表失败: {}", e);
+            AppError::InternalError(format!("获取 S3 兼容对象存储 bucket 列表失败: {}", e))
         })?;
 
         Ok(output
@@ -348,7 +338,7 @@ impl StorageService for BackblazeB2Service {
     async fn create_bucket(&self, bucket_name: &str) -> Result<(), AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 create_bucket（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: name={}",
+                "跳过 S3 create_bucket（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: name={}",
                 bucket_name
             );
             return Ok(());
@@ -367,10 +357,10 @@ impl StorageService for BackblazeB2Service {
             .map_err(|e| {
                 let message = e.to_string();
                 warn!(
-                    "创建 B2 bucket 失败: name={}, error={}",
+                    "创建 S3 bucket 失败: name={}, error={}",
                     bucket_name, message
                 );
-                AppError::InternalError(format!("创建 Backblaze B2 bucket 失败: {}", message))
+                AppError::InternalError(format!("创建 S3 兼容对象存储 bucket 失败: {}", message))
             })?;
 
         Ok(())
@@ -397,7 +387,7 @@ impl StorageService for BackblazeB2Service {
         let presigned = request
             .presigned(Self::presigning_config(None)?)
             .await
-            .map_err(|e| AppError::InternalError(format!("生成 B2 上传签名失败: {}", e)))?;
+            .map_err(|e| AppError::InternalError(format!("生成 S3 上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
             url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
@@ -415,7 +405,7 @@ impl StorageService for BackblazeB2Service {
         if is_storage_network_disabled() {
             let upload_id = Uuid::new_v4().simple().to_string();
             debug!(
-                "跳过 B2 initiate_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
+                "跳过 S3 initiate_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
                 key, upload_id
             );
             return Ok(upload_id);
@@ -435,7 +425,7 @@ impl StorageService for BackblazeB2Service {
         }
 
         let output = request.send().await.map_err(|e| {
-            AppError::InternalError(format!("初始化 Backblaze B2 分片上传失败: {}", e))
+            AppError::InternalError(format!("初始化 S3 兼容对象存储 分片上传失败: {}", e))
         })?;
 
         output.upload_id().map(str::to_string).ok_or_else(|| {
@@ -466,7 +456,7 @@ impl StorageService for BackblazeB2Service {
             .part_number(part_number)
             .presigned(Self::presigning_config(None)?)
             .await
-            .map_err(|e| AppError::InternalError(format!("生成 B2 分片上传签名失败: {}", e)))?;
+            .map_err(|e| AppError::InternalError(format!("生成 S3 分片上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
             url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
@@ -484,7 +474,7 @@ impl StorageService for BackblazeB2Service {
     ) -> Result<(), AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 complete_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}, parts={}",
+                "跳过 S3 complete_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}, parts={}",
                 key,
                 upload_id,
                 parts.len()
@@ -522,7 +512,7 @@ impl StorageService for BackblazeB2Service {
             .send()
             .await
             .map_err(|e| {
-                AppError::InternalError(format!("完成 Backblaze B2 分片上传失败: {}", e))
+                AppError::InternalError(format!("完成 S3 兼容对象存储 分片上传失败: {}", e))
             })?;
 
         Ok(())
@@ -531,7 +521,7 @@ impl StorageService for BackblazeB2Service {
     async fn abort_multipart_upload(&self, key: &str, upload_id: &str) -> Result<(), AppError> {
         if is_storage_network_disabled() {
             debug!(
-                "跳过 B2 abort_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
+                "跳过 S3 abort_multipart_upload（REDCODE_IM_STORAGE_DISABLE_NETWORK=1）: key={}, upload_id={}",
                 key, upload_id
             );
             return Ok(());
@@ -546,7 +536,7 @@ impl StorageService for BackblazeB2Service {
             .send()
             .await
             .map_err(|e| {
-                AppError::InternalError(format!("中止 Backblaze B2 分片上传失败: {}", e))
+                AppError::InternalError(format!("中止 S3 兼容对象存储 分片上传失败: {}", e))
             })?;
         Ok(())
     }
@@ -564,7 +554,7 @@ impl StorageService for BackblazeB2Service {
             .key(normalize_object_key(key))
             .presigned(Self::presigning_config(expires_in)?)
             .await
-            .map_err(|e| AppError::InternalError(format!("生成 B2 下载链接失败: {}", e)))?;
+            .map_err(|e| AppError::InternalError(format!("生成 S3 下载链接失败: {}", e)))?;
 
         Ok(rewrite_presigned_url_for_client(
             presigned.uri().to_string(),
@@ -583,7 +573,7 @@ fn build_client(
         secret_key.trim(),
         None,
         None,
-        "redcode-im-backblaze-b2",
+        "redcode-im-s3-compatible",
     );
     let region = Region::new(normalize_region(region));
     let endpoint_url = ensure_endpoint_url(endpoint);

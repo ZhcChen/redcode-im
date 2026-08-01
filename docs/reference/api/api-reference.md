@@ -1257,7 +1257,7 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 对象存储测试接口
 
-> 以下接口用于测试 Backblaze B2 对象存储能力
+> 以下接口用于测试 S3 兼容对象存储能力
 
 #### 6. 测试上传
 - **接口**: `POST /api/admin/storage-providers/test/upload`

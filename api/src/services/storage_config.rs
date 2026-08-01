@@ -10,7 +10,6 @@ use aws_credential_types::Credentials;
 use aws_sdk_s3::{config::Builder as S3ConfigBuilder, Client as S3Client};
 use base64::Engine;
 use chrono::{DateTime, Utc};
-use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -27,20 +26,18 @@ use crate::{
     AppError,
 };
 
-pub const PROVIDER_BACKBLAZE_B2: &str = "backblaze_b2";
+pub const PROVIDER_S3_COMPATIBLE: &str = "s3_compatible";
 pub const SOURCE_DATABASE: &str = "database";
 pub const SOURCE_ENV_FALLBACK: &str = "env_fallback";
 pub const STATUS_ACTIVE: &str = "active";
 pub const STATUS_SUPERSEDED: &str = "superseded";
 pub const STATUS_ROLLED_BACK: &str = "rolled_back";
 
-const DEFAULT_REGION: &str = "us-east-005";
+const DEFAULT_REGION: &str = "us-east-1";
 const DEFAULT_PRIVATE_BUCKET: &str = "redcode-im-private";
 const DEFAULT_UPLOAD_URL_TTL_SECONDS: u32 = 900;
 const DEFAULT_DOWNLOAD_URL_TTL_SECONDS: u32 = 600;
-const DEFAULT_BACKBLAZE_AUTHORIZE_ACCOUNT_URL: &str =
-    "https://api.backblazeb2.com/b2api/v4/b2_authorize_account";
-const DEFAULT_PROVIDER_SYNC_NAME: &str = "system-b2-runtime";
+const DEFAULT_PROVIDER_SYNC_NAME: &str = "system-s3-runtime";
 const DEFAULT_PROVIDER_SYNC_DESCRIPTION: &str = "由对象存储运行时配置同步";
 
 #[derive(Debug, Clone)]
@@ -62,21 +59,35 @@ pub struct BootstrapConfig {
 
 impl BootstrapConfig {
     pub fn from_env() -> Self {
-        let region = env::var("REDCODE_IM_B2_REGION").unwrap_or_default();
+        let region = env_with_legacy("REDCODE_IM_S3_REGION", "REDCODE_IM_B2_REGION");
         Self {
-            provider: PROVIDER_BACKBLAZE_B2.to_string(),
-            endpoint: env::var("REDCODE_IM_B2_ENDPOINT").unwrap_or_default(),
+            provider: PROVIDER_S3_COMPATIBLE.to_string(),
+            endpoint: env_with_legacy("REDCODE_IM_S3_ENDPOINT", "REDCODE_IM_B2_ENDPOINT"),
             region,
-            key_id: env::var("REDCODE_IM_B2_KEY_ID").unwrap_or_default(),
-            application_key: env::var("REDCODE_IM_B2_APPLICATION_KEY").unwrap_or_default(),
-            private_bucket: env::var("REDCODE_IM_B2_PRIVATE_BUCKET").unwrap_or_default(),
-            public_bucket: env::var("REDCODE_IM_B2_PUBLIC_BUCKET").unwrap_or_default(),
-            public_base_url: env::var("REDCODE_IM_B2_PUBLIC_BASE_URL").unwrap_or_default(),
-            upload_url_ttl: parse_duration_env(
+            key_id: env_with_legacy("REDCODE_IM_S3_ACCESS_KEY", "REDCODE_IM_B2_KEY_ID"),
+            application_key: env_with_legacy(
+                "REDCODE_IM_S3_SECRET_KEY",
+                "REDCODE_IM_B2_APPLICATION_KEY",
+            ),
+            private_bucket: env_with_legacy(
+                "REDCODE_IM_S3_PRIVATE_BUCKET",
+                "REDCODE_IM_B2_PRIVATE_BUCKET",
+            ),
+            public_bucket: env_with_legacy(
+                "REDCODE_IM_S3_PUBLIC_BUCKET",
+                "REDCODE_IM_B2_PUBLIC_BUCKET",
+            ),
+            public_base_url: env_with_legacy(
+                "REDCODE_IM_S3_PUBLIC_BASE_URL",
+                "REDCODE_IM_B2_PUBLIC_BASE_URL",
+            ),
+            upload_url_ttl: parse_duration_env_with_legacy(
+                "REDCODE_IM_S3_UPLOAD_URL_TTL",
                 "REDCODE_IM_B2_UPLOAD_URL_TTL",
                 DEFAULT_UPLOAD_URL_TTL_SECONDS,
             ),
-            download_url_ttl: parse_duration_env(
+            download_url_ttl: parse_duration_env_with_legacy(
+                "REDCODE_IM_S3_DOWNLOAD_URL_TTL",
                 "REDCODE_IM_B2_DOWNLOAD_URL_TTL",
                 DEFAULT_DOWNLOAD_URL_TTL_SECONDS,
             ),
@@ -234,19 +245,8 @@ pub struct BucketInitResult {
     pub items: Vec<BucketInitItem>,
 }
 
-#[derive(Debug, Clone)]
-pub struct ResolvedLocation {
-    pub region: String,
-    pub endpoint: String,
-}
-
 #[async_trait]
 pub trait OpsExecutor: Send + Sync {
-    async fn resolve(
-        &self,
-        key_id: &str,
-        application_key: &str,
-    ) -> Result<ResolvedLocation, AppError>;
     async fn probe(&self, config: &RuntimeConfig) -> Result<ProbeResult, AppError>;
     async fn init_buckets(&self, config: &RuntimeConfig) -> Result<BucketInitResult, AppError>;
 }
@@ -267,7 +267,7 @@ impl StorageConfigService {
             provider_store: StorageProviderStore::new(database),
             cipher: build_storage_cipher(),
             bootstrap: BootstrapConfig::from_env(),
-            ops: Arc::new(BackblazeOpsExecutor::default()),
+            ops: Arc::new(S3OpsExecutor),
         }
     }
 
@@ -341,7 +341,7 @@ impl StorageConfigService {
         let record = self
             .store
             .create_version(CreateObjectStorageConfigVersionInput {
-                provider: PROVIDER_BACKBLAZE_B2.to_string(),
+                provider: PROVIDER_S3_COMPATIBLE.to_string(),
                 endpoint: optional_string(&resolved.endpoint),
                 region: resolved.region.clone(),
                 encrypted_key_id,
@@ -420,7 +420,7 @@ impl StorageConfigService {
         let record = self
             .store
             .create_version(CreateObjectStorageConfigVersionInput {
-                provider: PROVIDER_BACKBLAZE_B2.to_string(),
+                provider: PROVIDER_S3_COMPATIBLE.to_string(),
                 endpoint: optional_string(&target_runtime.endpoint),
                 region: target_runtime.region.clone(),
                 encrypted_key_id,
@@ -471,11 +471,8 @@ impl StorageConfigService {
         Ok(RuntimeConfig {
             source: SOURCE_DATABASE.to_string(),
             version: Some(record.version),
-            provider: default_string(&record.provider, PROVIDER_BACKBLAZE_B2),
-            endpoint: normalize_backblaze_endpoint(
-                record.endpoint.as_deref(),
-                Some(&record.region),
-            ),
+            provider: normalize_provider(&record.provider),
+            endpoint: normalize_s3_endpoint(record.endpoint.as_deref()),
             region: default_string(&record.region, DEFAULT_REGION),
             key_id,
             application_key,
@@ -522,28 +519,22 @@ impl StorageConfigService {
             .unwrap_or_default()
             .trim()
             .to_string();
-        let secret_override = input.key_id.is_some() || input.application_key.is_some();
         if region.is_empty() {
-            if secret_override {
-                let resolved = self.ops.resolve(&key_id, &application_key).await?;
-                region = resolved.region.trim().to_string();
-                if endpoint.is_empty() {
-                    endpoint = resolved.endpoint.trim().to_string();
-                }
-            } else if !current.region.trim().is_empty() {
+            if !current.region.trim().is_empty() {
                 region = current.region.trim().to_string();
             } else {
                 region = DEFAULT_REGION.to_string();
             }
         }
-        endpoint = normalize_backblaze_endpoint(
-            if endpoint.is_empty() {
-                None
-            } else {
-                Some(endpoint.as_str())
-            },
-            Some(region.as_str()),
-        );
+        if endpoint.is_empty() {
+            endpoint = current.endpoint.trim().to_string();
+        }
+        endpoint = normalize_s3_endpoint(Some(endpoint.as_str()));
+        if endpoint.is_empty() {
+            return Err(AppError::ValidationError(
+                "S3 兼容对象存储需要配置 endpoint".to_string(),
+            ));
+        }
 
         let mut private_bucket = input
             .private_bucket
@@ -586,7 +577,7 @@ impl StorageConfigService {
         Ok(RuntimeConfig {
             source: current.source.clone(),
             version: current.version,
-            provider: PROVIDER_BACKBLAZE_B2.to_string(),
+            provider: PROVIDER_S3_COMPATIBLE.to_string(),
             endpoint,
             region,
             key_id,
@@ -612,7 +603,7 @@ impl StorageConfigService {
             return Ok(());
         }
         self.provider_store
-            .upsert_default_b2_provider(
+            .upsert_default_s3_provider(
                 DEFAULT_PROVIDER_SYNC_NAME,
                 runtime.key_id.trim(),
                 runtime.application_key.trim(),
@@ -637,7 +628,7 @@ fn summary_from_runtime_config(config: &RuntimeConfig) -> ConfigSummary {
     ConfigSummary {
         source: config.source.clone(),
         version: config.version,
-        provider: default_string(&config.provider, PROVIDER_BACKBLAZE_B2),
+        provider: normalize_provider(&config.provider),
         endpoint: optional_string(&config.endpoint),
         region: default_string(&config.region, DEFAULT_REGION),
         private_bucket: default_string(&config.private_bucket, DEFAULT_PRIVATE_BUCKET),
@@ -659,7 +650,7 @@ fn history_item_from_record(record: ObjectStorageConfigRecord) -> HistoryItem {
         summary: ConfigSummary {
             source: SOURCE_DATABASE.to_string(),
             version: Some(record.version),
-            provider: default_string(&record.provider, PROVIDER_BACKBLAZE_B2),
+            provider: normalize_provider(&record.provider),
             endpoint: record.endpoint.clone(),
             region: default_string(&record.region, DEFAULT_REGION),
             private_bucket: default_string(&record.private_bucket, DEFAULT_PRIVATE_BUCKET),
@@ -714,10 +705,9 @@ fn bootstrap_to_runtime_config(config: &BootstrapConfig) -> RuntimeConfig {
 }
 
 fn normalize_bootstrap_config(mut config: BootstrapConfig) -> BootstrapConfig {
-    config.provider = default_string(&config.provider, PROVIDER_BACKBLAZE_B2);
+    config.provider = normalize_provider(&config.provider);
     config.region = default_string(&config.region, DEFAULT_REGION);
-    config.endpoint =
-        normalize_backblaze_endpoint(Some(config.endpoint.as_str()), Some(config.region.as_str()));
+    config.endpoint = normalize_s3_endpoint(Some(config.endpoint.as_str()));
     config.key_id = config.key_id.trim().to_string();
     config.application_key = config.application_key.trim().to_string();
     config.private_bucket = default_string(&config.private_bucket, DEFAULT_PRIVATE_BUCKET);
@@ -746,11 +736,10 @@ fn normalize_upsert_input(input: UpsertInput) -> Result<UpsertInput, AppError> {
     })
 }
 
-fn normalize_backblaze_endpoint(endpoint: Option<&str>, region: Option<&str>) -> String {
+fn normalize_s3_endpoint(endpoint: Option<&str>) -> String {
     let trimmed = endpoint.unwrap_or_default().trim().trim_end_matches('/');
     if trimmed.is_empty() {
-        let region = default_string(region.unwrap_or_default(), DEFAULT_REGION);
-        return format!("https://s3.{region}.backblazeb2.com");
+        return String::new();
     }
     if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
         trimmed.to_string()
@@ -764,7 +753,7 @@ fn normalize_optional_url(value: Option<&str>) -> Result<Option<String>, AppErro
     if trimmed.is_empty() {
         return Ok(None);
     }
-    let normalized = normalize_backblaze_endpoint(Some(trimmed), None);
+    let normalized = normalize_s3_endpoint(Some(trimmed));
     let parsed = reqwest::Url::parse(&normalized)
         .map_err(|_| AppError::ValidationError(format!("无效 URL: {trimmed}")))?;
     if parsed.host_str().is_none() {
@@ -779,6 +768,13 @@ fn default_string(value: &str, fallback: &str) -> String {
         fallback.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+fn normalize_provider(value: &str) -> String {
+    match value.trim() {
+        "" | "backblaze_b2" | PROVIDER_S3_COMPATIBLE => PROVIDER_S3_COMPATIBLE.to_string(),
+        other => other.to_string(),
     }
 }
 
@@ -940,8 +936,16 @@ fn decrypt_optional(
     cipher.decrypt(trimmed)
 }
 
-fn parse_duration_env(key: &str, default_seconds: u32) -> Duration {
-    let raw = env::var(key).unwrap_or_default();
+fn env_with_legacy(primary: &str, legacy: &str) -> String {
+    env::var(primary)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| env::var(legacy).ok())
+        .unwrap_or_default()
+}
+
+fn parse_duration_env_with_legacy(primary: &str, legacy: &str, default_seconds: u32) -> Duration {
+    let raw = env_with_legacy(primary, legacy);
     let trimmed = raw.trim().to_ascii_lowercase();
     if trimmed.is_empty() {
         return Duration::from_secs(default_seconds as u64);
@@ -963,328 +967,137 @@ fn parse_duration_env(key: &str, default_seconds: u32) -> Duration {
     Duration::from_secs(default_seconds as u64)
 }
 
-#[derive(Debug, Clone, Deserialize)]
-struct AuthorizeAccountResponse {
-    #[serde(rename = "apiInfo")]
-    api_info: Option<AuthorizeApiInfo>,
-    code: Option<String>,
-    message: Option<String>,
-    status: Option<u16>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AuthorizeApiInfo {
-    #[serde(rename = "storageApi")]
-    storage_api: Option<AuthorizeStorageApi>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AuthorizeStorageApi {
-    #[serde(rename = "s3ApiUrl")]
-    s3_api_url: Option<String>,
-    allowed: Option<AuthorizeAllowed>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AuthorizeAllowed {
-    buckets: Option<Vec<AuthorizeAllowedBucket>>,
-    capabilities: Option<Vec<String>>,
-    #[serde(rename = "namePrefix")]
-    name_prefix: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct AuthorizeAllowedBucket {
-    id: Option<String>,
-    name: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct AuthorizedAccount {
-    s3_api_url: String,
-    allowed_buckets: Vec<ProbeAllowedBucket>,
-    allowed_capabilities: Vec<String>,
-    name_prefix: Option<String>,
-}
-
 #[derive(Debug, Default)]
-struct BackblazeOpsExecutor {
-    client: reqwest::Client,
-}
+struct S3OpsExecutor;
 
 #[async_trait]
-impl OpsExecutor for BackblazeOpsExecutor {
-    async fn resolve(
-        &self,
-        key_id: &str,
-        application_key: &str,
-    ) -> Result<ResolvedLocation, AppError> {
-        let auth = self.authorize_account(key_id, application_key).await?;
-        let region = backblaze_region_from_s3_api_url(&auth.s3_api_url)?;
-        Ok(ResolvedLocation {
-            region,
-            endpoint: auth.s3_api_url,
-        })
-    }
-
+impl OpsExecutor for S3OpsExecutor {
     async fn probe(&self, config: &RuntimeConfig) -> Result<ProbeResult, AppError> {
-        let required_capabilities = vec!["readFiles".to_string(), "writeFiles".to_string()];
-        let auth = self
-            .authorize_account(&config.key_id, &config.application_key)
-            .await?;
-
-        let mut checks = vec![ProbeCheck {
-            code: "authorize_account".to_string(),
-            status: ProbeStatus::Pass,
-            message: "B2 authorize_account 成功。".to_string(),
-        }];
-
-        if !config.endpoint.trim().is_empty() && config.endpoint.trim() != auth.s3_api_url.trim() {
-            checks.push(ProbeCheck {
-                code: "endpoint".to_string(),
+        let required_capabilities = vec![
+            "s3:ListBucket".to_string(),
+            "s3:GetObject".to_string(),
+            "s3:PutObject".to_string(),
+            "s3:DeleteObject".to_string(),
+        ];
+        let client = build_s3_client(
+            &config.key_id,
+            &config.application_key,
+            &config.region,
+            &config.endpoint,
+        )
+        .await?;
+        let mut allowed_buckets = Vec::new();
+        let mut checks = Vec::new();
+        match client.list_buckets().send().await {
+            Ok(output) => {
+                allowed_buckets = output
+                    .buckets()
+                    .iter()
+                    .map(|bucket| ProbeAllowedBucket {
+                        id: None,
+                        name: bucket.name().map(str::to_string),
+                    })
+                    .collect();
+                checks.push(ProbeCheck {
+                    code: "list_buckets".to_string(),
+                    status: ProbeStatus::Pass,
+                    message: "S3 Bucket 列表读取成功。".to_string(),
+                });
+            }
+            Err(err) => checks.push(ProbeCheck {
+                code: "list_buckets".to_string(),
                 status: ProbeStatus::Warn,
-                message: format!(
-                    "当前 endpoint={}，但 B2 探测返回 S3 API 地址={}。",
-                    config.endpoint.trim(),
-                    auth.s3_api_url.trim()
-                ),
+                message: format!("无法列出全部 Bucket，将继续验证已配置 Bucket: {err}"),
+            }),
+        }
+        let mut accessible_bucket_count = 0;
+        for (role, bucket) in [
+            ("private", config.private_bucket.trim()),
+            ("public", config.public_bucket.trim()),
+        ] {
+            if bucket.is_empty() {
+                continue;
+            }
+            let exists = client.head_bucket().bucket(bucket).send().await.is_ok();
+            if exists {
+                accessible_bucket_count += 1;
+                if !allowed_buckets
+                    .iter()
+                    .any(|item| item.name.as_deref() == Some(bucket))
+                {
+                    allowed_buckets.push(ProbeAllowedBucket {
+                        id: None,
+                        name: Some(bucket.to_string()),
+                    });
+                }
+            }
+            checks.push(ProbeCheck {
+                code: format!("{role}_bucket"),
+                status: if exists {
+                    ProbeStatus::Pass
+                } else {
+                    ProbeStatus::Warn
+                },
+                message: if exists {
+                    format!("{role} bucket {bucket} 可访问。")
+                } else {
+                    format!("{role} bucket {bucket} 不存在或当前凭据无权访问。")
+                },
             });
         }
 
-        let missing_runtime_capabilities =
-            missing_capabilities(&auth.allowed_capabilities, &required_capabilities);
-        if missing_runtime_capabilities.is_empty() {
+        if accessible_bucket_count == 0 {
             checks.push(ProbeCheck {
-                code: "runtime_capabilities".to_string(),
-                status: ProbeStatus::Pass,
-                message: "运行时所需能力齐全。".to_string(),
+                code: "s3_connection".to_string(),
+                status: ProbeStatus::Fail,
+                message: "S3 endpoint、凭据或已配置 Bucket 均未通过访问验证。".to_string(),
             });
         } else {
             checks.push(ProbeCheck {
-                code: "runtime_capabilities".to_string(),
-                status: ProbeStatus::Fail,
-                message: format!(
-                    "缺少运行时所需能力：{}。",
-                    missing_runtime_capabilities.join(", ")
-                ),
+                code: "s3_connection".to_string(),
+                status: ProbeStatus::Pass,
+                message: "S3 endpoint、凭据与已配置 Bucket 验证成功。".to_string(),
             });
         }
-
-        let allowed_bucket_names: Vec<String> = auth
-            .allowed_buckets
-            .iter()
-            .filter_map(|item| item.name.clone())
-            .collect();
-        if !config.private_bucket.trim().is_empty() {
-            if allowed_bucket_names
-                .iter()
-                .any(|name| name == config.private_bucket.trim())
-            {
-                checks.push(ProbeCheck {
-                    code: "private_bucket_scope".to_string(),
-                    status: ProbeStatus::Pass,
-                    message: format!(
-                        "private bucket {} 在当前 key 允许范围内。",
-                        config.private_bucket.trim()
-                    ),
-                });
-            } else if !allowed_bucket_names.is_empty() {
-                checks.push(ProbeCheck {
-                    code: "private_bucket_scope".to_string(),
-                    status: ProbeStatus::Warn,
-                    message: format!(
-                        "private bucket {} 不在当前 key 返回的 bucket 列表中：{}。",
-                        config.private_bucket.trim(),
-                        allowed_bucket_names.join(", ")
-                    ),
-                });
-            }
-        }
-
-        let bucket_init_supported = auth
-            .allowed_capabilities
-            .iter()
-            .any(|cap| cap == "writeBuckets");
-        checks.push(ProbeCheck {
-            code: "bucket_init_capability".to_string(),
-            status: if bucket_init_supported {
-                ProbeStatus::Pass
-            } else {
-                ProbeStatus::Warn
-            },
-            message: if bucket_init_supported {
-                "当前 key 具备 writeBuckets，可执行初始化 Bucket。".to_string()
-            } else {
-                "当前 key 缺少 writeBuckets，无法自动创建 Bucket。".to_string()
-            },
-        });
 
         let status = aggregate_probe_status(&checks);
         Ok(ProbeResult {
             status,
-            allowed_capabilities: auth.allowed_capabilities,
+            allowed_capabilities: Vec::new(),
             required_runtime_capabilities: required_capabilities,
-            missing_runtime_capabilities,
-            bucket_init_supported,
-            s3_api_url: Some(auth.s3_api_url),
+            missing_runtime_capabilities: Vec::new(),
+            bucket_init_supported: true,
+            s3_api_url: Some(config.endpoint.clone()),
             allowed: ProbeAllowedScope {
-                buckets: auth.allowed_buckets,
-                name_prefix: auth.name_prefix,
+                buckets: allowed_buckets,
+                name_prefix: None,
             },
             checks,
         })
     }
 
     async fn init_buckets(&self, config: &RuntimeConfig) -> Result<BucketInitResult, AppError> {
-        let auth = self
-            .authorize_account(&config.key_id, &config.application_key)
-            .await?;
-        let allowed_names: Vec<String> = auth
-            .allowed_buckets
-            .iter()
-            .filter_map(|item| item.name.clone())
-            .collect();
-        let can_write_buckets = auth
-            .allowed_capabilities
-            .iter()
-            .any(|cap| cap == "writeBuckets");
-
         let client = build_s3_client(
             &config.key_id,
             &config.application_key,
-            &backblaze_region_from_s3_api_url(&auth.s3_api_url)?,
-            &auth.s3_api_url,
+            &config.region,
+            &config.endpoint,
         )
         .await?;
 
         let mut items = Vec::new();
         if !config.private_bucket.trim().is_empty() {
-            items.push(
-                init_single_bucket(
-                    &client,
-                    config.private_bucket.trim(),
-                    "private",
-                    &allowed_names,
-                    can_write_buckets,
-                )
-                .await,
-            );
+            items.push(init_single_bucket(&client, config.private_bucket.trim(), "private").await);
         }
         if !config.public_bucket.trim().is_empty()
             && config.public_bucket.trim() != config.private_bucket.trim()
         {
-            items.push(
-                init_single_bucket(
-                    &client,
-                    config.public_bucket.trim(),
-                    "public",
-                    &allowed_names,
-                    can_write_buckets,
-                )
-                .await,
-            );
+            items.push(init_single_bucket(&client, config.public_bucket.trim(), "public").await);
         }
 
         let status = aggregate_bucket_init_status(&items);
         Ok(BucketInitResult { status, items })
     }
-}
-
-impl BackblazeOpsExecutor {
-    async fn authorize_account(
-        &self,
-        key_id: &str,
-        application_key: &str,
-    ) -> Result<AuthorizedAccount, AppError> {
-        let response = self
-            .client
-            .get(backblaze_authorize_account_url())
-            .basic_auth(key_id.trim(), Some(application_key.trim()))
-            .send()
-            .await
-            .map_err(|err| {
-                AppError::InternalError(format!("请求 B2 authorize_account 失败: {err}"))
-            })?;
-
-        if response.status() != StatusCode::OK {
-            let status = response.status();
-            let text = response.text().await.unwrap_or_default();
-            return Err(AppError::ValidationError(format!(
-                "B2 authorize_account 失败: HTTP {} {}",
-                status.as_u16(),
-                text.trim()
-            )));
-        }
-
-        let payload = response
-            .json::<AuthorizeAccountResponse>()
-            .await
-            .map_err(|err| {
-                AppError::InternalError(format!("解析 B2 authorize_account 响应失败: {err}"))
-            })?;
-
-        if let Some(status) = payload.status {
-            if status >= 400 {
-                return Err(AppError::ValidationError(format!(
-                    "B2 authorize_account 失败: {} {}",
-                    payload.code.unwrap_or_default(),
-                    payload.message.unwrap_or_default()
-                )));
-            }
-        }
-
-        let storage_api = payload
-            .api_info
-            .and_then(|info| info.storage_api)
-            .ok_or_else(|| {
-                AppError::ValidationError("B2 authorize_account 未返回 storageApi".to_string())
-            })?;
-        let s3_api_url = storage_api
-            .s3_api_url
-            .filter(|value| !value.trim().is_empty())
-            .ok_or_else(|| {
-                AppError::ValidationError("B2 authorize_account 未返回 s3ApiUrl".to_string())
-            })?;
-        let allowed = storage_api.allowed.unwrap_or(AuthorizeAllowed {
-            buckets: Some(Vec::new()),
-            capabilities: Some(Vec::new()),
-            name_prefix: None,
-        });
-
-        Ok(AuthorizedAccount {
-            s3_api_url: normalize_backblaze_endpoint(Some(s3_api_url.as_str()), None),
-            allowed_buckets: allowed
-                .buckets
-                .unwrap_or_default()
-                .into_iter()
-                .map(|bucket| ProbeAllowedBucket {
-                    id: optional_string(bucket.id.unwrap_or_default()),
-                    name: optional_string(bucket.name.unwrap_or_default()),
-                })
-                .collect(),
-            allowed_capabilities: {
-                let mut items = allowed.capabilities.unwrap_or_default();
-                items.sort();
-                items.dedup();
-                items
-            },
-            name_prefix: optional_string(allowed.name_prefix.unwrap_or_default()),
-        })
-    }
-}
-
-fn backblaze_authorize_account_url() -> String {
-    env::var("REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL")
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| DEFAULT_BACKBLAZE_AUTHORIZE_ACCOUNT_URL.to_string())
-}
-
-fn allow_mock_b2_endpoint() -> bool {
-    env::var("REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT")
-        .ok()
-        .is_some_and(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true"))
 }
 
 async fn build_s3_client(
@@ -1318,10 +1131,14 @@ async fn init_single_bucket(
     client: &S3Client,
     bucket_name: &str,
     bucket_role: &str,
-    allowed_names: &[String],
-    can_write_buckets: bool,
 ) -> BucketInitItem {
-    if allowed_names.iter().any(|name| name == bucket_name) {
+    if client
+        .head_bucket()
+        .bucket(bucket_name)
+        .send()
+        .await
+        .is_ok()
+    {
         return BucketInitItem {
             bucket_name: bucket_name.to_string(),
             bucket_role: bucket_role.to_string(),
@@ -1329,15 +1146,6 @@ async fn init_single_bucket(
             message: "当前 key 的允许桶范围已包含该 Bucket。".to_string(),
         };
     }
-    if !can_write_buckets {
-        return BucketInitItem {
-            bucket_name: bucket_name.to_string(),
-            bucket_role: bucket_role.to_string(),
-            status: BucketInitItemStatus::Failed,
-            message: "当前 key 缺少 writeBuckets，无法创建该 Bucket。".to_string(),
-        };
-    }
-
     match client.create_bucket().bucket(bucket_name).send().await {
         Ok(_) => BucketInitItem {
             bucket_name: bucket_name.to_string(),
@@ -1381,38 +1189,6 @@ fn aggregate_bucket_init_status(items: &[BucketInitItem]) -> BucketInitStatus {
     }
 }
 
-fn missing_capabilities(allowed: &[String], required: &[String]) -> Vec<String> {
-    required
-        .iter()
-        .filter(|required| !allowed.iter().any(|allowed| allowed == *required))
-        .cloned()
-        .collect()
-}
-
-fn backblaze_region_from_s3_api_url(url: &str) -> Result<String, AppError> {
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|_| AppError::ValidationError(format!("无效的 B2 S3 API URL: {url}")))?;
-    let host = parsed
-        .host_str()
-        .ok_or_else(|| AppError::ValidationError(format!("无效的 B2 S3 API URL: {url}")))?;
-    let host = host.strip_prefix("s3.").unwrap_or(host);
-    if let Some(region) = host.strip_suffix(".backblazeb2.com") {
-        return Ok(region.to_string());
-    }
-
-    if allow_mock_b2_endpoint() {
-        return Ok(env::var("REDCODE_IM_B2_REGION")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_REGION.to_string()));
-    }
-
-    Err(AppError::ValidationError(format!(
-        "无法从 URL 推断 B2 region: {url}"
-    )))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1453,59 +1229,62 @@ mod tests {
     }
 
     #[test]
-    fn normalize_backblaze_endpoint_builds_default() {
+    fn normalize_s3_endpoint_requires_explicit_endpoint() {
+        assert_eq!(normalize_s3_endpoint(None), "");
+    }
+
+    #[test]
+    fn normalize_s3_endpoint_preserves_http_and_adds_default_scheme() {
         assert_eq!(
-            normalize_backblaze_endpoint(None, Some("us-east-005")),
-            "https://s3.us-east-005.backblazeb2.com"
+            normalize_s3_endpoint(Some("http://rustfs:9000/")),
+            "http://rustfs:9000"
+        );
+        assert_eq!(
+            normalize_s3_endpoint(Some("rustfs:9000")),
+            "https://rustfs:9000"
         );
     }
 
     #[test]
-    fn normalize_backblaze_endpoint_adds_scheme() {
+    fn normalize_provider_maps_legacy_b2_value_to_s3_compatible() {
+        assert_eq!(normalize_provider("backblaze_b2"), PROVIDER_S3_COMPATIBLE);
+        assert_eq!(normalize_provider("s3_compatible"), PROVIDER_S3_COMPATIBLE);
+        assert_eq!(normalize_provider(""), PROVIDER_S3_COMPATIBLE);
+    }
+
+    #[test]
+    fn s3_environment_takes_precedence_over_legacy_b2_environment() {
+        let _lock = env_lock().lock().unwrap();
+        let _primary = TestEnvGuard::set("REDCODE_IM_S3_ENDPOINT", "http://rustfs:9000");
+        let _legacy = TestEnvGuard::set("REDCODE_IM_B2_ENDPOINT", "https://legacy.example");
+
         assert_eq!(
-            normalize_backblaze_endpoint(Some("s3.us-east-005.backblazeb2.com/"), None),
-            "https://s3.us-east-005.backblazeb2.com"
+            env_with_legacy("REDCODE_IM_S3_ENDPOINT", "REDCODE_IM_B2_ENDPOINT"),
+            "http://rustfs:9000"
+        );
+    }
+
+    #[test]
+    fn s3_environment_falls_back_to_legacy_b2_environment() {
+        let _lock = env_lock().lock().unwrap();
+        let _primary = TestEnvGuard::remove("REDCODE_IM_S3_ENDPOINT");
+        let _legacy = TestEnvGuard::set("REDCODE_IM_B2_ENDPOINT", "https://legacy.example");
+
+        assert_eq!(
+            env_with_legacy("REDCODE_IM_S3_ENDPOINT", "REDCODE_IM_B2_ENDPOINT"),
+            "https://legacy.example"
         );
     }
 
     #[test]
     fn parse_duration_env_accepts_suffixes() {
-        env::set_var("TEST_DURATION_ENV", "15m");
-        assert_eq!(parse_duration_env("TEST_DURATION_ENV", 1).as_secs(), 900);
-        env::remove_var("TEST_DURATION_ENV");
-    }
-
-    #[test]
-    fn backblaze_region_from_s3_api_url_works() {
-        assert_eq!(
-            backblaze_region_from_s3_api_url("https://s3.us-east-005.backblazeb2.com").unwrap(),
-            "us-east-005"
-        );
-    }
-
-    #[test]
-    fn backblaze_authorize_account_url_can_use_mock() {
         let _lock = env_lock().lock().unwrap();
-        let _url = TestEnvGuard::set(
-            "REDCODE_IM_B2_AUTHORIZE_ACCOUNT_URL",
-            "http://external-mock:19080/b2api/v4/b2_authorize_account",
-        );
-
+        let _primary = TestEnvGuard::set("TEST_DURATION_ENV", "15m");
+        let _legacy = TestEnvGuard::remove("TEST_DURATION_ENV_LEGACY");
         assert_eq!(
-            backblaze_authorize_account_url(),
-            "http://external-mock:19080/b2api/v4/b2_authorize_account"
-        );
-    }
-
-    #[test]
-    fn mock_s3_api_url_uses_env_region_when_explicitly_allowed() {
-        let _lock = env_lock().lock().unwrap();
-        let _allow = TestEnvGuard::set("REDCODE_IM_B2_ALLOW_MOCK_ENDPOINT", "true");
-        let _region = TestEnvGuard::set("REDCODE_IM_B2_REGION", "us-east-005");
-
-        assert_eq!(
-            backblaze_region_from_s3_api_url("http://external-mock:19080").unwrap(),
-            "us-east-005"
+            parse_duration_env_with_legacy("TEST_DURATION_ENV", "TEST_DURATION_ENV_LEGACY", 1,)
+                .as_secs(),
+            900
         );
     }
 
@@ -1539,10 +1318,10 @@ mod tests {
         let _jwt = TestEnvGuard::remove("JWT_SECRET");
 
         let cipher = build_storage_cipher().expect("cipher should be created");
-        let encrypted = cipher.encrypt("hello-b2").expect("encrypt should work");
+        let encrypted = cipher.encrypt("hello-s3").expect("encrypt should work");
         let decrypted = cipher.decrypt(&encrypted).expect("decrypt should work");
 
-        assert_eq!(decrypted, "hello-b2");
+        assert_eq!(decrypted, "hello-s3");
     }
 
     #[test]

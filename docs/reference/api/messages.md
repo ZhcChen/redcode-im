@@ -210,7 +210,7 @@
 
 ## 消息附件直传与哈希去重（对象存储）
 
-> 以下接口用于客户端通过 Backblaze B2 直传消息附件（图片/视频/文件），并支持基于文件哈希的去重与 key 复用。
+> 以下接口用于客户端通过 S3 兼容对象存储 直传消息附件（图片/视频/文件），并支持基于文件哈希的去重与 key 复用。
 
 ### 1. 获取附件直传签名
 
@@ -250,7 +250,7 @@
   "message": "生成消息附件直传签名成功",
   "key": "messages/{room_id}/20251211120000_xxx/image_xxx.png",
   "signature": {
-    "url": "https://s3.us-east-005.backblazeb2.com/<bucket>/messages/...",
+    "url": "http://rustfs:9000/<bucket>/messages/...",
     "method": "PUT",
     "headers": {
       "Authorization": "AWS4-HMAC-SHA256 Credential=...",

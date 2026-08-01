@@ -1,6 +1,25 @@
 # 对象存储测试接口（Admin）
 
-> 这些接口位于后台管理域下，仅对已登录管理员开放。当前仅支持 **Backblaze B2**，不再包含历史存储专用跨域配置能力。
+> 这些接口位于后台管理域下，仅对已登录管理员开放。当前仅支持 **S3 兼容对象存储**，不再包含历史存储专用跨域配置能力。
+
+## RustFS 配置
+
+API 直接使用 `aws-sdk-s3` 和 path-style addressing，不需要 RustFS 专用 SDK。推荐环境变量：
+
+```text
+REDCODE_IM_S3_ENDPOINT=http://rustfs:9000
+REDCODE_IM_S3_REGION=us-east-1
+REDCODE_IM_S3_ACCESS_KEY=<access-key>
+REDCODE_IM_S3_SECRET_KEY=<secret-key>
+REDCODE_IM_S3_PRIVATE_BUCKET=redcode-im-private
+REDCODE_IM_S3_PUBLIC_BUCKET=redcode-im-public
+REDCODE_IM_S3_PUBLIC_BASE_URL=https://media.example.com
+REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT=https://storage.example.com
+```
+
+`REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT` 仅在容器内部 endpoint 无法被客户端访问时设置，用于改写预签名 URL 的 scheme、host 和 port。旧 `REDCODE_IM_B2_*` 变量仅作为迁移期 fallback，不再推荐使用。
+
+管理接口的 `provider_type` 使用 `s3_compatible`。迁移期仍接受旧请求值 `backblaze_b2`，响应统一返回 `s3_compatible`。服务端没有本地文件 provider。
 
 ## POST /api/admin/storage-providers/test/upload
 
@@ -19,7 +38,7 @@
 {
   "success": true,
   "message": "上传成功",
-  "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/hello.png"
+  "url": "http://rustfs:9000/demo-private-bucket/test/hello.png"
 }
 ```
 
@@ -43,7 +62,7 @@
   "success": true,
   "message": "生成直传签名成功",
   "signature": {
-    "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/20260413-demo.png",
+    "url": "http://rustfs:9000/demo-private-bucket/test/20260413-demo.png",
     "method": "PUT",
     "headers": {
       "Authorization": "AWS4-HMAC-SHA256 Credential=...",
@@ -106,7 +125,7 @@
 {
   "success": true,
   "message": "生成下载链接成功",
-  "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/test/hello.png?X-Amz-Algorithm=AWS4-HMAC-SHA256..."
+  "url": "http://rustfs:9000/demo-private-bucket/test/hello.png?X-Amz-Algorithm=AWS4-HMAC-SHA256..."
 }
 ```
 

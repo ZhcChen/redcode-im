@@ -85,7 +85,7 @@
 
 ## 4. 头像直传流程
 
-头像上传采用「前端直传对象存储 + 后端确认」模式。请先确保默认存储提供商（`/api/admin/storage-providers/default`）已配置并启用（Backblaze B2）。
+头像上传采用「前端直传对象存储 + 后端确认」模式。请先确保默认存储提供商（`/api/admin/storage-providers/default`）已配置并启用（S3 兼容对象存储）。
 
 ### 4.1 获取直传签名
 
@@ -112,7 +112,7 @@
   "message": "生成头像直传签名成功",
   "key": "avatars/{user-id}/20251104160135-8fd3aa12.png",
   "signature": {
-    "url": "https://s3.us-east-005.backblazeb2.com/<bucket>/avatars/...",
+    "url": "http://rustfs:9000/<bucket>/avatars/...",
     "method": "PUT",
     "headers": {
       "Authorization": "AWS4-HMAC-SHA256 Credential=...",
@@ -147,7 +147,7 @@
 {
   "success": true,
   "message": "头像更新成功",
-  "download_url": "https://s3.us-east-005.backblazeb2.com/<bucket>/avatars/...?..."
+  "download_url": "http://rustfs:9000/<bucket>/avatars/...?..."
 }
 ```
 

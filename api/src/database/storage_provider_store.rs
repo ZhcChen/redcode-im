@@ -206,7 +206,7 @@ impl StorageProviderStore {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn upsert_default_b2_provider(
+    pub async fn upsert_default_s3_provider(
         &self,
         name: &str,
         secret_id: &str,
@@ -220,7 +220,7 @@ impl StorageProviderStore {
         if let Some(existing) = self.get_any_default_provider().await? {
             self.update_provider(
                 &existing.id,
-                Some(StorageProviderType::BackblazeB2),
+                Some(StorageProviderType::S3Compatible),
                 Some(name),
                 Some(secret_id),
                 Some(secret_key),
@@ -236,7 +236,7 @@ impl StorageProviderStore {
             .ok_or(sqlx::Error::RowNotFound)
         } else {
             self.create_provider(
-                StorageProviderType::BackblazeB2,
+                StorageProviderType::S3Compatible,
                 name,
                 secret_id,
                 secret_key,

@@ -270,6 +270,10 @@ func (s *mockServer) handleObjectStorage(w http.ResponseWriter, r *http.Request)
 		s.handleObjectStorageCreateBucket(w, key)
 		return
 	}
+	if r.Method == http.MethodHead && !strings.Contains(strings.TrimPrefix(path, "/"), "/") {
+		s.handleObjectStorageHeadBucket(w, key)
+		return
+	}
 
 	if _, ok := query["uploads"]; ok && r.Method == http.MethodPost {
 		s.handleObjectStorageMultipartInitiate(w, key)
@@ -306,6 +310,17 @@ func (s *mockServer) handleObjectStorage(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+func (s *mockServer) handleObjectStorageHeadBucket(w http.ResponseWriter, bucketName string) {
+	s.mu.RLock()
+	_, exists := s.buckets[bucketName]
+	s.mu.RUnlock()
+	if !exists {
+		writeText(w, http.StatusNotFound, "bucket not found")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (s *mockServer) handleObjectStorageCreateBucket(w http.ResponseWriter, bucketName string) {
 	bucketName = strings.TrimSpace(bucketName)
 	if bucketName == "" {
@@ -338,7 +353,7 @@ func (s *mockServer) handleObjectStorageBucketRoot(w http.ResponseWriter, r *htt
 		var sb strings.Builder
 		sb.WriteString(`<ListAllMyBucketsResult><Buckets>`)
 		for _, b := range items {
-			sb.WriteString(`<Bucket><Name>` + xmlEscape(b.Name) + `</Name><Location>us-east-005</Location><CreationDate>` + xmlEscape(b.CreationDate) + `</CreationDate></Bucket>`)
+			sb.WriteString(`<Bucket><Name>` + xmlEscape(b.Name) + `</Name><Location>us-east-1</Location><CreationDate>` + xmlEscape(b.CreationDate) + `</CreationDate></Bucket>`)
 		}
 		sb.WriteString(`</Buckets></ListAllMyBucketsResult>`)
 		writeXML(w, http.StatusOK, sb.String())

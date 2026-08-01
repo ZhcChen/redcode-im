@@ -1,6 +1,6 @@
 # 文件直传与哈希去重说明
 
-> 本文档说明所有通过对象存储（当前为 **Backblaze B2**）直传的文件，在后端的记录方式与哈希去重规则，适用于消息附件、用户头像、群头像、安装包、热更新补丁等场景。
+> 本文档说明所有通过对象存储（当前为 **S3 兼容对象存储**）直传的文件，在后端的记录方式与哈希去重规则，适用于消息附件、用户头像、群头像、安装包、热更新补丁等场景。
 
 ## 1. 总体设计
 
@@ -14,7 +14,7 @@
 
 所有通过直传方式上传到对象存储的文件，都会记录到 `file_upload_records` 表中。关键字段：
 
-- `storage_provider_id`：所属存储提供商（当前仅 Backblaze B2）
+- `storage_provider_id`：所属存储提供商（当前仅 S3 兼容对象存储）
 - `object_key`：对象键，例如：
   - `messages/{room_id}/...`
   - `avatars/{user_id}/...`
@@ -64,7 +64,7 @@
   "message": "xxx",
   "key": "对象键",
   "signature": {
-    "url": "https://s3.us-east-005.backblazeb2.com/demo-private-bucket/messages/...",
+    "url": "http://rustfs:9000/demo-private-bucket/messages/...",
     "method": "PUT",
     "headers": {
       "Authorization": "AWS4-HMAC-SHA256 Credential=...",

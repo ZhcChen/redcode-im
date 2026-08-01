@@ -25,7 +25,7 @@ RedCode IM 的测试策略调整为：
 ### `tests/` 目录
 - `tests/docker-compose.test.yml`：api Compose 测试栈（pg / redis / external-mock / rust-tests / api-smoke；PG/Redis/external-mock 不映射宿主端口）
 - `tests/go/tooling/`：仓库级 Makefile / 脚本守护测试
-- `tests/mocks/external/`：第三方依赖（B2 / IPInfo / FCM / APNs）mock
+- `tests/mocks/external/`：第三方依赖（S3-compatible / IPInfo / FCM / APNs）mock
 
 ---
 
@@ -117,13 +117,13 @@ make h5-app.test.e2e
 - `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，保留为 Web 端 parity 与 API 联调辅助入口；当前移动端首版以 Flutter `app/` 为准。
 - H5 dev server 固定端口为 `8016`，API 固定端口为 `8010`。
 - 本地联调依赖由 `api/docker/dev/docker-compose.yml` 创建；PostgreSQL、Redis、external-mock 随 API dev 栈启动。
-- 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上 B2、FCM 或 APNs。
+- 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上对象存储、FCM 或 APNs。
 - 当前 H5 默认普通账号密码注册/登录；邮箱注册/登录只作为后台配置能力保留，不要求真实邮箱验证码二次验证。
 - `h5-app.check` 执行 `vue-tsc --noEmit`。
 - `h5-app.test.unit` 执行 mock 模式 Vitest，覆盖 service、Pinia store、本地 SQLite/IndexedDB/OPFS worker adapter、FTS5/LIKE 搜索降级、Cache API 清理策略、页面状态和组件。
 - `h5-app.test.live` 需要本机 Compose API 已启动，覆盖普通账号注册/登录、`/auth/me`、资料更新、用户头像上传、settings、好友搜索、建群、群头像上传、文本消息、已读、聊天列表、H5/iOS-compatible HTTP 合同和富媒体 mock 对象存储链路。
 - `h5-app.test.e2e` 需要本机 Compose API 已启动，会用 Playwright 启动或复用 `http://127.0.0.1:8016`，默认使用本机 Chrome channel；覆盖 UI 注册登录、进入群聊、发送消息、刷新后缓存恢复、本地消息搜索结果跳转、群头像上传、群设置置顶、好友申请闭环、个人头像上传。
-- H5 媒体、附件和头像上传依赖 `external-mock`；该 mock 已支持浏览器 direct upload 所需 CORS preflight，E2E 不访问线上 B2。
+- H5 媒体、附件和头像上传依赖 `external-mock`；该 mock 已支持浏览器 direct upload 所需 CORS preflight，E2E 不访问线上对象存储。
 - H5 浏览器数据库正式运行口径为 wa-sqlite OPFS worker 优先，降级顺序为 wa-sqlite IndexedDB VFS、IndexedDB persisted shim、Memory；旧浏览器降级不得导致登录、聊天或基础缓存白屏。
 
 从零联调顺序：
@@ -173,7 +173,7 @@ make ios-app.smoke.device.local
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证群管理 live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests` 验证对象存储 mock 上传、commit、富媒体发送和下载 smoke。
 - `h5-app.test.live` 已覆盖 H5 富媒体发送互通：H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
-- `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock B2，不访问线上对象存储；FCM/APNs 测试发送默认走 mock Push，不访问线上推送服务；API presigned URL 通过 `REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
+- `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock S3，不访问线上对象存储；FCM/APNs 测试发送默认走 mock Push，不访问线上推送服务；API presigned URL 通过 `REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
 - 表情、贴纸、消息搜索和聊天扩展当前由 SwiftPM 单测覆盖：`EmojiAPIClientTests`、`ChatAPIClientTests` 搜索用例、`StorageTests` 搜索/偏好用例、`ChatExtensionControllerTests`。贴纸发送在 iOS 侧先下载/缓存表情图，再复用消息图片上传链路，不直接写入 `emoji-items/*` 附件 key。
 - 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。
 - Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒需要 iPhone 真机与 Apple 平台凭据，本轮已按用户要求跳过并记录，`.local` 真机入口保留供后续恢复补验。
@@ -263,7 +263,7 @@ make api.test.deps.down
 - 集成测试用 `axum` `oneshot` 进程内打 Router，对 `tests/docker-compose.test.yml` 起的依赖运行；每测试 `CREATE/DROP DATABASE` 独立临时库，`--test-threads=1` 串行。
 - `tests/docker-compose.test.yml` 不映射 PostgreSQL / Redis / external-mock 宿主端口；测试容器通过 Compose 服务名访问 `postgres`、`redis`、`external-mock`。
 - 测试栈只启动 1 个 Redis；`REDIS_SESSION_URL` / `REDIS_PUBSUB_URL` / `REDIS_CACHE_URL` 均指向该 Redis。
-- 涉及对象存储 / 推送 / 地理的用例走 `tests/mocks/external` 的 `external-mock`；测试环境禁止使用线上 Backblaze B2、FCM 或 APNs endpoint。
+- 涉及对象存储 / 推送 / 地理的用例走 `tests/mocks/external` 的 `external-mock`；测试环境禁止使用线上 S3 兼容对象存储、FCM 或 APNs endpoint。
 - `api.test.smoke` 与 `api.perf.*` 会先通过 `api.test.build` 在 `rust-tests` 容器内完成编译，再让受限 `api` 容器直接运行 `/app/target/debug/redcode-im-api`；因此 `API_SERVICE_CPUS` / `API_SERVICE_MEMORY` 表示 API 运行时资源，不混入 Rust 编译开销。
 - 迁移一致性校验保留在 `api/tests/database_migration_smoke.rs`。
 

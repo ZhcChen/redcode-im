@@ -5,11 +5,11 @@
 ## 包含内容
 - `tests/docker-compose.test.yml`：api Compose 测试栈（pg / redis / external-mock / rust-tests / api-smoke；PG/Redis/external-mock 不映射宿主端口）
 - `tests/go/tooling/`：仓库级 Makefile / 脚本守护测试
-- `tests/mocks/external/`：第三方依赖 mock（Push / B2/S3 兼容对象存储 / IPInfo）
+- `tests/mocks/external/`：第三方依赖 mock（Push / S3 兼容对象存储 / IPInfo）
 - `tests/perf/`：API Compose 网络内压测工具与本地 JSON 报告目录
 
 ## 对象存储 mock
-api 集成测试涉及对象存储时指向 `external-mock`，禁止访问线上 Backblaze B2，避免消耗真实资源。
+api 集成测试涉及对象存储时指向 `external-mock`，禁止访问线上 S3 兼容对象存储，避免消耗真实资源。
 
 ## 不包含内容
 - api 业务测试本身（在 `api/tests/` 集成测试与 `api/src` 单元测试中）
