@@ -7395,7 +7395,6 @@ body[data-theme="dark"] .phone-screen {
 
 .phone-screen .runtime-screen.has-overlay {
   position: relative;
-  z-index: 20;
 }
 
 .phone-screen .runtime-scroll {
