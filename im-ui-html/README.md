@@ -2,6 +2,8 @@
 
 纯 `HTML + CSS + JS` 的 RedCode IM 2.0 设计源模块。
 
+> 冻结基线：`2026-08-01`。业务页面以 `tests/routes.ts` 的 43 条路由为机器可读清单，后续正式实现以本目录文档和通过回归的运行态为准。
+
 ## 目标
 
 - 先收敛统一的视觉规范、组件契约与页面地图，再进入 Flutter 正式实现。
@@ -24,7 +26,7 @@
 - 单页 hash router
 - 本地静态资源
 - 统一 mock store
-- 无 npm / bundler / framework 依赖
+- 生产预览无 bundler / framework 依赖；Playwright 回归使用 Bun 管理开发依赖
 
 ## 设计源入口
 
@@ -83,6 +85,7 @@
 - `docs/page-map.md`
 - `docs/moments-media-layout.md`
 - `docs/flutter-handoff.md`
+- `docs/platform-handoff.md`
 
 ## 启动方式
 
@@ -102,6 +105,19 @@ python3 -m http.server 8020
 ```text
 http://127.0.0.1:8020/#/entry
 ```
+
+## 自动化回归
+
+```bash
+make im-ui.install
+make im-ui.test
+make im-ui.test.visual
+```
+
+- Bun 固定为 `1.3.11`，浏览器使用 Chrome for Testing。
+- 三个项目通过预览工具栏切换 `iPhone 12 Pro`、`iPhone 16 Pro Max` 与 `Pixel 8 Pro` 外壳。
+- `make im-ui.test` 覆盖 43 条正式路由、Console、横向溢出和关键交互；截图命令按 8 条高风险路由生成 24 张人工评审图，不做像素断言。
+- Chrome 设备模拟不替代系统软键盘、真实安全区、触觉反馈、相机和麦克风验收。
 
 ## 预览模式
 
@@ -150,3 +166,7 @@ http://127.0.0.1:8020/#/entry
 - 主题、密度、设备外壳选择、设置开关与群聊收藏会写入 `localStorage`，当前设计源 key 为 `redcode-im-ui-prototype/design-source-v2`。
 - 举报、反馈、密码与注销确认只保留在当前页面内存中，离开流程即清理，不写入 `localStorage`、URL 或 mock 数据。
 - SMS 登录、短信重置密码、更换手机号、归档中心、邀请列表、独立群公告和整套贴纸批量移除不在本设计源能力对齐范围内。
+
+## 冻结后变更准入
+
+新增或修改业务路由、token、组件状态时，必须在同一提交同步更新 `docs/page-map.md`、`docs/component-inventory.md`、对应 handoff 文档、`tests/routes.ts` 及适用测试；高风险代表页面同时更新 `tests/visual-routes.ts`。未完成上述同步的改动不得视为设计基线已交付。

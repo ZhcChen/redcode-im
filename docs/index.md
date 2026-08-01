@@ -13,6 +13,8 @@
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
 | [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 当前 2.0 主线方向：`app/` 单 Flutter 工程承载移动端 + 桌面端 |
 | [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 当前 2.0 设计入口：先在 `im-ui-html/` 收敛规范、组件和页面 |
+| [IM UI 预览冻结与多端交付计划](plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md) | 三设备回归、冻结基线与 Flutter/H5 handoff |
+| [IM UI 多端交付差异](../im-ui-html/docs/platform-handoff.md) | 设计源、Flutter 主线和 H5 当前覆盖矩阵 |
 | [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史方向参考：已不作为 2.0 主线 |
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `compound` / `ce:compound` 产出目录 |
@@ -83,6 +85,8 @@
 | 文档 | 说明 |
 |------|------|
 | [**测试工作流**](reference/testing/README.md) | **模块自测优先，`tests/` 仅负责 api contract 栈** |
+| [IM UI 预览一致性审查](reviews/2026-08-01-im-ui-preview-consistency-review.md) | 43 条正式路由的问题基线与关闭结果 |
+| [IM UI 三设备回归](reviews/2026-08-01-im-ui-preview-device-regression.md) | 三设备自动化与人工截图验收记录 |
 
 ### 运维部署
 
@@ -146,4 +150,4 @@
 
 ---
 
-**文档最后更新**: 2026-07-30
+**文档最后更新**: 2026-08-01

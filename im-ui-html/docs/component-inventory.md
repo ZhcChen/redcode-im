@@ -1,5 +1,7 @@
 # RedCode IM 2.0 组件清单
 
+> 冻结版本：`2026-08-01`。本清单记录设计源组件及状态契约；文件存在只表示设计已覆盖，不表示 Flutter 或 H5 已完成实现。
+
 ## 目的
 
 本文件记录当前 `im-ui-html/` 已经收敛出来的组件原语、状态和 Flutter 映射，避免后续实现阶段只看页面截图自行拆组件。
@@ -311,3 +313,5 @@ App Bar 对齐规则：会话列表使用固定的内容对齐页头，列表滚
 - 正式 Flutter 工程只抽“会进入产品运行时”的组件
 - 设计源专用组件保留在 HTML 设计模块，不强行要求 1:1 进产品代码
 - 如果某个设计源组件未来要进入产品运行时，先回到本清单补状态，再进入实现
+- Overlay 类组件必须保留 accessible name、dialog semantics、`Escape`/遮罩关闭、焦点恢复、至少 `44px` 热区和 reduced-motion 行为。
+- 新增组件或状态时，同步更新 `page-map.md`、`platform-handoff.md`、`tests/routes.ts` 与适用的行为测试。

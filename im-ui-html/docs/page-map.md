@@ -1,5 +1,7 @@
 # RedCode IM 2.0 页面地图
 
+> 冻结版本：`2026-08-01`。正式业务路由的机器可读事实源为 `../tests/routes.ts`，当前共 43 条；本文件负责产品语义和交付映射。
+
 ## 1. 设计源入口层
 
 这些页面属于 `im-ui-html/` 设计源自身，不等于正式 App 的业务 route。
@@ -206,3 +208,5 @@
   - 本文件的分组表
   - `component-inventory.md` 中受影响组件
   - `README` 推荐评审路径
+  - `platform-handoff.md` 的多端状态与优先级
+  - `../tests/routes.ts`；属于高风险视觉页面时同时更新 `../tests/visual-routes.ts`

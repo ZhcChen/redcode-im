@@ -86,6 +86,21 @@ make app.test.integration.device.auth.reverse
 
 `APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make app.test.integration.network APP_TEST_DEVICE=3A091FDJG001DN` 或 `make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
 
+### IM UI 设计源回归
+
+```bash
+make im-ui.install
+make im-ui.test
+make im-ui.test.visual
+```
+
+说明：
+- `im-ui-html` 生产预览不依赖业务后端；测试依赖使用 Bun `1.3.11` 与 Chrome for Testing。
+- `make im-ui.test` 会按固定端口规则先停止 `8020` 占用，再运行 43 条正式路由在三种设备外壳上的 Console、横向溢出和关键交互回归。
+- 三种外壳为 `iPhone 12 Pro`、`iPhone 16 Pro Max`、`Pixel 8 Pro`，由桌面预览工具栏切换，不等同于浏览器原生设备描述符。
+- `make im-ui.test.visual` 按 8 条高风险路由生成 24 张截图到 `im-ui-html/test-results/visual-review/`，只供人工评审，不提交、不做像素断言。
+- Chrome 模拟无法覆盖系统软键盘、真实安全区、触觉反馈和硬件权限，相关能力仍按 Flutter 正式端设备验收顺序补验。
+
 ### App Patrol
 ```bash
 make app.test.patrol.harness

@@ -1,5 +1,7 @@
 # RedCode IM 2.0 Flutter 交接说明
 
+> 冻结版本：`2026-08-01`。`app/` 是 2.0 正式 Flutter 多平台主线；本文件给出目标映射，不代表所有页面已经在 Flutter 完成。实际覆盖差异见 `platform-handoff.md`。
+
 ## 目标
 
 本文件回答两个问题：
@@ -229,3 +231,5 @@ app/lib/
 - 已读 `page-map.md`
 - 已确认当前 `#/entry`、`#/spec`、`#/pc-design`、`#/mobile-design` 页面结构
 - 已确认本轮不会把设计源页面误当成正式业务页面直接搬进 runtime
+- 已对照 `platform-handoff.md` 核实目标能力在 Flutter 的当前状态和优先级
+- 已确认系统软键盘、真实安全区、触觉反馈、相机、麦克风和后台行为将在目标设备补验
