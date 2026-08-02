@@ -9,11 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_config.dart';
+import '../../core/routing/app_route.dart';
 import '../../core/services/app_config_service.dart';
 import '../../core/services/settings_service.dart';
 import '../../core/widgets/agreement_content_dialog.dart';
 import '../../core/widgets/agreement_tip_dialog.dart';
-import '../home/home_shell_page.dart';
 import 'data/auth_repository.dart';
 
 enum LoginType { password, sms, register }
@@ -646,10 +646,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) {
           return;
         }
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeShellPage()),
-          (route) => false,
-        );
+        _openHome();
         return;
       } on AuthException catch (error) {
         _showMessage(error.message);
@@ -723,10 +720,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShellPage()),
-        (route) => false,
-      );
+      _openHome();
     } on AuthException catch (error) {
       _showMessage(error.message);
     } catch (_) {
@@ -761,10 +755,7 @@ class _LoginPageState extends State<LoginPage> {
       if (success) {
         _smsTimer?.cancel();
         setState(() => _smsCountdown = 0);
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeShellPage()),
-          (route) => false,
-        );
+        _openHome();
       }
     } finally {
       if (mounted) {
@@ -869,10 +860,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const HomeShellPage()),
-        (route) => false,
-      );
+      _openHome();
     } on AuthException catch (error) {
       debugPrint('[LoginPage] AuthException: ${error.message}');
       _showMessage(error.message);
@@ -888,6 +876,14 @@ class _LoginPageState extends State<LoginPage> {
         _loading = false;
       }
     }
+  }
+
+  void _openHome() {
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutePath.home,
+      (route) => false,
+      arguments: const AppRouteRequest(path: AppRoutePath.home),
+    );
   }
 
   void _showMessage(String message) {

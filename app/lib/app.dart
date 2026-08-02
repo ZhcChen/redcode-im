@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/services/settings_service.dart';
-import 'core/services/push_navigation.dart';
+import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/no_stretch_scroll_behavior.dart';
 import 'core/theme/phone_density.dart';
@@ -59,7 +59,8 @@ class _RedcodeAppState extends State<RedcodeApp> {
           title: _appName,
           theme: AppTheme.light,
           debugShowCheckedModeBanner: false,
-          navigatorKey: pushNavigatorKey,
+          navigatorKey: appNavigatorKey,
+          onGenerateRoute: AppRouter.onGenerateRoute,
           scrollBehavior: const NoStretchScrollBehavior(),
           builder: (context, child) =>
               AdaptivePhoneDensity(child: child ?? const SizedBox.shrink()),

@@ -2,12 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../features/chat/chat_detail_page_v2.dart';
 import '../../features/chat/models/chat_model.dart';
-import '../../features/contacts/add_friend_page.dart';
-import 'friend_store.dart';
+import '../routing/app_route.dart';
+import '../routing/app_router.dart';
 
-final GlobalKey<NavigatorState> pushNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> pushNavigatorKey = appNavigatorKey;
 
 final List<Map<String, dynamic>> _pendingPushPayloads = [];
 bool _pendingFlushScheduled = false;
@@ -51,14 +50,12 @@ Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
       return;
     }
 
-    final existingFriendIds =
-        FriendStore.instance.friends.map((f) => f.user.id).toSet();
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => AddFriendPage(
-          existingFriendIds: existingFriendIds,
-          showRequestsFirst: true,
-        ),
+    navigator.pushNamed(
+      AppRoutePath.friendRequests,
+      arguments: const AppRouteRequest(
+        path: AppRoutePath.friendRequests,
+        source: AppRouteSource.push,
+        fallbackPath: AppRoutePath.home,
       ),
     );
     return;
@@ -69,10 +66,9 @@ Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
 
   final roomType = payload['room_type']?.toString();
   final chatType = _chatTypeFromRoomType(roomType);
-  final chatName =
-      payload['chat_name']?.toString().trim().isNotEmpty == true
-          ? payload['chat_name']!.toString().trim()
-          : '聊天';
+  final chatName = payload['chat_name']?.toString().trim().isNotEmpty == true
+      ? payload['chat_name']!.toString().trim()
+      : '聊天';
   final messageId = payload['message_id']?.toString().trim();
 
   final navigator = pushNavigatorKey.currentState;
@@ -82,9 +78,13 @@ Future<void> openChatFromPushPayload(Map<String, dynamic> payload) async {
     return;
   }
 
-  navigator.push(
-    MaterialPageRoute(
-      builder: (_) => ChatDetailPageV2(
+  navigator.pushNamed(
+    AppRoutePath.chat,
+    arguments: AppRouteRequest(
+      path: AppRoutePath.chat,
+      source: AppRouteSource.push,
+      fallbackPath: AppRoutePath.home,
+      arguments: ChatRouteArguments(
         roomId: roomId,
         chatName: chatName,
         chatType: chatType,

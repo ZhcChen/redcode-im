@@ -6,16 +6,16 @@ import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/auth/auth_guard.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
+import '../../core/routing/app_route.dart';
+import '../../core/routing/app_router.dart';
 import '../../core/services/app_config_service.dart';
 import '../../core/services/version_service.dart';
 import '../../core/update/update_center.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
-import '../home/home_shell_page.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -121,10 +121,10 @@ class _SplashPageState extends State<SplashPage> {
 
   void _goHome() {
     _navigated = true;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => AuthGuard(childBuilder: (_) => const HomeShellPage()),
-      ),
+    AppRouter.open<void>(
+      context,
+      const AppRouteRequest(path: AppRoutePath.home),
+      replace: true,
     );
   }
 
