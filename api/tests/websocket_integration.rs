@@ -1154,18 +1154,21 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
         Some(json!({"content": "quoted relay", "quoted_message_id": message_id})),
     )
     .await;
-    assert_relay_only_unsupported(
-        &app,
-        "POST",
-        &format!("/rooms/{room_id}/messages/encrypted"),
-        &owner.token,
-        Some(json!({
-            "content_summary": "[加密消息]",
-            "encrypted_content": "aGVsbG8=",
-            "quoted_message_id": message_id
-        })),
-    )
-    .await;
+    let encrypted_quote = json!({
+        "content_summary": "[加密消息]",
+        "encrypted_content": "aGVsbG8=",
+        "quoted_message_id": message_id
+    })
+    .to_string();
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_quote,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(body_json(&body)["code"].as_u64(), Some(40902));
     assert_relay_only_unsupported(
         &app,
         "PATCH",
