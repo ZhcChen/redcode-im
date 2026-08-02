@@ -79,6 +79,80 @@ class _PaginationRoomService extends RoomService {
   }
 }
 
+class _MutationRoomService extends RoomService {
+  _MutationRoomService({
+    this.admins = const <GroupAdmin>[],
+    this.requests = const <JoinRequest>[],
+    this.mutes = const <GroupMute>[],
+    this.rules = const <GroupRule>[],
+  });
+
+  List<GroupAdmin> admins;
+  List<JoinRequest> requests;
+  List<GroupMute> mutes;
+  List<GroupRule> rules;
+  String? removedAdminId;
+  String? reviewedRequestId;
+  String? reviewStatus;
+  String? unmutedUserId;
+  String? deletedRuleId;
+
+  @override
+  Future<List<GroupAdmin>> listAdmins(String roomId) async =>
+      List<GroupAdmin>.from(admins);
+
+  @override
+  Future<void> removeAdmin({
+    required String roomId,
+    required String userId,
+  }) async {
+    removedAdminId = userId;
+    admins = admins.where((item) => item.adminId != userId).toList();
+  }
+
+  @override
+  Future<List<JoinRequest>> listJoinRequests(String roomId) async =>
+      List<JoinRequest>.from(requests);
+
+  @override
+  Future<void> reviewJoinRequest({
+    required String roomId,
+    required String requestId,
+    required String status,
+    String? reviewMessage,
+  }) async {
+    reviewedRequestId = requestId;
+    reviewStatus = status;
+    requests = requests.where((item) => item.id != requestId).toList();
+  }
+
+  @override
+  Future<List<GroupMute>> listMutedUsers(String roomId) async =>
+      List<GroupMute>.from(mutes);
+
+  @override
+  Future<void> unmuteUser({
+    required String roomId,
+    required String userId,
+  }) async {
+    unmutedUserId = userId;
+    mutes = mutes.where((item) => item.userId != userId).toList();
+  }
+
+  @override
+  Future<List<GroupRule>> listRules(String roomId) async =>
+      List<GroupRule>.from(rules);
+
+  @override
+  Future<void> deleteRule({
+    required String roomId,
+    required String ruleId,
+  }) async {
+    deletedRuleId = ruleId;
+    rules = rules.where((item) => item.id != ruleId).toList();
+  }
+}
+
 Widget _host(Widget child) {
   return AdaptiveScreenUtilInit(
     builder: (context, _) => MaterialApp(home: child),
@@ -197,5 +271,145 @@ void main() {
     expect(find.text('加载更多失败，请重试'), findsOneWidget);
     expect(find.textContaining('群主', findRichText: true), findsWidgets);
     expect(find.text('加载更多'), findsOneWidget);
+  });
+
+  testWidgets('移除管理员后刷新管理员列表', (tester) async {
+    final service = _MutationRoomService(
+      admins: <GroupAdmin>[
+        GroupAdmin(
+          id: 'admin-record-1',
+          roomId: 'room-1',
+          adminId: 'admin-1',
+          appointedBy: 'owner',
+          role: 'admin',
+          appointedAt: DateTime(2026, 8, 2),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _host(
+        GroupAdminManagementPage(
+          roomId: 'room-1',
+          members: const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'user_id': 'admin-1',
+              'nickname': '管理员甲',
+              'role': 'admin',
+            },
+          ],
+          roomService: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('移除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(service.removedAdminId, 'admin-1');
+    expect(find.text('暂无管理员'), findsOneWidget);
+  });
+
+  testWidgets('通过入群申请后刷新申请列表', (tester) async {
+    final service = _MutationRoomService(
+      requests: <JoinRequest>[
+        JoinRequest(
+          id: 'request-1',
+          roomId: 'room-1',
+          applicantId: 'applicant-12345678',
+          status: 'pending',
+          createdAt: DateTime(2026, 8, 2),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _host(GroupJoinRequestsPage(roomId: 'room-1', roomService: service)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('通过'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(service.reviewedRequestId, 'request-1');
+    expect(service.reviewStatus, 'approved');
+    expect(find.text('暂无入群申请'), findsOneWidget);
+  });
+
+  testWidgets('解除成员禁言后刷新禁言列表', (tester) async {
+    final service = _MutationRoomService(
+      mutes: <GroupMute>[
+        GroupMute(
+          id: 'mute-1',
+          roomId: 'room-1',
+          userId: 'member-1',
+          mutedBy: 'owner',
+          muteDurationHours: 24,
+          mutedAt: DateTime.now(),
+          isActive: true,
+          muteUntil: DateTime.now().add(const Duration(hours: 24)),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _host(
+        GroupMuteManagementPage(
+          roomId: 'room-1',
+          members: const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'user_id': 'member-1',
+              'nickname': '成员甲',
+              'role': 'member',
+            },
+          ],
+          roomService: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('解除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(service.unmutedUserId, 'member-1');
+    expect(find.text('暂无被禁言的成员'), findsOneWidget);
+  });
+
+  testWidgets('删除群规后刷新群规列表', (tester) async {
+    final now = DateTime(2026, 8, 2);
+    final service = _MutationRoomService(
+      rules: <GroupRule>[
+        GroupRule(
+          id: 'rule-1',
+          roomId: 'room-1',
+          title: '禁止刷屏',
+          content: '请勿连续发送重复内容',
+          creatorId: 'owner',
+          orderIndex: 0,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      _host(
+        GroupRulesPage(roomId: 'room-1', canManage: true, roomService: service),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(service.deletedRuleId, 'rule-1');
+    expect(find.text('暂无群规，点击右上角添加'), findsOneWidget);
   });
 }
