@@ -43,6 +43,7 @@ import 'pinned_messages_page.dart';
 import 'message_search_page.dart';
 import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
+import 'widgets/message_action_menu.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
 import '../../core/services/voice_service.dart';
@@ -69,22 +70,6 @@ class ChatDetailPageV2 extends StatefulWidget {
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
-}
-
-enum _MessageAction { copy, quote, forward, pin, delete, reaction }
-
-class _MessageActionEntry {
-  const _MessageActionEntry({
-    required this.action,
-    required this.label,
-    required this.icon,
-    this.danger = false,
-  });
-
-  final _MessageAction action;
-  final String label;
-  final IconData icon;
-  final bool danger;
 }
 
 @visibleForTesting
@@ -2105,249 +2090,23 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         _showMorePanel = false;
       });
     }
-    final overlay =
-        Overlay.maybeOf(context)?.context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-
-    const menuWidth = 176.0;
-    const menuPadding = 12.0;
-    const actionHeight = 36.0;
-    const itemSpacing = 4.0;
-    const verticalOffset = 32.0;
-
-    final isTextMessage = message.type == MessageType.text;
-    final isPinned = _chatProvider.isMessagePinned(message);
-    final isRelayOnlyMode = _chatProvider.isRelayOnlyMode;
-    final actionEntries = <_MessageActionEntry>[];
-
-    if (isTextMessage && !message.isDeleted) {
-      actionEntries.add(
-        const _MessageActionEntry(
-          action: _MessageAction.copy,
-          label: '复制文本',
-          icon: Icons.copy_rounded,
-        ),
-      );
-    }
-
-    if (!isRelayOnlyMode && !message.isDeleted) {
-      actionEntries.add(
-        const _MessageActionEntry(
-          action: _MessageAction.quote,
-          label: '引用',
-          icon: Icons.format_quote_rounded,
-        ),
-      );
-    }
-
-    if (!isRelayOnlyMode && isTextMessage && !message.isDeleted) {
-      actionEntries.add(
-        const _MessageActionEntry(
-          action: _MessageAction.forward,
-          label: '转发',
-          icon: Icons.reply_rounded,
-        ),
-      );
-    }
-
-    if (!isRelayOnlyMode && !message.isDeleted) {
-      actionEntries.add(
-        _MessageActionEntry(
-          action: _MessageAction.pin,
-          label: isPinned ? '取消置顶' : '置顶',
-          icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
-        ),
-      );
-    }
-
-    if (!isRelayOnlyMode && !message.isDeleted) {
-      actionEntries.add(
-        const _MessageActionEntry(
-          action: _MessageAction.reaction,
-          label: '添加反应',
-          icon: Icons.emoji_emotions_outlined,
-        ),
-      );
-    }
-
-    if (!isRelayOnlyMode) {
-      actionEntries.add(
-        const _MessageActionEntry(
-          action: _MessageAction.delete,
-          label: '删除',
-          icon: Icons.delete_outline,
-          danger: true,
-        ),
-      );
-    }
-
-    if (actionEntries.isEmpty) {
-      return;
-    }
-
-    final menuHeight =
-        menuPadding * 2 +
-        actionHeight * actionEntries.length +
-        itemSpacing * math.max(0, actionEntries.length - 1);
-
-    final media = MediaQuery.of(context);
-    final padding = media.padding;
-    final availableWidth = overlay.size.width - padding.left - padding.right;
-    final availableHeight = overlay.size.height - padding.top - padding.bottom;
-
-    double left = isSelf
-        ? tapPosition.dx - padding.left - menuWidth + menuPadding
-        : tapPosition.dx - padding.left - menuPadding;
-    double maxLeft = availableWidth - menuWidth - 12.0;
-    if (maxLeft < 12.0) {
-      maxLeft = 12.0;
-    }
-    left = left.clamp(12.0, maxLeft);
-
-    double effectiveBottom = availableHeight - 12.0;
+    double? bottomBoundary;
     if (_inputAreaKey.currentContext != null) {
       final inputBox =
           _inputAreaKey.currentContext!.findRenderObject() as RenderBox?;
       if (inputBox != null && inputBox.hasSize) {
-        final inputTopGlobal = inputBox.localToGlobal(Offset.zero).dy;
-        final inputTopLocal = inputTopGlobal - padding.top;
-        effectiveBottom = math.min(effectiveBottom, inputTopLocal - 12.0);
+        bottomBoundary = inputBox.localToGlobal(Offset.zero).dy - 12;
       }
     }
-    if (effectiveBottom < menuHeight + 24.0) {
-      effectiveBottom = menuHeight + 24.0;
-    }
-
-    double maxTop = effectiveBottom - menuHeight;
-    if (maxTop < 12.0) {
-      maxTop = 12.0;
-    }
-
-    double top = tapPosition.dy - padding.top - verticalOffset;
-    if (top > maxTop) {
-      top = tapPosition.dy - padding.top - menuHeight - verticalOffset;
-    }
-    top = top.clamp(12.0, maxTop);
-
-    if (top + menuHeight > effectiveBottom) {
-      top = effectiveBottom - menuHeight;
-      if (top < 12.0) {
-        top = 12.0;
-      }
-    }
-
-    Widget buildActionButton(
-      BuildContext dialogContext,
-      String label,
-      _MessageAction value, {
-      bool danger = false,
-      IconData? icon,
-    }) {
-      final textStyle = TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-        color: danger ? AppColors.danger : AppColors.textPrimary,
-      );
-
-      return InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: () => Navigator.of(dialogContext).pop(value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Row(
-            children: [
-              Icon(
-                icon ?? Icons.more_horiz,
-                size: 20,
-                color: danger ? AppColors.danger : AppColors.iconSecondary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(child: Text(label, style: textStyle)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final action = await showGeneralDialog<_MessageAction>(
+    final action = await showMessageActionMenu(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: 'message-actions',
-      barrierColor: Colors.black.withValues(alpha: 0.03),
-      transitionDuration: const Duration(milliseconds: 120),
-      pageBuilder: (dialogContext, animation, secondaryAnimation) {
-        final fadeAnimation = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-          reverseCurve: Curves.easeIn,
-        );
-        final scaleAnimation = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutBack,
-          reverseCurve: Curves.easeInBack,
-        );
-
-        return FadeTransition(
-          opacity: fadeAnimation,
-          child: SafeArea(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(dialogContext).pop(),
-                    child: Container(color: Colors.transparent),
-                  ),
-                ),
-                Positioned(
-                  left: left + padding.left,
-                  top: top + padding.top,
-                  child: ScaleTransition(
-                    scale: Tween<double>(
-                      begin: 0.85,
-                      end: 1.0,
-                    ).animate(scaleAnimation),
-                    alignment: isSelf ? Alignment.topRight : Alignment.topLeft,
-                    child: Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      elevation: 4,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: menuWidth,
-                          maxWidth: menuWidth,
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(menuPadding),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              for (
-                                var i = 0;
-                                i < actionEntries.length;
-                                i++
-                              ) ...[
-                                if (i > 0) const SizedBox(height: itemSpacing),
-                                buildActionButton(
-                                  dialogContext,
-                                  actionEntries[i].label,
-                                  actionEntries[i].action,
-                                  danger: actionEntries[i].danger,
-                                  icon: actionEntries[i].icon,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      anchor: tapPosition,
+      isSelf: isSelf,
+      isTextMessage: message.type == MessageType.text,
+      isDeleted: message.isDeleted,
+      isPinned: _chatProvider.isMessagePinned(message),
+      isRelayOnlyMode: _chatProvider.isRelayOnlyMode,
+      bottomBoundary: bottomBoundary,
     );
 
     if (action == null || !mounted) return;
@@ -2355,35 +2114,35 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _handleMessageAction(
-    _MessageAction action,
+    MessageAction action,
     Message message,
   ) async {
     switch (action) {
-      case _MessageAction.copy:
+      case MessageAction.copy:
         if (message.type == MessageType.text && !message.isDeleted) {
           await Clipboard.setData(ClipboardData(text: message.content));
         }
         break;
-      case _MessageAction.quote:
+      case MessageAction.quote:
         if (message.isDeleted) {
           return;
         }
         setState(() => _quotedMessage = message);
         FocusScope.of(context).requestFocus(_inputFocusNode);
         break;
-      case _MessageAction.forward:
+      case MessageAction.forward:
         if (!mounted) return;
         await _forwardMessage(message);
         break;
-      case _MessageAction.pin:
+      case MessageAction.pin:
         if (!mounted) return;
         await _togglePinMessage(message);
         break;
-      case _MessageAction.delete:
+      case MessageAction.delete:
         if (!mounted) return;
         await _confirmDeleteMessage(message);
         break;
-      case _MessageAction.reaction:
+      case MessageAction.reaction:
         if (!mounted) return;
         await _showReactionPicker(message);
         break;
