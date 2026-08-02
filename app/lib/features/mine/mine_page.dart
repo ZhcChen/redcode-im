@@ -9,19 +9,29 @@ import '../../core/widgets/im_list_row.dart';
 import '../../core/widgets/im_state_panel.dart';
 import '../../core/widgets/im_surface.dart';
 import '../auth/data/auth_repository.dart';
+import '../auth/login_page.dart';
 import '../auth/models/auth_user.dart';
 import '../settings/about_page.dart';
 import '../settings/account_security_page.dart';
 import '../settings/privacy_policy_page.dart';
 import '../settings/settings_page.dart';
+import '../settings/widgets/confirm_action_dialog.dart';
 import 'profile_page.dart';
 
 typedef MineUserLoader = Future<AuthUser?> Function();
+typedef MineLogoutAction = Future<void> Function();
 
 class MinePage extends StatefulWidget {
-  const MinePage({super.key, this.loadUser});
+  const MinePage({
+    super.key,
+    this.loadUser,
+    this.logout,
+    this.loggedOutBuilder,
+  });
 
   final MineUserLoader? loadUser;
+  final MineLogoutAction? logout;
+  final WidgetBuilder? loggedOutBuilder;
 
   static Future<AuthUser?> _loadCurrentUser() async {
     final repository = AuthRepository();
@@ -41,6 +51,7 @@ class _MinePageState extends State<MinePage> {
   AuthUser? _user;
   Object? _error;
   bool _loading = true;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -73,6 +84,34 @@ class _MinePageState extends State<MinePage> {
   Future<void> _open(Widget page) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
     if (mounted) await _load();
+  }
+
+  Future<void> _logout() async {
+    if (_loggingOut) return;
+    final confirmed = await showConfirmActionDialog(
+      context,
+      title: '退出登录',
+      message: '退出后将清理当前账号在本机的会话与缓存，确认继续？',
+      confirmLabel: '退出',
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _loggingOut = true);
+    try {
+      await (widget.logout ?? AuthRepository().logout)();
+      if (!mounted) return;
+      final destination =
+          widget.loggedOutBuilder?.call(context) ?? const LoginPage();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => destination),
+        (_) => false,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loggingOut = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('退出失败：$error')));
+    }
   }
 
   @override
@@ -175,6 +214,24 @@ class _MinePageState extends State<MinePage> {
                 onTap: () => _open(const AboutPage()),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          ImSurface(
+            padding: EdgeInsets.zero,
+            child: ImListRow(
+              key: const Key('mine-logout-entry'),
+              title: const Center(
+                child: Text('退出登录', style: TextStyle(color: AppColors.danger)),
+              ),
+              trailing: _loggingOut
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _loggingOut ? null : _logout,
+              semanticLabel: '退出登录',
+            ),
           ),
         ],
       ),
