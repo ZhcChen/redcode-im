@@ -138,9 +138,17 @@ class _FakeTokenStorage extends TokenStorage {
 }
 
 class _FakeRoomService extends RoomService {
+  _FakeRoomService({this.memberCanInvite = false});
+
+  final bool memberCanInvite;
+
   @override
   Future<GroupSettingsInfo> fetchGroupSettings(String roomId) async {
-    return GroupSettingsInfo(roomId: roomId, globalMuteEnabled: false);
+    return GroupSettingsInfo(
+      roomId: roomId,
+      globalMuteEnabled: false,
+      memberCanInvite: memberCanInvite,
+    );
   }
 }
 
@@ -381,6 +389,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('管理员设置'), findsOneWidget);
+      expect(find.text('添加'), findsOneWidget);
+      expect(find.text('移除'), findsOneWidget);
+      expect(find.text('邀请'), findsNothing);
       expect(find.text('禁止发送消息'), findsOneWidget);
       expect(find.text('转让群主'), findsOneWidget);
       expect(find.text('解散群组'), findsOneWidget);
@@ -404,6 +415,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('添加'), findsOneWidget);
+      expect(find.text('移除'), findsOneWidget);
+      expect(find.text('邀请'), findsNothing);
       expect(find.text('禁止发送消息'), findsOneWidget);
       expect(find.text('入群审核'), findsOneWidget);
       expect(find.text('禁言管理'), findsOneWidget);
@@ -430,6 +444,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('添加'), findsNothing);
+      expect(find.text('移除'), findsNothing);
+      expect(find.text('邀请'), findsNothing);
       expect(find.text('禁止发送消息'), findsNothing);
       expect(find.text('入群审核'), findsNothing);
       expect(find.text('禁言管理'), findsNothing);
@@ -438,6 +455,26 @@ void main() {
       await tester.tap(find.text('群头像'));
       await tester.pumpAndSettle();
       expect(find.text('设置群头像'), findsNothing);
+    });
+
+    testWidgets('普通成员仅在群设置允许时展示邀请入口', (tester) async {
+      final chat = groupChat();
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: members('member')),
+            roomService: _FakeRoomService(memberCanInvite: true),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('邀请'), findsOneWidget);
+      expect(find.text('添加'), findsNothing);
+      expect(find.text('移除'), findsNothing);
+      expect(find.text('管理员设置'), findsNothing);
     });
 
     testWidgets('群设置举报入口使用统一举报组件', (tester) async {
