@@ -400,7 +400,7 @@ class MessageService with ChangeNotifier {
             lastMessageTime: chat.lastMessageTime,
             unreadCount: 0,
             isPinned: chat.isPinned,
-            isMuted: chat.isMuted,
+            notificationMode: chat.notificationMode,
             extra: _sanitizeChatExtraForRelayOnly(chat.extra),
           ),
         )
@@ -532,7 +532,7 @@ class MessageService with ChangeNotifier {
       lastMessageTime: latest.timestamp,
       unreadCount: unreadCount,
       isPinned: chat.isPinned,
-      isMuted: chat.isMuted,
+      notificationMode: chat.notificationMode,
       extra: extra,
     );
   }
@@ -4271,13 +4271,10 @@ class MessageService with ChangeNotifier {
         chatType == ChatType.favorite ||
         _readBool(json, const ['is_pinned', 'isPinned']);
 
-    final isMuted =
-        _readBool(json, const ['is_muted', 'isMuted']) ||
-        _readInt(json, const [
-              'notification_settings',
-              'notificationSettings',
-            ], defaultValue: 0) ==
-            2;
+    final notificationSetting = _readInt(json, const [
+      'notification_settings',
+      'notificationSettings',
+    ], defaultValue: _readBool(json, const ['is_muted', 'isMuted']) ? 2 : 0);
 
     var lastMessageText =
         _readString(lastMessage, const ['content', 'text', 'message']) ?? '';
@@ -4307,7 +4304,7 @@ class MessageService with ChangeNotifier {
       lastMessageTime: lastMessageTime,
       unreadCount: effectiveUnread,
       isPinned: isPinned,
-      isMuted: isMuted,
+      notificationMode: ChatNotificationMode.fromApiValue(notificationSetting),
       extra: extra.isEmpty ? null : extra,
     );
   }

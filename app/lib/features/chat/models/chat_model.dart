@@ -5,6 +5,24 @@ enum ChatType {
   favorite, // 收藏夹
 }
 
+enum ChatNotificationMode {
+  all(0),
+  mentions(1),
+  muted(2);
+
+  const ChatNotificationMode(this.apiValue);
+
+  final int apiValue;
+
+  static ChatNotificationMode fromApiValue(int value) {
+    return switch (value) {
+      1 => ChatNotificationMode.mentions,
+      2 => ChatNotificationMode.muted,
+      _ => ChatNotificationMode.all,
+    };
+  }
+}
+
 /// 聊天模型
 class Chat {
   final String id;
@@ -18,7 +36,7 @@ class Chat {
   final DateTime lastMessageTime;
   final int unreadCount;
   final bool isPinned;
-  final bool isMuted;
+  final ChatNotificationMode notificationMode;
   final Map<String, dynamic>? extra;
 
   Chat({
@@ -33,9 +51,14 @@ class Chat {
     required this.lastMessageTime,
     this.unreadCount = 0,
     this.isPinned = false,
-    this.isMuted = false,
+    bool isMuted = false,
+    ChatNotificationMode? notificationMode,
     this.extra,
-  });
+  }) : notificationMode =
+           notificationMode ??
+           (isMuted ? ChatNotificationMode.muted : ChatNotificationMode.all);
+
+  bool get isMuted => notificationMode == ChatNotificationMode.muted;
 
   /// 复制并修改部分字段
   Chat copyWith({
@@ -51,6 +74,7 @@ class Chat {
     int? unreadCount,
     bool? isPinned,
     bool? isMuted,
+    ChatNotificationMode? notificationMode,
     Map<String, dynamic>? extra,
   }) {
     return Chat(
@@ -65,7 +89,13 @@ class Chat {
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,
       unreadCount: unreadCount ?? this.unreadCount,
       isPinned: isPinned ?? this.isPinned,
-      isMuted: isMuted ?? this.isMuted,
+      notificationMode:
+          notificationMode ??
+          (isMuted == null
+              ? this.notificationMode
+              : isMuted
+              ? ChatNotificationMode.muted
+              : ChatNotificationMode.all),
       extra: extra ?? this.extra,
     );
   }

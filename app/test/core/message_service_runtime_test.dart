@@ -750,6 +750,7 @@ void main() {
                   'room_type': 'group',
                   'description': '核心项目讨论',
                   'member_count': 12,
+                  'notification_settings': 1,
                   'unread_count': 0,
                   'last_message': {
                     'id': 'msg-1',
@@ -772,6 +773,7 @@ void main() {
 
       expect(chats.single.extra?['description'], '核心项目讨论');
       expect(chats.single.extra?['member_count'], 12);
+      expect(chats.single.notificationMode, ChatNotificationMode.mentions);
     },
   );
 

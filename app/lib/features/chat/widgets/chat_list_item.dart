@@ -13,6 +13,7 @@ class ChatListItem extends StatelessWidget {
     required this.chat,
     required this.avatarBuilder,
     required this.onTap,
+    this.onLongPressStart,
     this.onLongPress,
     this.footer,
     this.showBottomDivider = false,
@@ -21,6 +22,7 @@ class ChatListItem extends StatelessWidget {
   final Chat chat;
   final AvatarBuilder avatarBuilder;
   final VoidCallback onTap;
+  final GestureLongPressStartCallback? onLongPressStart;
   final VoidCallback? onLongPress;
   final Widget? footer;
   final bool showBottomDivider;
@@ -35,35 +37,38 @@ class ChatListItem extends StatelessWidget {
 
     return Material(
       color: chat.isPinned ? AppColors.surfaceMuted : AppColors.surface,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: rowHorizontalPadding,
-                vertical: rowVerticalPadding,
+      child: GestureDetector(
+        onLongPressStart: onLongPressStart,
+        onLongPress: onLongPressStart == null ? onLongPress : null,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: rowHorizontalPadding,
+                  vertical: rowVerticalPadding,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    _buildAvatar(context, avatarBoxSize),
+                    SizedBox(width: avatarGap),
+                    Expanded(child: _buildContent(context)),
+                  ],
+                ),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  _buildAvatar(context, avatarBoxSize),
-                  SizedBox(width: avatarGap),
-                  Expanded(child: _buildContent(context)),
-                ],
-              ),
-            ),
-            if (footer != null) footer!,
-            if (showBottomDivider)
-              Divider(
-                height: 1,
-                thickness: 0.5,
-                color: Color(0xFFE9EBEF),
-                indent: rowHorizontalPadding + avatarBoxSize + avatarGap,
-              ),
-          ],
+              if (footer != null) footer!,
+              if (showBottomDivider)
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: Color(0xFFE9EBEF),
+                  indent: rowHorizontalPadding + avatarBoxSize + avatarGap,
+                ),
+            ],
+          ),
         ),
       ),
     );

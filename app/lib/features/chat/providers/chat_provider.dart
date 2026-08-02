@@ -21,15 +21,20 @@ class ChatProvider with ChangeNotifier {
     MessageService? messageService,
     WebSocketService? webSocketService,
     AppConfigService? appConfigService,
+    http.Client? client,
   }) : _messageService = messageService ?? MessageService.instance,
        _webSocketService = webSocketService ?? WebSocketService.instance,
-       _appConfigService = appConfigService ?? AppConfigService.instance {
+       _appConfigService = appConfigService ?? AppConfigService.instance,
+       _client = client ?? http.Client(),
+       _ownsClient = client == null {
     _init();
   }
 
   final MessageService _messageService;
   final WebSocketService _webSocketService;
   final AppConfigService _appConfigService;
+  final http.Client _client;
+  final bool _ownsClient;
 
   bool get isRelayOnlyMode =>
       _appConfigService.currentMessageRuntime.isRelayOnly;
@@ -527,7 +532,7 @@ class ChatProvider with ChangeNotifier {
         throw Exception('Not logged in');
       }
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/direct-upload'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
@@ -563,7 +568,7 @@ class ChatProvider with ChangeNotifier {
         throw Exception('Not logged in');
       }
 
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/avatar/commit'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
@@ -628,15 +633,15 @@ class ChatProvider with ChangeNotifier {
     }
   }
 
-  /// 删除聊天
-  Future<void> deleteChat(String chatId) async {
+  /// 将会话从当前用户的聊天收件箱归档，不删除消息或成员关系。
+  Future<Chat?> archiveChat(String chatId) async {
     final index = _chats.indexWhere((chat) => chat.id == chatId);
-    if (index < 0) return;
+    if (index < 0) return null;
 
     final chat = _chats[index];
     if (chat.type == ChatType.favorite) {
-      debugPrint('收藏夹会话不可删除');
-      return;
+      debugPrint('收藏夹会话不可归档');
+      return null;
     }
 
     // 乐观更新
@@ -649,19 +654,57 @@ class ChatProvider with ChangeNotifier {
         throw Exception('Not logged in');
       }
 
-      final response = await http.delete(
+      final response = await _client.delete(
         Uri.parse('${AppConfig.apiBaseUrl}/chats/${chat.roomId}'),
         headers: {'Authorization': 'Bearer ${session.token}'},
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to delete chat: ${response.body}');
+        throw Exception('Failed to archive chat: ${response.body}');
+      }
+      return chat;
+    } catch (e) {
+      debugPrint('Failed to archive chat: $e');
+      if (!_chats.any((candidate) => candidate.id == chat.id)) {
+        _chats.insert(index.clamp(0, _chats.length), chat);
+        notifyListeners();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteChat(String chatId) async {
+    await archiveChat(chatId);
+  }
+
+  Future<void> restoreArchivedChat(Chat chat) async {
+    if (_chats.any((candidate) => candidate.id == chat.id)) {
+      return;
+    }
+    _chats.add(chat);
+    _sortChats();
+    notifyListeners();
+
+    try {
+      final session = await _messageService.tokenStorage.readSession();
+      if (session == null) {
+        throw Exception('Not logged in');
+      }
+      final response = await _client.post(
+        Uri.parse('${AppConfig.apiBaseUrl}/chats/${chat.roomId}/restore'),
+        headers: {'Authorization': 'Bearer ${session.token}'},
+      );
+      if (response.statusCode != 200) {
+        throw Exception('Failed to restore chat: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Failed to delete chat: $e');
-      // 失败时回滚
-      _chats.insert(index, chat);
-      notifyListeners();
+      final optimisticIndex = _chats.indexWhere(
+        (candidate) => identical(candidate, chat),
+      );
+      if (optimisticIndex >= 0) {
+        _chats.removeAt(optimisticIndex);
+        notifyListeners();
+      }
       rethrow;
     }
   }
@@ -693,11 +736,11 @@ class ChatProvider with ChangeNotifier {
       }
 
       final response = isPinned
-          ? await http.post(
+          ? await _client.post(
               Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
               headers: {'Authorization': 'Bearer ${session.token}'},
             )
-          : await http.delete(
+          : await _client.delete(
               Uri.parse('${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/pin'),
               headers: {'Authorization': 'Bearer ${session.token}'},
             );
@@ -722,14 +765,24 @@ class ChatProvider with ChangeNotifier {
 
   /// 静音聊天
   Future<void> muteChat(String chatId, bool isMuted) async {
+    await setNotificationMode(
+      chatId,
+      isMuted ? ChatNotificationMode.muted : ChatNotificationMode.all,
+    );
+  }
+
+  Future<void> setNotificationMode(
+    String chatId,
+    ChatNotificationMode mode,
+  ) async {
     final index = _chats.indexWhere((chat) => chat.id == chatId);
     if (index < 0) return;
 
     final chat = _chats[index];
-    final oldMuted = chat.isMuted;
+    final oldMode = chat.notificationMode;
 
     // 乐观更新
-    _chats[index] = chat.copyWith(isMuted: isMuted);
+    _chats[index] = chat.copyWith(notificationMode: mode);
     notifyListeners();
 
     try {
@@ -738,10 +791,7 @@ class ChatProvider with ChangeNotifier {
         throw Exception('Not logged in');
       }
 
-      // notification_settings: 0=全部通知, 1=仅@提醒, 2=静音
-      final notificationSettings = isMuted ? 2 : 0;
-
-      final response = await http.post(
+      final response = await _client.post(
         Uri.parse(
           '${AppConfig.apiBaseUrl}/rooms/${chat.roomId}/notification-settings',
         ),
@@ -749,7 +799,7 @@ class ChatProvider with ChangeNotifier {
           'Authorization': 'Bearer ${session.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'notification_settings': notificationSettings}),
+        body: jsonEncode({'notification_settings': mode.apiValue}),
       );
 
       if (response.statusCode != 200) {
@@ -759,9 +809,10 @@ class ChatProvider with ChangeNotifier {
       debugPrint('Failed to update mute status: $e');
       // 失败时回滚
       final rollbackIndex = _chats.indexWhere((c) => c.id == chatId);
-      if (rollbackIndex >= 0) {
+      if (rollbackIndex >= 0 &&
+          _chats[rollbackIndex].notificationMode == mode) {
         _chats[rollbackIndex] = _chats[rollbackIndex].copyWith(
-          isMuted: oldMuted,
+          notificationMode: oldMode,
         );
         notifyListeners();
       }
@@ -986,6 +1037,9 @@ class ChatProvider with ChangeNotifier {
     _messageService.removeListener(_onMessageServiceChanged);
     _webSocketService.removeListener(_onWebSocketStatusChanged);
     _appConfigService.removeListener(_onAppConfigChanged);
+    if (_ownsClient) {
+      _client.close();
+    }
     super.dispose();
   }
 }

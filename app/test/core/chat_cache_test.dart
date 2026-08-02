@@ -91,6 +91,19 @@ void main() {
       expect(loaded.first.avatar, 'https://cdn.example.com/legacy.png');
     });
 
+    test('save and load preserve mentions notification mode', () async {
+      final chat = _buildChat(
+        id: 'mentions',
+        time: DateTime.now(),
+        isPinned: false,
+      ).copyWith(notificationMode: ChatNotificationMode.mentions);
+
+      await cache.saveChats([chat]);
+      final loaded = await cache.loadChats();
+
+      expect(loaded?.single.notificationMode, ChatNotificationMode.mentions);
+    });
+
     test('expired cache returns null and clears persisted keys', () async {
       final expired = DateTime.now().subtract(const Duration(hours: 25));
       SharedPreferences.setMockInitialValues({

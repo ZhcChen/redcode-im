@@ -10,6 +10,7 @@ import 'package:app/core/services/upload_policy_service.dart';
 import 'package:app/core/storage/token_storage.dart';
 import 'package:app/features/auth/data/auth_repository.dart';
 import 'package:app/features/auth/models/auth_session.dart';
+import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/models/message_model.dart';
 import 'package:app/features/contacts/models/friend_models.dart';
 import 'package:flutter/foundation.dart';
@@ -486,6 +487,13 @@ Future<Message> _verifyMessageContract({
   final chats = await messageA.fetchChats(force: true);
   expect(chats.any((chat) => chat.roomId == group.id), isTrue);
 
+  await _verifyConversationPreferenceContract(
+    client: client,
+    session: sessionA,
+    messageService: messageA,
+    roomId: group.id,
+  );
+
   final searchPayload = await _getJsonMap(
     client,
     '/messages/search',
@@ -513,6 +521,87 @@ Future<Message> _verifyMessageContract({
   );
 
   return edited;
+}
+
+Future<void> _verifyConversationPreferenceContract({
+  required http.Client client,
+  required AuthSession session,
+  required MessageService messageService,
+  required String roomId,
+}) async {
+  final notificationResponse = await client.post(
+    Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/notification-settings'),
+    headers: _jsonAuthHeaders(session),
+    body: jsonEncode({'notification_settings': 1}),
+  );
+  expect(
+    notificationResponse.statusCode,
+    200,
+    reason: 'update notification settings failed: ${notificationResponse.body}',
+  );
+  final notificationPayload = _expectJsonMap(
+    jsonDecode(notificationResponse.body),
+    'notification settings',
+  );
+  expect(notificationPayload['notification_settings'], 1);
+
+  final chatsWithMentions = await messageService.fetchChats(force: true);
+  expect(
+    chatsWithMentions
+        .singleWhere((chat) => chat.roomId == roomId)
+        .notificationMode,
+    ChatNotificationMode.mentions,
+  );
+
+  final archiveResponse = await client.delete(
+    Uri.parse('${AppConfig.apiBaseUrl}/chats/$roomId'),
+    headers: _authHeaders(session),
+  );
+  expect(
+    archiveResponse.statusCode,
+    200,
+    reason: 'archive chat failed: ${archiveResponse.body}',
+  );
+  expect(
+    _asBool(
+      _expectJsonMap(
+        jsonDecode(archiveResponse.body),
+        'archive chat',
+      )['success'],
+    ),
+    isTrue,
+  );
+  expect(
+    (await messageService.fetchChats(
+      force: true,
+    )).any((chat) => chat.roomId == roomId),
+    isFalse,
+  );
+
+  final restoreResponse = await client.post(
+    Uri.parse('${AppConfig.apiBaseUrl}/chats/$roomId/restore'),
+    headers: _authHeaders(session),
+  );
+  expect(
+    restoreResponse.statusCode,
+    200,
+    reason: 'restore chat failed: ${restoreResponse.body}',
+  );
+  expect(
+    _asBool(
+      _expectJsonMap(
+        jsonDecode(restoreResponse.body),
+        'restore chat',
+      )['success'],
+    ),
+    isTrue,
+  );
+  expect(
+    (await messageService.fetchChats(
+      force: true,
+    )).any((chat) => chat.roomId == roomId),
+    isTrue,
+  );
 }
 
 Future<Message> _waitForMessage(

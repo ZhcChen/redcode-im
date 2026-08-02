@@ -32,6 +32,7 @@ class ChatCache {
               'type': chat.type.index,
               'isPinned': chat.isPinned,
               'isMuted': chat.isMuted,
+              'notificationMode': chat.notificationMode.apiValue,
               'extra': chat.extra,
             },
           )
@@ -74,9 +75,9 @@ class ChatCache {
       final chats = chatMaps.map((map) {
         return Chat(
           id: map['id'] ?? '',
-          roomId: map['roomId'] ?? map['id'] ?? '',  // 兼容旧缓存
+          roomId: map['roomId'] ?? map['id'] ?? '', // 兼容旧缓存
           name: map['name'] ?? '',
-          avatar: map['avatar'] ?? map['avatarUrl'],  // 兼容旧字段名
+          avatar: map['avatar'] ?? map['avatarUrl'], // 兼容旧字段名
           avatarObjectKey: map['avatarObjectKey'],
           localAvatarPath: map['localAvatarPath'],
           lastMessage: map['lastMessage'] ?? '',
@@ -84,7 +85,13 @@ class ChatCache {
           unreadCount: map['unreadCount'] ?? 0,
           type: ChatType.values[map['type'] ?? 0],
           isPinned: map['isPinned'] ?? false,
-          isMuted: map['isMuted'] ?? false,
+          notificationMode: map['notificationMode'] is int
+              ? ChatNotificationMode.fromApiValue(
+                  map['notificationMode'] as int,
+                )
+              : (map['isMuted'] == true
+                    ? ChatNotificationMode.muted
+                    : ChatNotificationMode.all),
           extra: map['extra'],
         );
       }).toList();

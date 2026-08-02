@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/services/app_config_service.dart';
@@ -5,9 +8,24 @@ import 'package:app/core/services/message_service.dart';
 import 'package:app/core/services/settings_service.dart';
 import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
+import 'package:app/core/storage/token_storage.dart';
+import 'package:app/features/auth/models/auth_session.dart';
+import 'package:app/features/auth/models/auth_user.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/models/message_model.dart';
 import 'package:app/features/chat/providers/chat_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+
+class _FakeTokenStorage extends TokenStorage {
+  const _FakeTokenStorage();
+
+  @override
+  Future<AuthSession?> readSession() async => const AuthSession(
+    token: 'test-token',
+    user: AuthUser(id: 'user-1', username: 'alice'),
+  );
+}
 
 class _SendRichCall {
   _SendRichCall({
@@ -54,6 +72,9 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   int loadMessagesCallCount = 0;
   Future<void> Function()? onFetchChats;
   Object? sendRichError;
+
+  @override
+  TokenStorage get tokenStorage => const _FakeTokenStorage();
 
   @override
   List<Chat> get chats => List<Chat>.from(_chats);
@@ -248,6 +269,117 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('ChatProvider', () {
+    test('notification mode posts API value and updates local chat', () async {
+      final fakeMessageService = _FakeMessageService(
+        chats: <Chat>[
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'hello'),
+        ],
+      );
+      Map<String, dynamic>? payload;
+      final provider = ChatProvider(
+        messageService: fakeMessageService,
+        webSocketService: _FakeWebSocketService(),
+        client: MockClient((request) async {
+          payload = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{}', 200);
+        }),
+      );
+      addTearDown(provider.dispose);
+
+      await provider.setNotificationMode('1', ChatNotificationMode.mentions);
+
+      expect(payload?['notification_settings'], 1);
+      expect(
+        provider.chats.single.notificationMode,
+        ChatNotificationMode.mentions,
+      );
+    });
+
+    test('notification mode rolls back when API rejects update', () async {
+      final provider = ChatProvider(
+        messageService: _FakeMessageService(
+          chats: <Chat>[
+            _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'hello'),
+          ],
+        ),
+        webSocketService: _FakeWebSocketService(),
+        client: MockClient((request) async => http.Response('{}', 500)),
+      );
+      addTearDown(provider.dispose);
+
+      await expectLater(
+        provider.setNotificationMode('1', ChatNotificationMode.mentions),
+        throwsException,
+      );
+
+      expect(provider.chats.single.notificationMode, ChatNotificationMode.all);
+    });
+
+    test('archive and restore keep inbox state aligned with API', () async {
+      final chat = _chat(
+        id: '1',
+        roomId: 'r1',
+        name: 'Alice',
+        lastMessage: 'hello',
+      );
+      final requests = <String>[];
+      final provider = ChatProvider(
+        messageService: _FakeMessageService(chats: <Chat>[chat]),
+        webSocketService: _FakeWebSocketService(),
+        client: MockClient((request) async {
+          requests.add('${request.method} ${request.url.path}');
+          return http.Response('{}', 200);
+        }),
+      );
+      addTearDown(provider.dispose);
+
+      final archived = await provider.archiveChat(chat.id);
+      expect(archived, same(chat));
+      expect(provider.chats, isEmpty);
+
+      await provider.restoreArchivedChat(chat);
+      expect(provider.chats, <Chat>[chat]);
+      expect(requests, <String>['DELETE /chats/r1', 'POST /chats/r1/restore']);
+    });
+
+    test('archive rolls back inbox state when API rejects update', () async {
+      final chat = _chat(
+        id: '1',
+        roomId: 'r1',
+        name: 'Alice',
+        lastMessage: 'hello',
+      );
+      final provider = ChatProvider(
+        messageService: _FakeMessageService(chats: <Chat>[chat]),
+        webSocketService: _FakeWebSocketService(),
+        client: MockClient((request) async => http.Response('{}', 500)),
+      );
+      addTearDown(provider.dispose);
+
+      await expectLater(provider.archiveChat(chat.id), throwsException);
+
+      expect(provider.chats, <Chat>[chat]);
+    });
+
+    test('restore removes optimistic chat when API rejects update', () async {
+      final chat = _chat(
+        id: '1',
+        roomId: 'r1',
+        name: 'Alice',
+        lastMessage: 'hello',
+      );
+      final provider = ChatProvider(
+        messageService: _FakeMessageService(chats: const <Chat>[]),
+        webSocketService: _FakeWebSocketService(),
+        client: MockClient((request) async => http.Response('{}', 500)),
+      );
+      addTearDown(provider.dispose);
+
+      await expectLater(provider.restoreArchivedChat(chat), throwsException);
+
+      expect(provider.chats, isEmpty);
+    });
+
     test('search keyword filters by name / extra / last message', () {
       final fakeMessageService = _FakeMessageService(
         chats: <Chat>[
@@ -652,6 +784,35 @@ void main() {
         expect(provider.chats.single.unreadCount, 0);
       },
     );
+  });
+
+  test('stale notification failure does not overwrite newer update', () async {
+    final firstResponse = Completer<http.Response>();
+    var requestCount = 0;
+    final provider = ChatProvider(
+      messageService: _FakeMessageService(
+        chats: <Chat>[
+          _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'hello'),
+        ],
+      ),
+      webSocketService: _FakeWebSocketService(),
+      client: MockClient((request) {
+        requestCount += 1;
+        if (requestCount == 1) return firstResponse.future;
+        return Future.value(http.Response('{}', 200));
+      }),
+    );
+    addTearDown(provider.dispose);
+
+    final staleUpdate = provider.setNotificationMode(
+      '1',
+      ChatNotificationMode.mentions,
+    );
+    await provider.setNotificationMode('1', ChatNotificationMode.muted);
+    firstResponse.complete(http.Response('{}', 500));
+    await expectLater(staleUpdate, throwsException);
+
+    expect(provider.chats.single.notificationMode, ChatNotificationMode.muted);
   });
 }
 

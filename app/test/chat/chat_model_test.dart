@@ -2,6 +2,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 
 void main() {
+  test('notification mode keeps all mentions and muted distinct', () {
+    final chat = Chat(
+      id: 'chat-1',
+      roomId: 'room-1',
+      name: 'Alice',
+      type: ChatType.single,
+      lastMessage: 'hello',
+      lastMessageTime: DateTime(2026, 8, 2),
+      notificationMode: ChatNotificationMode.mentions,
+    );
+
+    expect(chat.notificationMode, ChatNotificationMode.mentions);
+    expect(chat.isMuted, isFalse);
+    expect(
+      chat.copyWith(notificationMode: ChatNotificationMode.muted).isMuted,
+      isTrue,
+    );
+    expect(
+      chat.copyWith(notificationMode: ChatNotificationMode.all).isMuted,
+      isFalse,
+    );
+  });
+
+  test('legacy isMuted constructor maps to muted notification mode', () {
+    final chat = Chat(
+      id: 'chat-1',
+      roomId: 'room-1',
+      name: 'Alice',
+      type: ChatType.single,
+      lastMessage: 'hello',
+      lastMessageTime: DateTime(2026, 8, 2),
+      isMuted: true,
+    );
+
+    expect(chat.notificationMode, ChatNotificationMode.muted);
+  });
+
   Chat buildChat({
     required ChatType type,
     required DateTime time,

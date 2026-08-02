@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
@@ -18,12 +17,21 @@ import 'create_group_page.dart';
 import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 import 'widgets/chat_list_item.dart';
+import 'widgets/conversation_context_menu.dart';
 
 class ChatListPage extends StatelessWidget {
-  const ChatListPage({super.key});
+  const ChatListPage({super.key, this.chatProvider});
+
+  final ChatProvider? chatProvider;
 
   @override
   Widget build(BuildContext context) {
+    if (chatProvider != null) {
+      return ChangeNotifierProvider<ChatProvider>.value(
+        value: chatProvider!,
+        child: const _ChatListView(),
+      );
+    }
     return ChangeNotifierProvider(
       create: (_) => ChatProvider(),
       child: const _ChatListView(),
@@ -74,47 +82,16 @@ class _ChatListView extends StatelessWidget {
                             context,
                           ).push(_buildChatDetailRoute(chat: chat));
                         },
-                      );
-
-                      if (isFavorite) {
-                        return item;
-                      }
-
-                      return Slidable(
-                        key: ValueKey(chat.id),
-                        endActionPane: ActionPane(
-                          motion: const DrawerMotion(),
-                          extentRatio: 0.45,
-                          children: [
-                            SlidableAction(
-                              onPressed: (_) =>
-                                  provider.pinChat(chat.id, !chat.isPinned),
-                              foregroundColor: Colors.white,
-                              backgroundColor: chat.isPinned
-                                  ? Colors.grey.shade600
-                                  : AppColors.primary,
-                              label: chat.isPinned ? '取消置顶' : '置顶',
-                              flex: chat.isPinned
-                                  ? 2
-                                  : 1, // 已置顶：取消置顶flex=2，删除flex=1；未置顶：置顶flex=1，删除flex=1
-                              padding: chat.isPinned
-                                  ? const EdgeInsets.symmetric(horizontal: 2)
-                                  : const EdgeInsets.symmetric(horizontal: 8),
-                            ),
-                            SlidableAction(
-                              onPressed: (_) =>
-                                  _confirmDeleteChat(context, provider, chat),
-                              foregroundColor: Colors.white,
-                              backgroundColor: AppColors.danger,
-                              label: '删除',
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
+                        onLongPressStart: isFavorite
+                            ? null
+                            : (details) => _showConversationMenu(
+                                context,
+                                provider,
+                                chat,
+                                details.globalPosition,
                               ),
-                            ),
-                          ],
-                        ),
-                        child: item,
                       );
+                      return item;
                     },
                   ),
           ),
@@ -129,42 +106,75 @@ class _ChatListView extends StatelessWidget {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  static Future<void> _confirmDeleteChat(
+  static Future<void> _showConversationMenu(
     BuildContext context,
     ChatProvider provider,
     Chat chat,
+    Offset anchor,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final action = await showConversationContextMenu(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('删除会话'),
-          content: Text('确定要删除与「${chat.name}」的会话吗？\n聊天记录将被清空。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+      chatName: chat.name,
+      anchor: anchor,
+      isPinned: chat.isPinned,
+      notificationMode: chat.notificationMode,
     );
-
-    if (confirmed != true) return;
+    if (action == null || !context.mounted) return;
 
     try {
-      await provider.deleteChat(chat.id);
-      if (context.mounted) {
-        _showSnackBar(context, '会话已删除');
+      switch (action) {
+        case ConversationMenuAction.pin:
+          await provider.pinChat(chat.id, !chat.isPinned);
+          if (context.mounted) {
+            _showSnackBar(context, chat.isPinned ? '已取消置顶' : '会话已置顶');
+          }
+        case ConversationMenuAction.mentions:
+          final next = chat.notificationMode == ChatNotificationMode.mentions
+              ? ChatNotificationMode.all
+              : ChatNotificationMode.mentions;
+          await provider.setNotificationMode(chat.id, next);
+          if (context.mounted) {
+            _showSnackBar(
+              context,
+              next == ChatNotificationMode.all ? '已恢复全部通知' : '已设为仅提及',
+            );
+          }
+        case ConversationMenuAction.muted:
+          final next = chat.notificationMode == ChatNotificationMode.muted
+              ? ChatNotificationMode.all
+              : ChatNotificationMode.muted;
+          await provider.setNotificationMode(chat.id, next);
+          if (context.mounted) {
+            _showSnackBar(
+              context,
+              next == ChatNotificationMode.all ? '已恢复全部通知' : '会话已静音',
+            );
+          }
+        case ConversationMenuAction.archive:
+          final archived = await provider.archiveChat(chat.id);
+          if (archived != null && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('会话已归档'),
+                action: SnackBarAction(
+                  label: '撤销',
+                  onPressed: () async {
+                    try {
+                      await provider.restoreArchivedChat(archived);
+                    } catch (_) {
+                      if (context.mounted) {
+                        _showSnackBar(context, '恢复失败，请稍后重试');
+                      }
+                    }
+                  },
+                ),
+              ),
+            );
+          }
       }
-    } catch (e) {
+    } catch (_) {
       if (context.mounted) {
-        _showSnackBar(context, '删除失败，请稍后重试');
+        _showSnackBar(context, '操作失败，请稍后重试');
       }
     }
   }

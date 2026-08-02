@@ -39,6 +39,38 @@ Chat _buildChat({
 }
 
 void main() {
+  testWidgets('short press and long press expose distinct callbacks', (
+    tester,
+  ) async {
+    final chat = _buildChat(
+      type: ChatType.single,
+      name: 'Alice',
+      lastMessage: 'hello',
+    );
+    var tapCount = 0;
+    Offset? longPressPosition;
+
+    await tester.pumpWidget(
+      _buildHarness(
+        ChatListItem(
+          chat: chat,
+          avatarBuilder: (_) => const SizedBox(),
+          onTap: () => tapCount += 1,
+          onLongPressStart: (details) {
+            longPressPosition = details.globalPosition;
+          },
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ChatListItem));
+    expect(tapCount, 1);
+
+    await tester.longPressAt(tester.getCenter(find.byType(ChatListItem)));
+    expect(tapCount, 1);
+    expect(longPressPosition, isNotNull);
+  });
+
   testWidgets('single chat title prefers friend remark fields', (tester) async {
     final chat = _buildChat(
       type: ChatType.single,
