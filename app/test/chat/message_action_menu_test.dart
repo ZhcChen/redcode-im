@@ -37,6 +37,7 @@ void main() {
 
     expect(find.text('复制文本'), findsOneWidget);
     expect(find.text('引用'), findsOneWidget);
+    expect(find.text('编辑'), findsOneWidget);
     expect(find.text('转发'), findsOneWidget);
     expect(find.text('置顶'), findsOneWidget);
     expect(find.text('添加反应'), findsOneWidget);
@@ -52,6 +53,35 @@ void main() {
     await tester.tap(find.text('引用'));
     await tester.pumpAndSettle();
     expect(selected, MessageAction.quote);
+  });
+
+  testWidgets('peer text message does not expose edit action', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => showMessageActionMenu(
+                context: context,
+                anchor: const Offset(40, 80),
+                isSelf: false,
+                isTextMessage: true,
+                isDeleted: false,
+                isPinned: false,
+                isRelayOnlyMode: false,
+              ),
+              child: const Text('打开'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('编辑'), findsNothing);
+    expect(find.text('删除'), findsNothing);
   });
 
   testWidgets('relay-only text message only exposes local copy', (

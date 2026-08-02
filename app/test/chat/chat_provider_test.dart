@@ -62,6 +62,7 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   final List<String> pinnedCalls = <String>[];
   final List<String> unpinnedCalls = <String>[];
   final List<String> markedDeleted = <String>[];
+  final List<String> editedCalls = <String>[];
   final List<String> markedReadCalls = <String>[];
   final List<String> localMarkedReadRooms = <String>[];
   final List<String> addedReactionCalls = <String>[];
@@ -141,6 +142,15 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   @override
   Future<void> markMessageDeleted(String roomId, String messageId) async {
     markedDeleted.add('$roomId::$messageId');
+  }
+
+  @override
+  Future<void> editMessage({
+    required String roomId,
+    required String messageId,
+    required String content,
+  }) async {
+    editedCalls.add('$roomId::$messageId::$content');
   }
 
   @override
@@ -670,6 +680,22 @@ void main() {
       expect(fakeMessageService.markedDeleted, <String>['room-del::m-del']);
     });
 
+    test('editMessage delegates self text update to message service', () async {
+      final fakeMessageService = _FakeMessageService();
+      final provider = ChatProvider(
+        messageService: fakeMessageService,
+        webSocketService: _FakeWebSocketService(),
+      );
+      addTearDown(provider.dispose);
+
+      final message = _message(id: 'm-edit', roomId: 'room-edit', content: 'x');
+      await provider.editMessage(message, 'updated');
+
+      expect(fakeMessageService.editedCalls, <String>[
+        'room-edit::m-edit::updated',
+      ]);
+    });
+
     test(
       'relay_only drops quoted message and skips unsupported message mutations',
       () async {
@@ -720,6 +746,7 @@ void main() {
         await provider.pinMessage(message);
         await provider.unpinMessage(message);
         await provider.deleteMessage(message);
+        await provider.editMessage(message, 'updated');
         await provider.toggleReaction(message, '👍');
 
         expect(fakeMessageService.markedReadCalls, isEmpty);
@@ -729,6 +756,7 @@ void main() {
         expect(fakeMessageService.pinnedCalls, isEmpty);
         expect(fakeMessageService.unpinnedCalls, isEmpty);
         expect(fakeMessageService.markedDeleted, isEmpty);
+        expect(fakeMessageService.editedCalls, isEmpty);
         expect(fakeMessageService.addedReactionCalls, isEmpty);
         expect(fakeMessageService.removedReactionCalls, isEmpty);
       },

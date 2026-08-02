@@ -458,11 +458,25 @@ class ChatProvider with ChangeNotifier {
   }
 
   Future<void> deleteMessage(Message message) async {
-    if (isRelayOnlyMode) {
-      debugPrint('relay_only mode: delete message is disabled');
+    if (isRelayOnlyMode || !message.isSelf || message.isDeleted) {
+      debugPrint('delete message is disabled for current message state');
       return;
     }
     await _messageService.markMessageDeleted(message.roomId, message.id);
+  }
+
+  Future<void> editMessage(Message message, String content) async {
+    if (isRelayOnlyMode ||
+        !message.isSelf ||
+        message.type != MessageType.text ||
+        message.isDeleted) {
+      return;
+    }
+    await _messageService.editMessage(
+      roomId: message.roomId,
+      messageId: message.id,
+      content: content,
+    );
   }
 
   Future<void> toggleReaction(Message message, String reactionKey) async {

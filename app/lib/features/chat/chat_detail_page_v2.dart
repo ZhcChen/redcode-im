@@ -44,6 +44,7 @@ import 'message_search_page.dart';
 import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/message_action_menu.dart';
+import 'widgets/message_editor_sheet.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
 import '../../core/services/voice_service.dart';
@@ -2130,6 +2131,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         setState(() => _quotedMessage = message);
         FocusScope.of(context).requestFocus(_inputFocusNode);
         break;
+      case MessageAction.edit:
+        if (!mounted) return;
+        await _editMessage(message);
+        break;
       case MessageAction.forward:
         if (!mounted) return;
         await _forwardMessage(message);
@@ -2146,6 +2151,21 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
         if (!mounted) return;
         await _showReactionPicker(message);
         break;
+    }
+  }
+
+  Future<void> _editMessage(Message message) async {
+    final content = await showMessageEditorSheet(
+      context: context,
+      initialContent: message.content,
+    );
+    if (!mounted || content == null) return;
+
+    try {
+      await _chatProvider.editMessage(message, content);
+      if (mounted) _showSnack('消息已编辑');
+    } catch (_) {
+      if (mounted) _showErrorSnack('编辑失败，请稍后重试');
     }
   }
 
@@ -2257,10 +2277,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _confirmDeleteMessage(Message message) async {
-    final title = message.isDeleted ? '移除消息记录' : '删除消息';
-    final contentText = message.isDeleted
-        ? '从本地聊天记录中移除这条已删除的消息？'
-        : '删除后将在本地隐藏该消息，其他设备暂不会同步，确认删除？';
+    if (!message.isSelf || message.isDeleted) return;
+    const title = '删除消息';
+    const contentText = '删除后会同步到当前会话中的其他成员，确认删除？';
 
     final confirmed = await showDialog<bool>(
       context: context,

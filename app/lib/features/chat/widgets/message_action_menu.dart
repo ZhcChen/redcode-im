@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/design_tokens.dart';
 
-enum MessageAction { copy, quote, forward, pin, delete, reaction }
+enum MessageAction { copy, quote, edit, forward, pin, delete, reaction }
 
 const messageActionMenuKey = ValueKey('message-action-menu');
 
@@ -34,6 +34,7 @@ Future<MessageAction?> showMessageActionMenu({
   double? bottomBoundary,
 }) {
   final entries = _buildEntries(
+    isSelf: isSelf,
     isTextMessage: isTextMessage,
     isDeleted: isDeleted,
     isPinned: isPinned,
@@ -134,6 +135,7 @@ Future<MessageAction?> showMessageActionMenu({
 }
 
 List<_MessageActionEntry> _buildEntries({
+  required bool isSelf,
   required bool isTextMessage,
   required bool isDeleted,
   required bool isPinned,
@@ -151,6 +153,12 @@ List<_MessageActionEntry> _buildEntries({
         action: MessageAction.quote,
         label: '引用',
         icon: Icons.format_quote_rounded,
+      ),
+    if (!isRelayOnlyMode && isSelf && isTextMessage && !isDeleted)
+      const _MessageActionEntry(
+        action: MessageAction.edit,
+        label: '编辑',
+        icon: Icons.edit_outlined,
       ),
     if (!isRelayOnlyMode && isTextMessage && !isDeleted)
       const _MessageActionEntry(
@@ -170,7 +178,7 @@ List<_MessageActionEntry> _buildEntries({
         label: '添加反应',
         icon: Icons.emoji_emotions_outlined,
       ),
-    if (!isRelayOnlyMode)
+    if (!isRelayOnlyMode && isSelf)
       const _MessageActionEntry(
         action: MessageAction.delete,
         label: '删除',
