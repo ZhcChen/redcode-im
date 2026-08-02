@@ -25,6 +25,12 @@ Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simula
 - `make app.test.integration.device.auth APP_TEST_DEVICE=emulator-5554`：真实 API 注册、登录、刷新和登出通过。
 - `make app.test.integration.device.contract APP_TEST_DEVICE=emulator-5554`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
 
+## 默认设备复核
+
+- `flutter devices`：未发现 Pixel 8 Pro `3A091FDJG001DN`，因此不能执行 Android 真机验收。
+- `make app.test.patrol.harness PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：iPhone 17 Pro Simulator 构建持续 119.1 秒未进入测试执行阶段，终止后报告 `xcodebuild was interrupted`，本次没有测试通过证据。
+- 终止后未残留 `xcodebuild`、`XCBBuildService` 或 Patrol 测试进程。
+
 ## 本轮修复
 
 Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册正式命名路由。现已使用 `AppRouter.onGenerateRoute` 进入真实 App Shell，显式输入账号密码，并将断言更新为 2.0 的“聊天、联系人、发现、我的”信息架构。后续扩展覆盖联系人和发现页面、我的设置二级路由、Android 系统返回与前后台恢复。
