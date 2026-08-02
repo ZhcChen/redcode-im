@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
-import '../auth/reset_password_page.dart';
+import '../../core/theme/design_tokens.dart';
+import '../../core/widgets/im_app_bar.dart';
+import '../../core/widgets/im_list_row.dart';
+import '../../core/widgets/im_surface.dart';
+import 'change_password_page.dart';
+import 'deactivate_account_page.dart';
 
 class AccountSecurityPage extends StatelessWidget {
   const AccountSecurityPage({super.key});
@@ -10,89 +15,54 @@ class AccountSecurityPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        centerTitle: true,
+      appBar: ImAppBar(
+        title: '账号与安全',
+        dense: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textBlack),
+          tooltip: '返回',
           onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text(
-          '账号与安全',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w400,
-            color: AppColors.textBlack,
-            letterSpacing: 0,
-            height: 1.2,
-          ),
+          icon: const Icon(Icons.arrow_back),
         ),
       ),
       body: SafeArea(
-        bottom: false,
+        top: false,
         child: ListView(
-          padding: const EdgeInsets.only(
-            top: 16,
-            left: 20,
-            right: 20,
-            bottom: 24,
-          ),
+          padding: const EdgeInsets.all(AppSpacing.md),
           children: [
-            // 修改密码
-            _buildMenuItem(
-              context,
-              title: '修改密码',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
+            ImSurface(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ImListRow(
+                    key: const Key('change-password-entry'),
+                    title: const Text('修改密码'),
+                    subtitle: const Text('使用当前密码设置新密码'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ChangePasswordPage(),
+                      ),
                     ),
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textSecondary,
-                  size: 20,
-                ),
-              ],
+                  const Divider(height: 1, indent: AppSpacing.md),
+                  ImListRow(
+                    key: const Key('deactivate-account-entry'),
+                    title: const Text(
+                      '注销账号',
+                      style: TextStyle(color: AppColors.danger),
+                    ),
+                    subtitle: const Text('永久删除账号及关系数据'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DeactivateAccountPage(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
