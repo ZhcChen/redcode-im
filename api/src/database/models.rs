@@ -1262,6 +1262,23 @@ pub struct GroupInvitation {
     pub expires_at: DateTime<Utc>,
 }
 
+/// 被邀请方的群邀请列表项
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct ReceivedGroupInvitation {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub room_name: String,
+    pub room_avatar_url: Option<String>,
+    pub inviter_id: Uuid,
+    pub inviter_name: String,
+    pub invitee_id: Uuid,
+    pub message: Option<String>,
+    pub status: InvitationStatus,
+    pub invited_at: DateTime<Utc>,
+    pub responded_at: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
+}
+
 /// 群聊管理员
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GroupAdmin {

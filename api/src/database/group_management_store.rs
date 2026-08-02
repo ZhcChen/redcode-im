@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::database::models::{
     AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
     GroupMute, GroupOperationLog, GroupRule, GroupSettings, InvitationStatus, InviteToGroupRequest,
-    JoinGroupRequest, JoinRequest, JoinRequestStatus, MuteUserRequest, ReviewJoinRequestRequest,
-    UpdateGroupSettingsRequest, UpdateRuleRequest,
+    JoinGroupRequest, JoinRequest, JoinRequestStatus, MuteUserRequest, ReceivedGroupInvitation,
+    ReviewJoinRequestRequest, UpdateGroupSettingsRequest, UpdateRuleRequest,
 };
 
 pub struct GroupManagementStore<'a> {
@@ -384,6 +384,41 @@ impl<'a> GroupManagementStore<'a> {
     }
 
     // ===== 群聊邀请管理 =====
+
+    pub async fn list_received_invitations(
+        &self,
+        invitee_id: Uuid,
+        status: Option<InvitationStatus>,
+    ) -> Result<Vec<ReceivedGroupInvitation>, sqlx::Error> {
+        let invitations = sqlx::query_as::<_, ReceivedGroupInvitation>(
+            r#"
+            SELECT gi.id,
+                   gi.room_id,
+                   r.name AS room_name,
+                   r.avatar_url AS room_avatar_url,
+                   gi.inviter_id,
+                   COALESCE(NULLIF(u.nickname, ''), u.username) AS inviter_name,
+                   gi.invitee_id,
+                   gi.message,
+                   gi.status,
+                   gi.invited_at,
+                   gi.responded_at,
+                   gi.expires_at
+            FROM group_invitations gi
+            JOIN rooms r ON r.id = gi.room_id
+            JOIN users u ON u.id = gi.inviter_id
+            WHERE gi.invitee_id = $1
+              AND ($2::int4 IS NULL OR gi.status = $2)
+            ORDER BY gi.invited_at DESC
+            "#,
+        )
+        .bind(invitee_id)
+        .bind(status)
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(invitations)
+    }
 
     pub async fn get_invitation_by_id(
         &self,

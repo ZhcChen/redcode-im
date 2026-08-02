@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::Json,
 };
@@ -14,9 +14,10 @@ use crate::database::{
     group_management_store::GroupManagementStore,
     models::{
         AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
-        GroupMute, GroupOperationLog, GroupRule, GroupSettings, InviteToGroupRequest,
-        JoinGroupRequest, JoinRequest, MemberRole, MuteUserRequest, ReviewJoinRequestRequest,
-        UpdateGroupSettingsRequest, UpdateRuleRequest,
+        GroupMute, GroupOperationLog, GroupRule, GroupSettings, InvitationStatus,
+        InviteToGroupRequest, JoinGroupRequest, JoinRequest, MemberRole, MuteUserRequest,
+        ReceivedGroupInvitation, ReviewJoinRequestRequest, UpdateGroupSettingsRequest,
+        UpdateRuleRequest,
     },
     room_store::RoomStore,
 };
@@ -451,6 +452,41 @@ pub async fn review_join_request(
 }
 
 // ===== 群聊邀请管理 API =====
+
+#[derive(Debug, Deserialize)]
+pub struct ListReceivedInvitationsQuery {
+    pub status: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ListReceivedInvitationsResponse {
+    pub invitations: Vec<ReceivedGroupInvitation>,
+}
+
+pub async fn list_received_invitations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<ListReceivedInvitationsQuery>,
+) -> Result<Json<ListReceivedInvitationsResponse>, AppError> {
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
+    let status = match query.status.as_deref() {
+        None | Some("all") => None,
+        Some("pending") => Some(InvitationStatus::Pending),
+        Some("accepted") => Some(InvitationStatus::Accepted),
+        Some("declined") => Some(InvitationStatus::Declined),
+        Some("expired") => Some(InvitationStatus::Expired),
+        Some(_) => {
+            return Err(AppError::ValidationError(
+                "Invalid invitation status".to_string(),
+            ));
+        }
+    };
+
+    let store = GroupManagementStore::new(state.database.pool());
+    let invitations = store.list_received_invitations(user_id, status).await?;
+    Ok(Json(ListReceivedInvitationsResponse { invitations }))
+}
 
 #[derive(Serialize)]
 pub struct CreateInvitationsResponse {

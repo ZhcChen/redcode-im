@@ -689,6 +689,10 @@ pub fn create_routes() -> Router<AppState> {
             post(group_management::create_invitations),
         )
         .route(
+            "/group-invitations",
+            get(group_management::list_received_invitations),
+        )
+        .route(
             "/rooms/{room_id}/invitations/{invitation_id}/respond",
             patch(group_management::respond_to_invitation),
         )

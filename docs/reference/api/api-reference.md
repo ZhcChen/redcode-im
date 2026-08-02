@@ -831,13 +831,19 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 群邀请管理
 
-#### 11. 创建群邀请
+#### 11. 获取当前用户收到的群邀请
+- **接口**: `GET /group-invitations?status=pending`
+- **权限**: 需要认证
+- **功能**: 查询当前用户收到的群邀请；`status` 支持 `pending`、`accepted`、`declined`、`expired` 和 `all`
+- **Handler**: `group_management::list_received_invitations`
+
+#### 12. 创建群邀请
 - **接口**: `POST /rooms/:room_id/invitations`
 - **权限**: 需要认证（需要管理员权限）
 - **功能**: 邀请用户加入群组
 - **Handler**: `group_management::create_invitations`
 
-#### 12. 响应群邀请
+#### 13. 响应群邀请
 - **接口**: `PATCH /rooms/:room_id/invitations/:invitation_id/respond`
 - **权限**: 需要认证
 - **功能**: 接受或拒绝群邀请
