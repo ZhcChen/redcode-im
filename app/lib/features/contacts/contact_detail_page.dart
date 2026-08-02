@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
+import '../../core/services/report_service.dart';
 import '../../core/widgets/input_dialog.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../auth/models/auth_user.dart';
 import '../chat/chat_detail_page_v2.dart';
 import '../chat/models/chat_model.dart';
+import '../report/report_dialog.dart';
 import 'models/friend_models.dart';
 
 class ContactDetailPage extends StatefulWidget {
@@ -14,10 +16,12 @@ class ContactDetailPage extends StatefulWidget {
     super.key,
     required this.friend,
     this.friendService,
+    this.reportService,
   });
 
   final FriendInfo friend;
   final FriendService? friendService;
+  final ReportService? reportService;
 
   @override
   State<ContactDetailPage> createState() => _ContactDetailPageState();
@@ -168,6 +172,15 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
     );
   }
 
+  Future<void> _handleReport() async {
+    await ReportDialog.show(
+      context,
+      targetType: 'user',
+      targetId: _friend.user.id,
+      reportService: widget.reportService,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _friend.user;
@@ -216,6 +229,15 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
             ),
           ),
           const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: _handleReport,
+              icon: const Icon(Icons.report_outlined),
+              label: const Text('举报该用户'),
+            ),
+          ),
+          const SizedBox(height: 4),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

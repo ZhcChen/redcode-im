@@ -48,4 +48,27 @@ void main() {
     expect(find.text('项目负责人'), findsOneWidget);
     expect(find.text('备注已更新'), findsOneWidget);
   });
+
+  testWidgets('联系人名片提供举报入口并阻止空内容提交', (tester) async {
+    final friend = FriendInfo(
+      id: 'friendship-1',
+      user: const AuthUser(id: 'user-2', username: 'bob'),
+      createdAt: DateTime(2026, 8, 1),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: ContactDetailPage(friend: friend)),
+    );
+
+    await tester.scrollUntilVisible(find.text('举报该用户'), 200);
+    await tester.tap(find.text('举报该用户'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('举报该用户'), findsWidgets);
+    expect(find.text('选择截图'), findsOneWidget);
+    await tester.tap(find.text('提交举报'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('请输入举报内容'), findsOneWidget);
+    expect(find.byKey(const Key('report-content')), findsOneWidget);
+  });
 }
