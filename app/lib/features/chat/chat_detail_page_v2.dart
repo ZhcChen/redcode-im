@@ -45,6 +45,7 @@ import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/message_action_menu.dart';
 import 'widgets/message_editor_sheet.dart';
+import 'widgets/message_delivery_status.dart';
 import 'widgets/message_forward_sheet.dart';
 import 'widgets/message_read_receipts_sheet.dart';
 import 'widgets/quoted_message_avatar.dart';
@@ -2995,8 +2996,11 @@ class _MessageBubbleState extends State<_MessageBubble>
         .where((p) => p.type == MessagePartType.file)
         .toList();
 
-    // 只有一个媒体，没有文字，没有文件
-    return mediaParts.length == 1 && textPart == null && fileParts.isEmpty;
+    // 单图组件自带时间角标；单视频使用文件卡片，需要保留外层状态行。
+    return mediaParts.length == 1 &&
+        mediaParts.single.type == MessagePartType.image &&
+        textPart == null &&
+        fileParts.isEmpty;
   }
 
   Widget _buildMessageBody(BuildContext context) {
@@ -3170,6 +3174,7 @@ class _MessageBubbleState extends State<_MessageBubble>
           mediaParts: mediaParts,
           isSelf: _isSelf,
           hasText: textPart != null,
+          onRetry: widget.onResend,
         ),
       );
     }
@@ -3209,6 +3214,7 @@ class _MessageBubbleState extends State<_MessageBubble>
           message: _message,
           isSelf: _isSelf,
           hasMediaAbove: mediaParts.isNotEmpty,
+          onRetry: widget.onResend,
         ),
       );
     }
@@ -3311,6 +3317,7 @@ class _MessageBubbleState extends State<_MessageBubble>
           message: _message,
           part: part,
           isSelf: _isSelf,
+          onRetry: widget.onResend,
         );
       case MessagePartType.video:
         return _AttachmentFileTile(
@@ -3588,46 +3595,14 @@ class _MessageBubbleState extends State<_MessageBubble>
   }
 
   Widget? _buildStatusIndicator({VoidCallback? onReadTap}) {
-    const double statusBoxSize = 16;
-    Widget wrap(Widget child, {VoidCallback? onTap}) {
-      final boxed = SizedBox(
-        width: statusBoxSize,
-        height: statusBoxSize,
-        child: Center(child: child),
-      );
-      if (onTap != null) {
-        return GestureDetector(onTap: onTap, child: boxed);
-      }
-      return boxed;
-    }
-
-    switch (_message.status) {
-      case MessageStatus.sending:
-        return wrap(
-          const SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ),
-        );
-      case MessageStatus.sent:
-        return wrap(const Icon(Icons.done, size: 12, color: Colors.white));
-      case MessageStatus.delivered:
-        return null;
-      case MessageStatus.read:
-        return wrap(
-          const Icon(Icons.done_all, size: 13, color: Colors.white),
-          onTap: onReadTap,
-        );
-      case MessageStatus.failed:
-        return wrap(
-          const Icon(Icons.priority_high, size: 14, color: Colors.red),
-          onTap: widget.onResend,
-        );
-    }
+    if (_message.status == MessageStatus.delivered) return null;
+    return MessageDeliveryStatus(
+      status: _message.status,
+      color: Colors.white,
+      onReadTap: onReadTap,
+      onRetry: widget.onResend,
+      compact: true,
+    );
   }
 
   String _formatBubbleTime() {
@@ -5524,11 +5499,13 @@ class _AttachmentImageView extends StatefulWidget {
     required this.message,
     required this.part,
     required this.isSelf,
+    required this.onRetry,
   });
 
   final Message message;
   final MessagePart part;
   final bool isSelf;
+  final VoidCallback onRetry;
 
   @override
   State<_AttachmentImageView> createState() => _AttachmentImageViewState();
@@ -5738,6 +5715,7 @@ class _AttachmentImageViewState extends State<_AttachmentImageView> {
                 child: _MediaTimeBadge(
                   message: widget.message,
                   isSelf: widget.isSelf,
+                  onRetry: widget.onRetry,
                 ),
               ),
             ],
@@ -6555,12 +6533,14 @@ class _MediaGridView extends StatelessWidget {
     required this.message,
     required this.mediaParts,
     required this.isSelf,
+    required this.onRetry,
     this.hasText = false,
   });
 
   final Message message;
   final List<MessagePart> mediaParts;
   final bool isSelf;
+  final VoidCallback onRetry;
   final bool hasText;
 
   @override
@@ -6649,7 +6629,11 @@ class _MediaGridView extends StatelessWidget {
             Positioned(
               right: 8,
               bottom: 8,
-              child: _MediaTimeBadge(message: message, isSelf: isSelf),
+              child: _MediaTimeBadge(
+                message: message,
+                isSelf: isSelf,
+                onRetry: onRetry,
+              ),
             ),
         ],
       ),
@@ -6895,10 +6879,15 @@ class _MediaGridItemState extends State<_MediaGridItem> {
 
 /// 媒体时间戳角标
 class _MediaTimeBadge extends StatelessWidget {
-  const _MediaTimeBadge({required this.message, required this.isSelf});
+  const _MediaTimeBadge({
+    required this.message,
+    required this.isSelf,
+    required this.onRetry,
+  });
 
   final Message message;
   final bool isSelf;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -6914,43 +6903,19 @@ class _MediaTimeBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(time, style: const TextStyle(fontSize: 11, color: Colors.white)),
-          if (isSelf) ...[const SizedBox(width: 4), _buildStatusIcon()],
+          if (isSelf) ...[
+            const SizedBox(width: 4),
+            MessageDeliveryStatus(
+              status: message.status,
+              color: Colors.white,
+              readColor: const Color(0xFF40A9FF),
+              onRetry: onRetry,
+              compact: true,
+            ),
+          ],
         ],
       ),
     );
-  }
-
-  Widget _buildStatusIcon() {
-    IconData icon;
-    Color color = Colors.white;
-
-    switch (message.status) {
-      case MessageStatus.sending:
-        return const SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            valueColor: AlwaysStoppedAnimation(Colors.white),
-          ),
-        );
-      case MessageStatus.sent:
-        icon = Icons.check;
-        break;
-      case MessageStatus.delivered:
-        icon = Icons.done_all;
-        break;
-      case MessageStatus.read:
-        icon = Icons.done_all;
-        color = const Color(0xFF40A9FF);
-        break;
-      case MessageStatus.failed:
-        icon = Icons.error_outline;
-        color = Colors.red;
-        break;
-    }
-
-    return Icon(icon, size: 14, color: color);
   }
 
   String _formatTime(DateTime time) {
@@ -6967,12 +6932,14 @@ class _MixedTextWithTime extends StatelessWidget {
     required this.text,
     required this.message,
     required this.isSelf,
+    required this.onRetry,
     this.hasMediaAbove = false,
   });
 
   final String text;
   final Message message;
   final bool isSelf;
+  final VoidCallback onRetry;
   final bool hasMediaAbove;
 
   @override
@@ -7009,48 +6976,22 @@ class _MixedTextWithTime extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(time, style: TextStyle(fontSize: 11, color: timeColor)),
-                if (isSelf) ...[const SizedBox(width: 4), _buildStatusIcon()],
+                if (isSelf) ...[
+                  const SizedBox(width: 4),
+                  MessageDeliveryStatus(
+                    status: message.status,
+                    color: timeColor,
+                    readColor: const Color(0xFF40A9FF),
+                    onRetry: onRetry,
+                    compact: true,
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildStatusIcon() {
-    IconData icon;
-    Color color = isSelf
-        ? Colors.white.withValues(alpha: 0.7)
-        : AppColors.textQuaternary;
-
-    switch (message.status) {
-      case MessageStatus.sending:
-        return SizedBox(
-          width: 12,
-          height: 12,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.5,
-            valueColor: AlwaysStoppedAnimation(color),
-          ),
-        );
-      case MessageStatus.sent:
-        icon = Icons.check;
-        break;
-      case MessageStatus.delivered:
-        icon = Icons.done_all;
-        break;
-      case MessageStatus.read:
-        icon = Icons.done_all;
-        color = const Color(0xFF40A9FF);
-        break;
-      case MessageStatus.failed:
-        icon = Icons.error_outline;
-        color = Colors.red;
-        break;
-    }
-
-    return Icon(icon, size: 14, color: color);
   }
 
   String _formatTime(DateTime time) {
