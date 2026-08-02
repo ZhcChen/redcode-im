@@ -689,21 +689,21 @@ app.test.integration.contract: ## 执行 app 真实 API 合同 integration（认
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh contract
 
-app.test.integration.device: ## 执行 app 设备 network integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+app.test.integration.device: ## 执行 app 设备 network integration（默认本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device
 
-app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认本机 iOS Simulator）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart
 
 app.test.integration.device.contract: app.test.integration.contract ## app.test.integration.contract 的设备联调别名
 
-app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，默认 Pixel 8 Pro）
+app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，必须显式指定设备）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse
 
-app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普通账号注册/登录 integration（adb reverse，默认 Pixel 8 Pro）
+app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普通账号注册/登录 integration（adb reverse，必须显式指定设备）
 	@$(call require_cmd,$(FLUTTER))
 	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart
 

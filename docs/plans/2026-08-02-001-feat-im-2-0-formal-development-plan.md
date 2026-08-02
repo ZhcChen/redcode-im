@@ -15,7 +15,7 @@ deepened: 2026-08-02
 
 - **目标：** 以冻结的 `im-ui-html/` 设计源为唯一视觉和交互基线，在保留现有 API、WebSocket、存储和测试能力的前提下，将 `app/` 重构为 RedCode IM 2.0 Flutter 多平台正式主线，并依次完成 H5 parity、P1 产品能力、桌面壳层和正式发布链路。
 - **权威顺序：** 运行时与 API 合同 > 自动化和设备验收 > 当前源码 > `im-ui-html/` 冻结文档 > 本计划 > 历史原生客户端与旧桌面实现。
-- **首个里程碑：** Flutter 移动端 P0，覆盖登录、四 Tab App Shell、会话、聊天、搜索、联系人、群治理、我的和设置，并按 Pixel 8 Pro 优先、iOS Simulator 回退的设备策略完成真实 API 验收。
+- **首个里程碑：** Flutter 移动端 P0，覆盖登录、四 Tab App Shell、会话、聊天、搜索、联系人、群治理、我的和设置，并默认使用本机 iOS Simulator 完成真实 API 验收。
 - **执行策略：** 按纵向业务闭环迁移，不推倒重写服务层，不长期维护两套业务状态，不在首个里程碑并行展开 H5、P1 和桌面实现。
 - **停止条件：** 发现设计能力缺少 API 契约、需要修改消息加密协议、需要新增数据库模型或平台插件不支持目标平台时，停止对应单元并转入其已有专项计划或新建子计划，不在 UI 单元中临时发明协议。
 - **尾部归属：** Flutter 移动 P0 完成后依次进入 H5 P0、E2EE 发布门禁、P1 能力、Flutter 桌面和发布切换；`ios-app/`、`android-app/`、`desktop/` 只保留为迁移期行为参考和回归对照。
@@ -62,7 +62,7 @@ RedCode IM 2.0 已完成 HTML 设计源冻结，当前开发任务从“继续�
 ### Acceptance Examples
 
 - AE1. 给定已登录用户启动 Flutter 2.0，进入四 Tab 壳层后可在聊天、联系人、发现和我的之间切换；重复点击当前 Tab 执行该页面定义的回顶或刷新行为，底栏不覆盖内容。
-- AE2. 给定 Pixel 8 Pro 上的真实 API 会话，用户可发送文本和附件、长按会话、搜索消息、查看已读、执行消息操作；页面重建、断网重试和 WebSocket 重连后状态不重复、不丢草稿。
+- AE2. 给定 iOS Simulator 上的真实 API 会话，用户可发送文本和附件、长按会话、搜索消息、查看已读、执行消息操作；页面重建、断网重试和 WebSocket 重连后状态不重复、不丢草稿。
 - AE3. 给定普通成员、管理员和群主三种身份，群设置只显示各自可执行的治理动作；服务端拒绝后保留页面状态并显示可恢复错误。
 - AE4. 给定 H5 与 Flutter 登录同一测试环境，两端可读取同一会话、发送消息、更新已读、查看联系人和群设置；平台存储实现不同但 API 结果一致。
 - AE5. 给定设计源已有但 API 缺失的朋友圈或通话入口，正式客户端在对应 P1 合同完成前不显示伪可用流程；进入开发后必须由 API、客户端和端到端测试共同证明。
@@ -109,7 +109,7 @@ RedCode IM 2.0 已完成 HTML 设计源冻结，当前开发任务从“继续�
 - KTD7. **P1 使用合同先行门禁。** 朋友圈、附近、游戏和通话必须先确认 API、权限、数据生命周期和失败语义；扫一扫等本地能力也必须先定义权限与结果边界。
 - KTD8. **E2EE 是独立发布门禁。** UI 可先对齐加密状态，但协议选型、密钥生命周期、多设备和群聊由 E2EE 专项计划交付；禁止把“能提交密文”当作完整 E2EE。
 - KTD9. **桌面端复用业务控制器，不复用移动壳层。** 桌面使用独立导航、分栏和窗口能力；现有 `desktop/` 只用于行为和互操作对照。
-- KTD10. **设备验收是合并门禁。** Flutter 移动默认先验证 Pixel 8 Pro，缺席时回退 iOS Simulator；iOS 原生能力、相机、麦克风、Push 和后台行为按真实设备边界补验。
+- KTD10. **设备验收是合并门禁。** Flutter 移动默认使用本机 iOS Simulator；相机、麦克风、APNs 和后台行为等 Simulator 无法完整验证的能力按 iPhone 真机边界补验。
 
 ### High-Level Technical Design
 
@@ -253,7 +253,7 @@ app/lib/
 - **Goal:** 证明 U4-U7 在正式设备环境构成稳定、无 1.x UI 回退的移动端 2.0 闭环。
 - **Requirements:** R5-R10、R16。
 - **Files:** 修改 `app/integration_test/`、`app/patrol_test/`、`app/scripts/`、`docs/reviews/` 和 `docs/reference/testing/README.md`。
-- **Approach:** 默认先检测 Pixel 8 Pro；未连接则使用 iOS Simulator；真机每次重新解析 LAN IP。视觉审查按设计源代表路由映射，不建立脆弱的全页面 golden 测试。
+- **Approach:** 默认动态选择本机可用的 iOS Simulator；显式使用真机时每次重新解析 LAN IP。视觉审查按设计源代表路由映射，不建立脆弱的全页面 golden 测试。
 - **Test Scenarios:** 冷启动、登录、四 Tab、聊天、附件、联系人、群治理、设置、离线重连、系统返回、系统键盘、前后台切换、权限拒绝/恢复、长内容和安全区。
 - **Verification:** `make app.check`、`make app.test`、`make app.test.integration.device.auth`、`make app.test.integration.device.contract`、Patrol P0 流程通过；形成设备、版本、网络和跳过项明确的审查记录。
 
@@ -312,7 +312,7 @@ app/lib/
 | Flutter 分析与单测 | `make app.check`、`make app.test` | U1-U8、U10-U13 | analyze 和全部 Flutter tests 通过 |
 | Flutter API 路径 | `make app.test.api-paths` | U1、U4-U7、U10-U11 | 客户端 REST path 均有 API 注册证据 |
 | Flutter integration | `make app.test.integration.smoke`、`make app.test.integration.device.auth`、`make app.test.integration.device.contract` | U4-U8、U10-U11 | mock 与真实 API 核心流程通过 |
-| Flutter 设备 | Pixel 8 Pro 优先，缺席时 iOS Simulator；真机重新检测 LAN IP | U5-U8、U10-U11 | 键盘、安全区、权限、前后台和主流程通过 |
+| Flutter 设备 | 默认本机 iOS Simulator；显式使用真机时重新检测 LAN IP | U5-U8、U10-U11 | 键盘、安全区、权限、前后台和主流程通过；真机专属能力单列补验 |
 | H5 静态与单测 | `make h5-app.check`、`make h5-app.test.unit` | U9-U11 | 类型检查和 Vitest 通过 |
 | H5 live/E2E | `make h5-app.test.live`、`make h5-app.test.e2e` | U9-U11 | Chrome 中真实 API 主流程与跨端互操作通过 |
 | API 合同 | `make api.test` | U10-U11 | Rust 单元与集成测试通过 |

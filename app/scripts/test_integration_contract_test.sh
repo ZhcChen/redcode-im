@@ -110,31 +110,31 @@ run_case "保留 FRONTEND_TEST_DEVICE 兼容 fallback" \
     ./scripts/test_integration.sh smoke
 assert_log_contains "-d front-device"
 
-run_case "未指定设备时默认 Pixel 8 Pro" \
+run_case "未指定设备时默认 iOS Simulator" \
     env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= \
     ./scripts/test_integration.sh smoke
-assert_log_contains "-d 3A091FDJG001DN"
+assert_log_contains "-d EE1B44A0-0924-49D8-8CE7-E15FE2555AC9"
 
-run_case "Android 真机默认使用当前 LAN IP 生成 API/WS" \
+run_case "iOS Simulator 默认使用 127.0.0.1 生成 API/WS" \
     env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= \
     ./scripts/test_integration.sh network
-assert_log_contains "-d 3A091FDJG001DN"
-assert_log_contains "--dart-define=API_BASE_URL=http://192.0.2.10:8010"
-assert_log_contains "--dart-define=WS_URL=ws://192.0.2.10:8010/ws"
+assert_log_contains "-d EE1B44A0-0924-49D8-8CE7-E15FE2555AC9"
+assert_log_contains "--dart-define=API_BASE_URL=http://127.0.0.1:8010"
+assert_log_contains "--dart-define=WS_URL=ws://127.0.0.1:8010/ws"
 
 run_case "contract 模式启用真实 API 合同测试开关" \
     env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= \
     ./scripts/test_integration.sh contract
-assert_log_contains "-d 3A091FDJG001DN"
+assert_log_contains "-d EE1B44A0-0924-49D8-8CE7-E15FE2555AC9"
 assert_log_contains "integration_test/api_contract_flow_test.dart"
 assert_log_contains "--dart-define=ENABLE_REAL_CONTRACT_INTEGRATION=true"
 assert_log_contains "--dart-define=ENABLE_REAL_NETWORK_INTEGRATION=true"
 assert_log_contains "--dart-define=ENABLE_REAL_AUTH_INTEGRATION=true"
-assert_log_contains "--dart-define=API_BASE_URL=http://192.0.2.10:8010"
-assert_log_contains "--dart-define=WS_URL=ws://192.0.2.10:8010/ws"
+assert_log_contains "--dart-define=API_BASE_URL=http://127.0.0.1:8010"
+assert_log_contains "--dart-define=WS_URL=ws://127.0.0.1:8010/ws"
 
 run_case "Android 真机忽略显式旧地址并使用当前 LAN IP" \
-    env APP_TEST_DEVICE= API_BASE_URL=http://198.51.100.9:8010 WS_URL=ws://198.51.100.9:8010/ws \
+    env APP_TEST_DEVICE=3A091FDJG001DN API_BASE_URL=http://198.51.100.9:8010 WS_URL=ws://198.51.100.9:8010/ws \
     ./scripts/test_integration.sh network
 assert_log_contains "-d 3A091FDJG001DN"
 assert_log_contains "--dart-define=API_BASE_URL=http://192.0.2.10:8010"
@@ -146,13 +146,6 @@ run_case "Android Emulator 使用 10.0.2.2" \
 assert_log_contains "-d emulator-5554"
 assert_log_contains "--dart-define=API_BASE_URL=http://10.0.2.2:8010"
 assert_log_contains "--dart-define=WS_URL=ws://10.0.2.2:8010/ws"
-
-run_case "默认真机缺失时回退 iOS Simulator 并使用 127.0.0.1" \
-    env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= DEFAULT_FLUTTER_DEVICE_ID=missing-device \
-    ./scripts/test_integration.sh network
-assert_log_contains "-d EE1B44A0-0924-49D8-8CE7-E15FE2555AC9"
-assert_log_contains "--dart-define=API_BASE_URL=http://127.0.0.1:8010"
-assert_log_contains "--dart-define=WS_URL=ws://127.0.0.1:8010/ws"
 
 dry_run="$(make -n -C "$APP_DIR/.." app.test.integration.network FRONTEND_TEST_DEVICE=front-device)"
 assert_text_contains "$dry_run" 'APP_TEST_DEVICE="front-device"'

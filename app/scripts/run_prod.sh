@@ -26,11 +26,14 @@ flutter pub get
 # 检查设备
 echo ""
 echo -e "${GREEN}2. 检查可用设备...${NC}"
-DEVICE_ID="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
+DEVICE_ID="${1:-}"
+if [ -z "$DEVICE_ID" ]; then
+    DEVICE_ID="$(resolve_app_acceptance_device)"
+fi
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 show_and_verify_flutter_devices "$DEVICE_ID"
 
-# 默认设备为测试真机 Pixel 8 Pro（3A091FDJG001DN），可以通过参数覆盖
+# 默认使用本机 iOS Simulator，可以通过参数覆盖。
 
 # 运行应用（生产环境）
 echo ""

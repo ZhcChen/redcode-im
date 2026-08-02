@@ -28,7 +28,7 @@ echo -e "${GREEN}2. 检查可用设备...${NC}"
 if [ -n "${1:-}" ]; then
     DEVICE_ID="$1"
 else
-    DEVICE_ID="$(resolve_app_acceptance_device "$DEFAULT_FLUTTER_DEVICE_ID")"
+    DEVICE_ID="$(resolve_app_acceptance_device)"
 fi
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 show_and_verify_flutter_devices "$DEVICE_ID"
@@ -39,7 +39,7 @@ if is_real_mobile_device "$DEVICE_ID"; then
     LAN_IP="$(get_current_lan_ip)"
 fi
 
-# 默认验收设备优先 Pixel 8 Pro，未连接时回退本机 iOS Simulator；可以通过参数覆盖。
+# 默认使用本机 iOS Simulator，可以通过参数覆盖。
 
 # 运行应用（开发环境）
 echo ""

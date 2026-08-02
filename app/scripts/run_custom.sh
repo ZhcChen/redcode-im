@@ -18,7 +18,6 @@ echo -e "  ./run_custom.sh [API_URL] [DEVICE_ID]"
 echo ""
 echo -e "示例:"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010"
-echo -e "  ./run_custom.sh http://192.168.1.100:8010 3A091FDJG001DN"
 echo -e "  ./run_custom.sh http://192.168.1.100:8010 emulator-5554"
 echo ""
 
@@ -27,7 +26,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/common.sh"
 
-DEVICE_ID="${2:-$DEFAULT_FLUTTER_DEVICE_ID}"
+DEVICE_ID="${2:-}"
+if [ -z "$DEVICE_ID" ]; then
+    DEVICE_ID="$(resolve_app_acceptance_device)"
+fi
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 DEFAULT_API_URL="http://127.0.0.1:8010"
 

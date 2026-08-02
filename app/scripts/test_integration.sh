@@ -5,7 +5,7 @@
 # - network: 访问本机 api，默认按目标设备生成 API/WS 地址。
 # - auth: 访问真实 api，验证普通账号注册/登录链路。
 # - contract: 访问真实 api，验证 Flutter 首版核心 API 合同链路。
-# - device: 优先真机；默认真机未连接时切换本机 iOS Simulator。
+# - device: 默认使用本机 iOS Simulator，也可显式指定其他设备。
 # - device-reverse: Android USB 真机通过 adb reverse 访问本机 api。
 
 set -euo pipefail
@@ -32,14 +32,14 @@ usage() {
   ./scripts/test_integration.sh [smoke|network|auth|contract|device|device-reverse] [选项]
 
 选项：
-  --device DEVICE_ID       目标设备，默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
+  --device DEVICE_ID       目标设备，默认使用本机 iOS Simulator
   --api-base-url URL       network/auth/contract 非真机模式 API 地址，默认按设备生成
   --ws-url URL             network/auth/contract 非真机模式 WS 地址，默认按设备生成
   --target FILE            覆盖 integration_test 目标文件
   -h, --help               显示帮助
 
 说明：
-  device 模式优先使用 Pixel 8 Pro；未连接时自动切换本机 iOS Simulator。
+  device 模式默认使用本机 iOS Simulator，也可显式指定其他设备。
   真机执行时每次都会重新检测当前本机 LAN IP，并生成：
     API_BASE_URL=http://<LAN_IP>:8010
     WS_URL=ws://<LAN_IP>:8010/ws
@@ -80,7 +80,7 @@ resolve_integration_device() {
         return 0
     fi
 
-    resolve_app_acceptance_device "$DEFAULT_FLUTTER_DEVICE_ID"
+    resolve_app_acceptance_device
 }
 
 configure_api_urls_for_device() {
@@ -203,7 +203,11 @@ case "$MODE" in
             --dart-define=WS_URL="$WS_URL"
         ;;
     device-reverse)
-        DEVICE_ID="${DEVICE_ID:-${APP_TEST_DEVICE:-${FRONTEND_TEST_DEVICE:-$DEFAULT_FLUTTER_DEVICE_ID}}}"
+        DEVICE_ID="${DEVICE_ID:-${APP_TEST_DEVICE:-${FRONTEND_TEST_DEVICE:-}}}"
+        if [ -z "$DEVICE_ID" ]; then
+            echo "device-reverse 模式必须通过 --device、APP_TEST_DEVICE 或 FRONTEND_TEST_DEVICE 指定 Android 设备。" >&2
+            exit 1
+        fi
         TARGET="${TARGET:-integration_test/network_connectivity_test.dart}"
         adb_bin="$(find_adb)" || {
             echo "缺少 adb，无法配置 Android USB 端口反向代理。" >&2

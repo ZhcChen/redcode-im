@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service 在构建描述阶段持续卡住，因此目前不能证明系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复已在默认设备策略下通过。
+iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service 在构建描述阶段持续卡住，因此目前不能证明系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复已在默认设备策略下通过。
 
 ## 验收环境
 
@@ -12,8 +12,7 @@ Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simula
 - 补充设备：Android 15 Emulator，`emulator-5554`，API 35，arm64
 - API：`http://10.0.2.2:8010`
 - WebSocket：`ws://10.0.2.2:8010/ws`
-- 默认 Android 真机：Pixel 8 Pro `3A091FDJG001DN`，未连接
-- 回退设备：iPhone 17 Pro Simulator `EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`，构建阻塞
+- 默认设备：iPhone 17 Pro Simulator `EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`，构建阻塞
 
 ## 已通过证据
 
@@ -27,7 +26,6 @@ Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simula
 
 ## 默认设备复核
 
-- `flutter devices`：未发现 Pixel 8 Pro `3A091FDJG001DN`，因此不能执行 Android 真机验收。
 - `make app.test.patrol.harness PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：iPhone 17 Pro Simulator 构建持续 119.1 秒未进入测试执行阶段，终止后报告 `xcodebuild was interrupted`，本次没有测试通过证据。
 - 终止后未残留 `xcodebuild`、`XCBBuildService` 或 Patrol 测试进程。
 
@@ -60,7 +58,6 @@ Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册
 
 ## 阻塞与恢复条件
 
-1. Pixel 8 Pro 重新连接后，按真机规则重新检测本机 LAN IP，再执行 device auth、device contract 和 Patrol P0。
-2. Pixel 仍缺席时，重启 macOS 清理 Xcode/SwiftBuild 服务状态；若仍复现，安装可用的其他 Xcode 版本并切换 `xcode-select`，再运行最小 Patrol harness。
-3. 最小 harness 通过后，按 `127.0.0.1` 地址执行 iOS device auth、device contract、Patrol P0 和人工设备场景。
-4. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。
+1. 重启 macOS 清理 Xcode/SwiftBuild 服务状态；若仍复现，安装可用的其他 Xcode 版本并切换 `xcode-select`，再运行最小 Patrol harness。
+2. 最小 harness 通过后，按 `127.0.0.1` 地址执行 iOS device auth、device contract、Patrol P0 和人工设备场景。
+3. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。

@@ -7,7 +7,7 @@
 
 - 三账号真实 API contract 已在 Android Emulator（`emulator-5554`，Android 15）通过。
 - contract 使用本机 API dev 栈 `http://10.0.2.2:8010`，实际覆盖 owner、admin、member 三种角色。
-- 默认 Pixel 8 Pro 未连接；按仓库规则回退 iPhone 17 Pro Simulator 后，Xcode 两次停在 workspace/package loading，业务测试未启动，因此 iOS 设备验收仍未关闭。
+- 当时默认的 Pixel 8 Pro 未连接；iPhone 17 Pro Simulator 上 Xcode 两次停在 workspace/package loading，业务测试未启动，因此 iOS 设备验收仍未关闭。当前仓库已改为默认使用 iOS Simulator。
 
 ## 已验证链路
 
@@ -39,6 +39,6 @@ make app.test.integration.contract
 
 ## 剩余门禁
 
-- Pixel 8 Pro 恢复连接后，重新检测本机 LAN IP 并执行默认真实 contract。
+- 解决本机 Xcode 构建阻塞后，在默认 iOS Simulator 上执行真实 contract。
 - Pixel 仍缺席时，需要修复当前 Xcode package loading 卡住问题并重新执行 iOS Simulator contract。
 - U6 页面级设备 smoke 仍需覆盖群通知入口、邀请接受/拒绝和 owner/admin/member 权限可见性。

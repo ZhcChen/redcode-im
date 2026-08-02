@@ -53,7 +53,7 @@ make app.test.integration.smoke
 
 当前第一个版本以 Flutter `app/` 作为正式移动端主线；`ios-app` / `android-app` 原生迁移暂时暂停，只保留后续恢复入口。
 
-默认 app 设备验收顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。
+Flutter `app/` 默认使用本机 iOS Simulator 进行设备验收。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以显式指定 `APP_TEST_DEVICE=macos` 作为临时兜底。
 推荐使用 Makefile 入口自动完成：
@@ -74,7 +74,7 @@ make app.test.integration.contract
 # Flutter REST path 与 api/src/routes.rs 机械化对照
 make app.test.api-paths
 
-# 设备联调验证：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
+# 设备联调验证：默认本机 iOS Simulator
 make app.test.integration.device
 make app.test.integration.device.auth
 make app.test.integration.device.contract
@@ -84,7 +84,7 @@ make app.test.integration.device.reverse
 make app.test.integration.device.auth.reverse
 ```
 
-`APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都为空时由脚本按验收顺序选择设备；需要强制指定设备时可覆盖，例如 `make app.test.integration.network APP_TEST_DEVICE=3A091FDJG001DN` 或 `make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN`。
+`APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都为空时，脚本动态选择首个可用的本机 iOS Simulator；需要强制指定设备时可传入对应设备 ID。
 
 ### IM UI 设计源回归
 
@@ -179,7 +179,7 @@ make ios-app.smoke.device.local
 - `ios-app.apns.preflight` 是 APNs 真机补验入口，检查 iPhone 真机连接、`IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 非 loopback、Admin 真实 APNs provider 已配置确认以及 API `/healthz` 可达。
 - `ios-app.smoke.device` 是 iPhone 真机构建/安装/启动入口，会先执行 `ios-app.apns.preflight`；需传 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID>`，可用 `IOS_APP_DEVICE_ID=<设备标识>` 固定目标设备。
 - `ios-app.apns.preflight.local` / `ios-app.smoke.device.local` 每次运行都会重新检测当前本机局域网 IPv4，并自动生成真机可访问的 API/WS 地址；如自动检测失败，可传 `IOS_APP_LAN_IP=<LAN_IP>` 覆盖。
-- `ios-app` 不套用 Flutter `app` 的 Pixel 8 Pro 优先规则。
+- `ios-app` 与 Flutter `app` 均默认使用本机 iOS Simulator，但各自使用独立测试入口。
 - `ios-app` 真机调试构建可通过 `IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 写入 App Info.plist；`ios-app.smoke.device` 启动时也会通过 `devicectl` 注入 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL`；App 运行时也支持从兼容的 `API_BASE_URL` / `WS_URL` 读取覆盖。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
 - 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
@@ -467,7 +467,7 @@ make api.test          # Compose 内 Rust 单元 + 集成（自动拉起 pg/redi
 - api contract
 - admin route / core flow smoke
 - app integration smoke
-- api + app 联调时先启动 api，再跑 `make app.test.integration.network` 与 `make app.test.integration.contract`；设备联调用 `make app.test.integration.device.contract`（默认 Pixel 8 Pro，未连接则回退本机 iOS Simulator）。
+- api + app 联调时先启动 api，再跑 `make app.test.integration.network` 与 `make app.test.integration.contract`；设备联调用 `make app.test.integration.device.contract`（默认本机 iOS Simulator）。
 - API + Flutter app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth/contract、admin live backend、desktop live backend smoke。H5 保留独立 `make h5-app.test.live`；Android/iOS 原生迁移暂时暂停，不进入当前 `test.live` 门禁。
 
 ---

@@ -3,8 +3,7 @@
 # 通用函数库
 # 被其他脚本 source 引用
 
-DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-3A091FDJG001DN}"
-DEFAULT_FLUTTER_DEVICE_NAME="${DEFAULT_FLUTTER_DEVICE_NAME:-Pixel 8 Pro}"
+DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-}"
 FLUTTER_DEVICES_TIMEOUT_SECONDS="${FLUTTER_DEVICES_TIMEOUT_SECONDS:-20}"
 SIMCTL_TIMEOUT_SECONDS="${SIMCTL_TIMEOUT_SECONDS:-20}"
 SIMCTL_BOOT_TIMEOUT_SECONDS="${SIMCTL_BOOT_TIMEOUT_SECONDS:-60}"
@@ -231,24 +230,21 @@ find_first_ios_simulator_device_from_simctl() {
 }
 
 resolve_app_acceptance_device() {
-    local requested_device_id="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
+    local requested_device_id="${1:-${DEFAULT_FLUTTER_DEVICE_ID:-}}"
     local simulator_id=""
 
-    if is_flutter_device_available "$requested_device_id"; then
+    if [ -n "$requested_device_id" ]; then
         echo "$requested_device_id"
         return 0
     fi
 
-    if [ "$requested_device_id" = "$DEFAULT_FLUTTER_DEVICE_ID" ]; then
-        simulator_id="$(find_first_ios_simulator_device)"
-        if [ -n "$simulator_id" ]; then
-            echo "未检测到默认真机 ${DEFAULT_FLUTTER_DEVICE_NAME} (${DEFAULT_FLUTTER_DEVICE_ID})，切换到本机 iOS Simulator: ${simulator_id}" >&2
-            echo "$simulator_id"
-            return 0
-        fi
+    simulator_id="$(find_first_ios_simulator_device)"
+    if [ -z "$simulator_id" ]; then
+        echo "未检测到可用的本机 iOS Simulator，请先在 Xcode 中安装并启动 Simulator，或显式指定其他设备。" >&2
+        return 1
     fi
 
-    echo "$requested_device_id"
+    echo "$simulator_id"
 }
 
 get_current_lan_ip() {
@@ -409,11 +405,6 @@ describe_flutter_device() {
     if [ -n "$simctl_line" ]; then
         printf '%s\n' "$simctl_line" | sed -E "s/^[[:space:]]*//; s/[[:space:]]*\\(${device_id}\\).*//"
         printf ' (%s)\n' "$device_id"
-        return
-    fi
-
-    if [ "$device_id" = "$DEFAULT_FLUTTER_DEVICE_ID" ]; then
-        echo "${DEFAULT_FLUTTER_DEVICE_NAME} (${device_id})"
         return
     fi
 

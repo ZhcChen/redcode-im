@@ -4,7 +4,7 @@
 
 U7“重构我的、资料与设置”的代码与自动化合同已完成。移动端第四 Tab 已从旧设置根页切换为正式“我的”页，资料、账号安全、聊天设置、隐私协议、反馈、版本、注销和退出登录均有真实实现，不存在 SMS 重置密码或无效 CTA。
 
-U8 默认设备验收不包含在本结论中。Pixel 8 Pro 当前未连接；iOS Simulator 仍受本机 Xcode 26 build service 卡住影响，Android Emulator 结果仅作为真实 API 补充证据。
+U8 默认设备验收不包含在本结论中。默认 iOS Simulator 仍受本机 Xcode 26 build service 卡住影响，Android Emulator 结果仅作为真实 API 补充证据。
 
 ## 已验证范围
 
@@ -37,6 +37,6 @@ U8 默认设备验收不包含在本结论中。Pixel 8 Pro 当前未连接；iO
 
 ## U8 待验收项
 
-- 按设备策略重新检测 Pixel 8 Pro；缺席时重试 iOS Simulator。
+- 解决本机 Xcode build service 阻塞后，重试默认 iOS Simulator 验收。
 - 验收系统键盘、安全区、相册权限拒绝与恢复、前后台切换、离线恢复和系统返回。
 - iOS Xcode build service 恢复前，不得将 Android 合同结果记录为默认设备验收通过。

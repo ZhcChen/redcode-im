@@ -9,7 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
 source "$SCRIPT_DIR/common.sh"
 
-DEVICE_ID="${1:-$DEFAULT_FLUTTER_DEVICE_ID}"
+DEVICE_ID="${1:-}"
+if [ -z "$DEVICE_ID" ]; then
+    DEVICE_ID="$(resolve_app_acceptance_device)"
+fi
 DEVICE_LABEL="$(describe_flutter_device "$DEVICE_ID")"
 
 # 获取依赖

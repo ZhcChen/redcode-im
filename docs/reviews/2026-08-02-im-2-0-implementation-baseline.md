@@ -94,7 +94,7 @@
 | integration smoke | `make app.test.integration.smoke` | auth state bus 与附件缓存异步链路 |
 | 真实认证 | `make app.test.integration.auth` | 普通账号注册/登录 |
 | 真实合同 | `make app.test.integration.contract` | 认证、好友、群、消息、设置、Push 与清理 |
-| 设备 | `make app.test.integration.device.*`、Patrol | 默认 Pixel 8 Pro，缺席时 iOS Simulator |
+| 设备 | `make app.test.integration.device.*`、Patrol | 默认本机 iOS Simulator |
 
 ## U2-U7 必须保持的基线
 

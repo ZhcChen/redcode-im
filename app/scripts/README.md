@@ -5,7 +5,7 @@
 ## 快速开始
 
 ```bash
-# 开发环境运行（默认验收设备：优先 Pixel 8 Pro；未连接则回退本机 iOS Simulator）
+# 开发环境运行（默认本机 iOS Simulator）
 ./scripts/run.sh
 
 # 生产环境构建 APK
@@ -40,7 +40,7 @@ ENABLE_PERFORMANCE_MONITOR=false  # 性能监控
 USE_MOCK_DATA=false          # Mock 数据
 ```
 
-> 默认验收设备顺序：优先 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，`run.sh`、`run_dev.sh` 与 `test_integration.sh device` 会自动切换到本机 iOS Simulator。真机运行时会重新检测当前本机局域网 IP 并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
+> `run.sh`、`run_dev.sh` 与 `test_integration.sh device` 默认动态选择本机可用的 iOS Simulator，并使用 `127.0.0.1` 访问 API/WS。显式指定真机时会重新检测当前本机局域网 IP，并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`。
 > 设备枚举有超时保护：`flutter devices` 默认 20 秒，`xcrun simctl list devices available` 默认 20 秒；可通过 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若本机 Xcode/CoreSimulator runtime 不匹配导致 Simulator 不可用，可先用默认 `macos` target 完成本机 API/WS/auth integration。
 
 ### 本地覆盖
@@ -69,21 +69,20 @@ vim .env.development.local
 ./scripts/run.sh --env .env.production
 
 # 指定运行设备（覆盖默认验收设备）
-./scripts/run.sh 3A091FDJG001DN
 ./scripts/run.sh emulator-5554
 
 # 组合使用
 ./scripts/run.sh --env .env.production emulator-5554
 ```
 
-不传设备参数时，脚本优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动回退到本机 iOS Simulator。如需切换设备，可通过参数覆盖。
+不传设备参数时，脚本动态选择本机可用的 iOS Simulator。如需切换设备，可通过参数覆盖。
 
 **参数说明：**
 
 | 参数 | 说明 |
 |------|------|
 | `--env, -e <file>` | 指定配置文件，默认 `.env.development` |
-| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认优先 `Pixel 8 Pro (3A091FDJG001DN)`，未连接则回退本机 iOS Simulator |
+| `<device>` | 设备名称或 ID，可通过 `flutter devices` 查看；默认本机 iOS Simulator |
 | `--help, -h` | 显示帮助信息 |
 
 ---
@@ -110,7 +109,7 @@ make app.test.integration.contract
 # Flutter REST path 与 api/src/routes.rs 机械化对照
 make app.test.api-paths
 
-# 设备联调：默认 Pixel 8 Pro；未连接则回退本机 iOS Simulator
+# 设备联调：默认本机 iOS Simulator
 make app.test.integration.device
 make app.test.integration.device.auth
 make app.test.integration.device.contract
@@ -123,10 +122,10 @@ make app.test.integration.device.contract
 ./scripts/test_integration.sh network --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
 ./scripts/test_integration.sh auth --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
 ./scripts/test_integration.sh contract --api-base-url http://127.0.0.1:8010 --ws-url ws://127.0.0.1:8010/ws
-./scripts/test_integration.sh device --device 3A091FDJG001DN
+./scripts/test_integration.sh device --device emulator-5554
 ```
 
-`smoke`、`network`、`auth`、`contract` 与 `device` 模式默认都优先使用 `Pixel 8 Pro (3A091FDJG001DN)`；如果该设备未连接，自动切换到本机 iOS Simulator。真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
+`smoke`、`network`、`auth`、`contract` 与 `device` 模式默认使用本机 iOS Simulator。显式指定真机执行时会在每次执行前重新检测当前本机局域网 IP，并注入：
 
 ```bash
 API_BASE_URL=http://<LAN_IP>:8010
@@ -140,11 +139,11 @@ API_BASE_URL=http://127.0.0.1:8010
 WS_URL=ws://127.0.0.1:8010/ws
 ```
 
-Makefile 中 `APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都可用于强制指定设备；都为空时脚本会自行按验收顺序选择设备，例如：
+Makefile 中 `APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都可用于强制指定设备；都为空时脚本会选择本机 iOS Simulator，例如：
 
 ```bash
-make app.test.integration.network APP_TEST_DEVICE=3A091FDJG001DN
-make app.test.integration.device FLUTTER_DEVICE=3A091FDJG001DN
+make app.test.integration.network APP_TEST_DEVICE=emulator-5554
+make app.test.integration.device FLUTTER_DEVICE=emulator-5554
 ```
 
 ---
@@ -202,7 +201,7 @@ scripts/
 ├── run_dev.sh               # 开发环境运行（传统，默认验收设备）
 ├── run_prod.sh              # 生产环境运行（传统）
 ├── run_custom.sh            # 自定义 API 运行（传统）
-├── run_flutter.sh           # 基础运行脚本（传统，默认 Pixel 8 Pro）
+├── run_flutter.sh           # 基础运行脚本（默认本机 iOS Simulator）
 ├── test_integration.sh      # integration smoke / api 联通 / 设备联调测试
 │
 ├── build_android.sh         # Android 打包（传统）
@@ -225,7 +224,7 @@ scripts/
 LAN_IFACE=$(route -n get default | awk '/interface:/{print $2}')
 LAN_IP=$(ipconfig getifaddr "$LAN_IFACE")
 
-flutter run -d 3A091FDJG001DN \
+flutter run -d <device-id> \
     --dart-define=ENV=development \
     --dart-define=API_BASE_URL=http://${LAN_IP}:8010 \
     --dart-define=WS_URL=ws://${LAN_IP}:8010/ws \
