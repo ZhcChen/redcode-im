@@ -9,10 +9,12 @@ iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service
 ## 验收环境
 
 - 日期：2026-08-02
+- 默认设备：iPhone 17 Pro，`EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`，iOS 26.3
+- 双端设备：iPhone 17 Pro Max，`C0BAADF7-6F47-457C-A06A-893D0251B8CB`，iOS 26.3
 - 补充设备：Android 15 Emulator，`emulator-5554`，API 35，arm64
 - API：`http://10.0.2.2:8010`
 - WebSocket：`ws://10.0.2.2:8010/ws`
-- 默认设备：iPhone 17 Pro Simulator `EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`，构建阻塞
+- 两台 iOS Simulator 均已启动并被 `flutter devices` 识别，构建阻塞
 
 ## 已通过证据
 
@@ -26,6 +28,9 @@ iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service
 
 ## 默认设备复核
 
+- 2026-08-02 双端复核：同时启动 iPhone 17 Pro 与 iPhone 17 Pro Max 后，两台设备均完成系统启动并被 Flutter 识别；API Compose 开发栈保持 healthy。
+- `make app.test.integration.smoke APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：再次停在 `Running Xcode build...`；进程链稳定复现为 `xcodebuild -> SWBBuildService -> clang -v -E -dM`，测试用例尚未开始执行。
+- 仓库构建目录中没有可复用的 iOS `.app`，两台 Simulator 也未安装 RedCode IM，因此不能绕过本轮构建直接进行双账号 UI 联调。
 - `make app.test.patrol.harness PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：iPhone 17 Pro Simulator 构建持续 119.1 秒未进入测试执行阶段，终止后报告 `xcodebuild was interrupted`，本次没有测试通过证据。
 - 终止后未残留 `xcodebuild`、`XCBBuildService` 或 Patrol 测试进程。
 
@@ -55,6 +60,7 @@ Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册
 - 断网、重连、待发送消息和离线缓存恢复。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
 - 聊天附件、联系人、群治理和设置的完整可视化设备巡检。
+- 两台 iOS Simulator 上双账号登录、好友/群聊、文本消息互发、已读与 WebSocket 实时同步。
 
 ## 阻塞与恢复条件
 
