@@ -432,5 +432,28 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('设置群头像'), findsNothing);
     });
+
+    testWidgets('群设置举报入口使用统一举报组件', (tester) async {
+      final chat = groupChat();
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: members('member')),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('立即投诉举报'));
+      await tester.tap(find.text('立即投诉举报'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('举报该群聊'), findsOneWidget);
+      expect(find.byKey(const Key('report-content')), findsOneWidget);
+      expect(find.text('请至少上传 1 张截图'), findsNothing);
+    });
   });
 }
