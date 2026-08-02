@@ -9,7 +9,7 @@ import '../../core/widgets/im_state_panel.dart';
 import '../../shell/app_shell.dart';
 import '../chat/chat_list_page.dart';
 import '../contacts/contacts_page.dart';
-import '../settings/settings_page.dart';
+import '../mine/mine_page.dart';
 
 class HomeShellPage extends StatefulWidget {
   const HomeShellPage({super.key});
@@ -30,7 +30,7 @@ class _HomeShellPageState extends State<HomeShellPage> {
       const ChatListPage(),
       ContactsPage(key: _contactsKey),
       const _DiscoveryEntryPage(),
-      const SettingsPage(),
+      const MinePage(),
     ];
     _initializeSessionServices();
   }

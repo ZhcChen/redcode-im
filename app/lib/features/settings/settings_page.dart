@@ -8,6 +8,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/user_avatar_service.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/widgets/im_app_bar.dart';
 import '../../core/widgets/input_dialog.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
@@ -290,71 +291,57 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: ImAppBar(
+        title: '设置',
+        dense: true,
+        leading: IconButton(
+          tooltip: '返回',
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
+      ),
       body: SafeArea(
+        top: false,
         bottom: false,
-        child: Column(
-          children: [
-            // 导航栏
-            Container(
-              padding: const EdgeInsets.only(top: 16, bottom: 16),
-              color: AppColors.background,
-              child: const Center(
-                child: Text(
-                  '设置',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w400,
-                    color: AppColors.textBlack,
-                    letterSpacing: 0,
-                    height: 1.2,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              // 用户信息区域
+              if (_loading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: CircularProgressIndicator(),
                   ),
+                )
+              else
+                _UserInfoSection(
+                  user: _user,
+                  onEditNickname: (_user != null && !_updatingNickname)
+                      ? _editNickname
+                      : null,
+                  updatingNickname: _updatingNickname,
+                  onEditAvatar: (_user != null && !_uploadingAvatar)
+                      ? _handleEditAvatar
+                      : null,
+                  uploadingAvatar: _uploadingAvatar,
                 ),
+              const SizedBox(height: 32),
+              // 设置卡片
+              _SettingsCard(items: items),
+              const SizedBox(height: 24),
+              // 注销账号按钮
+              _DeactivateButton(
+                onTap: _deactivating ? null : _handleDeactivate,
+                deactivating: _deactivating,
               ),
-            ),
-            // 主内容区域
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    // 用户信息区域
-                    if (_loading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 40),
-                          child: CircularProgressIndicator(),
-                        ),
-                      )
-                    else
-                      _UserInfoSection(
-                        user: _user,
-                        onEditNickname: (_user != null && !_updatingNickname)
-                            ? _editNickname
-                            : null,
-                        updatingNickname: _updatingNickname,
-                        onEditAvatar: (_user != null && !_uploadingAvatar)
-                            ? _handleEditAvatar
-                            : null,
-                        uploadingAvatar: _uploadingAvatar,
-                      ),
-                    const SizedBox(height: 32),
-                    // 设置卡片
-                    _SettingsCard(items: items),
-                    const SizedBox(height: 24),
-                    // 注销账号按钮
-                    _DeactivateButton(
-                      onTap: _deactivating ? null : _handleDeactivate,
-                      deactivating: _deactivating,
-                    ),
-                    const SizedBox(height: 12),
-                    // 退出登录按钮
-                    _LogoutButton(onTap: _logout),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              // 退出登录按钮
+              _LogoutButton(onTap: _logout),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -702,11 +689,7 @@ class _SettingItem extends StatelessWidget {
     const trailing = SizedBox(
       width: 7,
       height: 15,
-      child: Icon(
-        Icons.chevron_right,
-        size: 15,
-        color: AppColors.textPrimary,
-      ),
+      child: Icon(Icons.chevron_right, size: 15, color: AppColors.textPrimary),
     );
 
     return Material(
@@ -872,10 +855,7 @@ class _LogoutButton extends StatelessWidget {
 }
 
 class _SettingItemData {
-  const _SettingItemData({
-    required this.title,
-    this.onTap,
-  });
+  const _SettingItemData({required this.title, this.onTap});
 
   final String title;
   final Future<void> Function()? onTap;
