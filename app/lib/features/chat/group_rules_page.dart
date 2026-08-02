@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
+import '../../core/widgets/im_state_panel.dart';
 import '../../core/widgets/tip_dialog.dart';
 
 /// 群规页面
@@ -11,44 +12,52 @@ class GroupRulesPage extends StatefulWidget {
     super.key,
     required this.roomId,
     this.canManage = false,
+    this.roomService,
   });
 
   final String roomId;
   final bool canManage;
+  final RoomService? roomService;
 
   @override
   State<GroupRulesPage> createState() => _GroupRulesPageState();
 }
 
 class _GroupRulesPageState extends State<GroupRulesPage> {
-  final RoomService _roomService = RoomService();
+  late final RoomService _roomService;
   List<GroupRule> _rules = [];
   bool _isLoading = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    _roomService = widget.roomService ?? RoomService();
     _loadRules();
   }
 
   Future<void> _loadRules() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final rules = await _roomService.listRules(widget.roomId);
       if (mounted) {
         setState(() {
-          _rules = rules
-              .where((r) => r.isActive)
-              .toList()
+          _rules = rules.where((r) => r.isActive).toList()
             ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
           _isLoading = false;
+          _loadError = null;
         });
       }
     } catch (e) {
       debugPrint('加载群规失败: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('加载失败：$e');
+        setState(() {
+          _isLoading = false;
+          _loadError = '无法加载群规';
+        });
       }
     }
   }
@@ -169,10 +178,7 @@ class _GroupRulesPageState extends State<GroupRulesPage> {
       confirmDanger: true,
       onConfirm: () async {
         try {
-          await _roomService.deleteRule(
-            roomId: widget.roomId,
-            ruleId: rule.id,
-          );
+          await _roomService.deleteRule(roomId: widget.roomId, ruleId: rule.id);
           _showSnackBar('群规已删除');
           await _loadRules();
           return true;
@@ -186,9 +192,9 @@ class _GroupRulesPageState extends State<GroupRulesPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -211,102 +217,110 @@ class _GroupRulesPageState extends State<GroupRulesPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? ImStatePanel(
+              icon: Icons.cloud_off_outlined,
+              title: _loadError!,
+              message: '请检查网络后重试',
+              actionLabel: '重新加载',
+              onAction: _loadRules,
+            )
           : _rules.isEmpty
-              ? Center(
-                  child: Text(
-                    widget.canManage ? '暂无群规，点击右上角添加' : '暂无群规',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14.sp,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _rules.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final rule = _rules[index];
+          ? Center(
+              child: Text(
+                widget.canManage ? '暂无群规，点击右上角添加' : '暂无群规',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _rules.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final rule = _rules[index];
 
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(11),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${index + 1}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  rule.title,
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ),
-                              if (widget.canManage) ...[
-                                GestureDetector(
-                                  onTap: () => _showEditRuleDialog(rule),
-                                  child: Text(
-                                    '编辑',
-                                    style: TextStyle(
-                                      fontSize: 13.sp,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                GestureDetector(
-                                  onTap: () => _confirmDeleteRule(rule),
-                                  child: Text(
-                                    '删除',
-                                    style: TextStyle(
-                                      fontSize: 13.sp,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            rule.content,
-                            style: TextStyle(
-                              fontSize: 14.sp,
-                              color: AppColors.textSecondary,
-                              height: 1.6,
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              rule.title,
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (widget.canManage) ...[
+                            GestureDetector(
+                              onTap: () => _showEditRuleDialog(rule),
+                              child: Text(
+                                '编辑',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: () => _confirmDeleteRule(rule),
+                              child: Text(
+                                '删除',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  color: Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    );
-                  },
-                ),
+                      const SizedBox(height: 8),
+                      Text(
+                        rule.content,
+                        style: TextStyle(
+                          fontSize: 14.sp,
+                          color: AppColors.textSecondary,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

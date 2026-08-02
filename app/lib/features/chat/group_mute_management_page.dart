@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
 import '../../core/utils/avatar_color_utils.dart';
+import '../../core/widgets/im_state_panel.dart';
 import '../../core/widgets/sheet_header.dart';
 import '../../core/widgets/tip_dialog.dart';
 
@@ -13,10 +14,12 @@ class GroupMuteManagementPage extends StatefulWidget {
     super.key,
     required this.roomId,
     required this.members,
+    this.roomService,
   });
 
   final String roomId;
   final List<Map<String, dynamic>> members;
+  final RoomService? roomService;
 
   @override
   State<GroupMuteManagementPage> createState() =>
@@ -24,31 +27,39 @@ class GroupMuteManagementPage extends StatefulWidget {
 }
 
 class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
-  final RoomService _roomService = RoomService();
+  late final RoomService _roomService;
   List<GroupMute> _mutes = [];
   bool _isLoading = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    _roomService = widget.roomService ?? RoomService();
     _loadMutes();
   }
 
   Future<void> _loadMutes() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final mutes = await _roomService.listMutedUsers(widget.roomId);
       if (mounted) {
         setState(() {
           _mutes = mutes.where((m) => m.isActive).toList();
           _isLoading = false;
+          _loadError = null;
         });
       }
     } catch (e) {
       debugPrint('加载禁言列表失败: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('加载失败：$e');
+        setState(() {
+          _isLoading = false;
+          _loadError = '无法加载禁言列表';
+        });
       }
     }
   }
@@ -333,6 +344,14 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? ImStatePanel(
+              icon: Icons.cloud_off_outlined,
+              title: _loadError!,
+              message: '请检查网络后重试',
+              actionLabel: '重新加载',
+              onAction: _loadMutes,
+            )
           : _mutes.isEmpty
           ? Center(
               child: Text(

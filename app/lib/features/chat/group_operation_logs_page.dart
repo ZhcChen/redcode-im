@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
+import '../../core/widgets/im_state_panel.dart';
 
 /// 操作日志页面
 class GroupOperationLogsPage extends StatefulWidget {
@@ -10,31 +11,38 @@ class GroupOperationLogsPage extends StatefulWidget {
     super.key,
     required this.roomId,
     required this.members,
+    this.roomService,
   });
 
   final String roomId;
   final List<Map<String, dynamic>> members;
+  final RoomService? roomService;
 
   @override
   State<GroupOperationLogsPage> createState() => _GroupOperationLogsPageState();
 }
 
 class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
-  final RoomService _roomService = RoomService();
+  late final RoomService _roomService;
   List<GroupOperationLog> _logs = [];
   bool _isLoading = false;
   bool _hasMore = false;
+  String? _loadError;
   static const int _pageSize = 20;
 
   @override
   void initState() {
     super.initState();
+    _roomService = widget.roomService ?? RoomService();
     _loadLogs();
   }
 
   Future<void> _loadLogs({bool append = false}) async {
     if (_isLoading) return;
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      if (!append) _loadError = null;
+    });
     try {
       final logs = await _roomService.listOperationLogs(
         roomId: widget.roomId,
@@ -50,13 +58,17 @@ class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
           }
           _hasMore = logs.length >= _pageSize;
           _isLoading = false;
+          if (!append) _loadError = null;
         });
       }
     } catch (e) {
       debugPrint('加载操作日志失败: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('加载失败：$e');
+        setState(() {
+          _isLoading = false;
+          if (!append) _loadError = '无法加载操作日志';
+        });
+        if (append) _showSnackBar('加载更多失败，请重试');
       }
     }
   }
@@ -109,7 +121,8 @@ class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
       return '任命为${role == 'admin' ? '管理员' : role ?? '管理员'}';
     }
 
-    if (log.operationType == 'review_join_request' && log.operationData != null) {
+    if (log.operationType == 'review_join_request' &&
+        log.operationData != null) {
       final status = log.operationData!['status'] as String?;
       return status == 'approved' ? '通过了入群申请' : '拒绝了入群申请';
     }
@@ -127,9 +140,9 @@ class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -144,100 +157,108 @@ class _GroupOperationLogsPageState extends State<GroupOperationLogsPage> {
       ),
       body: _isLoading && _logs.isEmpty
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null && _logs.isEmpty
+          ? ImStatePanel(
+              icon: Icons.cloud_off_outlined,
+              title: _loadError!,
+              message: '请检查网络后重试',
+              actionLabel: '重新加载',
+              onAction: _loadLogs,
+            )
           : _logs.isEmpty
-              ? Center(
-                  child: Text(
-                    '暂无操作日志',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14.sp,
+          ? Center(
+              child: Text(
+                '暂无操作日志',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _logs.length + (_hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _logs.length) {
+                  // 加载更多按钮
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: _isLoading
+                          ? const CircularProgressIndicator()
+                          : TextButton(
+                              onPressed: () => _loadLogs(append: true),
+                              child: const Text('加载更多'),
+                            ),
+                    ),
+                  );
+                }
+
+                final log = _logs[index];
+                final operatorName = _getMemberName(log.operatorId);
+                final targetName = log.targetUserId != null
+                    ? _getMemberName(log.targetUserId!)
+                    : null;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _formatTime(log.createdAt),
+                          style: TextStyle(
+                            fontSize: 12.sp,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: RichText(
+                            text: TextSpan(
+                              style: TextStyle(
+                                fontSize: 14.sp,
+                                color: AppColors.textPrimary,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: operatorName,
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                TextSpan(
+                                  text: ' ${_getOperationText(log)}',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                if (targetName != null) ...[
+                                  TextSpan(
+                                    text: ' $targetName',
+                                    style: TextStyle(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _logs.length + (_hasMore ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (index == _logs.length) {
-                      // 加载更多按钮
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: _isLoading
-                              ? const CircularProgressIndicator()
-                              : TextButton(
-                                  onPressed: () => _loadLogs(append: true),
-                                  child: const Text('加载更多'),
-                                ),
-                        ),
-                      );
-                    }
-
-                    final log = _logs[index];
-                    final operatorName = _getMemberName(log.operatorId);
-                    final targetName = log.targetUserId != null
-                        ? _getMemberName(log.targetUserId!)
-                        : null;
-
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _formatTime(log.createdAt),
-                              style: TextStyle(
-                                fontSize: 12.sp,
-                                color: AppColors.textTertiary,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: operatorName,
-                                      style: TextStyle(
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: ' ${_getOperationText(log)}',
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                    if (targetName != null) ...[
-                                      TextSpan(
-                                        text: ' $targetName',
-                                        style: TextStyle(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                );
+              },
+            ),
     );
   }
 }

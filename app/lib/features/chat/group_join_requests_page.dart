@@ -5,33 +5,41 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/room_service.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/tip_dialog.dart';
+import '../../core/widgets/im_state_panel.dart';
 
 /// 入群审核页面
 class GroupJoinRequestsPage extends StatefulWidget {
   const GroupJoinRequestsPage({
     super.key,
     required this.roomId,
+    this.roomService,
   });
 
   final String roomId;
+  final RoomService? roomService;
 
   @override
   State<GroupJoinRequestsPage> createState() => _GroupJoinRequestsPageState();
 }
 
 class _GroupJoinRequestsPageState extends State<GroupJoinRequestsPage> {
-  final RoomService _roomService = RoomService();
+  late final RoomService _roomService;
   List<JoinRequest> _requests = [];
   bool _isLoading = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    _roomService = widget.roomService ?? RoomService();
     _loadRequests();
   }
 
   Future<void> _loadRequests() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final requests = await _roomService.listJoinRequests(widget.roomId);
       if (mounted) {
@@ -44,13 +52,16 @@ class _GroupJoinRequestsPageState extends State<GroupJoinRequestsPage> {
         setState(() {
           _requests = requests;
           _isLoading = false;
+          _loadError = null;
         });
       }
     } catch (e) {
       debugPrint('加载入群申请失败: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
-        _showSnackBar('加载失败：$e');
+        setState(() {
+          _isLoading = false;
+          _loadError = '无法加载入群申请';
+        });
       }
     }
   }
@@ -138,9 +149,9 @@ class _GroupJoinRequestsPageState extends State<GroupJoinRequestsPage> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -155,134 +166,143 @@ class _GroupJoinRequestsPageState extends State<GroupJoinRequestsPage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
+          : _loadError != null
+          ? ImStatePanel(
+              icon: Icons.cloud_off_outlined,
+              title: _loadError!,
+              message: '请检查网络后重试',
+              actionLabel: '重新加载',
+              onAction: _loadRequests,
+            )
           : _requests.isEmpty
-              ? Center(
-                  child: Text(
-                    '暂无入群申请',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14.sp,
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _requests.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final request = _requests[index];
-                    final displayName = '用户 ${request.applicantId.substring(0, 8)}...';
+          ? Center(
+              child: Text(
+                '暂无入群申请',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14.sp,
+                ),
+              ),
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: _requests.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final request = _requests[index];
+                final displayName =
+                    '用户 ${request.applicantId.substring(0, 8)}...';
 
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(12),
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildAvatar(request.applicantId, displayName),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              displayName,
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            if (request.message != null &&
+                                request.message!.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                '申请理由：${request.message}',
+                                style: TextStyle(
+                                  fontSize: 13.sp,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Text(
+                              _formatTime(request.createdAt),
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildAvatar(request.applicantId, displayName),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName,
-                                  style: TextStyle(
-                                    fontSize: 15.sp,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppColors.textPrimary,
-                                  ),
+                      if (request.status == 'pending')
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ElevatedButton(
+                              onPressed: () => _handleApprove(request),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF52C41A),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
                                 ),
-                                if (request.message != null &&
-                                    request.message!.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '申请理由：${request.message}',
-                                    style: TextStyle(
-                                      fontSize: 13.sp,
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatTime(request.createdAt),
-                                  style: TextStyle(
-                                    fontSize: 12.sp,
-                                    color: AppColors.textTertiary,
-                                  ),
+                                minimumSize: Size.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
-                              ],
+                              ),
+                              child: const Text('通过'),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton(
+                              onPressed: () => _handleReject(request),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.textSecondary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                minimumSize: Size.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                              child: const Text('拒绝'),
+                            ),
+                          ],
+                        )
+                      else
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: request.status == 'approved'
+                                ? const Color(0xFFE6F7FF)
+                                : const Color(0xFFFFF1F0),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            request.status == 'approved' ? '已通过' : '已拒绝',
+                            style: TextStyle(
+                              fontSize: 12.sp,
+                              color: request.status == 'approved'
+                                  ? const Color(0xFF1890FF)
+                                  : const Color(0xFFFF4D4F),
                             ),
                           ),
-                          if (request.status == 'pending')
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ElevatedButton(
-                                  onPressed: () => _handleApprove(request),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF52C41A),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                  child: const Text('通过'),
-                                ),
-                                const SizedBox(width: 8),
-                                OutlinedButton(
-                                  onPressed: () => _handleReject(request),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.textSecondary,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                  ),
-                                  child: const Text('拒绝'),
-                                ),
-                              ],
-                            )
-                          else
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: request.status == 'approved'
-                                    ? const Color(0xFFE6F7FF)
-                                    : const Color(0xFFFFF1F0),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                request.status == 'approved' ? '已通过' : '已拒绝',
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  color: request.status == 'approved'
-                                      ? const Color(0xFF1890FF)
-                                      : const Color(0xFFFF4D4F),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }
