@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:app/core/theme/app_theme.dart';
+import 'package:app/core/routing/app_router.dart';
 import 'package:app/features/auth/login_page.dart';
 import 'package:patrol/patrol.dart';
 
@@ -18,6 +19,7 @@ Widget _buildTestApp(Widget home) {
     builder: (context, child) => MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      onGenerateRoute: AppRouter.onGenerateRoute,
       home: home,
     ),
   );
@@ -62,13 +64,16 @@ void main() {
       }
 
       await _pumpTestApp($, const LoginPage());
+      await $(TextField).at(0).enterText('alice');
+      await $(TextField).at(1).enterText('pass123456');
       await $('登录账号').tap();
       await $('聊天').waitUntilVisible();
 
       expect($('联系人'), findsOneWidget);
-      expect($('设置'), findsOneWidget);
+      expect($('发现'), findsOneWidget);
+      expect($('我的'), findsOneWidget);
 
-      await $('设置').tap();
+      await $('我的').tap();
       await $('账号与安全').waitUntilVisible();
       expect($('退出登录'), findsOneWidget);
     },
