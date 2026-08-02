@@ -1,22 +1,30 @@
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
+import 'package:app/core/services/room_service.dart';
 import 'package:app/core/services/settings_service.dart';
 import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
+import 'package:app/core/storage/token_storage.dart';
 import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:app/features/chat/group_chats_page.dart';
 import 'package:app/features/chat/group_settings_page.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/providers/chat_provider.dart';
+import 'package:app/features/auth/models/auth_session.dart';
+import 'package:app/features/auth/models/auth_user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeMessageService extends ChangeNotifier implements MessageService {
-  _FakeMessageService({required List<Chat> chats})
-    : _chats = List<Chat>.from(chats);
+  _FakeMessageService({
+    required List<Chat> chats,
+    List<Map<String, dynamic>> members = const [],
+  }) : _chats = List<Chat>.from(chats),
+       _members = List<Map<String, dynamic>>.from(members);
 
   final List<Chat> _chats;
+  final List<Map<String, dynamic>> _members;
   int fetchChatsCallCount = 0;
 
   @override
@@ -38,7 +46,7 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
 
   @override
   Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
-    return const <Map<String, dynamic>>[];
+    return _members;
   }
 
   @override
@@ -93,14 +101,40 @@ Chat _buildChat({
   );
 }
 
-ChatProvider _buildProvider(List<Chat> chats) {
+ChatProvider _buildProvider(
+  List<Chat> chats, {
+  List<Map<String, dynamic>> members = const [],
+}) {
   return ChatProvider(
-    messageService: _FakeMessageService(chats: chats),
+    messageService: _FakeMessageService(chats: chats, members: members),
     webSocketService: _FakeWebSocketService(),
     appConfigService: _FakeAppConfigService(
       runtime: MessageRuntimeSettings.defaults,
     ),
   );
+}
+
+class _FakeTokenStorage extends TokenStorage {
+  const _FakeTokenStorage(this.userId, {this.delay = Duration.zero});
+
+  final String userId;
+  final Duration delay;
+
+  @override
+  Future<AuthSession?> readSession() async {
+    await Future<void>.delayed(delay);
+    return AuthSession(
+      token: 'test-token',
+      user: AuthUser(id: userId, username: userId),
+    );
+  }
+}
+
+class _FakeRoomService extends RoomService {
+  @override
+  Future<GroupSettingsInfo> fetchGroupSettings(String roomId) async {
+    return GroupSettingsInfo(roomId: roomId, globalMuteEnabled: false);
+  }
 }
 
 Widget _buildHost(Widget child) {
@@ -310,5 +344,93 @@ void main() {
 
     expect(find.byType(GroupSettingsPage), findsOneWidget);
     expect(observer.pushCount, basePushCount + 2);
+  });
+
+  group('群设置角色权限', () {
+    Chat groupChat() =>
+        _buildChat(id: 'group-role', name: '权限测试群', type: ChatType.group);
+
+    List<Map<String, dynamic>> members(String role) => [
+      <String, dynamic>{'user_id': 'self-1', 'username': 'self', 'role': role},
+      <String, dynamic>{
+        'user_id': 'member-2',
+        'username': 'member',
+        'role': 'member',
+      },
+    ];
+
+    testWidgets('群主可任免管理员并执行全部治理操作', (tester) async {
+      final chat = groupChat();
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: members('owner')),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('管理员设置'), findsOneWidget);
+      expect(find.text('禁止发送消息'), findsOneWidget);
+      expect(find.text('转让群主'), findsOneWidget);
+      expect(find.text('解散群组'), findsOneWidget);
+    });
+
+    testWidgets('管理员晚于成员加载时仍获得治理权限但不能任免管理员', (tester) async {
+      final chat = groupChat();
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: members('admin')),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage(
+              'self-1',
+              delay: Duration(milliseconds: 20),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('禁止发送消息'), findsOneWidget);
+      expect(find.text('入群审核'), findsOneWidget);
+      expect(find.text('禁言管理'), findsOneWidget);
+      expect(find.text('转让群主'), findsNothing);
+      expect(find.text('退出群聊'), findsOneWidget);
+
+      await tester.tap(find.text('群头像'));
+      await tester.pumpAndSettle();
+      expect(find.text('设置群头像'), findsOneWidget);
+    });
+
+    testWidgets('普通成员不展示群治理操作', (tester) async {
+      final chat = groupChat();
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: members('member')),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('禁止发送消息'), findsNothing);
+      expect(find.text('入群审核'), findsNothing);
+      expect(find.text('禁言管理'), findsNothing);
+      expect(find.text('退出群聊'), findsOneWidget);
+
+      await tester.tap(find.text('群头像'));
+      await tester.pumpAndSettle();
+      expect(find.text('设置群头像'), findsNothing);
+    });
   });
 }

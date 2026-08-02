@@ -216,10 +216,18 @@ class _GroupAvatarState extends State<_GroupAvatar> {
 }
 
 class GroupSettingsPage extends StatefulWidget {
-  const GroupSettingsPage({super.key, required this.chat, this.chatProvider});
+  const GroupSettingsPage({
+    super.key,
+    required this.chat,
+    this.chatProvider,
+    this.roomService,
+    this.tokenStorage,
+  });
 
   final Chat chat;
   final ChatProvider? chatProvider;
+  final RoomService? roomService;
+  final TokenStorage? tokenStorage;
 
   @override
   State<GroupSettingsPage> createState() => _GroupSettingsPageState();
@@ -230,7 +238,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   late final bool _ownsProvider;
   late final RoomService _roomService;
   final FriendService _friendService = FriendService();
-  final TokenStorage _tokenStorage = const TokenStorage();
+  late final TokenStorage _tokenStorage;
   late String _chatName;
   bool _isMuted = false;
   bool _isPinned = false;
@@ -251,7 +259,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     super.initState();
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
-    _roomService = RoomService();
+    _roomService = widget.roomService ?? RoomService();
+    _tokenStorage = widget.tokenStorage ?? const TokenStorage();
     _chatName = widget.chat.name;
     _avatarObjectKey = widget.chat.avatarObjectKey; // 初始化头像 key
     _isMuted = widget.chat.isMuted;
@@ -298,6 +307,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       setState(() {
         _currentUserId = userId;
         _isGroupOwner = _computeOwnership(currentUserId: userId);
+        _isAdmin = _computeIsAdmin(currentUserId: userId);
       });
     } catch (e) {
       debugPrint('加载当前用户失败: $e');
@@ -327,9 +337,12 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   }
 
   /// 判断当前用户是否为管理员
-  bool _computeIsAdmin({List<Map<String, dynamic>>? membersOverride}) {
+  bool _computeIsAdmin({
+    String? currentUserId,
+    List<Map<String, dynamic>>? membersOverride,
+  }) {
     if (widget.chat.type != ChatType.group) return false;
-    final userId = _currentUserId;
+    final userId = currentUserId ?? _currentUserId;
     if (userId == null || userId.isEmpty) return false;
 
     final members = membersOverride ?? _members;
@@ -376,7 +389,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               _buildGroupInfoSection(context),
               const SizedBox(height: 16),
             ],
-            _buildSettingsSection(context, isGroupOwner),
+            _buildSettingsSection(context, canManageGroup),
             // 群聊管理入口（仅群主/管理员可见）
             if (widget.chat.type == ChatType.group && canManageGroup)
               _buildManagementSection(context),
@@ -664,7 +677,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
                   ),
             onTap: _isUploadingAvatar
                 ? null
-                : (_isGroupOwner
+                : (_isGroupOwner || _isAdmin
                       ? () {
                           _showPickGroupAvatarDialog(context);
                         }
@@ -675,7 +688,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     );
   }
 
-  Widget _buildSettingsSection(BuildContext context, bool isGroupOwner) {
+  Widget _buildSettingsSection(BuildContext context, bool canManageGroup) {
     return Container(
       margin: EdgeInsets.fromLTRB(
         16,
@@ -690,7 +703,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       ),
       child: Column(
         children: [
-          if (widget.chat.type == ChatType.group && isGroupOwner)
+          if (widget.chat.type == ChatType.group && canManageGroup)
             _SwitchTile(
               label: '禁止发送消息',
               value: _isForbidden,
@@ -733,10 +746,11 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       ),
       child: Column(
         children: [
-          _SettingTile(
-            label: '管理员设置',
-            onTap: () => _navigateToAdminManagement(context),
-          ),
+          if (_isGroupOwner)
+            _SettingTile(
+              label: '管理员设置',
+              onTap: () => _navigateToAdminManagement(context),
+            ),
           _SettingTile(
             label: '入群审核',
             onTap: () => _navigateToJoinRequests(context),
