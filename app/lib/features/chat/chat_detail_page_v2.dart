@@ -26,6 +26,7 @@ import '../../core/services/upload_policy_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/storage/token_storage.dart';
+import '../../core/storage/chat_draft_storage.dart';
 import '../../core/storage/message_search_storage.dart';
 import '../../core/theme/phone_density.dart';
 import '../../core/utils/local_file_utils.dart';
@@ -66,6 +67,7 @@ class ChatDetailPageV2 extends StatefulWidget {
     this.chatProvider,
     this.websocketService,
     this.initialMessageId,
+    this.draftStorage,
   });
 
   final String roomId;
@@ -75,6 +77,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   final ChatProvider? chatProvider;
   final WebSocketService? websocketService;
   final String? initialMessageId;
+  final ChatDraftStorage? draftStorage;
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
@@ -143,6 +146,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   double _lastKeyboardInset = 0.0;
   double _keyboardInset = 0.0; // 当前键盘高度，用于避免频繁查询 MediaQuery
   Timer? _keyboardUpdateTimer; // 防抖定时器，减少键盘动画期间的 setState 调用
+  Timer? _draftSaveTimer;
+  late final ChatDraftStorage _draftStorage;
+  bool _draftRestoreComplete = false;
 
   late ChatProvider _chatProvider;
   late final bool _ownsProvider;
@@ -202,9 +208,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _webSocketService = widget.websocketService ?? WebSocketService.instance;
+    _draftStorage = widget.draftStorage ?? ChatDraftStorage();
     _initChat();
     _scrollController.addListener(_onScroll);
     unawaited(_ensureCurrentUserId());
+    unawaited(_restoreTextDraft());
     _textController.addListener(_handleLocalTextChanged);
 
     _inputFocusNode.addListener(() {
@@ -279,6 +287,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _handleLocalTextChanged() {
+    _scheduleDraftSave();
     _updateMentionSuggestions();
     if (_isInputDisabled) {
       _stopTyping();
@@ -297,6 +306,61 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       if (!mounted) return;
       _sendTyping(false);
     });
+  }
+
+  Future<void> _restoreTextDraft() async {
+    try {
+      final session = await _tokenStorage.readSession();
+      final accountId = session?.user.id;
+      if (accountId == null || accountId.isEmpty) return;
+      _currentUserId ??= accountId;
+      final draft = await _draftStorage.load(
+        accountId: accountId,
+        roomId: widget.roomId,
+      );
+      if (!mounted || draft == null || _textController.text.isNotEmpty) return;
+      _textController.text = draft;
+      _textController.selection = TextSelection.collapsed(offset: draft.length);
+    } catch (_) {
+      // 草稿恢复失败不阻塞聊天。
+    } finally {
+      _draftRestoreComplete = true;
+      if (_textController.text.isNotEmpty) _scheduleDraftSave();
+    }
+  }
+
+  void _scheduleDraftSave() {
+    if (!_draftRestoreComplete) return;
+    _draftSaveTimer?.cancel();
+    final text = _textController.text;
+    _draftSaveTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_persistTextDraft(text));
+    });
+  }
+
+  Future<void> _persistTextDraft(String text) async {
+    final accountId = _currentUserId;
+    if (accountId == null || accountId.isEmpty) return;
+    try {
+      await _draftStorage.save(
+        accountId: accountId,
+        roomId: widget.roomId,
+        text: text,
+      );
+    } catch (_) {
+      // 草稿持久化失败不阻塞输入与发送。
+    }
+  }
+
+  Future<void> _clearTextDraft() async {
+    _draftSaveTimer?.cancel();
+    final accountId = _currentUserId;
+    if (accountId == null || accountId.isEmpty) return;
+    try {
+      await _draftStorage.clear(accountId: accountId, roomId: widget.roomId);
+    } catch (_) {
+      // 消息已发送成功时，草稿清理失败不得改变发送结果。
+    }
   }
 
   void _sendTyping(bool isTyping) {
@@ -746,6 +810,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _multiSelectMode = false;
     _selectedMessageIds.clear();
     _keyboardUpdateTimer?.cancel();
+    _draftSaveTimer?.cancel();
+    if (_draftRestoreComplete) {
+      unawaited(_persistTextDraft(_textController.text));
+    }
     _groupSettingsSubscription?.cancel();
     _groupMemberSubscription?.cancel();
     _typingSubscription?.cancel();
@@ -827,6 +895,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       if (!mounted) return;
       if (trimmed != null && trimmed.isNotEmpty) {
         _textController.clear();
+        await _clearTextDraft();
       }
       if (_quotedMessage != null) {
         setState(() => _quotedMessage = null);

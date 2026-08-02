@@ -6,6 +6,10 @@ import 'package:app/core/services/settings_service.dart';
 import 'package:app/core/services/upload_policy_service.dart';
 import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
+import 'package:app/core/storage/chat_draft_storage.dart';
+import 'package:app/core/storage/token_storage.dart';
+import 'package:app/features/auth/models/auth_session.dart';
+import 'package:app/features/auth/models/auth_user.dart';
 import 'package:app/features/chat/chat_detail_page_v2.dart';
 import 'package:app/features/chat/models/chat_model.dart';
 import 'package:app/features/chat/models/message_model.dart';
@@ -393,6 +397,63 @@ void main() {
       find.byType(EditableText),
     );
     expect(editableState.widget.focusNode.hasFocus, isFalse);
+  });
+
+  testWidgets('restores room draft and clears it after successful send', (
+    tester,
+  ) async {
+    await const TokenStorage().saveSession(
+      const AuthSession(
+        token: 'token',
+        user: AuthUser(id: 'user-self', username: 'self'),
+      ),
+    );
+    final draftStorage = ChatDraftStorage();
+    await draftStorage.save(
+      accountId: 'user-self',
+      roomId: 'room-1',
+      text: '尚未发送的草稿',
+    );
+    final websocketService = _FakeWebSocketService();
+    final messageService = _FakeMessageService(
+      roomMessages: <String, List<Message>>{
+        'room-1': <Message>[_message()],
+      },
+      seedChats: <Chat>[],
+    );
+    final provider = _buildProvider(
+      websocketService,
+      messageService: messageService,
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+          draftStorage: draftStorage,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final inputFinder = find.byKey(const ValueKey('chat-input-text-field'));
+    expect(tester.widget<TextField>(inputFinder).controller?.text, '尚未发送的草稿');
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-send-button')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(messageService.lastSentText, '尚未发送的草稿');
+    expect(tester.widget<TextField>(inputFinder).controller?.text, isEmpty);
+    expect(
+      await draftStorage.load(accountId: 'user-self', roomId: 'room-1'),
+      isNull,
+    );
   });
 
   testWidgets('emoji and more panels close voice panel before opening', (
