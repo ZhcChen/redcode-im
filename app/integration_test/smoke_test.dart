@@ -8,20 +8,25 @@ import 'package:app/core/storage/attachment_url_cache.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('flutter app integration smoke: auth bus can emit state', (
+  testWidgets('flutter app integration smoke: auth bus preserves state order', (
     tester,
   ) async {
-    final completer = Completer<AuthState>();
+    final completer = Completer<List<AuthState>>();
+    final received = <AuthState>[];
     final sub = AuthStateBus.stream.listen((state) {
-      if (!completer.isCompleted) {
-        completer.complete(state);
+      received.add(state);
+      if (received.length == 2 && !completer.isCompleted) {
+        completer.complete(List<AuthState>.unmodifiable(received));
       }
     });
 
+    AuthStateBus.emit(AuthState.unauthenticated);
     AuthStateBus.emit(AuthState.authenticated);
 
-    final received = await completer.future;
-    expect(received, AuthState.authenticated);
+    expect(await completer.future, const [
+      AuthState.unauthenticated,
+      AuthState.authenticated,
+    ]);
     await sub.cancel();
   });
 

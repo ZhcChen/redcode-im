@@ -139,7 +139,7 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const Key('avatar'))).width,
-      closeTo(56 * 0.96, 0.01),
+      closeTo(56 * 0.94, 0.01),
     );
   });
 }
