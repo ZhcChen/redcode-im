@@ -37,7 +37,6 @@ import '../../core/widgets/skeleton.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
 import 'models/message_model.dart';
-import 'models/message_reader.dart';
 import 'group_settings_page.dart';
 import 'pinned_messages_page.dart';
 import 'message_search_page.dart';
@@ -45,6 +44,7 @@ import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/message_action_menu.dart';
 import 'widgets/message_editor_sheet.dart';
+import 'widgets/message_read_receipts_sheet.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
 import '../../core/services/voice_service.dart';
@@ -2324,39 +2324,15 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       return;
     }
 
-    final cachedCount = _chatProvider.cachedMemberCount(chat.roomId);
-    int memberCount = cachedCount ?? 0;
-
-    if (cachedCount == null) {
-      try {
-        memberCount = await _chatProvider.getRoomMemberCount(chat.roomId);
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('已读列表获取失败，请稍后重试')));
-        return;
-      }
-    }
-
-    if (memberCount > 100) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('群聊成员超过100人，暂不支持查看详细已读列表')));
-      return;
-    }
-
-    if (!mounted) return;
-
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _ReadReceiptsSheet(
-        provider: _chatProvider,
+      builder: (context) => MessageReadReceiptsSheet(
         message: message,
-        totalMembers: memberCount,
+        loadReaders: ({required bool forceRefresh}) => _chatProvider
+            .fetchMessageReaders(message, forceRefresh: forceRefresh),
+        loadMembers: () => _chatProvider.getRoomMembers(message.roomId),
       ),
     );
   }
@@ -4432,221 +4408,6 @@ class _ForwardTargetTile extends StatelessWidget {
       case ChatType.single:
         return '单聊';
     }
-  }
-}
-
-class _ReadReceiptsSheet extends StatefulWidget {
-  const _ReadReceiptsSheet({
-    required this.provider,
-    required this.message,
-    required this.totalMembers,
-  });
-
-  final ChatProvider provider;
-  final Message message;
-  final int totalMembers;
-
-  @override
-  State<_ReadReceiptsSheet> createState() => _ReadReceiptsSheetState();
-}
-
-class _ReadReceiptsSheetState extends State<_ReadReceiptsSheet> {
-  List<MessageReader> _readers = const [];
-  bool _isLoading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool forceRefresh = false}) async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final readers = await widget.provider.fetchMessageReaders(
-        widget.message,
-        forceRefresh: forceRefresh,
-      );
-      if (!mounted) return;
-      setState(() {
-        _readers = readers;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.45,
-      minChildSize: 0.3,
-      maxChildSize: 0.85,
-      builder: (context, controller) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 12, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '已读 ${_readers.length}/${widget.totalMembers}',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh, size: 20),
-                      tooltip: '刷新',
-                      onPressed: _isLoading
-                          ? null
-                          : () => _load(forceRefresh: true),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: _buildBody(controller)),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBody(ScrollController controller) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('获取已读成员失败', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => _load(forceRefresh: true),
-                child: const Text('重试'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_readers.isEmpty) {
-      return Center(
-        child: Text(
-          '暂时没有成员已读',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: () => _load(forceRefresh: true),
-      child: ListView.separated(
-        controller: controller,
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        itemBuilder: (context, index) {
-          final reader = _readers[index];
-          return ListTile(
-            leading: _buildAvatar(reader),
-            title: Text(reader.displayName),
-            subtitle: Text(
-              _formatReadTime(reader.readAt),
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: AppColors.textTertiary),
-            ),
-          );
-        },
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemCount: _readers.length,
-      ),
-    );
-  }
-
-  Widget _buildAvatar(MessageReader reader) {
-    final avatar = reader.avatarUrl;
-    if (avatar != null && avatar.isNotEmpty) {
-      if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-        return CircleAvatar(backgroundImage: NetworkImage(avatar));
-      }
-      return CircleAvatar(backgroundImage: AssetImage(avatar));
-    }
-
-    final initial = reader.displayName.isNotEmpty
-        ? AvatarColorUtils.getInitial(reader.displayName)
-        : '?';
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(
-      reader.userId,
-    );
-    return CircleAvatar(
-      backgroundColor: backgroundColor,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  String _formatReadTime(DateTime time) {
-    final now = DateTime.now();
-    final sameDay =
-        now.year == time.year && now.month == time.month && now.day == time.day;
-    final hh = time.hour.toString().padLeft(2, '0');
-    final mm = time.minute.toString().padLeft(2, '0');
-    if (sameDay) {
-      return '今天 $hh:$mm';
-    }
-    final month = time.month.toString().padLeft(2, '0');
-    final day = time.day.toString().padLeft(2, '0');
-    return '$month-$day $hh:$mm';
   }
 }
 
