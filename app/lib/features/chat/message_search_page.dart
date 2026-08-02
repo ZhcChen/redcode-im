@@ -224,7 +224,7 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
       if (!mounted || seq != _searchSequence) return;
 
       setState(() {
-        _results = local.results;
+        _results = _deduplicateResults(local.results);
         _stats = local.stats;
         _localOffset = local.results.length;
         _hasMoreLocal = local.hasMore;
@@ -307,13 +307,22 @@ class _MessageSearchPageState extends State<MessageSearchPage> {
     final exists = _results.map((r) => r.id).toSet();
     final merged = List<MessageSearchResult>.from(_results);
     for (final item in incoming) {
-      if (!exists.contains(item.id)) {
+      if (exists.add(item.id)) {
         merged.add(item);
       }
     }
     setState(() {
       _results = merged;
     });
+  }
+
+  List<MessageSearchResult> _deduplicateResults(
+    List<MessageSearchResult> results,
+  ) {
+    final seen = <String>{};
+    return results
+        .where((result) => seen.add(result.id))
+        .toList(growable: false);
   }
 
   Future<void> _syncServerResults({

@@ -299,4 +299,78 @@ void main() {
       expect(searchStorage.searchCalls, 2);
     },
   );
+
+  testWidgets('tapping a deduplicated result returns the target message', (
+    tester,
+  ) async {
+    const result = MessageSearchResult(
+      id: 'msg-target',
+      roomId: 'room-1',
+      roomName: '目标会话',
+      senderId: 'user-1',
+      senderName: 'Alice',
+      content: '需要定位的消息',
+      messageType: 'text',
+      timestampMs: 1712812800000,
+      relevanceScore: 1,
+    );
+    final searchStorage = _FakeMessageSearchStorage(
+      response: const MessageSearchResponse(
+        results: <MessageSearchResult>[result, result],
+        stats: MessageSearchStats(
+          totalResults: 1,
+          searchTimeMs: 1,
+          query: '定位',
+        ),
+        hasMore: false,
+      ),
+    );
+    MessageSearchResult? selected;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () async {
+                selected = await Navigator.of(context).push(
+                  MaterialPageRoute<MessageSearchResult>(
+                    builder: (_) => MessageSearchPage(
+                      searchStorage: searchStorage,
+                      messageStorage: const _FakeMessageStorage(),
+                      messageService: _FakeSearchMessageService(
+                        seedChats: const <Chat>[],
+                      ),
+                      appConfigService: _FakeAppConfigService(
+                        runtime: const MessageRuntimeSettings(
+                          serverStorageMode: 'relay_only',
+                          contentAuditMode: 'plaintext',
+                        ),
+                      ),
+                      httpClient: MockClient(
+                        (_) async => http.Response('unexpected', 500),
+                      ),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('打开搜索'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开搜索'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '定位');
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    final resultText = find.text('需要定位的消息', findRichText: true);
+    expect(resultText, findsOneWidget);
+    await tester.tap(resultText);
+    await tester.pumpAndSettle();
+    expect(selected?.id, 'msg-target');
+  });
 }
