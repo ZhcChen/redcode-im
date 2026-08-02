@@ -242,7 +242,3 @@ source ~/.zshrc
 - 后端 API 通过 Tauri 的 `invoke` 函数调用
 - 支持热重载和实时预览
 - 自动类型检查和 ESLint
-
-## 许可证
-
-本项目基于 MIT 许可证开源。
