@@ -6,7 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/app_config_service.dart';
 import '../../core/services/version_service.dart';
+import '../../core/update/update_center.dart';
 import 'feedback_page.dart';
+import 'version_status.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -22,6 +24,7 @@ class _AboutPageState extends State<AboutPage> {
   bool _downloadInProgress = false;
   PackageInfo? _packageInfo;
   VersionCheckResult? _versionResult;
+  Object? _versionError;
   String? _downloadedFilePath;
   int? _downloadedFileSize;
   String _appName = '';
@@ -74,6 +77,7 @@ class _AboutPageState extends State<AboutPage> {
     }
     setState(() {
       _checkingVersion = true;
+      _versionError = null;
     });
     try {
       final result = await _versionService.checkLatest(
@@ -95,6 +99,7 @@ class _AboutPageState extends State<AboutPage> {
       }
     } catch (error) {
       if (!mounted) return;
+      setState(() => _versionError = error);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('检查更新失败：$error')));
@@ -230,6 +235,12 @@ class _AboutPageState extends State<AboutPage> {
     final releaseNotes = latest?.releaseNotes;
     final downloadPath = _downloadedFilePath;
     final downloadSize = _formatFileSize(_downloadedFileSize);
+    final status = resolveVersionStatus(
+      checking: _checkingVersion,
+      result: _versionResult,
+      error: _versionError,
+      hotStage: UpdateCenter.hotUpdateManager?.state.stage,
+    );
 
     return Container(
       width: double.infinity,
@@ -267,6 +278,15 @@ class _AboutPageState extends State<AboutPage> {
                           color: AppColors.textPrimary,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        status.label,
+                        key: const Key('version-status-label'),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.settingsTextMuted,
+                        ),
+                      ),
                       if (_hasUpdate && latest != null)
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
@@ -280,7 +300,9 @@ class _AboutPageState extends State<AboutPage> {
                                 decoration: BoxDecoration(
                                   color: latest.mandatory
                                       ? Colors.redAccent.withValues(alpha: 0.1)
-                                      : AppColors.primary.withValues(alpha: 0.1),
+                                      : AppColors.primary.withValues(
+                                          alpha: 0.1,
+                                        ),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -464,7 +486,9 @@ class _AboutPageState extends State<AboutPage> {
                   onPressed: _openFeedback,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
-                    side: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                    side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.5),
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 2,

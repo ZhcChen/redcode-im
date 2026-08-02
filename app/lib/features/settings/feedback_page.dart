@@ -5,7 +5,9 @@ import '../../core/services/feedback_service.dart';
 import '../../core/widgets/styled_text_field.dart';
 
 class FeedbackPage extends StatefulWidget {
-  const FeedbackPage({super.key});
+  const FeedbackPage({super.key, this.feedbackService});
+
+  final FeedbackService? feedbackService;
 
   @override
   State<FeedbackPage> createState() => _FeedbackPageState();
@@ -15,7 +17,6 @@ class _FeedbackPageState extends State<FeedbackPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _contactController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  final FeedbackService _feedbackService = FeedbackService();
 
   bool _submitting = false;
 
@@ -37,7 +38,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
 
     setState(() => _submitting = true);
     try {
-      await _feedbackService.submitFeedback(
+      await (widget.feedbackService ?? FeedbackService()).submitFeedback(
         content: content,
         contact: contact.isEmpty ? null : contact,
       );
@@ -136,6 +137,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   ),
                   const SizedBox(height: 20),
                   StyledTextField(
+                    key: const Key('feedback-content'),
                     controller: _contentController,
                     labelText: '反馈内容',
                     hintText: '请详细描述您遇到的问题或建议',
@@ -155,6 +157,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
                   ),
                   const SizedBox(height: 20),
                   StyledTextField(
+                    key: const Key('feedback-contact'),
                     controller: _contactController,
                     labelText: '联系方式（选填）',
                     hintText: '邮箱、手机号或微信号',
@@ -165,12 +168,13 @@ class _FeedbackPageState extends State<FeedbackPage> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
+                      key: const Key('feedback-submit'),
                       onPressed: _submitting ? null : _handleSubmit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.primary.withValues(alpha: 
-                          0.6,
+                        disabledBackgroundColor: AppColors.primary.withValues(
+                          alpha: 0.6,
                         ),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
