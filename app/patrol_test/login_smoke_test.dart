@@ -73,9 +73,32 @@ void main() {
       expect($('发现'), findsOneWidget);
       expect($('我的'), findsOneWidget);
 
+      await $('联系人').tap();
+      await $('新的朋友').waitUntilVisible();
+      expect($('群聊'), findsOneWidget);
+      expect($('群通知'), findsOneWidget);
+
+      await $('发现').tap();
+      await $('相关功能将在服务合同完成后开放').waitUntilVisible();
+
       await $('我的').tap();
       await $('账号与安全').waitUntilVisible();
       expect($('退出登录'), findsOneWidget);
+
+      await $('设置').tap();
+      await $('聊天背景、贴纸与本地存储').waitUntilVisible();
+      await $.platform.android.pressBack();
+      await $('退出登录').waitUntilVisible();
+
+      await $('账号与安全').tap();
+      await $('修改密码').waitUntilVisible();
+      expect($('注销账号'), findsOneWidget);
+      await $.platform.android.pressBack();
+      await $('退出登录').waitUntilVisible();
+
+      await $.platform.mobile.pressHome();
+      await $.platform.android.pressDoubleRecentApps();
+      await $('退出登录').waitUntilVisible();
     },
   );
 }

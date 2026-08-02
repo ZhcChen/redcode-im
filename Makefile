@@ -711,7 +711,7 @@ app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_D
 	@$(call require_cmd,$(PATROL))
 	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
 
-app.test.patrol.login: ## 执行 app Patrol 登录 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
+app.test.patrol.login: ## 执行 app Patrol 登录与 P0 导航 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
 	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
 

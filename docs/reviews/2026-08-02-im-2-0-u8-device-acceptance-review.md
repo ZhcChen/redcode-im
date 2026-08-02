@@ -21,15 +21,17 @@ Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simula
 - `make app.test`：324 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=emulator-5554`：2 项通过。
 - `make app.test.patrol.harness PATROL_DEVICE=emulator-5554`：1 项通过。
-- `make app.test.patrol.login PATROL_DEVICE=emulator-5554`：1 项通过；覆盖账号密码输入、mock 登录、聊天/联系人/发现/我的四 Tab，以及我的页面账号安全和退出登录入口。
+- `make app.test.patrol.login PATROL_DEVICE=emulator-5554`：1 项通过；覆盖账号密码输入、mock 登录、聊天/联系人/发现/我的四 Tab、联系人固定入口、设置与账号安全二级路由、两次 Android 系统返回，以及 Home/最近任务前后台恢复。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=emulator-5554`：真实 API 注册、登录、刷新和登出通过。
 - `make app.test.integration.device.contract APP_TEST_DEVICE=emulator-5554`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
 
 ## 本轮修复
 
-Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册正式命名路由。现已使用 `AppRouter.onGenerateRoute` 进入真实 App Shell，显式输入账号密码，并将断言更新为 2.0 的“聊天、联系人、发现、我的”信息架构。
+Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册正式命名路由。现已使用 `AppRouter.onGenerateRoute` 进入真实 App Shell，显式输入账号密码，并将断言更新为 2.0 的“聊天、联系人、发现、我的”信息架构。后续扩展覆盖联系人和发现页面、我的设置二级路由、Android 系统返回与前后台恢复。
 
-对应提交：`14855f43 test(app): 对齐 2.0 登录设备巡检`。
+`PatrolTester.enterText()` 只向 Flutter 输入控件注入文本，不会拉起原生软键盘，因此该流程不作为键盘遮挡验收证据。键盘行为继续保留为默认设备人工验收项。
+
+对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 
 ## 未完成项
 
@@ -37,9 +39,9 @@ Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册
 - 系统键盘弹出、收起和输入框遮挡检查。
 - 顶部/底部安全区与长内容滚动检查。
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
-- 前后台切换后的会话、WebSocket 和页面状态恢复。
+- 默认设备前后台切换后的真实会话、WebSocket 和页面状态恢复；Android mock Shell 状态恢复已通过。
 - 断网、重连、待发送消息和离线缓存恢复。
-- 系统返回键、原生返回手势和多层路由回退。
+- 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
 - 聊天附件、联系人、群治理和设置的完整可视化设备巡检。
 
 ## 阻塞与恢复条件

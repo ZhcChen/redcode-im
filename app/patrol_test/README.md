@@ -3,7 +3,7 @@
 当前目录用于承载 Patrol 专用用例，避免和 `integration_test/` 的轻量 smoke 混用。
 
 当前已落地：
-- `login_smoke_test.dart`：登录页基础可见性、注册切换、mock 登录导航 smoke
+- `login_smoke_test.dart`：登录页基础可见性、注册切换、mock 登录、四 Tab、二级路由、系统返回和 Android 前后台恢复 smoke。`enterText()` 不会拉起原生软键盘，键盘遮挡仍需设备人工验收
 - `harness_smoke_test.dart`：最小 Patrol harness 冒烟，优先用于验证 iOS / Android 原生测试桥是否可用
 
 注意：
