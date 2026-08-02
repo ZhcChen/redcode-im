@@ -7,18 +7,38 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants/app_assets.dart';
-import '../../core/constants/app_colors.dart';
 import '../../core/debug/debug_logger.dart';
 import '../../core/routing/app_route.dart';
 import '../../core/routing/app_router.dart';
 import '../../core/services/app_config_service.dart';
 import '../../core/services/version_service.dart';
+import '../../core/theme/design_tokens.dart';
 import '../../core/update/update_center.dart';
+import '../../core/widgets/im_state_panel.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/login_page.dart';
+import 'startup_session_resolver.dart';
+
+typedef StartupSessionCallback = Future<StartupSessionResult> Function();
+typedef StartupGateCallback = Future<bool> Function();
+typedef StartupTaskCallback = Future<void> Function();
+typedef StartupAppNameCallback = Future<String> Function();
 
 class SplashPage extends StatefulWidget {
-  const SplashPage({super.key});
+  const SplashPage({
+    super.key,
+    this.sessionResolver,
+    this.versionGate,
+    this.hotUpdateInitializer,
+    this.appNameLoader,
+    this.minimumDisplayDuration = const Duration(milliseconds: 800),
+  });
+
+  final StartupSessionCallback? sessionResolver;
+  final StartupGateCallback? versionGate;
+  final StartupTaskCallback? hotUpdateInitializer;
+  final StartupAppNameCallback? appNameLoader;
+  final Duration minimumDisplayDuration;
 
   @override
   State<SplashPage> createState() => _SplashPageState();
@@ -28,7 +48,12 @@ class _SplashPageState extends State<SplashPage> {
   final AuthRepository _authRepository = AuthRepository();
   final VersionService _versionService = VersionService();
   final AppConfigService _appConfigService = AppConfigService.instance;
+
   bool _navigated = false;
+  bool _bootstrapping = false;
+  bool _launchGatePassed = false;
+  bool _hotUpdateInitialized = false;
+  bool _showRetry = false;
   String _appName = '';
 
   @override
@@ -40,86 +65,110 @@ class _SplashPageState extends State<SplashPage> {
 
   Future<void> _loadAppName() async {
     try {
-      // 优先从 SQLite 获取，如果没有则从 API 获取并缓存
-      final appName = await _appConfigService.getAppName();
+      final appName =
+          await (widget.appNameLoader?.call() ??
+              _appConfigService.getAppName());
       if (mounted) {
-        setState(() {
-          _appName = appName;
-        });
+        setState(() => _appName = appName);
       }
-      // 异步刷新应用名（不阻塞 UI）
+      if (widget.appNameLoader != null) {
+        return;
+      }
       _appConfigService.refreshAppName().then((refreshedName) {
         if (mounted && refreshedName.isNotEmpty && refreshedName != _appName) {
-          setState(() {
-            _appName = refreshedName;
-          });
+          setState(() => _appName = refreshedName);
         }
       });
     } catch (_) {
-      // 静默失败，使用默认值
+      // The product name is optional startup decoration and never blocks auth.
     }
   }
 
   Future<void> _bootstrap() async {
+    if (_bootstrapping || _navigated) {
+      return;
+    }
+    _bootstrapping = true;
+    if (_showRetry && mounted) {
+      setState(() => _showRetry = false);
+    }
     Log.d('开始启动流程');
 
-    final allowLaunch = await _ensureAppUpToDate();
-    if (!allowLaunch || !mounted) {
-      return;
-    }
-
     try {
-      final hotManager = await UpdateCenter.ensureHotUpdateManager();
-      unawaited(hotManager.checkForUpdates());
-    } catch (error) {
-      Log.e('初始化热更新失败: $error');
-    }
-
-    final delay = Future<void>.delayed(const Duration(milliseconds: 800));
-    const timeout = Duration(seconds: 10); // 设置10秒超时
-
-    try {
-      Log.d('尝试加载本地会话...');
-      final session = await _authRepository.loadSession().timeout(timeout);
-
-      if (session != null) {
-        Log.d('找到本地会话，尝试验证...');
-        try {
-          final user = await _authRepository.refreshCurrentUser().timeout(
-            timeout,
-          );
-          if (user != null) {
-            Log.d('用户验证成功: ${user.username}');
-            await delay;
-            if (!mounted || _navigated) {
-              return;
-            }
-            _goHome();
-            return;
-          }
-        } on AuthException catch (e) {
-          Log.e('用户验证失败: $e');
-          await _authRepository.logout();
-        } on TimeoutException {
-          Log.e('验证用户超时');
-          await _authRepository.logout();
+      if (!_launchGatePassed) {
+        final allowLaunch =
+            await (widget.versionGate?.call() ?? _ensureAppUpToDate());
+        if (!allowLaunch || !mounted) {
+          return;
         }
-      } else {
-        Log.d('没有找到本地会话');
+        _launchGatePassed = true;
       }
-    } catch (e) {
-      Log.e('启动流程出错: $e');
-    }
 
-    Log.d('跳转到登录页面');
-    await delay;
-    if (!mounted || _navigated) {
-      return;
+      if (!_hotUpdateInitialized) {
+        _hotUpdateInitialized = true;
+        try {
+          await (widget.hotUpdateInitializer?.call() ??
+              _initializeHotUpdates());
+        } catch (error) {
+          Log.e('初始化热更新失败: $error');
+        }
+      }
+
+      final result =
+          await (widget.sessionResolver?.call() ?? _resolveStartupSession());
+      await Future<void>.delayed(widget.minimumDisplayDuration);
+      if (!mounted || _navigated) {
+        return;
+      }
+
+      switch (result) {
+        case StartupSessionResult.home:
+          _goHome();
+        case StartupSessionResult.login:
+          _goLogin();
+        case StartupSessionResult.retry:
+          setState(() => _showRetry = true);
+      }
+    } finally {
+      _bootstrapping = false;
     }
-    _goLogin();
+  }
+
+  Future<void> _initializeHotUpdates() async {
+    final hotManager = await UpdateCenter.ensureHotUpdateManager();
+    unawaited(hotManager.checkForUpdates());
+  }
+
+  Future<StartupSessionResult> _resolveStartupSession() {
+    const timeout = Duration(seconds: 10);
+    return StartupSessionResolver.resolve(
+      hasLocalSession: () async {
+        Log.d('尝试加载本地会话...');
+        return await _authRepository.loadSession().timeout(timeout) != null;
+      },
+      refreshSession: () async {
+        Log.d('找到本地会话，尝试验证...');
+        final user = await _authRepository.refreshCurrentUser().timeout(
+          timeout,
+        );
+        if (user == null) {
+          throw const StartupSessionRejected();
+        }
+        Log.d('用户验证成功: ${user.username}');
+        return true;
+      },
+      clearInvalidSession: _authRepository.logout,
+    );
+  }
+
+  void _retry() {
+    unawaited(_bootstrap());
   }
 
   void _goHome() {
+    if (_navigated) {
+      return;
+    }
     _navigated = true;
     AppRouter.open<void>(
       context,
@@ -129,6 +178,9 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   void _goLogin() {
+    if (_navigated) {
+      return;
+    }
     _navigated = true;
     Navigator.of(
       context,
@@ -253,34 +305,50 @@ class _SplashPageState extends State<SplashPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FFFE),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 应用 Logo
-          Center(
-            child: Image.asset(
-              AppAssets.appLogo,
-              width: 120,
-              height: 120,
-              fit: BoxFit.contain,
+          SafeArea(
+            child: AnimatedSwitcher(
+              duration: AppMotion.resolve(context, AppMotion.standard),
+              child: _showRetry
+                  ? ImStatePanel(
+                      key: const ValueKey('startup-retry'),
+                      icon: Icons.cloud_off_outlined,
+                      title: '暂时无法连接服务器',
+                      message: '已保留登录状态，请检查网络后重试。',
+                      actionLabel: '重新连接',
+                      onAction: _retry,
+                    )
+                  : Center(
+                      key: const ValueKey('startup-loading'),
+                      child: Image.asset(
+                        AppAssets.appLogo,
+                        width: 104,
+                        height: 104,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
             ),
           ),
-          Positioned(
-            bottom: 64,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                _appName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w500,
+          if (!_showRetry)
+            Positioned(
+              bottom: AppSpacing.xl,
+              left: AppSpacing.lg,
+              right: AppSpacing.lg,
+              child: SafeArea(
+                top: false,
+                child: Text(
+                  _appName,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
