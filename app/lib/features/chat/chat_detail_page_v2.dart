@@ -37,6 +37,7 @@ import '../../core/widgets/skeleton.dart';
 import 'providers/chat_provider.dart';
 import 'models/chat_model.dart';
 import 'models/message_model.dart';
+import 'message_forward_executor.dart';
 import 'group_settings_page.dart';
 import 'pinned_messages_page.dart';
 import 'message_search_page.dart';
@@ -44,6 +45,7 @@ import 'video_preview_page.dart';
 import 'widgets/message_avatar.dart';
 import 'widgets/message_action_menu.dart';
 import 'widgets/message_editor_sheet.dart';
+import 'widgets/message_forward_sheet.dart';
 import 'widgets/message_read_receipts_sheet.dart';
 import 'widgets/quoted_message_avatar.dart';
 import 'widgets/voice_message_widget.dart';
@@ -1738,35 +1740,35 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       _chatProvider.messages,
     ).where((m) => _selectedMessageIds.contains(m.id)).toList();
 
-    final chats = List<Chat>.from(_chatProvider.chats);
+    final chats = List<Chat>.from(
+      _chatProvider.chats.where((chat) => chat.roomId != widget.roomId),
+    );
     if (chats.isEmpty) {
       _showErrorSnack('暂无可转发的会话');
       return;
     }
 
-    final targetChat = await showModalBottomSheet<Chat>(
+    final targetChats = await showModalBottomSheet<List<Chat>>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        final height = MediaQuery.of(sheetContext).size.height * 0.72;
-        return SizedBox(
-          height: height,
-          child: _ForwardTargetSheet(chats: chats, message: messages.first),
-        );
-      },
+      builder: (_) => MessageForwardSheet(
+        chats: chats,
+        previewText: _forwardPreview(messages.first),
+        excludedRoomId: widget.roomId,
+      ),
     );
 
-    if (!mounted || targetChat == null) return;
+    if (!mounted || targetChats == null || targetChats.isEmpty) return;
 
-    try {
-      for (final msg in messages) {
-        await _chatProvider.forwardMessage(msg, targetChat);
-      }
-      _showSnack('已转发到${targetChat.name}');
+    final result = await forwardMessagesToTargets(
+      messages: messages,
+      targets: targetChats,
+      forward: _chatProvider.forwardMessage,
+    );
+    if (!mounted) return;
+    _showForwardResult(result);
+    if (result.successCount > 0) {
       _clearMultiSelect();
-    } catch (e) {
-      debugPrint('批量转发失败: $e');
-      _showErrorSnack('转发失败，请稍后重试');
     }
   }
 
@@ -2214,7 +2216,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _forwardMessage(Message message) async {
-    final chats = List<Chat>.from(_chatProvider.chats);
+    final chats = List<Chat>.from(
+      _chatProvider.chats.where((chat) => chat.roomId != widget.roomId),
+    );
     if (chats.isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -2222,33 +2226,55 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       return;
     }
 
-    final selectedChat = await showModalBottomSheet<Chat>(
+    final selectedChats = await showModalBottomSheet<List<Chat>>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetContext) {
-        final height = MediaQuery.of(sheetContext).size.height * 0.72;
-        return SizedBox(
-          height: height,
-          child: _ForwardTargetSheet(chats: chats, message: message),
-        );
-      },
+      builder: (_) => MessageForwardSheet(
+        chats: chats,
+        previewText: _forwardPreview(message),
+        excludedRoomId: widget.roomId,
+      ),
     );
 
-    if (!mounted || selectedChat == null) return;
+    if (!mounted || selectedChats == null || selectedChats.isEmpty) return;
 
-    try {
-      await _chatProvider.forwardMessage(message, selectedChat);
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已转发到${selectedChat.name}')));
-    } catch (e) {
-      debugPrint('Forward message failed: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('转发失败，请稍后重试')));
+    final result = await forwardMessagesToTargets(
+      messages: [message],
+      targets: selectedChats,
+      forward: _chatProvider.forwardMessage,
+    );
+    if (!mounted) return;
+    _showForwardResult(result);
+  }
+
+  String _forwardPreview(Message message) {
+    if (message.isDeleted) return '消息已删除';
+    if (message.type == MessageType.text) return message.content;
+    return switch (message.type) {
+      MessageType.image => '[图片消息]',
+      MessageType.audio => '[语音消息]',
+      MessageType.video => '[视频消息]',
+      MessageType.file => '[文件消息]',
+      MessageType.system => '[系统消息]',
+      MessageType.mixed => '[多媒体消息]',
+      MessageType.text => message.content,
+    };
+  }
+
+  void _showForwardResult(MessageForwardResult result) {
+    if (result.isCompleteSuccess) {
+      _showSnack('已转发到 ${result.targetCount} 个会话');
+      return;
     }
+    final failedNames = result.failedTargetNames.join('、');
+    if (result.isCompleteFailure) {
+      _showErrorSnack('转发失败：$failedNames');
+      return;
+    }
+    _showErrorSnack(
+      '部分转发成功，${result.successCount} 条成功，'
+      '${result.failureCount} 条失败（$failedNames）',
+    );
   }
 
   Future<void> _togglePinMessage(Message message) async {
@@ -4140,273 +4166,6 @@ class _PinnedMessageBanner extends StatelessWidget {
         return '[系统消息]';
       case MessageType.mixed:
         return '[多媒体消息]';
-    }
-  }
-}
-
-class _ForwardTargetSheet extends StatefulWidget {
-  const _ForwardTargetSheet({required this.chats, required this.message});
-
-  final List<Chat> chats;
-  final Message message;
-
-  @override
-  State<_ForwardTargetSheet> createState() => _ForwardTargetSheetState();
-}
-
-class _ForwardTargetSheetState extends State<_ForwardTargetSheet> {
-  late List<Chat> _filtered;
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _filtered = widget.chats;
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onKeywordChanged(String value) {
-    final keyword = value.trim().toLowerCase();
-    setState(() {
-      if (keyword.isEmpty) {
-        _filtered = widget.chats;
-      } else {
-        _filtered = widget.chats
-            .where((chat) => chat.name.toLowerCase().contains(keyword))
-            .toList();
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final previewText = widget.message.isDeleted
-        ? '消息已删除'
-        : widget.message.type == MessageType.text
-        ? widget.message.content
-        : '[消息]';
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '选择转发目标',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: Text(
-                previewText,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.divider),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TextField(
-                controller: _controller,
-                onChanged: _onKeywordChanged,
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  hintText: '搜索会话',
-                  icon: Icon(Icons.search, size: 18),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _filtered.isEmpty
-                  ? Center(
-                      child: Text(
-                        '未找到匹配的会话',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: _filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final chat = _filtered[index];
-                        return _ForwardTargetTile(
-                          chat: chat,
-                          onTap: () => Navigator.of(context).pop(chat),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ForwardTargetTile extends StatelessWidget {
-  const _ForwardTargetTile({required this.chat, required this.onTap});
-
-  final Chat chat;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          child: Row(
-            children: [
-              _buildAvatar(),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      chat.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _typeLabel(chat.type),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 生成聊天的颜色种子
-  String _chatColorSeed() {
-    if (chat.type == ChatType.single) {
-      // 单聊使用对端ID作为种子
-      final peerId = _peerIdFromExtra(chat.extra);
-      if (peerId != null) return peerId;
-    }
-    return chat.roomId;
-  }
-
-  String? _peerIdFromExtra(Map<String, dynamic>? extra) {
-    if (extra == null) return null;
-    final candidates = <String?>[
-      extra['friend_user_id'] as String?,
-      extra['friendUserId'] as String?,
-      extra['friend_id'] as String?,
-      extra['friendId'] as String?,
-      extra['target_user_id'] as String?,
-      extra['targetUserId'] as String?,
-      extra['peer_user_id'] as String?,
-      extra['peerUserId'] as String?,
-      extra['peer_id'] as String?,
-      extra['peerId'] as String?,
-      extra['user_id'] as String?,
-      extra['userId'] as String?,
-    ];
-    for (final c in candidates) {
-      if (c != null && c.trim().isNotEmpty) return c.trim();
-    }
-    return null;
-  }
-
-  Widget _buildAvatar() {
-    const double size = 40;
-    if (chat.avatar != null && chat.avatar!.isNotEmpty) {
-      if (chat.avatar!.startsWith('http')) {
-        return CircleAvatar(
-          radius: size / 2,
-          backgroundImage: NetworkImage(chat.avatar!),
-          backgroundColor: AppColors.surface,
-        );
-      }
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundImage: AssetImage(chat.avatar!),
-        backgroundColor: AppColors.surface,
-      );
-    }
-
-    final seed = _chatColorSeed();
-    final initial = chat.name.isNotEmpty
-        ? AvatarColorUtils.getInitial(chat.name)
-        : '?';
-    final backgroundColor = AvatarColorUtils.generateBackgroundColor(seed);
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundColor: backgroundColor,
-      child: Text(
-        initial,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-
-  String _typeLabel(ChatType type) {
-    switch (type) {
-      case ChatType.group:
-        return '群聊';
-      case ChatType.favorite:
-        return '收藏夹';
-      case ChatType.single:
-        return '单聊';
     }
   }
 }
