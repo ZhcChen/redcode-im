@@ -6,6 +6,7 @@ import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
 import 'package:app/core/storage/token_storage.dart';
 import 'package:app/core/theme/screen_adaptation.dart';
+import 'package:app/features/chat/group_admin_management_page.dart';
 import 'package:app/features/chat/group_chats_page.dart';
 import 'package:app/features/chat/group_settings_page.dart';
 import 'package:app/features/chat/models/chat_model.dart';
@@ -26,6 +27,12 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   final List<Chat> _chats;
   final List<Map<String, dynamic>> _members;
   int fetchChatsCallCount = 0;
+
+  void replaceMembers(List<Map<String, dynamic>> members) {
+    _members
+      ..clear()
+      ..addAll(members);
+  }
 
   @override
   List<Chat> get chats => List<Chat>.from(_chats);
@@ -454,6 +461,46 @@ void main() {
       expect(find.text('举报该群聊'), findsOneWidget);
       expect(find.byKey(const Key('report-content')), findsOneWidget);
       expect(find.text('请至少上传 1 张截图'), findsNothing);
+    });
+
+    testWidgets('从治理子页返回后刷新当前用户角色权限', (tester) async {
+      final chat = groupChat();
+      final messageService = _FakeMessageService(
+        chats: <Chat>[chat],
+        members: members('owner'),
+      );
+      final provider = ChatProvider(
+        messageService: messageService,
+        webSocketService: _FakeWebSocketService(),
+        appConfigService: _FakeAppConfigService(
+          runtime: MessageRuntimeSettings.defaults,
+        ),
+      );
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: provider,
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('管理员设置'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('管理员设置'));
+      await tester.tap(find.text('管理员设置'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GroupAdminManagementPage), findsOneWidget);
+
+      messageService.replaceMembers(members('member'));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('禁止发送消息'), findsNothing);
+      expect(find.text('退出群聊'), findsOneWidget);
     });
   });
 }

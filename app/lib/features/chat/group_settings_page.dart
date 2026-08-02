@@ -773,61 +773,78 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     );
   }
 
-  void _navigateToAdminManagement(BuildContext context) {
-    Navigator.push(
+  Future<void> _navigateToAdminManagement(BuildContext context) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => GroupAdminManagementPage(
           roomId: widget.chat.roomId,
           members: _members,
+          roomService: _roomService,
         ),
       ),
     );
+    await _refreshGovernanceState();
   }
 
-  void _navigateToJoinRequests(BuildContext context) {
-    Navigator.push(
+  Future<void> _navigateToJoinRequests(BuildContext context) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
-        builder: (context) => GroupJoinRequestsPage(roomId: widget.chat.roomId),
+        builder: (context) => GroupJoinRequestsPage(
+          roomId: widget.chat.roomId,
+          roomService: _roomService,
+        ),
       ),
     );
+    await _refreshGovernanceState();
   }
 
-  void _navigateToMuteManagement(BuildContext context) {
-    Navigator.push(
+  Future<void> _navigateToMuteManagement(BuildContext context) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => GroupMuteManagementPage(
           roomId: widget.chat.roomId,
           members: _members,
+          roomService: _roomService,
         ),
       ),
     );
+    await _refreshGovernanceState();
   }
 
-  void _navigateToGroupRules(BuildContext context) {
-    Navigator.push(
+  Future<void> _navigateToGroupRules(BuildContext context) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => GroupRulesPage(
           roomId: widget.chat.roomId,
           canManage: _isGroupOwner || _isAdmin,
+          roomService: _roomService,
         ),
       ),
     );
+    await _refreshGovernanceState();
   }
 
-  void _navigateToOperationLogs(BuildContext context) {
-    Navigator.push(
+  Future<void> _navigateToOperationLogs(BuildContext context) async {
+    await Navigator.push<void>(
       context,
       MaterialPageRoute(
         builder: (context) => GroupOperationLogsPage(
           roomId: widget.chat.roomId,
           members: _members,
+          roomService: _roomService,
         ),
       ),
     );
+    await _refreshGovernanceState();
+  }
+
+  Future<void> _refreshGovernanceState() async {
+    if (!mounted) return;
+    await Future.wait(<Future<void>>[_loadMembers(), _loadSettings()]);
   }
 
   Widget _buildBottomActions(BuildContext context, bool isGroupOwner) {
