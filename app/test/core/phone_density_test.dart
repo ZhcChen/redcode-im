@@ -33,7 +33,7 @@ void main() {
           devicePixelRatio: 3,
           physicalSize: const Size(1080, 2700),
         ),
-        0.90,
+        0.88,
       );
     });
 

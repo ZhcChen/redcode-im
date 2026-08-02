@@ -43,8 +43,8 @@ void main() {
           physicalSize: const Size(1080, 2700),
         );
 
-        expect(designSize.width, closeTo(375 / 0.90, 0.0001));
-        expect(designSize.height, closeTo(900 / 0.90, 0.0001));
+        expect(designSize.width, closeTo(375 / 0.88, 0.0001));
+        expect(designSize.height, closeTo(900 / 0.88, 0.0001));
       },
     );
 
@@ -151,9 +151,9 @@ void main() {
 
         expect(ScreenUtil().screenWidth, closeTo(360, 0.0001));
         expect(ScreenUtil().screenHeight, closeTo(900, 0.0001));
-        expect(ScreenUtil().scaleWidth, closeTo((360 / 375) * 0.90, 0.0001));
-        expect(ScreenUtil().scaleHeight, closeTo(0.90, 0.0001));
-        expect(24.w, closeTo(24 * (360 / 375) * 0.90, 0.0001));
+        expect(ScreenUtil().scaleWidth, closeTo((360 / 375) * 0.88, 0.0001));
+        expect(ScreenUtil().scaleHeight, closeTo(0.88, 0.0001));
+        expect(24.w, closeTo(24 * (360 / 375) * 0.88, 0.0001));
       },
     );
 

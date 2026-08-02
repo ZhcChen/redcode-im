@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 const double _tabletShortestSideBreakpoint = 600;
 const double _qhdPhoneShortestSidePx = 1400;
 const double _midResolutionPhoneShortestSidePx = 1200;
-const double _fullHdPhoneShortestSidePx = 1080;
 
 /// 基于手机物理最短边像素做轻量分档，收紧 1.5K / 1080p 手机的视觉密度。
 double resolvePhoneDensityFactor({
@@ -28,9 +27,6 @@ double resolvePhoneDensityFactor({
   }
   if (shortestPhysicalSide >= _midResolutionPhoneShortestSidePx) {
     return 0.94;
-  }
-  if (shortestPhysicalSide >= _fullHdPhoneShortestSidePx) {
-    return 0.90;
   }
   return 0.88;
 }

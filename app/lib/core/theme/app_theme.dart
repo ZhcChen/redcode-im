@@ -1,66 +1,191 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../constants/app_colors.dart';
+import 'design_tokens.dart';
 
 class AppTheme {
   const AppTheme._();
 
-  static ThemeData get light {
-    final base = ThemeData.light();
+  static ThemeData get light => _build(Brightness.light);
+
+  static ThemeData get dark => _build(Brightness.dark);
+
+  static ThemeData _build(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final primary = isDark ? AppColors.darkPrimary : AppColors.primary;
+    final primaryContainer = isDark
+        ? AppColors.darkPrimarySoft
+        : AppColors.primarySoft;
+    final background = isDark ? AppColors.darkBackground : AppColors.background;
+    final surface = isDark ? AppColors.darkSurface : AppColors.surface;
+    final surfaceSoft = isDark
+        ? AppColors.darkSurfaceSoft
+        : AppColors.surfaceSoft;
+    final textPrimary = isDark
+        ? AppColors.darkTextPrimary
+        : AppColors.textPrimary;
+    final textSecondary = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.textSecondary;
+    final divider = isDark ? AppColors.darkDivider : AppColors.divider;
+
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: primary,
+          brightness: brightness,
+        ).copyWith(
+          primary: primary,
+          onPrimary: isDark ? AppColors.darkBackground : Colors.white,
+          primaryContainer: primaryContainer,
+          onPrimaryContainer: textPrimary,
+          secondary: primary,
+          onSecondary: Colors.white,
+          surface: surface,
+          onSurface: textPrimary,
+          surfaceContainerHighest: surfaceSoft,
+          error: AppColors.danger,
+          outlineVariant: divider,
+        );
+    final base = ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: background,
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+    );
+
     return base.copyWith(
-      scaffoldBackgroundColor: AppColors.background,
-      colorScheme: base.colorScheme.copyWith(
-        primary: AppColors.primary,
-        secondary: AppColors.accent,
-        surface: AppColors.surface,
-      ),
-      textTheme: _textTheme(base.textTheme),
-      appBarTheme: const AppBarTheme(
+      textTheme: _textTheme(base.textTheme, textPrimary, textSecondary),
+      dividerColor: divider,
+      appBarTheme: AppBarTheme(
         elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: AppColors.textBlack,
+        scrolledUnderElevation: 0,
+        backgroundColor: background,
+        foregroundColor: textPrimary,
         centerTitle: true,
+        titleTextStyle: TextStyle(
+          color: textPrimary,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFF3F7F8),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(44),
-          borderSide: BorderSide.none,
-        ),
+        fillColor: surfaceSoft,
+        border: _inputBorder,
+        enabledBorder: _inputBorder,
+        focusedBorder: _inputBorder,
+        disabledBorder: _inputBorder,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 24,
-          vertical: 10,
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
         ),
-        constraints: BoxConstraints(minHeight: 44.h, maxHeight: 44.h),
+        hintStyle: TextStyle(color: textSecondary, letterSpacing: 0),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(AppControlSize.minTapTarget),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, AppControlSize.minTapTarget),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadii.control),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0,
+          ),
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: Colors.white,
-          // 仅限制高度，避免默认最小宽度为 Infinity 导致在 Row 中布局报错
-          minimumSize: Size(88.w, 44.h),
+          minimumSize: const Size(88, AppControlSize.minTapTarget),
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28.r),
+            borderRadius: BorderRadius.circular(AppRadii.control),
           ),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.emphasized),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: textPrimary,
+        contentTextStyle: TextStyle(color: surface),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.control),
         ),
       ),
     );
   }
 
-  static TextTheme _textTheme(TextTheme base) {
+  static const _inputBorder = OutlineInputBorder(
+    borderRadius: BorderRadius.all(Radius.circular(AppRadii.control)),
+    borderSide: BorderSide.none,
+  );
+
+  static TextTheme _textTheme(
+    TextTheme base,
+    Color textPrimary,
+    Color textSecondary,
+  ) {
+    TextStyle? style(
+      TextStyle? source,
+      double size,
+      Color color, {
+      FontWeight? weight,
+    }) => source?.copyWith(
+      fontSize: size,
+      color: color,
+      fontWeight: weight,
+      letterSpacing: 0,
+    );
+
     return base.copyWith(
-      headlineMedium: base.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+      displaySmall: style(
+        base.displaySmall,
+        28,
+        textPrimary,
+        weight: FontWeight.w600,
       ),
-      titleLarge: base.titleLarge?.copyWith(
-        fontWeight: FontWeight.w600,
-        color: AppColors.textPrimary,
+      headlineMedium: style(
+        base.headlineMedium,
+        22,
+        textPrimary,
+        weight: FontWeight.w600,
       ),
-      bodyLarge: base.bodyLarge?.copyWith(color: AppColors.textSecondary),
-      bodyMedium: base.bodyMedium?.copyWith(color: AppColors.textSecondary),
+      titleLarge: style(
+        base.titleLarge,
+        18,
+        textPrimary,
+        weight: FontWeight.w600,
+      ),
+      titleMedium: style(
+        base.titleMedium,
+        16,
+        textPrimary,
+        weight: FontWeight.w600,
+      ),
+      bodyLarge: style(base.bodyLarge, 16, textPrimary),
+      bodyMedium: style(base.bodyMedium, 14, textSecondary),
+      bodySmall: style(base.bodySmall, 12, textSecondary),
+      labelLarge: style(
+        base.labelLarge,
+        14,
+        textPrimary,
+        weight: FontWeight.w600,
+      ),
     );
   }
 }
