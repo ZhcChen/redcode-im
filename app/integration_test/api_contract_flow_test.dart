@@ -54,11 +54,13 @@ void main() {
       final suffix = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
       final accountA = 'fl${suffix}a';
       final accountB = 'fl${suffix}b';
+      final accountC = 'fl${suffix}c';
       const password = 'pass123456';
 
       final httpClient = http.Client();
       AuthSession? sessionA;
       AuthSession? sessionB;
+      AuthSession? sessionC;
       MessageService? messageA;
       MessageService? messageB;
       CreatedRoom? group;
@@ -72,10 +74,14 @@ void main() {
         sessionB = await _registerAndLogin(auth, accountB, password);
         final storageB = _StaticTokenStorage(sessionB);
 
+        sessionC = await _registerAndLogin(auth, accountC, password);
+        final storageC = _StaticTokenStorage(sessionC);
+
         final friendA = FriendService(tokenStorage: storageA);
         final friendB = FriendService(tokenStorage: storageB);
         final roomA = RoomService(tokenStorage: storageA);
         final roomB = RoomService(tokenStorage: storageB);
+        final roomC = RoomService(tokenStorage: storageC);
         messageA = MessageService(tokenStorage: storageA);
         messageB = MessageService(tokenStorage: storageB);
 
@@ -92,7 +98,9 @@ void main() {
         final groupResult = await _verifyGroupContract(
           roomA: roomA,
           roomB: roomB,
+          roomC: roomC,
           sessionB: sessionB,
+          sessionC: sessionC,
           suffix: suffix,
           onGroupCreated: (created) => group = created,
         );
@@ -138,6 +146,7 @@ void main() {
         messageB?.dispose();
         final cleanupSessionA = sessionA;
         final cleanupSessionB = sessionB;
+        final cleanupSessionC = sessionC;
         final cleanupGroup = group;
         final cleanupPushDeviceId = pushDeviceId;
         if (cleanupSessionA != null && cleanupPushDeviceId != null) {
@@ -156,6 +165,9 @@ void main() {
         }
         if (cleanupSessionB != null) {
           await _bestEffortDeactivateUser(httpClient, cleanupSessionB);
+        }
+        if (cleanupSessionC != null) {
+          await _bestEffortDeactivateUser(httpClient, cleanupSessionC);
         }
         if (cleanupSessionA != null) {
           await _bestEffortDeactivateUser(httpClient, cleanupSessionA);
@@ -323,7 +335,9 @@ Future<void> _verifyFriendContract(
 Future<_GroupContractResult> _verifyGroupContract({
   required RoomService roomA,
   required RoomService roomB,
+  required RoomService roomC,
   required AuthSession sessionB,
+  required AuthSession sessionC,
   required String suffix,
   required void Function(CreatedRoom group) onGroupCreated,
 }) async {
@@ -348,6 +362,45 @@ Future<_GroupContractResult> _verifyGroupContract({
   expect(settings.joinApprovalRequired, isTrue);
   expect(settings.memberCanInvite, isFalse);
   expect(settings.maxMembers, 128);
+
+  await expectLater(
+    roomB.createInvitations(roomId: group.id, userIds: [sessionC.user.id]),
+    throwsA(isA<RoomServiceException>()),
+  );
+
+  await roomA.updateGroupSettings(
+    roomId: group.id,
+    joinApprovalRequired: true,
+    memberCanInvite: true,
+    maxMembers: 128,
+  );
+  final createdInvitations = await roomB.createInvitations(
+    roomId: group.id,
+    userIds: [sessionC.user.id],
+    message: 'contract invitation $suffix',
+  );
+  expect(createdInvitations, hasLength(1));
+  final receivedInvitations = await roomC.listReceivedInvitations(
+    status: 'pending',
+  );
+  final receivedInvitation = receivedInvitations.firstWhere(
+    (item) => item.id == createdInvitations.single.id,
+  );
+  expect(receivedInvitation.roomId, group.id);
+  expect(receivedInvitation.inviterId, sessionB.user.id);
+  expect(receivedInvitation.message, 'contract invitation $suffix');
+  await roomC.respondToInvitation(
+    roomId: group.id,
+    invitationId: receivedInvitation.id,
+    status: 'accepted',
+  );
+  expect(
+    (await roomC.listReceivedInvitations(
+      status: 'accepted',
+    )).any((item) => item.id == receivedInvitation.id),
+    isTrue,
+  );
+  expect((await roomC.fetchGroupSettings(group.id)).maxMembers, 128);
 
   final rule = await roomA.createRule(
     roomId: group.id,
@@ -376,6 +429,15 @@ Future<_GroupContractResult> _verifyGroupContract({
     )).any((admin) => admin.adminId == sessionB.user.id),
     isTrue,
   );
+  await roomB.updateGroupSettings(
+    roomId: group.id,
+    joinApprovalRequired: false,
+    memberCanInvite: false,
+    maxMembers: 128,
+  );
+  final adminUpdatedSettings = await roomA.fetchGroupSettings(group.id);
+  expect(adminUpdatedSettings.joinApprovalRequired, isFalse);
+  expect(adminUpdatedSettings.memberCanInvite, isFalse);
   await roomA.removeAdmin(roomId: group.id, userId: sessionB.user.id);
   expect(
     (await roomA.listAdmins(
