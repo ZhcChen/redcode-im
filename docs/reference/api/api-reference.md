@@ -376,7 +376,7 @@ Authorization: Bearer <your-jwt-token>
 
 #### 9. 更新房间信息
 - **接口**: `PATCH /rooms/:room_id`
-- **权限**: 需要认证（需要管理员权限）
+- **权限**: 需要认证；群主、管理员可邀请，普通成员需开启 `member_can_invite`
 - **功能**: 更新房间名称、描述等信息
 - **Handler**: `room::update_room`
 

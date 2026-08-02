@@ -37,6 +37,18 @@ import 'models/chat_model.dart';
 import 'providers/chat_provider.dart';
 import 'widgets/friend_selection_sheet.dart';
 
+enum GroupMemberAddMode { hidden, invite, addDirectly }
+
+GroupMemberAddMode resolveGroupMemberAddMode({
+  required bool isOwner,
+  required bool isAdmin,
+  required bool memberCanInvite,
+}) {
+  if (isOwner || isAdmin) return GroupMemberAddMode.addDirectly;
+  if (memberCanInvite) return GroupMemberAddMode.invite;
+  return GroupMemberAddMode.hidden;
+}
+
 class _GroupAvatar extends StatefulWidget {
   const _GroupAvatar({super.key, required this.chat});
 
@@ -244,6 +256,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   bool _isMuted = false;
   bool _isPinned = false;
   bool _isForbidden = false;
+  bool _memberCanInvite = false;
   bool _isLoadingMembers = false;
   bool _isLoadingSettings = false;
   bool _isUploadingAvatar = false;
@@ -289,6 +302,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
       if (!mounted) return;
       setState(() {
         _isForbidden = settings.globalMuteEnabled;
+        _memberCanInvite = settings.memberCanInvite ?? false;
         _isLoadingSettings = false;
       });
     } catch (e) {
@@ -407,7 +421,13 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   Widget _buildMemberSection(BuildContext context) {
     final canManageMembers = _isGroupOwner || _isAdmin;
-    final actionCount = canManageMembers ? 2 : 0;
+    final addMode = resolveGroupMemberAddMode(
+      isOwner: _isGroupOwner,
+      isAdmin: _isAdmin,
+      memberCanInvite: _memberCanInvite,
+    );
+    final canInviteMembers = addMode != GroupMemberAddMode.hidden;
+    final actionCount = canManageMembers ? 2 : (canInviteMembers ? 1 : 0);
 
     if (_isLoadingMembers) {
       return Container(
@@ -473,10 +493,15 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           ),
           itemCount: _members.length + actionCount,
           itemBuilder: (context, index) {
-            if (canManageMembers && index == 0) {
-              return _buildActionMember(context, true, '添加', () {
-                _handleAddMembers();
-              });
+            if (canInviteMembers && index == 0) {
+              return _buildActionMember(
+                context,
+                true,
+                addMode == GroupMemberAddMode.addDirectly ? '添加' : '邀请',
+                () {
+                  _handleAddMembers();
+                },
+              );
             }
             if (canManageMembers && index == 1) {
               return _buildActionMember(context, false, '移除', () {
@@ -1536,6 +1561,13 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   Future<void> _handleAddMembers() async {
     if (widget.chat.type != ChatType.group) return;
+    final addMode = resolveGroupMemberAddMode(
+      isOwner: _isGroupOwner,
+      isAdmin: _isAdmin,
+      memberCanInvite: _memberCanInvite,
+    );
+    if (addMode == GroupMemberAddMode.hidden) return;
+    final canManageMembers = addMode == GroupMemberAddMode.addDirectly;
 
     try {
       final friends = await _friendService.fetchFriends();
@@ -1558,11 +1590,22 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         context,
         friends: candidates,
         initialSelected: const {},
-        title: '添加群成员',
-        confirmTextBuilder: (count) => '添加（$count）',
+        title: canManageMembers ? '添加群成员' : '邀请好友入群',
+        confirmTextBuilder: (count) =>
+            canManageMembers ? '添加（$count）' : '发送邀请（$count）',
       );
 
       if (!mounted || selectedIds == null || selectedIds.isEmpty) {
+        return;
+      }
+
+      if (!canManageMembers) {
+        await _roomService.createInvitations(
+          roomId: widget.chat.roomId,
+          userIds: selectedIds.toList(),
+        );
+        if (!mounted) return;
+        _showSnackBar('已发送 ${selectedIds.length} 条群邀请');
         return;
       }
 
