@@ -31,6 +31,14 @@ Pixel 8 Pro `3A091FDJG001DN` 当前未连接。回退设备 iPhone 17 Pro Simula
 - `make app.test.patrol.harness PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：iPhone 17 Pro Simulator 构建持续 119.1 秒未进入测试执行阶段，终止后报告 `xcodebuild was interrupted`，本次没有测试通过证据。
 - 终止后未残留 `xcodebuild`、`XCBBuildService` 或 Patrol 测试进程。
 
+### iOS 构建阻塞定位
+
+- Xcode 26.6（17F113）、iPhoneSimulator 26.5 SDK、`xcrun clang` 和 `xcodebuild -showBuildSettings` 均可在 1 秒内完成，排除 SDK 缺失、基础 clang 故障和工程无法解析。
+- Patrol CLI 4.3.0 的实际命令停在 `xcodebuild build-for-testing` 的 `CreateBuildDescription`，现场子进程为多条 `clang -v -E -dM` capability probe。
+- 对 clang 子进程采样显示主线程持续阻塞在 `llvm::raw_fd_ostream::write_impl -> write`；同一条 clang 命令脱离 SwiftBuild 后约 0.02 秒完成。
+- 去掉 Patrol 固定的 `-quiet`、使用 `2>&1 | tee` 持续排空输出、通过 launchd 洁净 FD 启动，以及增加 `-jobs 1 ONLY_ACTIVE_ARCH=YES ARCHS=arm64` 并指定具体 Simulator，均在同一阶段复现。
+- 该行为与 Xcode 26.x 已公开的 SwiftBuild planning pipe deadlock 特征一致：<https://github.com/getsentry/XcodeBuildMCP/issues/492>。当前证据指向本机 Xcode Build Service，而不是 RedCode IM 源码、Pods 或 Patrol 测试逻辑。
+
 ## 本轮修复
 
 Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册正式命名路由。现已使用 `AppRouter.onGenerateRoute` 进入真实 App Shell，显式输入账号密码，并将断言更新为 2.0 的“聊天、联系人、发现、我的”信息架构。后续扩展覆盖联系人和发现页面、我的设置二级路由、Android 系统返回与前后台恢复。
@@ -53,5 +61,6 @@ Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册
 ## 阻塞与恢复条件
 
 1. Pixel 8 Pro 重新连接后，按真机规则重新检测本机 LAN IP，再执行 device auth、device contract 和 Patrol P0。
-2. Pixel 仍缺席时，先恢复 iOS Simulator 的 Xcode 构建能力，再按 `127.0.0.1` 地址执行同一组验收。
-3. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。
+2. Pixel 仍缺席时，重启 macOS 清理 Xcode/SwiftBuild 服务状态；若仍复现，安装可用的其他 Xcode 版本并切换 `xcode-select`，再运行最小 Patrol harness。
+3. 最小 harness 通过后，按 `127.0.0.1` 地址执行 iOS device auth、device contract、Patrol P0 和人工设备场景。
+4. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。
