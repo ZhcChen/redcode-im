@@ -92,6 +92,7 @@
 - 使用前先冻结主线程依据源码得到的首轮候选文件，再查询 CRG，用于补充调用者、测试和影响范围；不得让图结果覆盖运行时、测试或当前源码证据。
 - CRG 不可用、图数据陈旧或结果低置信时，立即降级到原 CE 流程、`rg`、源码、测试和运行时验证，不得阻塞计划、审查、提交或推送。
 - 只允许手工运行 `make crg.build`、`make crg.update`、`make crg.status`、`make crg.review BASE=<git-ref>`，不得启用 install、hooks、daemon、watch、embeddings 或默认测试/提交链集成。
+- 中文自然语言快捷映射：`构建代码图` -> `make crg.build`，`更新代码图` -> `make crg.update`，`查看代码图` -> `make crg.status`，`代码图审查` -> `make crg.review`；用户指定基准分支或提交时附加 `BASE=<git-ref>`。这些映射仍属于显式手工执行，不改变 CRG 的受控边界。
 - 完整操作、触发矩阵、证据优先级与回滚方式见 `docs/reference/tooling/code-review-graph.md`。
 
 ## 3. Agent-light / CE Codex Tool Mapping (Claude Compatibility)

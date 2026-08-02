@@ -34,6 +34,18 @@ make crg.status
 make crg.review BASE=origin/main
 ```
 
+在 Codex 对话中可以使用中文自然语言快捷指令，代理必须按下表执行对应的受控命令：
+
+| 中文指令 | 实际命令 |
+| --- | --- |
+| `构建代码图` | `make crg.build` |
+| `更新代码图` | `make crg.update` |
+| `查看代码图` | `make crg.status` |
+| `代码图审查` | `make crg.review`，默认基准为 `HEAD~1` |
+| `代码图审查，基准 <git-ref>` | `make crg.review BASE=<git-ref>` |
+
+中文映射只减少对话输入，不是新的 shell alias，也不允许绕过本节的手工触发、降级和禁用项。
+
 图数据位于 `.code-review-graph/`，仅供本机使用并由 Git 忽略。首次使用或图结构明显陈旧时运行完整构建；日常查询前运行增量更新。不得运行 CRG `install`，不得启用 hooks、daemon、watch、embeddings、GitHub Action，且不得把 CRG 目标加入 `test.all`、pre-commit 或默认 push 流程。
 
 Codex MCP 使用项目专属名称 `code-review-graph-redcode-im`，固定注册命令为：
