@@ -95,24 +95,6 @@
 - 中文自然语言快捷映射：`构建代码图` -> `make crg.build`，`更新代码图` -> `make crg.update`，`查看代码图` -> `make crg.status`，`代码图审查` -> `make crg.review`；用户指定基准分支或提交时附加 `BASE=<git-ref>`。这些映射仍属于显式手工执行，不改变 CRG 的受控边界。
 - 完整操作、触发矩阵、证据优先级与回滚方式见 `docs/reference/tooling/code-review-graph.md`。
 
-## 3. Agent-light / CE Codex Tool Mapping (Claude Compatibility)
-
-此节用于给未来代理说明轻工作流与 CE 兼容层在 Codex 中的常见工具映射。
-
-Tool mapping:
-- Read: 使用 shell 读取（`cat`/`sed`）或 `rg`
-- Write: 使用 shell 重定向或 `apply_patch`
-- Edit/MultiEdit: 使用 `apply_patch`
-- Bash: 使用 shell 命令
-- Grep: 使用 `rg`（必要时回退 `grep`）
-- Glob: 使用 `rg --files` 或 `find`
-- LS: 使用 `ls`
-- WebFetch/WebSearch: 优先 `curl`、Context7 或合规 Web 工具
-- AskUserQuestion/Question: 在对话中列编号选项并等待用户回答
-- Task/Subagent/Parallel: 默认在主线程顺序执行；仅在用户明确要求 delegation 时再启用子代理
-- TodoWrite/TodoRead: 使用计划/待办文档或本地文件跟踪
-- Skill: 打开对应 `SKILL.md` 并遵循其流程
-
 ## 4. 核心入口 (Entry Points)
 - 项目索引：`docs/index.md`
 - 需求/方向讨论：`docs/brainstorms/`
