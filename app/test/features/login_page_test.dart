@@ -10,7 +10,7 @@ Widget _buildHost() {
     builder: (context, _) => MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
-      home: const LoginPage(initialRequireCaptchaForLogin: true),
+      home: const LoginPage(),
     ),
   );
 }
@@ -22,7 +22,7 @@ void main() {
     SharedPreferences.setMockInitialValues({'user_agreed_to_terms': true});
   });
 
-  testWidgets('账号注册不显示验证码输入，即使开启验证码登录', (tester) async {
+  testWidgets('2.0 登录只显示普通账号密码流程', (tester) async {
     tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -33,7 +33,11 @@ void main() {
     await tester.pumpWidget(_buildHost());
     await tester.pumpAndSettle();
 
-    expect(find.text('验证码'), findsOneWidget);
+    expect(find.text('密码登录'), findsOneWidget);
+    expect(find.text('验证码'), findsNothing);
+    expect(find.text('验证码登录'), findsNothing);
+    expect(find.text('获取验证码'), findsNothing);
+    expect(find.text('忘记密码'), findsNothing);
 
     await tester.tap(find.text('立即注册'));
     await tester.pumpAndSettle();

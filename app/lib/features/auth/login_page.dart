@@ -1,5 +1,3 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -16,17 +14,14 @@ import '../../core/widgets/agreement_content_dialog.dart';
 import '../../core/widgets/agreement_tip_dialog.dart';
 import 'data/auth_repository.dart';
 
-enum LoginType { password, sms, register }
+enum LoginType { password, register }
 
 bool _isValidAccount(String account) {
   return RegExp(r'^[a-z0-9._-]{3,20}$').hasMatch(account);
 }
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, this.initialRequireCaptchaForLogin});
-
-  /// 测试入口：生产环境始终从后端读取验证码登录开关。
-  final bool? initialRequireCaptchaForLogin;
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -36,10 +31,6 @@ class _LoginPageState extends State<LoginPage> {
   LoginType _type = LoginType.password;
   bool _agreed = false;
   bool _loading = false;
-  int _smsCountdown = 0;
-  bool _sendingCode = false;
-  Timer? _smsTimer;
-  bool _requireCaptchaForLogin = false;
   String _appName = '';
 
   final AuthRepository _authRepository = AuthRepository();
@@ -48,7 +39,6 @@ class _LoginPageState extends State<LoginPage> {
 
   final TextEditingController _accountCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
-  final TextEditingController _smsCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -62,11 +52,6 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
     _loadAppName();
-    if (widget.initialRequireCaptchaForLogin != null) {
-      _requireCaptchaForLogin = widget.initialRequireCaptchaForLogin!;
-    } else {
-      _loadCaptchaSetting();
-    }
     _loadAgreementState();
   }
 
@@ -80,20 +65,6 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (_) {
       // 静默失败，使用默认值
-    }
-  }
-
-  Future<void> _loadCaptchaSetting() async {
-    try {
-      final requireCaptcha = await _settingsService
-          .fetchRequireCaptchaForLogin();
-      if (mounted) {
-        setState(() {
-          _requireCaptchaForLogin = requireCaptcha;
-        });
-      }
-    } catch (_) {
-      // 静默失败，使用默认值 false
     }
   }
 
@@ -122,10 +93,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _smsTimer?.cancel();
     _accountCtrl.dispose();
     _passwordCtrl.dispose();
-    _smsCtrl.dispose();
     // 恢复默认状态栏样式
     SystemChrome.setSystemUIOverlayStyle(
       const SystemUiOverlayStyle(
@@ -246,14 +215,12 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildLabel(_type == LoginType.sms ? '手机号' : '账号'),
+                _buildLabel('账号'),
                 SizedBox(height: 12.h),
                 _buildField(
                   controller: _accountCtrl,
-                  hint: _type == LoginType.sms ? '请输入手机号' : '请输入账号',
-                  keyboardType: _type == LoginType.sms
-                      ? TextInputType.phone
-                      : TextInputType.text,
+                  hint: '请输入账号',
+                  keyboardType: TextInputType.text,
                   enabled: !_loading,
                 ),
                 if (_type == LoginType.password) ...[
@@ -264,20 +231,6 @@ class _LoginPageState extends State<LoginPage> {
                     controller: _passwordCtrl,
                     hint: '请输入登录密码',
                     obscureText: true,
-                    enabled: !_loading,
-                  ),
-                ],
-                // 普通账号注册不需要验证码；验证码输入只服务登录相关流程。
-                if ((_type == LoginType.password && _requireCaptchaForLogin) ||
-                    _type == LoginType.sms) ...[
-                  SizedBox(height: 24.h),
-                  _buildLabel('验证码'),
-                  SizedBox(height: 12.h),
-                  _buildField(
-                    controller: _smsCtrl,
-                    hint: '请输入验证码',
-                    keyboardType: TextInputType.number,
-                    suffix: _buildSmsAction(),
                     enabled: !_loading,
                   ),
                 ],
@@ -301,18 +254,6 @@ class _LoginPageState extends State<LoginPage> {
                 _buildAgreeRow(),
                 SizedBox(height: 48.h),
                 _buildSwitchRow(),
-                if (_type != LoginType.register) ...[
-                  SizedBox(height: 12.h),
-                  Center(
-                    child: Text(
-                      '忘记密码',
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -333,12 +274,7 @@ class _LoginPageState extends State<LoginPage> {
         child: Row(
           children: _type == LoginType.register
               ? [_buildTypeButton(LoginType.register, '注册')]
-              : [
-                  _buildTypeButton(LoginType.password, '密码登录'),
-                  // 如果关闭了验证码登录，则隐藏验证码登录 tab
-                  if (_requireCaptchaForLogin)
-                    _buildTypeButton(LoginType.sms, '验证码登录'),
-                ],
+              : [_buildTypeButton(LoginType.password, '密码登录')],
         ),
       ),
     );
@@ -415,79 +351,6 @@ class _LoginPageState extends State<LoginPage> {
         suffixIconConstraints: BoxConstraints(maxHeight: 44.h),
       ),
     );
-  }
-
-  Widget _buildSmsAction() {
-    final disabled = _loading || _sendingCode || _smsCountdown > 0;
-    final label = _smsCountdown > 0 ? '${_smsCountdown}s' : '获取验证码';
-    return TextButton(
-      onPressed: disabled ? null : _requestSmsCode,
-      style: TextButton.styleFrom(
-        backgroundColor: const Color(0xFFDDDDDD),
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 8.h),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        minimumSize: const Size(0, 0),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12.r),
-        ),
-      ),
-      child: _sendingCode
-          ? SizedBox(
-              height: 16.h,
-              width: 16.w,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Text(
-              label,
-              style: TextStyle(fontSize: 13.sp, color: Colors.black87),
-            ),
-    );
-  }
-
-  Future<void> _requestSmsCode() async {
-    final phone = _accountCtrl.text.trim();
-    if (phone.isEmpty) {
-      _showMessage('请输入手机号');
-      return;
-    }
-
-    if (_sendingCode || _smsCountdown > 0) {
-      return;
-    }
-
-    setState(() => _sendingCode = true);
-    try {
-      await _authRepository.sendSmsCode(phone);
-      if (mounted) {
-        _showMessage('验证码已发送');
-        _startSmsCountdown();
-      }
-    } on AuthException catch (error) {
-      _showMessage(error.message);
-    } catch (_) {
-      _showMessage('发送验证码失败，请稍后重试');
-    } finally {
-      if (mounted) {
-        setState(() => _sendingCode = false);
-      } else {
-        _sendingCode = false;
-      }
-    }
-  }
-
-  void _startSmsCountdown([int seconds = 60]) {
-    _smsTimer?.cancel();
-    setState(() => _smsCountdown = seconds);
-    _smsTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_smsCountdown <= 1) {
-        timer.cancel();
-        if (mounted) {
-          setState(() => _smsCountdown = 0);
-        }
-      } else if (mounted) {
-        setState(() => _smsCountdown -= 1);
-      }
-    });
   }
 
   Widget _buildLabel(String text) {
@@ -628,18 +491,12 @@ class _LoginPageState extends State<LoginPage> {
       final password = _passwordCtrl.text.isEmpty
           ? 'mock-pass'
           : _passwordCtrl.text;
-      final code = _smsCtrl.text.trim().isEmpty
-          ? '123456'
-          : _smsCtrl.text.trim();
-
       FocusScope.of(context).unfocus();
       setState(() => _loading = true);
       try {
         if (_type == LoginType.register) {
           await _authRepository.register(account: account, password: password);
           await _authRepository.login(account: account, password: password);
-        } else if (_type == LoginType.sms) {
-          await _authRepository.loginWithSms(phone: account, code: code);
         } else {
           await _authRepository.login(account: account, password: password);
         }
@@ -684,16 +541,6 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    // 如果关闭了验证码登录，不允许验证码登录
-    if (_type == LoginType.sms) {
-      if (!_requireCaptchaForLogin) {
-        _showMessage('验证码登录功能已关闭，请使用密码登录');
-        return;
-      }
-      await _handleSmsLogin();
-      return;
-    }
-
     await _handlePasswordLogin();
   }
 
@@ -732,110 +579,6 @@ class _LoginPageState extends State<LoginPage> {
         _loading = false;
       }
     }
-  }
-
-  Future<void> _handleSmsLogin() async {
-    final phone = _accountCtrl.text.trim();
-    final code = _smsCtrl.text.trim();
-
-    if (phone.isEmpty || code.isEmpty) {
-      _showMessage('请输入手机号和验证码');
-      return;
-    }
-
-    FocusScope.of(context).unfocus();
-    setState(() => _loading = true);
-
-    try {
-      final success = await _attemptSmsLogin(phone, code);
-      if (!mounted) {
-        return;
-      }
-
-      if (success) {
-        _smsTimer?.cancel();
-        setState(() => _smsCountdown = 0);
-        _openHome();
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      } else {
-        _loading = false;
-      }
-    }
-  }
-
-  Future<bool> _attemptSmsLogin(String phone, String code) async {
-    try {
-      await _authRepository.loginWithSms(phone: phone, code: code);
-      return true;
-    } on AuthException catch (error) {
-      if (_isAccountMissingError(error.message)) {
-        return _autoRegisterAndLogin(phone, code);
-      }
-      _showMessage(error.message);
-    } catch (_) {
-      _showMessage('验证码登录失败，请稍后重试');
-    }
-    return false;
-  }
-
-  bool _isAccountMissingError(String message) {
-    return message.contains('用户不存在') || message.contains('未注册');
-  }
-
-  Future<bool> _autoRegisterAndLogin(String phone, String code) async {
-    final password = _buildAutoRegisterPassword(phone);
-
-    try {
-      await _authRepository.register(account: phone, password: password);
-    } on AuthException catch (error) {
-      if (_isUserAlreadyExistsError(error.message)) {
-        // 忽略该错误，后续直接重试登录
-      } else {
-        _showMessage(error.message);
-        return false;
-      }
-    } catch (_) {
-      _showMessage('自动注册失败，请稍后重试');
-      return false;
-    }
-
-    try {
-      await _authRepository.loginWithSms(phone: phone, code: code);
-      return true;
-    } on AuthException catch (error) {
-      _showMessage(error.message);
-    } catch (_) {
-      _showMessage('验证码登录失败，请稍后重试');
-    }
-    return false;
-  }
-
-  bool _isUserAlreadyExistsError(String message) {
-    return message.contains('已被使用') || message.contains('已存在');
-  }
-
-  String _buildAutoRegisterPassword(String phone) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    final random = Random();
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final buffer = StringBuffer();
-
-    if (digits.isNotEmpty) {
-      buffer.write(
-        digits.length >= 4 ? digits.substring(0, 4) : digits.padRight(4, '0'),
-      );
-    } else {
-      buffer.write('rcim');
-    }
-
-    for (var i = 0; i < 6; i++) {
-      buffer.write(chars[random.nextInt(chars.length)]);
-    }
-
-    return buffer.toString();
   }
 
   Future<void> _handlePasswordLogin() async {
