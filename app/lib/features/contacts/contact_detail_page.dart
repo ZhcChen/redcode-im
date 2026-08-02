@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/friend_service.dart';
+import '../../core/widgets/input_dialog.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../auth/models/auth_user.dart';
@@ -9,27 +10,39 @@ import '../chat/models/chat_model.dart';
 import 'models/friend_models.dart';
 
 class ContactDetailPage extends StatefulWidget {
-  const ContactDetailPage({super.key, required this.friend});
+  const ContactDetailPage({
+    super.key,
+    required this.friend,
+    this.friendService,
+  });
 
   final FriendInfo friend;
+  final FriendService? friendService;
 
   @override
   State<ContactDetailPage> createState() => _ContactDetailPageState();
 }
 
 class _ContactDetailPageState extends State<ContactDetailPage> {
-  final FriendService _friendService = FriendService();
+  late final FriendService _friendService;
+  late FriendInfo _friend;
   bool _creatingChat = false;
   bool _deletingFriend = false;
+  bool _updatingRemark = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _friendService = widget.friendService ?? FriendService();
+    _friend = widget.friend;
+  }
 
   Future<void> _handleSendMessage() async {
     if (_creatingChat) return;
 
     setState(() => _creatingChat = true);
     try {
-      final result = await _friendService.ensurePrivateChat(
-        widget.friend.user.id,
-      );
+      final result = await _friendService.ensurePrivateChat(_friend.user.id);
       if (!mounted) return;
 
       final chatType = result.roomType.toLowerCase() == 'group'
@@ -37,7 +50,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
           : ChatType.single;
       final chatName = result.roomName.isNotEmpty
           ? result.roomName
-          : widget.friend.user.displayName;
+          : _friend.user.displayName;
 
       await Navigator.of(context).push(
         MaterialPageRoute(
@@ -75,7 +88,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
       context,
       title: '删除好友',
       content:
-          '确定要删除好友「${widget.friend.user.displayName}」吗？删除后双方将不再出现在彼此的联系人列表中，此操作不可撤销。',
+          '确定要删除好友「${_friend.user.displayName}」吗？删除后双方将不再出现在彼此的联系人列表中，此操作不可撤销。',
       confirmText: '删除',
       cancelText: '取消',
       confirmDanger: true,
@@ -85,7 +98,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
 
     setState(() => _deletingFriend = true);
     try {
-      await _friendService.deleteFriend(widget.friend.user.id);
+      await _friendService.deleteFriend(_friend.user.id);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } on FriendServiceException catch (error) {
@@ -107,9 +120,57 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
     }
   }
 
+  Future<void> _handleEditRemark() async {
+    if (_updatingRemark) return;
+
+    await InputDialog.show(
+      context,
+      title: '设置备注',
+      hintText: '输入好友备注，留空可清除',
+      initialValue: _friend.remark,
+      maxLength: 32,
+      onConfirm: (value) async {
+        setState(() => _updatingRemark = true);
+        try {
+          final remark = await _friendService.updateFriendRemark(
+            _friend.user.id,
+            value,
+          );
+          if (!mounted) return null;
+          setState(() {
+            _friend = _friend.copyWith(
+              remark: remark,
+              clearRemark: remark == null,
+            );
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(remark == null ? '备注已清除' : '备注已更新')),
+          );
+          return remark ?? '';
+        } on FriendServiceException catch (error) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(error.message)));
+          }
+          return null;
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('更新备注失败，请稍后再试')));
+          }
+          return null;
+        } finally {
+          if (mounted) setState(() => _updatingRemark = false);
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = widget.friend.user;
+    final user = _friend.user;
     return Scaffold(
       appBar: AppBar(
         title: const Text('联系人名片'),
@@ -123,7 +184,11 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
         children: [
           _ProfileHeader(user: user),
           const SizedBox(height: 20),
-          _InfoSection(friend: widget.friend),
+          _InfoSection(
+            friend: _friend,
+            updatingRemark: _updatingRemark,
+            onEditRemark: _handleEditRemark,
+          ),
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
@@ -298,9 +363,15 @@ class _ProfileHeader extends StatelessWidget {
 }
 
 class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.friend});
+  const _InfoSection({
+    required this.friend,
+    required this.updatingRemark,
+    required this.onEditRemark,
+  });
 
   final FriendInfo friend;
+  final bool updatingRemark;
+  final VoidCallback onEditRemark;
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +407,52 @@ class _InfoSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          Semantics(
+            button: true,
+            label: '编辑好友备注',
+            child: InkWell(
+              key: const Key('contact-detail-remark'),
+              onTap: updatingRemark ? null : onEditRemark,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  children: [
+                    const SizedBox(
+                      width: 72,
+                      child: Text(
+                        '备注',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        friend.remark ?? '未设置',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (updatingRemark)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textTertiary,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           ...items.map(
             (item) => Padding(
               padding: const EdgeInsets.only(bottom: 12),

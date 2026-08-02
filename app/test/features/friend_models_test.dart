@@ -2,10 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:app/features/contacts/models/friend_models.dart';
 
 Map<String, dynamic> _userJson(String id, String username) => {
-      'id': id,
-      'username': username,
-      'nickname': username,
-    };
+  'id': id,
+  'username': username,
+  'nickname': username,
+};
 
 void main() {
   group('friend models', () {
@@ -38,6 +38,18 @@ void main() {
       expect(result.roomId, 'room-1');
       expect(result.roomType, 'private');
       expect(result.friendName, 'bob');
+    });
+
+    test('parses friend remark from friendship response', () {
+      final friend = FriendInfo.fromJson({
+        'id': 'friendship-1',
+        'user': _userJson('u-2', 'bob'),
+        'friend_remark': '项目负责人',
+        'created_at': '2026-03-01T00:00:00Z',
+      });
+
+      expect(friend.remark, '项目负责人');
+      expect(friend.copyWith(clearRemark: true).remark, isNull);
     });
 
     test('resolves incoming counterparty correctly', () {

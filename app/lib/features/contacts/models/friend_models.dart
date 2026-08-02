@@ -32,17 +32,29 @@ class FriendInfo {
     required this.id,
     required this.user,
     required this.createdAt,
+    this.remark,
   });
 
   final String id;
   final AuthUser user;
   final DateTime createdAt;
+  final String? remark;
+
+  FriendInfo copyWith({String? remark, bool clearRemark = false}) {
+    return FriendInfo(
+      id: id,
+      user: user,
+      createdAt: createdAt,
+      remark: clearRemark ? null : (remark ?? this.remark),
+    );
+  }
 
   factory FriendInfo.fromJson(Map<String, dynamic> json) {
     return FriendInfo(
       id: json['id'] as String? ?? '',
       user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
       createdAt: DateTime.parse(json['created_at'] as String),
+      remark: json['friend_remark'] as String?,
     );
   }
 }

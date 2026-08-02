@@ -108,12 +108,12 @@ class _InputDialogState extends State<InputDialog> {
       final result = await widget.onConfirm!(value);
       if (mounted && result != null) {
         Navigator.of(context).pop(result);
-        return true;
+        return false;
       }
       return false;
     } else {
       Navigator.of(context).pop(value);
-      return true;
+      return false;
     }
   }
 

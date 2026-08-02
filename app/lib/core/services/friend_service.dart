@@ -17,10 +17,12 @@ class FriendServiceException implements Exception {
 }
 
 class FriendService {
-  FriendService({TokenStorage? tokenStorage})
-    : _tokenStorage = tokenStorage ?? const TokenStorage();
+  FriendService({TokenStorage? tokenStorage, http.Client? client})
+    : _tokenStorage = tokenStorage ?? const TokenStorage(),
+      _client = client ?? http.Client();
 
   final TokenStorage _tokenStorage;
+  final http.Client _client;
 
   Future<Map<String, String>> _authHeaders() async {
     final session = await _tokenStorage.readSession();
@@ -39,7 +41,7 @@ class FriendService {
       '${AppConfig.apiBaseUrl}/users/search',
     ).replace(queryParameters: {'keyword': keyword, 'limit': limit.toString()});
 
-    final response = await http.get(uri, headers: headers);
+    final response = await _client.get(uri, headers: headers);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) {
@@ -62,7 +64,7 @@ class FriendService {
   }) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends/requests');
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: headers,
       body: jsonEncode({
@@ -98,7 +100,7 @@ class FriendService {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/friends/requests',
     ).replace(queryParameters: query.isEmpty ? null : query);
-    final response = await http.get(uri, headers: headers);
+    final response = await _client.get(uri, headers: headers);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) {
@@ -123,7 +125,7 @@ class FriendService {
     final uri = Uri.parse(
       '${AppConfig.apiBaseUrl}/friends/requests/$requestId/respond',
     );
-    final response = await http.post(
+    final response = await _client.post(
       uri,
       headers: headers,
       body: jsonEncode({'action': action.name}),
@@ -142,7 +144,7 @@ class FriendService {
   Future<List<FriendInfo>> fetchFriends() async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends');
-    final response = await http.get(uri, headers: headers);
+    final response = await _client.get(uri, headers: headers);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -163,7 +165,7 @@ class FriendService {
   Future<void> deleteFriend(String friendUserId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends/$friendUserId');
-    final response = await http.delete(uri, headers: headers);
+    final response = await _client.delete(uri, headers: headers);
 
     if (response.statusCode == 200) {
       return;
@@ -174,10 +176,45 @@ class FriendService {
     );
   }
 
+  Future<String?> updateFriendRemark(
+    String friendUserId,
+    String? remark,
+  ) async {
+    final headers = await _authHeaders();
+    final normalizedRemark = remark?.trim();
+    final uri = Uri.parse(
+      '${AppConfig.apiBaseUrl}/friends/$friendUserId/remark',
+    );
+    final response = await _client.patch(
+      uri,
+      headers: headers,
+      body: jsonEncode({
+        'remark': normalizedRemark?.isNotEmpty == true
+            ? normalizedRemark
+            : null,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        final updatedRemark = data['remark'];
+        return updatedRemark is String && updatedRemark.isNotEmpty
+            ? updatedRemark
+            : null;
+      }
+      throw FriendServiceException('更新好友备注返回数据格式异常');
+    }
+
+    throw FriendServiceException(
+      _extractErrorMessage(response.body) ?? '更新好友备注失败',
+    );
+  }
+
   Future<EnsureChatResult> ensurePrivateChat(String friendUserId) async {
     final headers = await _authHeaders();
     final uri = Uri.parse('${AppConfig.apiBaseUrl}/friends/$friendUserId/chat');
-    final response = await http.post(uri, headers: headers);
+    final response = await _client.post(uri, headers: headers);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);

@@ -1,6 +1,6 @@
+import 'package:app/core/widgets/input_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:app/core/widgets/input_dialog.dart';
 
 Widget _buildHost({
   required Future<String?> Function(String value)? onConfirm,
@@ -36,12 +36,7 @@ void main() {
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
-      expect(find.text('编辑名称'), findsOneWidget);
-
       await tester.enterText(find.byType(TextFormField), '  新名字  ');
-      await tester.pumpAndSettle();
-
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -62,10 +57,7 @@ void main() {
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
       await tester.enterText(find.byType(TextFormField), 'ab');
-      await tester.pumpAndSettle();
-
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -73,10 +65,8 @@ void main() {
       expect(find.text('至少3个字'), findsOneWidget);
 
       await tester.enterText(find.byType(TextFormField), 'abcd');
-      await tester.pumpAndSettle();
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
-
       expect(find.text('编辑名称'), findsNothing);
     });
 
@@ -85,10 +75,7 @@ void main() {
 
       await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
-
       await tester.enterText(find.byType(TextFormField), '内容');
-      await tester.pumpAndSettle();
-
       await tester.tap(find.text('保存'));
       await tester.pumpAndSettle();
 
@@ -96,6 +83,39 @@ void main() {
 
       Navigator.of(tester.element(find.byType(InputDialog))).pop();
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('确认输入只关闭弹窗并保留宿主页', (tester) async {
+      String? result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Column(
+                children: [
+                  const Text('宿主页'),
+                  TextButton(
+                    onPressed: () async {
+                      result = await InputDialog.show(context, title: '设置备注');
+                    },
+                    child: const Text('打开'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('打开'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '新备注');
+      await tester.tap(find.text('保存'));
+      await tester.pumpAndSettle();
+
+      expect(result, '新备注');
+      expect(find.text('宿主页'), findsOneWidget);
+      expect(find.byType(InputDialog), findsNothing);
     });
   });
 }
