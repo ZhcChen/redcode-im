@@ -249,6 +249,9 @@ class GroupInvitation {
     required this.invitedAt,
     this.respondedAt,
     required this.expiresAt,
+    this.roomName,
+    this.roomAvatarUrl,
+    this.inviterName,
   });
 
   final String id;
@@ -260,6 +263,9 @@ class GroupInvitation {
   final DateTime invitedAt;
   final DateTime? respondedAt;
   final DateTime expiresAt;
+  final String? roomName;
+  final String? roomAvatarUrl;
+  final String? inviterName;
 
   factory GroupInvitation.fromJson(Map<String, dynamic> json) {
     const numericStatuses = <int, String>{
@@ -289,6 +295,9 @@ class GroupInvitation {
       expiresAt:
           DateTime.tryParse(json['expires_at'] as String? ?? '') ??
           DateTime.now(),
+      roomName: json['room_name'] as String?,
+      roomAvatarUrl: json['room_avatar_url'] as String?,
+      inviterName: json['inviter_name'] as String?,
     );
   }
 }
@@ -772,6 +781,47 @@ class RoomService {
   }
 
   // ===== 群邀请相关 =====
+
+  /// 查询当前用户收到的群邀请
+  Future<List<GroupInvitation>> listReceivedInvitations({
+    String status = 'pending',
+  }) async {
+    const allowedStatuses = {
+      'pending',
+      'accepted',
+      'declined',
+      'expired',
+      'all',
+    };
+    if (!allowedStatuses.contains(status)) {
+      throw RoomServiceException('无效的邀请状态');
+    }
+
+    final headers = await _authHeaders();
+    final response = await _client.get(
+      Uri.parse(
+        '${AppConfig.apiBaseUrl}/group-invitations',
+      ).replace(queryParameters: {'status': status}),
+      headers: headers,
+    );
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '加载群邀请失败',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    final invitations = decoded is Map<String, dynamic>
+        ? decoded['invitations']
+        : null;
+    if (invitations is! List) {
+      throw RoomServiceException('群邀请返回数据异常');
+    }
+    return invitations
+        .whereType<Map<String, dynamic>>()
+        .map(GroupInvitation.fromJson)
+        .toList();
+  }
 
   /// 创建群邀请
   Future<List<GroupInvitation>> createInvitations({

@@ -171,6 +171,56 @@ void main() {
       },
     );
 
+    test(
+      'listReceivedInvitations sends status and parses display fields',
+      () async {
+        http.Request? capturedRequest;
+        final service = RoomService(
+          tokenStorage: const _FakeTokenStorage(session),
+          client: MockClient((request) async {
+            capturedRequest = request;
+            return http.Response(
+              jsonEncode({
+                'invitations': [
+                  {
+                    'id': 'invitation-1',
+                    'room_id': 'room-1',
+                    'room_name': '产品群',
+                    'room_avatar_url': 'https://example.test/group.png',
+                    'inviter_id': 'u-2',
+                    'inviter_name': 'Bob',
+                    'invitee_id': 'u-1',
+                    'message': '欢迎加入',
+                    'status': 0,
+                    'invited_at': '2026-08-02T10:00:00Z',
+                    'responded_at': null,
+                    'expires_at': '2026-08-09T10:00:00Z',
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+
+        final invitations = await service.listReceivedInvitations(
+          status: 'all',
+        );
+
+        expect(capturedRequest!.method, 'GET');
+        expect(capturedRequest!.url.path, '/group-invitations');
+        expect(capturedRequest!.url.queryParameters, {'status': 'all'});
+        expect(invitations.single.roomName, '产品群');
+        expect(
+          invitations.single.roomAvatarUrl,
+          'https://example.test/group.png',
+        );
+        expect(invitations.single.inviterName, 'Bob');
+        expect(invitations.single.status, 'pending');
+      },
+    );
+
     test('respondToInvitation sends PATCH and accepts 204 response', () async {
       http.Request? capturedRequest;
       final service = RoomService(

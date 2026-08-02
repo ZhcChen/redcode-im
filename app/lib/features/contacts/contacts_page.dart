@@ -14,6 +14,7 @@ import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/app_badge.dart';
 import '../../core/services/websocket_service.dart';
 import '../chat/group_chats_page.dart';
+import '../chat/group_invitations_page.dart';
 import 'add_friend_page.dart';
 import 'contact_detail_page.dart';
 import 'models/friend_models.dart';
@@ -248,6 +249,11 @@ class ContactsPageState extends State<ContactsPage> {
           ContactEntry.special(
             id: 'groups',
             name: '群聊',
+            assetIcon: AppAssets.contactsGroup,
+          ),
+          ContactEntry.special(
+            id: 'group_invitations',
+            name: '群通知',
             assetIcon: AppAssets.contactsGroup,
           ),
         ],
@@ -495,6 +501,13 @@ class ContactsPageState extends State<ContactsPage> {
       Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const GroupChatsPage()));
+      return;
+    }
+
+    if (entry.id == 'group_invitations') {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const GroupInvitationsPage()));
       return;
     }
 
