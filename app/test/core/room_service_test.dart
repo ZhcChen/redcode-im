@@ -122,6 +122,103 @@ void main() {
       expect(capturedRequest!.headers['Authorization'], 'Bearer token-room');
     });
 
+    test(
+      'createInvitations sends normalized users and parses invitations',
+      () async {
+        http.Request? capturedRequest;
+        final service = RoomService(
+          tokenStorage: const _FakeTokenStorage(session),
+          client: MockClient((request) async {
+            capturedRequest = request;
+            return http.Response(
+              jsonEncode({
+                'invitations': [
+                  {
+                    'id': 'invitation-1',
+                    'room_id': 'room-1',
+                    'inviter_id': 'u-1',
+                    'invitee_id': 'u-2',
+                    'message': '一起讨论项目',
+                    'status': 0,
+                    'invited_at': '2026-08-02T10:00:00Z',
+                    'responded_at': null,
+                    'expires_at': '2026-08-09T10:00:00Z',
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        );
+
+        final invitations = await service.createInvitations(
+          roomId: 'room-1',
+          userIds: const [' u-2 ', 'u-2'],
+          message: ' 一起讨论项目 ',
+        );
+
+        expect(capturedRequest!.method, 'POST');
+        expect(capturedRequest!.url.path, '/rooms/room-1/invitations');
+        expect(jsonDecode(capturedRequest!.body), {
+          'user_ids': ['u-2'],
+          'message': '一起讨论项目',
+        });
+        expect(invitations, hasLength(1));
+        expect(invitations.single.id, 'invitation-1');
+        expect(invitations.single.status, 'pending');
+        expect(invitations.single.inviteeId, 'u-2');
+      },
+    );
+
+    test('respondToInvitation sends PATCH and accepts 204 response', () async {
+      http.Request? capturedRequest;
+      final service = RoomService(
+        tokenStorage: const _FakeTokenStorage(session),
+        client: MockClient((request) async {
+          capturedRequest = request;
+          return http.Response('', 204);
+        }),
+      );
+
+      await service.respondToInvitation(
+        roomId: 'room-1',
+        invitationId: 'invitation-1',
+        status: 'accepted',
+      );
+
+      expect(capturedRequest!.method, 'PATCH');
+      expect(
+        capturedRequest!.url.path,
+        '/rooms/room-1/invitations/invitation-1/respond',
+      );
+      expect(jsonDecode(capturedRequest!.body), {'status': 'accepted'});
+    });
+
+    test(
+      'respondToInvitation rejects unsupported status before network',
+      () async {
+        var requestCount = 0;
+        final service = RoomService(
+          tokenStorage: const _FakeTokenStorage(session),
+          client: MockClient((request) async {
+            requestCount += 1;
+            return http.Response('', 204);
+          }),
+        );
+
+        await expectLater(
+          service.respondToInvitation(
+            roomId: 'room-1',
+            invitationId: 'invitation-1',
+            status: 'ignored',
+          ),
+          throwsA(isA<RoomServiceException>()),
+        );
+        expect(requestCount, 0);
+      },
+    );
+
     test('fetchGroupSettings parses top-level my_mute from api', () async {
       final service = RoomService(
         tokenStorage: const _FakeTokenStorage(session),

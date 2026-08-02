@@ -237,6 +237,62 @@ class JoinRequest {
   }
 }
 
+/// 群聊邀请
+class GroupInvitation {
+  GroupInvitation({
+    required this.id,
+    required this.roomId,
+    required this.inviterId,
+    required this.inviteeId,
+    this.message,
+    required this.status,
+    required this.invitedAt,
+    this.respondedAt,
+    required this.expiresAt,
+  });
+
+  final String id;
+  final String roomId;
+  final String inviterId;
+  final String inviteeId;
+  final String? message;
+  final String status;
+  final DateTime invitedAt;
+  final DateTime? respondedAt;
+  final DateTime expiresAt;
+
+  factory GroupInvitation.fromJson(Map<String, dynamic> json) {
+    const numericStatuses = <int, String>{
+      0: 'pending',
+      1: 'accepted',
+      2: 'declined',
+      3: 'expired',
+    };
+    final rawStatus = json['status'];
+    final status = rawStatus is int
+        ? numericStatuses[rawStatus] ?? 'pending'
+        : rawStatus?.toString().toLowerCase() ?? 'pending';
+
+    return GroupInvitation(
+      id: json['id'] as String? ?? '',
+      roomId: json['room_id'] as String? ?? '',
+      inviterId: json['inviter_id'] as String? ?? '',
+      inviteeId: json['invitee_id'] as String? ?? '',
+      message: json['message'] as String?,
+      status: status,
+      invitedAt:
+          DateTime.tryParse(json['invited_at'] as String? ?? '') ??
+          DateTime.now(),
+      respondedAt: json['responded_at'] is String
+          ? DateTime.tryParse(json['responded_at'] as String)
+          : null,
+      expiresAt:
+          DateTime.tryParse(json['expires_at'] as String? ?? '') ??
+          DateTime.now(),
+    );
+  }
+}
+
 /// 群禁言记录
 class GroupMute {
   GroupMute({
@@ -711,6 +767,80 @@ class RoomService {
     if (!_isSuccessStatus(response.statusCode)) {
       throw RoomServiceException(
         _extractErrorMessage(response.body) ?? '审核入群申请失败',
+      );
+    }
+  }
+
+  // ===== 群邀请相关 =====
+
+  /// 创建群邀请
+  Future<List<GroupInvitation>> createInvitations({
+    required String roomId,
+    required List<String> userIds,
+    String? message,
+  }) async {
+    final normalizedUserIds = userIds
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+    if (roomId.isEmpty || normalizedUserIds.isEmpty) {
+      throw RoomServiceException('请至少选择一位邀请对象');
+    }
+
+    final headers = await _authHeaders();
+    final payload = <String, dynamic>{'user_ids': normalizedUserIds};
+    if (message != null && message.trim().isNotEmpty) {
+      payload['message'] = message.trim();
+    }
+    final response = await _client.post(
+      Uri.parse('${AppConfig.apiBaseUrl}/rooms/$roomId/invitations'),
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+    if (response.statusCode != 200) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '创建群邀请失败',
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    final invitations = decoded is Map<String, dynamic>
+        ? decoded['invitations']
+        : null;
+    if (invitations is! List) {
+      throw RoomServiceException('创建群邀请返回数据异常');
+    }
+    return invitations
+        .whereType<Map<String, dynamic>>()
+        .map(GroupInvitation.fromJson)
+        .toList();
+  }
+
+  /// 接受或拒绝群邀请
+  Future<void> respondToInvitation({
+    required String roomId,
+    required String invitationId,
+    required String status,
+  }) async {
+    if (roomId.isEmpty || invitationId.isEmpty) {
+      throw RoomServiceException('参数不完整');
+    }
+    if (status != 'accepted' && status != 'declined') {
+      throw RoomServiceException('无效的邀请响应状态');
+    }
+
+    final headers = await _authHeaders();
+    final response = await _client.patch(
+      Uri.parse(
+        '${AppConfig.apiBaseUrl}/rooms/$roomId/invitations/$invitationId/respond',
+      ),
+      headers: headers,
+      body: jsonEncode({'status': status}),
+    );
+    if (!_isSuccessStatus(response.statusCode)) {
+      throw RoomServiceException(
+        _extractErrorMessage(response.body) ?? '响应群邀请失败',
       );
     }
   }
