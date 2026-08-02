@@ -434,7 +434,7 @@ show_and_verify_flutter_devices() {
     fi
     echo "$devices_output"
 
-    if ! printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
+    if ! printf '%s\n' "$devices_output" | grep -F "$device_id" >/dev/null; then
         if is_ios_simulator_device "$device_id"; then
             echo "" >&2
             if ensure_ios_simulator_ready "$device_id"; then
@@ -444,7 +444,7 @@ show_and_verify_flutter_devices() {
                     devices_status="$?"
                 fi
                 echo "$devices_output"
-                if printf '%s\n' "$devices_output" | grep -Fq "$device_id"; then
+                if printf '%s\n' "$devices_output" | grep -F "$device_id" >/dev/null; then
                     return 0
                 fi
             fi

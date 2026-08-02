@@ -28,7 +28,7 @@ Found 5 connected devices:
   App Device (mobile)      • app-device     • android-arm64 • Android 17 (API 37)
   Front Device (mobile)    • front-device   • android-arm64 • Android 17 (API 37)
   Android SDK (mobile)     • emulator-5554  • android-x64   • Android 17 (API 37) (emulator)
-  iPhone 17 Pro (mobile)   • ios-sim-1      • ios           • com.apple.CoreSimulator.SimRuntime.iOS-26-4 (simulator)
+  iPhone 17 Pro (mobile)   • EE1B44A0-0924-49D8-8CE7-E15FE2555AC9 • ios           • com.apple.CoreSimulator.SimRuntime.iOS-26-4 (simulator)
 DEVICES
     exit 0
 fi
@@ -150,7 +150,7 @@ assert_log_contains "--dart-define=WS_URL=ws://10.0.2.2:8010/ws"
 run_case "默认真机缺失时回退 iOS Simulator 并使用 127.0.0.1" \
     env APP_TEST_DEVICE= FRONTEND_TEST_DEVICE= DEFAULT_FLUTTER_DEVICE_ID=missing-device \
     ./scripts/test_integration.sh network
-assert_log_contains "-d ios-sim-1"
+assert_log_contains "-d EE1B44A0-0924-49D8-8CE7-E15FE2555AC9"
 assert_log_contains "--dart-define=API_BASE_URL=http://127.0.0.1:8010"
 assert_log_contains "--dart-define=WS_URL=ws://127.0.0.1:8010/ws"
 
