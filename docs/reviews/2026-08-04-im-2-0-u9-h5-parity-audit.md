@@ -2,15 +2,15 @@
 
 ## 结论
 
-H5 已关闭 R2.1 聊天差异与 R2.2 联系人/群差异，尚未完成 R2.3 我的/设置差异及 R2.4 跨端互操作，因此仍未达到 Flutter 2.0 P0 parity。
+H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置差异。P0 路由矩阵已全部实现，但 R2.4 跨端互操作尚未完成，因此仍不宣告 Flutter 2.0 P0 parity。
 
 本轮以 `app/test/contracts/im_ui_route_contract_test.dart` 冻结的 38 个 P0 路由为产品能力清单，以当前 `h5-app/src/router/index.ts`、页面、Pinia store、service、存储和测试为运行实现证据。审计结果如下：
 
 | 状态 | 数量 | 含义 |
 | --- | ---: | --- |
-| 已有 | 28 | 已有可进入页面或同等主流程，核心 API/store 已接入 |
-| 行为漂移 | 5 | 有部分实现，但入口、权限、状态或操作不满足 Flutter 2.0 P0 |
-| 缺失 | 5 | 没有对应 H5 页面或完整用户流程 |
+| 已有 | 38 | 已有可进入页面或同等主流程，核心 API/store 已接入 |
+| 行为漂移 | 0 | 当前路由矩阵无未解释行为漂移 |
+| 缺失 | 0 | 当前路由矩阵无缺失页面 |
 | 平台不适用 | 0 | 38 个 P0 均有 Web 可表达语义；原生能力差异应降级，不应删除业务入口 |
 
 ## P0 路由矩阵
@@ -27,7 +27,7 @@ H5 已关闭 R2.1 聊天差异与 R2.2 联系人/群差异，尚未完成 R2.3 �
 | 联系人 | `contact-add` | 已有 | 已有独立搜索入口、申请消息和已申请状态 |
 | 联系人 | `contact-profile` | 已有 | 已有联系人资料、备注修改、删除好友和资料页私聊入口 |
 | 联系人 | `contact-report` | 已有 | 已有举报原因、说明、提交状态和 API 闭环 |
-| 发现 | `discover` | 缺失 | H5 只有聊天/联系人/设置三个 Tab，没有 P0 发现 shell；P1 入口不得在 U9 伪实现 |
+| 发现 | `discover` | 已有 | 四 Tab shell 已提供发现入口；未交付 P1 功能保持不可见 |
 | 群组 | `groups` | 已有 | 已有独立群目录、搜索及会话操作入口 |
 | 群组 | `group-create` | 已有 | 已有独立建群页、成员搜索、至少一名额外成员校验和 API 闭环 |
 | 群组 | `group-settings` | 已有 | 群头像、改名、置顶、免打扰、退出/解散及治理入口均按角色限制 |
@@ -39,22 +39,22 @@ H5 已关闭 R2.1 聊天差异与 R2.2 联系人/群差异，尚未完成 R2.3 �
 | 群组 | `group-rules` | 已有 | 已有群规读取、新增、修改、删除及权限控制 |
 | 群组 | `group-mutes` | 已有 | 已有全体禁言、原因/时长、成员禁言与解禁闭环 |
 | 群组 | `group-operation-logs` | 已有 | 已有群主/管理员入口、只读时间线及分页加载 |
-| 贴纸 | `stickers` | 缺失 | 有 `emoji-cache`，但无我的贴纸页面和管理状态 |
-| 贴纸 | `sticker-store` | 缺失 | 无贴纸商店列表、下载/移除流程 |
-| 贴纸 | `sticker-pack` | 缺失 | 无贴纸包详情与项目预览 |
+| 贴纸 | `stickers` | 已有 | 已有我的贴纸列表、签名图片缓存和移除确认 |
+| 贴纸 | `sticker-store` | 已有 | 已有可用贴纸列表、搜索、单贴纸/贴纸包添加闭环 |
+| 贴纸 | `sticker-pack` | 已有 | 已有刷新安全详情页、已添加贴纸包内容查询及图像预览 |
 | 搜索 | `search` | 已有 | `/messages/search`、本地索引、room 过滤和结果跳转已存在 |
-| 我的 | `mine` | 行为漂移 | H5 将设置直接作为一级 Tab，没有 Flutter 2.0 的“我的”资料入口与分组信息架构 |
-| 我的 | `mine-profile` | 行为漂移 | `/settings/profile` 可编辑资料和头像，但缺少只读资料主页及稳定的“我的 -> 个人资料”路径 |
-| 设置 | `settings` | 行为漂移 | 设置入口内嵌 HomeView，没有独立设置总览路由和深链 |
+| 我的 | `mine` | 已有 | 四 Tab shell 已提供“我的”资料入口和独立设置入口 |
+| 我的 | `mine-profile` | 已有 | 已有只读资料主页及“我的 -> 个人资料 -> 编辑”稳定路径 |
+| 设置 | `settings` | 已有 | 已有 `/settings` 独立总览路由和刷新深链 |
 | 设置 | `settings-account` | 已有 | `/settings/security` 支持修改密码；账号停用仍缺失 |
-| 设置 | `settings-chat` | 缺失 | 无聊天背景、贴纸管理和本地存储设置页 |
+| 设置 | `settings-chat` | 已有 | 支持聊天背景持久化、贴纸管理入口及消息/媒体本地缓存清理 |
 | 设置 | `settings-privacy` | 已有 | `/settings/privacy` 与 `/settings/agreement` 共用文档页，支持真实配置加载 |
-| 设置 | `settings-about` | 行为漂移 | `/settings/about` 有运行模式与反馈入口，但版本写死为 `0.1.0`，没有版本检查状态 |
+| 设置 | `settings-about` | 已有 | About 使用 package 构建版本，并提供反馈与版本状态入口 |
 | 设置 | `settings-profile-edit` | 已有 | `/settings/profile` 支持昵称和头像更新 |
 | 设置 | `settings-feedback` | 已有 | `/settings/feedback` 有表单、store 与 service |
 | 设置 | `settings-password` | 已有 | 当前合并在 `/settings/security`，行为已具备；后续补兼容深链 |
-| 设置 | `settings-deactivate` | 缺失 | 无注销账号确认页和 session 清理闭环 |
-| 设置 | `settings-version` | 行为漂移 | About 页显示静态版本，没有真实版本 API、可用更新状态和平台降级说明 |
+| 设置 | `settings-deactivate` | 已有 | 双重确认后调用账号停用 API，清理会话与账号本地缓存并回到登录页 |
+| 设置 | `settings-version` | 已有 | 使用 package 构建版本查询真实 `/versions/latest`，展示更新状态及 Web 不安装原生包的降级说明 |
 
 ## 状态与基础设施矩阵
 
@@ -79,13 +79,14 @@ H5 已关闭 R2.1 聊天差异与 R2.2 联系人/群差异，尚未完成 R2.3 �
 
 每个阶段只在对应 store/service/component 测试与真实 API 流程通过后提交。P1 的朋友圈、扫一扫、附近的人、游戏和音视频通话不纳入 U9；发现 Tab 只交付 P0 shell 和明确的未启用状态。
 
-## R2.1 / R2.2 验收证据
+## R2.1 / R2.2 / R2.3 验收证据
 
 - R2.1 聊天差异：`96ea85ef`、`2b4aee01`、`a1539dec`、`97135b38`、`a91e5ccf`。
 - R2.2 联系人/群差异：`12820122`、`62aec5ec`、`debeb1c6`、`5d992bca`、`573c1c8d`、`54a1f235`、`f3a979ad`、`94c0c8f8`、`0dfcf307`。
-- 最新 H5 门禁：TypeScript check 通过；unit `166 passed / 4 skipped`；live `4 passed`；真实 API E2E `5 passed`；生产构建通过。
-- 真实 API E2E 覆盖注册登录、群聊消息、好友申请、头像上传、群成员增删、入群审核、操作日志、正式群邀请接受/拒绝。
-- 下一执行阶段：R2.3 我的/设置差异；此处不宣告 U9 完成。
+- R2.3 我的/设置差异：`e5acdd70`、`5ccbc0f9`、`52bfb0a2`、`6d620f5d`。
+- 最新 H5 门禁：TypeScript check 通过；unit `178 passed / 4 skipped`；live `4 passed`；真实 API E2E `7 passed`；生产构建通过。
+- 真实 API E2E 覆盖注册登录、群聊消息、好友申请、头像上传、群成员增删、入群审核、操作日志、正式群邀请接受/拒绝、四 Tab、聊天设置、贴纸路由、版本状态和账号停用。
+- 下一执行阶段：R2.4 跨端互操作；此处不宣告 U9 完成。
 
 ## 验收门禁
 
