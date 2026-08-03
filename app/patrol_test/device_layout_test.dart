@@ -1,5 +1,6 @@
 import 'package:app/core/routing/app_router.dart';
 import 'package:app/core/theme/app_theme.dart';
+import 'package:app/core/widgets/im_tab_bar.dart';
 import 'package:app/features/auth/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -25,9 +26,29 @@ Widget _buildTestApp() {
   );
 }
 
+void _expectBelowTopSafeArea(
+  PatrolIntegrationTester $,
+  Finder finder,
+  EdgeInsets padding,
+) {
+  expect($.tester.getTopLeft(finder).dy, greaterThanOrEqualTo(padding.top));
+}
+
+void _expectAboveBottomSafeArea(
+  PatrolIntegrationTester $,
+  Finder finder,
+  Size screenSize,
+  EdgeInsets padding,
+) {
+  expect(
+    $.tester.getBottomRight(finder).dy,
+    lessThanOrEqualTo(screenSize.height - padding.bottom),
+  );
+}
+
 void main() {
   patrolTest(
-    '聊天 composer 长内容布局与焦点优先返回',
+    '系统安全区、聊天 composer 长内容布局与焦点优先返回',
     config: const PatrolTesterConfig(
       visibleTimeout: Duration(seconds: 60),
       printLogs: true,
@@ -41,10 +62,24 @@ void main() {
       await preferences.setBool('user_agreed_to_terms', true);
       await $.pumpWidget(_buildTestApp());
       await $.pump(const Duration(milliseconds: 800));
+      final rootContext = $.tester.element(find.byType(MaterialApp));
+      final screenSize = MediaQuery.sizeOf(rootContext);
+      final safePadding = MediaQuery.paddingOf(rootContext);
+      expect(safePadding.top, greaterThan(0));
+      expect(safePadding.bottom, greaterThan(0));
+      _expectBelowTopSafeArea($, find.text('你好！'), safePadding);
+
       await $(TextField).at(0).enterText(account);
       await $(TextField).at(1).enterText(password);
       await $('登录账号').tap();
       await $('联系人').waitUntilVisible();
+      expect(find.byType(ImTabBar), findsOneWidget);
+      _expectAboveBottomSafeArea(
+        $,
+        find.descendant(of: find.byType(ImTabBar), matching: find.text('我的')),
+        screenSize,
+        safePadding,
+      );
       await $('联系人').tap();
       await $(peerAccount).waitUntilVisible();
       await $(peerAccount).tap();
@@ -54,7 +89,7 @@ void main() {
       final input = find.byKey(const ValueKey('chat-input-text-field'));
       final send = find.byKey(const ValueKey('chat-input-send-button'));
       await $(const ValueKey('chat-input-text-field')).waitUntilVisible();
-      final inputContext = $.tester.element(input);
+      _expectBelowTopSafeArea($, find.text(peerAccount).first, safePadding);
       await $.tester.tap(input);
       await $.pump();
       expect(
@@ -72,8 +107,7 @@ void main() {
       await $.pump(const Duration(milliseconds: 300));
 
       expect(send, findsOneWidget);
-      final screenHeight = MediaQuery.sizeOf(inputContext).height;
-      expect($.tester.getBottomRight(send).dy, lessThanOrEqualTo(screenHeight));
+      _expectAboveBottomSafeArea($, send, screenSize, safePadding);
 
       await $.tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
       await $.pump(const Duration(milliseconds: 300));
@@ -91,6 +125,25 @@ void main() {
       await $.pumpAndSettle();
       expect(input, findsNothing);
       expect($(peerAccount), findsWidgets);
+
+      final navigator = $.tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
+      navigator.pop();
+      await $.pumpAndSettle();
+      await $('我的').tap();
+      await $(const Key('mine-settings-entry')).waitUntilVisible();
+      await $(const Key('mine-settings-entry')).tap();
+      await $('聊天背景、贴纸与本地存储').waitUntilVisible();
+      _expectBelowTopSafeArea($, find.text('设置'), safePadding);
+      await $.tester.ensureVisible(find.text('关于 RedCode IM'));
+      await $.pumpAndSettle();
+      _expectAboveBottomSafeArea(
+        $,
+        find.text('关于 RedCode IM'),
+        screenSize,
+        safePadding,
+      );
     },
   );
 }

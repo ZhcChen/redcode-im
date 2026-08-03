@@ -56,6 +56,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.patrol.cross-offline`：反向角色最终通过，marker `1785779441-49039-18587`。Android A 主动断开 WebSocket 并进入后台，iOS B 在离线窗口发送消息；Android 回前台后自动重新认证、恢复当前会话并补拉唯一消息。iOS 作为恢复端的首次跨端尝试 marker `1785778902-25693-30072` 未收到可证明的 Patrol 生命周期恢复事件，未记为 PASS；该方向已有双 iOS marker `1785753847-83687-3109` 的独立通过证据。
 - 2026-08-04 在 iPhone 17 Pro Simulator 将系统字号切到 `accessibility-extra-extra-extra-large` 后，正式登录页暴露 `RenderFlex overflowed by 182 pixels`。`LoginPage` 已将欢迎文案改为可换行约束，并让登录类型区域按内容撑高；新增 3.2x 字号 Widget 回归后，设备复验不再显示 overflow。最高字号下 41 个 P0 导航/滚动检查通过，`xcresult` 为 `app/build/ios_results_1785780497220.xcresult`。
 - 同一设备开启系统 `ReduceMotionEnabled=1` 并保持最高字号后，41 个 P0 导航/滚动检查再次通过，`xcresult` 为 `app/build/ios_results_1785780881788.xcresult`；验收后已恢复标准字号与 `ReduceMotionEnabled=0`。首次通知权限由 XCTest 真实点击“不允许”后，正式 App 仍正常进入登录页；设置恢复与 APNs 仍保留真机验收。外部 Simulator 旋转无法作用于 Patrol 的 XCTest 隔离前台，真实聊天页横屏截图不记 PASS。
+- `device_layout_test.dart` 已扩展真实 Simulator 安全区几何门禁，读取设备 `MediaQuery.padding` 后分别断言登录标题低于状态栏、四 Tab 交互标签高于 Home Indicator、聊天 header/composer 位于上下安全边界内、设置页最后一项可滚动至底部安全区上方；2026-08-04 在 iPhone 17 Pro Simulator 通过，`xcresult` 为 `app/build/ios_results_1785781793361.xcresult`。
 
 ## 默认设备复核
 
