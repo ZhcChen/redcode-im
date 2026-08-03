@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import CachedAvatar from '@/components/CachedAvatar.vue';
@@ -25,6 +25,9 @@ const chatStore = useChatStore();
 const contactsStore = useContactsStore();
 const settingsStore = useSettingsStore();
 const shellStore = useAppShellStore();
+const chatMenu = ref<{ roomId: string; x: number; y: number; confirmingDelete: boolean } | null>(null);
+let longPressTimer: number | null = null;
+let suppressNextChatClick = false;
 
 const navItems = computed<NavItem[]>(() => [
   {
@@ -71,6 +74,67 @@ const openChat = async (roomId: string) => {
   await router.push({ name: 'chat-detail', params: { roomId } });
 };
 
+const closeChatMenu = () => {
+  chatMenu.value = null;
+};
+
+const openChatMenu = (roomId: string, clientX: number, clientY: number) => {
+  const chat = chatStore.chats.find((item) => item.roomId === roomId);
+  if (!chat || chat.type === 'favorite') return;
+  chatMenu.value = {
+    roomId,
+    x: Math.min(Math.max(clientX, 12), window.innerWidth - 172),
+    y: Math.min(Math.max(clientY, 12), window.innerHeight - 150),
+    confirmingDelete: false,
+  };
+};
+
+const startChatLongPress = (event: PointerEvent, roomId: string) => {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  if (longPressTimer !== null) window.clearTimeout(longPressTimer);
+  longPressTimer = window.setTimeout(() => {
+    suppressNextChatClick = true;
+    openChatMenu(roomId, event.clientX, event.clientY);
+  }, 500);
+};
+
+const clearChatLongPress = () => {
+  if (longPressTimer !== null) window.clearTimeout(longPressTimer);
+  longPressTimer = null;
+};
+
+const handleChatClick = async (roomId: string) => {
+  if (suppressNextChatClick) {
+    suppressNextChatClick = false;
+    return;
+  }
+  closeChatMenu();
+  await openChat(roomId);
+};
+
+const toggleChatPinned = async () => {
+  const menu = chatMenu.value;
+  const chat = menu && chatStore.chats.find((item) => item.roomId === menu.roomId);
+  if (!menu || !chat) return;
+  closeChatMenu();
+  try {
+    await chatStore.pinChat(chat.roomId, !chat.isPinned);
+  } catch (error) {
+    chatStore.error = error instanceof Error ? error.message : '更新会话置顶失败';
+  }
+};
+
+const deleteSelectedChat = async () => {
+  const roomId = chatMenu.value?.roomId;
+  if (!roomId) return;
+  closeChatMenu();
+  try {
+    await chatStore.deleteChat(roomId);
+  } catch (error) {
+    chatStore.error = error instanceof Error ? error.message : '删除会话失败';
+  }
+};
+
 const openMessageSearch = async () => {
   await router.push({ name: 'message-search' });
 };
@@ -114,8 +178,14 @@ const openGroupSettings = async (roomId: string) => {
 };
 
 onMounted(() => {
+  document.addEventListener('click', closeChatMenu);
   void chatStore.initialize();
   void contactsStore.initialize();
+});
+
+onBeforeUnmount(() => {
+  clearChatLongPress();
+  document.removeEventListener('click', closeChatMenu);
 });
 </script>
 
@@ -167,13 +237,21 @@ onMounted(() => {
           {{ chatStore.searchKeyword ? '没有匹配的会话' : '暂无会话，添加好友或创建群聊后会显示在这里' }}
         </p>
 
-        <button
+        <article
           v-for="chat in chats"
           :key="chat.id"
           class="chat-row"
           :class="{ 'chat-row--pinned': chat.isPinned }"
-          type="button"
-          @click="openChat(chat.roomId)"
+          role="button"
+          tabindex="0"
+          @click.stop="handleChatClick(chat.roomId)"
+          @keydown.enter.prevent="openChat(chat.roomId)"
+          @keydown.space.prevent="openChat(chat.roomId)"
+          @pointerdown="startChatLongPress($event, chat.roomId)"
+          @pointerup="clearChatLongPress"
+          @pointercancel="clearChatLongPress"
+          @pointerleave="clearChatLongPress"
+          @contextmenu.prevent.stop="openChatMenu(chat.roomId, $event.clientX, $event.clientY)"
         >
           <CachedAvatar
             class="chat-row__avatar"
@@ -191,7 +269,25 @@ onMounted(() => {
             <p>{{ chat.lastMessage || (chat.type === 'favorite' ? '保存的消息和文件会出现在这里' : '暂无消息') }}</p>
           </div>
           <span v-if="chat.unreadCount" class="badge">{{ chat.unreadCount }}</span>
-        </button>
+        </article>
+        <div
+          v-if="chatMenu"
+          class="chat-context-menu"
+          role="menu"
+          :style="{ left: `${chatMenu.x}px`, top: `${chatMenu.y}px` }"
+          @click.stop
+        >
+          <template v-if="!chatMenu.confirmingDelete">
+            <button class="rc-focus-ring" type="button" role="menuitem" @click="toggleChatPinned">
+              {{ chatStore.chats.find((item) => item.roomId === chatMenu?.roomId)?.isPinned ? '取消置顶' : '置顶会话' }}
+            </button>
+            <button class="chat-context-menu__danger rc-focus-ring" type="button" role="menuitem" @click="chatMenu.confirmingDelete = true">删除会话</button>
+          </template>
+          <template v-else>
+            <button class="chat-context-menu__danger rc-focus-ring" type="button" role="menuitem" @click="deleteSelectedChat">确认删除</button>
+            <button class="rc-focus-ring" type="button" role="menuitem" @click="closeChatMenu">取消</button>
+          </template>
+        </div>
       </section>
 
       <section v-else-if="shellStore.activeTab === 'contacts'" class="panel">
@@ -553,6 +649,36 @@ onMounted(() => {
 
 .chat-row + .chat-row {
   border-top: 1px solid var(--rc-divider);
+}
+
+.chat-context-menu {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  width: 160px;
+  overflow: hidden;
+  border: 1px solid var(--rc-divider);
+  border-radius: 8px;
+  background: var(--rc-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+}
+
+.chat-context-menu button {
+  min-height: 44px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--rc-text-primary);
+  font-size: 14px;
+  text-align: left;
+  padding: 0 14px;
+}
+
+.chat-context-menu button + button {
+  border-top: 1px solid var(--rc-divider);
+}
+
+.chat-context-menu .chat-context-menu__danger {
+  color: var(--rc-danger);
 }
 
 .chat-row__avatar,

@@ -57,6 +57,35 @@ describe('HomeView chat tab', () => {
     expect(wrapper.text()).not.toContain('H5 App 已接入旧登录流程');
   });
 
+  it('opens pure action menu by context gesture and confirms destructive actions', async () => {
+    const chatStore = useChatStore();
+    chatStore.initialized = true;
+    chatStore.chats = [{
+      id: 'r1', roomId: 'r1', name: '菜单测试群', avatar: null, avatarObjectKey: null,
+      lastMessage: '', lastMessageTime: 1, unreadCount: 0, type: 'group', isPinned: false, isMuted: false,
+    }, {
+      id: 'favorite', roomId: 'favorite', name: '收藏夹', avatar: null, avatarObjectKey: null,
+      lastMessage: '', lastMessageTime: 2, unreadCount: 0, type: 'favorite', isPinned: true, isMuted: false,
+    }];
+    const pin = vi.spyOn(chatStore, 'pinChat').mockResolvedValue();
+    const remove = vi.spyOn(chatStore, 'deleteChat').mockResolvedValue();
+    const wrapper = mount(HomeView);
+
+    await wrapper.findAll('.chat-row').find((row) => row.text().includes('菜单测试群'))?.trigger('contextmenu', { clientX: 120, clientY: 160 });
+    expect(wrapper.find('.chat-context-menu').text()).toBe('置顶会话删除会话');
+    await wrapper.findAll('.chat-context-menu button')[0]?.trigger('click');
+    expect(pin).toHaveBeenCalledWith('r1', true);
+
+    await wrapper.findAll('.chat-row').find((row) => row.text().includes('菜单测试群'))?.trigger('contextmenu', { clientX: 120, clientY: 160 });
+    await wrapper.findAll('.chat-context-menu button')[1]?.trigger('click');
+    expect(wrapper.find('.chat-context-menu').text()).toBe('确认删除取消');
+    await wrapper.findAll('.chat-context-menu button')[0]?.trigger('click');
+    expect(remove).toHaveBeenCalledWith('r1');
+
+    await wrapper.findAll('.chat-row').find((row) => row.text().includes('收藏夹'))?.trigger('contextmenu', { clientX: 120, clientY: 160 });
+    expect(wrapper.find('.chat-context-menu').exists()).toBe(false);
+  });
+
   it('renders contacts, requests and group creation controls', async () => {
     const authStore = useAuthStore();
     authStore.session = {

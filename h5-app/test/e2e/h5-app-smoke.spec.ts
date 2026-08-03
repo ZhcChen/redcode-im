@@ -143,6 +143,13 @@ test.describe('h5-app browser smoke', () => {
     await page.reload();
     await expect(page.getByRole('heading', { name: '聊天' })).toBeVisible();
     await expect(page.getByText(roomName)).toBeVisible();
+    const roomRow = page.locator('.chat-row').filter({ hasText: roomName }).first();
+    await roomRow.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: '置顶会话' }).click();
+    await expect(roomRow).toHaveClass(/chat-row--pinned/);
+    await roomRow.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: '取消置顶' }).click();
+    await expect(roomRow).not.toHaveClass(/chat-row--pinned/);
     await page.getByText(roomName).click();
     await expect(page).toHaveURL(new RegExp(`/chats/${roomId}$`));
 
