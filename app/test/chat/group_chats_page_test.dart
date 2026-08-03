@@ -10,10 +10,13 @@ import 'package:app/core/storage/token_storage.dart';
 import 'package:app/core/theme/screen_adaptation.dart';
 import 'package:app/core/widgets/custom_switch.dart';
 import 'package:app/features/chat/group_admin_management_page.dart';
+import 'package:app/features/chat/chat_detail_page_v2.dart';
 import 'package:app/features/chat/group_chats_page.dart';
 import 'package:app/features/chat/group_settings_page.dart';
 import 'package:app/features/chat/models/chat_model.dart';
+import 'package:app/features/chat/models/message_model.dart';
 import 'package:app/features/chat/providers/chat_provider.dart';
+import 'package:app/features/chat/widgets/friend_selection_sheet.dart';
 import 'package:app/features/auth/models/auth_session.dart';
 import 'package:app/features/auth/models/auth_user.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +44,39 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
   List<Chat> get chats => List<Chat>.from(_chats);
 
   @override
+  Future<List<Message>> loadCachedMessages(String roomId) async =>
+      const <Message>[];
+
+  @override
+  Future<List<Message>> loadMessages(
+    String roomId, {
+    int limit = 50,
+    String? beforeId,
+    String? sinceId,
+  }) async => const <Message>[];
+
+  @override
+  List<Message> getMessages(String roomId) => const <Message>[];
+
+  @override
+  Message? getPinnedMessage(String roomId) => null;
+
+  @override
+  List<Message> getPinnedMessages(String roomId) => const <Message>[];
+
+  @override
+  bool isMessagePinned(String roomId, String messageId) => false;
+
+  @override
+  Future<void> updateChatInfo(String roomId, ChatType chatType) async {}
+
+  @override
+  Future<void> markMessagesAsRead(String roomId, String lastMessageId) async {}
+
+  @override
+  void markChatAsRead(String roomId) {}
+
+  @override
   Future<List<Chat>> fetchChats({bool force = false}) async {
     fetchChatsCallCount += 1;
     return chats;
@@ -53,6 +89,12 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
     final raw = extra?['member_count'] ?? extra?['memberCount'];
     return raw is int ? raw : null;
   }
+
+  @override
+  Future<int> fetchRoomMemberCount(
+    String roomId, {
+    bool forceRefresh = false,
+  }) async => 0;
 
   @override
   Future<List<Map<String, dynamic>>> fetchRoomMembers(String roomId) async {
@@ -91,8 +133,21 @@ class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
       const Stream<GroupMemberChangedEvent>.empty();
 
   @override
+  Stream<TypingUpdateEvent> get onTypingUpdate =>
+      const Stream<TypingUpdateEvent>.empty();
+
+  @override
   Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
       const Stream<GroupSettingsUpdatedEvent>.empty();
+
+  @override
+  Future<void> joinRoom(String roomId) async {}
+
+  @override
+  Future<void> leaveRoom(String roomId) async {}
+
+  @override
+  void setTyping(String roomId, bool isTyping) {}
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -222,6 +277,28 @@ void main() {
     expect(find.text('测试群'), findsOneWidget);
     expect(find.text('单聊-李四'), findsNothing);
     expect(find.text('共 2 个群聊'), findsOneWidget);
+  });
+
+  testWidgets('被移出群聊后刷新目录并展示提示', (tester) async {
+    final provider = _buildProvider(<Chat>[
+      _buildChat(id: 'group-1', name: '项目群', type: ChatType.group),
+    ]);
+
+    await tester.pumpWidget(_buildHost(GroupChatsPage(chatProvider: provider)));
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.text('项目群'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChatDetailPageV2), findsOneWidget);
+
+    Navigator.of(
+      tester.element(find.byType(ChatDetailPageV2)),
+    ).pop<String>('kicked');
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ChatDetailPageV2), findsNothing);
+    expect(find.byKey(const ValueKey('group-kicked-notice')), findsOneWidget);
   });
 
   testWidgets('支持按群名搜索并展示空搜索态', (tester) async {
@@ -446,6 +523,65 @@ void main() {
       await tester.tap(find.text('群头像'));
       await tester.pumpAndSettle();
       expect(find.text('设置群头像'), findsOneWidget);
+    });
+
+    testWidgets('管理员移除候选只包含普通成员', (tester) async {
+      final chat = groupChat();
+      final roleMembers = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'user_id': 'owner-1',
+          'username': 'owner-user',
+          'role': 'owner',
+        },
+        <String, dynamic>{
+          'user_id': 'self-1',
+          'username': 'self-admin',
+          'role': 'admin',
+        },
+        <String, dynamic>{
+          'user_id': 'admin-2',
+          'username': 'other-admin',
+          'role': 'admin',
+        },
+        <String, dynamic>{
+          'user_id': 'member-2',
+          'username': 'plain-member',
+          'role': 'member',
+        },
+      ];
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider([chat], members: roleMembers),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('移除'));
+      await tester.pumpAndSettle();
+
+      final sheet = find.byType(FriendSelectionSheet);
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(of: sheet, matching: find.text('plain-member')),
+        findsWidgets,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('owner-user')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('other-admin')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: sheet, matching: find.text('self-admin')),
+        findsNothing,
+      );
     });
 
     testWidgets('普通成员不展示群治理操作', (tester) async {

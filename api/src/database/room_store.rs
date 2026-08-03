@@ -172,6 +172,22 @@ impl<'a> RoomStore<'a> {
         .await?;
 
         if result.rows_affected() > 0 {
+            sqlx::query("DELETE FROM group_admins WHERE room_id = $1 AND admin_id = $2")
+                .bind(room_id)
+                .bind(user_id)
+                .execute(&mut *tx)
+                .await?;
+
+            sqlx::query(
+                r#"UPDATE group_mutes
+                   SET is_active = FALSE, unmuted_at = COALESCE(unmuted_at, NOW())
+                   WHERE room_id = $1 AND user_id = $2 AND is_active = TRUE"#,
+            )
+            .bind(room_id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+
             sqlx::query(r#"DELETE FROM user_room_preferences WHERE room_id = $1 AND user_id = $2"#)
                 .bind(room_id)
                 .bind(user_id)

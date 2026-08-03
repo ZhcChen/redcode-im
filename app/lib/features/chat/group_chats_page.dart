@@ -79,7 +79,7 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
   }
 
   Future<void> _openChat(Chat chat) async {
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (_) => ChatDetailPageV2(
           roomId: chat.roomId,
@@ -88,6 +88,15 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
           chatType: chat.type,
           chatProvider: _chatProvider,
         ),
+      ),
+    );
+    if (!mounted || result != 'kicked') return;
+
+    await _loadChats(refresh: true);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('你已被移出群聊', key: ValueKey('group-kicked-notice')),
       ),
     );
   }

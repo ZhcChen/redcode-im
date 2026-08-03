@@ -525,9 +525,12 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
               );
             }
             if (canManageMembers && index == 1) {
-              return _buildActionMember(context, false, '移除', () {
-                _handleRemoveMembers();
-              });
+              return KeyedSubtree(
+                key: const ValueKey('group-member-remove-entry'),
+                child: _buildActionMember(context, false, '移除', () {
+                  _handleRemoveMembers();
+                }),
+              );
             }
             final member = _members[index - actionCount];
             return _buildMemberItem(context, member);
@@ -1780,7 +1783,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
           }
 
           final role = _memberRole(member);
-          if (!_isGroupOwner && role == 'owner') {
+          if (role == 'owner' || (!_isGroupOwner && role == 'admin')) {
             return false;
           }
           return true;

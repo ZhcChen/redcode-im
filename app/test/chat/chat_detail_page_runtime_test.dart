@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/services/app_config_service.dart';
@@ -106,6 +108,12 @@ class _FakeMessageService extends ChangeNotifier implements MessageService {
 }
 
 class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
+  _FakeWebSocketService({Stream<GroupMemberChangedEvent>? groupMemberChanges})
+    : _groupMemberChanges =
+          groupMemberChanges ?? const Stream<GroupMemberChangedEvent>.empty();
+
+  final Stream<GroupMemberChangedEvent> _groupMemberChanges;
+
   @override
   ConnectionStatus get status => ConnectionStatus.authenticated;
 
@@ -119,7 +127,7 @@ class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
 
   @override
   Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
-      const Stream<GroupMemberChangedEvent>.empty();
+      _groupMemberChanges;
 
   @override
   Future<void> joinRoom(String roomId) async {}
@@ -129,6 +137,18 @@ class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeTokenStorage extends TokenStorage {
+  const _FakeTokenStorage(this.userId);
+
+  final String userId;
+
+  @override
+  Future<AuthSession?> readSession() async => AuthSession(
+    token: 'test-token',
+    user: AuthUser(id: userId, username: userId),
+  );
 }
 
 class _DeniedPermissionGateway implements PermissionGateway {
@@ -298,6 +318,72 @@ void main() {
     expect(find.text('添加反应'), findsNothing);
     expect(find.text('删除'), findsNothing);
   });
+
+  testWidgets(
+    'current user kicked event closes group chat with kicked result',
+    (tester) async {
+      final changes = StreamController<GroupMemberChangedEvent>.broadcast();
+      addTearDown(changes.close);
+      final websocketService = _FakeWebSocketService(
+        groupMemberChanges: changes.stream,
+      );
+      final provider = _buildProvider(websocketService);
+      addTearDown(provider.dispose);
+
+      String? routeResult;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () async {
+                  routeResult = await Navigator.of(context).push<String>(
+                    MaterialPageRoute<String>(
+                      builder: (_) => ChatDetailPageV2(
+                        roomId: 'room-1',
+                        chatName: '群聊',
+                        chatType: ChatType.group,
+                        chatProvider: provider,
+                        websocketService: websocketService,
+                        tokenStorage: const _FakeTokenStorage('self-1'),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('打开群聊'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开群聊'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      changes.add(
+        const GroupMemberChangedEvent(
+          roomId: 'room-1',
+          memberId: 'other-user',
+          changeType: 'kicked',
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(ChatDetailPageV2), findsOneWidget);
+
+      changes.add(
+        const GroupMemberChangedEvent(
+          roomId: 'room-1',
+          memberId: 'self-1',
+          changeType: 'kicked',
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.byType(ChatDetailPageV2), findsNothing);
+      expect(routeResult, 'kicked');
+    },
+  );
 
   testWidgets('relay_only multi select bar hides unsupported bulk actions', (
     tester,

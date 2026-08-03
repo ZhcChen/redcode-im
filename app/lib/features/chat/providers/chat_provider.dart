@@ -32,6 +32,7 @@ class ChatProvider with ChangeNotifier {
 
   final MessageService _messageService;
   final WebSocketService _webSocketService;
+  WebSocketService get webSocketService => _webSocketService;
 
   Stream<GroupMemberChangedEvent> get groupMemberChanges =>
       _webSocketService.onGroupMemberChanged;

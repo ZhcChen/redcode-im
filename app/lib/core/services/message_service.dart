@@ -3970,6 +3970,14 @@ class MessageService with ChangeNotifier {
   }
 
   Future<void> handleGroupDissolved(String roomId) async {
+    await _removeUnavailableGroup(roomId);
+  }
+
+  Future<void> handleRemovedFromGroup(String roomId) async {
+    await _removeUnavailableGroup(roomId);
+  }
+
+  Future<void> _removeUnavailableGroup(String roomId) async {
     if (roomId.isEmpty) return;
 
     final existed = _chats.any((chat) => chat.roomId == roomId);

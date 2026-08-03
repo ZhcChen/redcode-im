@@ -77,11 +77,7 @@ class _ChatListView extends StatelessWidget {
                         chat: chat,
                         avatarBuilder: (avatar) => _ChatAvatar(chat: chat),
                         showBottomDivider: index != chats.length - 1,
-                        onTap: () {
-                          Navigator.of(
-                            context,
-                          ).push(_buildChatDetailRoute(chat: chat));
-                        },
+                        onTap: () => _openChat(context, provider, chat),
                         onLongPressStart: isFavorite
                             ? null
                             : (details) => _showConversationMenu(
@@ -216,19 +212,41 @@ class _ChatListView extends StatelessWidget {
             matched = null;
           }
 
-          if (matched == null || !navigator.mounted) {
+          if (matched == null || !context.mounted) {
             return;
           }
 
           final chat = matched;
 
-          navigator.push(_buildChatDetailRoute(chat: chat));
+          await _openChat(context, provider, chat);
         });
   }
 }
 
-PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
-  return PageRouteBuilder<void>(
+Future<void> _openChat(
+  BuildContext context,
+  ChatProvider provider,
+  Chat chat,
+) async {
+  final result = await Navigator.of(
+    context,
+  ).push<String>(_buildChatDetailRoute(chat: chat, chatProvider: provider));
+  if (!context.mounted || result != 'kicked') return;
+
+  await provider.loadChats(refresh: true);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('你已被移出群聊', key: ValueKey('group-kicked-notice')),
+    ),
+  );
+}
+
+PageRoute<String> _buildChatDetailRoute({
+  required Chat chat,
+  required ChatProvider chatProvider,
+}) {
+  return PageRouteBuilder<String>(
     transitionDuration: const Duration(milliseconds: 280),
     reverseTransitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (routeContext, animation, secondaryAnimation) {
@@ -237,6 +255,7 @@ PageRoute<void> _buildChatDetailRoute({required Chat chat}) {
         chatName: chat.name,
         chatAvatar: chat.avatar,
         chatType: chat.type,
+        chatProvider: chatProvider,
       );
     },
     transitionsBuilder: (routeContext, animation, secondaryAnimation, child) {

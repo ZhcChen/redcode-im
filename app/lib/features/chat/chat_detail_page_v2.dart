@@ -71,6 +71,7 @@ class ChatDetailPageV2 extends StatefulWidget {
     this.initialMessageId,
     this.draftStorage,
     this.permissionService,
+    this.tokenStorage,
   });
 
   final String roomId;
@@ -82,6 +83,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   final String? initialMessageId;
   final ChatDraftStorage? draftStorage;
   final PermissionService? permissionService;
+  final TokenStorage? tokenStorage;
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
@@ -185,7 +187,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   // 禁言相关状态
   final RoomService _roomService = RoomService();
-  final TokenStorage _tokenStorage = const TokenStorage();
+  late final TokenStorage _tokenStorage;
   bool _isGlobalMuted = false;
   bool _isPersonalMuted = false; // 个人禁言状态
   bool _isGroupOwnerOrAdmin = false;
@@ -212,7 +214,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     WidgetsBinding.instance.addObserver(this);
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
-    _webSocketService = widget.websocketService ?? WebSocketService.instance;
+    _webSocketService =
+        widget.websocketService ??
+        widget.chatProvider?.webSocketService ??
+        WebSocketService.instance;
+    _tokenStorage = widget.tokenStorage ?? const TokenStorage();
     _draftStorage = widget.draftStorage ?? ChatDraftStorage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -273,7 +279,9 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     // 只处理当前用户的禁言/解禁事件
     if (event.memberId != _currentUserId) return;
 
-    if (event.changeType == 'muted') {
+    if (event.changeType == 'kicked') {
+      _exitRemovedGroup();
+    } else if (event.changeType == 'muted') {
       setState(() {
         _isPersonalMuted = true;
       });
@@ -281,6 +289,17 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       setState(() {
         _isPersonalMuted = false;
       });
+    }
+  }
+
+  void _exitRemovedGroup() {
+    final route = ModalRoute.of(context);
+    if (route == null) return;
+
+    final navigator = Navigator.of(context);
+    navigator.popUntil((candidate) => candidate == route);
+    if (mounted && navigator.canPop()) {
+      navigator.pop('kicked');
     }
   }
 

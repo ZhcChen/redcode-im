@@ -778,11 +778,26 @@ pub async fn remove_group_member(
         ));
     }
 
-    if store.is_group_owner(room_id, member_id).await? {
-        return Err(AppError::Forbidden("无法移除群主".to_string()));
+    if operator_id == member_id {
+        return Err(AppError::ValidationError(
+            "不能通过成员管理移除自己".to_string(),
+        ));
     }
 
     let room_store = RoomStore::new(state.database.pool());
+    let target_member = room_store
+        .get_member(room_id, member_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User is not a member of this room".to_string()))?;
+    if target_member.role == MemberRole::Owner {
+        return Err(AppError::Forbidden("无法移除群主".to_string()));
+    }
+    if target_member.role == MemberRole::Admin
+        && !store.is_group_owner(room_id, operator_id).await?
+    {
+        return Err(AppError::Forbidden("管理员不能移除其他管理员".to_string()));
+    }
+
     let removed = room_store.remove_member(room_id, member_id).await?;
     if !removed {
         return Err(AppError::NotFound(

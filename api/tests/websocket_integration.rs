@@ -647,6 +647,145 @@ async fn group_admin_changes_are_reflected_in_member_roles() {
 }
 
 #[tokio::test]
+async fn group_member_removal_revokes_roles_and_mutes() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "remove-owner").await;
+    let admin = register_and_login(&app, "remove-admin").await;
+    let member = register_and_login(&app, "remove-member").await;
+    let outsider = register_and_login(&app, "remove-outsider").await;
+    let room_id = create_room(&app, &owner, &[&admin, &member]).await;
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/admins"),
+            &owner.token,
+            &json!({"user_id": admin.id, "role": "admin"}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "appoint admin: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    for (operator, target, expected, label) in [
+        (
+            &owner,
+            &owner,
+            StatusCode::BAD_REQUEST,
+            "群主不能通过成员管理移除自己",
+        ),
+        (&admin, &owner, StatusCode::FORBIDDEN, "管理员不能移除群主"),
+        (
+            &admin,
+            &admin,
+            StatusCode::BAD_REQUEST,
+            "管理员不能通过成员管理移除自己",
+        ),
+        (&owner, &outsider, StatusCode::NOT_FOUND, "不能移除群外用户"),
+    ] {
+        let (status, body) = app
+            .send(
+                "DELETE",
+                &format!("/rooms/{room_id}/members/{}", target.id),
+                Some(&operator.token),
+                Body::empty(),
+                false,
+            )
+            .await;
+        assert_eq!(
+            status,
+            expected,
+            "{label}: {}",
+            String::from_utf8_lossy(&body)
+        );
+    }
+
+    let (status, body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/members/{}", admin.id),
+            Some(&owner.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "owner removes admin: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/members/{}", member.id),
+            Some(&admin.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "removed admin must lose governance: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let admin_rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM group_admins WHERE room_id = $1 AND admin_id = $2",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room id"))
+    .bind(Uuid::parse_str(&admin.id).expect("admin id"))
+    .fetch_one(&app.pool)
+    .await
+    .expect("count removed admin rows");
+    assert_eq!(admin_rows, 0);
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes"),
+            &owner.token,
+            &json!({"user_id": member.id, "mute_duration_hours": 24}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "mute member before removal: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/members/{}", member.id),
+            Some(&owner.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "remove muted member: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let active_mutes: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM group_mutes WHERE room_id = $1 AND user_id = $2 AND is_active = TRUE",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room id"))
+    .bind(Uuid::parse_str(&member.id).expect("member id"))
+    .fetch_one(&app.pool)
+    .await
+    .expect("count active mute rows");
+    assert_eq!(active_mutes, 0);
+}
+
+#[tokio::test]
 async fn group_mute_state_controls_message_sending_by_role() {
     let app = spawn_test_app().await;
     let owner = register_and_login(&app, "mute-owner").await;

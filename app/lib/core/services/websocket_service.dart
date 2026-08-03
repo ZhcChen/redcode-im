@@ -120,13 +120,15 @@ class WebSocketService with ChangeNotifier {
   int get pendingFriendRequestCount => _pendingFriendRequestCount;
 
   // 群设置更新事件流
-  final StreamController<GroupSettingsUpdatedEvent> _groupSettingsUpdatedController =
+  final StreamController<GroupSettingsUpdatedEvent>
+  _groupSettingsUpdatedController =
       StreamController<GroupSettingsUpdatedEvent>.broadcast();
   Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
       _groupSettingsUpdatedController.stream;
 
   // 群成员变更事件流
-  final StreamController<GroupMemberChangedEvent> _groupMemberChangedController =
+  final StreamController<GroupMemberChangedEvent>
+  _groupMemberChangedController =
       StreamController<GroupMemberChangedEvent>.broadcast();
   Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
       _groupMemberChangedController.stream;
@@ -134,7 +136,8 @@ class WebSocketService with ChangeNotifier {
   // 正在输入事件流
   final StreamController<TypingUpdateEvent> _typingUpdateController =
       StreamController<TypingUpdateEvent>.broadcast();
-  Stream<TypingUpdateEvent> get onTypingUpdate => _typingUpdateController.stream;
+  Stream<TypingUpdateEvent> get onTypingUpdate =>
+      _typingUpdateController.stream;
 
   // 重连相关
   Timer? _reconnectTimer;
@@ -647,13 +650,21 @@ class WebSocketService with ChangeNotifier {
         return _GroupSettingsUpdatedEvent(
           roomId: payload.roomId,
           globalMuteEnabled: payload.globalMuteEnabled,
-          globalMuteReason: payload.hasGlobalMuteReason() ? payload.globalMuteReason : null,
-          globalMuteUntil: payload.hasGlobalMuteUntil() ? payload.globalMuteUntil : null,
-          globalMuteSetBy: payload.hasGlobalMuteSetBy() ? payload.globalMuteSetBy : null,
+          globalMuteReason: payload.hasGlobalMuteReason()
+              ? payload.globalMuteReason
+              : null,
+          globalMuteUntil: payload.hasGlobalMuteUntil()
+              ? payload.globalMuteUntil
+              : null,
+          globalMuteSetBy: payload.hasGlobalMuteSetBy()
+              ? payload.globalMuteSetBy
+              : null,
         );
       case ws.ServerEvent_Payload.groupMemberChanged:
         final payload = event.groupMemberChanged;
-        if (payload.roomId.isEmpty || payload.memberId.isEmpty || payload.changeType.isEmpty) {
+        if (payload.roomId.isEmpty ||
+            payload.memberId.isEmpty ||
+            payload.changeType.isEmpty) {
           return null;
         }
         return _GroupMemberChangedEvent(
@@ -921,9 +932,15 @@ class WebSocketService with ChangeNotifier {
         return _GroupSettingsUpdatedEvent(
           roomId: roomId,
           globalMuteEnabled: enabled,
-          globalMuteReason: _nullIfEmpty(message['global_mute_reason']?.toString()),
-          globalMuteUntil: _nullIfEmpty(message['global_mute_until']?.toString()),
-          globalMuteSetBy: _nullIfEmpty(message['global_mute_set_by']?.toString()),
+          globalMuteReason: _nullIfEmpty(
+            message['global_mute_reason']?.toString(),
+          ),
+          globalMuteUntil: _nullIfEmpty(
+            message['global_mute_until']?.toString(),
+          ),
+          globalMuteSetBy: _nullIfEmpty(
+            message['global_mute_set_by']?.toString(),
+          ),
         );
       case 'group_member_changed':
       case 'groupmemberchanged':
@@ -1018,9 +1035,7 @@ class WebSocketService with ChangeNotifier {
     if (_desiredRooms.isNotEmpty) {
       for (final roomId in _desiredRooms) {
         if (roomId.isNotEmpty) {
-          final joinEvent = ws.ClientEvent(
-            join: ws.ClientJoin(roomId: roomId),
-          );
+          final joinEvent = ws.ClientEvent(join: ws.ClientJoin(roomId: roomId));
           _pendingJoinRooms.add(roomId);
           _sendClientEvent(joinEvent);
         }
@@ -1226,9 +1241,12 @@ class WebSocketService with ChangeNotifier {
 
     // 群信息更新属于“系统提示”，不归属于普通文字消息
     final chatsSnapshot = _messageService.chats;
-    final currentChatIndex = chatsSnapshot.indexWhere((c) => c.roomId == roomId);
-    final currentChat =
-        currentChatIndex >= 0 ? chatsSnapshot[currentChatIndex] : null;
+    final currentChatIndex = chatsSnapshot.indexWhere(
+      (c) => c.roomId == roomId,
+    );
+    final currentChat = currentChatIndex >= 0
+        ? chatsSnapshot[currentChatIndex]
+        : null;
 
     final changes = <String>[];
 
@@ -1337,13 +1355,15 @@ class WebSocketService with ChangeNotifier {
       'Group settings updated: ${event.roomId}, mute=${event.globalMuteEnabled}',
     );
     // 发送到公开的事件流，让页面可以监听
-    _groupSettingsUpdatedController.add(GroupSettingsUpdatedEvent(
-      roomId: event.roomId,
-      globalMuteEnabled: event.globalMuteEnabled,
-      globalMuteReason: event.globalMuteReason,
-      globalMuteUntil: event.globalMuteUntil,
-      globalMuteSetBy: event.globalMuteSetBy,
-    ));
+    _groupSettingsUpdatedController.add(
+      GroupSettingsUpdatedEvent(
+        roomId: event.roomId,
+        globalMuteEnabled: event.globalMuteEnabled,
+        globalMuteReason: event.globalMuteReason,
+        globalMuteUntil: event.globalMuteUntil,
+        globalMuteSetBy: event.globalMuteSetBy,
+      ),
+    );
   }
 
   void _handleGroupMemberChanged(_GroupMemberChangedEvent event) {
@@ -1351,15 +1371,31 @@ class WebSocketService with ChangeNotifier {
       'Group member changed: ${event.roomId}, member=${event.memberId}, type=${event.changeType}',
     );
     // 发送到公开的事件流，让页面可以监听
-    _groupMemberChangedController.add(GroupMemberChangedEvent(
-      roomId: event.roomId,
-      memberId: event.memberId,
-      changeType: event.changeType,
-      newRole: event.newRole,
-      operatorId: event.operatorId,
-      reason: event.reason,
-      until: event.until,
-    ));
+    _groupMemberChangedController.add(
+      GroupMemberChangedEvent(
+        roomId: event.roomId,
+        memberId: event.memberId,
+        changeType: event.changeType,
+        newRole: event.newRole,
+        operatorId: event.operatorId,
+        reason: event.reason,
+        until: event.until,
+      ),
+    );
+    if (event.changeType == 'kicked') {
+      unawaited(_handleCurrentUserKicked(event));
+    }
+  }
+
+  Future<void> _handleCurrentUserKicked(_GroupMemberChangedEvent event) async {
+    try {
+      final session = await _tokenStorage.readSession();
+      if (session?.user.id != event.memberId) return;
+      await _messageService.handleRemovedFromGroup(event.roomId);
+      await leaveRoom(event.roomId);
+    } catch (error) {
+      debugPrint('Failed to handle group removal: $error');
+    }
   }
 
   /// 处理连接错误
