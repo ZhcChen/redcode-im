@@ -1,7 +1,9 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appEnv } from '@/config/env';
+import { messageAttachmentUploadService } from '@/services/message-attachment-upload-service';
+import { messageService } from '@/services/message-service';
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { MessageSearchStorage } from '@/storage/message-search-storage';
@@ -117,6 +119,63 @@ describe('chat detail store', () => {
     });
     const persisted = await new MessageStorage(async () => adapter).loadMessages('r1');
     expect(persisted.some((item) => item.content === 'hello from detail')).toBe(true);
+  });
+
+  it('sends browser attachments and updates the local conversation', async () => {
+    const store = useChatDetailStore();
+    await store.enterRoom('r1');
+
+    await store.sendAttachment(new File(['image'], 'photo.png', { type: 'image/png' }), 'image');
+
+    expect(store.uploadingAttachment).toBe(false);
+    expect(store.failedAttachment).toBeNull();
+    expect(store.messages.at(-1)).toMatchObject({
+      type: 'image',
+      status: 'sent',
+      attachments: [expect.objectContaining({ name: 'photo.png', mimeType: 'image/png' })],
+    });
+  });
+
+  it('keeps failed attachments available for retry', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    const file = new File(['document'], 'report.txt', { type: 'text/plain' });
+    vi.spyOn(messageAttachmentUploadService, 'upload')
+      .mockRejectedValueOnce(new Error('storage unavailable'))
+      .mockResolvedValueOnce({ type: 'file', key: 'messages/r1/files/report.txt', name: file.name, mimeType: file.type, size: file.size });
+    vi.spyOn(messageService, 'sendRichMessage').mockResolvedValue(message('server-file', {
+      senderId: 'u1',
+      content: '',
+      type: 'file',
+      attachments: [{ key: 'messages/r1/files/report.txt', name: file.name }],
+    }));
+
+    await store.sendAttachment(file, 'file');
+    expect(store.error).toBe('storage unavailable');
+    expect(store.failedAttachment?.file).toBe(file);
+
+    await store.retryAttachment();
+    expect(store.failedAttachment).toBeNull();
+    expect(store.messages.at(-1)?.id).toBe('server-file');
+  });
+
+  it('cancels an active attachment upload without retaining retry state', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    vi.spyOn(messageAttachmentUploadService, 'upload').mockImplementation((_roomId, _file, _type, signal) => (
+      new Promise((_resolve, reject) => signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))))
+    ));
+
+    const sending = store.sendAttachment(new File(['x'], 'cancel.txt', { type: 'text/plain' }), 'file');
+    await Promise.resolve();
+    store.cancelAttachmentUpload();
+    await sending;
+
+    expect(store.uploadingAttachment).toBe(false);
+    expect(store.failedAttachment).toBeNull();
+    expect(store.error).toBe('已取消附件发送');
   });
 
   it('keeps sending when local search index persistence fails', async () => {

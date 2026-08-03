@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { mapMessageAttachments, messageService } from '@/services/message-service';
+import { messageAttachmentUploadService } from '@/services/message-attachment-upload-service';
 import { roomService } from '@/services/room-service';
 import type { AuthSession, BackendLoginResponse } from '@/types/auth';
 import type { ChatMessage } from '@/types/chat';
@@ -127,75 +128,18 @@ describe.skipIf(!enabled)('h5-app ios interop live smoke', () => {
       memberIds: [iosSession.user.id],
     });
     const payload = `h5-media-smoke-${Date.now()}`;
-    const metadata = {
-      filename: 'h5-smoke.txt',
-      content_type: 'text/plain',
-      file_size: new TextEncoder().encode(payload).byteLength,
-    };
-    const descriptor = await h5Request<Record<string, unknown>>(
-      h5Session,
-      `/rooms/${room.id}/messages/attachments/signature`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ part_type: 'file', ...metadata }),
-      },
+    const part = await messageAttachmentUploadService.upload(
+      room.id,
+      new File([payload], 'h5-smoke.txt', { type: 'text/plain' }),
+      'file',
     );
-    const signature = descriptor.signature as Record<string, unknown> | undefined;
-    const uploadUrl = String(signature?.url ?? '');
-    expect(uploadUrl).toBeTruthy();
-
-    const uploadResponse = await fetch(uploadUrl, {
-      method: String(signature?.method ?? 'PUT'),
-      headers: signature?.headers as HeadersInit | undefined,
-      body: payload,
-    });
-    expect(uploadResponse.ok).toBe(true);
-
-    const key = String(descriptor.key ?? signature?.key ?? '');
-    expect(key).toBeTruthy();
-    await h5Request(
-      h5Session,
-      `/rooms/${room.id}/messages/attachments/commit`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          key,
-          file_size: metadata.file_size,
-        }),
-      },
-    );
-
-    const h5Message = await messageService.sendRichMessage(room.id, [
-      {
-        type: 'file',
-        key,
-        name: metadata.filename,
-        mimeType: metadata.content_type,
-        size: metadata.file_size,
-      },
-    ]);
+    const h5Message = await messageService.sendRichMessage(room.id, [part]);
     const iosVisibleMessages = await iosLoadMessages(iosSession, room.id);
 
-    expect(h5Message.attachments?.[0]?.key).toBe(key);
-    expect(iosVisibleMessages.some((message) => message.id === h5Message.id && message.attachments?.[0]?.key === key)).toBe(true);
+    expect(h5Message.attachments?.[0]?.key).toBe(part.key);
+    expect(iosVisibleMessages.some((message) => message.id === h5Message.id && message.attachments?.[0]?.key === part.key)).toBe(true);
   });
 });
-
-const h5Request = async <T = unknown>(
-  session: AuthSession,
-  path: string,
-  init: RequestInit = {},
-): Promise<T> => {
-  const headers = new Headers(init.headers);
-  headers.set('Authorization', `Bearer ${session.token}`);
-  headers.set('Content-Type', 'application/json');
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-  });
-  expect(response.ok).toBe(true);
-  return response.json() as Promise<T>;
-};
 
 const mapSession = (response: BackendLoginResponse): AuthSession => {
   const username = response.user.username ?? response.user.email ?? response.user.id ?? 'interop-user';

@@ -148,8 +148,20 @@ test.describe('h5-app browser smoke', () => {
 
     const message = `hello from browser e2e ${Date.now()}`;
     await page.getByPlaceholder('输入消息').fill(message);
-    await page.getByRole('button', { name: '发送' }).click();
+    await page.getByRole('button', { name: '发送', exact: true }).click();
     await expect(page.getByText(message)).toBeVisible();
+
+    const attachmentName = `browser-${Date.now()}.txt`;
+    await page.getByLabel('选择文件').setInputFiles({
+      name: attachmentName,
+      mimeType: 'text/plain',
+      buffer: Buffer.from('browser attachment e2e'),
+    });
+    await expect(page.getByText(attachmentName)).toBeVisible();
+    await expect.poll(async () => {
+      const rows = await loadMessagesViaApi(request, member.session.token, roomId);
+      return rows.some((row) => JSON.stringify(row).includes(attachmentName));
+    }, { timeout: 10_000 }).toBe(true);
 
     let sentMessageId = '';
     await expect.poll(async () => {

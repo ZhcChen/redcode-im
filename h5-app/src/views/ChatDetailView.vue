@@ -16,6 +16,8 @@ const chatStore = useChatStore();
 const detailStore = useChatDetailStore();
 const draft = ref('');
 const listEl = ref<HTMLElement | null>(null);
+const imageInput = ref<HTMLInputElement | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const roomId = computed(() => String(route.params.roomId ?? ''));
 const currentUserId = computed(() => authStore.currentUser?.id ?? '');
@@ -31,6 +33,19 @@ const send = async () => {
   if (!content) return;
   draft.value = '';
   await detailStore.sendText(content);
+  await scrollToBottom();
+};
+
+const chooseAttachment = (type: 'image' | 'file') => {
+  (type === 'image' ? imageInput.value : fileInput.value)?.click();
+};
+
+const sendAttachment = async (event: Event, type: 'image' | 'file') => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  await detailStore.sendAttachment(file, type);
   await scrollToBottom();
 };
 
@@ -225,7 +240,16 @@ const resolveRouteChat = () => {
         <span>引用：{{ detailStore.quotedMessage.senderName || 'RedCode 用户' }}：{{ detailStore.quotedMessage.content || '[非文本消息]' }}</span>
         <button class="rc-focus-ring" type="button" @click="detailStore.clearQuote">取消</button>
       </div>
+      <div v-if="detailStore.uploadingAttachment || detailStore.failedAttachment" class="message-composer__upload">
+        <span>{{ detailStore.uploadingAttachment ? '正在发送附件...' : `发送失败：${detailStore.failedAttachment?.file.name}` }}</span>
+        <button v-if="detailStore.uploadingAttachment" class="rc-focus-ring" type="button" @click="detailStore.cancelAttachmentUpload">取消</button>
+        <button v-else class="rc-focus-ring" type="button" @click="detailStore.retryAttachment">重试</button>
+      </div>
       <form class="message-composer" @submit.prevent="send">
+        <input ref="imageInput" class="sr-only" type="file" accept="image/*" aria-label="选择图片" @change="sendAttachment($event, 'image')" />
+        <input ref="fileInput" class="sr-only" type="file" aria-label="选择文件" @change="sendAttachment($event, 'file')" />
+        <button class="message-composer__tool rc-focus-ring" type="button" aria-label="发送图片" :disabled="detailStore.uploadingAttachment" @click="chooseAttachment('image')">图片</button>
+        <button class="message-composer__tool rc-focus-ring" type="button" aria-label="发送文件" :disabled="detailStore.uploadingAttachment" @click="chooseAttachment('file')">文件</button>
         <label class="sr-only" for="message-input">输入消息</label>
         <input
           id="message-input"
@@ -502,8 +526,36 @@ const resolveRouteChat = () => {
 
 .message-composer {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 10px;
+}
+
+.message-composer__upload {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--rc-text-secondary);
+  font-size: 12px;
+}
+
+.message-composer__upload button,
+.message-composer__tool {
+  cursor: pointer;
+  background: transparent;
+  color: var(--rc-primary);
+  font-weight: 700;
+}
+
+.message-composer__tool {
+  min-width: 38px;
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.message-composer__tool:disabled {
+  cursor: not-allowed;
+  color: var(--rc-text-tertiary);
 }
 
 .message-composer input {

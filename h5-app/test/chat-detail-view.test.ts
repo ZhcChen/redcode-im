@@ -71,6 +71,10 @@ describe('ChatDetailView', () => {
 
     expect(wrapper.text()).toContain('真实项目群');
     expect(wrapper.find('#message-input').exists()).toBe(true);
+    expect(wrapper.get('input[aria-label="选择图片"]').attributes('accept')).toBe('image/*');
+    expect(wrapper.find('input[aria-label="选择文件"]').exists()).toBe(true);
+    expect(wrapper.get('button[aria-label="发送图片"]').text()).toBe('图片');
+    expect(wrapper.get('button[aria-label="发送文件"]').text()).toBe('文件');
     expect(wrapper.text()).toContain('H5 聊天详情已接入本地缓存和发送状态。');
     expect(wrapper.text()).toContain('引用');
     expect(wrapper.text()).toContain('置顶');

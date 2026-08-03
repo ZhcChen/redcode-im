@@ -2,9 +2,10 @@ import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
 import { mapMessageAttachments, messageService } from '@/services/message-service';
+import { messageAttachmentUploadService, type BrowserAttachmentType } from '@/services/message-attachment-upload-service';
 import { webSocketService, type WebSocketServerEvent } from '@/services/websocket-service';
 import { MessageStorage } from '@/storage/message-storage';
-import type { ChatMessage, ChatMessageQuote, ChatSummary, MessageType } from '@/types/chat';
+import type { ChatMessage, ChatMessageQuote, ChatSummary, MessageType, OutgoingMessagePart } from '@/types/chat';
 
 import { useAuthStore } from './auth';
 import { useChatStore } from './chat';
@@ -13,6 +14,7 @@ import { useMessageSearchStore } from './message-search';
 const messageStorage = new MessageStorage();
 
 let stopWsEvent: (() => void) | null = null;
+let attachmentAbortController: AbortController | null = null;
 
 export const useChatDetailStore = defineStore('chatDetail', {
   state: () => ({
@@ -21,6 +23,8 @@ export const useChatDetailStore = defineStore('chatDetail', {
     messages: [] as ChatMessage[],
     loading: false,
     sending: false,
+    uploadingAttachment: false,
+    failedAttachment: null as { file: File; type: BrowserAttachmentType } | null,
     error: '',
     quotedMessage: null as ChatMessage | null,
   }),
@@ -69,6 +73,10 @@ export const useChatDetailStore = defineStore('chatDetail', {
       this.messages = [];
       this.loading = false;
       this.sending = false;
+      this.uploadingAttachment = false;
+      this.failedAttachment = null;
+      attachmentAbortController?.abort();
+      attachmentAbortController = null;
       this.error = '';
       this.quotedMessage = null;
     },
@@ -94,6 +102,47 @@ export const useChatDetailStore = defineStore('chatDetail', {
       this.quotedMessage = null;
       await this.upsertLocalMessage(pending);
       await this.flushPendingMessage(pending.id, text, quote?.id);
+    },
+
+    async sendAttachment(file: File, type: BrowserAttachmentType) {
+      if (!this.roomId || this.uploadingAttachment) return;
+      this.error = '';
+      this.failedAttachment = null;
+      this.uploadingAttachment = true;
+      attachmentAbortController = new AbortController();
+      try {
+        const part = appEnv.useMockData
+          ? { type, key: `messages/${this.roomId}/${type}/${file.name}`, name: file.name, mimeType: file.type, size: file.size }
+          : await messageAttachmentUploadService.upload(this.roomId, file, type, attachmentAbortController.signal);
+        const sent = appEnv.useMockData
+          ? mockSentAttachment(this.roomId, part, useAuthStore().currentUser?.id ?? '')
+          : await messageService.sendRichMessage(this.roomId, [part], {
+              quotedMessageId: this.quotedMessage?.id,
+            });
+        this.quotedMessage = null;
+        await this.upsertLocalMessage({ ...sent, status: 'sent' });
+        await useChatStore().applyIncomingMessage({ ...sent, status: 'sent' });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          this.error = '已取消附件发送';
+        } else {
+          this.failedAttachment = { file, type };
+          this.error = error instanceof Error ? error.message : '附件发送失败';
+        }
+      } finally {
+        this.uploadingAttachment = false;
+        attachmentAbortController = null;
+      }
+    },
+
+    cancelAttachmentUpload() {
+      attachmentAbortController?.abort();
+    },
+
+    async retryAttachment() {
+      const failed = this.failedAttachment;
+      if (!failed) return;
+      await this.sendAttachment(failed.file, failed.type);
     },
 
     quoteMessage(messageId: string) {
@@ -448,4 +497,26 @@ const mockSentMessage = (
         type: 'text',
       }
     : null,
+});
+
+const mockSentAttachment = (
+  roomId: string,
+  part: OutgoingMessagePart,
+  currentUserId: string,
+): ChatMessage => ({
+  id: `mock-sent-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  roomId,
+  senderId: currentUserId,
+  senderName: '我',
+  content: '',
+  type: part.type,
+  timestamp: Date.now(),
+  status: 'sent',
+  attachments: part.key ? [{
+    key: part.key,
+    name: part.name,
+    mimeType: part.mimeType,
+    size: part.size,
+    cacheKey: `message:${part.key}`,
+  }] : [],
 });
