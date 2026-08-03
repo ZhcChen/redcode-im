@@ -170,6 +170,37 @@ describe('h5 app service contracts', () => {
     }));
   });
 
+  it('creates, reviews, and completes approved group join requests', async () => {
+    const joinRequest = {
+      id: 'jr1', room_id: 'r1', applicant_id: 'u2', message: '申请加入', status: 0,
+      reviewer_id: null, review_message: null, created_at: '2026-08-04T00:00:00Z', reviewed_at: null,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/join')) return mockJson({ ok: true });
+      if (url.endsWith('/review')) return mockJson({ request: { ...joinRequest, status: 1 } });
+      if (url.endsWith('/settings')) return mockJson({ settings: { room_id: 'r1', join_approval_required: true } });
+      return mockJson(init?.method === 'POST' ? { request: joinRequest } : { requests: [joinRequest] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const requests = await roomService.listJoinRequests('r1');
+    await roomService.createJoinRequest('r1', ' 申请加入 ');
+    const approved = await roomService.reviewJoinRequest('r1', 'jr1', 'approved', ' 欢迎 ');
+    await roomService.joinRoom('r1');
+    await roomService.updateJoinApproval('r1', true);
+
+    expect(requests[0]?.status).toBe('pending');
+    expect(approved.status).toBe('approved');
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/join-requests/jr1/review', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ status: 'approved', review_message: '欢迎' }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:8010/rooms/r1/join', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, 'http://127.0.0.1:8010/rooms/r1/settings', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ join_approval_required: true }),
+    }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

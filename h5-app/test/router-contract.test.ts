@@ -33,5 +33,6 @@ describe('h5 router contract', () => {
     expect(routes.get('group-admins')?.path).toBe('/groups/:roomId/admins');
     expect(routes.get('group-rules')?.path).toBe('/groups/:roomId/rules');
     expect(routes.get('group-mutes')?.path).toBe('/groups/:roomId/mutes');
+    expect(routes.get('group-join-requests')?.path).toBe('/groups/:roomId/join-requests');
   });
 });

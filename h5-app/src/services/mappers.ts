@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupMute, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -110,6 +110,18 @@ export const mapGroupMute = (input: Record<string, unknown>): GroupMute => ({
   isActive: Boolean(input.is_active ?? input.isActive ?? false),
 });
 
+export const mapGroupJoinRequest = (input: Record<string, unknown>): GroupJoinRequest => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  applicantId: String(input.applicant_id ?? input.applicantId ?? ''),
+  message: input.message == null ? null : String(input.message),
+  status: normalizeJoinRequestStatus(input.status),
+  reviewerId: input.reviewer_id == null ? null : String(input.reviewer_id),
+  reviewMessage: input.review_message == null ? null : String(input.review_message),
+  createdAt: String(input.created_at ?? input.createdAt ?? ''),
+  reviewedAt: input.reviewed_at == null ? null : String(input.reviewed_at),
+});
+
 const normalizeRequestStatus = (status: string | number | null | undefined) => {
   if (typeof status === 'number') {
     if (status === 1) return 'accepted';
@@ -117,4 +129,10 @@ const normalizeRequestStatus = (status: string | number | null | undefined) => {
     return 'pending';
   }
   return status || 'pending';
+};
+
+const normalizeJoinRequestStatus = (status: unknown): JoinRequestStatus => {
+  if (status === 1 || status === 'approved') return 'approved';
+  if (status === 2 || status === 'rejected') return 'rejected';
+  return 'pending';
 };

@@ -9,6 +9,7 @@ import GroupInviteView from '@/views/groups/GroupInviteView.vue';
 import GroupAdminsView from '@/views/groups/GroupAdminsView.vue';
 import GroupRulesView from '@/views/groups/GroupRulesView.vue';
 import GroupMutesView from '@/views/groups/GroupMutesView.vue';
+import GroupJoinRequestsView from '@/views/groups/GroupJoinRequestsView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
@@ -36,6 +37,7 @@ describe('group member permissions', () => {
     expect(wrapper.text()).toContain('管理员设置');
     expect(wrapper.text()).toContain('群规');
     expect(wrapper.text()).toContain('禁言管理');
+    expect(wrapper.text()).toContain('入群审核');
   });
 
   it('hides invite actions when a regular member opens the route directly', async () => {
@@ -132,5 +134,30 @@ describe('group member permissions', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('你没有管理群禁言的权限');
     expect(wrapper.find('form').exists()).toBe(false);
+  });
+
+  it('allows managers to approve group join requests with a review note', async () => {
+    const wrapper = mount(GroupJoinRequestsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('1 条待处理');
+    await wrapper.get('input[aria-label="开启入群审核"]').setValue(true);
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.text()).toContain('入群审核已开启');
+    await wrapper.get('input[placeholder="填写审核备注（可选）"]').setValue('欢迎加入');
+    await wrapper.findAll('button').find((button) => button.text() === '通过')?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '确认通过')?.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('已通过入群申请');
+    expect(wrapper.text()).toContain('审核备注：欢迎加入');
+    expect(wrapper.text()).toContain('0 条待处理');
+  });
+
+  it('hides join request review controls from regular members', async () => {
+    useAuthStore().session = { token: 'token', user: { id: 'mock-mia', username: 'mia', nickname: 'Mia', email: '' } };
+    const wrapper = mount(GroupJoinRequestsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('你没有审核入群申请的权限');
+    expect(wrapper.text()).not.toContain('填写审核备注');
   });
 });

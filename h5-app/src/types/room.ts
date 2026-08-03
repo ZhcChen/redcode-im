@@ -67,6 +67,20 @@ export interface GroupMute {
   isActive: boolean;
 }
 
+export type JoinRequestStatus = 'pending' | 'approved' | 'rejected';
+
+export interface GroupJoinRequest {
+  id: string;
+  roomId: string;
+  applicantId: string;
+  message: string | null;
+  status: JoinRequestStatus;
+  reviewerId: string | null;
+  reviewMessage: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

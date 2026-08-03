@@ -404,6 +404,8 @@ test.describe('h5-app browser smoke', () => {
   test('invites and removes a group member as the owner', async ({ page, request }) => {
     const existingMember = await registerViaApi(request, 'h5e2egm');
     const candidate = await registerViaApi(request, 'h5e2egi');
+    const approvedApplicant = await registerViaApi(request, 'h5e2eja');
+    const rejectedApplicant = await registerViaApi(request, 'h5e2ejr');
     const ownerUsername = uniqueAccount('h5e2ego');
     const ownerPassword = `H5pass-${ownerUsername}`;
     const ownerSession = await registerThroughUi(page, ownerUsername, ownerPassword);
@@ -522,6 +524,55 @@ test.describe('h5-app browser smoke', () => {
       const settings = await loadGroupSettingsViaApi(request, ownerSession.token, roomId);
       return settings.global_mute_enabled;
     }).toBe(false);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: /入群审核/ }).click();
+    await page.getByLabel('开启入群审核').check();
+    await page.getByRole('button', { name: '保存审核设置' }).click();
+    await expect(page.getByText('入群审核已开启')).toBeVisible();
+    await expect.poll(async () => {
+      const settings = await loadGroupSettingsViaApi(request, ownerSession.token, roomId);
+      return settings.join_approval_required;
+    }).toBe(true);
+    for (const [applicant, message] of [
+      [approvedApplicant, '希望加入并参与讨论'],
+      [rejectedApplicant, '申请加入审核测试'],
+    ] as const) {
+      const joinRequestResponse = await request.post(`${apiBaseURL}/rooms/${roomId}/join-requests`, {
+        headers: authHeaders(applicant.session.token),
+        data: { message },
+      });
+      expect(joinRequestResponse.ok()).toBeTruthy();
+    }
+
+    await page.reload();
+    const approvedRequestCard = page.locator(`[data-applicant-id="${approvedApplicant.session.user.id}"]`);
+    await approvedRequestCard.getByPlaceholder('填写审核备注（可选）').fill('欢迎加入');
+    await approvedRequestCard.getByRole('button', { name: '通过' }).click();
+    await approvedRequestCard.getByRole('button', { name: '确认通过' }).click();
+    await expect(page.getByText('已通过入群申请')).toBeVisible();
+
+    const rejectedRequestCard = page.locator(`[data-applicant-id="${rejectedApplicant.session.user.id}"]`);
+    await rejectedRequestCard.getByPlaceholder('填写审核备注（可选）').fill('暂不符合入群条件');
+    await rejectedRequestCard.getByRole('button', { name: '拒绝' }).click();
+    await rejectedRequestCard.getByRole('button', { name: '确认拒绝' }).click();
+    await expect(page.getByText('已拒绝入群申请')).toBeVisible();
+
+    const approvedJoinResponse = await request.post(`${apiBaseURL}/rooms/${roomId}/join`, {
+      headers: authHeaders(approvedApplicant.session.token),
+    });
+    expect(approvedJoinResponse.ok()).toBeTruthy();
+    const rejectedJoinResponse = await request.post(`${apiBaseURL}/rooms/${roomId}/join`, {
+      headers: authHeaders(rejectedApplicant.session.token),
+    });
+    expect(rejectedJoinResponse.status()).toBe(403);
+    await expect.poll(async () => {
+      const members = await loadMembersViaApi(request, ownerSession.token, roomId);
+      return {
+        approved: members.some((member) => String(member.user_id ?? member.userId ?? '') === approvedApplicant.session.user.id),
+        rejected: members.some((member) => String(member.user_id ?? member.userId ?? '') === rejectedApplicant.session.user.id),
+      };
+    }).toEqual({ approved: true, rejected: false });
 
     await page.getByRole('button', { name: '返回' }).click();
     await page.getByRole('button', { name: '查看全部成员' }).click();

@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupMute, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupJoinRequest, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -176,6 +176,55 @@ export const roomService = {
         ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
         ...(input.durationMinutes ? { duration_minutes: input.durationMinutes } : {}),
       }),
+    }, requireToken());
+    return mapGroupSettings(response.settings);
+  },
+
+  async listJoinRequests(roomId: string): Promise<GroupJoinRequest[]> {
+    const response = await requestJson<{ requests?: Record<string, unknown>[] }>(
+      `/rooms/${roomId}/join-requests`,
+      {},
+      requireToken(),
+    );
+    return (response.requests ?? []).map(mapGroupJoinRequest);
+  },
+
+  async createJoinRequest(roomId: string, message?: string): Promise<GroupJoinRequest> {
+    const response = await requestJson<{ request: Record<string, unknown> }>(`/rooms/${roomId}/join-requests`, {
+      method: 'POST',
+      body: JSON.stringify({ ...(message?.trim() ? { message: message.trim() } : {}) }),
+    }, requireToken());
+    return mapGroupJoinRequest(response.request);
+  },
+
+  async reviewJoinRequest(
+    roomId: string,
+    requestId: string,
+    status: Exclude<JoinRequestStatus, 'pending'>,
+    reviewMessage?: string,
+  ): Promise<GroupJoinRequest> {
+    const response = await requestJson<{ request: Record<string, unknown> }>(
+      `/rooms/${roomId}/join-requests/${requestId}/review`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          status,
+          ...(reviewMessage?.trim() ? { review_message: reviewMessage.trim() } : {}),
+        }),
+      },
+      requireToken(),
+    );
+    return mapGroupJoinRequest(response.request);
+  },
+
+  async joinRoom(roomId: string): Promise<void> {
+    await requestJson(`/rooms/${roomId}/join`, { method: 'POST' }, requireToken());
+  },
+
+  async updateJoinApproval(roomId: string, required: boolean): Promise<GroupSettingsInfo> {
+    const response = await requestJson<{ settings: Record<string, unknown> }>(`/rooms/${roomId}/settings`, {
+      method: 'PATCH',
+      body: JSON.stringify({ join_approval_required: required }),
     }, requireToken());
     return mapGroupSettings(response.settings);
   },
