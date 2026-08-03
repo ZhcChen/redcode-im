@@ -57,7 +57,7 @@ Future<void> _waitForAuthenticated(PatrolIntegrationTester $) async {
 
 void main() {
   patrolTest(
-    '双 iOS Simulator 前后台重连与离线消息恢复',
+    '双设备前后台重连与离线消息恢复',
     config: const PatrolTesterConfig(
       visibleTimeout: Duration(seconds: 300),
       printLogs: true,

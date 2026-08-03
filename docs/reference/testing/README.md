@@ -139,6 +139,18 @@ make app.test.patrol.rich-attachment \
   PATROL_DUAL_ACCOUNT_A=<account-a> \
   PATROL_DUAL_ACCOUNT_B=<account-b> \
   PATROL_DUAL_PASSWORD=<password>
+make app.test.patrol.cross \
+  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
+  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
+  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
+  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
+  PATROL_CROSS_PASSWORD=<password>
+make app.test.patrol.cross-offline \
+  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
+  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
+  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
+  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
+  PATROL_CROSS_PASSWORD=<password>
 make app.test.patrol.offline \
   PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
   PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
@@ -159,6 +171,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`，群禁言使用 `make app.test.patrol.group-mute`，成员移除使用 `make app.test.patrol.group-member-removal`，图片附件使用 `make app.test.patrol.image-attachment`，文件与语音附件使用 `make app.test.patrol.rich-attachment`，网络恢复使用 `make app.test.patrol.network`，联系人生命周期使用 `make app.test.patrol.contact`，前后台与离线恢复使用 `make app.test.patrol.offline`。这些入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立 Patrol 端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
 - 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
+- 跨平台入口要求一个已 Booted 的 iOS Simulator 和一个 ADB 状态为 `device` 的 Android Emulator。`app.test.patrol.cross` 使用 iOS A/Android B 验证实时互发与双向已读；`app.test.patrol.cross-offline` 反转角色，让 Android A 执行 Home/恢复并补拉 iOS B 在离线窗口发送的消息。脚本分别注入 `127.0.0.1` 与 `10.0.2.2`，调用者不得手工复用另一平台地址。
 - 群聊 Patrol 还覆盖发送方打开群消息已读详情并核对已读/未读成员，以及群主任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。群目标要求双方 `DUAL_GROUP_COMPLETE` 业务完成标记，避免 XCTest 成功后收尾卡住造成假失败。
 - 群禁言 Patrol 独立覆盖普通成员个人禁言/解禁、全体禁言开启/关闭、输入区提示和两次恢复发送。目标要求双方 `DUAL_GROUP_MUTE_COMPLETE`；操作全体禁言时必须等待并点击行内实际 `CustomSwitch`，不能只点击带 Key 的整行容器。
 - 群成员移除 Patrol 覆盖群主真实 UI 移除、被移除方实时退出详情和上级页面提示，目标要求双方 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。

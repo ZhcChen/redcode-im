@@ -55,7 +55,7 @@
   - 提供 `make app.test.patrol.dual` 唯一推荐入口并纳入 `make app.test.scripts` 契约测试。
   - 2026-08-03 连续两轮真实运行通过，marker、A/B 构建身份、日志和 `xcresult` 均独立留存。
 - [ ] `IM2-U8` Flutter 移动 P0 设备验收收口
-  - 已通过 iOS integration/auth/API contract、Patrol 登录和双 iOS 私聊、群聊实时互发。
+  - 已通过 iOS integration/auth/API contract、Patrol 登录、双 iOS 私聊/群聊实时互发，以及 iOS/Android 跨端私聊、双向已读和 Android 前后台离线恢复。
   - R1.1 自动化已通过长 composer、焦点优先返回和动态横竖屏缩放；真实软键盘与系统可访问性设置仍按人工清单 PENDING。
   - R1.2 已建立统一权限裁决并通过 iOS 相册/麦克风永久拒绝降级 Patrol；首次弹窗、设置恢复、通知和真机采集仍按清单 PENDING/SKIPPED。
   - R1.3 已通过双 iOS 私聊双向已读、群聊已读/未读成员详情、联系人备注/删除/重新申请、真实 UI 建群、群消息双向实时互发、个人禁言/解禁、全体禁言/恢复、成员移除实时退页、管理员任命后对端权限实时刷新、前后台重连、API/WebSocket 网络路径中断恢复、离线文本消息恢复，以及图片、文件、语音附件签名、直传、commit、广播和对端下载；接收端语音播放器启动已验证，图片/文件/语音失败重试、重启恢复和本地文件丢失已由单测覆盖。待补系统 PHPicker、系统文件选择器、真实麦克风采集和系统 Wi-Fi/蜂窝切换人工验收。

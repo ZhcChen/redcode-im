@@ -29,7 +29,7 @@ Widget _buildTestApp() {
 
 void main() {
   patrolTest(
-    '双 iOS Simulator 私聊实时互发',
+    '双设备私聊实时互发',
     config: const PatrolTesterConfig(
       visibleTimeout: Duration(seconds: 300),
       printLogs: true,

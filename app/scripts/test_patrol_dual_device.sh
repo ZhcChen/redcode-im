@@ -8,6 +8,7 @@ PATROL_BIN="${PATROL_BIN:-patrol}"
 XCRUN_BIN="${XCRUN_BIN:-xcrun}"
 RSYNC_BIN="${RSYNC_BIN:-rsync}"
 LSOF_BIN="${LSOF_BIN:-lsof}"
+ADB_BIN="${ADB_BIN:-$HOME/Library/Android/sdk/platform-tools/adb}"
 
 DEVICE_A="${DUAL_DEVICE_A:-}"
 DEVICE_B="${DUAL_DEVICE_B:-}"
@@ -114,9 +115,15 @@ validate_port() {
 validate_device() {
     local role="$1"
     local device="$2"
-    if ! "$XCRUN_BIN" simctl list devices booted | grep -F "($device)" | grep -Fq '(Booted)'; then
-        fail "$role 设备未启动或不是 iOS Simulator: $device"
+    if "$XCRUN_BIN" simctl list devices booted | grep -F "($device)" | grep -Fq '(Booted)'; then
+        printf '%s' ios
+        return 0
     fi
+    if [ -x "$ADB_BIN" ] && "$ADB_BIN" devices | awk -v target="$device" '$1 == target && $2 == "device" { found = 1 } END { exit !found }'; then
+        printf '%s' android
+        return 0
+    fi
+    fail "$role 设备未启动或不是受支持的 iOS Simulator/Android Emulator: $device"
 }
 
 copy_workspace() {
@@ -203,19 +210,19 @@ require_value DUAL_PASSWORD "$PASSWORD"
 [[ -z "$COMPLETION_EVENT" || "$COMPLETION_EVENT" =~ ^[A-Z0-9_]+$ ]] || fail "无效完成事件: $COMPLETION_EVENT"
 [[ "$TEST_TARGET" == patrol_test/*.dart ]] && [[ "$TEST_TARGET" != *..* ]] || fail "无效测试目标: $TEST_TARGET"
 [ -f "$APP_DIR/$TEST_TARGET" ] || fail "测试目标不存在: $TEST_TARGET"
-[ "$DEVICE_A" != "$DEVICE_B" ] || fail "A/B 必须使用两个不同的 Simulator"
+[ "$DEVICE_A" != "$DEVICE_B" ] || fail "A/B 必须使用两个不同的设备"
 [ "$ACCOUNT_A" != "$ACCOUNT_B" ] || fail "A/B 必须使用两个不同的账号"
 
 ports=("$PORT_A_TEST" "$PORT_A_APP" "$PORT_B_TEST" "$PORT_B_APP")
 [ "$(printf '%s\n' "${ports[@]}" | sort -u | wc -l | tr -d ' ')" = 4 ] || fail "四个 Patrol 端口必须互不相同"
 for port in "${ports[@]}"; do validate_port "$port"; done
-validate_device A "$DEVICE_A"
-validate_device B "$DEVICE_B"
+DEVICE_PLATFORM_A="$(validate_device A "$DEVICE_A")"
+DEVICE_PLATFORM_B="$(validate_device B "$DEVICE_B")"
 
 mkdir -p "$RUN_DIR"
 printf '%s\n' "$MARKER" >"$RUN_DIR/marker.txt"
-printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\nidentity_prefix=%s\napi_base_url_a=%s\napi_base_url_b=%s\nws_url_a=%s\nws_url_b=%s\n' \
-    "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" "$IDENTITY_PREFIX" \
+printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\nplatform_a=%s\nplatform_b=%s\ntest_target=%s\nidentity_prefix=%s\napi_base_url_a=%s\napi_base_url_b=%s\nws_url_a=%s\nws_url_b=%s\n' \
+    "$MARKER" "$DEVICE_A" "$DEVICE_B" "$DEVICE_PLATFORM_A" "$DEVICE_PLATFORM_B" "$TEST_TARGET" "$IDENTITY_PREFIX" \
     "$API_BASE_URL_A" "$API_BASE_URL_B" "$WS_URL_A" "$WS_URL_B" >"$RUN_DIR/run.env"
 echo "[patrol-dual] marker=$MARKER results=$RUN_DIR"
 

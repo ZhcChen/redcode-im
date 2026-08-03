@@ -84,6 +84,11 @@ PATROL_DUAL_DEVICE_B ?=
 PATROL_DUAL_ACCOUNT_A ?=
 PATROL_DUAL_ACCOUNT_B ?=
 PATROL_DUAL_PASSWORD ?=
+PATROL_CROSS_IOS_DEVICE ?=
+PATROL_CROSS_ANDROID_DEVICE ?=
+PATROL_CROSS_IOS_ACCOUNT ?=
+PATROL_CROSS_ANDROID_ACCOUNT ?=
+PATROL_CROSS_PASSWORD ?=
 PATROL_LAYOUT_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_LAYOUT_ACCOUNT ?=
 PATROL_LAYOUT_PEER_ACCOUNT ?=
@@ -166,7 +171,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.cross app.test.patrol.cross-offline app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -737,6 +742,12 @@ app.test.patrol.login: ## 执行 app Patrol 登录与 P0 导航 smoke（mock 模
 
 app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传设备 UUID、账号和密码）
 	@cd "$(APP_DIR)" && DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
+
+app.test.patrol.cross: ## 执行 iOS Simulator(A) 与 Android Emulator(B) 真实私聊互发
+	@cd "$(APP_DIR)" && JAVA_HOME="$(PATROL_JAVA_HOME)" DUAL_API_BASE_URL_A=http://127.0.0.1:8010 DUAL_WS_URL_A=ws://127.0.0.1:8010/ws DUAL_API_BASE_URL_B=http://10.0.2.2:8010 DUAL_WS_URL_B=ws://10.0.2.2:8010/ws DUAL_DEVICE_A="$(PATROL_CROSS_IOS_DEVICE)" DUAL_DEVICE_B="$(PATROL_CROSS_ANDROID_DEVICE)" DUAL_ACCOUNT_A="$(PATROL_CROSS_IOS_ACCOUNT)" DUAL_ACCOUNT_B="$(PATROL_CROSS_ANDROID_ACCOUNT)" DUAL_PASSWORD="$(PATROL_CROSS_PASSWORD)" ./scripts/test_patrol_dual_device.sh
+
+app.test.patrol.cross-offline: ## 执行 Android Emulator(A) 与 iOS Simulator(B) 前后台重连和离线恢复
+	@cd "$(APP_DIR)" && JAVA_HOME="$(PATROL_JAVA_HOME)" DUAL_TEST_TARGET=patrol_test/offline_recovery_test.dart DUAL_API_BASE_URL_A=http://10.0.2.2:8010 DUAL_WS_URL_A=ws://10.0.2.2:8010/ws DUAL_API_BASE_URL_B=http://127.0.0.1:8010 DUAL_WS_URL_B=ws://127.0.0.1:8010/ws DUAL_DEVICE_A="$(PATROL_CROSS_ANDROID_DEVICE)" DUAL_DEVICE_B="$(PATROL_CROSS_IOS_DEVICE)" DUAL_ACCOUNT_A="$(PATROL_CROSS_ANDROID_ACCOUNT)" DUAL_ACCOUNT_B="$(PATROL_CROSS_IOS_ACCOUNT)" DUAL_PASSWORD="$(PATROL_CROSS_PASSWORD)" ./scripts/test_patrol_dual_device.sh
 
 app.test.patrol.group: ## 执行双 iOS Simulator 真实建群与群聊互发（必须传设备 UUID、账号和密码）
 	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_chat_test.dart DUAL_COMPLETION_EVENT=DUAL_GROUP_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh

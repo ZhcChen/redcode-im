@@ -37,6 +37,15 @@ cat >"$BIN_DIR/lsof" <<'STUB'
 exit 1
 STUB
 
+cat >"$BIN_DIR/adb" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+echo 'List of devices attached'
+if [ -n "${STUB_ANDROID_DEVICE:-}" ]; then
+    printf '%s\tdevice product:sdk_gphone model:sdk_gphone transport_id:1\n' "$STUB_ANDROID_DEVICE"
+fi
+STUB
+
 cat >"$BIN_DIR/patrol" <<'STUB'
 #!/bin/bash
 set -euo pipefail
@@ -79,6 +88,7 @@ chmod +x "$BIN_DIR"/*
 
 run() {
     env PATH="$BIN_DIR:$PATH" PATROL_BIN=patrol XCRUN_BIN=xcrun LSOF_BIN=lsof \
+        ADB_BIN="$BIN_DIR/adb" \
         DUAL_SOURCE_DIR="$FIXTURE_DIR" DUAL_RESULT_ROOT="$RESULT_DIR" \
         DUAL_DEVICE_A=device-a DUAL_DEVICE_B=device-b \
         DUAL_ACCOUNT_A=account-a DUAL_ACCOUNT_B=account-b DUAL_PASSWORD=password \
@@ -100,6 +110,8 @@ expect_failure() {
 run env DUAL_MARKER=contract-pass
 grep -Fq 'DUAL_IDENTITY role=a account=account-a' "$RESULT_DIR/contract-pass/a.log"
 grep -Fq 'DUAL_IDENTITY role=b account=account-b' "$RESULT_DIR/contract-pass/b.log"
+[ "$(grep -F 'platform_a=' "$RESULT_DIR/contract-pass/run.env")" = 'platform_a=ios' ]
+[ "$(grep -F 'platform_b=' "$RESULT_DIR/contract-pass/run.env")" = 'platform_b=ios' ]
 [ -d "$RESULT_DIR/contract-pass/a/ios_results_1.xcresult" ]
 [ -d "$RESULT_DIR/contract-pass/b/ios_results_1.xcresult" ]
 echo 'ok - 双角色隔离、日志和 xcresult 归档'
@@ -130,16 +142,23 @@ grep -Fq 'DUAL_ENDPOINTS api=http://127.0.0.1:8010 ws=ws://127.0.0.1:8010/ws con
 grep -Fq 'api_base_url_a=http://127.0.0.1:19100' "$RESULT_DIR/role-endpoints/run.env"
 echo 'ok - 支持 A/B 独立 API 和 WebSocket 端点'
 
+run env DUAL_MARKER=cross-platform DUAL_DEVICE_B=emulator-5554 STUB_ANDROID_DEVICE=emulator-5554 \
+    DUAL_API_BASE_URL_B=http://10.0.2.2:8010 DUAL_WS_URL_B=ws://10.0.2.2:8010/ws
+grep -Fq 'platform_a=ios' "$RESULT_DIR/cross-platform/run.env"
+grep -Fq 'platform_b=android' "$RESULT_DIR/cross-platform/run.env"
+grep -Fq 'DUAL_ENDPOINTS api=http://10.0.2.2:8010 ws=ws://10.0.2.2:8010/ws' "$RESULT_DIR/cross-platform/b.log"
+echo 'ok - 支持 iOS Simulator 与 Android Emulator 跨平台编排'
+
 expect_failure '无效测试目标' run env DUAL_TEST_TARGET=../outside.dart
 expect_failure '测试目标不存在' run env DUAL_TEST_TARGET=patrol_test/missing_test.dart
 expect_failure '无效身份前缀' run env DUAL_IDENTITY_PREFIX='../contact'
 expect_failure '无效完成事件' run env DUAL_COMPLETION_EVENT='../done'
 echo 'ok - 拒绝越界或缺失测试目标'
 
-expect_failure 'A/B 必须使用两个不同的 Simulator' run env DUAL_DEVICE_B=device-a
+expect_failure 'A/B 必须使用两个不同的设备' run env DUAL_DEVICE_B=device-a
 echo 'ok - 拒绝相同设备'
 
-expect_failure 'B 设备未启动或不是 iOS Simulator' run env STUB_MISSING_DEVICE=b
+expect_failure 'B 设备未启动或不是受支持的 iOS Simulator/Android Emulator' run env STUB_MISSING_DEVICE=b
 echo 'ok - 拒绝缺失或未启动设备'
 
 expect_failure '端口已占用: 19081' run env STUB_BUSY_PORT=19081

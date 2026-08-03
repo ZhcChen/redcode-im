@@ -22,6 +22,7 @@
 - `test_bundle.dart` 由 Patrol CLI 运行时自动生成，已加入 `.gitignore`，不要提交。
 - 本机存在 `8081 / 8082` 端口占用时，Patrol 默认端口会把 app service 请求打到宿主机其他服务上，导致 `markPatrolAppServiceReady() failed with 404`。本仓库默认改用 `19081 / 19082` 规避冲突。
 - 双设备私聊和群聊共用同一编排脚本，固定使用四个不同的 test/app server 端口，并把 A/B 源码复制到两个临时工作区。Patrol 固定的 `build/ios_integ`、`.dart_tool/flutter_build` 和生成的 `test_bundle.dart` 因此不会跨角色复用。
+- 编排脚本也接受已连接的 Android Emulator，并在 `run.env` 记录 A/B 平台。跨端私聊固定使用 iOS A (`127.0.0.1`) 与 Android B (`10.0.2.2`)；跨端离线恢复反转角色，让 Android A 执行后台恢复、iOS B 在离线窗口发送。
 - B 端输出经过编译参数和真实登录验证的 `DUAL_READY` 后才启动 A；完成时还会核对双方首条 `DUAL_IDENTITY` 的角色、账号、marker 和消息前缀。全新隔离构建可能超过两分钟，因此双端可见性等待窗口为 300 秒。
 - 群聊、群禁言和成员移除用例分别要求 A/B 输出 `DUAL_GROUP_COMPLETE`、`DUAL_GROUP_MUTE_COMPLETE`和 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。当业务断言已经完成但 B 端 XCTest 收尾不退出时，编排器据此受控结束残留进程；没有双方完成标记时仍判失败。
 - 图片附件用例要求 A/B 输出 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。Patrol 4.5 无法跨进程稳定驱动 iOS 26 PHPicker，因此该用例替换测试进程中的 picker 返回值，不把系统 PHPicker 交互记为自动化 PASS；系统选择器仍按人工清单验收。
@@ -61,6 +62,20 @@ make app.test.patrol.rich-attachment \
   PATROL_DUAL_ACCOUNT_A=<account-a> \
   PATROL_DUAL_ACCOUNT_B=<account-b> \
   PATROL_DUAL_PASSWORD=<password>
+
+make app.test.patrol.cross \
+  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
+  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
+  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
+  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
+  PATROL_CROSS_PASSWORD=<password>
+
+make app.test.patrol.cross-offline \
+  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
+  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
+  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
+  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
+  PATROL_CROSS_PASSWORD=<password>
 
 make app.test.patrol.contact \
   PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \

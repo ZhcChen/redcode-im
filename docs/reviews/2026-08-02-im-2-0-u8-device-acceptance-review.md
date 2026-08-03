@@ -52,6 +52,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `network_recovery_test.dart` 已在双 iOS Simulator 通过，最终 marker 为 `1785775688-87809-18168`。A 经可控 TCP 代理连接 API/WebSocket，测试真实销毁现有连接并拒绝重连；B 保持直连并在隔离窗口发送消息，恢复代理后 A 自动重新认证、恢复房间订阅并仅显示一条离线消息。首次运行暴露 WebSocket 握手失败的 `HttpException` 会泄漏到 Flutter zone；`WebSocketService` 现等待 channel `ready` 后再监听和认证，使失败统一进入既有重连状态机，并异步清理失败 channel，避免阻塞后续重连。
 - `make app.test.patrol.pages`：2026-08-04 在 iPhone 17 Pro Simulator 上使用真实账号通过，完成 41 个检查点。已验证新的朋友、群聊、群通知、个人资料、编辑资料、账号与安全、修改密码、注销账号、聊天、聊天背景、表情管理、隐私政策、关于和意见反馈页面可打开与返回，并滚动反馈页到“提交反馈”；`xcresult` 为本地 `app/build/ios_results_1785776662273.xcresult`。该结果不泛化为系统软键盘、安全区、大字号、Reduced Motion 或所有数据状态的视觉验收。
 - `rich_attachment_test.dart` 已在双 iOS Simulator 通过，最终 marker 为 `1785778188-93063-1916`。A 点击真实“文件”入口发送固定 PDF，并通过正式 `ChatProvider.sendVoiceMessage` 发送 1200ms 有效 M4A；两类附件均完成签名、S3-compatible PUT、commit、正式 `messages/` key、WebSocket 广播和 B 强制下载字节一致，B 还按本轮服务端消息 ID 精确定位并点击 `0:01` 语音气泡，成功启动播放器。测试进程替换系统文件选择结果并绕过麦克风采集，因此不将系统文件选择器、录音质量或听感泛化为 PASS。
+- `make app.test.patrol.cross`：2026-08-04 在 iPhone 17 Pro Simulator 与 Android 15 Emulator 上通过，marker `1785778695-15873-13110`。iOS A 通过 `127.0.0.1`、Android B 通过 `10.0.2.2` 登录同一私聊，A/B 实时互发唯一消息且双方发送状态均更新为已读。
+- `make app.test.patrol.cross-offline`：反向角色最终通过，marker `1785779441-49039-18587`。Android A 主动断开 WebSocket 并进入后台，iOS B 在离线窗口发送消息；Android 回前台后自动重新认证、恢复当前会话并补拉唯一消息。iOS 作为恢复端的首次跨端尝试 marker `1785778902-25693-30072` 未收到可证明的 Patrol 生命周期恢复事件，未记为 PASS；该方向已有双 iOS marker `1785753847-83687-3109` 的独立通过证据。
 
 ## 默认设备复核
 
@@ -116,6 +118,5 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 
 ## 阻塞与恢复条件
 
-1. 在 iOS Simulator 与 Android Emulator 上执行双账号跨端 UI 联调，覆盖消息实时同步、已读和前后台恢复。
-2. 补齐系统键盘、安全区、权限拒绝/恢复、断网重连和完整附件流程的人工设备场景。
-3. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。
+1. 补齐系统键盘、安全区、权限拒绝/恢复和系统附件选择器等人工设备场景。
+2. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。
