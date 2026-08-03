@@ -19,6 +19,11 @@ IDENTITY_PREFIX="${DUAL_IDENTITY_PREFIX:-dual}"
 COMPLETION_EVENT="${DUAL_COMPLETION_EVENT:-}"
 API_BASE_URL="${DUAL_API_BASE_URL:-http://127.0.0.1:8010}"
 WS_URL="${DUAL_WS_URL:-ws://127.0.0.1:8010/ws}"
+API_BASE_URL_A="${DUAL_API_BASE_URL_A:-$API_BASE_URL}"
+API_BASE_URL_B="${DUAL_API_BASE_URL_B:-$API_BASE_URL}"
+WS_URL_A="${DUAL_WS_URL_A:-$WS_URL}"
+WS_URL_B="${DUAL_WS_URL_B:-$WS_URL}"
+NETWORK_CONTROL_URL="${DUAL_NETWORK_CONTROL_URL:-}"
 PORT_A_TEST="${DUAL_PORT_A_TEST:-19081}"
 PORT_A_APP="${DUAL_PORT_A_APP:-19082}"
 PORT_B_TEST="${DUAL_PORT_B_TEST:-19083}"
@@ -134,6 +139,12 @@ run_role() {
     local app_port="$6"
     local work_dir="$WORK_ROOT/$role"
     local log_file="$RUN_DIR/$role.log"
+    local api_base_url="$API_BASE_URL_B"
+    local ws_url="$WS_URL_B"
+    if [ "$role" = a ]; then
+        api_base_url="$API_BASE_URL_A"
+        ws_url="$WS_URL_A"
+    fi
 
     (
         cd "$work_dir"
@@ -149,8 +160,9 @@ run_role() {
             --dart-define "DUAL_PEER_ACCOUNT=$peer" \
             --dart-define "DUAL_PASSWORD=$PASSWORD" \
             --dart-define "DUAL_MARKER=$MARKER" \
-            --dart-define "API_BASE_URL=$API_BASE_URL" \
-            --dart-define "WS_URL=$WS_URL"
+            --dart-define "API_BASE_URL=$api_base_url" \
+            --dart-define "WS_URL=$ws_url" \
+            --dart-define "DUAL_NETWORK_CONTROL_URL=$NETWORK_CONTROL_URL"
     ) >"$log_file" 2>&1
 }
 
@@ -202,8 +214,9 @@ validate_device B "$DEVICE_B"
 
 mkdir -p "$RUN_DIR"
 printf '%s\n' "$MARKER" >"$RUN_DIR/marker.txt"
-printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\nidentity_prefix=%s\n' \
-    "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" "$IDENTITY_PREFIX" >"$RUN_DIR/run.env"
+printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\nidentity_prefix=%s\napi_base_url_a=%s\napi_base_url_b=%s\nws_url_a=%s\nws_url_b=%s\n' \
+    "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" "$IDENTITY_PREFIX" \
+    "$API_BASE_URL_A" "$API_BASE_URL_B" "$WS_URL_A" "$WS_URL_B" >"$RUN_DIR/run.env"
 echo "[patrol-dual] marker=$MARKER results=$RUN_DIR"
 
 copy_workspace a

@@ -208,11 +208,22 @@ class WebSocketService with ChangeNotifier {
       final wsUri = baseUri.replace(queryParameters: mergedParams);
       debugPrint('Connecting to WebSocket: $wsUri');
 
-      _channel = WebSocketChannel.connect(wsUri);
+      final channel = WebSocketChannel.connect(wsUri);
+      try {
+        await channel.ready.timeout(const Duration(seconds: 10));
+      } catch (_) {
+        unawaited(_closeChannelSilently(channel));
+        rethrow;
+      }
+      if (!_reconnectEnabled) {
+        await channel.sink.close(ws_status.normalClosure);
+        return;
+      }
+      _channel = channel;
 
       // 监听消息
       _messageSubscription?.cancel();
-      _messageSubscription = _channel!.stream.listen(
+      _messageSubscription = channel.stream.listen(
         _handleIncomingFrame,
         onError: _handleError,
         onDone: _handleDisconnect,
@@ -235,6 +246,16 @@ class WebSocketService with ChangeNotifier {
       debugPrint('WebSocket connection failed: $e');
       _setStatus(ConnectionStatus.error);
       _scheduleReconnect();
+    }
+  }
+
+  Future<void> _closeChannelSilently(WebSocketChannel channel) async {
+    try {
+      await channel.sink
+          .close(ws_status.goingAway)
+          .timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // 握手失败时底层连接可能已经关闭或无法完成 close handshake。
     }
   }
 

@@ -40,7 +40,7 @@ STUB
 cat >"$BIN_DIR/patrol" <<'STUB'
 #!/bin/bash
 set -euo pipefail
-role="" account="" marker="" target=""
+role="" account="" marker="" target="" api_base_url="" ws_url="" network_control_url=""
 previous=""
 for arg in "$@"; do
     if [ "$previous" = -t ]; then target="$arg"; fi
@@ -48,6 +48,9 @@ for arg in "$@"; do
         DUAL_ROLE=*) role="${arg#*=}" ;;
         DUAL_ACCOUNT=*) account="${arg#*=}" ;;
         DUAL_MARKER=*) marker="${arg#*=}" ;;
+        API_BASE_URL=*) api_base_url="${arg#*=}" ;;
+        WS_URL=*) ws_url="${arg#*=}" ;;
+        DUAL_NETWORK_CONTROL_URL=*) network_control_url="${arg#*=}" ;;
     esac
     previous="$arg"
 done
@@ -60,6 +63,7 @@ mkdir -p build/ios_results_1.xcresult
 echo "DUAL_IDENTITY role=$role account=$account marker=$marker prefix=${DUAL_IDENTITY_PREFIX:-dual}-$role- peer=peer"
 echo "DUAL_READY role=$role account=$account marker=$marker"
 echo "DUAL_TARGET target=$target"
+echo "DUAL_ENDPOINTS api=$api_base_url ws=$ws_url control=$network_control_url"
 [ "${STUB_FAIL_ROLE:-}" != "$role" ] || exit 9
 if [ -n "${DUAL_COMPLETION_EVENT:-}" ]; then
     echo "$DUAL_COMPLETION_EVENT role=$role marker=$marker"
@@ -114,6 +118,17 @@ run env DUAL_MARKER=contact-target DUAL_TEST_TARGET=patrol_test/contact_lifecycl
 grep -Fq 'prefix=contact-a-' "$RESULT_DIR/contact-target/a.log"
 grep -Fq 'identity_prefix=contact' "$RESULT_DIR/contact-target/run.env"
 echo 'ok - 支持场景化身份前缀'
+
+run env DUAL_MARKER=role-endpoints \
+    DUAL_API_BASE_URL_A=http://127.0.0.1:19100 \
+    DUAL_API_BASE_URL_B=http://127.0.0.1:8010 \
+    DUAL_WS_URL_A=ws://127.0.0.1:19100/ws \
+    DUAL_WS_URL_B=ws://127.0.0.1:8010/ws \
+    DUAL_NETWORK_CONTROL_URL=http://127.0.0.1:19101
+grep -Fq 'DUAL_ENDPOINTS api=http://127.0.0.1:19100 ws=ws://127.0.0.1:19100/ws control=http://127.0.0.1:19101' "$RESULT_DIR/role-endpoints/a.log"
+grep -Fq 'DUAL_ENDPOINTS api=http://127.0.0.1:8010 ws=ws://127.0.0.1:8010/ws control=http://127.0.0.1:19101' "$RESULT_DIR/role-endpoints/b.log"
+grep -Fq 'api_base_url_a=http://127.0.0.1:19100' "$RESULT_DIR/role-endpoints/run.env"
+echo 'ok - 支持 A/B 独立 API 和 WebSocket 端点'
 
 expect_failure '无效测试目标' run env DUAL_TEST_TARGET=../outside.dart
 expect_failure '测试目标不存在' run env DUAL_TEST_TARGET=patrol_test/missing_test.dart

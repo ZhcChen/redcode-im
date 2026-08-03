@@ -146,13 +146,14 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - Android Patrol 默认通过 Makefile 补充 `PATH=$HOME/Library/Android/sdk/platform-tools:$PATH` 并优先使用 JDK 21；若本机缺少 JDK 21，需先安装或显式设置 `JAVA_HOME`。
 - iOS Patrol 需要 Xcode SDK 与已安装 Simulator runtime 匹配；若 Xcode 提示 `iOS xx.x is not installed`，先在 Xcode Settings > Components 安装对应 runtime。
 - 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
-- 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`，群禁言使用 `make app.test.patrol.group-mute`，成员移除使用 `make app.test.patrol.group-member-removal`，图片附件使用 `make app.test.patrol.image-attachment`，联系人生命周期使用 `make app.test.patrol.contact`，前后台与离线恢复使用 `make app.test.patrol.offline`。这些入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
+- 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`，群禁言使用 `make app.test.patrol.group-mute`，成员移除使用 `make app.test.patrol.group-member-removal`，图片附件使用 `make app.test.patrol.image-attachment`，网络恢复使用 `make app.test.patrol.network`，联系人生命周期使用 `make app.test.patrol.contact`，前后台与离线恢复使用 `make app.test.patrol.offline`。这些入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立 Patrol 端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
 - 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
 - 群聊 Patrol 还覆盖发送方打开群消息已读详情并核对已读/未读成员，以及群主任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。群目标要求双方 `DUAL_GROUP_COMPLETE` 业务完成标记，避免 XCTest 成功后收尾卡住造成假失败。
 - 群禁言 Patrol 独立覆盖普通成员个人禁言/解禁、全体禁言开启/关闭、输入区提示和两次恢复发送。目标要求双方 `DUAL_GROUP_MUTE_COMPLETE`；操作全体禁言时必须等待并点击行内实际 `CustomSwitch`，不能只点击带 Key 的整行容器。
 - 群成员移除 Patrol 覆盖群主真实 UI 移除、被移除方实时退出详情和上级页面提示，目标要求双方 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。
 - 图片附件 Patrol 覆盖真实相册业务入口、图片解析、签名、S3-compatible PUT、commit、发送、对端 WebSocket 接收和下载落盘，目标要求双方 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。固定 PNG 由测试进程替换 picker 返回值；Patrol 4.5 无法稳定驱动独立系统进程中的 iOS 26 PHPicker，系统选择器交互仍需人工验收。
+- 网络恢复 Patrol 只让 A 通过 `19100` 可控 TCP 代理访问 API/WebSocket，B 继续直连 `8010`。测试会销毁 A 的现有连接、拒绝新连接，在 B 发送离线消息后恢复转发，并要求 A 自动重新认证、补拉且不重复；目标要求双方 `DUAL_NETWORK_RECOVERY_COMPLETE`。该证据不替代系统 Wi-Fi/蜂窝切换人工验收。
 - 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
 - `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导；它不会自动修改 Simulator 语言，也不把首次系统弹窗、从设置恢复或真实采集质量记为 PASS。
