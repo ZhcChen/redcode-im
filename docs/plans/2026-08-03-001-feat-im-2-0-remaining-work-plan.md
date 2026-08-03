@@ -129,6 +129,7 @@ flowchart LR
 - **Tests:** 扩展 `app/patrol_test/dual_device_chat_test.dart`；新增 `app/patrol_test/group_chat_test.dart`、`app/patrol_test/group_mute_test.dart`、`app/patrol_test/group_member_removal_test.dart`、`app/patrol_test/image_attachment_test.dart`、`app/patrol_test/offline_recovery_test.dart`；扩展 `app/integration_test/api_contract_flow_test.dart`；统一通过 R1.0 编排入口运行双设备用例。
 - **Scenarios:** A/B 已读状态一致；离线消息不重复；重连后顺序稳定；群成员权限变化后 UI 刷新；附件失败保留可重试状态。
 - **Progress:** 2026-08-04 已通过双 iOS API/WebSocket 网络路径真实中断与恢复，marker `1785775688-87809-18168`；A 自动重新认证、恢复订阅并补拉 B 在隔离窗口发送的唯一消息。系统 Wi-Fi/蜂窝切换仍保留真机人工验收。
+- **Progress:** 2026-08-04 已通过 iPhone 17 Pro Simulator 真实账号 P0 页面巡检，覆盖联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈等页面的打开、返回及反馈长页滚动。系统键盘、安全区、大字号、Reduced Motion 和各类数据状态仍按人工清单或专项用例验收。
 
 #### R1.4 U8 收口门禁
 

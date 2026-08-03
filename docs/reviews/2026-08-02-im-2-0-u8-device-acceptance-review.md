@@ -19,7 +19,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 ## 已通过证据
 
 - `make app.check`：通过，无 analyze 问题。
-- `make app.test`：348 项通过。
+- `make app.test`：2026-08-04 复核，354 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=emulator-5554`：2 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：通过，2 项 integration smoke 全部执行。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：真实 API 注册、登录、刷新和登出通过。
@@ -47,9 +47,10 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.patrol.permission`：2026-08-03 在 iPhone 17 Pro Simulator 上通过。宿主真实撤销照片和麦克风权限后，聊天相册与录音入口均显示“前往设置”，`xcresult` 为本地 `app/build/ios_results_1785749306738.xcresult`。
 - 权限状态已统一为可测试的 `PermissionService`，覆盖 granted/limited/denied/permanentlyDenied/restricted，并接入聊天附件、语音、资料头像、群头像、聊天背景、举报凭证和本地通知请求。
 - 附件状态机不再用无限 `sending` 和定时重试表示失败：签名、上传或发送失败会落为可点击的 `failed`，App 重启后把遗留 `sending` 降为 `failed` 并恢复手动重试队列；图片、文件、语音恢复重试及本地源文件丢失均有单测。语音首次发送失败时保留本地录音，避免重试入口失效。
-- `api_contract_flow_test.dart` 已加入小型 PDF 的完整合同链路：签名、S3-compatible PUT、commit、发送附件 parts、账号 B 拉取可见和强制下载字节一致。2026-08-03 在 iOS Simulator 上完成默认关闭真实合同开关时的编译验证；需通过 `make app.test.integration.device.contract` 在 Compose API/RustFS-compatible mock 启用状态下再次取得运行时 PASS，当前不把编译结果记为真实附件链路通过。
+- `api_contract_flow_test.dart` 已加入小型 PDF 的完整合同链路：签名、S3-compatible PUT、commit、发送附件 parts、账号 B 拉取可见和强制下载字节一致。2026-08-04 通过 `make app.test.integration.device.contract` 在 iPhone 17 Pro Simulator 与 Compose API/S3-compatible mock 上取得真实运行时 PASS。
 - `image_attachment_test.dart` 已在双 iOS Simulator 通过，marker 为 `1785773518-91298-11190`。A 点击真实“相册”入口后，由测试进程返回固定 PNG；图片解析、签名、S3-compatible PUT、commit、正式 `messages/` key、消息广播以及 B 下载落盘均通过。Patrol 4.5 无法稳定操作独立系统进程中的 iOS 26 PHPicker，因此系统选择器交互仍为人工 PENDING，不将本结果泛化为文件或语音附件通过。
 - `network_recovery_test.dart` 已在双 iOS Simulator 通过，最终 marker 为 `1785775688-87809-18168`。A 经可控 TCP 代理连接 API/WebSocket，测试真实销毁现有连接并拒绝重连；B 保持直连并在隔离窗口发送消息，恢复代理后 A 自动重新认证、恢复房间订阅并仅显示一条离线消息。首次运行暴露 WebSocket 握手失败的 `HttpException` 会泄漏到 Flutter zone；`WebSocketService` 现等待 channel `ready` 后再监听和认证，使失败统一进入既有重连状态机，并异步清理失败 channel，避免阻塞后续重连。
+- `make app.test.patrol.pages`：2026-08-04 在 iPhone 17 Pro Simulator 上使用真实账号通过，完成 41 个检查点。已验证新的朋友、群聊、群通知、个人资料、编辑资料、账号与安全、修改密码、注销账号、聊天、聊天背景、表情管理、隐私政策、关于和意见反馈页面可打开与返回，并滚动反馈页到“提交反馈”；`xcresult` 为本地 `app/build/ios_results_1785776662273.xcresult`。该结果不泛化为系统软键盘、安全区、大字号、Reduced Motion 或所有数据状态的视觉验收。
 
 ## 默认设备复核
 
@@ -105,11 +106,11 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 
 - 默认设备上的冷启动与登录主流程；真实账号 Patrol 登录和进入私聊已通过，仍待进程级冷启动复核。
 - 系统键盘弹出、收起和输入框遮挡检查。
-- 顶部/底部安全区与长内容滚动检查。
+- 顶部/底部安全区、大字号、Reduced Motion 与系统级长文本视觉检查；反馈长页滚动已通过自动化巡检。
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
 - 系统 Wi-Fi/蜂窝切换仍需真机人工验收；双 iOS API/WebSocket TCP 路径真实中断与恢复，以及主动断连后的前后台重连、当前聊天和离线文本消息恢复均已通过。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 聊天附件选择器、文件/语音附件和设置的完整可视化设备巡检；图片附件真实上传、广播和对端下载已通过，但系统 PHPicker 仍需人工验收。成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
+- 聊天附件选择器及文件/语音附件设备联调；图片附件真实上传、广播和对端下载已通过，但系统 PHPicker 仍需人工验收。联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈页面导航巡检已通过；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
 - 双账号登录、好友私聊双向已读、群聊已读/未读成员详情、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件

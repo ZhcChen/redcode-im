@@ -117,6 +117,10 @@ make app.test.patrol.permission \
   PATROL_PERMISSION_ACCOUNT=<account> \
   PATROL_PERMISSION_PEER_ACCOUNT=<peer-account> \
   PATROL_PERMISSION_PASSWORD=<password>
+make app.test.patrol.pages \
+  PATROL_PAGE_DEVICE=<simulator-uuid> \
+  PATROL_PAGE_ACCOUNT=<account> \
+  PATROL_PAGE_PASSWORD=<password>
 make app.test.patrol.dual \
   PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
   PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
@@ -157,6 +161,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
 - `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导；它不会自动修改 Simulator 语言，也不把首次系统弹窗、从设置恢复或真实采集质量记为 PASS。
+- `app.test.patrol.pages` 使用真实账号巡检联系人、群聊、群通知、个人资料、账号安全、聊天设置、隐私政策、关于和反馈等 P0 页面，验证页面可打开、可返回，并滚动反馈页到提交按钮。它不证明系统软键盘、安全区、大字号、Reduced Motion 或所有空态、错误态和长文本状态。
 - Flutter API contract 的附件场景使用运行时生成的小型 PDF，覆盖上传签名、S3-compatible PUT、commit、消息 parts、第二账号可见和强制下载字节一致；默认关闭 `ENABLE_REAL_CONTRACT_INTEGRATION` 时仅完成编译，只有 `make app.test.integration.contract` 或 `make app.test.integration.device.contract` 的真实 API 运行结果才可记为 PASS。
 - `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 

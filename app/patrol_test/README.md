@@ -15,6 +15,7 @@
 - `offline_recovery_test.dart`：双设备前后台重连和离线消息恢复。只通过 `make app.test.patrol.offline` 编排运行；A 主动断开 WebSocket 并进入后台，B 在离线窗口发送消息，A 回前台后断言重新认证、当前会话恢复且消息不重复
 - `device_layout_test.dart`：真实账号进入私聊后的长 composer、发送按钮边界和焦点优先返回回归。Patrol 4.3 无法通过 iOS native tree 定位 Flutter `TextField`，因此该用例不作为真实系统软键盘 PASS 证据
 - `permission_flow_test.dart`：由 `simctl privacy revoke` 建立真实 iOS 永久拒绝状态，验证相册和麦克风业务入口提供“前往设置”降级 UI；不声称覆盖首次系统弹窗或设置恢复
+- `page_navigation_test.dart`：真实账号巡检联系人、群聊、群通知、个人资料、账号安全、聊天设置、隐私政策、关于和反馈等 P0 页面，验证页面可打开、可返回，并滚动反馈页到提交按钮；不作为系统键盘、安全区或可访问性视觉验收证据
 
 注意：
 - `test_bundle.dart` 由 Patrol CLI 运行时自动生成，已加入 `.gitignore`，不要提交。
@@ -78,4 +79,9 @@ make app.test.patrol.permission \
   PATROL_PERMISSION_ACCOUNT=<account> \
   PATROL_PERMISSION_PEER_ACCOUNT=<peer-account> \
   PATROL_PERMISSION_PASSWORD=<password>
+
+make app.test.patrol.pages \
+  PATROL_PAGE_DEVICE=<simulator-uuid> \
+  PATROL_PAGE_ACCOUNT=<account> \
+  PATROL_PAGE_PASSWORD=<password>
 ```
