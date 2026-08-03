@@ -24,7 +24,7 @@
 | --- | --- | --- | --- | --- |
 | 相册永久拒绝 | `simctl privacy revoke photos` 后在私聊点击“相册” | 不启动 picker，显示“需要相册权限”和“前往设置” | PASS | `make app.test.patrol.permission`，`app/build/ios_results_1785749306738.xcresult` |
 | 麦克风永久拒绝 | `simctl privacy revoke microphone` 后长按录音 | 不启动 recorder，显示“需要麦克风权限”和“前往设置” | PASS | 同一 Patrol 运行通过 |
-| 首次相册/麦克风拒绝 | `simctl privacy reset` 后触发业务入口并拒绝系统弹窗 | App 不死锁，返回对应设置引导 | PENDING | Patrol 权限 helper 不支持中文 Simulator，原生树也无法稳定枚举系统 alert；待人工记录 |
+| 首次相册/麦克风拒绝 | `simctl privacy reset` 后触发业务入口并拒绝系统弹窗 | App 不死锁，返回对应设置引导 | PENDING | 2026-08-04 复核：Patrol 4.5 helper 明确拒绝 `zh`（仅支持 `en/de/fr/pl`），中文 selector 经 XCTest 通道乱码，按钮类型 selector 无法枚举 alert；失败证据 `app/build/ios_results_1785783042493.xcresult`，待人工记录 |
 | 从设置恢复权限 | 在设置中重新允许照片/麦克风，再回 App 重试 | 无需重登即可继续 picker/录音流程 | PENDING | `PermissionService` 每次触发重新查询状态，仍待设备人工复核 |
 | 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | 2026-08-04 已由 XCTest 真实点击首次系统“不允许”，拒绝后正式 App 正常进入登录页；设置恢复、APNs token 和前后台通知仍待 iPhone 真机验收 |
 | 相机权限 | 在支持相机的设备上拒绝、永久拒绝并恢复 | 拒绝不死锁，永久拒绝有设置入口，恢复后无需重登 | SKIPPED | iOS Simulator 无真实相机能力，转 iPhone 真机验收 |
@@ -47,4 +47,4 @@
 3. `MediaQuery.viewInsets.bottom > 0`，且发送按钮位于键盘上方。
 4. 首次系统返回只收键盘，第二次才退出聊天页。
 
-权限弹窗同样存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言，XCTest 原生树也无法稳定枚举权限 alert。因此 `permission_flow_test.dart` 只证明宿主设置的真实永久拒绝状态与 App 降级 UI，不替代首次弹窗和设置恢复人工步骤。
+权限弹窗同样存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言，XCTest 原生树也无法稳定枚举权限 alert。2026-08-04 已分别复核中文文本 selector、按钮类型 selector，以及 `isPermissionDialogVisible()` / `denyPermission()` helper；前两者无法命中 alert，helper 明确返回 `Language 'zh' is not supported`。因此 `permission_flow_test.dart` 只证明宿主设置的真实永久拒绝状态与 App 降级 UI，不替代首次弹窗和设置恢复人工步骤。
