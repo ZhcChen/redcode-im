@@ -488,6 +488,7 @@ class _GroupChatsHeaderState extends State<_GroupChatsHeader> {
                     SizedBox(width: density.scale(8)),
                     Expanded(
                       child: TextField(
+                        key: const ValueKey('group-search-field'),
                         controller: _searchController,
                         onChanged: widget.onSearchChanged,
                         textAlignVertical: TextAlignVertical.center,

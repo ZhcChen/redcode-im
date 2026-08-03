@@ -14,6 +14,7 @@ DEVICE_B="${DUAL_DEVICE_B:-}"
 ACCOUNT_A="${DUAL_ACCOUNT_A:-}"
 ACCOUNT_B="${DUAL_ACCOUNT_B:-}"
 PASSWORD="${DUAL_PASSWORD:-}"
+TEST_TARGET="${DUAL_TEST_TARGET:-patrol_test/dual_device_chat_test.dart}"
 API_BASE_URL="${DUAL_API_BASE_URL:-http://127.0.0.1:8010}"
 WS_URL="${DUAL_WS_URL:-ws://127.0.0.1:8010/ws}"
 PORT_A_TEST="${DUAL_PORT_A_TEST:-19081}"
@@ -71,7 +72,13 @@ cleanup() {
     terminate_tree "$PID_B"
     archive_results a "$WORK_ROOT/a"
     archive_results b "$WORK_ROOT/b"
-    rm -rf "$WORK_ROOT"
+    local cleanup_attempt
+    for cleanup_attempt in 1 2 3 4 5; do
+        rm -rf "$WORK_ROOT" 2>/dev/null || true
+        [ ! -e "$WORK_ROOT" ] && break
+        sleep 0.2
+    done
+    [ ! -e "$WORK_ROOT" ] || echo "[patrol-dual] 临时目录仍在写入，保留于 $WORK_ROOT" >&2
     if [ "$status" -ne 0 ]; then
         echo "[patrol-dual] 失败，证据保留于 $RUN_DIR" >&2
     fi
@@ -131,7 +138,7 @@ run_role() {
         PATH="$HOME/Library/Android/sdk/platform-tools:$PATH" \
         JAVA_HOME="${JAVA_HOME:-}" \
         CC="${CC:-$SCRIPT_DIR/xcode_clang_probe_wrapper.sh}" \
-        "$PATROL_BIN" test -t patrol_test/dual_device_chat_test.dart \
+        "$PATROL_BIN" test -t "$TEST_TARGET" \
             -d "$device" \
             --test-server-port "$test_port" \
             --app-server-port "$app_port" \
@@ -178,6 +185,8 @@ require_value DUAL_DEVICE_B "$DEVICE_B"
 require_value DUAL_ACCOUNT_A "$ACCOUNT_A"
 require_value DUAL_ACCOUNT_B "$ACCOUNT_B"
 require_value DUAL_PASSWORD "$PASSWORD"
+[[ "$TEST_TARGET" == patrol_test/*.dart ]] && [[ "$TEST_TARGET" != *..* ]] || fail "无效测试目标: $TEST_TARGET"
+[ -f "$APP_DIR/$TEST_TARGET" ] || fail "测试目标不存在: $TEST_TARGET"
 [ "$DEVICE_A" != "$DEVICE_B" ] || fail "A/B 必须使用两个不同的 Simulator"
 [ "$ACCOUNT_A" != "$ACCOUNT_B" ] || fail "A/B 必须使用两个不同的账号"
 
@@ -189,7 +198,7 @@ validate_device B "$DEVICE_B"
 
 mkdir -p "$RUN_DIR"
 printf '%s\n' "$MARKER" >"$RUN_DIR/marker.txt"
-printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\n' "$MARKER" "$DEVICE_A" "$DEVICE_B" >"$RUN_DIR/run.env"
+printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\n' "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" >"$RUN_DIR/run.env"
 echo "[patrol-dual] marker=$MARKER results=$RUN_DIR"
 
 copy_workspace a

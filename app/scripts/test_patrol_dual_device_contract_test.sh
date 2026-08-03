@@ -13,6 +13,7 @@ cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 mkdir -p "$FIXTURE_DIR/patrol_test" "$FIXTURE_DIR/scripts" "$BIN_DIR"
 touch "$FIXTURE_DIR/patrol_test/dual_device_chat_test.dart"
+touch "$FIXTURE_DIR/patrol_test/group_chat_test.dart"
 cp "$SCRIPT_DIR/xcode_clang_probe_wrapper.sh" "$FIXTURE_DIR/scripts/"
 
 cat >"$BIN_DIR/xcrun" <<'STUB'
@@ -38,15 +39,18 @@ STUB
 cat >"$BIN_DIR/patrol" <<'STUB'
 #!/bin/bash
 set -euo pipefail
-role="" account="" marker=""
+role="" account="" marker="" target=""
+previous=""
 for arg in "$@"; do
+    if [ "$previous" = -t ]; then target="$arg"; fi
     case "$arg" in
         DUAL_ROLE=*) role="${arg#*=}" ;;
         DUAL_ACCOUNT=*) account="${arg#*=}" ;;
         DUAL_MARKER=*) marker="${arg#*=}" ;;
     esac
+    previous="$arg"
 done
-[ -n "$role" ] && [ -n "$account" ] && [ -n "$marker" ]
+[ -n "$role" ] && [ -n "$account" ] && [ -n "$marker" ] && [ -n "$target" ]
 if [ -n "${STUB_PID_DIR:-}" ]; then
     echo "$$" >"$STUB_PID_DIR/$role.pid"
 fi
@@ -54,6 +58,7 @@ mkdir -p build/ios_results_1.xcresult
 [ "${STUB_FAIL_BEFORE_READY_ROLE:-}" != "$role" ] || exit 8
 echo "DUAL_IDENTITY role=$role account=$account marker=$marker prefix=dual-$role- peer=peer"
 echo "DUAL_READY role=$role account=$account marker=$marker"
+echo "DUAL_TARGET target=$target"
 [ "${STUB_FAIL_ROLE:-}" != "$role" ] || exit 9
 if [ "${STUB_SLEEP_ROLE:-}" = "$role" ]; then
     sleep "${STUB_ROLE_SLEEP:-20}"
@@ -90,6 +95,15 @@ grep -Fq 'DUAL_IDENTITY role=b account=account-b' "$RESULT_DIR/contract-pass/b.l
 [ -d "$RESULT_DIR/contract-pass/a/ios_results_1.xcresult" ]
 [ -d "$RESULT_DIR/contract-pass/b/ios_results_1.xcresult" ]
 echo 'ok - 双角色隔离、日志和 xcresult 归档'
+
+run env DUAL_MARKER=group-target DUAL_TEST_TARGET=patrol_test/group_chat_test.dart
+grep -Fq 'DUAL_TARGET target=patrol_test/group_chat_test.dart' "$RESULT_DIR/group-target/a.log"
+grep -Fq 'test_target=patrol_test/group_chat_test.dart' "$RESULT_DIR/group-target/run.env"
+echo 'ok - 支持受控双设备测试目标'
+
+expect_failure '无效测试目标' run env DUAL_TEST_TARGET=../outside.dart
+expect_failure '测试目标不存在' run env DUAL_TEST_TARGET=patrol_test/missing_test.dart
+echo 'ok - 拒绝越界或缺失测试目标'
 
 expect_failure 'A/B 必须使用两个不同的 Simulator' run env DUAL_DEVICE_B=device-a
 echo 'ok - 拒绝相同设备'

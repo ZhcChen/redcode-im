@@ -214,7 +214,10 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _chatProvider = widget.chatProvider ?? ChatProvider();
     _webSocketService = widget.websocketService ?? WebSocketService.instance;
     _draftStorage = widget.draftStorage ?? ChatDraftStorage();
-    _initChat();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_initChat());
+    });
     _scrollController.addListener(_onScroll);
     unawaited(_ensureCurrentUserId());
     unawaited(_restoreTextDraft());

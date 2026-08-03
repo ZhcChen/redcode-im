@@ -123,6 +123,12 @@ make app.test.patrol.dual \
   PATROL_DUAL_ACCOUNT_A=<account-a> \
   PATROL_DUAL_ACCOUNT_B=<account-b> \
   PATROL_DUAL_PASSWORD=<password>
+make app.test.patrol.group \
+  PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
+  PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
+  PATROL_DUAL_ACCOUNT_A=<account-a> \
+  PATROL_DUAL_ACCOUNT_B=<account-b> \
+  PATROL_DUAL_PASSWORD=<password>
 
 # 指定 Android Emulator / 真机
 make app.test.patrol.harness PATROL_DEVICE=emulator-5554
@@ -134,7 +140,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - Android Patrol 默认通过 Makefile 补充 `PATH=$HOME/Library/Android/sdk/platform-tools:$PATH` 并优先使用 JDK 21；若本机缺少 JDK 21，需先安装或显式设置 `JAVA_HOME`。
 - iOS Patrol 需要 Xcode SDK 与已安装 Simulator runtime 匹配；若 Xcode 提示 `iOS xx.x is not installed`，先在 Xcode Settings > Components 安装对应 runtime。
 - 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
-- 双设备私聊只使用 `make app.test.patrol.dual`。该入口要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
+- 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`。两个入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
 - 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
