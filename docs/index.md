@@ -11,6 +11,8 @@
 | [审查/验证记录](reviews/) | `review` / `ce:review` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
+| [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁 |
+| [IM 2.0 剩余工作计划](plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md) | 当前 U8-U13 的执行拆分、测试场景和完成条件 |
 | [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 当前 2.0 主线方向：`app/` 单 Flutter 工程承载移动端 + 桌面端 |
 | [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 当前 2.0 设计入口：先在 `im-ui-html/` 收敛规范、组件和页面 |
 | [IM UI 预览冻结与多端交付计划](plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md) | 三设备回归、冻结基线与 Flutter/H5 handoff |
