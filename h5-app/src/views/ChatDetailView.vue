@@ -18,9 +18,13 @@ const draft = ref('');
 const listEl = ref<HTMLElement | null>(null);
 const imageInput = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const highlightedMessageId = ref('');
+const targetNotice = ref('');
+let highlightTimer: number | null = null;
 
 const roomId = computed(() => String(route.params.roomId ?? ''));
 const currentUserId = computed(() => authStore.currentUser?.id ?? '');
+const targetMessageId = computed(() => String(route.query?.messageId ?? ''));
 
 const scrollToBottom = async () => {
   await nextTick();
@@ -117,10 +121,27 @@ onMounted(async () => {
   await chatStore.initialize();
   const chat = resolveRouteChat();
   await detailStore.enterRoom(chat?.roomId ?? roomId.value, chat);
-  await scrollToBottom();
+  if (targetMessageId.value) {
+    const found = await detailStore.loadUntilFound(targetMessageId.value);
+    if (found) {
+      highlightedMessageId.value = targetMessageId.value;
+      await nextTick();
+      const target = [...(listEl.value?.querySelectorAll<HTMLElement>('[data-message-id]') ?? [])]
+        .find((element) => element.dataset.messageId === targetMessageId.value);
+      if (typeof target?.scrollIntoView === 'function') {
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      highlightTimer = window.setTimeout(() => { highlightedMessageId.value = ''; }, 2200);
+    } else {
+      targetNotice.value = '未找到目标消息，可能已被删除或本地索引已过期。';
+    }
+  } else {
+    await scrollToBottom();
+  }
 });
 
 onBeforeUnmount(() => {
+  if (highlightTimer !== null) window.clearTimeout(highlightTimer);
   detailStore.leaveRoom();
 });
 
@@ -169,6 +190,7 @@ const resolveRouteChat = () => {
       <p v-if="detailStore.error" class="message-notice message-notice--error">
         {{ detailStore.error }}
       </p>
+      <p v-if="targetNotice" class="message-notice message-notice--error">{{ targetNotice }}</p>
       <p v-if="detailStore.loading && detailStore.messages.length === 0" class="message-notice">
         正在加载消息...
       </p>
@@ -180,7 +202,8 @@ const resolveRouteChat = () => {
         v-for="message in detailStore.messages"
         :key="message.id"
         class="message-row"
-        :class="{ 'message-row--self': isSelf(message) }"
+        :class="{ 'message-row--self': isSelf(message), 'message-row--highlighted': highlightedMessageId === message.id }"
+        :data-message-id="message.id"
       >
         <CachedAvatar
           v-if="!isSelf(message)"
@@ -379,6 +402,11 @@ const resolveRouteChat = () => {
 
 .message-row--self {
   justify-content: flex-end;
+}
+
+.message-row--highlighted .message-bubble {
+  outline: 3px solid var(--rc-primary-soft);
+  outline-offset: 3px;
 }
 
 .message-row__avatar {

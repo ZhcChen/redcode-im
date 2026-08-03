@@ -210,8 +210,13 @@ test.describe('h5-app browser smoke', () => {
     const searchResult = page.locator('.message-search__result').filter({ hasText: message }).first();
     await expect(searchResult).toBeVisible();
     await searchResult.click();
-    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}`));
+    await expect(page).toHaveURL((url) => (
+      url.pathname === `/chats/${roomId}` && url.searchParams.get('messageId') === sentMessageId
+    ));
     await expect(page.getByText(message)).toBeVisible();
+    await expect(page.locator(`[data-message-id="${sentMessageId}"]`)).toHaveClass(/message-row--highlighted/);
+    await page.reload();
+    await expect(page.locator(`[data-message-id="${sentMessageId}"]`)).toHaveClass(/message-row--highlighted/);
 
     await page.getByLabel('群设置').click();
     await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/settings$`));

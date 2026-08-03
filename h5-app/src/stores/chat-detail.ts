@@ -360,6 +360,25 @@ export const useChatDetailStore = defineStore('chatDetail', {
         return [];
       }
     },
+
+    async loadUntilFound(messageId: string, maxPages = 10): Promise<boolean> {
+      if (!messageId || !this.roomId) return false;
+      if (this.messages.some((message) => message.id === messageId)) return true;
+      if (appEnv.useMockData) return false;
+
+      for (let page = 0; page < maxPages; page += 1) {
+        const beforeId = this.messages[0]?.id;
+        if (!beforeId) return false;
+        const previousIds = new Set(this.messages.map((message) => message.id));
+        const older = await messageService.loadMessages(this.roomId, { limit: 50, beforeId });
+        if (older.length === 0) return false;
+        this.messages = mergeMessages(this.messages, older);
+        await this.persist();
+        if (this.messages.some((message) => message.id === messageId)) return true;
+        if (older.every((message) => previousIds.has(message.id))) return false;
+      }
+      return false;
+    },
   },
 });
 

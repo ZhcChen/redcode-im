@@ -62,6 +62,21 @@ describe('chat detail store', () => {
     expect(store.messages.map((item) => item.content)).toContain('cached hello');
   });
 
+  it('loads older pages until a deep-linked message is found', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    store.messages = [message('m51', { timestamp: 51 }), message('m52', { timestamp: 52 })];
+    const load = vi.spyOn(messageService, 'loadMessages').mockResolvedValue([
+      message('target-old', { timestamp: 1 }),
+      message('m50', { timestamp: 50 }),
+    ]);
+
+    await expect(store.loadUntilFound('target-old')).resolves.toBe(true);
+    expect(load).toHaveBeenCalledWith('r1', { limit: 50, beforeId: 'm51' });
+    expect(store.messages[0]?.id).toBe('target-old');
+  });
+
   it('updates the local search index when room messages are persisted', async () => {
     const store = useChatDetailStore();
     await store.enterRoom('r1', {

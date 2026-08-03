@@ -7,11 +7,13 @@ import { useChatStore } from '@/stores/chat';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 
 let routeRoomId = 'r1';
+let routeQuery: Record<string, string> = {};
 const routerPushMock = vi.hoisted(() => vi.fn());
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: { roomId: routeRoomId },
+    query: routeQuery,
   }),
   useRouter: () => ({
     push: routerPushMock,
@@ -21,6 +23,7 @@ vi.mock('vue-router', () => ({
 describe('ChatDetailView', () => {
   beforeEach(() => {
     routeRoomId = 'r1';
+    routeQuery = {};
     routerPushMock.mockReset();
     setActivePinia(createPinia());
     const authStore = useAuthStore();
@@ -96,5 +99,19 @@ describe('ChatDetailView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('收藏夹');
+  });
+
+  it('restores and highlights a message deep link after mounting', async () => {
+    routeQuery = { messageId: 'mock-r1-1' };
+
+    const wrapper = mount(ChatDetailView);
+    await flushPromises();
+
+    expect(wrapper.get('[data-message-id="mock-r1-1"]').classes()).toContain('message-row--highlighted');
+    wrapper.unmount();
+
+    const refreshed = mount(ChatDetailView);
+    await flushPromises();
+    expect(refreshed.get('[data-message-id="mock-r1-1"]').classes()).toContain('message-row--highlighted');
   });
 });
