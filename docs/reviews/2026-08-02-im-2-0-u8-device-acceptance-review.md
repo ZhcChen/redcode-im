@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；双 iOS 图片附件上传、广播和下载已通过，系统 PHPicker、文件和语音附件仍待验收。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；双 iOS 图片、文件和语音附件上传、广播和下载已通过，系统 PHPicker、系统文件选择器与真实麦克风采集仍待人工或真机验收。
 
 ## 验收环境
 
@@ -51,6 +51,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `image_attachment_test.dart` 已在双 iOS Simulator 通过，marker 为 `1785773518-91298-11190`。A 点击真实“相册”入口后，由测试进程返回固定 PNG；图片解析、签名、S3-compatible PUT、commit、正式 `messages/` key、消息广播以及 B 下载落盘均通过。Patrol 4.5 无法稳定操作独立系统进程中的 iOS 26 PHPicker，因此系统选择器交互仍为人工 PENDING，不将本结果泛化为文件或语音附件通过。
 - `network_recovery_test.dart` 已在双 iOS Simulator 通过，最终 marker 为 `1785775688-87809-18168`。A 经可控 TCP 代理连接 API/WebSocket，测试真实销毁现有连接并拒绝重连；B 保持直连并在隔离窗口发送消息，恢复代理后 A 自动重新认证、恢复房间订阅并仅显示一条离线消息。首次运行暴露 WebSocket 握手失败的 `HttpException` 会泄漏到 Flutter zone；`WebSocketService` 现等待 channel `ready` 后再监听和认证，使失败统一进入既有重连状态机，并异步清理失败 channel，避免阻塞后续重连。
 - `make app.test.patrol.pages`：2026-08-04 在 iPhone 17 Pro Simulator 上使用真实账号通过，完成 41 个检查点。已验证新的朋友、群聊、群通知、个人资料、编辑资料、账号与安全、修改密码、注销账号、聊天、聊天背景、表情管理、隐私政策、关于和意见反馈页面可打开与返回，并滚动反馈页到“提交反馈”；`xcresult` 为本地 `app/build/ios_results_1785776662273.xcresult`。该结果不泛化为系统软键盘、安全区、大字号、Reduced Motion 或所有数据状态的视觉验收。
+- `rich_attachment_test.dart` 已在双 iOS Simulator 通过，最终 marker 为 `1785778188-93063-1916`。A 点击真实“文件”入口发送固定 PDF，并通过正式 `ChatProvider.sendVoiceMessage` 发送 1200ms 有效 M4A；两类附件均完成签名、S3-compatible PUT、commit、正式 `messages/` key、WebSocket 广播和 B 强制下载字节一致，B 还按本轮服务端消息 ID 精确定位并点击 `0:01` 语音气泡，成功启动播放器。测试进程替换系统文件选择结果并绕过麦克风采集，因此不将系统文件选择器、录音质量或听感泛化为 PASS。
 
 ## 默认设备复核
 
@@ -110,7 +111,7 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
 - 系统 Wi-Fi/蜂窝切换仍需真机人工验收；双 iOS API/WebSocket TCP 路径真实中断与恢复，以及主动断连后的前后台重连、当前聊天和离线文本消息恢复均已通过。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 聊天附件选择器及文件/语音附件设备联调；图片附件真实上传、广播和对端下载已通过，但系统 PHPicker 仍需人工验收。联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈页面导航巡检已通过；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
+- 系统 PHPicker、系统文件选择器和真实麦克风采集仍需人工或真机验收；图片、文件和语音附件真实上传、广播和对端下载已通过，语音接收端播放器启动也已验证。联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈页面导航巡检已通过；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
 - 双账号登录、好友私聊双向已读、群聊已读/未读成员详情、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件

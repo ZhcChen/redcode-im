@@ -192,7 +192,10 @@ extension _ChatMessageListView on _ChatDetailPageV2State {
 
               return RepaintBoundary(
                 key: _messageItemKeys.keyFor(message.id),
-                child: itemContent,
+                child: KeyedSubtree(
+                  key: ValueKey('chat-message-${message.id}'),
+                  child: itemContent,
+                ),
               );
             },
           );
