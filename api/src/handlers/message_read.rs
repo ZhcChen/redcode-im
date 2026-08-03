@@ -115,6 +115,13 @@ pub async fn get_message_read_list(
 
     let message_id = string_to_uuid(&message_id)?;
 
+    let message = message_store
+        .get_message(message_id)
+        .await?
+        .filter(|message| message.room_id == room_id)
+        .ok_or_else(|| AppError::NotFound("消息不存在".to_string()))?;
+    debug_assert_eq!(message.id, message_id);
+
     let read_store = MessageReadStore::new(&state.database.pool);
     let read_users = read_store.get_message_read_users(message_id).await?;
 

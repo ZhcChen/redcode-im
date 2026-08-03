@@ -580,6 +580,134 @@ async fn persist_mode_rejects_uncommitted_attachment_keys() {
 }
 
 #[tokio::test]
+async fn group_admin_changes_are_reflected_in_member_roles() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "admin-owner").await;
+    let member = register_and_login(&app, "admin-member").await;
+    let room_id = create_room(&app, &owner, &[&member]).await;
+
+    let (status, appoint_body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/admins"),
+            &owner.token,
+            &json!({"user_id": member.id, "role": "admin"}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "appoint admin: {}",
+        String::from_utf8_lossy(&appoint_body)
+    );
+
+    let (status, members_body) = app
+        .get_authed(&format!("/rooms/{room_id}/members"), &member.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let members = body_json(&members_body);
+    let appointed = members
+        .as_array()
+        .and_then(|items| {
+            items
+                .iter()
+                .find(|item| item["user_id"].as_str() == Some(member.id.as_str()))
+        })
+        .expect("appointed member");
+    assert_eq!(appointed["role"].as_str(), Some("admin"));
+
+    let (status, remove_body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/admins/{}", member.id),
+            Some(&owner.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "remove admin: {}",
+        String::from_utf8_lossy(&remove_body)
+    );
+
+    let (_, members_body) = app
+        .get_authed(&format!("/rooms/{room_id}/members"), &member.token)
+        .await;
+    let members = body_json(&members_body);
+    let removed = members
+        .as_array()
+        .and_then(|items| {
+            items
+                .iter()
+                .find(|item| item["user_id"].as_str() == Some(member.id.as_str()))
+        })
+        .expect("removed admin member");
+    assert_eq!(removed["role"].as_str(), Some("member"));
+}
+
+#[tokio::test]
+async fn persisted_message_read_list_is_room_scoped() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "read-owner").await;
+    let reader = register_and_login(&app, "read-member").await;
+    let other_member = register_and_login(&app, "read-other").await;
+    let room_id = create_room(&app, &owner, &[&reader]).await;
+    let other_room_id = create_room(&app, &owner, &[&other_member]).await;
+
+    let (status, send_body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &owner.token,
+            &json!({"content": "read detail contract"}).to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let message_id = body_json(&send_body)["message"]["id"]
+        .as_str()
+        .expect("message id")
+        .to_string();
+
+    let (status, mark_body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/read_until"),
+            &reader.token,
+            &json!({"message_id": message_id}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "mark read: {}",
+        String::from_utf8_lossy(&mark_body)
+    );
+
+    let (status, reads_body) = app
+        .get_authed(
+            &format!("/rooms/{room_id}/messages/{message_id}/reads"),
+            &owner.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let readers = body_json(&reads_body);
+    assert_eq!(readers.as_array().map(Vec::len), Some(1));
+    assert_eq!(readers[0]["user_id"].as_str(), Some(reader.id.as_str()));
+
+    let (status, cross_room_body) = app
+        .get_authed(
+            &format!("/rooms/{other_room_id}/messages/{message_id}/reads"),
+            &owner.token,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "跨房间消息已读详情必须被拒绝: {}",
+        String::from_utf8_lossy(&cross_room_body)
+    );
+}
+
+#[tokio::test]
 async fn relay_only_message_broadcasts_without_server_persistence() {
     let app = spawn_test_app().await;
     let owner = register_and_login(&app, "rlo").await;

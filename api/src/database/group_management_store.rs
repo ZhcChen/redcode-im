@@ -5,8 +5,9 @@ use uuid::Uuid;
 use crate::database::models::{
     AppointAdminRequest, CreateRuleRequest, GroupAdmin, GroupDetailInfo, GroupInvitation,
     GroupMute, GroupOperationLog, GroupRule, GroupSettings, InvitationStatus, InviteToGroupRequest,
-    JoinGroupRequest, JoinRequest, JoinRequestStatus, MuteUserRequest, ReceivedGroupInvitation,
-    ReviewJoinRequestRequest, UpdateGroupSettingsRequest, UpdateRuleRequest,
+    JoinGroupRequest, JoinRequest, JoinRequestStatus, MemberRole, MuteUserRequest,
+    ReceivedGroupInvitation, ReviewJoinRequestRequest, UpdateGroupSettingsRequest,
+    UpdateRuleRequest,
 };
 
 pub struct GroupManagementStore<'a> {
@@ -514,6 +515,21 @@ impl<'a> GroupManagementStore<'a> {
             .parse::<Uuid>()
             .map_err(|_| sqlx::Error::Protocol("Invalid user ID".to_string()))?;
 
+        let mut tx = self.pool.begin().await?;
+        let member = sqlx::query(
+            "UPDATE room_members
+             SET role = $3
+             WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(room_id)
+        .bind(admin_id)
+        .bind(MemberRole::Admin)
+        .execute(&mut *tx)
+        .await?;
+        if member.rows_affected() == 0 {
+            return Err(sqlx::Error::RowNotFound);
+        }
+
         let admin = sqlx::query_as::<_, GroupAdmin>(
             r#"
             INSERT INTO group_admins
@@ -533,20 +549,39 @@ impl<'a> GroupManagementStore<'a> {
         .bind(appointed_by)
         .bind(request.role)
         .bind(request.permissions)
-        .fetch_one(self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        tx.commit().await?;
 
         Ok(admin)
     }
 
     pub async fn remove_admin(&self, room_id: Uuid, admin_id: Uuid) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
         let result = sqlx::query("DELETE FROM group_admins WHERE room_id = $1 AND admin_id = $2")
             .bind(room_id)
             .bind(admin_id)
-            .execute(self.pool)
+            .execute(&mut *tx)
             .await?;
 
-        Ok(result.rows_affected() > 0)
+        if result.rows_affected() == 0 {
+            return Ok(false);
+        }
+
+        sqlx::query(
+            "UPDATE room_members
+             SET role = $3
+             WHERE room_id = $1 AND user_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(room_id)
+        .bind(admin_id)
+        .bind(MemberRole::Member)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(true)
     }
 
     pub async fn list_admins(&self, room_id: Uuid) -> Result<Vec<GroupAdmin>, sqlx::Error> {
