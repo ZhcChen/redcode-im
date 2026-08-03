@@ -697,4 +697,18 @@ test.describe('h5-app browser smoke', () => {
     const loginResponse = await request.post(`${apiBaseURL}/auth/login`, { data: { username, password } });
     expect(loginResponse.ok()).toBe(false);
   });
+
+  test('synchronizes logout across browser tabs', async ({ page, context }) => {
+    const username = uniqueAccount('h5e2emt');
+    await registerThroughUi(page, username, `H5pass-${username}`);
+    const secondPage = await context.newPage();
+    await secondPage.goto('/home');
+    await expect(secondPage).toHaveURL(/\/home$/);
+
+    await page.getByRole('button', { name: /我的/ }).click();
+    await page.getByRole('button', { name: '退出登录' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(secondPage).toHaveURL(/\/login$/);
+    await secondPage.close();
+  });
 });

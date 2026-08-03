@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 describe('auth store', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    useAuthStore().stopSessionSync();
   });
 
   it('persists mock login session', async () => {
@@ -26,5 +27,26 @@ describe('auth store', () => {
 
     expect(store.isAuthenticated).toBe(false);
     expect(window.localStorage.getItem('redcode-h5-session')).toBeNull();
+  });
+
+  it('synchronizes login updates and logout from another browser tab', () => {
+    const store = useAuthStore();
+    store.startSessionSync();
+    const session = { token: 'other-token', user: { id: 'u2', username: 'other', nickname: 'Other', email: 'other@example.com' } };
+    window.dispatchEvent(new StorageEvent('storage', { key: 'redcode-h5-session', newValue: JSON.stringify(session) }));
+    expect(store.session).toEqual(session);
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'redcode-h5-session', newValue: null }));
+    expect(store.isAuthenticated).toBe(false);
+    store.stopSessionSync();
+  });
+
+  it('invalidates malformed cross-tab session data', () => {
+    const store = useAuthStore();
+    store.startSessionSync();
+    window.dispatchEvent(new StorageEvent('storage', { key: 'redcode-h5-session', newValue: '{invalid' }));
+    expect(store.isAuthenticated).toBe(false);
+    expect(store.error).toBe('登录状态已失效');
+    store.stopSessionSync();
   });
 });

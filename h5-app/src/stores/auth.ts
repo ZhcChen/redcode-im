@@ -5,6 +5,7 @@ import { loginWithAccount, registerWithAccount } from '@/api/auth';
 import type { AuthSession, AuthUser } from '@/types/auth';
 
 const STORAGE_KEY = 'redcode-h5-session';
+let sessionStorageListener: ((event: StorageEvent) => void) | null = null;
 
 const readStoredSession = (): AuthSession | null => {
   try {
@@ -72,6 +73,25 @@ export const useAuthStore = defineStore('auth', {
       if (!this.session) return;
       this.session = { ...this.session, user };
       writeStoredSession(this.session);
+    },
+    startSessionSync() {
+      if (sessionStorageListener) return;
+      sessionStorageListener = (event: StorageEvent) => {
+        if (event.key !== STORAGE_KEY) return;
+        try {
+          this.session = event.newValue ? JSON.parse(event.newValue) as AuthSession : null;
+          this.error = '';
+        } catch {
+          this.session = null;
+          this.error = '登录状态已失效';
+        }
+      };
+      window.addEventListener('storage', sessionStorageListener);
+    },
+    stopSessionSync() {
+      if (!sessionStorageListener) return;
+      window.removeEventListener('storage', sessionStorageListener);
+      sessionStorageListener = null;
     },
   },
 });
