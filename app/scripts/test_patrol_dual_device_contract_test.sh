@@ -61,6 +61,9 @@ echo "DUAL_IDENTITY role=$role account=$account marker=$marker prefix=${DUAL_IDE
 echo "DUAL_READY role=$role account=$account marker=$marker"
 echo "DUAL_TARGET target=$target"
 [ "${STUB_FAIL_ROLE:-}" != "$role" ] || exit 9
+if [ -n "${DUAL_COMPLETION_EVENT:-}" ]; then
+    echo "$DUAL_COMPLETION_EVENT role=$role marker=$marker"
+fi
 if [ "${STUB_SLEEP_ROLE:-}" = "$role" ]; then
     sleep "${STUB_ROLE_SLEEP:-20}"
 elif [ "$role" = b ]; then
@@ -102,6 +105,11 @@ grep -Fq 'DUAL_TARGET target=patrol_test/group_chat_test.dart' "$RESULT_DIR/grou
 grep -Fq 'test_target=patrol_test/group_chat_test.dart' "$RESULT_DIR/group-target/run.env"
 echo 'ok - 支持受控双设备测试目标'
 
+run env DUAL_MARKER=group-complete DUAL_TEST_TARGET=patrol_test/group_chat_test.dart \
+    DUAL_COMPLETION_EVENT=DUAL_GROUP_COMPLETE STUB_B_SLEEP=20 DUAL_RUN_TIMEOUT_SECONDS=2
+grep -Fq 'DUAL_GROUP_COMPLETE role=b marker=group-complete' "$RESULT_DIR/group-complete/b.log"
+echo 'ok - 业务完成标记可关闭卡住的 B 端 XCTest 收尾'
+
 run env DUAL_MARKER=contact-target DUAL_TEST_TARGET=patrol_test/contact_lifecycle_test.dart DUAL_IDENTITY_PREFIX=contact
 grep -Fq 'prefix=contact-a-' "$RESULT_DIR/contact-target/a.log"
 grep -Fq 'identity_prefix=contact' "$RESULT_DIR/contact-target/run.env"
@@ -110,6 +118,7 @@ echo 'ok - 支持场景化身份前缀'
 expect_failure '无效测试目标' run env DUAL_TEST_TARGET=../outside.dart
 expect_failure '测试目标不存在' run env DUAL_TEST_TARGET=patrol_test/missing_test.dart
 expect_failure '无效身份前缀' run env DUAL_IDENTITY_PREFIX='../contact'
+expect_failure '无效完成事件' run env DUAL_COMPLETION_EVENT='../done'
 echo 'ok - 拒绝越界或缺失测试目标'
 
 expect_failure 'A/B 必须使用两个不同的 Simulator' run env DUAL_DEVICE_B=device-a

@@ -72,6 +72,7 @@ class MessageDeliveryStatus extends StatelessWidget {
       button: true,
       label: label,
       child: InkResponse(
+        key: ValueKey('message-delivery-action-${status.name}'),
         onTap: callback,
         radius: AppControlSize.minTapTarget / 2,
         child: SizedBox.square(

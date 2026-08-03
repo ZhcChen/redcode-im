@@ -735,7 +735,7 @@ app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传�
 	@cd "$(APP_DIR)" && DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
 
 app.test.patrol.group: ## 执行双 iOS Simulator 真实建群与群聊互发（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_chat_test.dart DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
+	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_chat_test.dart DUAL_COMPLETION_EVENT=DUAL_GROUP_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
 
 app.test.patrol.contact: ## 执行双 iOS Simulator 联系人申请、备注与删除闭环（必须传设备 UUID、账号和密码）
 	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/contact_lifecycle_test.dart DUAL_IDENTITY_PREFIX=contact DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh

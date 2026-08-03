@@ -97,6 +97,7 @@ void main() {
         await $('退出群聊').waitUntilVisible();
         $.log('DUAL_GOVERNANCE_READY role=b marker=$marker');
         await $('禁言管理').waitUntilVisible();
+        $.log('DUAL_GROUP_COMPLETE role=b marker=$marker');
         return;
       }
 
@@ -114,6 +115,15 @@ void main() {
       await $(messageA).waitUntilVisible();
       await $(messageB).waitUntilVisible();
       await $.pump(const Duration(seconds: 2));
+      await $(
+        const ValueKey('message-delivery-action-read'),
+      ).waitUntilVisible();
+      await $(const ValueKey('message-delivery-action-read')).last.tap();
+      await $(const ValueKey('message-read-details-title')).waitUntilVisible();
+      await $('已读 1').waitUntilVisible();
+      await $('未读 0').waitUntilVisible();
+      await $(peerAccount).waitUntilVisible();
+      await $(const ValueKey('message-read-details-close')).tap();
       await $(const ValueKey('chat-info-button')).tap();
       await $(const ValueKey('group-admin-settings-entry')).waitUntilVisible();
       await $(const ValueKey('group-admin-settings-entry')).tap();
@@ -124,6 +134,7 @@ void main() {
       await $('任命管理员').waitUntilVisible();
       await $('确定').tap();
       await $('移除').waitUntilVisible();
+      $.log('DUAL_GROUP_COMPLETE role=a marker=$marker');
     },
   );
 }

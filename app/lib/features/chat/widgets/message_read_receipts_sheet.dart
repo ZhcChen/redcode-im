@@ -115,14 +115,20 @@ class _MessageReadReceiptsSheetState extends State<MessageReadReceiptsSheet> {
       child: Row(
         children: [
           Expanded(
-            child: Text('已读详情', style: Theme.of(context).textTheme.titleMedium),
+            child: Text(
+              '已读详情',
+              key: const ValueKey('message-read-details-title'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
           IconButton(
+            key: const ValueKey('message-read-details-refresh'),
             tooltip: '刷新阅读状态',
             onPressed: _isLoading ? null : () => _load(forceRefresh: true),
             icon: const Icon(Icons.refresh, size: 20),
           ),
           IconButton(
+            key: const ValueKey('message-read-details-close'),
             tooltip: '关闭',
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close),
@@ -138,6 +144,7 @@ class _MessageReadReceiptsSheetState extends State<MessageReadReceiptsSheet> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: SegmentedButton<bool>(
+        key: const ValueKey('message-read-details-tabs'),
         segments: [
           ButtonSegment(value: false, label: Text('已读 $readCount')),
           ButtonSegment(value: true, label: Text('未读 $unreadCount')),

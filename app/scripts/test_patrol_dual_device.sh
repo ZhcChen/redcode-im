@@ -16,6 +16,7 @@ ACCOUNT_B="${DUAL_ACCOUNT_B:-}"
 PASSWORD="${DUAL_PASSWORD:-}"
 TEST_TARGET="${DUAL_TEST_TARGET:-patrol_test/dual_device_chat_test.dart}"
 IDENTITY_PREFIX="${DUAL_IDENTITY_PREFIX:-dual}"
+COMPLETION_EVENT="${DUAL_COMPLETION_EVENT:-}"
 API_BASE_URL="${DUAL_API_BASE_URL:-http://127.0.0.1:8010}"
 WS_URL="${DUAL_WS_URL:-ws://127.0.0.1:8010/ws}"
 PORT_A_TEST="${DUAL_PORT_A_TEST:-19081}"
@@ -187,6 +188,7 @@ require_value DUAL_ACCOUNT_A "$ACCOUNT_A"
 require_value DUAL_ACCOUNT_B "$ACCOUNT_B"
 require_value DUAL_PASSWORD "$PASSWORD"
 [[ "$IDENTITY_PREFIX" =~ ^[a-z0-9-]+$ ]] || fail "无效身份前缀: $IDENTITY_PREFIX"
+[[ -z "$COMPLETION_EVENT" || "$COMPLETION_EVENT" =~ ^[A-Z0-9_]+$ ]] || fail "无效完成事件: $COMPLETION_EVENT"
 [[ "$TEST_TARGET" == patrol_test/*.dart ]] && [[ "$TEST_TARGET" != *..* ]] || fail "无效测试目标: $TEST_TARGET"
 [ -f "$APP_DIR/$TEST_TARGET" ] || fail "测试目标不存在: $TEST_TARGET"
 [ "$DEVICE_A" != "$DEVICE_B" ] || fail "A/B 必须使用两个不同的 Simulator"
@@ -216,8 +218,15 @@ run_role a "$DEVICE_A" "$ACCOUNT_A" "$ACCOUNT_B" "$PORT_A_TEST" "$PORT_A_APP" &
 PID_A=$!
 wait_for_process "$PID_A" "$RUN_TIMEOUT" || fail "A 执行失败或超时"
 PID_A=""
-wait_for_process "$PID_B" "$RUN_TIMEOUT" || fail "B 执行失败或超时"
-PID_B=""
+if [ -n "$COMPLETION_EVENT" ]; then
+    expected_b_complete="$COMPLETION_EVENT role=b marker=$MARKER"
+    wait_for_log "$PID_B" "$RUN_DIR/b.log" "$expected_b_complete" "$RUN_TIMEOUT" || fail "B 未在限时内完成业务断言"
+    terminate_tree "$PID_B"
+    PID_B=""
+else
+    wait_for_process "$PID_B" "$RUN_TIMEOUT" || fail "B 执行失败或超时"
+    PID_B=""
+fi
 
 for role in a b; do
     if [ "$role" = a ]; then account="$ACCOUNT_A"; else account="$ACCOUNT_B"; fi
@@ -225,5 +234,12 @@ for role in a b; do
     first_identity="$(grep -F 'DUAL_IDENTITY role=' "$RUN_DIR/$role.log" | head -1 || true)"
     [[ "$first_identity" == *"$expected"* ]] || fail "$role 身份或消息前缀验证失败"
 done
+
+if [ -n "$COMPLETION_EVENT" ]; then
+    for role in a b; do
+        expected_complete="$COMPLETION_EVENT role=$role marker=$MARKER"
+        grep -Fq "$expected_complete" "$RUN_DIR/$role.log" || fail "$role 缺少业务完成标记"
+    done
+fi
 
 echo "[patrol-dual] PASS marker=$MARKER results=$RUN_DIR"

@@ -149,7 +149,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`，联系人生命周期使用 `make app.test.patrol.contact`，前后台与离线恢复使用 `make app.test.patrol.offline`。这些入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
 - 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
-- 群聊 Patrol 还覆盖群主通过 UI 任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。
+- 群聊 Patrol 还覆盖发送方打开群消息已读详情并核对已读/未读成员，以及群主任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。群目标要求双方 `DUAL_GROUP_COMPLETE` 业务完成标记，避免 XCTest 成功后收尾卡住造成假失败。
 - 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
 - `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导；它不会自动修改 Simulator 语言，也不把首次系统弹窗、从设置恢复或真实采集质量记为 PASS。
