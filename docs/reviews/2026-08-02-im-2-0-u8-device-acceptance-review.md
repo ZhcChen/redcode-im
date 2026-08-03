@@ -38,6 +38,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `contact_lifecycle_test.dart`：2026-08-03 在同一组双 iOS Simulator 上可重复通过。A 设置 B 的备注并验证联系人列表优先展示，删除 B 后重新搜索、发送申请，B 接受后双方联系人关系恢复。最终通过 marker 为 `1785759388-7518-29000`，证据保存在本地 `app/build/patrol-dual/1785759388-7518-29000/`。
 - `group_chat_test.dart` 已读详情与角色一致性扩展：2026-08-03 的 marker `1785761553-93924-11879` 中，A 打开自己发送消息的已读详情并看到 B、`已读 1 / 未读 0`；A 任命 B 后，B 停留在群设置页实时出现“禁言管理”。A/B 均输出独立 `DUAL_GROUP_COMPLETE`，编排器完整 PASS。
 - `group_mute_test.dart`：2026-08-03 的 marker `1785767143-32104-25273` 中，A 通过真实 UI 禁言/解禁 B，并开启/关闭全体禁言；B 实时出现“你已被管理员禁言”和“当前群聊已开启全体禁言”，两次恢复后分别发送确认消息。A/B 均输出 `DUAL_GROUP_MUTE_COMPLETE`，两端各 1 项成功、0 失败；API 同时记录两次 `POST /rooms/{room_id}/mutes/global` 返回 200。
+- `group_member_removal_test.dart`：2026-08-03 的 marker `1785769167-867-8278` 中，A 通过真实群设置 UI 移除 B 并看到成功提示；B 停留在群聊详情时收到 WebSocket 成员变更，实时退页并看到“你已被移出群聊”。A/B 均输出 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`，编排器完整 PASS。
 - API 运行时证据：两个账号分别完成 protobuf WebSocket 认证并订阅房间 `019fc568-5800-7783-877c-448008bc95ed`；两次 `POST /rooms/{room_id}/messages` 均记录“1 个订阅者”，证明消息经在线 WebSocket 链路送达对端，而非仅靠历史消息刷新。
 - `make app.test.patrol.dual` 连续两轮通过：marker 分别为 `1785745629-39354-344`、`1785745896-54948-13521`。两轮 A/B 日志的首条 `DUAL_IDENTITY` 均与各自角色、账号、marker 和 `dual-a-`/`dual-b-` 消息前缀一致，证明没有复用上一轮或对端的编译参数。
 - 两轮日志和 `xcresult` 分别归档到 `app/build/patrol-dual/<marker>/`。该目录是本地验收证据，不纳入 Git。
@@ -106,7 +107,7 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
 - 真实网络断开/恢复；双 iOS 主动断连后的前后台 WebSocket 重连、当前聊天和离线文本消息恢复已通过，附件失败与缓存恢复状态机已由单测覆盖。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 聊天附件选择器、真实上传/下载、成员移除和设置的完整可视化设备巡检；个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
+- 聊天附件选择器、真实上传/下载和设置的完整可视化设备巡检；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
 - 双账号登录、好友私聊双向已读、群聊已读/未读成员详情、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件
