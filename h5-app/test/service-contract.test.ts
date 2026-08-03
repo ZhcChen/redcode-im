@@ -247,6 +247,18 @@ describe('h5 app service contracts', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/users/me', expect.objectContaining({ method: 'DELETE' }));
   });
 
+  it('checks the latest platform version using the H5 build version', async () => {
+    const fetchMock = vi.fn(async () => mockJson({
+      has_update: true,
+      current_version: '0.1.0',
+      version: { version: '2.0.0', release_notes: '稳定性更新', mandatory: false, app_store_url: 'https://store.invalid/app' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const status = await settingsService.fetchVersionStatus('ios');
+    expect(status).toMatchObject({ platform: 'ios', currentVersion: '0.1.0', latestVersion: '2.0.0', hasUpdate: true });
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/versions/latest?platform=ios&channel=stable&current_version=0.1.0', expect.any(Object));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

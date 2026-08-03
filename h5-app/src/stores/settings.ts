@@ -1,12 +1,13 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
+import { appVersion } from '@/config/version';
 import { authService } from '@/services/auth-service';
 import { avatarCacheService } from '@/services/avatar-cache';
 import { avatarUploadService, validateAvatarFile } from '@/services/avatar-upload-service';
 import { settingsService } from '@/services/settings-service';
 import type { AuthUser } from '@/types/auth';
-import type { DocumentContent, GeneralSettings } from '@/types/settings';
+import type { DocumentContent, GeneralSettings, VersionStatus } from '@/types/settings';
 
 import { useAuthStore } from './auth';
 import { useContactsStore } from './contacts';
@@ -17,6 +18,7 @@ export const useSettingsStore = defineStore('settings', {
     general: null as GeneralSettings | null,
     privacyPolicy: null as DocumentContent | null,
     userAgreement: null as DocumentContent | null,
+    versionStatus: null as VersionStatus | null,
     nicknameDraft: '',
     oldPassword: '',
     newPassword: '',
@@ -200,6 +202,20 @@ export const useSettingsStore = defineStore('settings', {
         throw error;
       } finally {
         this.submitting = false;
+      }
+    },
+
+    async checkVersion() {
+      this.loading = true;
+      this.error = '';
+      try {
+        this.versionStatus = appEnv.useMockData
+          ? { currentVersion: appVersion, platform: 'macos', hasUpdate: false, latestVersion: null, releaseNotes: null, mandatory: false, storeUrl: null }
+          : await settingsService.fetchVersionStatus();
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : '版本检查失败';
+      } finally {
+        this.loading = false;
       }
     },
 

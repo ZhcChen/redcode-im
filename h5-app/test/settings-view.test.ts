@@ -13,6 +13,7 @@ import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
 import { chatSettingsService } from '@/services/chat-settings-service';
 import { accountDataService } from '@/services/account-data-service';
 import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
+import VersionStatusView from '@/views/settings/VersionStatusView.vue';
 
 const routeName = vi.hoisted(() => ({ value: 'privacy-policy' }));
 
@@ -114,5 +115,14 @@ describe('settings views', () => {
     await flushPromises();
     expect(clear).toHaveBeenCalledOnce();
     expect(useAuthStore().isAuthenticated).toBe(false);
+  });
+
+  it('renders build and platform version status with Web degradation', async () => {
+    const wrapper = mount(VersionStatusView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('当前 H5 版本');
+    expect(wrapper.text()).toContain('0.1.0');
+    expect(wrapper.text()).toContain('暂无该平台发布记录');
+    expect(wrapper.text()).toContain('不在浏览器内下载或安装原生应用');
   });
 });

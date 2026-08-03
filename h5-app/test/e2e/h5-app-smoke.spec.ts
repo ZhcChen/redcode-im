@@ -666,6 +666,12 @@ test.describe('h5-app browser smoke', () => {
     await expect(page.getByText('聊天背景已更新')).toBeVisible();
     await page.reload();
     await expect(page.locator('.background-option--mint')).toHaveClass(/active/);
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: /关于 RedCode IM/ }).click();
+    await page.getByRole('button', { name: /版本状态/ }).click();
+    await expect(page).toHaveURL(/\/settings\/version$/);
+    await expect(page.getByText('当前 H5 版本')).toBeVisible();
+    await expect(page.getByText('不在浏览器内下载或安装原生应用')).toBeVisible();
   });
 
   test('deactivates an account and clears its session', async ({ page, request }) => {

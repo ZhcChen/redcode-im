@@ -1,5 +1,6 @@
 import { requestJson } from '@/api/http';
-import type { DocumentContent, GeneralSettings, MessageRuntimeSettings } from '@/types/settings';
+import { appVersion } from '@/config/version';
+import type { DocumentContent, GeneralSettings, MessageRuntimeSettings, ReleasePlatform, VersionStatus } from '@/types/settings';
 
 import { requireToken } from './session';
 
@@ -35,6 +36,33 @@ export const settingsService = {
     }, requireToken());
     return String(response.message ?? '反馈提交成功');
   },
+
+  async fetchVersionStatus(platform = detectReleasePlatform()): Promise<VersionStatus> {
+    const response = await requestJson<Record<string, unknown>>(
+      `/versions/latest?platform=${platform}&channel=stable&current_version=${encodeURIComponent(appVersion)}`,
+    );
+    const version = response.version && typeof response.version === 'object'
+      ? response.version as Record<string, unknown>
+      : null;
+    return {
+      currentVersion: String(response.current_version ?? appVersion),
+      platform,
+      hasUpdate: Boolean(response.has_update) && Boolean(version),
+      latestVersion: version?.version == null ? null : String(version.version),
+      releaseNotes: version?.release_notes == null ? null : String(version.release_notes),
+      mandatory: Boolean(version?.mandatory),
+      storeUrl: version?.app_store_url == null ? null : String(version.app_store_url),
+    };
+  },
+};
+
+export const detectReleasePlatform = (): ReleasePlatform => {
+  const agent = navigator.userAgent.toLowerCase();
+  if (/iphone|ipad|ipod/.test(agent)) return 'ios';
+  if (agent.includes('android')) return 'android';
+  if (agent.includes('windows')) return 'windows';
+  if (agent.includes('mac')) return 'macos';
+  return 'linux';
 };
 
 const mapRuntime = (value: unknown): MessageRuntimeSettings => {

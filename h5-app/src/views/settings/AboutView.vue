@@ -3,6 +3,7 @@ import { onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 import { useSettingsStore } from '@/stores/settings';
+import { appVersion } from '@/config/version';
 
 const router = useRouter();
 const store = useSettingsStore();
@@ -30,12 +31,16 @@ onMounted(() => {
       <section class="settings-card about-hero">
         <div class="about-logo">R</div>
         <h2>{{ store.general?.appName || 'RedCode IM' }}</h2>
-        <p>H5 App · Version 0.1.0</p>
+        <p>H5 App · Version {{ appVersion }}</p>
       </section>
 
       <section class="settings-card">
         <button class="about-row rc-focus-ring" type="button" @click="router.push({ name: 'feedback' })">
           <span>意见反馈</span>
+          <strong>›</strong>
+        </button>
+        <button class="about-row rc-focus-ring" type="button" @click="router.push({ name: 'settings-version' })">
+          <span>版本状态</span>
           <strong>›</strong>
         </button>
         <button class="about-row rc-focus-ring" type="button">

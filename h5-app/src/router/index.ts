@@ -30,6 +30,7 @@ import MineProfileView from '@/views/settings/MineProfileView.vue';
 import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
 import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
 import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
+import VersionStatusView from '@/views/settings/VersionStatusView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -193,6 +194,12 @@ export const router = createRouter({
       path: '/settings/deactivate',
       name: 'settings-deactivate',
       component: DeactivateAccountView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/version',
+      name: 'settings-version',
+      component: VersionStatusView,
       meta: { requiresAuth: true },
     },
     {
