@@ -85,6 +85,24 @@ class _FakeWebSocketService extends WebSocketService {
   }
 }
 
+class _FakeSendFriendService extends FriendService {
+  _FakeSendFriendService({required this.request});
+
+  final FriendRequestInfo request;
+  String? targetUserId;
+  String? message;
+
+  @override
+  Future<FriendRequestInfo> sendFriendRequest(
+    String targetUserId, {
+    String? message,
+  }) async {
+    this.targetUserId = targetUserId;
+    this.message = message;
+    return request;
+  }
+}
+
 AuthUser _buildUser({
   required String id,
   required String username,
@@ -184,11 +202,53 @@ void main() {
       expect(find.text('向对方简单介绍自己，方便更快通过。'), findsOneWidget);
       expect(find.text('Alice'), findsNWidgets(2));
 
-      final fields = tester
-          .widgetList<TextField>(find.byType(TextField))
-          .toList();
-      final dialogField = fields.last;
-      expect(dialogField.controller?.text, contains('测试自己'));
+      final dialogField = tester.widget<TextFormField>(
+        find.byType(TextFormField),
+      );
+      expect(dialogField.initialValue, contains('测试自己'));
+    });
+
+    testWidgets('确认附言后发送好友申请并更新页面状态', (tester) async {
+      final currentUser = _buildUser(
+        id: 'self-1',
+        username: 'chen',
+        nickname: '测试自己',
+      );
+      final targetUser = _buildUser(
+        id: 'user-1',
+        username: 'alice',
+        nickname: 'Alice',
+      );
+      final service = _FakeSendFriendService(
+        request: _buildRequest(
+          id: 'req-1',
+          requester: currentUser,
+          addressee: targetUser,
+          isIncoming: false,
+          message: '设备联调申请',
+        ),
+      );
+
+      await tester.pumpWidget(
+        _buildHost(
+          AddFriendPage(
+            skipInitialLoad: true,
+            initialCurrentUser: currentUser,
+            initialSearchResults: [targetUser],
+            friendService: service,
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('friend-request-send-alice')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), '设备联调申请');
+      await tester.tap(find.widgetWithText(ElevatedButton, '发送'));
+      await tester.pumpAndSettle();
+
+      expect(service.targetUserId, 'user-1');
+      expect(service.message, '设备联调申请');
+      expect(find.text('好友请求已发送'), findsOneWidget);
+      expect(find.text('等待确认'), findsWidgets);
     });
 
     testWidgets('我发出的申请会展示附言和等待确认状态', (tester) async {

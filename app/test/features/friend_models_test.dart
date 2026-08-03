@@ -49,7 +49,10 @@ void main() {
       });
 
       expect(friend.remark, '项目负责人');
+      expect(friend.displayName, '项目负责人');
+      expect(FriendInfo.fromJson(friend.toJson()).remark, '项目负责人');
       expect(friend.copyWith(clearRemark: true).remark, isNull);
+      expect(friend.copyWith(clearRemark: true).displayName, 'bob');
     });
 
     test('resolves incoming counterparty correctly', () {

@@ -14,6 +14,7 @@ trap cleanup EXIT
 mkdir -p "$FIXTURE_DIR/patrol_test" "$FIXTURE_DIR/scripts" "$BIN_DIR"
 touch "$FIXTURE_DIR/patrol_test/dual_device_chat_test.dart"
 touch "$FIXTURE_DIR/patrol_test/group_chat_test.dart"
+touch "$FIXTURE_DIR/patrol_test/contact_lifecycle_test.dart"
 cp "$SCRIPT_DIR/xcode_clang_probe_wrapper.sh" "$FIXTURE_DIR/scripts/"
 
 cat >"$BIN_DIR/xcrun" <<'STUB'
@@ -56,7 +57,7 @@ if [ -n "${STUB_PID_DIR:-}" ]; then
 fi
 mkdir -p build/ios_results_1.xcresult
 [ "${STUB_FAIL_BEFORE_READY_ROLE:-}" != "$role" ] || exit 8
-echo "DUAL_IDENTITY role=$role account=$account marker=$marker prefix=dual-$role- peer=peer"
+echo "DUAL_IDENTITY role=$role account=$account marker=$marker prefix=${DUAL_IDENTITY_PREFIX:-dual}-$role- peer=peer"
 echo "DUAL_READY role=$role account=$account marker=$marker"
 echo "DUAL_TARGET target=$target"
 [ "${STUB_FAIL_ROLE:-}" != "$role" ] || exit 9
@@ -101,8 +102,14 @@ grep -Fq 'DUAL_TARGET target=patrol_test/group_chat_test.dart' "$RESULT_DIR/grou
 grep -Fq 'test_target=patrol_test/group_chat_test.dart' "$RESULT_DIR/group-target/run.env"
 echo 'ok - 支持受控双设备测试目标'
 
+run env DUAL_MARKER=contact-target DUAL_TEST_TARGET=patrol_test/contact_lifecycle_test.dart DUAL_IDENTITY_PREFIX=contact
+grep -Fq 'prefix=contact-a-' "$RESULT_DIR/contact-target/a.log"
+grep -Fq 'identity_prefix=contact' "$RESULT_DIR/contact-target/run.env"
+echo 'ok - 支持场景化身份前缀'
+
 expect_failure '无效测试目标' run env DUAL_TEST_TARGET=../outside.dart
 expect_failure '测试目标不存在' run env DUAL_TEST_TARGET=patrol_test/missing_test.dart
+expect_failure '无效身份前缀' run env DUAL_IDENTITY_PREFIX='../contact'
 echo 'ok - 拒绝越界或缺失测试目标'
 
 expect_failure 'A/B 必须使用两个不同的 Simulator' run env DUAL_DEVICE_B=device-a

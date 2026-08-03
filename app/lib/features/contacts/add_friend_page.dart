@@ -216,7 +216,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
   Future<String?> _showAddFriendDialog(AuthUser user) async {
     final density = context.phoneDensity;
-    final controller = TextEditingController(text: _buildDefaultGreeting(user));
+    var greeting = _buildDefaultGreeting(user);
     final result = await TipDialog.showConfirmWithResult<String>(
       context,
       title: '添加好友',
@@ -276,8 +276,9 @@ class _AddFriendPageState extends State<AddFriendPage> {
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
           SizedBox(height: density.scale(12)),
-          TextField(
-            controller: controller,
+          TextFormField(
+            initialValue: greeting,
+            onChanged: (value) => greeting = value,
             maxLength: 120,
             minLines: 3,
             maxLines: 4,
@@ -310,10 +311,9 @@ class _AddFriendPageState extends State<AddFriendPage> {
       confirmText: '发送',
       cancelText: '取消',
       onConfirm: () async {
-        return controller.text;
+        return greeting;
       },
     );
-    controller.dispose();
     return result;
   }
 
@@ -614,6 +614,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
             ),
             SizedBox(height: density.scale(16)),
             TextField(
+              key: const ValueKey('friend-search-field'),
               controller: _searchController,
               focusNode: _searchFocusNode,
               textInputAction: TextInputAction.search,
@@ -688,6 +689,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
+                key: const ValueKey('friend-search-button'),
                 onPressed: _searching ? null : _performSearch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -876,6 +878,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
+            key: ValueKey('friend-request-send-${user.username}'),
             onPressed: _requestingUserIds.contains(user.id)
                 ? null
                 : () => _sendRequest(user),
@@ -973,6 +976,9 @@ class _AddFriendPageState extends State<AddFriendPage> {
     final density = context.phoneDensity;
     final user = request.counterparty;
     return Container(
+      key: ValueKey(
+        'friend-request-${incoming ? 'incoming' : 'outgoing'}-${user.username}',
+      ),
       margin: EdgeInsets.only(bottom: density.scale(12)),
       padding: EdgeInsets.all(density.scale(16)),
       decoration: BoxDecoration(
@@ -1060,6 +1066,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
           if (incoming) ...[
             SizedBox(height: density.scale(12)),
             _IncomingRequestActions(
+              acceptKey: ValueKey('friend-request-accept-${user.username}'),
               onAccept: () =>
                   _respondRequest(request, FriendRequestAction.accept),
               onDecline: () =>
@@ -1106,12 +1113,14 @@ class _UserAvatar extends StatelessWidget {
 
 class _IncomingRequestActions extends StatelessWidget {
   const _IncomingRequestActions({
+    this.acceptKey,
     required this.onAccept,
     required this.onDecline,
   });
 
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final Key? acceptKey;
 
   @override
   Widget build(BuildContext context) {
@@ -1120,6 +1129,7 @@ class _IncomingRequestActions extends StatelessWidget {
       children: [
         Expanded(
           child: _ActionButton(
+            key: acceptKey,
             label: '同意',
             color: AppColors.primary,
             onPressed: onAccept,
@@ -1140,6 +1150,7 @@ class _IncomingRequestActions extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
+    super.key,
     required this.label,
     required this.color,
     required this.onPressed,

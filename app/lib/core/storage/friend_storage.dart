@@ -96,11 +96,7 @@ class FriendStorage {
       'id': friend.id,
       'user_id': friend.user.id,
       'created_at': friend.createdAt.millisecondsSinceEpoch,
-      'payload': jsonEncode({
-        'id': friend.id,
-        'user': friend.user.toJson(),
-        'created_at': friend.createdAt.toIso8601String(),
-      }),
+      'payload': jsonEncode(friend.toJson()),
     };
   }
 

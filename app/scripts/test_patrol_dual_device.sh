@@ -15,6 +15,7 @@ ACCOUNT_A="${DUAL_ACCOUNT_A:-}"
 ACCOUNT_B="${DUAL_ACCOUNT_B:-}"
 PASSWORD="${DUAL_PASSWORD:-}"
 TEST_TARGET="${DUAL_TEST_TARGET:-patrol_test/dual_device_chat_test.dart}"
+IDENTITY_PREFIX="${DUAL_IDENTITY_PREFIX:-dual}"
 API_BASE_URL="${DUAL_API_BASE_URL:-http://127.0.0.1:8010}"
 WS_URL="${DUAL_WS_URL:-ws://127.0.0.1:8010/ws}"
 PORT_A_TEST="${DUAL_PORT_A_TEST:-19081}"
@@ -185,6 +186,7 @@ require_value DUAL_DEVICE_B "$DEVICE_B"
 require_value DUAL_ACCOUNT_A "$ACCOUNT_A"
 require_value DUAL_ACCOUNT_B "$ACCOUNT_B"
 require_value DUAL_PASSWORD "$PASSWORD"
+[[ "$IDENTITY_PREFIX" =~ ^[a-z0-9-]+$ ]] || fail "无效身份前缀: $IDENTITY_PREFIX"
 [[ "$TEST_TARGET" == patrol_test/*.dart ]] && [[ "$TEST_TARGET" != *..* ]] || fail "无效测试目标: $TEST_TARGET"
 [ -f "$APP_DIR/$TEST_TARGET" ] || fail "测试目标不存在: $TEST_TARGET"
 [ "$DEVICE_A" != "$DEVICE_B" ] || fail "A/B 必须使用两个不同的 Simulator"
@@ -198,7 +200,8 @@ validate_device B "$DEVICE_B"
 
 mkdir -p "$RUN_DIR"
 printf '%s\n' "$MARKER" >"$RUN_DIR/marker.txt"
-printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\n' "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" >"$RUN_DIR/run.env"
+printf 'marker=%s\ndevice_a=%s\ndevice_b=%s\ntest_target=%s\nidentity_prefix=%s\n' \
+    "$MARKER" "$DEVICE_A" "$DEVICE_B" "$TEST_TARGET" "$IDENTITY_PREFIX" >"$RUN_DIR/run.env"
 echo "[patrol-dual] marker=$MARKER results=$RUN_DIR"
 
 copy_workspace a
@@ -218,7 +221,7 @@ PID_B=""
 
 for role in a b; do
     if [ "$role" = a ]; then account="$ACCOUNT_A"; else account="$ACCOUNT_B"; fi
-    expected="DUAL_IDENTITY role=$role account=$account marker=$MARKER prefix=dual-$role-"
+    expected="DUAL_IDENTITY role=$role account=$account marker=$MARKER prefix=$IDENTITY_PREFIX-$role-"
     first_identity="$(grep -F 'DUAL_IDENTITY role=' "$RUN_DIR/$role.log" | head -1 || true)"
     [[ "$first_identity" == *"$expected"* ]] || fail "$role 身份或消息前缀验证失败"
 done

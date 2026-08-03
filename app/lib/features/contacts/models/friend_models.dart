@@ -40,6 +40,13 @@ class FriendInfo {
   final DateTime createdAt;
   final String? remark;
 
+  String get displayName {
+    final normalizedRemark = remark?.trim();
+    return normalizedRemark?.isNotEmpty == true
+        ? normalizedRemark!
+        : user.displayName;
+  }
+
   FriendInfo copyWith({String? remark, bool clearRemark = false}) {
     return FriendInfo(
       id: id,
@@ -48,6 +55,13 @@ class FriendInfo {
       remark: clearRemark ? null : (remark ?? this.remark),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'user': user.toJson(),
+    'created_at': createdAt.toIso8601String(),
+    'friend_remark': remark,
+  };
 
   factory FriendInfo.fromJson(Map<String, dynamic> json) {
     return FriendInfo(

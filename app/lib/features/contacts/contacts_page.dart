@@ -82,6 +82,7 @@ class ContactsPageState extends State<ContactsPage> {
                   id: friend.id,
                   user: friend.user.copyWith(localAvatarPath: cachedPath),
                   createdAt: friend.createdAt,
+                  remark: friend.remark,
                 );
               }
             } catch (e) {
@@ -159,6 +160,7 @@ class ContactsPageState extends State<ContactsPage> {
                   id: friend.id,
                   user: friend.user.copyWith(localAvatarPath: cachedPath),
                   createdAt: friend.createdAt,
+                  remark: friend.remark,
                 );
               }
             } catch (e) {
@@ -267,9 +269,7 @@ class ContactsPageState extends State<ContactsPage> {
     final Map<String, List<ContactEntry>> grouped = {};
     for (final friend in _friends) {
       // 标题显示昵称（如果有备注，备注优先显示）
-      final displayName = friend.user.nickname?.isNotEmpty == true
-          ? friend.user.nickname!
-          : friend.user.username;
+      final displayName = friend.displayName;
       // 副标题显示手机号
       final phoneNumber = friend.user.username;
       final tag = _letterTag(displayName);
@@ -406,6 +406,7 @@ class ContactsPageState extends State<ContactsPage> {
             ),
           ),
           IconButton(
+            key: const ValueKey('contacts-add-button'),
             onPressed: _openAddFriend,
             icon: const Icon(Icons.add_circle_outline),
             color: AppColors.primary,
@@ -491,7 +492,7 @@ class ContactsPageState extends State<ContactsPage> {
     );
   }
 
-  void _handleEntryTap(ContactEntry entry) {
+  Future<void> _handleEntryTap(ContactEntry entry) async {
     if (entry.id == 'new_friends') {
       _openAddFriend(showRequestsFirst: true);
       return;
@@ -518,9 +519,10 @@ class ContactsPageState extends State<ContactsPage> {
 
     final friend = _friendMap[entry.id];
     if (friend != null) {
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => ContactDetailPage(friend: friend)),
       );
+      if (mounted) await _loadContacts(silent: _hasLoadedCache);
     } else {
       _showSnack('未找到联系人详情，请稍后重试');
     }
@@ -639,6 +641,7 @@ class _ContactListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isSpecial = entry.type == ContactEntryType.special;
     return InkWell(
+      key: ValueKey('contact-entry-${entry.id}'),
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

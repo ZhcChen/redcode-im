@@ -108,6 +108,7 @@ class FriendStore with ChangeNotifier {
       id: existing.id,
       user: updated,
       createdAt: existing.createdAt,
+      remark: existing.remark,
     );
     notifyListeners();
   }
