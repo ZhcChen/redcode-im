@@ -29,6 +29,7 @@ import FeedbackView from '@/views/settings/FeedbackView.vue';
 import MineProfileView from '@/views/settings/MineProfileView.vue';
 import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
 import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
+import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -186,6 +187,12 @@ export const router = createRouter({
       path: '/settings/chat',
       name: 'chat-settings',
       component: ChatSettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/deactivate',
+      name: 'settings-deactivate',
+      component: DeactivateAccountView,
       meta: { requiresAuth: true },
     },
     {

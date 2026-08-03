@@ -240,6 +240,13 @@ describe('h5 app service contracts', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/rooms/r1/operation-logs?limit=20&offset=40', expect.any(Object));
   });
 
+  it('deactivates the authenticated account', async () => {
+    const fetchMock = vi.fn(async () => mockJson({ success: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    await authService.deactivateAccount();
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/users/me', expect.objectContaining({ method: 'DELETE' }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

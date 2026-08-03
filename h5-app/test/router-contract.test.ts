@@ -43,5 +43,6 @@ describe('h5 router contract', () => {
     expect(routes.get('mine-profile')?.path).toBe('/mine/profile');
     expect(routes.get('settings')?.path).toBe('/settings');
     expect(routes.get('chat-settings')?.path).toBe('/settings/chat');
+    expect(routes.get('settings-deactivate')?.path).toBe('/settings/deactivate');
   });
 });

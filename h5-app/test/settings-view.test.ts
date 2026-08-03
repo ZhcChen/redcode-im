@@ -11,6 +11,8 @@ import MineProfileView from '@/views/settings/MineProfileView.vue';
 import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
 import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
 import { chatSettingsService } from '@/services/chat-settings-service';
+import { accountDataService } from '@/services/account-data-service';
+import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
 
 const routeName = vi.hoisted(() => ({ value: 'privacy-policy' }));
 
@@ -22,6 +24,7 @@ vi.mock('vue-router', () => ({
   }),
   useRouter: () => ({
     push: vi.fn(),
+    replace: vi.fn(),
   }),
 }));
 
@@ -96,5 +99,20 @@ describe('settings views', () => {
     await flushPromises();
     expect(clear).toHaveBeenCalledOnce();
     expect(wrapper.text()).toContain('本地缓存已清理');
+  });
+
+  it('requires acknowledgement and keyword before deactivating the account', async () => {
+    const clear = vi.spyOn(accountDataService, 'clearAll').mockResolvedValue();
+    const wrapper = mount(DeactivateAccountView);
+    expect(wrapper.get('button.settings-danger').attributes('disabled')).toBeDefined();
+    await wrapper.get('input[type="checkbox"]').setValue(true);
+    await wrapper.get('button.settings-danger').trigger('click');
+    const confirm = wrapper.findAll('button').find((button) => button.text() === '确认注销');
+    expect(confirm?.attributes('disabled')).toBeDefined();
+    await wrapper.get('input[placeholder="注销"]').setValue('注销');
+    await confirm?.trigger('click');
+    await flushPromises();
+    expect(clear).toHaveBeenCalledOnce();
+    expect(useAuthStore().isAuthenticated).toBe(false);
   });
 });

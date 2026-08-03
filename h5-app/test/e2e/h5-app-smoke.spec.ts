@@ -667,4 +667,22 @@ test.describe('h5-app browser smoke', () => {
     await page.reload();
     await expect(page.locator('.background-option--mint')).toHaveClass(/active/);
   });
+
+  test('deactivates an account and clears its session', async ({ page, request }) => {
+    const username = uniqueAccount('h5e2ed');
+    const password = `H5pass-${username}`;
+    await registerThroughUi(page, username, password);
+    await page.getByRole('button', { name: /我的/ }).click();
+    await page.getByRole('button', { name: /设置/ }).click();
+    await page.getByRole('button', { name: /账号与安全/ }).click();
+    await page.getByRole('button', { name: '注销账号' }).click();
+    await page.getByText('我已了解注销影响且数据无法恢复').click();
+    await page.getByRole('button', { name: '注销账号' }).click();
+    await page.getByPlaceholder('注销').fill('注销');
+    await page.getByRole('button', { name: '确认注销' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+
+    const loginResponse = await request.post(`${apiBaseURL}/auth/login`, { data: { username, password } });
+    expect(loginResponse.ok()).toBe(false);
+  });
 });

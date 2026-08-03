@@ -8,7 +8,7 @@ const router = useRouter();
 const store = useSettingsStore();
 
 const goBack = async () => {
-  await router.push({ name: 'home' });
+  await router.push({ name: 'settings' });
 };
 
 onMounted(() => {
@@ -47,10 +47,14 @@ onMounted(() => {
           修改密码
         </button>
       </form>
+      <section class="settings-card">
+        <button class="settings-danger rc-focus-ring" type="button" @click="router.push({ name: 'settings-deactivate' })">注销账号</button>
+      </section>
     </section>
   </main>
 </template>
 
 <style scoped>
 @import './settings-page.css';
+.settings-danger { min-height: 42px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--rc-danger); font-weight: 700; }
 </style>
