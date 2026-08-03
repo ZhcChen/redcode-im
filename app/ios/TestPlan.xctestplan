@@ -10,6 +10,23 @@
   ],
   "defaultOptions" : {
     "codeCoverage" : false,
+    "environmentVariableEntries" : [
+      {
+        "enabled" : true,
+        "key" : "REDCODE_TEST_ACCOUNT",
+        "value" : "$(REDCODE_TEST_ACCOUNT)"
+      },
+      {
+        "enabled" : true,
+        "key" : "REDCODE_TEST_PASSWORD",
+        "value" : "$(REDCODE_TEST_PASSWORD)"
+      },
+      {
+        "enabled" : true,
+        "key" : "REDCODE_TEST_PEER_ACCOUNT",
+        "value" : "$(REDCODE_TEST_PEER_ACCOUNT)"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Runner.xcodeproj",
       "identifier" : "97C146ED1CF9000F007C117D",

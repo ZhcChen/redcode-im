@@ -1205,18 +1205,22 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
           ),
           child: Row(
             children: [
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: _handleBackNavigation,
-                  child: const SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 20,
-                      color: AppColors.textPrimary,
+              Semantics(
+                button: true,
+                label: '返回',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: _handleBackNavigation,
+                    child: const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 20,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ),
                 ),

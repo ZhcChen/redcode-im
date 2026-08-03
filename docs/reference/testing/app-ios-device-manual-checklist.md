@@ -10,9 +10,9 @@
 
 | 场景 | 操作 | 通过标准 | 状态 | 证据 |
 | --- | --- | --- | --- | --- |
-| 真实系统软键盘 | 真实登录后进入 A/B 私聊，手指点击 composer | iOS 软键盘可见，不能使用 Patrol `enterText()` 代替 | SKIPPED | Patrol CLI 4.3 / package 4.5 的 XCTest native tree 不暴露 Flutter `TextField`；2026-08-04 归一化 native `tapAt` 已执行成功，但 `viewInsets.bottom` 仍为 0，失败证据 `app/build/ios_results_1785782185121.xcresult` |
-| 键盘遮挡 | 输入至少三行长文本 | composer、发送按钮和当前输入行完整位于键盘上方 | PENDING | 待人工截图，建议保存到 `docs/reviews/evidence/` 的本地验收目录，不提交账号信息 |
-| 返回优先级 | 键盘打开时点击聊天页返回键，再次点击 | 第一次只收键盘并保留聊天页，第二次退出聊天页 | PENDING | 自动化已证明“焦点优先返回”，仍需真实软键盘人工复核 |
+| 真实系统软键盘 | 真实登录后进入 A/B 私聊，点击 composer | iOS 软键盘可见，不能使用 Patrol `enterText()` 代替 | PASS | 独立原生 XCTest 通过普通 App 的 accessibility tree 点击 Flutter `TextField`，断言真实 `XCUIElementTypeKeyboard` 出现；`app/build/ios-device-acceptance-*.xcresult` |
+| 键盘遮挡 | 输入至少三行长文本 | composer、发送按钮和当前输入行完整位于键盘上方 | PASS | 原生 XCTest 输入三行文本，断言 composer 与“发送”语义按钮底边均不越过键盘上缘，且发送按钮保持在屏幕横向边界内 |
+| 返回优先级 | 键盘打开时点击聊天页返回键，再次点击 | 第一次只收键盘并保留聊天页，第二次退出聊天页 | PASS | 原生 XCTest 第一次点击“返回”后等待键盘消失并断言 composer 仍存在，第二次点击后等待 composer 消失 |
 | 顶部/底部安全区 | 分别检查登录页、四 Tab、聊天页和长设置页 | 状态栏不遮挡标题，Home Indicator 不遮挡底栏或最后一项 | PASS | `device_layout_test.dart` 在真实 iPhone 17 Pro Simulator padding 下验证登录标题、底部 Tab 标签、聊天 header/composer 与设置页末项几何边界，`app/build/ios_results_1785781793361.xcresult` |
 | 横屏策略 | 聊天页旋转到横屏并恢复竖屏 | 页面不溢出，`.h/.sp` 不异常放大，恢复后状态保留 | PASS | `device_layout_test.dart` 通过真实 iOS platform channel 驱动 Simulator 横屏并恢复竖屏，断言宽高方向、安全区、标题、composer、发送按钮与输入草稿；`app/build/ios_results_1785783462845.xcresult` |
 | 大字号与长文本 | 系统文字调至最大，再巡检四 Tab、聊天和设置页 | 文案不重叠、不截断关键命令，列表可滚动至最后一项 | PASS | Simulator `content_size=accessibility-extra-extra-extra-large`；首次设备截图发现登录页横向溢出 182px，修复欢迎文案换行和登录类型区域自适应高度后复验无 overflow；最高字号下 41 个 P0 导航/滚动检查通过，`app/build/ios_results_1785780497220.xcresult` |
@@ -40,11 +40,11 @@
 
 ## Patrol 兼容性结论
 
-`device_layout_test.dart` 保留真实账号登录、长 composer、设备尺寸和焦点优先返回回归，但不声称覆盖真实系统软键盘。重新评估 Patrol/Xcode 组合时，只有以下链路全部可重复通过，才能把软键盘场景改为自动化 PASS：
+`device_layout_test.dart` 保留真实账号登录、长 composer、设备尺寸和焦点优先返回回归，但不声称覆盖真实系统软键盘。真实键盘证据由 `RunnerUITests.m` 中独立的 `RedCodeDeviceAcceptanceTests` 提供，其链路为：
 
 1. 原生点击 Flutter composer，而不是 `PatrolTester.enterText()`。
 2. iOS native UI tree 能查询到 `IOSElementType.keyboard`。
-3. `MediaQuery.viewInsets.bottom > 0`，且发送按钮位于键盘上方。
+3. XCTest 比较 composer、发送按钮与系统键盘的实际 frame，确认控件位于键盘上方。
 4. 首次系统返回只收键盘，第二次才退出聊天页。
 
 权限弹窗同样存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言，XCTest 原生树也无法稳定枚举权限 alert。2026-08-04 已分别复核中文文本 selector、按钮类型 selector，以及 `isPermissionDialogVisible()` / `denyPermission()` helper；前两者无法命中 alert，helper 明确返回 `Language 'zh' is not supported`。因此 `permission_flow_test.dart` 只证明宿主设置的真实永久拒绝状态与 App 降级 UI，不替代首次弹窗和设置恢复人工步骤。

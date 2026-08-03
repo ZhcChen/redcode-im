@@ -439,31 +439,35 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
     final buttonSize = density.scale(36);
     final buttonRadius = density.scale(18);
     final loadingSize = density.scale(20);
-    return Material(
-      key: const ValueKey('chat-input-send-button'),
-      color: AppColors.primary,
-      borderRadius: BorderRadius.circular(buttonRadius),
-      child: InkWell(
+    return Semantics(
+      button: true,
+      label: '发送',
+      child: Material(
+        key: const ValueKey('chat-input-send-button'),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(buttonRadius),
-        onTap: isSending ? null : widget.onSendMessage,
-        child: Container(
-          width: buttonSize,
-          height: buttonSize,
-          alignment: Alignment.center,
-          child: isSending
-              ? SizedBox(
-                  width: loadingSize,
-                  height: loadingSize,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(buttonRadius),
+          onTap: isSending ? null : widget.onSendMessage,
+          child: Container(
+            width: buttonSize,
+            height: buttonSize,
+            alignment: Alignment.center,
+            child: isSending
+                ? SizedBox(
+                    width: loadingSize,
+                    height: loadingSize,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Icon(
+                    Icons.send_rounded,
+                    size: density.scale(20),
+                    color: Colors.white,
                   ),
-                )
-              : Icon(
-                  Icons.send_rounded,
-                  size: density.scale(20),
-                  color: Colors.white,
-                ),
+          ),
         ),
       ),
     );

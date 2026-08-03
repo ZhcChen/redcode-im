@@ -93,6 +93,10 @@ PATROL_LAYOUT_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_LAYOUT_ACCOUNT ?=
 PATROL_LAYOUT_PEER_ACCOUNT ?=
 PATROL_LAYOUT_PASSWORD ?=
+APP_IOS_ACCEPTANCE_DEVICE ?=
+APP_IOS_ACCEPTANCE_ACCOUNT ?=
+APP_IOS_ACCEPTANCE_PEER_ACCOUNT ?=
+APP_IOS_ACCEPTANCE_PASSWORD ?=
 PATROL_PERMISSION_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_PERMISSION_ACCOUNT ?=
 PATROL_PERMISSION_PEER_ACCOUNT ?=
@@ -171,7 +175,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.cross app.test.patrol.cross-offline app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.ios-device-acceptance app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.cross app.test.patrol.cross-offline app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -781,6 +785,12 @@ app.test.patrol.pages: ## 执行真实账号 P0 页面导航与滚动巡检（�
 app.test.patrol.layout: ## 执行真实账号聊天布局与焦点返回回归（必须传账号、对端账号和密码）
 	@$(call require_cmd,$(PATROL))
 	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/device_layout_test.dart -d "$(PATROL_LAYOUT_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define LAYOUT_ACCOUNT="$(PATROL_LAYOUT_ACCOUNT)" --dart-define LAYOUT_PEER_ACCOUNT="$(PATROL_LAYOUT_PEER_ACCOUNT)" --dart-define LAYOUT_PASSWORD="$(PATROL_LAYOUT_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
+
+app.test.ios-device-acceptance: ## 执行 iOS Simulator 真实软键盘、遮挡与返回优先级验收
+	@test -n "$(APP_IOS_ACCEPTANCE_DEVICE)" -a -n "$(APP_IOS_ACCEPTANCE_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PASSWORD)" || (echo "缺少 APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
+	@xcrun simctl bootstatus "$(APP_IOS_ACCEPTANCE_DEVICE)" -b
+	@xcrun simctl uninstall "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
+	@cd "$(APP_DIR)/ios" && result="../build/ios-device-acceptance-$$(date +%s).xcresult" && dart_defines="$$(printf '%s' 'API_BASE_URL=http://127.0.0.1:8010' | base64),$$(printf '%s' 'WS_URL=ws://127.0.0.1:8010/ws' | base64)" && REDCODE_TEST_ACCOUNT="$(APP_IOS_ACCEPTANCE_ACCOUNT)" REDCODE_TEST_PEER_ACCOUNT="$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" REDCODE_TEST_PASSWORD="$(APP_IOS_ACCEPTANCE_PASSWORD)" xcodebuild test -quiet -workspace Runner.xcworkspace -scheme Runner -testPlan TestPlan -destination "platform=iOS Simulator,id=$(APP_IOS_ACCEPTANCE_DEVICE)" -only-testing:RunnerUITests/RedCodeDeviceAcceptanceTests/testSystemKeyboardLayoutAndBackPriority -resultBundlePath "$$result" DART_DEFINES="$$dart_defines" 'GCC_PREPROCESSOR_DEFINITIONS=$$(inherited) CLEAR_PERMISSIONS=0 FULL_ISOLATION=0' && echo "iOS 设备验收证据: $(APP_DIR)/$${result#../}"
 
 app.test.patrol.permission: ## 执行 iOS 相册与麦克风永久拒绝降级验收（必须传 Simulator UUID、账号和密码）
 	@$(call require_cmd,$(PATROL))
