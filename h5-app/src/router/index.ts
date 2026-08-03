@@ -5,6 +5,8 @@ import HomeView from '@/views/HomeView.vue';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
 import MessageSearchView from '@/views/MessageSearchView.vue';
+import MessageReadersView from '@/views/MessageReadersView.vue';
+import MessageForwardView from '@/views/MessageForwardView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -41,6 +43,18 @@ export const router = createRouter({
       path: '/messages/search',
       name: 'message-search',
       component: MessageSearchView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/chats/:roomId/messages/:messageId/reads',
+      name: 'message-reads',
+      component: MessageReadersView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/chats/:roomId/messages/:messageId/forward',
+      name: 'message-forward',
+      component: MessageForwardView,
       meta: { requiresAuth: true },
     },
     {

@@ -5,6 +5,7 @@ import type {
   ChatSummary,
   ChatType,
   MessageAttachment,
+  MessageReader,
   OutgoingMessagePart,
   MessageSearchResponse,
   MessageSearchResult,
@@ -80,12 +81,25 @@ export const messageService = {
     await requestJson(`/rooms/${roomId}/messages/${messageId}/pin`, { method: pinned ? 'POST' : 'DELETE' }, requireToken());
   },
 
-  async fetchMessageReaders(roomId: string, messageId: string): Promise<Record<string, unknown>[]> {
-    return requestJson<Record<string, unknown>[]>(
+  async fetchMessageReaders(roomId: string, messageId: string): Promise<MessageReader[]> {
+    const response = await requestJson<Record<string, unknown>[]>(
       `/rooms/${roomId}/messages/${messageId}/reads`,
       {},
       requireToken(),
     );
+    return response.map(mapMessageReader);
+  },
+
+  async forwardMessage(targetRoomId: string, originalMessageId: string): Promise<ChatMessage> {
+    const response = await requestJson<{ message?: Record<string, unknown> } & Record<string, unknown>>(
+      `/rooms/${targetRoomId}/messages/forward`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ original_message_id: originalMessageId }),
+      },
+      requireToken(),
+    );
+    return mapMessage(response.message ?? response, targetRoomId);
   },
 
   async markMessagesAsRead(roomId: string, messageId: string): Promise<void> {
@@ -208,6 +222,14 @@ const mapQuotedMessage = (value: unknown): ChatMessageQuote | null => {
     isDeleted: Boolean(row.is_deleted ?? false),
   };
 };
+
+const mapMessageReader = (row: Record<string, unknown>): MessageReader => ({
+  userId: String(row.user_id ?? ''),
+  username: String(row.username ?? ''),
+  nickname: row.nickname == null ? null : String(row.nickname),
+  avatarUrl: row.avatar_url == null ? null : String(row.avatar_url),
+  readAt: parseTimestamp(row.read_at),
+});
 
 const mapSearchResult = (row: Record<string, unknown>): MessageSearchResult => ({
   id: String(row.id ?? ''),

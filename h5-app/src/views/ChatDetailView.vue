@@ -77,6 +77,20 @@ const togglePin = async (message: ChatMessage) => {
   await detailStore.setMessagePinned(message.id, !message.isPinned);
 };
 
+const openReadDetails = async (message: ChatMessage) => {
+  await router.push({
+    name: 'message-reads',
+    params: { roomId: roomId.value, messageId: message.id },
+  });
+};
+
+const openForward = async (message: ChatMessage) => {
+  await router.push({
+    name: 'message-forward',
+    params: { roomId: roomId.value, messageId: message.id },
+  });
+};
+
 onMounted(async () => {
   await chatStore.initialize();
   const chat = resolveRouteChat();
@@ -180,6 +194,8 @@ const resolveRouteChat = () => {
             <button class="rc-focus-ring" type="button" @click="togglePin(message)">
               {{ message.isPinned ? '取消置顶' : '置顶' }}
             </button>
+            <button class="rc-focus-ring" type="button" @click="openForward(message)">转发</button>
+            <button v-if="isSelf(message) && detailStore.chat?.type === 'group'" class="rc-focus-ring" type="button" @click="openReadDetails(message)">已读详情</button>
             <button
               v-if="isSelf(message)"
               class="message-row__danger rc-focus-ring"

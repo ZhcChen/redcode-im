@@ -102,6 +102,19 @@ describe.skipIf(!enabled)('h5-app ios interop live smoke', () => {
 
     await messageService.markMessagesAsRead(room.id, iosMessage.id);
     await iosMarkMessagesAsRead(iosSession, room.id, h5Message.id);
+
+    const readers = await messageService.fetchMessageReaders(room.id, h5Message.id);
+    expect(readers.some((reader) => reader.userId === iosSession.user.id)).toBe(true);
+
+    const forwardTarget = await roomService.createGroup({
+      name: `ios h5 forward ${Date.now()}`,
+      memberIds: [iosSession.user.id],
+    });
+    const forwarded = await messageService.forwardMessage(forwardTarget.id, h5Message.id);
+    const iosForwardedMessages = await iosLoadMessages(iosSession, forwardTarget.id);
+    expect(forwarded.roomId).toBe(forwardTarget.id);
+    expect(forwarded.content).toBe(h5Text);
+    expect(iosForwardedMessages.some((message) => message.id === forwarded.id && message.content === h5Text)).toBe(true);
   });
 
   it('sends H5 rich media messages that iOS-compatible clients can read', async () => {

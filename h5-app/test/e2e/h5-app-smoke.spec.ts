@@ -76,6 +76,22 @@ const sendTextViaApi = async (request: APIRequestContext, token: string, roomId:
   expect(response.ok()).toBeTruthy();
 };
 
+const loadMessagesViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/messages?limit=50`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Array<Record<string, unknown>>>;
+};
+
+const markReadViaApi = async (request: APIRequestContext, token: string, roomId: string, messageId: string) => {
+  const response = await request.post(`${apiBaseURL}/rooms/${roomId}/messages/read`, {
+    headers: authHeaders(token),
+    data: { message_id: messageId },
+  });
+  expect(response.ok()).toBeTruthy();
+};
+
 const fetchIncomingFriendRequests = async (request: APIRequestContext, token: string) => {
   const response = await request.get(`${apiBaseURL}/friends/requests?direction=incoming&status=pending`, {
     headers: authHeaders(token),
@@ -115,6 +131,13 @@ test.describe('h5-app browser smoke', () => {
     const ownerSession = await registerThroughUi(page, ownerUsername, ownerPassword);
     const roomName = `H5 E2E ${Date.now()}`;
     const roomId = await createGroupViaApi(request, ownerSession.token, roomName, [member.session.user.id]);
+    const forwardRoomName = `H5 Forward ${Date.now()}`;
+    const forwardRoomId = await createGroupViaApi(
+      request,
+      ownerSession.token,
+      forwardRoomName,
+      [member.session.user.id],
+    );
     await sendTextViaApi(request, ownerSession.token, roomId, 'seed from e2e setup');
 
     await page.reload();
@@ -127,6 +150,35 @@ test.describe('h5-app browser smoke', () => {
     await page.getByPlaceholder('输入消息').fill(message);
     await page.getByRole('button', { name: '发送' }).click();
     await expect(page.getByText(message)).toBeVisible();
+
+    let sentMessageId = '';
+    await expect.poll(async () => {
+      const sentRows = await loadMessagesViaApi(request, member.session.token, roomId);
+      sentMessageId = String(sentRows.find((row) => row.content === message)?.id ?? '');
+      return sentMessageId;
+    }, {
+      message: 'wait for the sent message to become visible to the room member',
+      timeout: 10_000,
+    }).not.toBe('');
+    await markReadViaApi(request, member.session.token, roomId, sentMessageId);
+
+    const messageRow = page.locator('.message-row').filter({ hasText: message }).first();
+    await messageRow.getByRole('button', { name: '已读详情' }).click();
+    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}/messages/${sentMessageId}/reads$`));
+    await expect(page.locator('.reader-row').getByRole('heading', { name: member.username })).toBeVisible();
+    await page.getByRole('button', { name: '返回' }).click();
+    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}$`));
+
+    const restoredMessageRow = page.locator('.message-row').filter({ hasText: message }).first();
+    await restoredMessageRow.getByRole('button', { name: '转发' }).click();
+    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}/messages/${sentMessageId}/forward$`));
+    await page.getByRole('button', { name: new RegExp(forwardRoomName) }).click();
+    await page.getByRole('button', { name: '转发给 1 个会话' }).click();
+    await expect(page).toHaveURL(new RegExp(`/chats/${roomId}$`));
+    await expect.poll(async () => {
+      const forwardedRows = await loadMessagesViaApi(request, member.session.token, forwardRoomId);
+      return forwardedRows.some((row) => row.content === message);
+    }, { timeout: 10_000 }).toBe(true);
 
     await page.reload();
     await expect(page.getByText(message)).toBeVisible();

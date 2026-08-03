@@ -14,6 +14,21 @@ export interface MessageAttachment {
   cachedAt?: number;
 }
 
+export interface MessageReader {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+  readAt: number;
+}
+
+export interface MessageReceiptMember {
+  userId: string;
+  username: string;
+  nickname: string | null;
+  avatarUrl: string | null;
+}
+
 export interface ChatMessage {
   id: string;
   roomId: string;
