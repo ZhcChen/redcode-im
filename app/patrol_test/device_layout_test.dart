@@ -4,6 +4,7 @@ import 'package:app/core/widgets/im_tab_bar.dart';
 import 'package:app/features/auth/login_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:patrol/patrol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -46,14 +47,30 @@ void _expectAboveBottomSafeArea(
   );
 }
 
+Future<MediaQueryData> _waitForOrientation(
+  PatrolIntegrationTester $,
+  Orientation orientation,
+) async {
+  for (var attempt = 0; attempt < 30; attempt++) {
+    await $.pump(const Duration(milliseconds: 100));
+    final context = $.tester.element(find.byType(MaterialApp));
+    final mediaQuery = MediaQuery.of(context);
+    if (mediaQuery.orientation == orientation) return mediaQuery;
+  }
+  fail('设备未在 3 秒内切换到 ${orientation.name}');
+}
+
 void main() {
   patrolTest(
-    '系统安全区、聊天 composer 长内容布局与焦点优先返回',
+    '系统安全区、横竖屏恢复、聊天 composer 长内容布局与焦点优先返回',
     config: const PatrolTesterConfig(
       visibleTimeout: Duration(seconds: 60),
       printLogs: true,
     ),
     ($) async {
+      addTearDown(() async {
+        await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+      });
       expect(account, isNotEmpty);
       expect(peerAccount, isNotEmpty);
       expect(password, isNotEmpty);
@@ -108,6 +125,45 @@ void main() {
 
       expect(send, findsOneWidget);
       _expectAboveBottomSafeArea($, send, screenSize, safePadding);
+
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+      ]);
+      final landscape = await _waitForOrientation($, Orientation.landscape);
+      expect(landscape.size.width, greaterThan(landscape.size.height));
+      expect(find.text(peerAccount), findsWidgets);
+      expect(
+        $.tester
+            .widget<EditableText>(find.byType(EditableText))
+            .controller
+            .text,
+        contains('聊天布局验收'),
+      );
+      _expectBelowTopSafeArea(
+        $,
+        find.text(peerAccount).first,
+        landscape.padding,
+      );
+      _expectAboveBottomSafeArea($, send, landscape.size, landscape.padding);
+
+      await SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.portraitUp,
+      ]);
+      final restoredPortrait = await _waitForOrientation(
+        $,
+        Orientation.portrait,
+      );
+      expect(
+        restoredPortrait.size.height,
+        greaterThan(restoredPortrait.size.width),
+      );
+      expect(
+        $.tester
+            .widget<EditableText>(find.byType(EditableText))
+            .controller
+            .text,
+        contains('聊天布局验收'),
+      );
 
       await $.tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
       await $.pump(const Duration(milliseconds: 300));
