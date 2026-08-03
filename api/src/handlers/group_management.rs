@@ -987,6 +987,23 @@ pub async fn mute_user(
         ));
     }
 
+    let muted_user_id = Uuid::parse_str(&request.user_id)
+        .map_err(|_| AppError::ValidationError("Invalid user ID".to_string()))?;
+    if muted_user_id == user_id {
+        return Err(AppError::ValidationError("不能禁言自己".to_string()));
+    }
+
+    let room_store = RoomStore::new(state.database.pool());
+    let target_member = room_store
+        .get_member(room_id, muted_user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User is not a member of this room".to_string()))?;
+    if target_member.role != MemberRole::Member
+        || store.is_group_owner(room_id, muted_user_id).await?
+    {
+        return Err(AppError::Forbidden("不能禁言群主或管理员".to_string()));
+    }
+
     let mute = store.mute_user(room_id, user_id, request).await?;
 
     // 记录操作日志
@@ -1043,6 +1060,17 @@ pub async fn unmute_user(
     if !can_manage {
         return Err(AppError::Forbidden(
             "Only group owner or admin can unmute users".to_string(),
+        ));
+    }
+
+    let room_store = RoomStore::new(state.database.pool());
+    if room_store
+        .get_member(room_id, muted_user_id)
+        .await?
+        .is_none()
+    {
+        return Err(AppError::NotFound(
+            "User is not a member of this room".to_string(),
         ));
     }
 

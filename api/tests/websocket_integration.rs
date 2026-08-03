@@ -647,6 +647,224 @@ async fn group_admin_changes_are_reflected_in_member_roles() {
 }
 
 #[tokio::test]
+async fn group_mute_state_controls_message_sending_by_role() {
+    let app = spawn_test_app().await;
+    let owner = register_and_login(&app, "mute-owner").await;
+    let admin = register_and_login(&app, "mute-admin").await;
+    let member = register_and_login(&app, "mute-member").await;
+    let outsider = register_and_login(&app, "mute-outsider").await;
+    let room_id = create_room(&app, &owner, &[&admin, &member]).await;
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/admins"),
+            &owner.token,
+            &json!({"user_id": admin.id, "role": "admin"}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "appoint admin: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes"),
+            &owner.token,
+            &json!({"user_id": owner.id, "mute_duration_hours": 24}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "不应允许禁言自己: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes"),
+            &owner.token,
+            &json!({"user_id": admin.id, "mute_duration_hours": 24}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "不应允许禁言管理员: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes"),
+            &owner.token,
+            &json!({"user_id": outsider.id, "mute_duration_hours": 24}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "不应允许禁言群外用户: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/mutes/{}", outsider.id),
+            Some(&owner.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "不应允许解禁群外用户: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes"),
+            &owner.token,
+            &json!({
+                "user_id": member.id,
+                "reason": "integration contract",
+                "mute_duration_hours": 24
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "mute member: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let message_body = json!({"content": "mute state contract"}).to_string();
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &member.token,
+            &message_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "被禁言成员不应能发送消息: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .send(
+            "DELETE",
+            &format!("/rooms/{room_id}/mutes/{}", member.id),
+            Some(&owner.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "unmute member: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &member.token,
+            &message_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "解禁后成员应恢复发送: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes/global"),
+            &owner.token,
+            &json!({"enabled": true, "reason": "integration contract"}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "enable global mute: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &member.token,
+            &message_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "全体禁言时普通成员不应能发送: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    for (sender, label) in [(&owner, "群主"), (&admin, "管理员")] {
+        let (status, body) = app
+            .post_json_authed(
+                &format!("/rooms/{room_id}/messages"),
+                &sender.token,
+                &json!({"content": format!("{label} global mute bypass")}).to_string(),
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "全体禁言时{label}应能发送: {}",
+            String::from_utf8_lossy(&body)
+        );
+    }
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/mutes/global"),
+            &owner.token,
+            &json!({"enabled": false}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "disable global mute: {}",
+        String::from_utf8_lossy(&body)
+    );
+
+    let (status, body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages"),
+            &member.token,
+            &message_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "关闭全体禁言后成员应恢复发送: {}",
+        String::from_utf8_lossy(&body)
+    );
+}
+
+#[tokio::test]
 async fn persisted_message_read_list_is_room_scoped() {
     let app = spawn_test_app().await;
     let owner = register_and_login(&app, "read-owner").await;
