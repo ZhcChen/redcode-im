@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_config.dart';
 import '../../core/services/friend_service.dart';
 import '../../core/services/friend_store.dart';
+import '../../core/services/app_lifecycle_recovery.dart';
 import '../../core/services/message_service.dart';
 import '../../core/services/websocket_service.dart';
 import '../../core/widgets/im_state_panel.dart';
@@ -18,14 +19,20 @@ class HomeShellPage extends StatefulWidget {
   State<HomeShellPage> createState() => _HomeShellPageState();
 }
 
-class _HomeShellPageState extends State<HomeShellPage> {
+class _HomeShellPageState extends State<HomeShellPage>
+    with WidgetsBindingObserver {
   final GlobalKey<ContactsPageState> _contactsKey =
       GlobalKey<ContactsPageState>();
   late final List<Widget> _pages;
+  late final AppLifecycleRecovery _lifecycleRecovery;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _lifecycleRecovery = AppLifecycleRecovery(
+      onResume: _restoreSessionAfterResume,
+    );
     _pages = [
       const ChatListPage(),
       ContactsPage(key: _contactsKey),
@@ -33,6 +40,26 @@ class _HomeShellPageState extends State<HomeShellPage> {
       const MinePage(),
     ];
     _initializeSessionServices();
+  }
+
+  Future<void> _restoreSessionAfterResume() async {
+    if (AppConfig.useMockData) return;
+    try {
+      await WebSocketService.instance.reconnectAfterResume();
+    } catch (error) {
+      debugPrint('Failed to restore WebSocket after resume: $error');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleRecovery.handleState(state);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> _initializeSessionServices() async {

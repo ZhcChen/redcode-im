@@ -163,7 +163,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.group app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.group app.test.patrol.offline app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -736,6 +736,9 @@ app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传�
 
 app.test.patrol.group: ## 执行双 iOS Simulator 真实建群与群聊互发（必须传设备 UUID、账号和密码）
 	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_chat_test.dart DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
+
+app.test.patrol.offline: ## 执行双 iOS Simulator 前后台重连与离线消息恢复（必须传设备 UUID、账号和密码）
+	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/offline_recovery_test.dart DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
 
 app.test.patrol.layout: ## 执行真实账号聊天布局与焦点返回回归（必须传账号、对端账号和密码）
 	@$(call require_cmd,$(PATROL))

@@ -139,6 +139,9 @@ class WebSocketService with ChangeNotifier {
   // 重连相关
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+  Future<void>? _resumeReconnect;
+  bool _reconnectEnabled = true;
+  int _explicitDisconnectGeneration = 0;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 5;
   static const Duration _reconnectDelay = Duration(seconds: 3);
@@ -176,17 +179,20 @@ class WebSocketService with ChangeNotifier {
 
   /// 连接WebSocket
   Future<void> connect() async {
-    if (_status == ConnectionStatus.connected ||
+    if (_status == ConnectionStatus.connecting ||
+        _status == ConnectionStatus.connected ||
         _status == ConnectionStatus.authenticated) {
       debugPrint('WebSocket already connected');
       return;
     }
 
+    _reconnectEnabled = true;
     _setStatus(ConnectionStatus.connecting);
 
     try {
       // 获取认证token
       final session = await _tokenStorage.readSession();
+      if (!_reconnectEnabled) return;
       if (session == null || session.token.isEmpty) {
         throw Exception('No authentication token available');
       }
@@ -233,12 +239,17 @@ class WebSocketService with ChangeNotifier {
   Future<void> disconnect() async {
     debugPrint('Disconnecting WebSocket');
 
+    _explicitDisconnectGeneration++;
+    _reconnectEnabled = false;
     _cancelTimers();
-    _messageSubscription?.cancel();
-    _connectivitySubscription?.cancel();
+    await _messageSubscription?.cancel();
+    _messageSubscription = null;
+    await _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
 
-    await _channel?.sink.close(ws_status.normalClosure);
+    final channel = _channel;
     _channel = null;
+    await channel?.sink.close(ws_status.normalClosure);
 
     _subscribedRooms.clear();
     _desiredRooms.clear();
@@ -249,6 +260,43 @@ class WebSocketService with ChangeNotifier {
     _roomManager.clearAll();
 
     _setStatus(ConnectionStatus.disconnected);
+  }
+
+  /// App 从后台恢复时重建传输，保留房间订阅意图供认证后恢复。
+  Future<void> reconnectAfterResume() {
+    final active = _resumeReconnect;
+    if (active != null) return active;
+
+    final reconnect = _reconnectTransportPreservingRooms();
+    _resumeReconnect = reconnect;
+    return reconnect.whenComplete(() {
+      if (identical(_resumeReconnect, reconnect)) {
+        _resumeReconnect = null;
+      }
+    });
+  }
+
+  Future<void> _reconnectTransportPreservingRooms() async {
+    final disconnectGeneration = _explicitDisconnectGeneration;
+    _reconnectEnabled = false;
+    _cancelTimers();
+    await _messageSubscription?.cancel();
+    _messageSubscription = null;
+    await _connectivitySubscription?.cancel();
+    _connectivitySubscription = null;
+
+    final channel = _channel;
+    _channel = null;
+    if (channel != null) {
+      await channel.sink.close(ws_status.normalClosure);
+    }
+
+    _subscribedRooms.clear();
+    _pendingJoinRooms.clear();
+    _connectionId = null;
+    _setStatus(ConnectionStatus.disconnected);
+    if (disconnectGeneration != _explicitDisconnectGeneration) return;
+    await connect();
   }
 
   /// 发送认证消息
@@ -882,7 +930,9 @@ class WebSocketService with ChangeNotifier {
         final roomId = message['room_id']?.toString() ?? '';
         final memberId = message['member_id']?.toString() ?? '';
         final changeType = message['change_type']?.toString() ?? '';
-        if (roomId.isEmpty || memberId.isEmpty || changeType.isEmpty) return null;
+        if (roomId.isEmpty || memberId.isEmpty || changeType.isEmpty) {
+          return null;
+        }
         return _GroupMemberChangedEvent(
           roomId: roomId,
           memberId: memberId,
@@ -1325,12 +1375,15 @@ class WebSocketService with ChangeNotifier {
 
     if (_status != ConnectionStatus.disconnected) {
       _setStatus(ConnectionStatus.disconnected);
-      _scheduleReconnect();
+      if (_reconnectEnabled) {
+        _scheduleReconnect();
+      }
     }
   }
 
   /// 安排重连
   void _scheduleReconnect() {
+    if (!_reconnectEnabled) return;
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       debugPrint('Max reconnect attempts reached');
       return;
