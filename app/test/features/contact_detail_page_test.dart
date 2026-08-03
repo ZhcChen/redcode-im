@@ -6,8 +6,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeFriendService extends FriendService {
+  _FakeFriendService({this.deleteError});
+
   String? updatedRemark;
   String? updatedUserId;
+  String? deletedUserId;
+  final FriendServiceException? deleteError;
+
+  @override
+  Future<void> deleteFriend(String friendUserId) async {
+    deletedUserId = friendUserId;
+    if (deleteError != null) throw deleteError!;
+  }
 
   @override
   Future<String?> updateFriendRemark(
@@ -70,5 +80,81 @@ void main() {
 
     expect(find.text('请输入举报内容'), findsOneWidget);
     expect(find.byKey(const Key('report-content')), findsOneWidget);
+  });
+
+  testWidgets('删除好友确认后调用服务并返回刷新标记', (tester) async {
+    final service = _FakeFriendService();
+    final friend = FriendInfo(
+      id: 'friendship-1',
+      user: const AuthUser(id: 'user-2', username: 'bob', nickname: 'Bob'),
+      createdAt: DateTime(2026, 8, 1),
+    );
+    bool? deleted;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () async {
+                deleted = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute(
+                    builder: (_) => ContactDetailPage(
+                      friend: friend,
+                      friendService: service,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('打开名片'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('打开名片'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('contact-detail-delete')),
+      200,
+    );
+    await tester.tap(find.byKey(const Key('contact-detail-delete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除').last);
+    await tester.pumpAndSettle();
+
+    expect(service.deletedUserId, 'user-2');
+    expect(deleted, isTrue);
+    expect(find.text('打开名片'), findsOneWidget);
+  });
+
+  testWidgets('删除好友失败时保留名片并展示服务错误', (tester) async {
+    final service = _FakeFriendService(
+      deleteError: FriendServiceException('好友关系已变更'),
+    );
+    final friend = FriendInfo(
+      id: 'friendship-1',
+      user: const AuthUser(id: 'user-2', username: 'bob', nickname: 'Bob'),
+      createdAt: DateTime(2026, 8, 1),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ContactDetailPage(friend: friend, friendService: service),
+      ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('contact-detail-delete')),
+      200,
+    );
+    await tester.tap(find.byKey(const Key('contact-detail-delete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除').last);
+    await tester.pumpAndSettle();
+
+    expect(service.deletedUserId, 'user-2');
+    expect(find.text('联系人名片'), findsOneWidget);
+    expect(find.text('好友关系已变更'), findsOneWidget);
   });
 }

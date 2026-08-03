@@ -241,6 +241,7 @@ class _ContactDetailPageState extends State<ContactDetailPage> {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
+              key: const Key('contact-detail-delete'),
               onPressed: _deletingFriend ? null : _handleDeleteFriend,
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.red,
