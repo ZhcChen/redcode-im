@@ -6,6 +6,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/permission_service.dart';
+import '../../core/widgets/permission_gate.dart';
 
 class ChatBackgroundPage extends StatefulWidget {
   const ChatBackgroundPage({super.key});
@@ -100,6 +102,10 @@ class _ChatBackgroundPageState extends State<ChatBackgroundPage> {
   }
 
   Future<void> _selectCustomImage() async {
+    if (!await ensureAppPermission(context, AppPermission.photos)) {
+      return;
+    }
+    if (!mounted) return;
     final picker = ImagePicker();
     XFile? pickedFile;
 

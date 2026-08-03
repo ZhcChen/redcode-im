@@ -7,6 +7,7 @@
 - `harness_smoke_test.dart`：最小 Patrol harness 冒烟，优先用于验证 iOS / Android 原生测试桥是否可用
 - `dual_device_chat_test.dart`：双设备真实账号登录和私聊文本实时互发。只通过 `make app.test.patrol.dual` 编排运行；B 先进入会话等待，A 发送后 B 回复，双方均断言 WebSocket 实时消息可见
 - `device_layout_test.dart`：真实账号进入私聊后的长 composer、发送按钮边界和焦点优先返回回归。Patrol 4.3 无法通过 iOS native tree 定位 Flutter `TextField`，因此该用例不作为真实系统软键盘 PASS 证据
+- `permission_flow_test.dart`：由 `simctl privacy revoke` 建立真实 iOS 永久拒绝状态，验证相册和麦克风业务入口提供“前往设置”降级 UI；不声称覆盖首次系统弹窗或设置恢复
 
 注意：
 - `test_bundle.dart` 由 Patrol CLI 运行时自动生成，已加入 `.gitignore`，不要提交。
@@ -40,4 +41,10 @@ make app.test.patrol.dual \
   PATROL_DUAL_ACCOUNT_A=<account-a> \
   PATROL_DUAL_ACCOUNT_B=<account-b> \
   PATROL_DUAL_PASSWORD=<password>
+
+make app.test.patrol.permission \
+  PATROL_PERMISSION_DEVICE=<simulator-uuid> \
+  PATROL_PERMISSION_ACCOUNT=<account> \
+  PATROL_PERMISSION_PEER_ACCOUNT=<peer-account> \
+  PATROL_PERMISSION_PASSWORD=<password>
 ```

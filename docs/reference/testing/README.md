@@ -112,6 +112,11 @@ make app.test.patrol.layout \
   PATROL_LAYOUT_ACCOUNT=<account> \
   PATROL_LAYOUT_PEER_ACCOUNT=<peer-account> \
   PATROL_LAYOUT_PASSWORD=<password>
+make app.test.patrol.permission \
+  PATROL_PERMISSION_DEVICE=<simulator-uuid> \
+  PATROL_PERMISSION_ACCOUNT=<account> \
+  PATROL_PERMISSION_PEER_ACCOUNT=<peer-account> \
+  PATROL_PERMISSION_PASSWORD=<password>
 make app.test.patrol.dual \
   PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
   PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
@@ -133,6 +138,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
+- `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导；它不会自动修改 Simulator 语言，也不把首次系统弹窗、从设置恢复或真实采集质量记为 PASS。
 - `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 
 ### H5 App 自测

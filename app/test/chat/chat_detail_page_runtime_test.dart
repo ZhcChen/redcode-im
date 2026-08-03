@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
+import 'package:app/core/services/permission_service.dart';
 import 'package:app/core/services/settings_service.dart';
 import 'package:app/core/services/upload_policy_service.dart';
 import 'package:app/core/services/websocket_service.dart';
@@ -128,6 +129,27 @@ class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _DeniedPermissionGateway implements PermissionGateway {
+  int requestCalls = 0;
+  int openSettingsCalls = 0;
+
+  @override
+  Future<AppPermissionStatus> status(AppPermission permission) async =>
+      AppPermissionStatus.permanentlyDenied;
+
+  @override
+  Future<AppPermissionStatus> request(AppPermission permission) async {
+    requestCalls += 1;
+    return AppPermissionStatus.permanentlyDenied;
+  }
+
+  @override
+  Future<bool> openSettings() async {
+    openSettingsCalls += 1;
+    return true;
+  }
 }
 
 Message _message() {
@@ -665,5 +687,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(input, findsNothing);
     expect(find.text('打开聊天'), findsOneWidget);
+  });
+
+  testWidgets('camera action routes permanent denial to app settings', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(websocketService);
+    final permissionGateway = _DeniedPermissionGateway();
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ChatDetailPageV2(
+          roomId: 'room-1',
+          chatName: 'Alice',
+          chatProvider: provider,
+          websocketService: websocketService,
+          permissionService: PermissionService(gateway: permissionGateway),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byKey(const ValueKey('chat-input-more-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('拍摄'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('需要相机权限'), findsOneWidget);
+    expect(permissionGateway.requestCalls, 0);
+    await tester.tap(find.text('前往设置'));
+    await tester.pumpAndSettle();
+    expect(permissionGateway.openSettingsCalls, 1);
   });
 }

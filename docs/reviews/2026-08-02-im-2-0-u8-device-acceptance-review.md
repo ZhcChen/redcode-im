@@ -36,6 +36,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - 两轮日志和 `xcresult` 分别归档到 `app/build/patrol-dual/<marker>/`。该目录是本地验收证据，不纳入 Git。
 - `make app.test.patrol.layout`：2026-08-03 在 iPhone 17 Pro Simulator 上通过，真实账号 A 登录并进入账号 B 私聊，验证长 composer、发送按钮设备边界和焦点优先返回；`xcresult` 为本地 `app/build/ios_results_1785747584703.xcresult`。
 - 横竖屏尺寸自动化发现并修复 `flutter_screenutil` 的手机横屏放大问题：横屏时不再启用会把逻辑高度强制抬到 700 的 `splitScreenMode`，动态旋转测试通过。
+- `make app.test.patrol.permission`：2026-08-03 在 iPhone 17 Pro Simulator 上通过。宿主真实撤销照片和麦克风权限后，聊天相册与录音入口均显示“前往设置”，`xcresult` 为本地 `app/build/ios_results_1785749306738.xcresult`。
+- 权限状态已统一为可测试的 `PermissionService`，覆盖 granted/limited/denied/permanentlyDenied/restricted，并接入聊天附件、语音、资料头像、群头像、聊天背景、举报凭证和本地通知请求。
 
 ## 默认设备复核
 
@@ -68,6 +70,8 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 Patrol 4.3.0 在 iOS Simulator 上读取全局 macOS `log stream`，并发时一份日志可能同时出现另一台 Simulator 的后续结构化日志。因此身份门禁校验每份日志的首条 `DUAL_IDENTITY`，而不是只判断全文是否包含期望值。
 
 R1.1 系统软键盘自动化尝试了 native index、native selector、native 坐标点击和 Flutter tap。当前 Patrol 4.3 XCTest native tree 不暴露 Flutter `TextField`，且无法稳定查询 `IOSElementType.keyboard`；因此软键盘遮挡没有记为 PASS，已按计划转入 `docs/reference/testing/app-ios-device-manual-checklist.md` 并标记 SKIPPED/PENDING。
+
+R1.2 首次权限弹窗自动化也受到 Patrol 边界限制：权限 helper 不支持中文 Simulator，App/SpringBoard 原生树无法稳定枚举该 alert。因此自动化只记录 `simctl privacy revoke` 建立的真实永久拒绝状态和降级 UI；首次拒绝、设置恢复、通知、真实相机/麦克风与 APNs 均保留人工或真机 PENDING/SKIPPED。
 
 对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 

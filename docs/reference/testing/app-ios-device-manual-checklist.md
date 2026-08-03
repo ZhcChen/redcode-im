@@ -4,7 +4,7 @@
 
 ## 2026-08-03 iOS Simulator 布局验收
 
-- 设备：iPhone 17 Pro Simulator，iOS 26.3，`EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`
+- 设备：iPhone 17 Pro Simulator，iOS 26.4，`EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`
 - API：`http://127.0.0.1:8010`
 - 账号：使用 `/tmp/redcode-dual-env` 中的 A/B 测试账号
 
@@ -18,6 +18,18 @@
 | 大字号与长文本 | 系统文字调至最大，再巡检四 Tab、聊天和设置页 | 文案不重叠、不截断关键命令，列表可滚动至最后一项 | PENDING | 组件 2x text scale 自动化已通过，待设备截图 |
 | Reduced Motion | 打开“减弱动态效果”后重复导航和面板操作 | 功能状态不丢失，无依赖动画才能完成的操作 | PENDING | motion token 自动化已通过，待设备操作记录 |
 
+## 2026-08-03 iOS 权限验收
+
+| 场景 | 操作 | 通过标准 | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| 相册永久拒绝 | `simctl privacy revoke photos` 后在私聊点击“相册” | 不启动 picker，显示“需要相册权限”和“前往设置” | PASS | `make app.test.patrol.permission`，`app/build/ios_results_1785749306738.xcresult` |
+| 麦克风永久拒绝 | `simctl privacy revoke microphone` 后长按录音 | 不启动 recorder，显示“需要麦克风权限”和“前往设置” | PASS | 同一 Patrol 运行通过 |
+| 首次相册/麦克风拒绝 | `simctl privacy reset` 后触发业务入口并拒绝系统弹窗 | App 不死锁，返回对应设置引导 | PENDING | Patrol 权限 helper 不支持中文 Simulator，原生树也无法稳定枚举系统 alert；待人工记录 |
+| 从设置恢复权限 | 在设置中重新允许照片/麦克风，再回 App 重试 | 无需重登即可继续 picker/录音流程 | PENDING | `PermissionService` 每次触发重新查询状态，仍待设备人工复核 |
+| 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | Simulator 只验状态和降级；APNs token、前后台通知列入 iPhone 真机验收 |
+| 相机权限 | 在支持相机的设备上拒绝、永久拒绝并恢复 | 拒绝不死锁，永久拒绝有设置入口，恢复后无需重登 | SKIPPED | iOS Simulator 无真实相机能力，转 iPhone 真机验收 |
+| 真实采集质量 | 拍照、录制 1-60 秒语音并发送 | 图片方向/清晰度正常，音频可播放且时长正确 | SKIPPED | 必须 iPhone 真机验证 |
+
 ## Patrol 兼容性结论
 
 `device_layout_test.dart` 保留真实账号登录、长 composer、设备尺寸和焦点优先返回回归，但不声称覆盖真实系统软键盘。重新评估 Patrol/Xcode 组合时，只有以下链路全部可重复通过，才能把软键盘场景改为自动化 PASS：
@@ -26,3 +38,5 @@
 2. iOS native UI tree 能查询到 `IOSElementType.keyboard`。
 3. `MediaQuery.viewInsets.bottom > 0`，且发送按钮位于键盘上方。
 4. 首次系统返回只收键盘，第二次才退出聊天页。
+
+权限弹窗同样存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言，XCTest 原生树也无法稳定枚举权限 alert。因此 `permission_flow_test.dart` 只证明宿主设置的真实永久拒绝状态与 App 降级 UI，不替代首次弹窗和设置恢复人工步骤。

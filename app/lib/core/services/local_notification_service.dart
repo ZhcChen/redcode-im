@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:permission_handler/permission_handler.dart';
 
+import 'permission_service.dart';
 import 'push_navigation.dart';
 
 class LocalNotificationService with WidgetsBindingObserver {
@@ -134,7 +134,7 @@ class LocalNotificationService with WidgetsBindingObserver {
 
   Future<void> _requestNotificationPermission() async {
     try {
-      await Permission.notification.request();
+      await PermissionService.instance.ensure(AppPermission.notification);
     } catch (e) {
       debugPrint('[LocalNotification] 申请通知权限失败：$e');
     }
@@ -175,4 +175,3 @@ class LocalNotificationService with WidgetsBindingObserver {
     }
   }
 }
-

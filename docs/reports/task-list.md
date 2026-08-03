@@ -57,6 +57,7 @@
 - [ ] `IM2-U8` Flutter 移动 P0 设备验收收口
   - 已通过 iOS integration/auth/API contract、Patrol 登录和双 iOS 私聊实时互发。
   - R1.1 自动化已通过长 composer、焦点优先返回和动态横竖屏缩放；真实软键盘与系统可访问性设置仍按人工清单 PENDING。
+  - R1.2 已建立统一权限裁决并通过 iOS 相册/麦克风永久拒绝降级 Patrol；首次弹窗、设置恢复、通知和真机采集仍按清单 PENDING/SKIPPED。
   - 待补系统键盘、安全区、长内容、权限拒绝/恢复、群聊、已读、前后台、离线重连、附件和完整页面巡检。
   - Simulator 无法证明的相机/麦克风质量、APNs 和后台通知只记录真机 SKIPPED/PASS，不伪造结果。
 - [ ] `IM2-U9` H5 P0 parity

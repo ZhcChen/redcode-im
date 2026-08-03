@@ -14,6 +14,7 @@ import '../../core/constants/app_config.dart';
 import '../../core/network/direct_upload.dart';
 import '../../core/services/friend_service.dart';
 import '../../core/services/message_service.dart';
+import '../../core/services/permission_service.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
 import '../../core/storage/avatar_cache.dart';
@@ -22,6 +23,7 @@ import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/bottom_picker.dart';
 import '../../core/widgets/custom_switch.dart';
 import '../../core/widgets/input_dialog.dart';
+import '../../core/widgets/permission_gate.dart';
 import '../../core/widgets/sheet_header.dart';
 import '../../core/widgets/tip_dialog.dart';
 import '../auth/models/auth_user.dart';
@@ -1237,6 +1239,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   Future<void> _selectGroupAvatarFromCamera(BuildContext context) async {
     // BottomPicker 会自动关闭弹窗，不需要手动 pop
     if (_isUploadingAvatar) return;
+    if (!await ensureAppPermission(context, AppPermission.camera)) return;
+    if (!mounted) return;
 
     final picker = ImagePicker();
     XFile? pickedFile;
@@ -1260,6 +1264,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
   Future<void> _selectGroupAvatarFromGallery(BuildContext context) async {
     // BottomPicker 会自动关闭弹窗，不需要手动 pop
     if (_isUploadingAvatar) return;
+    if (!await ensureAppPermission(context, AppPermission.photos)) return;
+    if (!mounted) return;
 
     final picker = ImagePicker();
     XFile? pickedFile;

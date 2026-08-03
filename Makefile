@@ -88,6 +88,10 @@ PATROL_LAYOUT_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_LAYOUT_ACCOUNT ?=
 PATROL_LAYOUT_PEER_ACCOUNT ?=
 PATROL_LAYOUT_PASSWORD ?=
+PATROL_PERMISSION_DEVICE ?= $(PATROL_IOS_DEVICE)
+PATROL_PERMISSION_ACCOUNT ?=
+PATROL_PERMISSION_PEER_ACCOUNT ?=
+PATROL_PERMISSION_PASSWORD ?=
 
 WEBSITE_DIR := $(ROOT_DIR)/website
 WEBSITE_SCREEN := website
@@ -159,7 +163,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.layout app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -733,6 +737,13 @@ app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传�
 app.test.patrol.layout: ## 执行真实账号聊天布局与焦点返回回归（必须传账号、对端账号和密码）
 	@$(call require_cmd,$(PATROL))
 	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/device_layout_test.dart -d "$(PATROL_LAYOUT_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define LAYOUT_ACCOUNT="$(PATROL_LAYOUT_ACCOUNT)" --dart-define LAYOUT_PEER_ACCOUNT="$(PATROL_LAYOUT_PEER_ACCOUNT)" --dart-define LAYOUT_PASSWORD="$(PATROL_LAYOUT_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
+
+app.test.patrol.permission: ## 执行 iOS 相册与麦克风永久拒绝降级验收（必须传 Simulator UUID、账号和密码）
+	@$(call require_cmd,$(PATROL))
+	@test -n "$(PATROL_PERMISSION_DEVICE)" -a -n "$(PATROL_PERMISSION_ACCOUNT)" -a -n "$(PATROL_PERMISSION_PEER_ACCOUNT)" -a -n "$(PATROL_PERMISSION_PASSWORD)" || (echo "缺少 PATROL_PERMISSION_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
+	@xcrun simctl privacy "$(PATROL_PERMISSION_DEVICE)" revoke photos com.chatlyme.app
+	@xcrun simctl privacy "$(PATROL_PERMISSION_DEVICE)" revoke microphone com.chatlyme.app
+	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/permission_flow_test.dart -d "$(PATROL_PERMISSION_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define PERMISSION_ACCOUNT="$(PATROL_PERMISSION_ACCOUNT)" --dart-define PERMISSION_PEER_ACCOUNT="$(PATROL_PERMISSION_PEER_ACCOUNT)" --dart-define PERMISSION_PASSWORD="$(PATROL_PERMISSION_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
 
 app.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))

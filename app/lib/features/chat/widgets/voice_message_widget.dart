@@ -5,6 +5,8 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/voice_service.dart';
+import '../../../core/services/permission_service.dart';
+import '../../../core/widgets/permission_gate.dart';
 
 /// 语音消息播放组件
 class VoiceMessageWidget extends StatefulWidget {
@@ -322,10 +324,12 @@ class VoiceRecordingPanel extends StatefulWidget {
     super.key,
     required this.onRecordingComplete,
     required this.onCancel,
+    this.permissionService,
   });
 
   final void Function(VoiceRecording recording) onRecordingComplete;
   final VoidCallback onCancel;
+  final PermissionService? permissionService;
 
   @override
   State<VoiceRecordingPanel> createState() => _VoiceRecordingPanelState();
@@ -361,6 +365,14 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
   }
 
   Future<void> _startRecording() async {
+    if (!await ensureAppPermission(
+      context,
+      AppPermission.microphone,
+      service: widget.permissionService,
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final success = await _voiceService.startRecording();
     if (success) {
       setState(() {

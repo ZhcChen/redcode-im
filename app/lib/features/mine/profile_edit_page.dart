@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/permission_service.dart';
 import '../../core/theme/design_tokens.dart';
 import '../../core/widgets/im_app_bar.dart';
+import '../../core/widgets/permission_gate.dart';
 import '../auth/data/auth_repository.dart';
 import '../auth/models/auth_user.dart';
 
@@ -51,6 +53,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   }
 
   Future<File?> _pickFromGallery() async {
+    if (!await ensureAppPermission(context, AppPermission.photos)) {
+      return null;
+    }
+    if (!mounted) return null;
     final picked = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       maxWidth: 1024,

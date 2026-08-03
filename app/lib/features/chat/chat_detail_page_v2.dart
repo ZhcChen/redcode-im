@@ -20,6 +20,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/message_service.dart';
+import '../../core/services/permission_service.dart';
 import '../../core/services/emoji_pack_service.dart';
 import '../../core/services/emoji_item_service.dart';
 import '../../core/services/upload_policy_service.dart';
@@ -32,6 +33,7 @@ import '../../core/theme/phone_density.dart';
 import '../../core/utils/local_file_utils.dart';
 import '../../core/utils/avatar_color_utils.dart';
 import '../../core/widgets/tip_dialog.dart';
+import '../../core/widgets/permission_gate.dart';
 import '../../features/emoji/models/emoji_pack_models.dart';
 import 'constants/emoji_list.dart';
 import '../../core/widgets/skeleton.dart';
@@ -68,6 +70,7 @@ class ChatDetailPageV2 extends StatefulWidget {
     this.websocketService,
     this.initialMessageId,
     this.draftStorage,
+    this.permissionService,
   });
 
   final String roomId;
@@ -78,6 +81,7 @@ class ChatDetailPageV2 extends StatefulWidget {
   final WebSocketService? websocketService;
   final String? initialMessageId;
   final ChatDraftStorage? draftStorage;
+  final PermissionService? permissionService;
 
   @override
   State<ChatDetailPageV2> createState() => _ChatDetailPageV2State();
@@ -1130,6 +1134,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                     VoiceRecordingPanel(
                       onRecordingComplete: _handleVoiceRecordingComplete,
                       onCancel: _cancelVoiceRecording,
+                      permissionService: widget.permissionService,
                     ),
                 ],
               ),
@@ -2255,6 +2260,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _pickImage() async {
+    if (!await ensureAppPermission(
+      context,
+      AppPermission.photos,
+      service: widget.permissionService,
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final picker = ImagePicker();
     try {
       final files = await picker.pickMultiImage(
@@ -2284,6 +2297,14 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   Future<void> _takePhoto() async {
+    if (!await ensureAppPermission(
+      context,
+      AppPermission.camera,
+      service: widget.permissionService,
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final picker = ImagePicker();
     try {
       final photo = await picker.pickImage(

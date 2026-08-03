@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/services/permission_service.dart';
 import '../../core/services/report_service.dart';
+import '../../core/widgets/permission_gate.dart';
 import '../../core/widgets/tip_dialog.dart';
 
 class ReportDialog {
@@ -16,6 +18,7 @@ class ReportDialog {
     required String targetId,
     ReportService? reportService,
     ImagePicker? imagePicker,
+    PermissionService? permissionService,
   }) {
     final service = reportService ?? ReportService();
     final picker = imagePicker ?? ImagePicker();
@@ -60,6 +63,14 @@ class ReportDialog {
                           submitting || attachments.length >= maxAttachments
                           ? null
                           : () async {
+                              if (!await ensureAppPermission(
+                                dialogContext,
+                                AppPermission.photos,
+                                service: permissionService,
+                              )) {
+                                return;
+                              }
+                              if (!dialogContext.mounted) return;
                               try {
                                 final files = await picker.pickMultiImage(
                                   imageQuality: 85,
@@ -93,6 +104,14 @@ class ReportDialog {
                           submitting || attachments.length >= maxAttachments
                           ? null
                           : () async {
+                              if (!await ensureAppPermission(
+                                dialogContext,
+                                AppPermission.camera,
+                                service: permissionService,
+                              )) {
+                                return;
+                              }
+                              if (!dialogContext.mounted) return;
                               try {
                                 final file = await picker.pickImage(
                                   source: ImageSource.camera,
