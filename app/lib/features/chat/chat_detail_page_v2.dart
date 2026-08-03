@@ -1266,6 +1266,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
               // 更多按钮
               Material(
+                key: const ValueKey('chat-info-button'),
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20),
@@ -2438,8 +2439,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) =>
-            GroupSettingsPage(chat: chat, chatProvider: _chatProvider),
+        builder: (context) => GroupSettingsPage(
+          chat: chat,
+          chatProvider: _chatProvider,
+          groupMemberChanges: _chatProvider.groupMemberChanges,
+          groupSettingsUpdates: _chatProvider.groupSettingsUpdates,
+        ),
       ),
     );
   }

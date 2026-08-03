@@ -143,9 +143,14 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
                         member['nickname'] as String? ??
                         member['username'] as String? ??
                         '成员';
+                    final candidateKey =
+                        member['username']?.toString().trim().isNotEmpty == true
+                        ? member['username'].toString().trim()
+                        : userId;
                     final avatarUrl = member['avatar_url'] as String?;
 
                     return ListTile(
+                      key: ValueKey('admin-candidate-$candidateKey'),
                       contentPadding: EdgeInsets.zero,
                       leading: _buildAvatar(userId, displayName, avatarUrl),
                       title: Text(displayName),
@@ -269,6 +274,7 @@ class _GroupAdminManagementPageState extends State<GroupAdminManagementPage> {
         elevation: 0,
         actions: [
           IconButton(
+            key: const ValueKey('group-admin-add-button'),
             icon: const Icon(Icons.add),
             onPressed: _showAddAdminSheet,
           ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,6 +18,7 @@ import '../../core/services/message_service.dart';
 import '../../core/services/permission_service.dart';
 import '../../core/services/room_avatar_service.dart';
 import '../../core/services/room_service.dart';
+import '../../core/services/websocket_service.dart';
 import '../../core/storage/avatar_cache.dart';
 import '../../core/storage/token_storage.dart';
 import '../../core/utils/avatar_color_utils.dart';
@@ -237,12 +239,16 @@ class GroupSettingsPage extends StatefulWidget {
     this.chatProvider,
     this.roomService,
     this.tokenStorage,
+    this.groupMemberChanges,
+    this.groupSettingsUpdates,
   });
 
   final Chat chat;
   final ChatProvider? chatProvider;
   final RoomService? roomService;
   final TokenStorage? tokenStorage;
+  final Stream<GroupMemberChangedEvent>? groupMemberChanges;
+  final Stream<GroupSettingsUpdatedEvent>? groupSettingsUpdates;
 
   @override
   State<GroupSettingsPage> createState() => _GroupSettingsPageState();
@@ -269,6 +275,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   // 群成员列表
   List<Map<String, dynamic>> _members = [];
+  StreamSubscription<GroupMemberChangedEvent>? _groupMemberSubscription;
+  StreamSubscription<GroupSettingsUpdatedEvent>? _groupSettingsSubscription;
 
   @override
   void initState() {
@@ -281,6 +289,15 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
     _avatarObjectKey = widget.chat.avatarObjectKey; // 初始化头像 key
     _isMuted = widget.chat.isMuted;
     _isPinned = widget.chat.isPinned;
+    _groupMemberSubscription = widget.groupMemberChanges
+        ?.where((event) => event.roomId == widget.chat.roomId)
+        .listen((_) => unawaited(_loadMembers()));
+    _groupSettingsSubscription = widget.groupSettingsUpdates
+        ?.where((event) => event.roomId == widget.chat.roomId)
+        .listen((event) {
+          if (!mounted) return;
+          setState(() => _isForbidden = event.globalMuteEnabled);
+        });
     _loadCurrentUser();
     _loadSettings();
     _loadMembers(); // 加载群成员
@@ -288,6 +305,8 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
   @override
   void dispose() {
+    _groupMemberSubscription?.cancel();
+    _groupSettingsSubscription?.cancel();
     if (_ownsProvider) {
       _chatProvider.dispose();
     }
@@ -776,6 +795,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         children: [
           if (_isGroupOwner)
             _SettingTile(
+              key: const ValueKey('group-admin-settings-entry'),
               label: '管理员设置',
               onTap: () => _navigateToAdminManagement(context),
             ),
@@ -1933,6 +1953,7 @@ class _SwitchTile extends StatelessWidget {
 
 class _SettingTile extends StatelessWidget {
   const _SettingTile({
+    super.key,
     required this.label,
     this.value,
     this.trailing,

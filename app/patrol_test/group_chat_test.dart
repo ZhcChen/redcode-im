@@ -93,6 +93,10 @@ void main() {
         await $(const ValueKey('chat-input-text-field')).enterText(messageB);
         await $(const ValueKey('chat-input-send-button')).tap();
         await $(messageB).waitUntilVisible();
+        await $(const ValueKey('chat-info-button')).tap();
+        await $('退出群聊').waitUntilVisible();
+        $.log('DUAL_GOVERNANCE_READY role=b marker=$marker');
+        await $('禁言管理').waitUntilVisible();
         return;
       }
 
@@ -109,6 +113,17 @@ void main() {
       await $(const ValueKey('chat-input-send-button')).tap();
       await $(messageA).waitUntilVisible();
       await $(messageB).waitUntilVisible();
+      await $.pump(const Duration(seconds: 2));
+      await $(const ValueKey('chat-info-button')).tap();
+      await $(const ValueKey('group-admin-settings-entry')).waitUntilVisible();
+      await $(const ValueKey('group-admin-settings-entry')).tap();
+      await $(const ValueKey('group-admin-add-button')).waitUntilVisible();
+      await $(const ValueKey('group-admin-add-button')).tap();
+      await $(ValueKey('admin-candidate-$peerAccount')).waitUntilVisible();
+      await $(ValueKey('admin-candidate-$peerAccount')).tap();
+      await $('任命管理员').waitUntilVisible();
+      await $('确定').tap();
+      await $('移除').waitUntilVisible();
     },
   );
 }

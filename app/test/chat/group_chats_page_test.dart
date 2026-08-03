@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
 import 'package:app/core/services/room_service.dart';
@@ -6,6 +8,7 @@ import 'package:app/core/services/websocket_service.dart';
 import 'package:app/core/storage/app_config_storage.dart';
 import 'package:app/core/storage/token_storage.dart';
 import 'package:app/core/theme/screen_adaptation.dart';
+import 'package:app/core/widgets/custom_switch.dart';
 import 'package:app/features/chat/group_admin_management_page.dart';
 import 'package:app/features/chat/group_chats_page.dart';
 import 'package:app/features/chat/group_settings_page.dart';
@@ -82,6 +85,14 @@ class _FakeWebSocketService extends ChangeNotifier implements WebSocketService {
 
   @override
   ConnectionStatus get status => _status;
+
+  @override
+  Stream<GroupMemberChangedEvent> get onGroupMemberChanged =>
+      const Stream<GroupMemberChangedEvent>.empty();
+
+  @override
+  Stream<GroupSettingsUpdatedEvent> get onGroupSettingsUpdated =>
+      const Stream<GroupSettingsUpdatedEvent>.empty();
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -538,6 +549,109 @@ void main() {
       expect(find.text('管理员设置'), findsNothing);
       expect(find.text('禁止发送消息'), findsNothing);
       expect(find.text('退出群聊'), findsOneWidget);
+    });
+
+    testWidgets('群成员角色 WebSocket 变更会实时刷新治理权限', (tester) async {
+      final chat = groupChat();
+      final messageService = _FakeMessageService(
+        chats: <Chat>[chat],
+        members: members('member'),
+      );
+      final provider = ChatProvider(
+        messageService: messageService,
+        webSocketService: _FakeWebSocketService(),
+        appConfigService: _FakeAppConfigService(
+          runtime: MessageRuntimeSettings.defaults,
+        ),
+      );
+      final changes = StreamController<GroupMemberChangedEvent>.broadcast();
+      addTearDown(changes.close);
+
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: provider,
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+            groupMemberChanges: changes.stream,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('禁言管理'), findsNothing);
+
+      messageService.replaceMembers(members('admin'));
+      changes.add(
+        const GroupMemberChangedEvent(
+          roomId: 'other-room',
+          memberId: 'self-1',
+          changeType: 'role_changed',
+          newRole: 'admin',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('禁言管理'), findsNothing);
+
+      changes.add(
+        GroupMemberChangedEvent(
+          roomId: chat.roomId,
+          memberId: 'self-1',
+          changeType: 'role_changed',
+          newRole: 'admin',
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('管理员设置'), findsNothing);
+      expect(find.text('禁言管理'), findsOneWidget);
+      expect(find.text('添加'), findsOneWidget);
+    });
+
+    testWidgets('群设置 WebSocket 变更会实时刷新全体禁言状态', (tester) async {
+      final chat = groupChat();
+      final changes = StreamController<GroupSettingsUpdatedEvent>.broadcast();
+      addTearDown(changes.close);
+      await tester.pumpWidget(
+        _buildHost(
+          GroupSettingsPage(
+            chat: chat,
+            chatProvider: _buildProvider(<Chat>[
+              chat,
+            ], members: members('owner')),
+            roomService: _FakeRoomService(),
+            tokenStorage: const _FakeTokenStorage('self-1'),
+            groupSettingsUpdates: changes.stream,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      CustomSwitch globalMuteSwitch() {
+        final row = find.ancestor(
+          of: find.text('禁止发送消息'),
+          matching: find.byType(Row),
+        );
+        return tester.widget<CustomSwitch>(
+          find.descendant(of: row, matching: find.byType(CustomSwitch)),
+        );
+      }
+
+      expect(globalMuteSwitch().value, isFalse);
+      changes.add(
+        const GroupSettingsUpdatedEvent(
+          roomId: 'other-room',
+          globalMuteEnabled: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(globalMuteSwitch().value, isFalse);
+
+      changes.add(
+        GroupSettingsUpdatedEvent(roomId: chat.roomId, globalMuteEnabled: true),
+      );
+      await tester.pumpAndSettle();
+      expect(globalMuteSwitch().value, isTrue);
     });
   });
 }

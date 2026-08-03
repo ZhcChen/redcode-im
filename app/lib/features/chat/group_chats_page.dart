@@ -95,8 +95,12 @@ class _GroupChatsPageState extends State<GroupChatsPage> {
   Future<void> _openGroupSettings(Chat chat) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            GroupSettingsPage(chat: chat, chatProvider: _chatProvider),
+        builder: (_) => GroupSettingsPage(
+          chat: chat,
+          chatProvider: _chatProvider,
+          groupMemberChanges: _chatProvider.groupMemberChanges,
+          groupSettingsUpdates: _chatProvider.groupSettingsUpdates,
+        ),
       ),
     );
   }
