@@ -13,6 +13,8 @@ import ContactProfileView from '@/views/contacts/ContactProfileView.vue';
 import ContactReportView from '@/views/contacts/ContactReportView.vue';
 import GroupDirectoryView from '@/views/groups/GroupDirectoryView.vue';
 import GroupCreateView from '@/views/groups/GroupCreateView.vue';
+import GroupMembersView from '@/views/groups/GroupMembersView.vue';
+import GroupInviteView from '@/views/groups/GroupInviteView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -103,6 +105,18 @@ export const router = createRouter({
       path: '/groups/create',
       name: 'group-create',
       component: GroupCreateView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:roomId/members',
+      name: 'group-members',
+      component: GroupMembersView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:roomId/invite',
+      name: 'group-invite',
+      component: GroupInviteView,
       meta: { requiresAuth: true },
     },
     {

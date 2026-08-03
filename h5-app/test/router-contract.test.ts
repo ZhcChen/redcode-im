@@ -28,5 +28,7 @@ describe('h5 router contract', () => {
     const routes = new Map(router.getRoutes().map((route) => [route.name, route]));
     expect(routes.get('group-directory')?.path).toBe('/groups');
     expect(routes.get('group-create')?.path).toBe('/groups/create');
+    expect(routes.get('group-members')?.path).toBe('/groups/:roomId/members');
+    expect(routes.get('group-invite')?.path).toBe('/groups/:roomId/invite');
   });
 });

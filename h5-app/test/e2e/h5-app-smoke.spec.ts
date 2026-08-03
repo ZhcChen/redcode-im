@@ -107,6 +107,35 @@ const fetchIncomingFriendRequests = async (request: APIRequestContext, token: st
   return [];
 };
 
+const becomeFriendsViaApi = async (
+  request: APIRequestContext,
+  requester: TestAccount,
+  target: TestAccount,
+) => {
+  const createResponse = await request.post(`${apiBaseURL}/friends/requests`, {
+    headers: authHeaders(requester.session.token),
+    data: { target_user_id: target.session.user.id, message: 'H5 E2E 群成员管理' },
+  });
+  expect(createResponse.ok()).toBeTruthy();
+  const friendRequest = await createResponse.json() as { id?: string };
+  expect(friendRequest.id).toBeTruthy();
+
+  const acceptResponse = await request.post(`${apiBaseURL}/friends/requests/${friendRequest.id}/respond`, {
+    headers: authHeaders(target.session.token),
+    data: { action: 'accept' },
+  });
+  expect(acceptResponse.ok()).toBeTruthy();
+};
+
+const loadMembersViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/members`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as Array<Record<string, unknown>> | { members?: Array<Record<string, unknown>> };
+  return Array.isArray(payload) ? payload : payload.members ?? [];
+};
+
 const registerThroughUi = async (page: Page, username: string, password: string): Promise<TestSession> => {
   await page.goto('/login');
   await page.getByRole('tab', { name: '注册' }).click();
@@ -334,5 +363,46 @@ test.describe('h5-app browser smoke', () => {
     });
 
     await expect(page.getByText('头像已更新')).toBeVisible();
+  });
+
+  test('invites and removes a group member as the owner', async ({ page, request }) => {
+    const existingMember = await registerViaApi(request, 'h5e2egm');
+    const candidate = await registerViaApi(request, 'h5e2egi');
+    const ownerUsername = uniqueAccount('h5e2ego');
+    const ownerPassword = `H5pass-${ownerUsername}`;
+    const ownerSession = await registerThroughUi(page, ownerUsername, ownerPassword);
+    const owner: TestAccount = { username: ownerUsername, password: ownerPassword, session: ownerSession };
+    await becomeFriendsViaApi(request, owner, candidate);
+
+    const roomId = await createGroupViaApi(
+      request,
+      ownerSession.token,
+      `H5 Members ${Date.now()}`,
+      [existingMember.session.user.id],
+    );
+    await page.goto(`/groups/${roomId}/members`);
+    await expect(page.getByRole('heading', { name: '群成员' })).toBeVisible();
+    await expect(page.locator('.contact-page__row').filter({ hasText: existingMember.username })).toBeVisible();
+
+    await page.getByRole('button', { name: '邀请' }).click();
+    await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/invite$`));
+    await page.locator('.contact-page__row').filter({ hasText: candidate.username }).click();
+    await page.getByRole('button', { name: '添加', exact: true }).click();
+    await expect(page.getByText('已添加 1 人')).toBeVisible();
+    await expect.poll(async () => {
+      const members = await loadMembersViaApi(request, ownerSession.token, roomId);
+      return members.some((member) => String(member.user_id ?? member.userId ?? '') === candidate.session.user.id);
+    }).toBe(true);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    const candidateRow = page.locator('.contact-page__row').filter({ hasText: candidate.username });
+    await expect(candidateRow).toBeVisible();
+    await candidateRow.getByRole('button', { name: '移除' }).click();
+    await candidateRow.getByRole('button', { name: '确认' }).click();
+    await expect(candidateRow).toHaveCount(0);
+    await expect.poll(async () => {
+      const members = await loadMembersViaApi(request, ownerSession.token, roomId);
+      return members.some((member) => String(member.user_id ?? member.userId ?? '') === candidate.session.user.id);
+    }).toBe(false);
   });
 });

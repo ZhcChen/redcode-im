@@ -4,14 +4,19 @@ import { useRoute, useRouter } from 'vue-router';
 
 import CachedAvatar from '@/components/CachedAvatar.vue';
 import { useGroupSettingsStore } from '@/stores/group-settings';
+import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
 const store = useGroupSettingsStore();
+const authStore = useAuthStore();
 const avatarInput = ref<HTMLInputElement | null>(null);
 
 const roomId = computed(() => String(route.params.roomId ?? ''));
 const owner = computed(() => store.members.find((member) => member.role === 'owner'));
+const myRole = computed(() => store.members.find((member) => member.userId === authStore.currentUser?.id)?.role ?? 'member');
+const canManage = computed(() => myRole.value === 'owner' || myRole.value === 'admin');
+const isOwner = computed(() => myRole.value === 'owner');
 
 const goBack = async () => {
   await router.push({ name: 'chat-detail', params: { roomId: roomId.value } });
@@ -75,7 +80,7 @@ onMounted(() => {
           />
           <div>
             <input ref="avatarInput" class="sr-only" type="file" accept="image/*" @change="handleRoomAvatarSelected" />
-            <button class="avatar-upload-button rc-focus-ring" type="button" :disabled="store.avatarUploading" @click="chooseRoomAvatar">
+            <button v-if="canManage" class="avatar-upload-button rc-focus-ring" type="button" :disabled="store.avatarUploading" @click="chooseRoomAvatar">
               {{ store.avatarUploading ? '上传中...' : '更换群头像' }}
             </button>
             <p class="settings-hint">上传失败会保留当前群头像。</p>
@@ -83,9 +88,9 @@ onMounted(() => {
         </div>
         <label class="settings-field">
           <span>群名称</span>
-          <input v-model="store.draftName" class="rc-focus-ring" placeholder="输入群名称" />
+          <input v-model="store.draftName" class="rc-focus-ring" placeholder="输入群名称" :disabled="!canManage" />
         </label>
-        <button class="settings-action rc-focus-ring" type="button" :disabled="store.submitting" @click="store.updateName">
+        <button v-if="canManage" class="settings-action rc-focus-ring" type="button" :disabled="store.submitting" @click="store.updateName">
           保存群名称
         </button>
       </section>
@@ -111,6 +116,8 @@ onMounted(() => {
           </article>
         </div>
         <p v-if="owner" class="settings-hint">群主：{{ owner.nickname || owner.username }}</p>
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'group-members', params: { roomId } })"><span>查看全部成员</span><strong>›</strong></button>
+        <button v-if="canManage" class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'group-invite', params: { roomId } })"><span>邀请联系人</span><strong>›</strong></button>
       </section>
 
       <section class="settings-panel">
@@ -122,17 +129,13 @@ onMounted(() => {
           <span>消息免打扰</span>
           <strong>{{ store.muted ? '已开启' : '未开启' }}</strong>
         </button>
-        <button class="settings-row rc-focus-ring" type="button">
-          <span>进群审核</span>
-          <strong>{{ store.settings?.joinApprovalRequired ? '已开启' : '未开启' }}</strong>
-        </button>
       </section>
 
       <section class="settings-panel">
-        <button class="danger-action rc-focus-ring" type="button" :disabled="store.submitting" @click="leaveRoom">
+        <button v-if="!isOwner" class="danger-action rc-focus-ring" type="button" :disabled="store.submitting" @click="leaveRoom">
           退出群聊
         </button>
-        <button class="danger-action danger-action--solid rc-focus-ring" type="button" :disabled="store.submitting" @click="dissolveRoom">
+        <button v-if="isOwner" class="danger-action danger-action--solid rc-focus-ring" type="button" :disabled="store.submitting" @click="dissolveRoom">
           解散群聊
         </button>
       </section>
