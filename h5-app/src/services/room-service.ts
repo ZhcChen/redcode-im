@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupOperationLog, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupInvitation, mapGroupJoinRequest, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupInvitation, mapGroupJoinRequest, mapGroupMute, mapGroupOperationLog, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -288,12 +288,12 @@ export const roomService = {
     await requestJson(`/rooms/${roomId}`, { method: 'DELETE' }, requireToken());
   },
 
-  async listOperationLogs(roomId: string, limit = 20, offset = 0): Promise<Record<string, unknown>[]> {
+  async listOperationLogs(roomId: string, limit = 20, offset = 0): Promise<GroupOperationLog[]> {
     const response = await requestJson<{ logs?: Record<string, unknown>[] }>(
       withQuery(`/rooms/${roomId}/operation-logs`, { limit, offset }),
       {},
       requireToken(),
     );
-    return response.logs ?? [];
+    return (response.logs ?? []).map(mapGroupOperationLog);
   },
 };

@@ -98,6 +98,16 @@ export interface GroupInvitation {
   expiresAt: string;
 }
 
+export interface GroupOperationLog {
+  id: string;
+  roomId: string;
+  operatorId: string;
+  targetUserId: string | null;
+  operationType: string;
+  operationData: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

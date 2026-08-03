@@ -227,6 +227,19 @@ describe('h5 app service contracts', () => {
     }));
   });
 
+  it('maps paginated group operation logs', async () => {
+    const fetchMock = vi.fn(async () => mockJson({ logs: [{
+      id: 'log1', room_id: 'r1', operator_id: 'u1', target_user_id: 'u2',
+      operation_type: 'mute_user', operation_data: { reason: '刷屏' }, created_at: '2026-08-04T00:00:00Z',
+    }], total: 1 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const logs = await roomService.listOperationLogs('r1', 20, 40);
+
+    expect(logs[0]).toMatchObject({ roomId: 'r1', operatorId: 'u1', targetUserId: 'u2', operationType: 'mute_user' });
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/rooms/r1/operation-logs?limit=20&offset=40', expect.any(Object));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

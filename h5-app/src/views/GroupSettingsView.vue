@@ -137,6 +137,10 @@ onMounted(() => {
           <span>入群审核</span>
           <strong>›</strong>
         </button>
+        <button v-if="canManage" class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'group-operation-logs', params: { roomId } })">
+          <span>操作日志</span>
+          <strong>›</strong>
+        </button>
         <button class="settings-row rc-focus-ring" type="button" @click="store.togglePinned">
           <span>置顶聊天</span>
           <strong>{{ store.pinned ? '已开启' : '未开启' }}</strong>

@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupOperationLog, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -135,6 +135,18 @@ export const mapGroupInvitation = (input: Record<string, unknown>): GroupInvitat
   invitedAt: String(input.invited_at ?? input.invitedAt ?? ''),
   respondedAt: input.responded_at == null ? null : String(input.responded_at),
   expiresAt: String(input.expires_at ?? input.expiresAt ?? ''),
+});
+
+export const mapGroupOperationLog = (input: Record<string, unknown>): GroupOperationLog => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  operatorId: String(input.operator_id ?? input.operatorId ?? ''),
+  targetUserId: input.target_user_id == null ? null : String(input.target_user_id),
+  operationType: String(input.operation_type ?? input.operationType ?? ''),
+  operationData: input.operation_data && typeof input.operation_data === 'object'
+    ? input.operation_data as Record<string, unknown>
+    : null,
+  createdAt: String(input.created_at ?? input.createdAt ?? ''),
 });
 
 const normalizeRequestStatus = (status: string | number | null | undefined) => {

@@ -11,6 +11,7 @@ import GroupRulesView from '@/views/groups/GroupRulesView.vue';
 import GroupMutesView from '@/views/groups/GroupMutesView.vue';
 import GroupJoinRequestsView from '@/views/groups/GroupJoinRequestsView.vue';
 import GroupInvitationsView from '@/views/groups/GroupInvitationsView.vue';
+import GroupOperationLogsView from '@/views/groups/GroupOperationLogsView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
@@ -182,5 +183,13 @@ describe('group member permissions', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('已加入群聊');
     expect(wrapper.text()).toContain('已接受');
+  });
+
+  it('renders group operation logs as a read-only timeline', async () => {
+    const wrapper = mount(GroupOperationLogsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('更新了群设置');
+    expect(wrapper.text()).toContain('已显示全部记录');
+    expect(wrapper.find('[data-operation-type="update_group_settings"]').exists()).toBe(true);
   });
 });

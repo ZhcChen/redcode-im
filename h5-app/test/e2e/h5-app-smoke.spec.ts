@@ -585,6 +585,11 @@ test.describe('h5-app browser smoke', () => {
       const members = await loadMembersViaApi(request, ownerSession.token, roomId);
       return members.some((member) => String(member.user_id ?? member.userId ?? '') === candidate.session.user.id);
     }).toBe(false);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: /操作日志/ }).click();
+    await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/operation-logs$`));
+    await expect(page.locator('[data-operation-type="review_join_request"]')).toHaveCount(2);
   });
 
   test('receives, accepts, and declines formal group invitations', async ({ page, request }) => {

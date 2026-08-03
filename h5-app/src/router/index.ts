@@ -20,6 +20,7 @@ import GroupRulesView from '@/views/groups/GroupRulesView.vue';
 import GroupMutesView from '@/views/groups/GroupMutesView.vue';
 import GroupJoinRequestsView from '@/views/groups/GroupJoinRequestsView.vue';
 import GroupInvitationsView from '@/views/groups/GroupInvitationsView.vue';
+import GroupOperationLogsView from '@/views/groups/GroupOperationLogsView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -152,6 +153,12 @@ export const router = createRouter({
       path: '/group-invitations',
       name: 'group-invitations',
       component: GroupInvitationsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:roomId/operation-logs',
+      name: 'group-operation-logs',
+      component: GroupOperationLogsView,
       meta: { requiresAuth: true },
     },
     {
