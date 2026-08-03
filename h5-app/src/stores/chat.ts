@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { mapMessageAttachments, messageService } from '@/services/message-service';
+import { mapMessageAttachments, mapMessageForwardInfo, messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
 import { webSocketService, type WebSocketConnectionStatus, type WebSocketServerEvent } from '@/services/websocket-service';
 import { ChatSummaryStorage } from '@/storage/chat-summary-storage';
@@ -349,6 +349,7 @@ const messageFromEvent = (event: WebSocketServerEvent, currentUserId: string): C
   status: event.sender_id === currentUserId ? 'sent' : undefined,
   isDeleted: Boolean(event.is_deleted ?? false),
   attachments: mapMessageAttachments(event.parts ?? event.attachments),
+  forwardInfo: mapMessageForwardInfo(event.forward_message ?? event.forward_info),
   raw: event,
 });
 

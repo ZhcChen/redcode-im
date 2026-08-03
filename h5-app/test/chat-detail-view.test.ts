@@ -80,6 +80,7 @@ describe('ChatDetailView', () => {
     expect(wrapper.text()).toContain('置顶');
     expect(wrapper.text()).toContain('转发');
     expect(wrapper.text()).toContain('已读详情');
+    expect(wrapper.text()).toContain('已发送');
 
     await wrapper.findAll('button').find((button) => button.text() === '转发')?.trigger('click');
     expect(routerPushMock).toHaveBeenCalledWith({

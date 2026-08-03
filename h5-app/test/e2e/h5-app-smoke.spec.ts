@@ -182,6 +182,7 @@ test.describe('h5-app browser smoke', () => {
     await markReadViaApi(request, member.session.token, roomId, sentMessageId);
 
     const messageRow = page.locator('.message-row').filter({ hasText: message }).first();
+    await expect(messageRow.locator('.message-row__status')).toHaveText('已读');
     await messageRow.getByRole('button', { name: '已读详情' }).click();
     await expect(page).toHaveURL(new RegExp(`/chats/${roomId}/messages/${sentMessageId}/reads$`));
     await expect(page.locator('.reader-row').getByRole('heading', { name: member.username })).toBeVisible();

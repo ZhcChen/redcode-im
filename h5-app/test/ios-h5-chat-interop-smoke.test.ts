@@ -115,6 +115,10 @@ describe.skipIf(!enabled)('h5-app ios interop live smoke', () => {
     const iosForwardedMessages = await iosLoadMessages(iosSession, forwardTarget.id);
     expect(forwarded.roomId).toBe(forwardTarget.id);
     expect(forwarded.content).toBe(h5Text);
+    expect(forwarded.forwardInfo).toMatchObject({
+      messageId: h5Message.id,
+      senderId: h5Session.user.id,
+    });
     expect(iosForwardedMessages.some((message) => message.id === forwarded.id && message.content === h5Text)).toBe(true);
   });
 

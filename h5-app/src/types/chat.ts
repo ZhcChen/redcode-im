@@ -1,6 +1,14 @@
 export type ChatType = 'private' | 'group' | 'favorite';
 export type MessageType = 'text' | 'image' | 'audio' | 'video' | 'file' | 'system' | 'mixed';
-export type MessageStatus = 'sending' | 'sent' | 'failed' | 'deleted';
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'deleted';
+
+export interface MessageForwardInfo {
+  messageId: string;
+  roomId: string;
+  senderId: string;
+  senderUsername: string | null;
+  senderNickname: string | null;
+}
 
 export interface MessageAttachment {
   key: string;
@@ -44,6 +52,7 @@ export interface ChatMessage {
   pinnedBy?: string | null;
   quotedMessage?: ChatMessageQuote | null;
   attachments?: MessageAttachment[];
+  forwardInfo?: MessageForwardInfo | null;
   raw?: Record<string, unknown>;
 }
 

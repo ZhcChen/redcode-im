@@ -72,8 +72,15 @@ const isSelf = (message: ChatMessage) => message.senderId === currentUserId.valu
 const messageStatusLabel = (message: ChatMessage) => {
   if (message.status === 'sending') return '发送中';
   if (message.status === 'failed') return '发送失败';
+  if (message.status === 'read') return '已读';
+  if (message.status === 'delivered') return '已送达';
+  if (message.status === 'sent') return '已发送';
   return '';
 };
+
+const forwardSourceLabel = (message: ChatMessage) => (
+  message.forwardInfo?.senderNickname || message.forwardInfo?.senderUsername || 'RedCode 用户'
+);
 
 const quotePreview = (message: ChatMessage) => {
   const quoted = message.quotedMessage;
@@ -188,6 +195,7 @@ const resolveRouteChat = () => {
           <p v-if="!isSelf(message)" class="message-row__sender">{{ message.senderName || 'RedCode 用户' }}</p>
           <div class="message-bubble">
             <div v-if="message.isPinned" class="message-bubble__pin">已置顶</div>
+            <div v-if="message.forwardInfo" class="message-bubble__forward">转发自 {{ forwardSourceLabel(message) }}</div>
             <button
               v-if="message.quotedMessage"
               class="message-bubble__quote rc-focus-ring"
@@ -429,6 +437,14 @@ const resolveRouteChat = () => {
   font-size: 11px;
   font-weight: 700;
   padding: 2px 7px;
+}
+
+.message-bubble__forward {
+  margin-bottom: 6px;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.72;
 }
 
 .message-bubble__quote {

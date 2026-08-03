@@ -6,10 +6,12 @@ import type {
   ChatType,
   MessageAttachment,
   MessageReader,
+  MessageForwardInfo,
   OutgoingMessagePart,
   MessageSearchResponse,
   MessageSearchResult,
   MessageType,
+  MessageStatus,
 } from '@/types/chat';
 
 import { requireToken } from './session';
@@ -197,14 +199,37 @@ const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatM
   content: String(row.content ?? ''),
   type: normalizeMessageType(row.message_type ?? row.type),
   timestamp: parseTimestamp(row.created_at ?? row.timestamp),
+  status: normalizeMessageStatus(row.status),
   isDeleted: Boolean(row.is_deleted ?? false),
   isPinned: Boolean(row.is_pinned ?? false),
   pinnedAt: parseOptionalTimestamp(row.pinned_at),
   pinnedBy: row.pinned_by == null ? null : String(row.pinned_by),
   quotedMessage: mapQuotedMessage(row.quoted_message),
   attachments: mapMessageAttachments(row.parts ?? row.attachments),
+  forwardInfo: mapMessageForwardInfo(row.forward_message ?? row.forward_info),
   raw: row,
 });
+
+export const mapMessageForwardInfo = (value: unknown): MessageForwardInfo | null => {
+  const row = normalizeObject(value);
+  if (!row) return null;
+  const messageId = String(row.message_id ?? '');
+  if (!messageId) return null;
+  return {
+    messageId,
+    roomId: String(row.room_id ?? ''),
+    senderId: String(row.sender_id ?? ''),
+    senderUsername: row.sender_username == null ? null : String(row.sender_username),
+    senderNickname: row.sender_nickname == null ? null : String(row.sender_nickname),
+  };
+};
+
+const normalizeMessageStatus = (value: unknown): MessageStatus | undefined => {
+  const status = String(value ?? '');
+  return ['sending', 'sent', 'delivered', 'read', 'failed', 'deleted'].includes(status)
+    ? status as MessageStatus
+    : undefined;
+};
 
 const mapQuotedMessage = (value: unknown): ChatMessageQuote | null => {
   const row = normalizeObject(value);

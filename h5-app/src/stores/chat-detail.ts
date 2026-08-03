@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { mapMessageAttachments, messageService } from '@/services/message-service';
+import { mapMessageAttachments, mapMessageForwardInfo, messageService } from '@/services/message-service';
 import { messageAttachmentUploadService, type BrowserAttachmentType } from '@/services/message-attachment-upload-service';
 import { webSocketService, type WebSocketServerEvent } from '@/services/websocket-service';
 import { MessageStorage } from '@/storage/message-storage';
@@ -173,6 +173,10 @@ export const useChatDetailStore = defineStore('chatDetail', {
         await this.applyMessageUpdate(event);
         return;
       }
+      if (event.type === 'message_read') {
+        await this.applyReadReceipt(event);
+        return;
+      }
       if (event.type === 'pin_update') {
         await this.applyPinUpdate(event);
       }
@@ -271,6 +275,22 @@ export const useChatDetailStore = defineStore('chatDetail', {
               status: event.is_deleted ? 'deleted' : message.status,
               content: event.is_deleted ? '' : message.content,
             }
+          : message
+      ));
+      await this.persist();
+    },
+
+    async applyReadReceipt(event: WebSocketServerEvent) {
+      const roomId = String(event.room_id ?? '');
+      const messageId = String(event.message_id ?? '');
+      const readerId = String(event.reader_id ?? '');
+      if (!messageId || roomId !== this.roomId || readerId === useAuthStore().currentUser?.id) return;
+      const targetIndex = this.messages.findIndex((message) => message.id === messageId);
+      if (targetIndex < 0) return;
+      const currentUserId = useAuthStore().currentUser?.id;
+      this.messages = this.messages.map((message, index) => (
+        index <= targetIndex && message.senderId === currentUserId && !message.isDeleted
+          ? { ...message, status: 'read' }
           : message
       ));
       await this.persist();
@@ -397,8 +417,10 @@ const messageFromEvent = (event: WebSocketServerEvent): ChatMessage => ({
   pinnedBy: event.pinned_by == null ? null : String(event.pinned_by),
   quotedMessage: quotedMessageFromEvent(event.quoted_message),
   attachments: mapMessageAttachments(event.parts ?? event.attachments),
+  forwardInfo: mapMessageForwardInfo(event.forward_message ?? event.forward_info),
   raw: event,
 });
+
 
 const quotedMessageFromEvent = (value: unknown): ChatMessageQuote | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;

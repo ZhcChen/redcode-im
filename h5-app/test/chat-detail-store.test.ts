@@ -285,6 +285,23 @@ describe('chat detail store', () => {
     });
   });
 
+  it('marks own messages through the read receipt target as read', async () => {
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    store.messages = [
+      message('own-1', { senderId: 'u1', status: 'sent', timestamp: 1 }),
+      message('incoming', { senderId: 'u2', timestamp: 2 }),
+      message('own-2', { senderId: 'u1', status: 'sent', timestamp: 3 }),
+    ];
+
+    await store.handleWebSocketEvent({
+      type: 'message_read', room_id: 'r1', message_id: 'own-2', reader_id: 'u2',
+    });
+
+    expect(store.messages.find((item) => item.id === 'own-1')?.status).toBe('read');
+    expect(store.messages.find((item) => item.id === 'own-2')?.status).toBe('read');
+  });
+
   it('maps websocket message parts into local attachments', async () => {
     const store = useChatDetailStore();
     await store.enterRoom('r1');
@@ -307,6 +324,10 @@ describe('chat detail store', () => {
           size: 123,
         },
       }],
+      forward_message: {
+        message_id: 'origin-1', room_id: 'origin-room', sender_id: 'u3',
+        sender_username: 'neo', sender_nickname: 'Neo',
+      },
     });
 
     expect(store.messages.find((item) => item.id === 'm-attachment')?.attachments).toEqual([
@@ -318,6 +339,9 @@ describe('chat detail store', () => {
         cacheKey: 'message:messages/r1/images/a.png',
       },
     ]);
+    expect(store.messages.find((item) => item.id === 'm-attachment')?.forwardInfo).toMatchObject({
+      messageId: 'origin-1', senderNickname: 'Neo',
+    });
   });
 
   it('deduplicates websocket and local messages by id', () => {

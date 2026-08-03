@@ -433,6 +433,7 @@ describe('h5 app service contracts', () => {
         sender_id: 'u1',
         content: 'reply',
         message_type: 'text',
+        status: 'read',
         is_pinned: true,
         pinned_at: '2026-07-02T01:15:00Z',
         pinned_by: 'u1',
@@ -445,6 +446,13 @@ describe('h5 app service contracts', () => {
           message_type: 'text',
           created_at: '2026-07-02T01:00:00Z',
         },
+        forward_message: {
+          message_id: 'origin-1',
+          room_id: 'origin-room',
+          sender_id: 'u2',
+          sender_username: 'bear',
+          sender_nickname: 'Bear',
+        },
       },
     ])));
 
@@ -455,6 +463,14 @@ describe('h5 app service contracts', () => {
       isPinned: true,
       pinnedAt: Date.parse('2026-07-02T01:15:00Z'),
       pinnedBy: 'u1',
+      status: 'read',
+      forwardInfo: {
+        messageId: 'origin-1',
+        roomId: 'origin-room',
+        senderId: 'u2',
+        senderUsername: 'bear',
+        senderNickname: 'Bear',
+      },
       quotedMessage: expect.objectContaining({
         id: 'm1',
         senderName: 'Bear',
