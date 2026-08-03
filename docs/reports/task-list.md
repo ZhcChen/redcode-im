@@ -1,13 +1,19 @@
 # RedCode IM 剩余任务清单
 
-更新时间：2026-07-23
+更新时间：2026-08-03
 
-本文档是当前仓库剩余任务的总入口。完整执行顺序、验收标准和跳过项以
-`docs/reports/remaining-task-breakdown-2026-07-05.md` 为准。
+本文档是当前仓库剩余任务的唯一 active 总入口。IM 2.0 的产品合同以
+`docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md` 为准，当前执行
+顺序、验收标准和停止条件以
+`docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md` 为准。更早的剩余
+任务分解仅作历史追踪，不再决定当前优先级。
 
 ## 入口文档
 
 - 剩余任务完整执行分解：`docs/reports/remaining-task-breakdown-2026-07-05.md`
+- IM 2.0 正式开发总计划：`docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md`
+- IM 2.0 剩余工作计划：`docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md`
+- Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - Android 原生迁移执行清单：`android-app/docs/remaining-migration-tasks.md`
 - Android 全量迁移任务树：`android-app/docs/full-migration-task-tree.md`
 - iOS 原生 parity 收口报告：`docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
@@ -18,10 +24,13 @@
 
 ## 当前结论
 
-- 当前主线：Flutter `app/` 首版发布准备 -> API 架构和性能重构 -> 横向回归与发布准备。
-- 当前立即任务：Flutter 首版发布前横向回归与发布准备。
+- 当前主线：Flutter `app/` 2.0 U8 设备验收 -> H5 P0 parity -> E2EE 发布门禁 -> Flutter 桌面 P0 -> 多平台发布。
+- 当前立即任务：先完成 `R1.0` 双 iOS Patrol 可靠编排，再继续 U8 系统交互、权限、群聊、已读、前后台和离线恢复验收。
+- 当前下一阶段：U8 关闭后执行 H5 差异审计，并把 E2EE 专项计划深化到 Go/No-Go。
+- 当前发布阻断项：U8、H5 P0、E2EE、多平台桌面构建、签名/版本/升级/回滚链路。
+- 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，现作为原生恢复时的归档基线。
-- `h5-app` 已完成 Flutter parity P1，保留为 Web parity 与 API 联调辅助入口。
+- `h5-app` 已具备聊天、搜索、联系人 store、群设置和设置页面等基础能力，但尚未按 Flutter 2.0 P0 完成页面、状态、API 和跨端互操作差异审计。
 - `ios-app` 主链路已完成；仅保留 iPhone 真机/APNs 补验。
 - `android-app` 已完成 P0 媒体切片和聊天扩展；剩余集中在设置账号配置、通知
   mock、底座协议和最终切换准备。
@@ -39,6 +48,28 @@
   `agent-light-workflow` 轻量五阶段与 CE 兼容映射为准。
 
 ## 当前立即队列
+
+- [ ] `IM2-R1.0` 双 iOS Patrol 可靠编排
+  - 单一脚本生成 marker、校验两个不同 Simulator、分配独立端口并隔离 A/B 构建产物。
+  - 验证两端实际账号、角色和消息前缀，覆盖超时、失败清理、日志与 xcresult 留存。
+  - 提供 `make app.test.patrol.dual` 唯一推荐入口并纳入 `make app.test.scripts` 契约测试。
+- [ ] `IM2-U8` Flutter 移动 P0 设备验收收口
+  - 已通过 iOS integration/auth/API contract、Patrol 登录和双 iOS 私聊实时互发。
+  - 待补系统键盘、安全区、长内容、权限拒绝/恢复、群聊、已读、前后台、离线重连、附件和完整页面巡检。
+  - Simulator 无法证明的相机/麦克风质量、APNs 和后台通知只记录真机 SKIPPED/PASS，不伪造结果。
+- [ ] `IM2-U9` H5 P0 parity
+  - U8 关闭后，先按已有/缺失/漂移/平台不适用建立矩阵，再分聊天、联系人/群、我的/设置和跨端互操作闭环。
+- [ ] `IM2-U10` E2EE 发布门禁
+  - 先深化 `docs/plans/2026-07-31-003-feat-api-ui-capability-parity-plan.md`，冻结协议库、key API、数据模型、最低版本、灰度和回滚策略。
+  - Go/No-Go 通过后再实施单聊、多设备、群聊和 Flutter/H5 互操作；未关闭时阻断 2.0 发布。
+- [ ] `IM2-U11` P1 可选纵向切片
+  - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。
+- [ ] `IM2-U12` Flutter 桌面 P0
+  - H5 P0 后可复用稳定业务控制器实施 Windows、macOS、Linux 桌面 shell；P1 桌面入口随对应切片补齐。
+- [ ] `IM2-U13` 多平台发布切换
+  - U8/U9/U10/U12 和获批首发 P1 关闭后，完成构建矩阵、签名凭据、checksum、来源追踪、升级与回滚。
+
+## 历史已完成与暂停队列
 
 - [x] `FLUTTER-P0-01` Flutter 首版 API 合同联调收口
   - 已新增 Flutter contract integration 入口。
@@ -58,7 +89,7 @@
   - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、
     反馈、配置、版本检查。
 
-## H5 剩余任务
+## H5 历史基线
 
 - [x] H5 全量验收与文档收口。
 - [x] 浏览器 E2E / smoke 扩展。
@@ -67,7 +98,7 @@
 - [x] 浏览器存储增强。
 - [x] H5 parity Unit 8 最终勾选。
 
-当前 H5 P1 无剩余功能任务；后续只参与联调和回归。
+以上是 1.x/既有 parity 基线，不代表已满足 Flutter 2.0 P0。当前剩余项统一由 `IM2-U9` 管理。
 
 ## Android 剩余任务
 
