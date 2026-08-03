@@ -70,11 +70,17 @@ void main() {
         await $(const ValueKey('chat-input-send-button')).tap();
         await $(messageA).waitUntilVisible();
         await $(messageB).waitUntilVisible();
+        await $(
+          const ValueKey('message-delivery-status-read'),
+        ).waitUntilVisible();
       } else {
         await $(messageA).waitUntilVisible();
         await $(const ValueKey('chat-input-text-field')).enterText(messageB);
         await $(const ValueKey('chat-input-send-button')).tap();
         await $(messageB).waitUntilVisible();
+        await $(
+          const ValueKey('message-delivery-status-read'),
+        ).waitUntilVisible();
       }
     },
   );

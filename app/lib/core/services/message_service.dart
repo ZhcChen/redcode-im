@@ -123,6 +123,7 @@ class MessageService with ChangeNotifier {
   // 聊天列表
   List<Chat> _chats = [];
   final Map<String, List<MessageReader>> _messageReadersCache = {};
+  final Map<String, Set<String>> _pendingReadReceiptsByRoom = {};
   final Map<String, int> _roomMemberCountCache = {};
   // 每个房间可能存在多条置顶消息，这里缓存 messageId 列表以便快速查询
   final Map<String, List<String>> _pinnedMessageIds = {};
@@ -1692,7 +1693,7 @@ class MessageService with ChangeNotifier {
     final session = await _tokenStorage.readSession();
     if (session == null) return;
 
-    final message = _messageFromWebSocket(wsMessage, session.user.id);
+    var message = _messageFromWebSocket(wsMessage, session.user.id);
     final matchedPendingId = _findMatchingPendingMessageId(message);
 
     if (matchedPendingId != null) {
@@ -1701,6 +1702,8 @@ class MessageService with ChangeNotifier {
       unawaited(_hydrateAttachmentLocalPaths(message));
       return;
     }
+
+    message = _applyPendingReadReceipt(message);
 
     final messages = _messagesByRoom.putIfAbsent(
       message.roomId,
@@ -1806,10 +1809,16 @@ class MessageService with ChangeNotifier {
     }
 
     final messages = _messagesByRoom[roomId];
-    if (messages == null || messages.isEmpty) return;
+    if (messages == null || messages.isEmpty) {
+      _rememberPendingReadReceipt(roomId, messageId);
+      return;
+    }
 
     final targetIndex = messages.lastIndexWhere((m) => m.id == messageId);
-    if (targetIndex == -1) return;
+    if (targetIndex == -1) {
+      _rememberPendingReadReceipt(roomId, messageId);
+      return;
+    }
 
     var updated = false;
 
@@ -2061,26 +2070,49 @@ class MessageService with ChangeNotifier {
     final messages = _messagesByRoom[newMessage.roomId];
     if (messages == null) return;
 
+    final resolvedMessage = _applyPendingReadReceipt(newMessage);
+
     final index = messages.indexWhere((m) => m.id == originalId);
     if (index >= 0) {
-      messages[index] = newMessage;
+      messages[index] = resolvedMessage;
     } else {
-      messages.add(newMessage);
+      messages.add(resolvedMessage);
     }
 
     messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    _applyPinnedState(newMessage.roomId, newMessage);
-    _refreshPinnedCache(newMessage.roomId);
+    _applyPinnedState(resolvedMessage.roomId, resolvedMessage);
+    _refreshPinnedCache(resolvedMessage.roomId);
     final latestMessage = messages.isNotEmpty ? messages.last : null;
     final chatSummaryChanged =
         latestMessage != null &&
-        latestMessage.id == newMessage.id &&
-        _syncChatSummaryPreview(newMessage.roomId, latestMessage);
+        latestMessage.id == resolvedMessage.id &&
+        _syncChatSummaryPreview(resolvedMessage.roomId, latestMessage);
     notifyListeners();
     if (chatSummaryChanged) {
       unawaited(_chatCache.saveChats(_chats));
     }
-    unawaited(_persistMessages(newMessage.roomId));
+    unawaited(_persistMessages(resolvedMessage.roomId));
+  }
+
+  Message _applyPendingReadReceipt(Message message) {
+    if (!message.isSelf) return message;
+    final pending = _pendingReadReceiptsByRoom[message.roomId];
+    if (pending == null || !pending.remove(message.id)) return message;
+    if (pending.isEmpty) {
+      _pendingReadReceiptsByRoom.remove(message.roomId);
+    }
+    return message.copyWith(status: MessageStatus.read);
+  }
+
+  void _rememberPendingReadReceipt(String roomId, String messageId) {
+    final pending = _pendingReadReceiptsByRoom.putIfAbsent(
+      roomId,
+      () => <String>{},
+    );
+    pending.add(messageId);
+    while (pending.length > 128) {
+      pending.remove(pending.first);
+    }
   }
 
   bool _syncChatSummaryPreview(String roomId, Message latestMessage) {
@@ -4004,6 +4036,7 @@ class MessageService with ChangeNotifier {
   /// 清除房间消息
   void clearRoomMessages(String roomId) {
     _messagesByRoom.remove(roomId);
+    _pendingReadReceiptsByRoom.remove(roomId);
     _clearMessageReadersForRoom(roomId);
     _pinnedMessageIds.remove(roomId);
     unawaited(_messageStorage.clear(roomId));
@@ -4016,6 +4049,7 @@ class MessageService with ChangeNotifier {
     final existed = _chats.any((chat) => chat.roomId == roomId);
     _chats.removeWhere((chat) => chat.roomId == roomId);
     _messagesByRoom.remove(roomId);
+    _pendingReadReceiptsByRoom.remove(roomId);
     final removedPendingIds = _pendingMessages.entries
         .where((entry) => entry.value.roomId == roomId)
         .map((entry) => entry.key)
@@ -4111,6 +4145,7 @@ class MessageService with ChangeNotifier {
     _retryTimers.clear();
 
     _messagesByRoom.clear();
+    _pendingReadReceiptsByRoom.clear();
     _pendingMessages.clear();
     _pendingPayloads.clear();
     _chats.clear();

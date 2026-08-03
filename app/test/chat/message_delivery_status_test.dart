@@ -39,6 +39,10 @@ void main() {
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('message-delivery-status-sending')),
+      findsOneWidget,
+    );
     expect(find.byType(InkResponse), findsNothing);
   });
 }

@@ -19,7 +19,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 ## 已通过证据
 
 - `make app.check`：通过，无 analyze 问题。
-- `make app.test`：335 项通过。
+- `make app.test`：336 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=emulator-5554`：2 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：通过，2 项 integration smoke 全部执行。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：真实 API 注册、登录、刷新和登出通过。
@@ -31,6 +31,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.integration.device.auth APP_TEST_DEVICE=emulator-5554`：真实 API 注册、登录、刷新和登出通过。
 - `make app.test.integration.device.contract APP_TEST_DEVICE=emulator-5554`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
 - `dual_device_chat_test.dart`：iPhone 17 Pro 与 iPhone 17 Pro Max 同时运行 Patrol，账号 A/B 均通过真实 UI 登录并进入同一私聊；A 发送 `dual-a-1785724561`，B 实时可见后回复 `dual-b-1785724561`，A 实时可见回复，两端测试均通过。
+- `dual_device_chat_test.dart` 已扩展双向已读断言：2026-08-03 修复已读回执早于发送消息服务端 ID 落地时被丢弃的竞态后，A/B 均观察到自己发送消息更新为“已读”。通过 marker 为 `1785752697-35409-26502`，证据保存在本地 `app/build/patrol-dual/1785752697-35409-26502/`。
 - `group_chat_test.dart`：2026-08-03 在同一组双 iOS Simulator 上通过真实 UI 创建包含 B 的群聊；A 发送带唯一 marker 的群消息，B 从群目录进入新群并实时可见后回复，A 实时可见回复。通过 marker 为 `1785750765-55728-7609`，证据保存在本地 `app/build/patrol-dual/1785750765-55728-7609/`。
 - API 运行时证据：两个账号分别完成 protobuf WebSocket 认证并订阅房间 `019fc568-5800-7783-877c-448008bc95ed`；两次 `POST /rooms/{room_id}/messages` 均记录“1 个订阅者”，证明消息经在线 WebSocket 链路送达对端，而非仅靠历史消息刷新。
 - `make app.test.patrol.dual` 连续两轮通过：marker 分别为 `1785745629-39354-344`、`1785745896-54948-13521`。两轮 A/B 日志的首条 `DUAL_IDENTITY` 均与各自角色、账号、marker 和 `dual-a-`/`dual-b-` 消息前缀一致，证明没有复用上一轮或对端的编译参数。
@@ -76,6 +77,8 @@ R1.2 首次权限弹窗自动化也受到 Patrol 边界限制：权限 helper �
 
 R1.3 群聊用例复用了受控双设备编排，通过 `DUAL_TEST_TARGET` 选择 `patrol_test/group_chat_test.dart`，默认私聊入口保持不变。首次完整互发暴露 `ChatDetailPageV2` 在 `initState` 期间触发 `ChatProvider.notifyListeners()` 的 build-phase 异常；聊天室初始化移到首帧后执行后，双端创建群、发送和回复完整通过。
 
+私聊已读同步的首次真实断言发现时序竞态：接收方提交已读时，发送方可能仍持有临时消息 ID，服务端消息 ID 的 WebSocket 回执因此无法匹配并被丢弃。`MessageService` 现按房间暂存最多 128 个未匹配回执，在消息回显或发送响应完成 ID 替换时消费，并在房间消息清理时移除；双端 UI 已读状态随后通过。
+
 对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 
 ## 未完成项
@@ -88,7 +91,7 @@ R1.3 群聊用例复用了受控双设备编排，通过 `DUAL_TEST_TARGET` 选�
 - 断网、重连、待发送消息和离线缓存恢复。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
 - 聊天附件、联系人、群治理和设置的完整可视化设备巡检。
-- 两台 iOS Simulator 上的已读同步与前后台恢复；双账号登录、好友私聊、建群、群消息双向互发和 WebSocket 实时同步已通过。
+- 两台 iOS Simulator 上的前后台恢复和群聊已读详情；双账号登录、好友私聊双向已读、建群、群消息双向互发和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件
 

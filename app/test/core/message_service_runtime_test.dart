@@ -465,6 +465,50 @@ void main() {
     expect(chatCache.savedChats?.single.unreadCount, 0);
   });
 
+  test('read receipt received before server message is reconciled', () async {
+    final timestamp = DateTime(2026, 4, 12, 12, 0, 0);
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(
+        roomMessages: <String, List<Message>>{
+          'room-1': <Message>[
+            _pendingImageMessage(
+              id: 'pending-message-1',
+              attachmentKey: 'messages/image-1.png',
+              timestamp: timestamp,
+            ),
+          ],
+        },
+      ),
+      chatCache: _FakeChatCache(),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'plaintext',
+        ),
+      ),
+    );
+    addTearDown(service.dispose);
+
+    await service.loadCachedMessages('room-1');
+    await service.handleReadReceipt(
+      roomId: 'room-1',
+      messageId: 'server-message-1',
+      readerId: 'user-peer',
+    );
+    await service.handleWebSocketMessage(
+      _incomingImageMessage(
+        id: 'server-message-1',
+        attachmentKey: 'messages/image-1.png',
+        timestamp: timestamp,
+      ),
+    );
+
+    final message = service.getMessages('room-1').single;
+    expect(message.id, 'server-message-1');
+    expect(message.status, MessageStatus.read);
+  });
+
   test(
     'message update refreshes latest local relay_only chat summary',
     () async {

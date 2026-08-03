@@ -60,10 +60,15 @@ class MessageDeliveryStatus extends StatelessWidget {
     };
 
     if (callback == null) {
-      return Semantics(label: label, child: indicator);
+      return Semantics(
+        key: ValueKey('message-delivery-status-${status.name}'),
+        label: label,
+        child: indicator,
+      );
     }
 
     final control = Semantics(
+      key: ValueKey('message-delivery-status-${status.name}'),
       button: true,
       label: label,
       child: InkResponse(
