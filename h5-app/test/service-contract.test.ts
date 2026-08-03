@@ -6,6 +6,7 @@ import { friendService } from '@/services/friend-service';
 import { messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
 import { settingsService } from '@/services/settings-service';
+import { stickerService } from '@/services/sticker-service';
 
 const saveSession = () => {
   window.localStorage.setItem(
@@ -257,6 +258,20 @@ describe('h5 app service contracts', () => {
     const status = await settingsService.fetchVersionStatus('ios');
     expect(status).toMatchObject({ platform: 'ios', currentVersion: '0.1.0', latestVersion: '2.0.0', hasUpdate: true });
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8010/versions/latest?platform=ios&channel=stable&current_version=0.1.0', expect.any(Object));
+  });
+
+  it('lists, adds, and removes sticker packs through user endpoints', async () => {
+    const pack = { id: 'p1', name: '工作日常', icon_url: null, icon_object_key: 'emoji-packs/p1.png', pack_type: 1 };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => mockJson(init?.method === 'POST' ? { count: 3 } : init?.method === 'DELETE' ? { success: true } : [pack]));
+    vi.stubGlobal('fetch', fetchMock);
+    const available = await stickerService.listAvailable();
+    const count = await stickerService.add(available[0]!);
+    await stickerService.remove('p1');
+    expect(available[0]).toMatchObject({ id: 'p1', packType: 'suite', iconObjectKey: 'emoji-packs/p1.png' });
+    expect(count).toBe(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:8010/emoji-packs/available', expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:8010/emoji-packs/suites/p1/add', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/emoji-packs/p1/remove', expect.objectContaining({ method: 'DELETE' }));
   });
 
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {

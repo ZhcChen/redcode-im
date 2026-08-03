@@ -31,6 +31,9 @@ import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
 import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
 import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
 import VersionStatusView from '@/views/settings/VersionStatusView.vue';
+import StickersView from '@/views/stickers/StickersView.vue';
+import StickerStoreView from '@/views/stickers/StickerStoreView.vue';
+import StickerPackView from '@/views/stickers/StickerPackView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -200,6 +203,24 @@ export const router = createRouter({
       path: '/settings/version',
       name: 'settings-version',
       component: VersionStatusView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stickers',
+      name: 'stickers',
+      component: StickersView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stickers/store',
+      name: 'sticker-store',
+      component: StickerStoreView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/stickers/:packId',
+      name: 'sticker-pack',
+      component: StickerPackView,
       meta: { requiresAuth: true },
     },
     {

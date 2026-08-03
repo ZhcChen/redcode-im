@@ -41,7 +41,7 @@ const clearCache = async () => {
       <p v-if="notice" class="settings-notice">{{ notice }}</p>
       <section class="settings-card"><h2>聊天背景</h2><div class="background-options"><button v-for="option in options" :key="option.value" class="background-option rc-focus-ring" :class="[`background-option--${option.value}`, { active: background === option.value }]" type="button" @click="selectBackground(option.value)"><span aria-hidden="true" /><strong>{{ option.label }}</strong></button></div></section>
       <section class="settings-card"><h2>本地存储</h2><p class="settings-muted">清理消息索引和媒体缓存，不影响服务端聊天记录。</p><button v-if="!confirming" class="settings-secondary rc-focus-ring" type="button" @click="confirming = true">清理本地缓存</button><div v-else class="confirm-actions"><button class="settings-danger rc-focus-ring" type="button" :disabled="clearing" @click="clearCache">{{ clearing ? '清理中...' : '确认清理' }}</button><button class="settings-secondary rc-focus-ring" type="button" :disabled="clearing" @click="confirming = false">取消</button></div></section>
-      <section class="settings-card"><h2>贴纸</h2><p class="settings-muted">贴纸管理将在贴纸能力接入后开放。</p></section>
+      <section class="settings-card"><h2>贴纸</h2><p class="settings-muted">管理已添加贴纸，或从贴纸商店添加新内容。</p><button class="settings-secondary rc-focus-ring" type="button" @click="router.push({ name: 'stickers' })">管理贴纸</button></section>
     </section>
   </main>
 </template>

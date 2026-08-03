@@ -666,6 +666,12 @@ test.describe('h5-app browser smoke', () => {
     await expect(page.getByText('聊天背景已更新')).toBeVisible();
     await page.reload();
     await expect(page.locator('.background-option--mint')).toHaveClass(/active/);
+    await page.getByRole('button', { name: '管理贴纸' }).click();
+    await expect(page).toHaveURL(/\/stickers$/);
+    await page.getByRole('button', { name: '商店' }).click();
+    await expect(page).toHaveURL(/\/stickers\/store$/);
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: '返回' }).click();
     await page.getByRole('button', { name: '返回' }).click();
     await page.getByRole('button', { name: /关于 RedCode IM/ }).click();
     await page.getByRole('button', { name: /版本状态/ }).click();

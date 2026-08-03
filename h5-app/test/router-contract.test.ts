@@ -45,5 +45,8 @@ describe('h5 router contract', () => {
     expect(routes.get('chat-settings')?.path).toBe('/settings/chat');
     expect(routes.get('settings-deactivate')?.path).toBe('/settings/deactivate');
     expect(routes.get('settings-version')?.path).toBe('/settings/version');
+    expect(routes.get('stickers')?.path).toBe('/stickers');
+    expect(routes.get('sticker-store')?.path).toBe('/stickers/store');
+    expect(routes.get('sticker-pack')?.path).toBe('/stickers/:packId');
   });
 });
