@@ -10,7 +10,7 @@
 
 | 场景 | 操作 | 通过标准 | 状态 | 证据 |
 | --- | --- | --- | --- | --- |
-| 真实系统软键盘 | 真实登录后进入 A/B 私聊，手指点击 composer | iOS 软键盘可见，不能使用 Patrol `enterText()` 代替 | SKIPPED | Patrol 4.3 XCTest native tree 不暴露 Flutter `TextField`，native index、selector 和坐标点击均无法稳定拉起键盘 |
+| 真实系统软键盘 | 真实登录后进入 A/B 私聊，手指点击 composer | iOS 软键盘可见，不能使用 Patrol `enterText()` 代替 | SKIPPED | Patrol CLI 4.3 / package 4.5 的 XCTest native tree 不暴露 Flutter `TextField`；2026-08-04 归一化 native `tapAt` 已执行成功，但 `viewInsets.bottom` 仍为 0，失败证据 `app/build/ios_results_1785782185121.xcresult` |
 | 键盘遮挡 | 输入至少三行长文本 | composer、发送按钮和当前输入行完整位于键盘上方 | PENDING | 待人工截图，建议保存到 `docs/reviews/evidence/` 的本地验收目录，不提交账号信息 |
 | 返回优先级 | 键盘打开时点击聊天页返回键，再次点击 | 第一次只收键盘并保留聊天页，第二次退出聊天页 | PENDING | 自动化已证明“焦点优先返回”，仍需真实软键盘人工复核 |
 | 顶部/底部安全区 | 分别检查登录页、四 Tab、聊天页和长设置页 | 状态栏不遮挡标题，Home Indicator 不遮挡底栏或最后一项 | PASS | `device_layout_test.dart` 在真实 iPhone 17 Pro Simulator padding 下验证登录标题、底部 Tab 标签、聊天 header/composer 与设置页末项几何边界，`app/build/ios_results_1785781793361.xcresult` |

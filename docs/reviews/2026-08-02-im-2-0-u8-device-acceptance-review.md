@@ -57,6 +57,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - 2026-08-04 在 iPhone 17 Pro Simulator 将系统字号切到 `accessibility-extra-extra-extra-large` 后，正式登录页暴露 `RenderFlex overflowed by 182 pixels`。`LoginPage` 已将欢迎文案改为可换行约束，并让登录类型区域按内容撑高；新增 3.2x 字号 Widget 回归后，设备复验不再显示 overflow。最高字号下 41 个 P0 导航/滚动检查通过，`xcresult` 为 `app/build/ios_results_1785780497220.xcresult`。
 - 同一设备开启系统 `ReduceMotionEnabled=1` 并保持最高字号后，41 个 P0 导航/滚动检查再次通过，`xcresult` 为 `app/build/ios_results_1785780881788.xcresult`；验收后已恢复标准字号与 `ReduceMotionEnabled=0`。首次通知权限由 XCTest 真实点击“不允许”后，正式 App 仍正常进入登录页；设置恢复与 APNs 仍保留真机验收。外部 Simulator 旋转无法作用于 Patrol 的 XCTest 隔离前台，真实聊天页横屏截图不记 PASS。
 - `device_layout_test.dart` 已扩展真实 Simulator 安全区几何门禁，读取设备 `MediaQuery.padding` 后分别断言登录标题低于状态栏、四 Tab 交互标签高于 Home Indicator、聊天 header/composer 位于上下安全边界内、设置页最后一项可滚动至底部安全区上方；2026-08-04 在 iPhone 17 Pro Simulator 通过，`xcresult` 为 `app/build/ios_results_1785781793361.xcresult`。
+- 真实软键盘自动化在 Patrol package 4.5 上再次复核：按 composer 中心点与真实屏幕尺寸计算 `0..1` 归一化坐标，native `tapAt` 命令执行成功，但 Flutter `viewInsets.bottom` 仍为 0，失败 `xcresult` 为 `app/build/ios_results_1785782185121.xcresult`。宿主 `ConnectHardwareKeyboard=false`，因此问题不归因于硬件键盘配置；该项保持 SKIPPED，键盘遮挡与返回优先级仍 PENDING 人工操作。
 
 ## 默认设备复核
 
