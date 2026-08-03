@@ -52,7 +52,11 @@ class _InMemoryMessageStorage extends MessageStorage {
 class _PassthroughHttpOverrides extends HttpOverrides {}
 
 class _UploadTestBackend {
-  _UploadTestBackend({required this.signatureKeys});
+  _UploadTestBackend({
+    required this.signatureKeys,
+    this.failedSignatureCount = 0,
+    this.failedUploadCount = 0,
+  });
 
   final List<String> signatureKeys;
   final Uri apiBaseUri = Uri.parse(AppConfig.apiBaseUrl);
@@ -62,6 +66,8 @@ class _UploadTestBackend {
   final List<String> committedKeys = <String>[];
   final List<Map<String, dynamic>> sentBodies = <Map<String, dynamic>>[];
   int signatureRequestCount = 0;
+  int failedSignatureCount;
+  int failedUploadCount;
 
   HttpServer? _server;
 
@@ -113,6 +119,17 @@ class _UploadTestBackend {
         if (request.method == 'POST' &&
             request.uri.path ==
                 '/rooms/room-1/messages/attachments/signature') {
+          if (failedSignatureCount > 0) {
+            failedSignatureCount--;
+            response.statusCode = HttpStatus.serviceUnavailable;
+            response.write(
+              jsonEncode({
+                'success': false,
+                'message': 'signature unavailable',
+              }),
+            );
+            return;
+          }
           final key = signatureKeys[signatureRequestCount++];
           response.write(
             jsonEncode({
@@ -133,6 +150,14 @@ class _UploadTestBackend {
             request.uri.pathSegments.isNotEmpty &&
             request.uri.pathSegments.first == 'uploads') {
           final objectKey = request.uri.pathSegments.skip(1).join('/');
+          if (failedUploadCount > 0) {
+            failedUploadCount--;
+            await request.drain<void>();
+            response.statusCode = HttpStatus.serviceUnavailable;
+            response.headers.contentType = ContentType.text;
+            response.write('temporary upload failure');
+            return;
+          }
           uploadedContentLengths[objectKey] = request.headers.contentLength;
           uploadedChunkedFlags[objectKey] =
               request.headers.chunkedTransferEncoding;
@@ -232,6 +257,9 @@ class _UploadTestBackend {
             'path': request.uri.path,
           }),
         );
+      } catch (error, stackTrace) {
+        response.statusCode = HttpStatus.internalServerError;
+        response.write('$error\n$stackTrace');
       } finally {
         await response.close();
       }
@@ -246,6 +274,7 @@ class _UploadTestBackend {
 Message _buildPendingAttachmentMessage({
   required String id,
   required List<MessagePart> parts,
+  MessageStatus status = MessageStatus.sending,
 }) {
   return Message(
     id: id,
@@ -254,11 +283,40 @@ Message _buildPendingAttachmentMessage({
     senderUsername: 'alice',
     senderName: 'Alice',
     content: '[图片]',
-    type: parts.length > 1 ? MessageType.mixed : MessageType.image,
-    status: MessageStatus.sending,
+    type: parts.length > 1
+        ? MessageType.mixed
+        : switch (parts.single.type) {
+            MessagePartType.audio => MessageType.audio,
+            MessagePartType.file => MessageType.file,
+            _ => MessageType.image,
+          },
+    status: status,
     timestamp: DateTime(2026, 7, 24, 16, 20),
     isSelf: true,
     parts: parts,
+  );
+}
+
+MessagePart _attachmentPart({
+  required int position,
+  required MessagePartType type,
+  required String key,
+  required String localPath,
+  required double? uploadProgress,
+  required String name,
+  required String mime,
+}) {
+  return MessagePart(
+    position: position,
+    type: type,
+    attachment: MessageAttachment(
+      key: key,
+      name: name,
+      mime: mime,
+      size: 3,
+      localPath: localPath,
+      uploadProgress: uploadProgress,
+    ),
   );
 }
 
@@ -267,20 +325,18 @@ MessagePart _imagePart({
   required String key,
   required String localPath,
   required double? uploadProgress,
-}) {
-  return MessagePart(
-    position: position,
-    type: MessagePartType.image,
-    attachment: MessageAttachment(
-      key: key,
-      name: 'image-$position.png',
-      mime: 'image/png',
-      size: 3,
-      localPath: localPath,
-      uploadProgress: uploadProgress,
-    ),
-  );
-}
+}) => _attachmentPart(
+  position: position,
+  type: MessagePartType.image,
+  key: key,
+  localPath: localPath,
+  uploadProgress: uploadProgress,
+  name: 'image-$position.png',
+  mime: 'image/png',
+);
+
+MessagePart _textPart(String text) =>
+    MessagePart(position: 0, type: MessagePartType.text, text: text);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -514,4 +570,234 @@ void main() {
       expect(sent.parts[1].attachment?.key, 'messages/retry-second-image.png');
     },
   );
+
+  test('upload failure keeps attachment message visible as failed', () async {
+    final localFile = File('${tempDir.path}/failed-image.png');
+    await localFile.writeAsBytes(<int>[1, 2, 3], flush: true);
+    final backend = _UploadTestBackend(
+      signatureKeys: <String>[
+        'messages/failed-image.png',
+        'messages/retried-image.png',
+      ],
+      failedUploadCount: 1,
+    );
+    await backend.start();
+    addTearDown(backend.close);
+
+    MessageService? service;
+    addTearDown(() => service?.dispose());
+
+    await HttpOverrides.runWithHttpOverrides(() async {
+      service = MessageService(
+        messageStorage: _InMemoryMessageStorage(<String, List<Message>>{}),
+        chatCache: const ChatCache(),
+      );
+      await expectLater(
+        service!.sendRichMessage(
+          roomId: 'room-1',
+          attachments: <MessageAttachmentDraft>[
+            MessageAttachmentDraft(
+              type: MessagePartType.image,
+              file: localFile,
+              displayName: 'failed-image.png',
+              mime: 'image/png',
+            ),
+          ],
+        ),
+        throwsA(isA<MessageSendRetryScheduled>()),
+      );
+
+      final failed = service!.getMessages('room-1').single;
+      expect(failed.status, MessageStatus.failed);
+      expect(failed.parts.single.attachment?.localPath, localFile.path);
+
+      await service!.resendMessage(failed.id);
+    }, _PassthroughHttpOverrides());
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(service!.getMessages('room-1').single.status, MessageStatus.sent);
+    expect(backend.sentBodies, hasLength(1));
+  });
+
+  test(
+    'signature failure keeps attachment draft available for retry',
+    () async {
+      final localFile = File('${tempDir.path}/unsigned.pdf');
+      await localFile.writeAsBytes(<int>[7, 8, 9], flush: true);
+      final backend = _UploadTestBackend(
+        signatureKeys: <String>['messages/retried.pdf'],
+        failedSignatureCount: 1,
+      );
+      await backend.start();
+      addTearDown(backend.close);
+
+      MessageService? service;
+      addTearDown(() => service?.dispose());
+      await HttpOverrides.runWithHttpOverrides(() async {
+        service = MessageService(
+          messageStorage: _InMemoryMessageStorage(<String, List<Message>>{}),
+          chatCache: const ChatCache(),
+        );
+        await expectLater(
+          service!.sendRichMessage(
+            roomId: 'room-1',
+            attachments: <MessageAttachmentDraft>[
+              MessageAttachmentDraft(
+                type: MessagePartType.file,
+                file: localFile,
+                displayName: 'unsigned.pdf',
+                mime: 'application/pdf',
+              ),
+            ],
+          ),
+          throwsA(isA<MessageSendRetryScheduled>()),
+        );
+
+        final failed = service!.getMessages('room-1').single;
+        expect(failed.status, MessageStatus.failed);
+        expect(failed.parts.single.attachment?.key, startsWith('pending/'));
+        await service!.resendMessage(failed.id);
+      }, _PassthroughHttpOverrides());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(service!.getMessages('room-1').single.status, MessageStatus.sent);
+      expect(backend.sentBodies, hasLength(1));
+    },
+  );
+
+  for (final fixture in <({MessagePartType type, String name, String mime})>[
+    (type: MessagePartType.image, name: 'retry.png', mime: 'image/png'),
+    (type: MessagePartType.file, name: 'retry.pdf', mime: 'application/pdf'),
+    (type: MessagePartType.audio, name: 'retry.m4a', mime: 'audio/mp4'),
+  ]) {
+    test(
+      'restores failed ${fixture.type.name} attachment for manual retry',
+      () async {
+        final localFile = File('${tempDir.path}/${fixture.name}');
+        await localFile.writeAsBytes(<int>[4, 5, 6], flush: true);
+        final backend = _UploadTestBackend(
+          signatureKeys: <String>['messages/${fixture.name}'],
+        );
+        await backend.start();
+        addTearDown(backend.close);
+
+        final storage = _InMemoryMessageStorage({
+          'room-1': <Message>[
+            _buildPendingAttachmentMessage(
+              id: 'failed-${fixture.type.name}',
+              status: MessageStatus.failed,
+              parts: <MessagePart>[
+                _attachmentPart(
+                  position: 0,
+                  type: fixture.type,
+                  key: 'messages/stale-${fixture.name}',
+                  localPath: localFile.path,
+                  uploadProgress: 0.2,
+                  name: fixture.name,
+                  mime: fixture.mime,
+                ),
+              ],
+            ),
+          ],
+        });
+        MessageService? service;
+        addTearDown(() => service?.dispose());
+
+        await HttpOverrides.runWithHttpOverrides(() async {
+          service = MessageService(
+            messageStorage: storage,
+            chatCache: const ChatCache(),
+          );
+          await service!.loadCachedMessages('room-1');
+          await service!.resendMessage('failed-${fixture.type.name}');
+        }, _PassthroughHttpOverrides());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(
+          service!.getMessages('room-1').single.status,
+          MessageStatus.sent,
+        );
+        expect(backend.sentBodies, hasLength(1));
+      },
+    );
+  }
+
+  test('missing local attachment becomes failed without retry loop', () async {
+    final missingPath = '${tempDir.path}/already-removed.m4a';
+    final storage = _InMemoryMessageStorage({
+      'room-1': <Message>[
+        _buildPendingAttachmentMessage(
+          id: 'missing-audio',
+          parts: <MessagePart>[
+            _attachmentPart(
+              position: 0,
+              type: MessagePartType.audio,
+              key: 'messages/stale-audio.m4a',
+              localPath: missingPath,
+              uploadProgress: 0.2,
+              name: 'already-removed.m4a',
+              mime: 'audio/mp4',
+            ),
+          ],
+        ),
+      ],
+    });
+    final service = MessageService(
+      messageStorage: storage,
+      chatCache: const ChatCache(),
+    );
+    addTearDown(service.dispose);
+
+    await service.loadCachedMessages('room-1');
+    expect(service.getMessages('room-1').single.status, MessageStatus.failed);
+    await service.resendMessage('missing-audio');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(service.getMessages('room-1').single.status, MessageStatus.failed);
+  });
+
+  test('restored mixed message does not duplicate text in parts', () async {
+    final localFile = File('${tempDir.path}/already-uploaded.pdf');
+    await localFile.writeAsBytes(<int>[1, 2, 3], flush: true);
+    final backend = _UploadTestBackend(signatureKeys: const <String>[]);
+    await backend.start();
+    addTearDown(backend.close);
+    final storage = _InMemoryMessageStorage({
+      'room-1': <Message>[
+        _buildPendingAttachmentMessage(
+          id: 'failed-mixed',
+          status: MessageStatus.failed,
+          parts: <MessagePart>[
+            _textPart('caption'),
+            _attachmentPart(
+              position: 1,
+              type: MessagePartType.file,
+              key: 'messages/already-uploaded.pdf',
+              localPath: localFile.path,
+              uploadProgress: null,
+              name: 'already-uploaded.pdf',
+              mime: 'application/pdf',
+            ),
+          ],
+        ),
+      ],
+    });
+    MessageService? service;
+    addTearDown(() => service?.dispose());
+
+    await HttpOverrides.runWithHttpOverrides(() async {
+      service = MessageService(
+        messageStorage: storage,
+        chatCache: const ChatCache(),
+      );
+      await service!.loadCachedMessages('room-1');
+      await service!.resendMessage('failed-mixed');
+    }, _PassthroughHttpOverrides());
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(backend.sentBodies.single['content'], 'caption');
+    final parts = backend.sentBodies.single['parts'] as List<dynamic>;
+    expect(parts, hasLength(1));
+    expect(parts.single['type'], 'file');
+  });
 }

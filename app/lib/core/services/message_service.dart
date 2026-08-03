@@ -44,7 +44,7 @@ class MessageSendRetryScheduled implements Exception {
   const MessageSendRetryScheduled();
 
   @override
-  String toString() => '消息发送失败，系统将自动重试';
+  String toString() => '消息发送失败，可点击失败状态重试';
 }
 
 /// 附件路径更新事件
@@ -164,43 +164,47 @@ class MessageService with ChangeNotifier {
     }
     try {
       final cached = await _messageStorage.loadMessages(roomId);
-      _messagesByRoom[roomId] = List<Message>.from(cached);
+      final restoredMessages = List<Message>.from(cached);
+      _messagesByRoom[roomId] = restoredMessages;
       _refreshPinnedCache(roomId);
 
-      // 恢复发送中或失败的消息到重试队列
-      _restorePendingMessages(roomId, cached);
+      // 恢复发送中或失败的消息到手动重试队列
+      _restorePendingMessages(roomId, restoredMessages);
 
       notifyListeners();
-      return cached;
+      return List<Message>.from(restoredMessages);
     } catch (e) {
       debugPrint('Failed to load cached messages: $e');
       return const [];
     }
   }
 
-  /// 恢复发送中的消息到重试队列
+  /// 恢复未完成消息到手动重试队列
   void _restorePendingMessages(String roomId, List<Message> messages) {
-    for (final message in messages) {
-      // 只恢复自己发送的、状态为发送中的消息
+    for (var index = 0; index < messages.length; index++) {
+      final message = messages[index];
       if (!message.isSelf) continue;
-      if (message.status != MessageStatus.sending) {
+      if (message.status != MessageStatus.sending &&
+          message.status != MessageStatus.failed) {
         continue;
       }
 
       // 如果已经在待发送队列中，跳过
       if (_pendingMessages.containsKey(message.id)) continue;
 
-      debugPrint('Restoring pending message: ${message.id}');
+      final restored = message.status == MessageStatus.sending
+          ? message.copyWith(status: MessageStatus.failed)
+          : message;
+      messages[index] = restored;
+      debugPrint('Restoring pending message: ${restored.id}');
 
-      // 添加到待发送队列
-      _pendingMessages[message.id] = message;
+      _pendingMessages[restored.id] = restored;
 
       // 构建 payload，从 parts 中提取实际文本内容
       final parts = <Map<String, dynamic>>[];
       String? actualTextContent;
-      for (final part in message.parts) {
+      for (final part in restored.parts) {
         if (part.type == MessagePartType.text && part.text != null) {
-          parts.add({'type': 'text', 'text': part.text});
           // 提取实际文本内容
           actualTextContent = part.text;
         } else if (part.attachment != null) {
@@ -222,16 +226,14 @@ class MessageService with ChangeNotifier {
       }
 
       // 使用从 parts 提取的实际文本内容，而不是占位符（如 [语音]、[图片] 等）
-      _pendingPayloads[message.id] = _PendingMessagePayload(
+      _pendingPayloads[restored.id] = _PendingMessagePayload(
         roomId: roomId,
         content: actualTextContent,
         parts: parts,
-        quotedMessageId: message.quotedMessage?.id,
+        quotedMessageId: restored.quotedMessage?.id,
       );
-
-      // 启动重试
-      _scheduleRetry(message.id);
     }
+    unawaited(_persistMessages(roomId));
   }
 
   /// 获取聊天列表
@@ -815,6 +817,29 @@ class MessageService with ChangeNotifier {
 
     final tempId = const uuid_pkg.Uuid().v4();
     final plans = <_AttachmentUploadPlan>[];
+    final pendingMessage = _buildPendingMessage(
+      tempId: tempId,
+      roomId: roomId,
+      senderId: session.user.id,
+      senderUsername: session.user.username,
+      senderName: session.user.nickname?.isNotEmpty == true
+          ? session.user.nickname!
+          : session.user.username,
+      senderAvatar: session.user.avatarUrl,
+      text: trimmedText,
+      attachments: attachments,
+      plans: plans,
+      quotedMessage: quotedMessage,
+    );
+
+    _addMessage(pendingMessage);
+    _pendingMessages[tempId] = pendingMessage;
+    _pendingPayloads[tempId] = _PendingMessagePayload(
+      roomId: roomId,
+      content: trimmedText,
+      parts: const <Map<String, dynamic>>[],
+      quotedMessageId: quotedMessage?.id,
+    );
 
     try {
       if (attachments.isNotEmpty) {
@@ -829,23 +854,11 @@ class MessageService with ChangeNotifier {
         );
       }
 
-      final pendingMessage = _buildPendingMessage(
-        tempId: tempId,
-        roomId: roomId,
-        senderId: session.user.id,
-        senderUsername: session.user.username,
-        senderName: session.user.nickname?.isNotEmpty == true
-            ? session.user.nickname!
-            : session.user.username,
-        senderAvatar: session.user.avatarUrl,
-        text: trimmedText,
-        attachments: attachments,
+      _applyAttachmentPlansToPendingMessage(
+        messageId: tempId,
+        message: pendingMessage,
         plans: plans,
-        quotedMessage: quotedMessage,
       );
-
-      _addMessage(pendingMessage);
-      _pendingMessages[tempId] = pendingMessage;
 
       final partsPayload = _buildPartsPayload(
         text: trimmedText,
@@ -890,17 +903,13 @@ class MessageService with ChangeNotifier {
       if (kDebugMode) {
         debugPrint(stackTrace.toString());
       }
-      // 保持 sending 状态，持续重试直到成功
-      _scheduleRetry(tempId);
+      _updateMessageStatus(tempId, MessageStatus.failed);
       throw const MessageSendRetryScheduled();
     }
   }
 
   /// 重发失败的消息（手动触发）
   Future<void> resendMessage(String messageId) async {
-    // 取消自动重试定时器
-    _cancelRetry(messageId);
-
     final message = _pendingMessages[messageId];
     if (message == null) {
       debugPrint('Message not found in pending queue: $messageId');
@@ -937,8 +946,7 @@ class MessageService with ChangeNotifier {
       unawaited(_hydrateAttachmentLocalPaths(updated));
     } catch (e) {
       debugPrint('Failed to resend message: $e');
-      // 保持 sending 状态，继续自动重试
-      _scheduleRetry(messageId);
+      _updateMessageStatus(messageId, MessageStatus.failed);
     }
   }
 
@@ -2377,6 +2385,9 @@ class MessageService with ChangeNotifier {
           updated = updated.copyWith(id: newId);
         }
         messages[index] = updated;
+        if (_pendingMessages.containsKey(tempId)) {
+          _pendingMessages[tempId] = updated;
+        }
         notifyListeners();
         unawaited(_persistMessages(updated.roomId));
         break;
@@ -2719,16 +2730,19 @@ class MessageService with ChangeNotifier {
     for (var index = 0; index < attachments.length; index++) {
       final draft = attachments[index];
       final plan = planMap[index];
-      if (plan == null) continue;
       parts.add(
         MessagePart(
           position: position++,
           type: draft.type,
           attachment: MessageAttachment(
-            key: plan.key,
+            key: plan?.key ?? 'pending/$tempId/$index',
             name: draft.displayName ?? p.basename(draft.file.path),
-            mime: plan.contentType,
-            size: plan.size,
+            mime:
+                plan?.contentType ??
+                draft.mime ??
+                lookupMimeType(draft.file.path) ??
+                'application/octet-stream',
+            size: plan?.size ?? draft.size ?? draft.file.lengthSync(),
             width: draft.width,
             height: draft.height,
             durationMs: draft.durationMs,
@@ -3718,87 +3732,6 @@ class MessageService with ChangeNotifier {
     return downloadUrl;
   }
 
-  // 用于管理重试定时器，防止重复调度
-  final Map<String, Timer?> _retryTimers = {};
-
-  /// 安排消息重试 - 持续重试直到成功，间隔 3 秒
-  void _scheduleRetry(String messageId) {
-    // 如果已有定时器在运行，不重复调度
-    if (_retryTimers[messageId]?.isActive == true) {
-      return;
-    }
-
-    // 检查消息是否仍在待发送队列中
-    if (!_pendingMessages.containsKey(messageId)) {
-      debugPrint('Message $messageId not in pending queue, skip retry');
-      _retryTimers.remove(messageId);
-      return;
-    }
-
-    _retryTimers[messageId] = Timer(const Duration(seconds: 3), () {
-      _retryTimers.remove(messageId);
-      _executeRetry(messageId);
-    });
-  }
-
-  /// 执行重试发送
-  Future<void> _executeRetry(String messageId) async {
-    // 再次检查消息是否仍在待发送队列中
-    if (!_pendingMessages.containsKey(messageId)) {
-      debugPrint('Message $messageId already sent or removed, skip retry');
-      return;
-    }
-
-    final message = _pendingMessages[messageId];
-    if (message == null) {
-      return;
-    }
-
-    // 检查消息状态，只重试失败或发送中的消息
-    final currentStatus = message.status;
-    if (currentStatus != MessageStatus.failed &&
-        currentStatus != MessageStatus.sending) {
-      debugPrint('Message $messageId status is $currentStatus, skip retry');
-      return;
-    }
-
-    debugPrint('Retrying message: $messageId');
-    _updateMessageStatus(messageId, MessageStatus.sending);
-
-    try {
-      final session = await _tokenStorage.readSession();
-      if (session == null) {
-        throw Exception('User not authenticated');
-      }
-
-      final payload = await _preparePendingPayloadForSend(
-        messageId: messageId,
-        message: message,
-        token: session.token,
-      );
-      final response = await _sendMessageAPI(
-        payload.roomId,
-        content: payload.content,
-        parts: payload.parts,
-        quotedMessageId: payload.quotedMessageId,
-      );
-
-      final updated = _messageFromResponse(
-        response,
-        session.user.id,
-        overrideStatus: MessageStatus.sent,
-      );
-      _replaceMessage(messageId, updated);
-      _clearPendingMessageTracking(messageId);
-      debugPrint('Message $messageId sent successfully after retry');
-      unawaited(_hydrateAttachmentLocalPaths(updated));
-    } catch (e) {
-      debugPrint('Retry failed for message $messageId: $e');
-      // 保持 sending 状态，继续调度下一次重试
-      _scheduleRetry(messageId);
-    }
-  }
-
   Future<_PendingMessagePayload> _preparePendingPayloadForSend({
     required String messageId,
     required Message message,
@@ -3992,14 +3925,7 @@ class MessageService with ChangeNotifier {
     _replaceMessage(messageId, updatedMessage);
   }
 
-  /// 取消消息重试
-  void _cancelRetry(String messageId) {
-    _retryTimers[messageId]?.cancel();
-    _retryTimers.remove(messageId);
-  }
-
   void _clearPendingMessageTracking(String messageId) {
-    _cancelRetry(messageId);
     _pendingMessages.remove(messageId);
     _pendingPayloads.remove(messageId);
   }
@@ -4138,12 +4064,6 @@ class MessageService with ChangeNotifier {
 
   /// 清除所有数据
   Future<void> clearAll() async {
-    // 取消所有重试定时器
-    for (final timer in _retryTimers.values) {
-      timer?.cancel();
-    }
-    _retryTimers.clear();
-
     _messagesByRoom.clear();
     _pendingReadReceiptsByRoom.clear();
     _pendingMessages.clear();

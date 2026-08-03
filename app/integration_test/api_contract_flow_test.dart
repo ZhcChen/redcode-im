@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:app/core/constants/app_config.dart';
 import 'package:app/core/services/feedback_service.dart';
@@ -488,6 +489,13 @@ Future<Message> _verifyMessageContract({
   final sent = await _waitForMessage(messageA, group.id, text);
   expect(sent.status, MessageStatus.sent);
 
+  await _verifyAttachmentContract(
+    messageA: messageA,
+    messageB: messageB,
+    roomId: group.id,
+    suffix: suffix,
+  );
+
   final memberCount = await messageA.fetchRoomMemberCount(group.id);
   expect(memberCount, greaterThanOrEqualTo(2));
   expect(await messageA.fetchRoomMembers(group.id), isNotEmpty);
@@ -583,6 +591,62 @@ Future<Message> _verifyMessageContract({
   );
 
   return edited;
+}
+
+Future<void> _verifyAttachmentContract({
+  required MessageService messageA,
+  required MessageService messageB,
+  required String roomId,
+  required String suffix,
+}) async {
+  final bytes = utf8.encode('%PDF-1.4\nflutter-contract-$suffix\n%%EOF');
+  final file = File(
+    '${Directory.systemTemp.path}/flutter-contract-$suffix.pdf',
+  );
+  await file.writeAsBytes(bytes, flush: true);
+  try {
+    await messageA.sendRichMessage(
+      roomId: roomId,
+      attachments: <MessageAttachmentDraft>[
+        MessageAttachmentDraft(
+          type: MessagePartType.file,
+          file: file,
+          displayName: 'flutter-contract-$suffix.pdf',
+          mime: 'application/pdf',
+        ),
+      ],
+    );
+
+    final received = await _eventually<Message>(() async {
+      final messages = await messageB.loadMessages(roomId, limit: 50);
+      return messages.lastWhere(
+        (message) => message.parts.any(
+          (part) =>
+              part.type == MessagePartType.file &&
+              part.attachment?.name == 'flutter-contract-$suffix.pdf',
+        ),
+      );
+    }, (_) => true);
+    final part = received.parts.singleWhere(
+      (item) => item.type == MessagePartType.file,
+    );
+    expect(part.attachment?.key, isNotEmpty);
+    expect(part.attachment?.mime, 'application/pdf');
+    expect(part.attachment?.size, bytes.length);
+
+    final downloadedPath = await messageB.ensureAttachmentCached(
+      roomId: roomId,
+      message: received,
+      part: part,
+      forceDownload: true,
+    );
+    expect(downloadedPath, isNotNull);
+    expect(await File(downloadedPath!).readAsBytes(), bytes);
+  } finally {
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
 }
 
 Future<void> _verifyConversationPreferenceContract({

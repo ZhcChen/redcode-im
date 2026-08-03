@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。系统键盘、安全区、权限首次拒绝/恢复和附件等完整设备场景仍待验收。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；完整设备选择器交互仍待验收。
 
 ## 验收环境
 
@@ -19,7 +19,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 ## 已通过证据
 
 - `make app.check`：通过，无 analyze 问题。
-- `make app.test`：338 项通过。
+- `make app.test`：346 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=emulator-5554`：2 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：通过，2 项 integration smoke 全部执行。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：真实 API 注册、登录、刷新和登出通过。
@@ -41,6 +41,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - 横竖屏尺寸自动化发现并修复 `flutter_screenutil` 的手机横屏放大问题：横屏时不再启用会把逻辑高度强制抬到 700 的 `splitScreenMode`，动态旋转测试通过。
 - `make app.test.patrol.permission`：2026-08-03 在 iPhone 17 Pro Simulator 上通过。宿主真实撤销照片和麦克风权限后，聊天相册与录音入口均显示“前往设置”，`xcresult` 为本地 `app/build/ios_results_1785749306738.xcresult`。
 - 权限状态已统一为可测试的 `PermissionService`，覆盖 granted/limited/denied/permanentlyDenied/restricted，并接入聊天附件、语音、资料头像、群头像、聊天背景、举报凭证和本地通知请求。
+- 附件状态机不再用无限 `sending` 和定时重试表示失败：签名、上传或发送失败会落为可点击的 `failed`，App 重启后把遗留 `sending` 降为 `failed` 并恢复手动重试队列；图片、文件、语音恢复重试及本地源文件丢失均有单测。语音首次发送失败时保留本地录音，避免重试入口失效。
+- `api_contract_flow_test.dart` 已加入小型 PDF 的完整合同链路：签名、S3-compatible PUT、commit、发送附件 parts、账号 B 拉取可见和强制下载字节一致。2026-08-03 在 iOS Simulator 上完成默认关闭真实合同开关时的编译验证；需通过 `make app.test.integration.device.contract` 在 Compose API/RustFS-compatible mock 启用状态下再次取得运行时 PASS，当前不把编译结果记为真实附件链路通过。
 
 ## 默认设备复核
 
@@ -90,9 +92,9 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 - 系统键盘弹出、收起和输入框遮挡检查。
 - 顶部/底部安全区与长内容滚动检查。
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
-- 真实网络断开/恢复、待发送消息和附件离线缓存恢复；双 iOS 主动断连后的前后台 WebSocket 重连、当前聊天和离线文本消息恢复已通过。
+- 真实网络断开/恢复；双 iOS 主动断连后的前后台 WebSocket 重连、当前聊天和离线文本消息恢复已通过，附件失败与缓存恢复状态机已由单测覆盖。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 聊天附件、联系人、群治理和设置的完整可视化设备巡检。
+- 聊天附件选择器、真实上传/下载、联系人、群治理和设置的完整可视化设备巡检。
 - 两台 iOS Simulator 上的群聊已读详情；双账号登录、好友私聊双向已读、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件

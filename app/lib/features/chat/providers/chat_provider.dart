@@ -400,6 +400,7 @@ class ChatProvider with ChangeNotifier {
     final tempFile = File('${tempDir.path}/$fileName');
     await tempFile.writeAsBytes(fileBytes);
 
+    var sent = false;
     try {
       final attachment = MessageAttachmentDraft(
         type: MessagePartType.audio,
@@ -410,12 +411,13 @@ class ChatProvider with ChangeNotifier {
       );
 
       await sendRichMessage(attachments: [attachment]);
+      sent = true;
     } catch (e) {
       debugPrint('Failed to send voice message: $e');
       rethrow;
     } finally {
-      // 清理临时文件
-      if (await tempFile.exists()) {
+      // 失败消息仍需依赖本地录音执行手动重试。
+      if (sent && await tempFile.exists()) {
         await tempFile.delete();
       }
     }

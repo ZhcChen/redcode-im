@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
@@ -625,6 +627,56 @@ void main() {
         expect(fakeMessageService.sendRichCalls, hasLength(1));
       },
     );
+
+    test('sendVoiceMessage keeps local recording when send fails', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'chat-provider-voice-retry-',
+      );
+      addTearDown(() async {
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      const pathProviderChannel = MethodChannel(
+        'plugins.flutter.io/path_provider',
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            pathProviderChannel,
+            (call) async => tempDir.path,
+          );
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(pathProviderChannel, null);
+      });
+
+      final fakeMessageService = _FakeMessageService()
+        ..sendRichError = const MessageSendRetryScheduled();
+      final provider = ChatProvider(
+        messageService: fakeMessageService,
+        webSocketService: _FakeWebSocketService(),
+      );
+      addTearDown(provider.dispose);
+      await provider.enterChatRoom(
+        'r1',
+        _chat(id: '1', roomId: 'r1', name: 'Alice', lastMessage: 'x'),
+        delayHistoryLoad: true,
+      );
+
+      await expectLater(
+        provider.sendVoiceMessage(
+          roomId: 'r1',
+          fileBytes: <int>[1, 2, 3],
+          duration: 1200,
+          fileName: 'retry-voice.m4a',
+        ),
+        throwsA(isA<MessageSendRetryScheduled>()),
+      );
+
+      final draft = fakeMessageService.sendRichCalls.single.attachments.single;
+      expect(await draft.file.exists(), isTrue);
+      expect(await draft.file.readAsBytes(), <int>[1, 2, 3]);
+    });
 
     test('forwardMessage keeps existing forward info', () async {
       final fakeMessageService = _FakeMessageService();

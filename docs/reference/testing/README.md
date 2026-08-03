@@ -70,7 +70,7 @@ make app.test.integration.network
 # 真实账号密码注册/登录验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
 make app.test.integration.auth
 
-# Flutter 首版核心 API 合同验证（认证/好友/群/消息/设置/Push device mock）
+# Flutter 首版核心 API 合同验证（认证/好友/群/消息/附件上传下载/设置/Push device mock）
 make app.test.integration.contract
 
 # Flutter REST path 与 api/src/routes.rs 机械化对照
@@ -151,6 +151,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer 与焦点优先返回，但不把 Flutter 测试点击当作系统软键盘证据。真实软键盘、安全区、横屏、大字号和 Reduced Motion 的人工步骤与状态见 `docs/reference/testing/app-ios-device-manual-checklist.md`。
 - `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导；它不会自动修改 Simulator 语言，也不把首次系统弹窗、从设置恢复或真实采集质量记为 PASS。
+- Flutter API contract 的附件场景使用运行时生成的小型 PDF，覆盖上传签名、S3-compatible PUT、commit、消息 parts、第二账号可见和强制下载字节一致；默认关闭 `ENABLE_REAL_CONTRACT_INTEGRATION` 时仅完成编译，只有 `make app.test.integration.contract` 或 `make app.test.integration.device.contract` 的真实 API 运行结果才可记为 PASS。
 - `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
 
 ### H5 App 自测
