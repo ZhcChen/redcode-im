@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复等完整设备场景仍待验收。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊实时互发已通过。系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复等完整设备场景仍待验收。
 
 ## 验收环境
 
@@ -30,6 +30,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.patrol.login PATROL_DEVICE=emulator-5554`：1 项通过；覆盖账号密码输入、mock 登录、聊天/联系人/发现/我的四 Tab、联系人固定入口、设置与账号安全二级路由、两次 Android 系统返回，以及 Home/最近任务前后台恢复。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=emulator-5554`：真实 API 注册、登录、刷新和登出通过。
 - `make app.test.integration.device.contract APP_TEST_DEVICE=emulator-5554`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
+- `dual_device_chat_test.dart`：iPhone 17 Pro 与 iPhone 17 Pro Max 同时运行 Patrol，账号 A/B 均通过真实 UI 登录并进入同一私聊；A 发送 `dual-a-1785724561`，B 实时可见后回复 `dual-b-1785724561`，A 实时可见回复，两端测试均通过。
+- API 运行时证据：两个账号分别完成 protobuf WebSocket 认证并订阅房间 `019fc568-5800-7783-877c-448008bc95ed`；两次 `POST /rooms/{room_id}/messages` 均记录“1 个订阅者”，证明消息经在线 WebSocket 链路送达对端，而非仅靠历史消息刷新。
 
 ## 默认设备复核
 
@@ -57,6 +59,8 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 
 `PatrolTester.enterText()` 只向 Flutter 输入控件注入文本，不会拉起原生软键盘，因此该流程不作为键盘遮挡验收证据。键盘行为继续保留为默认设备人工验收项。
 
+双设备 Patrol 用例使用 120 秒可见性超时，B 端先进入会话等待，再启动 A 端，以覆盖第二台 Simulator 的构建和安装时间。用例显式初始化协议同意状态，避免 Simulator 历史 `SharedPreferences` 导致登录分支不确定。
+
 对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 
 ## 未完成项
@@ -69,7 +73,7 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 - 断网、重连、待发送消息和离线缓存恢复。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
 - 聊天附件、联系人、群治理和设置的完整可视化设备巡检。
-- 两台 iOS Simulator 上双账号登录、好友/群聊、文本消息互发、已读与 WebSocket 实时同步。
+- 两台 iOS Simulator 上的群聊互发、已读同步与前后台恢复；双账号登录、好友私聊文本互发和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件
 
