@@ -371,6 +371,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const ValueKey('group-mute-add-button')), findsOneWidget);
+    expect(find.byKey(const ValueKey('group-mute-record-成员甲')), findsOneWidget);
+    expect(find.byKey(const ValueKey('group-mute-unmute-成员甲')), findsOneWidget);
+
     await tester.tap(find.text('解除'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('确定'));

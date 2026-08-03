@@ -752,6 +752,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
         children: [
           if (widget.chat.type == ChatType.group && canManageGroup)
             _SwitchTile(
+              key: const ValueKey('group-global-mute-switch'),
               label: '禁止发送消息',
               value: _isForbidden,
               loading: _isLoadingSettings,
@@ -804,6 +805,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
             onTap: () => _navigateToJoinRequests(context),
           ),
           _SettingTile(
+            key: const ValueKey('group-mute-settings-entry'),
             label: '禁言管理',
             onTap: () => _navigateToMuteManagement(context),
           ),
@@ -1908,6 +1910,7 @@ class _GroupSettingsPageState extends State<GroupSettingsPage> {
 
 class _SwitchTile extends StatelessWidget {
   const _SwitchTile({
+    super.key,
     required this.label,
     required this.value,
     this.onChanged,

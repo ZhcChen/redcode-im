@@ -813,6 +813,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     return _isGlobalMuted && !_isGroupOwnerOrAdmin;
   }
 
+  String? get _inputDisabledHint {
+    if (_isPersonalMuted) return '你已被管理员禁言';
+    if (_isGlobalMuted && !_isGroupOwnerOrAdmin) return '当前群聊已开启全体禁言';
+    return null;
+  }
+
   @override
   void dispose() {
     _inputFocusNode.removeListener(_handleInputFocusChanged);
@@ -892,6 +898,15 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     String? text,
     List<MessageAttachmentDraft> attachments = const [],
   }) async {
+    if (_isInputDisabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_inputDisabledHint ?? '当前无法发送消息')),
+        );
+      }
+      return;
+    }
+
     final trimmed = text?.trim();
     if ((trimmed == null || trimmed.isEmpty) && attachments.isEmpty) {
       return;
@@ -1478,6 +1493,11 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
               curve: Curves.easeOut,
               alignment: Alignment.bottomCenter,
               child: ChatInputWidget(
+                key: ValueKey(
+                  _isInputDisabled
+                      ? 'chat-input-disabled'
+                      : 'chat-input-enabled',
+                ),
                 controller: _textController,
                 focusNode: _inputFocusNode,
                 onSendMessage: _sendMessage,
@@ -1487,6 +1507,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
                 showEmojiPanel: _showEmojiPanel,
                 showMorePanel: _showMorePanel,
                 isDisabled: _isInputDisabled,
+                disabledHint: _inputDisabledHint,
               ),
             ),
           ],

@@ -78,6 +78,8 @@ void main() {
       final groupName = 'patrol-group-$marker';
       final messageA = 'group-a-$marker';
       final messageB = 'group-b-$marker';
+      final personalMuteAck = 'group-personal-unmute-$marker';
+      final globalMuteAck = 'group-global-unmute-$marker';
       await _login($);
       await _openGroupDirectory($);
 
@@ -93,6 +95,41 @@ void main() {
         await $(const ValueKey('chat-input-text-field')).enterText(messageB);
         await $(const ValueKey('chat-input-send-button')).tap();
         await $(messageB).waitUntilVisible();
+
+        await $(const ValueKey('chat-input-disabled')).waitUntilVisible();
+        expect(
+          $.tester
+              .widget<TextField>(
+                find.byKey(const ValueKey('chat-input-text-field')),
+              )
+              .decoration
+              ?.hintText,
+          '你已被管理员禁言',
+        );
+        await $(const ValueKey('chat-input-enabled')).waitUntilVisible();
+        await $(
+          const ValueKey('chat-input-text-field'),
+        ).enterText(personalMuteAck);
+        await $(const ValueKey('chat-input-send-button')).tap();
+        await $(personalMuteAck).waitUntilVisible();
+
+        await $(const ValueKey('chat-input-disabled')).waitUntilVisible();
+        expect(
+          $.tester
+              .widget<TextField>(
+                find.byKey(const ValueKey('chat-input-text-field')),
+              )
+              .decoration
+              ?.hintText,
+          '当前群聊已开启全体禁言',
+        );
+        await $(const ValueKey('chat-input-enabled')).waitUntilVisible();
+        await $(
+          const ValueKey('chat-input-text-field'),
+        ).enterText(globalMuteAck);
+        await $(const ValueKey('chat-input-send-button')).tap();
+        await $(globalMuteAck).waitUntilVisible();
+
         await $(const ValueKey('chat-info-button')).tap();
         await $('退出群聊').waitUntilVisible();
         $.log('DUAL_GOVERNANCE_READY role=b marker=$marker');
@@ -124,6 +161,38 @@ void main() {
       await $('未读 0').waitUntilVisible();
       await $(peerAccount).waitUntilVisible();
       await $(const ValueKey('message-read-details-close')).tap();
+
+      await $(const ValueKey('chat-info-button')).tap();
+      await $(const ValueKey('group-mute-settings-entry')).waitUntilVisible();
+      await $(const ValueKey('group-mute-settings-entry')).tap();
+      await $(const ValueKey('group-mute-add-button')).waitUntilVisible();
+      await $(const ValueKey('group-mute-add-button')).tap();
+      await $(ValueKey('group-mute-candidate-$peerAccount')).waitUntilVisible();
+      await $(ValueKey('group-mute-candidate-$peerAccount')).tap();
+      await $(const ValueKey('group-mute-confirm-button')).waitUntilVisible();
+      await $(const ValueKey('group-mute-confirm-button')).tap();
+      await $(ValueKey('group-mute-record-$peerAccount')).waitUntilVisible();
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await $(ValueKey('group-mute-unmute-$peerAccount')).tap();
+      await $('确定').waitUntilVisible();
+      await $('确定').tap();
+      await $('暂无被禁言的成员').waitUntilVisible();
+      $.tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await $.pump(const Duration(milliseconds: 350));
+      $.tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await $.pump(const Duration(milliseconds: 350));
+      await $(personalMuteAck).waitUntilVisible();
+
+      await $(const ValueKey('chat-info-button')).tap();
+      await $(const ValueKey('group-global-mute-switch')).waitUntilVisible();
+      await $(const ValueKey('group-global-mute-switch')).tap();
+      await Future<void>.delayed(const Duration(seconds: 3));
+      await $(const ValueKey('group-global-mute-switch')).tap();
+      await Future<void>.delayed(const Duration(seconds: 1));
+      $.tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await $.pump(const Duration(milliseconds: 350));
+      await $(globalMuteAck).waitUntilVisible();
+
       await $(const ValueKey('chat-info-button')).tap();
       await $(const ValueKey('group-admin-settings-entry')).waitUntilVisible();
       await $(const ValueKey('group-admin-settings-entry')).tap();

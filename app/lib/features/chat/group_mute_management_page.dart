@@ -143,6 +143,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
                     final avatarUrl = member['avatar_url'] as String?;
 
                     return ListTile(
+                      key: ValueKey('group-mute-candidate-$displayName'),
                       contentPadding: EdgeInsets.zero,
                       leading: _buildAvatar(userId, displayName, avatarUrl),
                       title: Text(displayName),
@@ -207,6 +208,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
               child: const Text('取消'),
             ),
             ElevatedButton(
+              key: const ValueKey('group-mute-confirm-button'),
               onPressed: () async {
                 Navigator.pop(dialogContext);
                 await _muteUser(userId, displayName, selectedDuration);
@@ -337,6 +339,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
         elevation: 0,
         actions: [
           IconButton(
+            key: const ValueKey('group-mute-add-button'),
             icon: const Icon(Icons.add),
             onPressed: _showMuteUserSheet,
           ),
@@ -372,6 +375,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
                 final avatarUrl = _getMemberAvatar(mute.userId);
 
                 return Container(
+                  key: ValueKey('group-mute-record-$displayName'),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
@@ -424,6 +428,7 @@ class _GroupMuteManagementPageState extends State<GroupMuteManagementPage> {
                         ),
                       ),
                       TextButton(
+                        key: ValueKey('group-mute-unmute-$displayName'),
                         onPressed: () => _confirmUnmute(mute),
                         child: Text(
                           '解除',

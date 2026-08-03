@@ -404,6 +404,14 @@ void main() {
       expect(find.text('移除'), findsOneWidget);
       expect(find.text('邀请'), findsNothing);
       expect(find.text('禁止发送消息'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('group-global-mute-switch')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('group-mute-settings-entry')),
+        findsOneWidget,
+      );
       expect(find.text('转让群主'), findsOneWidget);
       expect(find.text('解散群组'), findsOneWidget);
     });
