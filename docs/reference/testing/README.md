@@ -180,7 +180,7 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 网络恢复 Patrol 只让 A 通过 `19100` 可控 TCP 代理访问 API/WebSocket，B 继续直连 `8010`。测试会销毁 A 的现有连接、拒绝新连接，在 B 发送离线消息后恢复转发，并要求 A 自动重新认证、补拉且不重复；目标要求双方 `DUAL_NETWORK_RECOVERY_COMPLETE`。该证据不替代系统 Wi-Fi/蜂窝切换人工验收。
 - 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
 - `app.test.patrol.layout` 覆盖真实账号私聊的长 composer、横竖屏恢复与 Flutter 焦点返回；`app.test.ios-device-acceptance` 使用独立原生 XCTest 驱动普通 App，覆盖真实 iOS 软键盘、三行 composer/发送按钮不被遮挡，以及第一次返回收键盘、第二次退出聊天。该入口会先卸载 App 清理历史会话，要求显式传入 `APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD`，证据保存到 `app/build/ios-device-acceptance-*.xcresult`。
-- `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导。`app.test.ios-permission-acceptance` 使用原生 XCTest 覆盖照片首次拒绝、从系统设置恢复和返回原聊天页打开 PHPicker；重置必须使用真实 bundle id `com.chatlyme.app`，且不能在 reset 后卸载 App。
+- `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导。`app.test.ios-permission-acceptance` 使用原生 XCTest 分别覆盖照片/麦克风首次拒绝和系统设置恢复，并验证 PHPicker 或录音入口可再次进入；重置必须使用真实 bundle id `com.chatlyme.app`，且不能在 reset 后卸载 App。Simulator 不用于证明真实麦克风采集质量。
 - `app.test.patrol.pages` 使用真实账号巡检联系人、群聊、群通知、个人资料、账号安全、聊天设置、隐私政策、关于和反馈等 P0 页面，验证页面可打开、可返回，并滚动反馈页到提交按钮。它不证明系统软键盘、安全区、大字号、Reduced Motion 或所有空态、错误态和长文本状态。
 - Flutter API contract 的附件场景使用运行时生成的小型 PDF，覆盖上传签名、S3-compatible PUT、commit、消息 parts、第二账号可见和强制下载字节一致；默认关闭 `ENABLE_REAL_CONTRACT_INTEGRATION` 时仅完成编译，只有 `make app.test.integration.contract` 或 `make app.test.integration.device.contract` 的真实 API 运行结果才可记为 PASS。
 - `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。

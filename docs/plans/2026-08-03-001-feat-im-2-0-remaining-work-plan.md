@@ -120,6 +120,7 @@ flowchart LR
 - Simulator 可验证权限状态和降级 UI；真实采集质量、APNs token 与后台通知列入 iPhone 真机清单。
 - **Tests:** 新增或扩展 `app/test/platform/permission_service_test.dart`、`app/patrol_test/permission_flow_test.dart`。
 - **Scenarios:** 拒绝后页面不死锁；永久拒绝出现设置入口；恢复权限后无需重登；不支持能力显示明确状态。
+- **Progress:** 2026-08-04 原生 XCTest 已完成照片和麦克风首次拒绝、设置引导与系统设置恢复。照片恢复后 PHPicker 可打开并取消；麦克风开关从 `0` 恢复为 `1` 后无需重登即可重新进入聊天录音面板。真实麦克风采集与音质仍按 Simulator 能力边界转 iPhone 真机。
 
 #### R1.3 聊天、群与状态恢复
 

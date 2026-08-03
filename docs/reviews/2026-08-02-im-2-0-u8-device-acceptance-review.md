@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；双 iOS 图片、文件和语音附件上传、广播和下载已通过，系统 PHPicker、系统文件选择器与真实麦克风采集仍待人工或真机验收。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；双 iOS 图片、文件和语音附件上传、广播和下载已通过，系统 PHPicker 已完成原生 XCTest 验收，系统文件选择器与真实麦克风采集仍待人工或真机验收。
 
 ## 验收环境
 
@@ -45,6 +45,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.patrol.layout`：2026-08-03 在 iPhone 17 Pro Simulator 上通过，真实账号 A 登录并进入账号 B 私聊，验证长 composer、发送按钮设备边界和焦点优先返回；`xcresult` 为本地 `app/build/ios_results_1785747584703.xcresult`。
 - 横竖屏尺寸自动化发现并修复 `flutter_screenutil` 的手机横屏放大问题：横屏时不再启用会把逻辑高度强制抬到 700 的 `splitScreenMode`，动态旋转测试通过。
 - `make app.test.patrol.permission`：2026-08-03 在 iPhone 17 Pro Simulator 上通过。宿主真实撤销照片和麦克风权限后，聊天相册与录音入口均显示“前往设置”，`xcresult` 为本地 `app/build/ios_results_1785749306738.xcresult`。
+- `make app.test.ios-permission-acceptance`：2026-08-04 使用独立原生 XCTest 通过照片和麦克风首次拒绝与设置恢复。照片恢复后 PHPicker 可打开并取消；麦克风设置开关从 `0` 恢复为 `1`，App 无需重登即可重新进入同一聊天的录音面板。真实录音采集与音质不在 Simulator PASS 范围内。
 - 权限状态已统一为可测试的 `PermissionService`，覆盖 granted/limited/denied/permanentlyDenied/restricted，并接入聊天附件、语音、资料头像、群头像、聊天背景、举报凭证和本地通知请求。
 - 附件状态机不再用无限 `sending` 和定时重试表示失败：签名、上传或发送失败会落为可点击的 `failed`，App 重启后把遗留 `sending` 降为 `failed` 并恢复手动重试队列；图片、文件、语音恢复重试及本地源文件丢失均有单测。语音首次发送失败时保留本地录音，避免重试入口失效。
 - `api_contract_flow_test.dart` 已加入小型 PDF 的完整合同链路：签名、S3-compatible PUT、commit、发送附件 parts、账号 B 拉取可见和强制下载字节一致。2026-08-04 通过 `make app.test.integration.device.contract` 在 iPhone 17 Pro Simulator 与 Compose API/S3-compatible mock 上取得真实运行时 PASS。
@@ -57,7 +58,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - 2026-08-04 在 iPhone 17 Pro Simulator 将系统字号切到 `accessibility-extra-extra-extra-large` 后，正式登录页暴露 `RenderFlex overflowed by 182 pixels`。`LoginPage` 已将欢迎文案改为可换行约束，并让登录类型区域按内容撑高；新增 3.2x 字号 Widget 回归后，设备复验不再显示 overflow。最高字号下 41 个 P0 导航/滚动检查通过，`xcresult` 为 `app/build/ios_results_1785780497220.xcresult`。
 - 同一设备开启系统 `ReduceMotionEnabled=1` 并保持最高字号后，41 个 P0 导航/滚动检查再次通过，`xcresult` 为 `app/build/ios_results_1785780881788.xcresult`；验收后已恢复标准字号与 `ReduceMotionEnabled=0`。首次通知权限由 XCTest 真实点击“不允许”后，正式 App 仍正常进入登录页；设置恢复与 APNs 仍保留真机验收。外部 Simulator 旋转无法作用于 Patrol 的 XCTest 隔离前台，真实聊天页横屏截图不记 PASS。
 - `device_layout_test.dart` 已扩展真实 Simulator 安全区几何门禁，读取设备 `MediaQuery.padding` 后分别断言登录标题低于状态栏、四 Tab 交互标签高于 Home Indicator、聊天 header/composer 位于上下安全边界内、设置页最后一项可滚动至底部安全区上方；2026-08-04 在 iPhone 17 Pro Simulator 通过，`xcresult` 为 `app/build/ios_results_1785781793361.xcresult`。
-- 真实软键盘自动化在 Patrol package 4.5 上再次复核：按 composer 中心点与真实屏幕尺寸计算 `0..1` 归一化坐标，native `tapAt` 命令执行成功，但 Flutter `viewInsets.bottom` 仍为 0，失败 `xcresult` 为 `app/build/ios_results_1785782185121.xcresult`。宿主 `ConnectHardwareKeyboard=false`，因此问题不归因于硬件键盘配置；该项保持 SKIPPED，键盘遮挡与返回优先级仍 PENDING 人工操作。
+- Patrol 无法证明真实系统软键盘后，已改用独立原生 XCTest 驱动普通 App。2026-08-04 已验证系统键盘出现、三行 composer 与发送按钮不被遮挡、第一次返回收键盘和第二次退出聊天；证据为 `app/build/ios-device-acceptance-1785786732.xcresult`。
 
 ## 默认设备复核
 
@@ -89,9 +90,9 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 
 Patrol 4.3.0 在 iOS Simulator 上读取全局 macOS `log stream`，并发时一份日志可能同时出现另一台 Simulator 的后续结构化日志。因此身份门禁校验每份日志的首条 `DUAL_IDENTITY`，而不是只判断全文是否包含期望值。
 
-R1.1 系统软键盘自动化尝试了 native index、native selector、native 坐标点击和 Flutter tap。当前 Patrol 4.3 XCTest native tree 不暴露 Flutter `TextField`，且无法稳定查询 `IOSElementType.keyboard`；因此软键盘遮挡没有记为 PASS，已按计划转入 `docs/reference/testing/app-ios-device-manual-checklist.md` 并标记 SKIPPED/PENDING。
+R1.1 的 Patrol 系统软键盘路径无法稳定暴露 Flutter `TextField`，因此已转为独立原生 XCTest，并完成真实键盘、遮挡和返回优先级验收。
 
-R1.2 首次权限弹窗自动化也受到 Patrol 边界限制：权限 helper 不支持中文 Simulator，App/SpringBoard 原生树无法稳定枚举该 alert。因此自动化只记录 `simctl privacy revoke` 建立的真实永久拒绝状态和降级 UI；首次拒绝、设置恢复、通知、真实相机/麦克风与 APNs 均保留人工或真机 PENDING/SKIPPED。
+R1.2 的 Patrol 权限 helper 不支持中文 Simulator，因此首次照片/麦克风弹窗和设置恢复已转由独立原生 XCTest 覆盖并通过。通知设置恢复、真实相机/麦克风采集与 APNs 仍保留真机 PENDING/SKIPPED。
 
 R1.3 群聊用例复用了受控双设备编排，通过 `DUAL_TEST_TARGET` 选择 `patrol_test/group_chat_test.dart`，默认私聊入口保持不变。首次完整互发暴露 `ChatDetailPageV2` 在 `initState` 期间触发 `ChatProvider.notifyListeners()` 的 build-phase 异常；聊天室初始化移到首帧后执行后，双端创建群、发送和回复完整通过。
 
@@ -112,15 +113,13 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 ## 未完成项
 
 - 默认设备上的冷启动与登录主流程；真实账号 Patrol 登录和进入私聊已通过，仍待进程级冷启动复核。
-- 系统键盘弹出、收起和输入框遮挡检查。
-- 顶部/底部安全区、大字号、Reduced Motion 与系统级长文本视觉检查；反馈长页滚动已通过自动化巡检。
-- 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
+- 相机和通知权限恢复仍需真机验收；照片和麦克风的首次拒绝、永久拒绝提示与设置恢复已通过 Simulator。
 - 系统 Wi-Fi/蜂窝切换仍需真机人工验收；双 iOS API/WebSocket TCP 路径真实中断与恢复，以及主动断连后的前后台重连、当前聊天和离线文本消息恢复均已通过。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 系统 PHPicker、系统文件选择器和真实麦克风采集仍需人工或真机验收；图片、文件和语音附件真实上传、广播和对端下载已通过，语音接收端播放器启动也已验证。联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈页面导航巡检已通过；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
+- 系统文件选择器和真实麦克风采集仍需人工或真机验收；PHPicker 打开与取消、图片/文件/语音附件真实上传、广播和对端下载已通过，语音接收端播放器启动也已验证。联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈页面导航巡检已通过；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
 - 双账号登录、好友私聊双向已读、群聊已读/未读成员详情、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件
 
-1. 补齐系统键盘、安全区、权限拒绝/恢复和系统附件选择器等人工设备场景。
+1. 补齐系统文件选择器、通知/APNs、相机、真实麦克风采集和系统网络切换等真机设备场景。
 2. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。

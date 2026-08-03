@@ -114,35 +114,27 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
                  XCTWaiterResultCompleted);
 }
 
-- (XCUIElement *)scrollToButtonInApplication:(XCUIApplication *)application
-                                   labelText:(NSString *)text
-                                  maxSwipes:(NSUInteger)maxSwipes {
-  for (NSUInteger attempt = 0; attempt <= maxSwipes; attempt++) {
-    for (XCUIElement *button in application.buttons.allElementsBoundByIndex) {
-      if ([button.label isEqualToString:text] && button.hittable) {
-        return button;
+- (BOOL)openAppsSettingsInApplication:(XCUIApplication *)settings {
+  XCUIElement *chatlySettings = settings.buttons[@"com.chatlyme.app"];
+  for (NSUInteger navigationAttempt = 0; navigationAttempt < 3; navigationAttempt++) {
+    XCUIElement *appsSettings = nil;
+    for (NSUInteger scrollAttempt = 0; scrollAttempt <= 5; scrollAttempt++) {
+      for (XCUIElement *button in settings.buttons.allElementsBoundByIndex) {
+        if ([button.label isEqualToString:@"App"] && button.hittable) {
+          appsSettings = button;
+          break;
+        }
       }
+      if (appsSettings != nil) break;
+      [settings swipeUp];
     }
-    if (attempt < maxSwipes) {
-      [application swipeUp];
+    if (appsSettings == nil) continue;
+    [appsSettings tap];
+    if ([chatlySettings waitForExistenceWithTimeout:3.0]) {
+      return YES;
     }
   }
-  return nil;
-}
-
-- (XCUIElement *)buttonInApplication:(XCUIApplication *)application
-                           labelText:(NSString *)text
-                             timeout:(NSTimeInterval)timeout {
-  NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
-  do {
-    for (XCUIElement *button in application.buttons.allElementsBoundByIndex) {
-      if ([button.label isEqualToString:text]) {
-        return button;
-      }
-    }
-    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
-  } while ([deadline timeIntervalSinceNow] > 0);
-  return nil;
+  return NO;
 }
 
 - (void)testSystemKeyboardLayoutAndBackPriority {
@@ -306,14 +298,7 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
   NSLog(@"[RedCodeDeviceAcceptance] App settings hierarchy:\n%@", settings.debugDescription);
   [self addScreenshotNamed:@"app-settings" forApplication:settings];
 
-  XCUIElement *appsSettings = [self scrollToButtonInApplication:settings
-                                                      labelText:@"App"
-                                                     maxSwipes:5];
-  if (appsSettings == nil) {
-    XCTFail(@"未找到 Settings 的 App 入口");
-    return;
-  }
-  [appsSettings tap];
+  XCTAssertTrue([self openAppsSettingsInApplication:settings]);
 
   XCUIElement *chatlySettings = settings.buttons[@"com.chatlyme.app"];
   XCTAssertTrue([chatlySettings waitForExistenceWithTimeout:5.0]);
@@ -344,6 +329,114 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
   [self addScreenshotNamed:@"photos-picker-after-settings-recovery" forApplication:app];
   [cancelPicker tap];
   XCTAssertTrue(moreButton.exists);
+}
+
+- (void)testMicrophoneDenialAndSettingsRecovery {
+  NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
+  NSString *account = environment[@"REDCODE_TEST_ACCOUNT"];
+  NSString *password = environment[@"REDCODE_TEST_PASSWORD"];
+  NSString *peerAccount = environment[@"REDCODE_TEST_PEER_ACCOUNT"];
+  XCTAssertGreaterThan(account.length, 0);
+  XCTAssertGreaterThan(password.length, 0);
+  XCTAssertGreaterThan(peerAccount.length, 0);
+
+  XCUIApplication *app = [[XCUIApplication alloc] init];
+  [app launch];
+
+  XCUIApplication *springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+  XCUIElement *denyNotification = springboard.alerts.buttons[@"不允许"];
+  if ([denyNotification waitForExistenceWithTimeout:5.0]) {
+    [denyNotification tap];
+  }
+
+  XCUIElement *contactsTab = [app.buttons matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", @"联系人"]].firstMatch;
+  if (![contactsTab waitForExistenceWithTimeout:2.0]) {
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.42)] tap];
+    XCTAssertTrue([app.keyboards.firstMatch waitForExistenceWithTimeout:3.0]);
+    [app typeText:account];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.54)] tap];
+    [app typeText:password];
+    [self dismissKeyboardForApplication:app];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.21, 0.68)] tap];
+    [app.buttons[@"登录账号"] tap];
+  }
+  XCTAssertTrue([contactsTab waitForExistenceWithTimeout:8.0]);
+  [contactsTab tap];
+  XCUIElement *peer = [app.staticTexts matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", peerAccount]].firstMatch;
+  XCTAssertTrue([peer waitForExistenceWithTimeout:5.0]);
+  [peer tap];
+  XCUIElement *sendMessage = app.buttons[@"发送消息"];
+  XCTAssertTrue([sendMessage waitForExistenceWithTimeout:5.0]);
+  [sendMessage tap];
+
+  XCUIElement *voiceButton = app.buttons[@"语音"];
+  XCTAssertTrue([voiceButton waitForExistenceWithTimeout:5.0]);
+  [voiceButton tap];
+  XCUIElement *recordButton = app.buttons[@"按住录音"];
+  XCTAssertTrue([recordButton waitForExistenceWithTimeout:3.0]);
+  [recordButton pressForDuration:1.0];
+
+  XCUIElement *permissionAlert = app.alerts.firstMatch;
+  if (![permissionAlert waitForExistenceWithTimeout:3.0]) {
+    permissionAlert = springboard.alerts.firstMatch;
+  }
+  XCTAssertTrue([permissionAlert waitForExistenceWithTimeout:3.0]);
+  NSLog(@"[RedCodeDeviceAcceptance] Microphone alert hierarchy:\n%@", permissionAlert.debugDescription);
+  [self addScreenshotNamed:@"microphone-permission-alert" forApplication:springboard];
+  XCUIElement *denyMicrophone = permissionAlert.buttons[@"不允许"];
+  if (!denyMicrophone.exists) {
+    denyMicrophone = permissionAlert.buttons[@"Don’t Allow"];
+  }
+  if (!denyMicrophone.exists) {
+    denyMicrophone = permissionAlert.buttons[@"Don't Allow"];
+  }
+  XCTAssertTrue(denyMicrophone.exists);
+  [denyMicrophone tap];
+
+  XCTAssertTrue([app.staticTexts[@"需要麦克风权限"] waitForExistenceWithTimeout:5.0]);
+  XCUIElement *openSettings = app.buttons[@"前往设置"];
+  XCTAssertTrue(openSettings.exists);
+  [openSettings tap];
+
+  XCUIApplication *settings = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.Preferences"];
+  XCTAssertTrue([settings waitForState:XCUIApplicationStateRunningForeground timeout:5.0]);
+  XCTAssertTrue([self openAppsSettingsInApplication:settings]);
+
+  XCUIElement *chatlySettings = settings.buttons[@"com.chatlyme.app"];
+  XCTAssertTrue([chatlySettings waitForExistenceWithTimeout:5.0]);
+  [chatlySettings tap];
+  [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+  NSLog(@"[RedCodeDeviceAcceptance] Chatly microphone settings hierarchy:\n%@", settings.debugDescription);
+  [self addScreenshotNamed:@"microphone-settings" forApplication:settings];
+
+  XCUIElement *microphoneSwitch = settings.switches[@"麦克风"];
+  XCTAssertTrue([microphoneSwitch waitForExistenceWithTimeout:3.0]);
+  XCTAssertEqualObjects(microphoneSwitch.value, @"0");
+  [[microphoneSwitch coordinateWithNormalizedOffset:CGVectorMake(0.9, 0.5)] tap];
+  NSPredicate *microphoneEnabled = [NSPredicate predicateWithFormat:@"value == '1'"];
+  XCTNSPredicateExpectation *microphoneExpectation = [[XCTNSPredicateExpectation alloc]
+      initWithPredicate:microphoneEnabled
+                 object:microphoneSwitch];
+  XCTAssertEqual([XCTWaiter waitForExpectations:@[microphoneExpectation] timeout:3.0],
+                 XCTWaiterResultCompleted);
+
+  [app activate];
+  if (![recordButton waitForExistenceWithTimeout:3.0]) {
+    XCTAssertTrue([contactsTab waitForExistenceWithTimeout:5.0]);
+    [contactsTab tap];
+    XCTAssertTrue([peer waitForExistenceWithTimeout:5.0]);
+    [peer tap];
+    XCTAssertTrue([sendMessage waitForExistenceWithTimeout:5.0]);
+    [sendMessage tap];
+    XCTAssertTrue([voiceButton waitForExistenceWithTimeout:5.0]);
+    [voiceButton tap];
+    recordButton = app.buttons[@"按住录音"];
+  }
+  XCTAssertTrue([recordButton waitForExistenceWithTimeout:5.0]);
+  [self addScreenshotNamed:@"microphone-ready-after-settings-recovery" forApplication:app];
+  [recordButton pressForDuration:2.0];
 }
 
 @end

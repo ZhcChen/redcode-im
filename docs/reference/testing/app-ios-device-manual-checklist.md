@@ -24,9 +24,9 @@
 | --- | --- | --- | --- | --- |
 | 相册永久拒绝 | `simctl privacy revoke photos` 后在私聊点击“相册” | 不启动 picker，显示“需要相册权限”和“前往设置” | PASS | `make app.test.patrol.permission`，`app/build/ios_results_1785749306738.xcresult` |
 | 麦克风永久拒绝 | `simctl privacy revoke microphone` 后长按录音 | 不启动 recorder，显示“需要麦克风权限”和“前往设置” | PASS | 同一 Patrol 运行通过 |
-| 首次相册拒绝 | `simctl privacy reset` 后触发相册入口并拒绝系统弹窗 | App 不死锁，返回相册设置引导 | PASS | 独立原生 XCTest 点击真实系统“不允许”，随后断言“需要相册权限”和“前往设置”；`app/build/ios-permission-acceptance-*.xcresult` |
-| 从设置恢复相册权限 | 在设置中改为“完全访问”，再回 App 重试 | 无需重登即可继续 picker 流程 | PASS | XCTest 经 `Settings -> App -> Chatly -> 照片` 恢复权限，返回原聊天页后 PHPicker 正常出现并可取消；`app/build/ios-permission-acceptance-*.xcresult` |
-| 首次麦克风拒绝与恢复 | `simctl privacy reset` 后触发录音、拒绝，再从设置恢复 | App 不死锁，恢复后无需重登即可启动录音 | PENDING | 待独立原生 XCTest 覆盖 |
+| 首次相册拒绝 | `simctl privacy reset` 后触发相册入口并拒绝系统弹窗 | App 不死锁，返回相册设置引导 | PASS | 独立原生 XCTest 点击真实系统“不允许”，随后断言“需要相册权限”和“前往设置”；`app/build/ios-photo-permission-acceptance-*.xcresult` |
+| 从设置恢复相册权限 | 在设置中改为“完全访问”，再回 App 重试 | 无需重登即可继续 picker 流程 | PASS | XCTest 经 `Settings -> App -> Chatly -> 照片` 恢复权限，返回原聊天页后 PHPicker 正常出现并可取消；`app/build/ios-photo-permission-acceptance-*.xcresult` |
+| 首次麦克风拒绝与恢复 | `simctl privacy reset microphone` 后触发录音、拒绝，再从设置恢复 | App 不死锁，恢复后无需重登即可重新进入录音流程 | PASS | 原生 XCTest 真实点击系统“不允许”，验证设置引导，将 Chatly 的麦克风开关从 `0` 恢复为 `1`，返回已登录 App 后重新进入同一聊天和录音面板；`app/build/ios-microphone-permission-acceptance-*.xcresult` |
 | 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | 2026-08-04 已由 XCTest 真实点击首次系统“不允许”，拒绝后正式 App 正常进入登录页；设置恢复、APNs token 和前后台通知仍待 iPhone 真机验收 |
 | 相机权限 | 在支持相机的设备上拒绝、永久拒绝并恢复 | 拒绝不死锁，永久拒绝有设置入口，恢复后无需重登 | SKIPPED | iOS Simulator 无真实相机能力，转 iPhone 真机验收 |
 | 真实采集质量 | 拍照、录制 1-60 秒语音并发送 | 图片方向/清晰度正常，音频可播放且时长正确 | SKIPPED | 必须 iPhone 真机验证 |
@@ -48,4 +48,4 @@
 3. XCTest 比较 composer、发送按钮与系统键盘的实际 frame，确认控件位于键盘上方。
 4. 首次系统返回只收键盘，第二次才退出聊天页。
 
-权限弹窗仍存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言。照片首次拒绝和设置恢复已改由独立原生 XCTest 覆盖；`permission_flow_test.dart` 继续证明宿主设置的真实永久拒绝状态与 App 降级 UI。麦克风首次拒绝与恢复仍待同类原生用例覆盖。
+权限弹窗仍存在 Patrol 边界：当前 CLI 的自动权限 helper 不支持中文系统语言。照片和麦克风首次拒绝、设置恢复已改由独立原生 XCTest 覆盖；`permission_flow_test.dart` 继续证明宿主设置的真实永久拒绝状态与 App 降级 UI。Simulator 无法提供可验收的真实麦克风采集与音质，相关结果不记为 PASS。
