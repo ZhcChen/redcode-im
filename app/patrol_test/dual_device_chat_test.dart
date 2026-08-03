@@ -31,7 +31,7 @@ void main() {
   patrolTest(
     '双 iOS Simulator 私聊实时互发',
     config: const PatrolTesterConfig(
-      visibleTimeout: Duration(seconds: 120),
+      visibleTimeout: Duration(seconds: 300),
       printLogs: true,
     ),
     ($) async {
@@ -39,6 +39,12 @@ void main() {
       expect(account, isNotEmpty);
       expect(peerAccount, isNotEmpty);
       expect(marker, isNotEmpty);
+      final messagePrefix = 'dual-$role-';
+      // 编排脚本依赖该行确认运行中的 App 确实使用了本端编译参数。
+      $.log(
+        'DUAL_IDENTITY role=$role account=$account marker=$marker '
+        'prefix=$messagePrefix peer=$peerAccount',
+      );
 
       final preferences = await SharedPreferences.getInstance();
       await preferences.setBool('user_agreed_to_terms', true);
@@ -54,6 +60,7 @@ void main() {
       await $('发送消息').waitUntilVisible();
       await $('发送消息').tap();
       await $(const ValueKey('chat-input-text-field')).waitUntilVisible();
+      $.log('DUAL_READY role=$role account=$account marker=$marker');
 
       final messageA = 'dual-a-$marker';
       final messageB = 'dual-b-$marker';

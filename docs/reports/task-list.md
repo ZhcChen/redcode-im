@@ -49,10 +49,11 @@
 
 ## 当前立即队列
 
-- [ ] `IM2-R1.0` 双 iOS Patrol 可靠编排
+- [x] `IM2-R1.0` 双 iOS Patrol 可靠编排
   - 单一脚本生成 marker、校验两个不同 Simulator、分配独立端口并隔离 A/B 构建产物。
   - 验证两端实际账号、角色和消息前缀，覆盖超时、失败清理、日志与 xcresult 留存。
   - 提供 `make app.test.patrol.dual` 唯一推荐入口并纳入 `make app.test.scripts` 契约测试。
+  - 2026-08-03 连续两轮真实运行通过，marker、A/B 构建身份、日志和 `xcresult` 均独立留存。
 - [ ] `IM2-U8` Flutter 移动 P0 设备验收收口
   - 已通过 iOS integration/auth/API contract、Patrol 登录和双 iOS 私聊实时互发。
   - 待补系统键盘、安全区、长内容、权限拒绝/恢复、群聊、已读、前后台、离线重连、附件和完整页面巡检。

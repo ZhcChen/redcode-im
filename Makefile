@@ -79,6 +79,11 @@ PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
 PATROL_TEST_SERVER_PORT ?= 19081
 PATROL_APP_SERVER_PORT ?= 19082
+PATROL_DUAL_DEVICE_A ?=
+PATROL_DUAL_DEVICE_B ?=
+PATROL_DUAL_ACCOUNT_A ?=
+PATROL_DUAL_ACCOUNT_B ?=
+PATROL_DUAL_PASSWORD ?=
 
 WEBSITE_DIR := $(ROOT_DIR)/website
 WEBSITE_SCREEN := website
@@ -150,7 +155,7 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.build.android app.build.ios app.proto \
+	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -654,6 +659,7 @@ app.test.unit: ## 执行 app 全量 Flutter test
 app.test.scripts: ## 执行 app shell 脚本契约测试
 	@cd "$(APP_DIR)" && ./scripts/test_integration_contract_test.sh
 	@cd "$(APP_DIR)" && ./scripts/xcode_clang_probe_wrapper_contract_test.sh
+	@cd "$(APP_DIR)" && ./scripts/test_patrol_dual_device_contract_test.sh
 	@$(MAKE) app.test.api-paths
 
 app.test.api-paths: ## 校验 Flutter REST path 均已在 API routes.rs 注册
@@ -716,6 +722,9 @@ app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_D
 app.test.patrol.login: ## 执行 app Patrol 登录与 P0 导航 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
 	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
+
+app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传设备 UUID、账号和密码）
+	@cd "$(APP_DIR)" && DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
 
 app.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))

@@ -8,7 +8,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 
 ## 验收环境
 
-- 日期：2026-08-02
+- 日期：2026-08-02；双设备编排复核：2026-08-03
 - 默认设备：iPhone 17 Pro，`EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`，iOS 26.3
 - 双端设备：iPhone 17 Pro Max，`C0BAADF7-6F47-457C-A06A-893D0251B8CB`，iOS 26.3
 - 补充设备：Android 15 Emulator，`emulator-5554`，API 35，arm64
@@ -32,6 +32,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - `make app.test.integration.device.contract APP_TEST_DEVICE=emulator-5554`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
 - `dual_device_chat_test.dart`：iPhone 17 Pro 与 iPhone 17 Pro Max 同时运行 Patrol，账号 A/B 均通过真实 UI 登录并进入同一私聊；A 发送 `dual-a-1785724561`，B 实时可见后回复 `dual-b-1785724561`，A 实时可见回复，两端测试均通过。
 - API 运行时证据：两个账号分别完成 protobuf WebSocket 认证并订阅房间 `019fc568-5800-7783-877c-448008bc95ed`；两次 `POST /rooms/{room_id}/messages` 均记录“1 个订阅者”，证明消息经在线 WebSocket 链路送达对端，而非仅靠历史消息刷新。
+- `make app.test.patrol.dual` 连续两轮通过：marker 分别为 `1785745629-39354-344`、`1785745896-54948-13521`。两轮 A/B 日志的首条 `DUAL_IDENTITY` 均与各自角色、账号、marker 和 `dual-a-`/`dual-b-` 消息前缀一致，证明没有复用上一轮或对端的编译参数。
+- 两轮日志和 `xcresult` 分别归档到 `app/build/patrol-dual/<marker>/`。该目录是本地验收证据，不纳入 Git。
 
 ## 默认设备复核
 
@@ -59,7 +61,9 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 
 `PatrolTester.enterText()` 只向 Flutter 输入控件注入文本，不会拉起原生软键盘，因此该流程不作为键盘遮挡验收证据。键盘行为继续保留为默认设备人工验收项。
 
-双设备 Patrol 用例使用 120 秒可见性超时，B 端先进入会话等待，再启动 A 端，以覆盖第二台 Simulator 的构建和安装时间。用例显式初始化协议同意状态，避免 Simulator 历史 `SharedPreferences` 导致登录分支不确定。
+双设备 Patrol 现统一由 `app/scripts/test_patrol_dual_device.sh` 编排。脚本为 A/B 创建两个临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件；使用四个独立端口，B 的真实身份与会话就绪后才启动 A，任一端失败或超时会递归清理另一端进程树。全新隔离构建实测可能超过两分钟，因此用例可见性超时调整为 300 秒。用例显式初始化协议同意状态，避免 Simulator 历史 `SharedPreferences` 导致登录分支不确定。
+
+Patrol 4.3.0 在 iOS Simulator 上读取全局 macOS `log stream`，并发时一份日志可能同时出现另一台 Simulator 的后续结构化日志。因此身份门禁校验每份日志的首条 `DUAL_IDENTITY`，而不是只判断全文是否包含期望值。
 
 对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 
