@@ -136,4 +136,20 @@ describe('HomeView chat tab', () => {
     expect(wrapper.text()).toContain('Mia');
     expect(wrapper.findAll('.contact-shortcuts button').some((button) => button.text().includes('群聊'))).toBe(true);
   });
+
+  it('provides discover and mine tabs without embedding the settings overview', async () => {
+    const authStore = useAuthStore();
+    authStore.session = { token: 'token-1', user: { id: 'u1', username: 'u1@example.com', nickname: 'U1', email: 'u1@example.com' } };
+    const shellStore = useAppShellStore();
+    shellStore.switchTab('discover');
+    const wrapper = mount(HomeView);
+    expect(wrapper.text()).toContain('暂无可用功能');
+
+    shellStore.switchTab('mine');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('U1');
+    expect(wrapper.text()).toContain('设置');
+    expect(wrapper.text()).not.toContain('账号与安全');
+    expect(wrapper.findAll('.tabbar__item')).toHaveLength(4);
+  });
 });

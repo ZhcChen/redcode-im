@@ -124,6 +124,11 @@ export class MessageSearchStorage {
     };
   }
 
+  async clearAll(): Promise<void> {
+    const { db } = await this.ready();
+    await db.execute('DELETE FROM message_search');
+  }
+
   private async ready() {
     return this.initialize();
   }

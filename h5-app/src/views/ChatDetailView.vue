@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import { useChatDetailStore } from '@/stores/chat-detail';
 import type { ChatMessage } from '@/types/chat';
+import { chatSettingsService } from '@/services/chat-settings-service';
 
 const route = useRoute();
 const router = useRouter();
@@ -20,6 +21,7 @@ const imageInput = ref<HTMLInputElement | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const highlightedMessageId = ref('');
 const targetNotice = ref('');
+const chatBackground = chatSettingsService.getBackground();
 let highlightTimer: number | null = null;
 
 const roomId = computed(() => String(route.params.roomId ?? ''));
@@ -158,7 +160,7 @@ const resolveRouteChat = () => {
 </script>
 
 <template>
-  <main class="chat-detail app-phone-frame">
+  <main class="chat-detail app-phone-frame" :class="`chat-detail--${chatBackground}`">
     <header class="chat-detail__header">
       <button class="chat-detail__back rc-focus-ring" type="button" @click="goBack">‹</button>
       <div class="chat-detail__title">
@@ -306,6 +308,9 @@ const resolveRouteChat = () => {
   overflow: hidden;
   background: var(--rc-background);
 }
+
+.chat-detail--mint { background: #eaf8ef; }
+.chat-detail--gray { background: #eceff1; }
 
 .chat-detail__header {
   display: grid;

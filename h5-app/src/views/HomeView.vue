@@ -45,17 +45,25 @@ const navItems = computed<NavItem[]>(() => [
     badge: shellStore.pendingFriends,
   },
   {
-    key: 'settings',
-    label: '设置',
-    icon: '⚙',
-    activeIcon: '⚙',
+    key: 'discover',
+    label: '发现',
+    icon: '◇',
+    activeIcon: '◆',
+    badge: 0,
+  },
+  {
+    key: 'mine',
+    label: '我的',
+    icon: '○',
+    activeIcon: '●',
     badge: 0,
   },
 ]);
 
 const title = computed(() => {
   if (shellStore.activeTab === 'contacts') return '联系人';
-  if (shellStore.activeTab === 'settings') return '设置';
+  if (shellStore.activeTab === 'discover') return '发现';
+  if (shellStore.activeTab === 'mine') return '我的';
   return '聊天';
 });
 
@@ -388,8 +396,12 @@ onBeforeUnmount(() => {
 
       </section>
 
+      <section v-else-if="shellStore.activeTab === 'discover'" class="panel">
+        <p class="discover-empty">暂无可用功能</p>
+      </section>
+
       <section v-else class="panel">
-        <button class="profile-card rc-focus-ring" type="button" @click="router.push({ name: 'profile-settings' })">
+        <button class="profile-card rc-focus-ring" type="button" @click="router.push({ name: 'mine-profile' })">
           <div class="profile-card__avatar">
             <CachedAvatar
               v-if="authStore.currentUser"
@@ -406,20 +418,8 @@ onBeforeUnmount(() => {
           </div>
         </button>
 
-        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'account-security' })">
-          <span>账号安全</span>
-          <strong>›</strong>
-        </button>
-        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'privacy-policy' })">
-          <span>隐私协议</span>
-          <strong>›</strong>
-        </button>
-        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'user-agreement' })">
-          <span>用户协议</span>
-          <strong>›</strong>
-        </button>
-        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'about' })">
-          <span>关于 RedCode IM</span>
+        <button class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'settings' })">
+          <span>设置</span>
           <strong>›</strong>
         </button>
         <button class="settings-row settings-row--danger rc-focus-ring" type="button" @click="logout">
@@ -518,6 +518,13 @@ onBeforeUnmount(() => {
 
 .panel > * {
   min-width: 0;
+}
+
+.discover-empty {
+  margin: 24px 0 0;
+  color: var(--rc-text-tertiary);
+  text-align: center;
+  font-size: 14px;
 }
 
 .search-box input {

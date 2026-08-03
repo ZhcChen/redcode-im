@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 
-export type AppTab = 'chat' | 'contacts' | 'settings';
+export type AppTab = 'chat' | 'contacts' | 'discover' | 'mine';
 
 export const useAppShellStore = defineStore('appShell', {
   state: () => ({

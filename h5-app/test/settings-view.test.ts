@@ -7,6 +7,10 @@ import AboutView from '@/views/settings/AboutView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
 import FeedbackView from '@/views/settings/FeedbackView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
+import MineProfileView from '@/views/settings/MineProfileView.vue';
+import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
+import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
+import { chatSettingsService } from '@/services/chat-settings-service';
 
 const routeName = vi.hoisted(() => ({ value: 'privacy-policy' }));
 
@@ -69,5 +73,28 @@ describe('settings views', () => {
     const feedback = mount(FeedbackView);
     expect(feedback.text()).toContain('告诉我们你的想法');
     expect(feedback.find('textarea').exists()).toBe(true);
+  });
+
+  it('renders mine profile and the independent settings overview', () => {
+    const profile = mount(MineProfileView);
+    expect(profile.text()).toContain('U1');
+    expect(profile.text()).toContain('编辑个人资料');
+
+    const settings = mount(SettingsOverviewView);
+    expect(settings.text()).toContain('账号与安全');
+    expect(settings.text()).toContain('聊天设置');
+    expect(settings.text()).toContain('关于 RedCode IM');
+  });
+
+  it('updates chat background and clears local cache after confirmation', async () => {
+    const clear = vi.spyOn(chatSettingsService, 'clearLocalCache').mockResolvedValue();
+    const wrapper = mount(ChatSettingsView);
+    await wrapper.find('.background-option--mint').trigger('click');
+    expect(chatSettingsService.getBackground()).toBe('mint');
+    await wrapper.findAll('button').find((button) => button.text() === '清理本地缓存')?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '确认清理')?.trigger('click');
+    await flushPromises();
+    expect(clear).toHaveBeenCalledOnce();
+    expect(wrapper.text()).toContain('本地缓存已清理');
   });
 });

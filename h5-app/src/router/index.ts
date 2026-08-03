@@ -26,6 +26,9 @@ import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
 import AboutView from '@/views/settings/AboutView.vue';
 import FeedbackView from '@/views/settings/FeedbackView.vue';
+import MineProfileView from '@/views/settings/MineProfileView.vue';
+import SettingsOverviewView from '@/views/settings/SettingsOverviewView.vue';
+import ChatSettingsView from '@/views/settings/ChatSettingsView.vue';
 import { useAuthStore } from '@/stores/auth';
 
 export const router = createRouter({
@@ -165,6 +168,24 @@ export const router = createRouter({
       path: '/settings/profile',
       name: 'profile-settings',
       component: ProfileSettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/mine/profile',
+      name: 'mine-profile',
+      component: MineProfileView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: SettingsOverviewView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings/chat',
+      name: 'chat-settings',
+      component: ChatSettingsView,
       meta: { requiresAuth: true },
     },
     {

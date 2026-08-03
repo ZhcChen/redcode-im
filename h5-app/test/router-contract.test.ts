@@ -37,4 +37,11 @@ describe('h5 router contract', () => {
     expect(routes.get('group-invitations')?.path).toBe('/group-invitations');
     expect(routes.get('group-operation-logs')?.path).toBe('/groups/:roomId/operation-logs');
   });
+
+  it('exposes mine and settings as refresh-safe routes', () => {
+    const routes = new Map(router.getRoutes().map((route) => [route.name, route]));
+    expect(routes.get('mine-profile')?.path).toBe('/mine/profile');
+    expect(routes.get('settings')?.path).toBe('/settings');
+    expect(routes.get('chat-settings')?.path).toBe('/settings/chat');
+  });
 });

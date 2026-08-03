@@ -389,8 +389,10 @@ test.describe('h5-app browser smoke', () => {
     const password = `H5pass-${username}`;
     await registerThroughUi(page, username, password);
 
-    await page.getByRole('button', { name: /设置/ }).click();
+    await page.getByRole('button', { name: /我的/ }).click();
     await page.locator('.profile-card').click();
+    await expect(page).toHaveURL(/\/mine\/profile$/);
+    await page.getByRole('button', { name: '编辑个人资料' }).click();
     await expect(page).toHaveURL(/\/settings\/profile$/);
     await page.locator('input[type="file"]').setInputFiles({
       name: 'user-avatar.png',
@@ -647,5 +649,22 @@ test.describe('h5-app browser smoke', () => {
       const members = await loadMembersViaApi(request, owner.session.token, declinedRoomId);
       return members.some((member) => String(member.user_id ?? member.userId ?? '') === inviteeSession.user.id);
     }).toBe(false);
+  });
+
+  test('navigates the four-tab shell and persists chat settings', async ({ page }) => {
+    const username = uniqueAccount('h5e2es');
+    await registerThroughUi(page, username, `H5pass-${username}`);
+
+    await page.getByRole('button', { name: /发现/ }).click();
+    await expect(page.getByText('暂无可用功能')).toBeVisible();
+    await page.getByRole('button', { name: /我的/ }).click();
+    await expect(page.getByRole('heading', { name: '我的' })).toBeVisible();
+    await page.getByRole('button', { name: /设置/ }).click();
+    await expect(page).toHaveURL(/\/settings$/);
+    await page.getByRole('button', { name: /聊天设置/ }).click();
+    await page.locator('.background-option--mint').click();
+    await expect(page.getByText('聊天背景已更新')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('.background-option--mint')).toHaveClass(/active/);
   });
 });
