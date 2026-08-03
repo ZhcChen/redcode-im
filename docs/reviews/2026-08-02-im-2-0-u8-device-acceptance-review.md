@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；完整设备选择器交互仍待验收。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；iPhone 17 Pro 与 iPhone 17 Pro Max 的双账号私聊、群聊实时互发，以及前后台重连和离线消息恢复已通过。附件失败、手动重试和缓存恢复状态机已由单元测试覆盖，真实 API contract 已补齐签名、直传、commit、消息 parts、对端可见与下载断言；双 iOS 图片附件上传、广播和下载已通过，系统 PHPicker、文件和语音附件仍待验收。
 
 ## 验收环境
 
@@ -48,6 +48,7 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - 权限状态已统一为可测试的 `PermissionService`，覆盖 granted/limited/denied/permanentlyDenied/restricted，并接入聊天附件、语音、资料头像、群头像、聊天背景、举报凭证和本地通知请求。
 - 附件状态机不再用无限 `sending` 和定时重试表示失败：签名、上传或发送失败会落为可点击的 `failed`，App 重启后把遗留 `sending` 降为 `failed` 并恢复手动重试队列；图片、文件、语音恢复重试及本地源文件丢失均有单测。语音首次发送失败时保留本地录音，避免重试入口失效。
 - `api_contract_flow_test.dart` 已加入小型 PDF 的完整合同链路：签名、S3-compatible PUT、commit、发送附件 parts、账号 B 拉取可见和强制下载字节一致。2026-08-03 在 iOS Simulator 上完成默认关闭真实合同开关时的编译验证；需通过 `make app.test.integration.device.contract` 在 Compose API/RustFS-compatible mock 启用状态下再次取得运行时 PASS，当前不把编译结果记为真实附件链路通过。
+- `image_attachment_test.dart` 已在双 iOS Simulator 通过，marker 为 `1785773518-91298-11190`。A 点击真实“相册”入口后，由测试进程返回固定 PNG；图片解析、签名、S3-compatible PUT、commit、正式 `messages/` key、消息广播以及 B 下载落盘均通过。Patrol 4.5 无法稳定操作独立系统进程中的 iOS 26 PHPicker，因此系统选择器交互仍为人工 PENDING，不将本结果泛化为文件或语音附件通过。
 
 ## 默认设备复核
 
@@ -107,7 +108,7 @@ App 原先只依赖 socket `onDone` 和网络变化触发重连，iOS 后台冻�
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。
 - 真实网络断开/恢复；双 iOS 主动断连后的前后台 WebSocket 重连、当前聊天和离线文本消息恢复已通过，附件失败与缓存恢复状态机已由单测覆盖。
 - 默认设备系统返回、原生返回手势和多层路由回退；Android 两层二级路由返回已通过。
-- 聊天附件选择器、真实上传/下载和设置的完整可视化设备巡检；成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
+- 聊天附件选择器、文件/语音附件和设置的完整可视化设备巡检；图片附件真实上传、广播和对端下载已通过，但系统 PHPicker 仍需人工验收。成员移除、个人禁言/解禁、全体禁言/恢复、联系人备注/删除/重新申请，以及管理员任命后对端权限实时刷新已验证。
 - 双账号登录、好友私聊双向已读、群聊已读/未读成员详情、建群、群消息双向互发、前后台重连、离线文本消息恢复和 WebSocket 实时同步已通过。
 
 ## 阻塞与恢复条件

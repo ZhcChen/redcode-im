@@ -9,6 +9,7 @@
 - `group_chat_test.dart`：双设备真实账号创建群聊、群消息实时互发、已读详情和管理员权限刷新。只通过 `make app.test.patrol.group` 编排运行；A 查看自己消息的已读/未读成员，B 停留在群设置页时，A 通过真实 UI 任命 B 为管理员，B 无需重新进页即可见“禁言管理”
 - `group_mute_test.dart`：双设备真实群聊个人禁言/解禁、全体禁言/恢复及输入区状态同步。只通过 `make app.test.patrol.group-mute` 编排运行；A 管理禁言，B 必须实时出现对应提示，并在两次恢复后分别发送确认消息
 - `group_member_removal_test.dart`：双设备真实群成员移除闭环。只通过 `make app.test.patrol.group-member-removal` 编排运行；A 从群设置移除 B，B 必须实时退出群详情并看到移除提示
+- `image_attachment_test.dart`：双设备图片附件真实链路。只通过 `make app.test.patrol.image-attachment` 编排运行；A 点击真实“相册”入口，测试进程提供固定 PNG 选择结果，图片解析、签名、S3-compatible PUT、commit、消息发送、B 端 WebSocket 接收和下载均走真实链路
 - `contact_lifecycle_test.dart`：双设备真实联系人生命周期。只通过 `make app.test.patrol.contact` 编排运行；A 修改 B 的备注并验证列表优先展示，删除 B 后重新搜索和发送申请，B 接受后双方联系人关系恢复
 - `offline_recovery_test.dart`：双设备前后台重连和离线消息恢复。只通过 `make app.test.patrol.offline` 编排运行；A 主动断开 WebSocket 并进入后台，B 在离线窗口发送消息，A 回前台后断言重新认证、当前会话恢复且消息不重复
 - `device_layout_test.dart`：真实账号进入私聊后的长 composer、发送按钮边界和焦点优先返回回归。Patrol 4.3 无法通过 iOS native tree 定位 Flutter `TextField`，因此该用例不作为真实系统软键盘 PASS 证据
@@ -20,6 +21,7 @@
 - 双设备私聊和群聊共用同一编排脚本，固定使用四个不同的 test/app server 端口，并把 A/B 源码复制到两个临时工作区。Patrol 固定的 `build/ios_integ`、`.dart_tool/flutter_build` 和生成的 `test_bundle.dart` 因此不会跨角色复用。
 - B 端输出经过编译参数和真实登录验证的 `DUAL_READY` 后才启动 A；完成时还会核对双方首条 `DUAL_IDENTITY` 的角色、账号、marker 和消息前缀。全新隔离构建可能超过两分钟，因此双端可见性等待窗口为 300 秒。
 - 群聊、群禁言和成员移除用例分别要求 A/B 输出 `DUAL_GROUP_COMPLETE`、`DUAL_GROUP_MUTE_COMPLETE`和 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。当业务断言已经完成但 B 端 XCTest 收尾不退出时，编排器据此受控结束残留进程；没有双方完成标记时仍判失败。
+- 图片附件用例要求 A/B 输出 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。Patrol 4.5 无法跨进程稳定驱动 iOS 26 PHPicker，因此该用例替换测试进程中的 picker 返回值，不把系统 PHPicker 交互记为自动化 PASS；系统选择器仍按人工清单验收。
 - 用例启动时会把 `user_agreed_to_terms` 明确设为 `true`，避免 Simulator 历史偏好状态影响登录结果。
 - 任一端失败或超时会终止另一端。双方日志、marker 和 `xcresult` 归档到 `app/build/patrol-dual/<marker>/`，临时工程在退出时删除。
 
