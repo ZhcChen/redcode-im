@@ -66,9 +66,9 @@ impl FriendStore {
                 FriendRequestStatus::Pending => {
                     return Err(AppError::AlreadyExists("好友请求正在处理中".to_string()));
                 }
-                FriendRequestStatus::Accepted => {
-                    return Err(AppError::AlreadyExists("双方已经是好友".to_string()));
-                }
+                // 当前好友关系已在上方确认不存在，历史已同意请求
+                // 不应阻止删除好友后重新申请，继续交给下方 UPSERT 重置。
+                FriendRequestStatus::Accepted => {}
                 FriendRequestStatus::Declined => {
                     // 已拒绝的请求，如果由同一请求人再次发起，更新为新的 Pending
                     if existing.requester_id == requester_id {
