@@ -1,7 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from '@/stores/auth';
+import { accountDataService } from '@/services/account-data-service';
 
 describe('auth store', () => {
   beforeEach(() => {
@@ -23,10 +24,18 @@ describe('auth store', () => {
     const store = useAuthStore();
     await store.login('h5_user', 'password');
 
-    store.logout();
+    await store.logout();
 
     expect(store.isAuthenticated).toBe(false);
     expect(window.localStorage.getItem('redcode-h5-session')).toBeNull();
+  });
+
+  it('clears account-scoped cache when switching users', async () => {
+    const store = useAuthStore();
+    await store.login('first_user', 'password');
+    const clear = vi.spyOn(accountDataService, 'clearAll').mockResolvedValue();
+    await store.login('second_user', 'password');
+    expect(clear).toHaveBeenCalledOnce();
   });
 
   it('synchronizes login updates and logout from another browser tab', () => {

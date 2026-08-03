@@ -31,7 +31,7 @@ const deactivate = async () => {
     chat.$reset();
     contacts.$reset();
     useSettingsStore().$reset();
-    useAuthStore().logout();
+    await useAuthStore().logout(false);
     await router.replace({ name: 'login' });
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '注销账号失败';

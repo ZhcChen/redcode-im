@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
 import { loginWithAccount, registerWithAccount } from '@/api/auth';
+import { accountDataService } from '@/services/account-data-service';
 import type { AuthSession, AuthUser } from '@/types/auth';
 
 const STORAGE_KEY = 'redcode-h5-session';
@@ -40,6 +41,9 @@ export const useAuthStore = defineStore('auth', {
       this.error = '';
       try {
         const session = await loginWithAccount(account, password, appEnv.useMockData);
+        if (this.session?.user.id && this.session.user.id !== session.user.id) {
+          await accountDataService.clearAll();
+        }
         this.session = session;
         writeStoredSession(session);
       } catch (error) {
@@ -55,6 +59,9 @@ export const useAuthStore = defineStore('auth', {
       try {
         await registerWithAccount(account, password, appEnv.useMockData);
         const session = await loginWithAccount(account, password, appEnv.useMockData);
+        if (this.session?.user.id && this.session.user.id !== session.user.id) {
+          await accountDataService.clearAll();
+        }
         this.session = session;
         writeStoredSession(session);
       } catch (error) {
@@ -64,7 +71,8 @@ export const useAuthStore = defineStore('auth', {
         this.loading = false;
       }
     },
-    logout() {
+    async logout(clearLocalData = true) {
+      if (clearLocalData) await accountDataService.clearAll();
       this.session = null;
       this.error = '';
       writeStoredSession(null);

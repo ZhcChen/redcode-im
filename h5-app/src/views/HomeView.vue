@@ -73,7 +73,7 @@ const logout = async () => {
   contactsStore.dispose();
   contactsStore.$reset();
   settingsStore.$reset();
-  authStore.logout();
+  await authStore.logout();
   await router.replace({ name: 'login' });
 };
 
