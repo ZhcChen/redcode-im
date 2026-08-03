@@ -42,6 +42,7 @@ USE_MOCK_DATA=false          # Mock 数据
 
 > `run.sh`、`run_dev.sh` 与 `test_integration.sh device` 默认动态选择本机可用的 iOS Simulator，并使用 `127.0.0.1` 访问 API/WS。显式指定真机时会重新检测当前本机局域网 IP，并覆盖开发环境里的 `API_BASE_URL` / `WS_URL`。
 > 设备枚举有超时保护：`flutter devices` 默认 20 秒，`xcrun simctl list devices available` 默认 20 秒；可通过 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若本机 Xcode/CoreSimulator runtime 不匹配导致 Simulator 不可用，可先用默认 `macos` target 完成本机 API/WS/auth integration。
+> Xcode 26.6 下脚本会自动启用 `xcode_clang_probe_wrapper.sh`，避免 compiler capability probe 的 `-v` 输出填满 SwiftBuild 管道。该 wrapper 仅修改 `-dM` 探测，正常编译参数保持不变。
 
 ### 本地覆盖
 

@@ -4,10 +4,27 @@
 # 被其他脚本 source 引用
 
 DEFAULT_FLUTTER_DEVICE_ID="${DEFAULT_FLUTTER_DEVICE_ID:-}"
+COMMON_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FLUTTER_DEVICES_TIMEOUT_SECONDS="${FLUTTER_DEVICES_TIMEOUT_SECONDS:-20}"
 SIMCTL_TIMEOUT_SECONDS="${SIMCTL_TIMEOUT_SECONDS:-20}"
 SIMCTL_BOOT_TIMEOUT_SECONDS="${SIMCTL_BOOT_TIMEOUT_SECONDS:-60}"
 FLUTTER_DEVICE_READY_TIMEOUT_SECONDS="${FLUTTER_DEVICE_READY_TIMEOUT_SECONDS:-60}"
+
+configure_xcode_clang_probe_workaround() {
+    local xcode_version=""
+
+    [ "$(uname -s)" = "Darwin" ] || return 0
+    command -v xcodebuild >/dev/null 2>&1 || return 0
+    xcode_version="$(xcodebuild -version 2>/dev/null | sed -n '1s/^Xcode //p')"
+
+    case "$xcode_version" in
+        26.6*)
+            export CC="${CC:-$COMMON_SCRIPT_DIR/xcode_clang_probe_wrapper.sh}"
+            ;;
+    esac
+}
+
+configure_xcode_clang_probe_workaround
 
 kill_process_tree() {
     local pid="$1"

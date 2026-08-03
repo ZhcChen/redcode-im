@@ -56,6 +56,8 @@ make app.test.integration.smoke
 Flutter `app/` 默认使用本机 iOS Simulator 进行设备验收。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以显式指定 `APP_TEST_DEVICE=macos` 作为临时兜底。
+
+Xcode 26.6 的 `clang -v -E -dM` capability probe 可能因 SwiftBuild 的 16 KB 输出管道未及时消费而卡在 `CreateBuildDescription`。Flutter app 脚本会在该 Xcode 版本下自动设置 `CC=app/scripts/xcode_clang_probe_wrapper.sh`：仅对 `-dM` 探测移除 `-v`，其他编译参数原样透传。合同测试入口为 `make app.test.scripts`。
 推荐使用 Makefile 入口自动完成：
 
 ```bash

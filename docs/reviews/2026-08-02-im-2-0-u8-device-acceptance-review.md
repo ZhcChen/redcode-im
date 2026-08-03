@@ -4,7 +4,7 @@
 
 U8 尚未完成。Android 15 Emulator 已通过 Flutter 静态检查、全量单测、Patrol 登录与四 Tab 主导航，以及真实 API 认证和核心合同测试，可作为 Android 补充证据；但它不替代仓库规定的默认设备验收。
 
-iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service 在构建描述阶段持续卡住，因此目前不能证明系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复已在默认设备策略下通过。
+iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 build service 在构建描述阶段持续卡住的问题已定位并使用窄范围 compiler probe wrapper 绕过；系统键盘、安全区、权限拒绝/恢复、前后台切换和离线恢复等完整设备场景仍待验收。
 
 ## 验收环境
 
@@ -14,13 +14,18 @@ iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service
 - 补充设备：Android 15 Emulator，`emulator-5554`，API 35，arm64
 - API：`http://10.0.2.2:8010`
 - WebSocket：`ws://10.0.2.2:8010/ws`
-- 两台 iOS Simulator 均已启动并被 `flutter devices` 识别，构建阻塞
+- iPhone 17 Pro Simulator 已启动并被 `flutter devices` 识别；Android 15 Emulator 用作跨端联调设备
 
 ## 已通过证据
 
 - `make app.check`：通过，无 analyze 问题。
 - `make app.test`：324 项通过。
 - `make app.test.integration.smoke APP_TEST_DEVICE=emulator-5554`：2 项通过。
+- `make app.test.integration.smoke APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：通过，2 项 integration smoke 全部执行。
+- `make app.test.integration.device.auth APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：真实 API 注册、登录、刷新和登出通过。
+- `make app.test.integration.device.contract APP_TEST_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：三账号认证、好友、群、消息、设置、隐私协议、反馈和上传策略合同通过。
+- `make app.test.patrol.harness PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：1 项通过。
+- `make app.test.patrol.login PATROL_DEVICE=EE1B44A0-0924-49D8-8CE7-E15FE2555AC9`：1 项通过；覆盖账号密码输入、mock 登录、四 Tab、联系人固定入口、设置与账号安全二级路由、iOS 路由返回，以及 Home 后重新激活。
 - `make app.test.patrol.harness PATROL_DEVICE=emulator-5554`：1 项通过。
 - `make app.test.patrol.login PATROL_DEVICE=emulator-5554`：1 项通过；覆盖账号密码输入、mock 登录、聊天/联系人/发现/我的四 Tab、联系人固定入口、设置与账号安全二级路由、两次 Android 系统返回，以及 Home/最近任务前后台恢复。
 - `make app.test.integration.device.auth APP_TEST_DEVICE=emulator-5554`：真实 API 注册、登录、刷新和登出通过。
@@ -41,10 +46,14 @@ iPhone 17 Pro Simulator 可被 Flutter 识别，但本机 Xcode 26 build service
 - 对 clang 子进程采样显示主线程持续阻塞在 `llvm::raw_fd_ostream::write_impl -> write`；同一条 clang 命令脱离 SwiftBuild 后约 0.02 秒完成。
 - 去掉 Patrol 固定的 `-quiet`、使用 `2>&1 | tee` 持续排空输出、通过 launchd 洁净 FD 启动，以及增加 `-jobs 1 ONLY_ACTIVE_ARCH=YES ARCHS=arm64` 并指定具体 Simulator，均在同一阶段复现。
 - 该行为与 Xcode 26.x 已公开的 SwiftBuild planning pipe deadlock 特征一致：<https://github.com/getsentry/XcodeBuildMCP/issues/492>。当前证据指向本机 Xcode Build Service，而不是 RedCode IM 源码、Pods 或 Patrol 测试逻辑。
+- 进一步通过 `lsof` 确认两个 capability probe 的 stdout/stderr 均为 16 KB 管道，`SWBBuildService` 持有读取端；`sample` 显示 clang 卡在 `Command::Print -> raw_fd_ostream::write_impl -> write`。直接日志文件、重启 CoreSimulator 服务和 legacy build flag 均不改变结果。
+- 将 Xcode build setting `CC` 指向临时 wrapper，仅对含 `-dM` 的 capability probe 去掉 `-v` 后，构建立即越过 `CreateBuildDescription` 并完成 Pods、Runner 编译；正式 Flutter integration smoke 随后 2 项通过。该规避已固化为 `app/scripts/xcode_clang_probe_wrapper.sh`，仅在 Xcode 26.6 下由 app 脚本自动启用。
 
 ## 本轮修复
 
 Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册正式命名路由。现已使用 `AppRouter.onGenerateRoute` 进入真实 App Shell，显式输入账号密码，并将断言更新为 2.0 的“聊天、联系人、发现、我的”信息架构。后续扩展覆盖联系人和发现页面、我的设置二级路由、Android 系统返回与前后台恢复。
+
+iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pressBack()` 和 Android 最近任务 API。现已按平台分流：Android 保留系统返回与最近任务切换，iOS 使用 Flutter 路由返回并通过 `MobileAutomator.openApp()` 恢复前台；同一用例已在 iPhone 17 Pro Simulator 通过。
 
 `PatrolTester.enterText()` 只向 Flutter 输入控件注入文本，不会拉起原生软键盘，因此该流程不作为键盘遮挡验收证据。键盘行为继续保留为默认设备人工验收项。
 
@@ -64,6 +73,6 @@ Patrol 登录 smoke 原先仍查找旧版“设置”Tab，且测试壳未注册
 
 ## 阻塞与恢复条件
 
-1. 重启 macOS 清理 Xcode/SwiftBuild 服务状态；若仍复现，安装可用的其他 Xcode 版本并切换 `xcode-select`，再运行最小 Patrol harness。
-2. 最小 harness 通过后，按 `127.0.0.1` 地址执行 iOS device auth、device contract、Patrol P0 和人工设备场景。
+1. 在 iOS Simulator 与 Android Emulator 上执行双账号跨端 UI 联调，覆盖消息实时同步、已读和前后台恢复。
+2. 补齐系统键盘、安全区、权限拒绝/恢复、断网重连和完整附件流程的人工设备场景。
 3. 上述默认设备证据和未完成场景关闭前，不得将 U8 标记完成或开始依赖 U8 完成态的 U9。

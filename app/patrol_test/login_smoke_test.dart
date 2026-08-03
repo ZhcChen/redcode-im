@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -28,6 +30,16 @@ Widget _buildTestApp(Widget home) {
 Future<void> _pumpTestApp(PatrolIntegrationTester $, Widget home) async {
   await $.pumpWidget(_buildTestApp(home));
   await $.pump(const Duration(milliseconds: 800));
+}
+
+Future<void> _navigateBack(PatrolIntegrationTester $) async {
+  if (Platform.isAndroid) {
+    await $.platform.android.pressBack();
+    return;
+  }
+
+  $.tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+  await $.pumpAndSettle();
 }
 
 void main() {
@@ -87,17 +99,21 @@ void main() {
 
       await $('设置').tap();
       await $('聊天背景、贴纸与本地存储').waitUntilVisible();
-      await $.platform.android.pressBack();
+      await _navigateBack($);
       await $('退出登录').waitUntilVisible();
 
       await $('账号与安全').tap();
       await $('修改密码').waitUntilVisible();
       expect($('注销账号'), findsOneWidget);
-      await $.platform.android.pressBack();
+      await _navigateBack($);
       await $('退出登录').waitUntilVisible();
 
       await $.platform.mobile.pressHome();
-      await $.platform.android.pressDoubleRecentApps();
+      if (Platform.isAndroid) {
+        await $.platform.android.pressDoubleRecentApps();
+      } else {
+        await $.platform.mobile.openApp();
+      }
       await $('退出登录').waitUntilVisible();
     },
   );

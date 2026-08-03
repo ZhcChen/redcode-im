@@ -73,6 +73,7 @@ APP_ANDROID_ENV ?= production
 APP_IOS_ENV ?= production
 APP_API_BASE_URL ?=
 APP_WS_URL ?=
+APP_IOS_CLANG_WRAPPER := $(APP_DIR)/scripts/xcode_clang_probe_wrapper.sh
 PATROL_IOS_DEVICE ?= iPhone 17 Pro
 PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
 PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
@@ -652,6 +653,7 @@ app.test.unit: ## 执行 app 全量 Flutter test
 
 app.test.scripts: ## 执行 app shell 脚本契约测试
 	@cd "$(APP_DIR)" && ./scripts/test_integration_contract_test.sh
+	@cd "$(APP_DIR)" && ./scripts/xcode_clang_probe_wrapper_contract_test.sh
 	@$(MAKE) app.test.api-paths
 
 app.test.api-paths: ## 校验 Flutter REST path 均已在 API routes.rs 注册
@@ -709,11 +711,11 @@ app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普�
 
 app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
-	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
+	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
 
 app.test.patrol.login: ## 执行 app Patrol 登录与 P0 导航 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
 	@$(call require_cmd,$(PATROL))
-	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
+	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
 
 app.build.android: ## 构建 Android 安装包（默认 production）
 	@$(call require_cmd,$(FLUTTER))
