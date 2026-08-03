@@ -142,6 +142,34 @@ describe('h5 app service contracts', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:8010/rooms/r1/rules/rule1', expect.objectContaining({ method: 'DELETE' }));
   });
 
+  it('manages member and global mute state with backend-compatible payloads', async () => {
+    const mute = {
+      id: 'mute1', room_id: 'r1', user_id: 'u2', muted_by: 'u1', reason: '刷屏',
+      mute_duration_hours: 24, muted_at: '2026-08-04T00:00:00Z', unmuted_at: null, is_active: true,
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+      if (String(input).endsWith('/global')) return mockJson({ settings: { room_id: 'r1', global_mute_enabled: true } });
+      return mockJson(init?.method === 'POST' ? { mute } : { mutes: [mute] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const mutes = await roomService.listMutes('r1');
+    await roomService.muteUser('r1', { userId: 'u2', durationHours: 24, reason: ' 刷屏 ' });
+    await roomService.unmuteUser('r1', 'u2');
+    const settings = await roomService.updateGlobalMute('r1', { enabled: true, reason: '集中讨论', durationMinutes: 60 });
+
+    expect(mutes[0]).toMatchObject({ userId: 'u2', muteDurationHours: 24, isActive: true });
+    expect(settings.globalMuteEnabled).toBe(true);
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:8010/rooms/r1/mutes', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ user_id: 'u2', duration_hours: 24, reason: '刷屏' }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/mutes/u2', expect.objectContaining({ method: 'DELETE' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:8010/rooms/r1/mutes/global', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ enabled: true, reason: '集中讨论', duration_minutes: 60 }),
+    }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

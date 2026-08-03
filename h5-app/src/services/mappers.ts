@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupMute, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -96,6 +96,18 @@ export const mapGroupRule = (input: Record<string, unknown>): GroupRule => ({
   isActive: Boolean(input.is_active ?? input.isActive ?? false),
   createdAt: String(input.created_at ?? input.createdAt ?? ''),
   updatedAt: String(input.updated_at ?? input.updatedAt ?? ''),
+});
+
+export const mapGroupMute = (input: Record<string, unknown>): GroupMute => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  userId: String(input.user_id ?? input.userId ?? ''),
+  mutedBy: String(input.muted_by ?? input.mutedBy ?? ''),
+  reason: input.reason == null ? null : String(input.reason),
+  muteDurationHours: Number(input.mute_duration_hours ?? input.muteDurationHours ?? 0),
+  mutedAt: String(input.muted_at ?? input.mutedAt ?? ''),
+  unmutedAt: input.unmuted_at == null ? null : String(input.unmuted_at),
+  isActive: Boolean(input.is_active ?? input.isActive ?? false),
 });
 
 const normalizeRequestStatus = (status: string | number | null | undefined) => {

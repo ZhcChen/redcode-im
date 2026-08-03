@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupMute, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -138,6 +138,46 @@ export const roomService = {
 
   async deleteRule(roomId: string, ruleId: string): Promise<void> {
     await requestJson(`/rooms/${roomId}/rules/${ruleId}`, { method: 'DELETE' }, requireToken());
+  },
+
+  async listMutes(roomId: string): Promise<GroupMute[]> {
+    const response = await requestJson<{ mutes?: Record<string, unknown>[] }>(
+      `/rooms/${roomId}/mutes`,
+      {},
+      requireToken(),
+    );
+    return (response.mutes ?? []).map(mapGroupMute);
+  },
+
+  async muteUser(roomId: string, input: { userId: string; durationHours: number; reason?: string }): Promise<GroupMute> {
+    const response = await requestJson<{ mute: Record<string, unknown> }>(`/rooms/${roomId}/mutes`, {
+      method: 'POST',
+      body: JSON.stringify({
+        user_id: input.userId,
+        duration_hours: input.durationHours,
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+      }),
+    }, requireToken());
+    return mapGroupMute(response.mute);
+  },
+
+  async unmuteUser(roomId: string, userId: string): Promise<void> {
+    await requestJson(`/rooms/${roomId}/mutes/${userId}`, { method: 'DELETE' }, requireToken());
+  },
+
+  async updateGlobalMute(
+    roomId: string,
+    input: { enabled: boolean; reason?: string; durationMinutes?: number },
+  ): Promise<GroupSettingsInfo> {
+    const response = await requestJson<{ settings: Record<string, unknown> }>(`/rooms/${roomId}/mutes/global`, {
+      method: 'POST',
+      body: JSON.stringify({
+        enabled: input.enabled,
+        ...(input.reason?.trim() ? { reason: input.reason.trim() } : {}),
+        ...(input.durationMinutes ? { duration_minutes: input.durationMinutes } : {}),
+      }),
+    }, requireToken());
+    return mapGroupSettings(response.settings);
   },
 
   async fetchGroupSettings(roomId: string): Promise<GroupSettingsInfo> {

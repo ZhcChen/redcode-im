@@ -55,6 +55,18 @@ export interface GroupRule {
   updatedAt: string;
 }
 
+export interface GroupMute {
+  id: string;
+  roomId: string;
+  userId: string;
+  mutedBy: string;
+  reason: string | null;
+  muteDurationHours: number;
+  mutedAt: string;
+  unmutedAt: string | null;
+  isActive: boolean;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

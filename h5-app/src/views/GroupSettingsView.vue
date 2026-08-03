@@ -129,6 +129,10 @@ onMounted(() => {
           <span>群规</span>
           <strong>›</strong>
         </button>
+        <button v-if="canManage" class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'group-mutes', params: { roomId } })">
+          <span>禁言管理</span>
+          <strong>›</strong>
+        </button>
         <button class="settings-row rc-focus-ring" type="button" @click="store.togglePinned">
           <span>置顶聊天</span>
           <strong>{{ store.pinned ? '已开启' : '未开启' }}</strong>

@@ -154,6 +154,24 @@ const loadRulesViaApi = async (request: APIRequestContext, token: string, roomId
   return payload.rules ?? [];
 };
 
+const loadMutesViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/mutes`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { mutes?: Array<Record<string, unknown>> };
+  return payload.mutes ?? [];
+};
+
+const loadGroupSettingsViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/settings`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { settings?: Record<string, unknown> };
+  return payload.settings ?? {};
+};
+
 const registerThroughUi = async (page: Page, username: string, password: string): Promise<TestSession> => {
   await page.goto('/login');
   await page.getByRole('tab', { name: '注册' }).click();
@@ -464,6 +482,45 @@ test.describe('h5-app browser smoke', () => {
     await expect.poll(async () => {
       const rules = await loadRulesViaApi(request, ownerSession.token, roomId);
       return rules.some((rule) => String(rule.id ?? '') === ruleId);
+    }).toBe(false);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: /禁言管理/ }).click();
+    await page.getByLabel('开启全体禁言').check();
+    await page.getByLabel('持续时间').selectOption('60');
+    await page.getByPlaceholder('填写全体禁言原因').fill('H5 E2E 全体禁言');
+    await page.getByRole('button', { name: '保存全体禁言' }).click();
+    await expect(page.getByText('全体禁言已开启')).toBeVisible();
+    await expect.poll(async () => {
+      const settings = await loadGroupSettingsViaApi(request, ownerSession.token, roomId);
+      return settings.global_mute_enabled;
+    }).toBe(true);
+
+    await page.getByLabel('选择普通成员').selectOption(candidate.session.user.id);
+    await page.getByLabel('禁言时长').selectOption('24');
+    await page.getByPlaceholder('填写成员禁言原因').fill('H5 E2E 成员禁言');
+    await page.getByRole('button', { name: '确认禁言' }).click();
+    await expect(page.getByText('成员已禁言')).toBeVisible();
+    await expect.poll(async () => {
+      const mutes = await loadMutesViaApi(request, ownerSession.token, roomId);
+      return mutes.some((mute) => String(mute.user_id ?? mute.userId ?? '') === candidate.session.user.id);
+    }).toBe(true);
+
+    const mutedRow = page.locator('.contact-page__row').filter({ hasText: candidate.username });
+    await mutedRow.getByRole('button', { name: '解除禁言' }).click();
+    await mutedRow.getByRole('button', { name: '确认解除' }).click();
+    await expect(page.getByText('成员已解除禁言')).toBeVisible();
+    await expect.poll(async () => {
+      const mutes = await loadMutesViaApi(request, ownerSession.token, roomId);
+      return mutes.some((mute) => String(mute.user_id ?? mute.userId ?? '') === candidate.session.user.id);
+    }).toBe(false);
+
+    await page.getByLabel('开启全体禁言').uncheck();
+    await page.getByRole('button', { name: '保存全体禁言' }).click();
+    await expect(page.getByText('全体禁言已关闭')).toBeVisible();
+    await expect.poll(async () => {
+      const settings = await loadGroupSettingsViaApi(request, ownerSession.token, roomId);
+      return settings.global_mute_enabled;
     }).toBe(false);
 
     await page.getByRole('button', { name: '返回' }).click();
