@@ -94,6 +94,19 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
   [self addAttachment:screenshot];
 }
 
+- (void)swipeBackForApplication:(XCUIApplication *)app {
+  XCUICoordinate *start = [app coordinateWithNormalizedOffset:CGVectorMake(0.01, 0.5)];
+  XCUICoordinate *end = [app coordinateWithNormalizedOffset:CGVectorMake(0.8, 0.5)];
+  [start pressForDuration:0.1 thenDragToCoordinate:end withVelocity:XCUIGestureVelocityFast thenHoldForDuration:0.0];
+}
+
+- (XCUIElement *)firstHittableElementInQuery:(XCUIElementQuery *)query {
+  for (XCUIElement *element in query.allElementsBoundByIndex) {
+    if (element.hittable) return element;
+  }
+  return query.firstMatch;
+}
+
 - (void)dismissKeyboardForApplication:(XCUIApplication *)app {
   XCUIElement *keyboard = app.keyboards.firstMatch;
   NSLog(@"[RedCodeDeviceAcceptance] Keyboard hierarchy:\n%@", keyboard.debugDescription);
@@ -229,6 +242,32 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
                  object:composer];
   XCTAssertEqual([XCTWaiter waitForExpectations:@[closeExpectation] timeout:3.0],
                  XCTWaiterResultCompleted);
+
+  [self swipeBackForApplication:app];
+
+  XCUIElement *mineTab = [app.buttons matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", @"我的"]].firstMatch;
+  XCTAssertTrue([mineTab waitForExistenceWithTimeout:5.0]);
+  [mineTab tap];
+  XCUIElementQuery *settingsEntries = [[app descendantsMatchingType:XCUIElementTypeAny]
+      matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"设置"]];
+  XCUIElement *settingsEntry = [self firstHittableElementInQuery:settingsEntries];
+  XCTAssertTrue([settingsEntry waitForExistenceWithTimeout:5.0]);
+  [settingsEntry tap];
+  XCUIElementQuery *aboutEntries = [[app descendantsMatchingType:XCUIElementTypeAny]
+      matchingPredicate:[NSPredicate predicateWithFormat:@"label BEGINSWITH %@", @"关于 RedCode IM"]];
+  XCUIElement *aboutEntry = [self firstHittableElementInQuery:aboutEntries];
+  XCTAssertTrue([aboutEntry waitForExistenceWithTimeout:5.0]);
+  [aboutEntry tap];
+  XCUIElement *versionCheck = app.staticTexts[@"检查新版本"];
+  XCTAssertTrue([versionCheck waitForExistenceWithTimeout:5.0]);
+
+  [self swipeBackForApplication:app];
+  XCTAssertTrue([[self firstHittableElementInQuery:aboutEntries] waitForExistenceWithTimeout:5.0]);
+  [self swipeBackForApplication:app];
+  XCTAssertTrue([[self firstHittableElementInQuery:settingsEntries] waitForExistenceWithTimeout:5.0]);
+  XCTAssertTrue(mineTab.exists);
+  [self addScreenshotNamed:@"native-back-gesture-complete" forApplication:app];
 }
 
 - (void)testPhotoDenialAndSettingsRecovery {

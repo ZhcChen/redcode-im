@@ -17,6 +17,8 @@
 | 横屏策略 | 聊天页旋转到横屏并恢复竖屏 | 页面不溢出，`.h/.sp` 不异常放大，恢复后状态保留 | PASS | `device_layout_test.dart` 通过真实 iOS platform channel 驱动 Simulator 横屏并恢复竖屏，断言宽高方向、安全区、标题、composer、发送按钮与输入草稿；`app/build/ios_results_1785783462845.xcresult` |
 | 大字号与长文本 | 系统文字调至最大，再巡检四 Tab、聊天和设置页 | 文案不重叠、不截断关键命令，列表可滚动至最后一项 | PASS | Simulator `content_size=accessibility-extra-extra-extra-large`；首次设备截图发现登录页横向溢出 182px，修复欢迎文案换行和登录类型区域自适应高度后复验无 overflow；最高字号下 41 个 P0 导航/滚动检查通过，`app/build/ios_results_1785780497220.xcresult` |
 | Reduced Motion | 打开“减弱动态效果”后重复导航和面板操作 | 功能状态不丢失，无依赖动画才能完成的操作 | PASS | Simulator `ReduceMotionEnabled=1` 与最高字号组合下 41 个 P0 导航/滚动检查通过，`app/build/ios_results_1785780881788.xcresult`；验收后已恢复 `ReduceMotionEnabled=0` 和标准字号 |
+| 进程级冷启动与登录 | 卸载 App 后由 XCTest 重新安装、launch 并登录真实账号 | 首屏可交互，拒绝通知不阻断登录，登录后四 Tab 可用 | PASS | `make app.test.ios-device-acceptance` 每次先卸载 `com.chatlyme.app`；原生 XCTest 完成首次 launch、通知拒绝、账号密码登录并进入联系人；`app/build/ios-device-acceptance-1785793701.xcresult` |
+| 原生侧滑与多层回退 | 从联系人资料侧滑返回，再进入“我的 -> 设置 -> 关于 RedCode IM”连续侧滑两层 | 每次手势只退出当前路由，最终返回“我的”Tab | PASS | XCTest 从屏幕左缘执行真实 drag gesture，依次验证联系人资料、关于页和设置页的三层回退；`app/build/ios-device-acceptance-1785793701.xcresult` |
 
 ## 2026-08-03 iOS 权限验收
 
@@ -27,7 +29,7 @@
 | 首次相册拒绝 | `simctl privacy reset` 后触发相册入口并拒绝系统弹窗 | App 不死锁，返回相册设置引导 | PASS | 独立原生 XCTest 点击真实系统“不允许”，随后断言“需要相册权限”和“前往设置”；`app/build/ios-photo-permission-acceptance-*.xcresult` |
 | 从设置恢复相册权限 | 在设置中改为“完全访问”，再回 App 重试 | 无需重登即可继续 picker 流程 | PASS | XCTest 经 `Settings -> App -> Chatly -> 照片` 恢复权限，返回原聊天页后 PHPicker 正常出现并可取消；`app/build/ios-photo-permission-acceptance-*.xcresult` |
 | 首次麦克风拒绝与恢复 | `simctl privacy reset microphone` 后触发录音、拒绝，再从设置恢复 | App 不死锁，恢复后无需重登即可重新进入录音流程 | PASS | 原生 XCTest 真实点击系统“不允许”，验证设置引导，将 Chatly 的麦克风开关从 `0` 恢复为 `1`，返回已登录 App 后重新进入同一聊天和录音面板；`app/build/ios-microphone-permission-acceptance-*.xcresult` |
-| 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | 2026-08-04 已由 XCTest 真实点击首次系统“不允许”，拒绝后正式 App 正常进入登录页；设置恢复、APNs token 和前后台通知仍待 iPhone 真机验收 |
+| 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | SKIPPED | Simulator 已由 XCTest 真实点击首次系统“不允许”，拒绝后正式 App 正常登录；APNs token、设置恢复后的云端投递及前后台通知必须由 iPhone 真机验收 |
 | 相机权限 | 在支持相机的设备上拒绝、永久拒绝并恢复 | 拒绝不死锁，永久拒绝有设置入口，恢复后无需重登 | SKIPPED | iOS Simulator 无真实相机能力，转 iPhone 真机验收 |
 | 真实采集质量 | 拍照、录制 1-60 秒语音并发送 | 图片方向/清晰度正常，音频可播放且时长正确 | SKIPPED | 必须 iPhone 真机验证 |
 

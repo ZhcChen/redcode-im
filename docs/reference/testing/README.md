@@ -175,11 +175,11 @@ make app.test.patrol.login PATROL_DEVICE=emulator-5554
 - 群聊 Patrol 还覆盖发送方打开群消息已读详情并核对已读/未读成员，以及群主任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。群目标要求双方 `DUAL_GROUP_COMPLETE` 业务完成标记，避免 XCTest 成功后收尾卡住造成假失败。
 - 群禁言 Patrol 独立覆盖普通成员个人禁言/解禁、全体禁言开启/关闭、输入区提示和两次恢复发送。目标要求双方 `DUAL_GROUP_MUTE_COMPLETE`；操作全体禁言时必须等待并点击行内实际 `CustomSwitch`，不能只点击带 Key 的整行容器。
 - 群成员移除 Patrol 覆盖群主真实 UI 移除、被移除方实时退出详情和上级页面提示，目标要求双方 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。
-- 图片附件 Patrol 覆盖真实相册业务入口、图片解析、签名、S3-compatible PUT、commit、发送、对端 WebSocket 接收和下载落盘，目标要求双方 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。固定 PNG 由测试进程替换 picker 返回值；Patrol 4.5 无法稳定驱动独立系统进程中的 iOS 26 PHPicker，系统选择器交互仍需人工验收。
+- 图片附件 Patrol 覆盖真实相册业务入口、图片解析、签名、S3-compatible PUT、commit、发送、对端 WebSocket 接收和下载落盘，目标要求双方 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。固定 PNG 由测试进程替换 picker 返回值；Patrol 4.5 无法稳定驱动独立系统进程中的 iOS 26 PHPicker，因此 PHPicker 打开与取消由 `app.test.ios-permission-acceptance` 的原生 XCTest 独立验收。
 - 文件与语音附件 Patrol 覆盖真实“文件”业务入口、PDF 与 M4A 的签名、S3-compatible PUT、commit、对端 WebSocket 接收、强制下载字节一致，以及接收端点击语音气泡启动播放器，目标要求双方 `DUAL_RICH_ATTACHMENT_COMPLETE`。固定 PDF 替换 file selector 返回值，M4A 通过正式 `sendVoiceMessage` 发送；`app.test.ios-file-picker-acceptance` 使用原生 XCTest 覆盖 iOS 系统文件选择器打开与取消。真实麦克风采集质量仍需 iPhone 真机验收。
 - 网络恢复 Patrol 只让 A 通过 `19100` 可控 TCP 代理访问 API/WebSocket，B 继续直连 `8010`。测试会销毁 A 的现有连接、拒绝新连接，在 B 发送离线消息后恢复转发，并要求 A 自动重新认证、补拉且不重复；目标要求双方 `DUAL_NETWORK_RECOVERY_COMPLETE`。该证据不替代系统 Wi-Fi/蜂窝切换人工验收。
 - 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
-- `app.test.patrol.layout` 覆盖真实账号私聊的长 composer、横竖屏恢复与 Flutter 焦点返回；`app.test.ios-device-acceptance` 使用独立原生 XCTest 驱动普通 App，覆盖真实 iOS 软键盘、三行 composer/发送按钮不被遮挡，以及第一次返回收键盘、第二次退出聊天。该入口会先卸载 App 清理历史会话，要求显式传入 `APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD`，证据保存到 `app/build/ios-device-acceptance-*.xcresult`。
+- `app.test.patrol.layout` 覆盖真实账号私聊的长 composer、横竖屏恢复与 Flutter 焦点返回；`app.test.ios-device-acceptance` 使用独立原生 XCTest 驱动普通 App，覆盖卸载后的进程级冷启动与真实登录、真实 iOS 软键盘、三行 composer/发送按钮不被遮挡、第一次返回收键盘、第二次退出聊天，以及联系人资料和“设置 -> 关于”的 iOS 左缘侧滑多层回退。该入口要求显式传入 `APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD`，证据保存到 `app/build/ios-device-acceptance-*.xcresult`。
 - `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导。`app.test.ios-permission-acceptance` 使用原生 XCTest 分别覆盖照片/麦克风首次拒绝和系统设置恢复，并验证 PHPicker 或录音入口可再次进入；重置必须使用真实 bundle id `com.chatlyme.app`，且不能在 reset 后卸载 App。Simulator 不用于证明真实麦克风采集质量。
 - `app.test.ios-file-picker-acceptance` 使用原生 XCTest 从真实聊天“文件”入口打开 `UIDocumentPickerViewController`，断言系统“最近项目”页面出现，点击 `Cancel` 后验证原聊天 composer 与更多功能入口仍存在且无失败提示。该入口只证明打开与取消；PDF 选择结果后的上传链路由双设备 Patrol 覆盖。
 - `app.test.patrol.pages` 使用真实账号巡检联系人、群聊、群通知、个人资料、账号安全、聊天设置、隐私政策、关于和反馈等 P0 页面，验证页面可打开、可返回，并滚动反馈页到提交按钮。它不证明系统软键盘、安全区、大字号、Reduced Motion 或所有空态、错误态和长文本状态。

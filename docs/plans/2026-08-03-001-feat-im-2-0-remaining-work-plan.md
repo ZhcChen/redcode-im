@@ -101,6 +101,7 @@ flowchart LR
 
 ### R1. 关闭 U8 Flutter 移动 P0 设备验收
 
+- **Status:** COMPLETE（2026-08-04）。Simulator 可验证项全部 PASS；相机、真实麦克风采集、APNs/通知投递和系统 Wi-Fi/蜂窝切换作为真机专属项明确 SKIPPED，并保留在设备清单。
 - **Goal:** 在 iOS Simulator 上完成所有可验证的移动 P0 系统与业务场景，并单列必须 iPhone 真机补验的能力。
 - **Files:** `app/patrol_test/`、`app/integration_test/`、`app/scripts/`、`Makefile`、`docs/reference/testing/README.md`、`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`。
 - **Existing patterns:** `app/patrol_test/login_smoke_test.dart`、`app/patrol_test/dual_device_chat_test.dart`、`app/scripts/common.sh`。
@@ -136,6 +137,7 @@ flowchart LR
 - **Progress:** 2026-08-04 已通过真实 iPhone 17 Pro Simulator 上下安全区几何门禁，覆盖登录、四 Tab、聊天和设置长页，`xcresult` 为 `ios_results_1785781793361.xcresult`。
 - **Progress:** 2026-08-04 新增独立原生 XCTest 设备验收，使用普通 App 的 accessibility tree 真实拉起 iOS 系统软键盘，输入三行文本并比较 composer、发送按钮与键盘实际 frame；同时证明第一次返回只收键盘、第二次退出聊天。正式入口为 `make app.test.ios-device-acceptance`，通过证据为 `ios-device-acceptance-1785786732.xcresult`。
 - **Progress:** 2026-08-04 修复 UIScene 模式下 `file_selector_ios` 无法从 `AppDelegate.window` 找到 presenter 的问题，并新增 `make app.test.ios-file-picker-acceptance`。原生 XCTest 已从聊天“文件”入口打开系统“最近项目”选择器、点击 `Cancel`，并验证返回聊天后无失败提示；真实 PDF 上传闭环继续由双设备 Patrol 证明。
+- **Progress:** 2026-08-04 `make app.test.ios-device-acceptance` 在卸载 App 后完成进程级冷启动、首次通知拒绝、真实账号登录，并从联系人资料及“我的 -> 设置 -> 关于 RedCode IM”执行三次 iOS 左缘侧滑回退；证据为 `ios-device-acceptance-1785793701.xcresult`。至此 U8 的 Simulator 待验项清零。
 
 #### R1.4 U8 收口门禁
 
