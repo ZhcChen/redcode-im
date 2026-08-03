@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import GroupMembersView from '@/views/groups/GroupMembersView.vue';
 import GroupInviteView from '@/views/groups/GroupInviteView.vue';
+import GroupAdminsView from '@/views/groups/GroupAdminsView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
@@ -30,6 +31,7 @@ describe('group member permissions', () => {
     expect(wrapper.text()).toContain('解散群聊');
     expect(wrapper.text()).not.toContain('退出群聊');
     expect(wrapper.text()).toContain('邀请联系人');
+    expect(wrapper.text()).toContain('管理员设置');
   });
 
   it('hides invite actions when a regular member opens the route directly', async () => {
@@ -38,5 +40,30 @@ describe('group member permissions', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('你没有邀请群成员的权限');
     expect(wrapper.findAll('button').some((button) => button.text() === '添加')).toBe(false);
+  });
+
+  it('allows the owner to appoint and revoke an admin', async () => {
+    const wrapper = mount(GroupAdminsView);
+    await flushPromises();
+
+    await wrapper.findAll('button').find((button) => button.text() === '设为管理员')?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '确认')?.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('管理员已任命');
+    expect(wrapper.text()).toContain('1 位管理员');
+
+    await wrapper.findAll('button').find((button) => button.text() === '撤销')?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '确认')?.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('管理员身份已撤销');
+    expect(wrapper.text()).toContain('0 位管理员');
+  });
+
+  it('hides admin management actions from regular members', async () => {
+    useAuthStore().session = { token: 'token', user: { id: 'mock-mia', username: 'mia', nickname: 'Mia', email: '' } };
+    const wrapper = mount(GroupAdminsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('你没有管理群管理员的权限');
+    expect(wrapper.text()).not.toContain('设为管理员');
   });
 });

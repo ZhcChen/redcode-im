@@ -93,6 +93,29 @@ describe('h5 app service contracts', () => {
     );
   });
 
+  it('lists, appoints, and removes group admins with backend-compatible contracts', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+      const admin = {
+        id: 'ga1', room_id: 'r1', admin_id: 'u2', appointed_by: 'u1',
+        role: 'admin', permissions: ['manage_members'], appointed_at: '2026-08-04T00:00:00Z',
+      };
+      return mockJson(init?.method === 'POST' ? { admin } : { admins: [admin] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const admins = await roomService.listAdmins('r1');
+    const appointed = await roomService.appointAdmin('r1', 'u2');
+    await roomService.removeAdmin('r1', 'u2');
+
+    expect(admins[0]).toMatchObject({ adminId: 'u2', permissions: ['manage_members'] });
+    expect(appointed.appointedBy).toBe('u1');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:8010/rooms/r1/admins', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ user_id: 'u2', role: 'admin' }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/admins/u2', expect.objectContaining({ method: 'DELETE' }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

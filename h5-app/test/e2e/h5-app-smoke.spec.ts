@@ -136,6 +136,15 @@ const loadMembersViaApi = async (request: APIRequestContext, token: string, room
   return Array.isArray(payload) ? payload : payload.members ?? [];
 };
 
+const loadAdminsViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/admins`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { admins?: Array<Record<string, unknown>> };
+  return payload.admins ?? [];
+};
+
 const registerThroughUi = async (page: Page, username: string, password: string): Promise<TestSession> => {
   await page.goto('/login');
   await page.getByRole('tab', { name: '注册' }).click();
@@ -395,6 +404,29 @@ test.describe('h5-app browser smoke', () => {
     }).toBe(true);
 
     await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: '返回' }).click();
+    await expect(page).toHaveURL(new RegExp(`/groups/${roomId}/settings$`));
+    await page.getByRole('button', { name: /管理员设置/ }).click();
+    const adminCandidateRow = page.locator('.contact-page__row').filter({ hasText: candidate.username });
+    await adminCandidateRow.getByRole('button', { name: '设为管理员' }).click();
+    await adminCandidateRow.getByRole('button', { name: '确认' }).click();
+    await expect(page.getByText('管理员已任命')).toBeVisible();
+    await expect.poll(async () => {
+      const admins = await loadAdminsViaApi(request, ownerSession.token, roomId);
+      return admins.some((admin) => String(admin.admin_id ?? admin.adminId ?? '') === candidate.session.user.id);
+    }).toBe(true);
+
+    const adminRow = page.locator('.contact-page__row').filter({ hasText: candidate.username });
+    await adminRow.getByRole('button', { name: '撤销' }).click();
+    await adminRow.getByRole('button', { name: '确认' }).click();
+    await expect(page.getByText('管理员身份已撤销')).toBeVisible();
+    await expect.poll(async () => {
+      const admins = await loadAdminsViaApi(request, ownerSession.token, roomId);
+      return admins.some((admin) => String(admin.admin_id ?? admin.adminId ?? '') === candidate.session.user.id);
+    }).toBe(false);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: '查看全部成员' }).click();
     const candidateRow = page.locator('.contact-page__row').filter({ hasText: candidate.username });
     await expect(candidateRow).toBeVisible();
     await candidateRow.getByRole('button', { name: '移除' }).click();

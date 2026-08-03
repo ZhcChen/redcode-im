@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupDirectoryEntry, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupSettingsInfo, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -84,6 +84,27 @@ export const roomService = {
 
   async removeMember(roomId: string, userId: string): Promise<void> {
     await requestJson(`/rooms/${roomId}/members/${userId}`, { method: 'DELETE' }, requireToken());
+  },
+
+  async listAdmins(roomId: string): Promise<GroupAdmin[]> {
+    const response = await requestJson<{ admins?: Record<string, unknown>[] }>(
+      `/rooms/${roomId}/admins`,
+      {},
+      requireToken(),
+    );
+    return (response.admins ?? []).map(mapGroupAdmin);
+  },
+
+  async appointAdmin(roomId: string, userId: string): Promise<GroupAdmin> {
+    const response = await requestJson<{ admin: Record<string, unknown> }>(`/rooms/${roomId}/admins`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role: 'admin' }),
+    }, requireToken());
+    return mapGroupAdmin(response.admin);
+  },
+
+  async removeAdmin(roomId: string, userId: string): Promise<void> {
+    await requestJson(`/rooms/${roomId}/admins/${userId}`, { method: 'DELETE' }, requireToken());
   },
 
   async fetchGroupSettings(roomId: string): Promise<GroupSettingsInfo> {

@@ -33,6 +33,16 @@ export interface AddMembersResult {
   skippedUserIds: string[];
 }
 
+export interface GroupAdmin {
+  id: string;
+  roomId: string;
+  adminId: string;
+  appointedBy: string;
+  role: string;
+  permissions: string[];
+  appointedAt: string;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

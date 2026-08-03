@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupSettingsInfo, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -74,6 +74,16 @@ export const mapGroupSettings = (input: Record<string, unknown>): GroupSettingsI
 export const mapAddMembersResult = (input: Record<string, unknown>): AddMembersResult => ({
   addedUserIds: Array.isArray(input.added_user_ids) ? input.added_user_ids.map(String) : [],
   skippedUserIds: Array.isArray(input.skipped_user_ids) ? input.skipped_user_ids.map(String) : [],
+});
+
+export const mapGroupAdmin = (input: Record<string, unknown>): GroupAdmin => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  adminId: String(input.admin_id ?? input.adminId ?? ''),
+  appointedBy: String(input.appointed_by ?? input.appointedBy ?? ''),
+  role: String(input.role ?? 'admin'),
+  permissions: Array.isArray(input.permissions) ? input.permissions.map(String) : [],
+  appointedAt: String(input.appointed_at ?? input.appointedAt ?? ''),
 });
 
 const normalizeRequestStatus = (status: string | number | null | undefined) => {

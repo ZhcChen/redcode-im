@@ -121,6 +121,10 @@ onMounted(() => {
       </section>
 
       <section class="settings-panel">
+        <button v-if="isOwner" class="settings-row rc-focus-ring" type="button" @click="router.push({ name: 'group-admins', params: { roomId } })">
+          <span>管理员设置</span>
+          <strong>›</strong>
+        </button>
         <button class="settings-row rc-focus-ring" type="button" @click="store.togglePinned">
           <span>置顶聊天</span>
           <strong>{{ store.pinned ? '已开启' : '未开启' }}</strong>
