@@ -268,6 +268,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildVoiceButton() {
     return _IconButton(
       buttonKey: const ValueKey('chat-input-voice-button'),
+      semanticLabel: '语音',
       icon: AppAssets.iconVoice,
       onTap: widget.onToggleVoice,
     );
@@ -413,6 +414,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildEmojiButton() {
     return _IconButton(
       buttonKey: const ValueKey('chat-input-emoji-button'),
+      semanticLabel: '表情',
       icon: AppAssets.iconEmoji,
       isActive: widget.showEmojiPanel,
       onTap: widget.onToggleEmoji,
@@ -476,6 +478,7 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
   Widget _buildMoreButton() {
     return _IconButton(
       buttonKey: const ValueKey('chat-input-more-button'),
+      semanticLabel: '更多功能',
       icon: AppAssets.iconAdd,
       isActive: widget.showMorePanel,
       onTap: widget.onToggleMore,
@@ -487,12 +490,14 @@ class _ChatInputWidgetState extends State<ChatInputWidget> {
 class _IconButton extends StatelessWidget {
   const _IconButton({
     required this.icon,
+    required this.semanticLabel,
     required this.onTap,
     this.isActive = false,
     this.buttonKey,
   });
 
   final String icon;
+  final String semanticLabel;
   final VoidCallback onTap;
   final bool isActive;
   final Key? buttonKey;
@@ -502,30 +507,34 @@ class _IconButton extends StatelessWidget {
     final density = context.phoneDensity;
     final buttonSize = density.scale(36);
     final buttonRadius = density.scale(18);
-    return Material(
-      key: buttonKey,
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(buttonRadius),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: buttonSize,
-          height: buttonSize,
-          decoration: BoxDecoration(
-            color: isActive
-                ? AppColors.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-          alignment: Alignment.center,
-          child: SvgPicture.asset(
-            icon,
-            width: density.scale(24),
-            height: density.scale(24),
-            colorFilter: ColorFilter.mode(
-              isActive ? AppColors.primary : AppColors.iconSecondary,
-              BlendMode.srcIn,
+    return Semantics(
+      button: true,
+      label: semanticLabel,
+      child: Material(
+        key: buttonKey,
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(buttonRadius),
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: buttonSize,
+            height: buttonSize,
+            decoration: BoxDecoration(
+              color: isActive
+                  ? AppColors.primary.withValues(alpha: 0.12)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(buttonRadius),
+            ),
+            alignment: Alignment.center,
+            child: SvgPicture.asset(
+              icon,
+              width: density.scale(24),
+              height: density.scale(24),
+              colorFilter: ColorFilter.mode(
+                isActive ? AppColors.primary : AppColors.iconSecondary,
+                BlendMode.srcIn,
+              ),
             ),
           ),
         ),
@@ -1367,28 +1376,33 @@ class _ActionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, size: 28, color: AppColors.iconPrimary),
             ),
-            child: Icon(icon, size: 28, color: AppColors.iconPrimary),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }

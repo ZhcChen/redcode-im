@@ -491,29 +491,35 @@ class _VoiceRecordingPanelState extends State<VoiceRecordingPanel> {
                   ),
                 ),
                 // 录制按钮
-                GestureDetector(
-                  onLongPressStart: (_) => _startRecording(),
-                  onLongPressEnd: (_) => _stopRecording(),
-                  onLongPressCancel: () => _cancelRecording(),
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: _isRecording ? Colors.red : AppColors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (_isRecording ? Colors.red : AppColors.primary)
-                              .withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      _isRecording ? Icons.stop : Icons.mic,
-                      color: Colors.white,
-                      size: 32,
+                Semantics(
+                  button: true,
+                  label: _isRecording ? '停止录音' : '按住录音',
+                  excludeSemantics: true,
+                  child: GestureDetector(
+                    onLongPressStart: (_) => _startRecording(),
+                    onLongPressEnd: (_) => _stopRecording(),
+                    onLongPressCancel: () => _cancelRecording(),
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: _isRecording ? Colors.red : AppColors.primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (_isRecording ? Colors.red : AppColors.primary)
+                                    .withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        _isRecording ? Icons.stop : Icons.mic,
+                        color: Colors.white,
+                        size: 32,
+                      ),
                     ),
                   ),
                 ),

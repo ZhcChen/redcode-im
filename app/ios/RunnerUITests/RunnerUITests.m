@@ -114,6 +114,37 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
                  XCTWaiterResultCompleted);
 }
 
+- (XCUIElement *)scrollToButtonInApplication:(XCUIApplication *)application
+                                   labelText:(NSString *)text
+                                  maxSwipes:(NSUInteger)maxSwipes {
+  for (NSUInteger attempt = 0; attempt <= maxSwipes; attempt++) {
+    for (XCUIElement *button in application.buttons.allElementsBoundByIndex) {
+      if ([button.label isEqualToString:text] && button.hittable) {
+        return button;
+      }
+    }
+    if (attempt < maxSwipes) {
+      [application swipeUp];
+    }
+  }
+  return nil;
+}
+
+- (XCUIElement *)buttonInApplication:(XCUIApplication *)application
+                           labelText:(NSString *)text
+                             timeout:(NSTimeInterval)timeout {
+  NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+  do {
+    for (XCUIElement *button in application.buttons.allElementsBoundByIndex) {
+      if ([button.label isEqualToString:text]) {
+        return button;
+      }
+    }
+    [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
+  } while ([deadline timeIntervalSinceNow] > 0);
+  return nil;
+}
+
 - (void)testSystemKeyboardLayoutAndBackPriority {
   NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
   NSString *account = environment[@"REDCODE_TEST_ACCOUNT"];
@@ -199,6 +230,120 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
                  object:composer];
   XCTAssertEqual([XCTWaiter waitForExpectations:@[closeExpectation] timeout:3.0],
                  XCTWaiterResultCompleted);
+}
+
+- (void)testPhotoDenialAndSettingsRecovery {
+  NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
+  NSString *account = environment[@"REDCODE_TEST_ACCOUNT"];
+  NSString *password = environment[@"REDCODE_TEST_PASSWORD"];
+  NSString *peerAccount = environment[@"REDCODE_TEST_PEER_ACCOUNT"];
+  XCTAssertGreaterThan(account.length, 0);
+  XCTAssertGreaterThan(password.length, 0);
+  XCTAssertGreaterThan(peerAccount.length, 0);
+
+  XCUIApplication *app = [[XCUIApplication alloc] init];
+  [app launch];
+
+  XCUIApplication *springboard = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.springboard"];
+  XCUIElement *denyNotification = springboard.alerts.buttons[@"不允许"];
+  if ([denyNotification waitForExistenceWithTimeout:5.0]) {
+    [denyNotification tap];
+  }
+
+  XCUIElement *contactsTab = [app.buttons matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", @"联系人"]].firstMatch;
+  if (![contactsTab waitForExistenceWithTimeout:2.0]) {
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.42)] tap];
+    XCTAssertTrue([app.keyboards.firstMatch waitForExistenceWithTimeout:3.0]);
+    [app typeText:account];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.54)] tap];
+    [app typeText:password];
+    [self dismissKeyboardForApplication:app];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.21, 0.68)] tap];
+    [app.buttons[@"登录账号"] tap];
+  }
+  XCTAssertTrue([contactsTab waitForExistenceWithTimeout:8.0]);
+  [contactsTab tap];
+  XCUIElement *peer = [app.staticTexts matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", peerAccount]].firstMatch;
+  XCTAssertTrue([peer waitForExistenceWithTimeout:5.0]);
+  [peer tap];
+  XCUIElement *sendMessage = app.buttons[@"发送消息"];
+  XCTAssertTrue([sendMessage waitForExistenceWithTimeout:5.0]);
+  [sendMessage tap];
+
+  XCUIElement *moreButton = app.buttons[@"更多功能"];
+  XCTAssertTrue([moreButton waitForExistenceWithTimeout:5.0]);
+  [moreButton tap];
+  XCUIElement *albumButton = app.buttons[@"相册"];
+  XCTAssertTrue([albumButton waitForExistenceWithTimeout:3.0]);
+  [albumButton tap];
+
+  XCUIElement *permissionAlert = app.alerts.firstMatch;
+  if (![permissionAlert waitForExistenceWithTimeout:3.0]) {
+    permissionAlert = springboard.alerts.firstMatch;
+  }
+  XCTAssertTrue([permissionAlert waitForExistenceWithTimeout:3.0]);
+  NSLog(@"[RedCodeDeviceAcceptance] Photos alert hierarchy:\n%@", permissionAlert.debugDescription);
+  [self addScreenshotNamed:@"photos-permission-alert" forApplication:springboard];
+  XCUIElement *denyPhotos = permissionAlert.buttons[@"不允许"];
+  if (!denyPhotos.exists) {
+    denyPhotos = permissionAlert.buttons[@"Don’t Allow"];
+  }
+  if (!denyPhotos.exists) {
+    denyPhotos = permissionAlert.buttons[@"Don't Allow"];
+  }
+  XCTAssertTrue(denyPhotos.exists);
+  [denyPhotos tap];
+
+  XCTAssertTrue([app.staticTexts[@"需要相册权限"] waitForExistenceWithTimeout:5.0]);
+  XCUIElement *openSettings = app.buttons[@"前往设置"];
+  XCTAssertTrue(openSettings.exists);
+  [openSettings tap];
+
+  XCUIApplication *settings = [[XCUIApplication alloc] initWithBundleIdentifier:@"com.apple.Preferences"];
+  XCTAssertTrue([settings waitForState:XCUIApplicationStateRunningForeground timeout:5.0]);
+  NSLog(@"[RedCodeDeviceAcceptance] App settings hierarchy:\n%@", settings.debugDescription);
+  [self addScreenshotNamed:@"app-settings" forApplication:settings];
+
+  XCUIElement *appsSettings = [self scrollToButtonInApplication:settings
+                                                      labelText:@"App"
+                                                     maxSwipes:5];
+  if (appsSettings == nil) {
+    XCTFail(@"未找到 Settings 的 App 入口");
+    return;
+  }
+  [appsSettings tap];
+
+  XCUIElement *chatlySettings = settings.buttons[@"com.chatlyme.app"];
+  XCTAssertTrue([chatlySettings waitForExistenceWithTimeout:5.0]);
+  [chatlySettings tap];
+  [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.0]];
+  NSLog(@"[RedCodeDeviceAcceptance] Chatly settings hierarchy:\n%@", settings.debugDescription);
+  [self addScreenshotNamed:@"chatly-settings" forApplication:settings];
+
+  XCUIElement *photosSettings = settings.buttons[@"PHOTOS"];
+  XCTAssertTrue([photosSettings waitForExistenceWithTimeout:3.0]);
+  [photosSettings tap];
+  [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.0]];
+  NSLog(@"[RedCodeDeviceAcceptance] Photos settings hierarchy:\n%@", settings.debugDescription);
+  [self addScreenshotNamed:@"photos-settings" forApplication:settings];
+
+  XCUIElement *fullAccess = settings.buttons[@"2"];
+  XCTAssertTrue([fullAccess waitForExistenceWithTimeout:3.0]);
+  [fullAccess tap];
+
+  [app activate];
+  XCTAssertTrue([moreButton waitForExistenceWithTimeout:5.0]);
+  [moreButton tap];
+  XCTAssertTrue([albumButton waitForExistenceWithTimeout:3.0]);
+  [albumButton tap];
+
+  XCUIElement *cancelPicker = app.buttons[@"取消"];
+  XCTAssertTrue([cancelPicker waitForExistenceWithTimeout:5.0]);
+  [self addScreenshotNamed:@"photos-picker-after-settings-recovery" forApplication:app];
+  [cancelPicker tap];
+  XCTAssertTrue(moreButton.exists);
 }
 
 @end

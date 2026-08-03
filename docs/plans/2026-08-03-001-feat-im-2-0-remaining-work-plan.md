@@ -124,7 +124,7 @@ flowchart LR
 #### R1.3 聊天、群与状态恢复
 
 - 双设备私聊已通过，继续补群聊互发、已读同步、前后台恢复和 WebSocket 重连。
-- 覆盖文本、图片、文件、语音附件的成功、取消、失败、重试和离线待发送。图片附件真实签名、直传、commit、广播和对端下载已于 2026-08-03 通过双 iOS Patrol（marker `1785773518-91298-11190`）；文件与语音附件完整链路及接收端语音播放器启动已于 2026-08-04 通过（marker `1785778188-93063-1916`）。系统 PHPicker、系统文件选择器与真实麦克风采集仍待人工或真机验收。
+- 覆盖文本、图片、文件、语音附件的成功、取消、失败、重试和离线待发送。图片附件真实签名、直传、commit、广播和对端下载已于 2026-08-03 通过双 iOS Patrol（marker `1785773518-91298-11190`）；文件与语音附件完整链路及接收端语音播放器启动已于 2026-08-04 通过（marker `1785778188-93063-1916`）。2026-08-04 原生 XCTest 已证明照片首次拒绝、设置恢复、返回原聊天页打开并取消 PHPicker；系统文件选择器与真实麦克风采集仍待验收。
 - 覆盖联系人申请/备注/删除、建群、成员角色、群治理和设置完整可视化巡检。
 - **Tests:** 扩展 `app/patrol_test/dual_device_chat_test.dart`；新增 `app/patrol_test/group_chat_test.dart`、`app/patrol_test/group_mute_test.dart`、`app/patrol_test/group_member_removal_test.dart`、`app/patrol_test/image_attachment_test.dart`、`app/patrol_test/rich_attachment_test.dart`、`app/patrol_test/offline_recovery_test.dart`；扩展 `app/integration_test/api_contract_flow_test.dart`；统一通过 R1.0 编排入口运行双设备用例。
 - **Scenarios:** A/B 已读状态一致；离线消息不重复；重连后顺序稳定；群成员权限变化后 UI 刷新；附件失败保留可重试状态。
