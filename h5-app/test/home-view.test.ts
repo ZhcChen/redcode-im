@@ -86,7 +86,7 @@ describe('HomeView chat tab', () => {
     expect(wrapper.find('.chat-context-menu').exists()).toBe(false);
   });
 
-  it('renders contacts, requests and group creation controls', async () => {
+  it('renders contacts, requests and the independent group entry', async () => {
     const authStore = useAuthStore();
     authStore.session = {
       token: 'token-1',
@@ -134,6 +134,6 @@ describe('HomeView chat tab', () => {
     expect(wrapper.text()).toContain('新的朋友');
     expect(wrapper.text()).toContain('Neo');
     expect(wrapper.text()).toContain('Mia');
-    expect(wrapper.text()).toContain('新建群聊');
+    expect(wrapper.findAll('.contact-shortcuts button').some((button) => button.text().includes('群聊'))).toBe(true);
   });
 });

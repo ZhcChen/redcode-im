@@ -32,3 +32,14 @@ export interface AddMembersResult {
   addedUserIds: string[];
   skippedUserIds: string[];
 }
+
+export interface GroupDirectoryEntry {
+  roomId: string;
+  name: string;
+  description: string | null;
+  avatarUrl: string | null;
+  avatarObjectKey: string | null;
+  memberCount: number;
+  isFavorited: boolean;
+  favoritedAt: string | null;
+}

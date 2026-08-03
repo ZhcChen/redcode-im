@@ -1,5 +1,5 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupDirectoryEntry, GroupSettingsInfo, RoomMember } from '@/types/room';
 
 import { mapAddMembersResult, mapCreatedRoom, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
@@ -26,6 +26,22 @@ export const roomService = {
     );
     const rooms = Array.isArray(response) ? response : response.rooms ?? [];
     return rooms.map(mapCreatedRoom);
+  },
+
+  async listGroupDirectory(): Promise<GroupDirectoryEntry[]> {
+    const rows = await requestJson<Record<string, unknown>[]>('/groups/directory', {}, requireToken());
+    return rows.map((row) => ({
+      roomId: String(row.room_id ?? ''), name: String(row.name ?? ''),
+      description: row.description == null ? null : String(row.description),
+      avatarUrl: row.avatar_url == null ? null : String(row.avatar_url),
+      avatarObjectKey: row.avatar_object_key == null ? null : String(row.avatar_object_key),
+      memberCount: Number(row.member_count ?? 0), isFavorited: Boolean(row.is_favorited),
+      favoritedAt: row.favorited_at == null ? null : String(row.favorited_at),
+    }));
+  },
+
+  async favoriteGroupDirectory(roomId: string, favorited: boolean): Promise<void> {
+    await requestJson(`/rooms/${roomId}/directory-favorite`, { method: favorited ? 'POST' : 'DELETE' }, requireToken());
   },
 
   async getRoom(roomId: string): Promise<CreatedRoom> {

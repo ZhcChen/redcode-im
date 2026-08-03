@@ -23,4 +23,10 @@ describe('h5 router contract', () => {
     expect(routes.get('contact-profile')?.path).toBe('/contacts/:userId');
     expect(routes.get('contact-report')?.path).toBe('/contacts/:userId/report');
   });
+
+  it('exposes independent group directory and creation routes', () => {
+    const routes = new Map(router.getRoutes().map((route) => [route.name, route]));
+    expect(routes.get('group-directory')?.path).toBe('/groups');
+    expect(routes.get('group-create')?.path).toBe('/groups/create');
+  });
 });

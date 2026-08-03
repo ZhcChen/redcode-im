@@ -148,7 +148,6 @@ const connectionLabel = computed(() => {
 });
 
 const chats = computed(() => chatStore.filteredChats);
-const groups = computed(() => chatStore.chats.filter((chat) => chat.type === 'group'));
 
 const displayFriendName = (friend: FriendInfo) =>
   friend.remark?.trim() || friend.user.nickname || friend.user.email || friend.user.username || 'RedCode 用户';
@@ -170,16 +169,6 @@ const openContactPage = async (name: 'contact-requests' | 'contact-add' | 'conta
   await router.push({ name, ...(userId ? { params: { userId } } : {}) });
 };
 
-const createGroup = async () => {
-  const roomId = await contactsStore.createGroup();
-  if (roomId) {
-    await router.push({ name: 'chat-detail', params: { roomId } });
-  }
-};
-
-const openGroupSettings = async (roomId: string) => {
-  await router.push({ name: 'group-settings', params: { roomId } });
-};
 
 onMounted(() => {
   document.addEventListener('click', closeChatMenu);
@@ -302,6 +291,9 @@ onBeforeUnmount(() => {
           <button class="work-card rc-focus-ring" type="button" @click="openContactPage('contact-add')">
             <span>添加好友</span><strong>+</strong>
           </button>
+          <button class="work-card rc-focus-ring" type="button" @click="router.push({ name: 'group-directory' })">
+            <span>群聊</span><strong>›</strong>
+          </button>
         </div>
         <form class="search-box search-box--with-action" @submit.prevent="contactsStore.searchUsers()">
           <label>
@@ -391,54 +383,6 @@ onBeforeUnmount(() => {
           </article>
         </section>
 
-        <section class="contact-section">
-          <div class="section-title">
-            <h2>新建群聊</h2>
-            <span>{{ contactsStore.selectedFriendIds.length }} 人已选</span>
-          </div>
-          <input
-            v-model="contactsStore.groupName"
-            class="group-input rc-focus-ring"
-            placeholder="群名称"
-          />
-          <div class="group-picker">
-            <button
-              v-for="friend in contactsStore.friends"
-              :key="friend.user.id"
-              class="group-chip rc-focus-ring"
-              :class="{ 'group-chip--active': contactsStore.selectedFriendIds.includes(friend.user.id) }"
-              type="button"
-              @click="contactsStore.toggleGroupMember(friend.user.id)"
-            >
-              {{ displayFriendName(friend) }}
-            </button>
-          </div>
-          <button
-            class="primary-action rc-focus-ring"
-            type="button"
-            :disabled="contactsStore.submitting || !contactsStore.groupName.trim() || contactsStore.selectedFriendIds.length === 0"
-            @click="createGroup"
-          >
-            创建群聊
-          </button>
-        </section>
-
-        <section v-if="groups.length" class="contact-section">
-          <div class="section-title">
-            <h2>群聊</h2>
-            <span>{{ groups.length }} 个</span>
-          </div>
-          <article v-for="group in groups" :key="group.roomId" class="contact-row">
-            <CachedAvatar class="contact-row__avatar" kind="room" :entity-id="group.roomId" :object-key="group.avatarObjectKey" :label="group.name" />
-            <div class="contact-row__body">
-              <h3>{{ group.name }}</h3>
-              <p>{{ group.lastMessage || '暂无消息' }}</p>
-            </div>
-            <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="openGroupSettings(group.roomId)">
-              设置
-            </button>
-          </article>
-        </section>
       </section>
 
       <section v-else class="panel">
@@ -765,7 +709,7 @@ onBeforeUnmount(() => {
 
 .contact-shortcuts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -877,37 +821,6 @@ onBeforeUnmount(() => {
   color: var(--rc-text-tertiary);
   font-size: 12px;
   padding: 5px 9px;
-}
-
-.group-input {
-  width: 100%;
-  height: 42px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--rc-surface-muted);
-  color: var(--rc-text-primary);
-  padding: 0 12px;
-}
-
-.group-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.group-chip {
-  border-radius: 999px;
-  cursor: pointer;
-  background: var(--rc-surface-muted);
-  color: var(--rc-text-secondary);
-  font-size: 13px;
-  padding: 7px 10px;
-}
-
-.group-chip--active {
-  background: var(--rc-primary-soft);
-  color: var(--rc-primary-strong);
-  font-weight: 700;
 }
 
 .primary-action {

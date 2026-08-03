@@ -26,6 +26,7 @@ export const useContactsStore = defineStore('contacts', {
     searchResults: [] as AuthUser[],
     selectedFriendIds: [] as string[],
     groupName: '',
+    groupDescription: '',
     loading: false,
     refreshing: false,
     searching: false,
@@ -258,6 +259,7 @@ export const useContactsStore = defineStore('contacts', {
 
     clearGroupDraft() {
       this.groupName = '';
+      this.groupDescription = '';
       this.selectedFriendIds = [];
     },
 
@@ -269,7 +271,7 @@ export const useContactsStore = defineStore('contacts', {
       try {
         const room = appEnv.useMockData
           ? { id: `mock-group-${Date.now()}`, name, roomType: 'group' }
-          : await roomService.createGroup({ name, memberIds: this.selectedFriendIds });
+          : await roomService.createGroup({ name, description: this.groupDescription, memberIds: this.selectedFriendIds });
         const chatStore = useChatStore();
         this.clearGroupDraft();
         if (appEnv.useMockData) {

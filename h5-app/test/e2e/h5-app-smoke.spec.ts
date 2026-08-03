@@ -292,6 +292,27 @@ test.describe('h5-app browser smoke', () => {
     await expect(page.getByText('举报已提交，我们会尽快审核。')).toBeVisible();
     await page.getByRole('button', { name: '完成' }).click();
 
+    const createdGroupName = `H5 UI Group ${Date.now()}`;
+    await page.goto('/home');
+    await page.getByRole('button', { name: /联系人/ }).click();
+    await page.locator('.contact-shortcuts').getByRole('button', { name: /群聊/ }).click();
+    await expect(page).toHaveURL(/\/groups$/);
+    await page.getByRole('button', { name: '新建' }).click();
+    await page.getByPlaceholder('输入群聊名称').fill(createdGroupName);
+    await page.getByPlaceholder('介绍群聊用途').fill('H5 独立建群流程');
+    await page.locator('.contact-page__row').filter({ hasText: target.username }).click();
+    await page.getByRole('button', { name: '创建' }).click();
+    await expect(page).toHaveURL(/\/chats\//);
+    await expect(page.getByRole('heading', { name: createdGroupName })).toBeVisible();
+
+    await page.goto('/groups');
+    const createdGroupRow = page.locator('.contact-page__row').filter({ hasText: createdGroupName });
+    await expect(createdGroupRow).toBeVisible();
+    await createdGroupRow.getByRole('button', { name: '收藏群聊' }).click();
+    await expect(createdGroupRow.getByRole('button', { name: '取消收藏群聊' })).toBeVisible();
+
+    await page.goto(`/contacts/${target.session.user.id}`);
+
     await page.getByRole('button', { name: '删除好友' }).click();
     await page.getByRole('button', { name: '确认删除好友' }).click();
     await expect(page).toHaveURL(/\/home$/);

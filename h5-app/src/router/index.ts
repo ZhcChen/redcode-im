@@ -11,6 +11,8 @@ import ContactRequestsView from '@/views/contacts/ContactRequestsView.vue';
 import ContactAddView from '@/views/contacts/ContactAddView.vue';
 import ContactProfileView from '@/views/contacts/ContactProfileView.vue';
 import ContactReportView from '@/views/contacts/ContactReportView.vue';
+import GroupDirectoryView from '@/views/groups/GroupDirectoryView.vue';
+import GroupCreateView from '@/views/groups/GroupCreateView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -89,6 +91,18 @@ export const router = createRouter({
       path: '/groups/:roomId/settings',
       name: 'group-settings',
       component: GroupSettingsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups',
+      name: 'group-directory',
+      component: GroupDirectoryView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/create',
+      name: 'group-create',
+      component: GroupCreateView,
       meta: { requiresAuth: true },
     },
     {

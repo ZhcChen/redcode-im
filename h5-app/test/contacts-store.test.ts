@@ -84,12 +84,14 @@ describe('contacts store', () => {
     const store = useContactsStore();
     await store.initialize();
     store.groupName = 'H5 项目群';
+    store.groupDescription = '群简介';
     store.toggleGroupMember('mock-mia');
 
     const roomId = await store.createGroup();
 
     expect(roomId).toMatch(/^mock-group-/);
     expect(store.groupName).toBe('');
+    expect(store.groupDescription).toBe('');
     expect(store.selectedFriendIds).toEqual([]);
     expect(chatStore.chats.some((chat) => chat.roomId === roomId && chat.type === 'group')).toBe(true);
   });
