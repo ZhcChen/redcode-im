@@ -87,6 +87,13 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
   [self addAttachment:screenshot];
 }
 
+- (void)addScreenScreenshotNamed:(NSString *)name {
+  XCTAttachment *screenshot = [XCTAttachment attachmentWithScreenshot:XCUIScreen.mainScreen.screenshot];
+  screenshot.name = name;
+  screenshot.lifetime = XCTAttachmentLifetimeKeepAlways;
+  [self addAttachment:screenshot];
+}
+
 - (void)dismissKeyboardForApplication:(XCUIApplication *)app {
   XCUIElement *keyboard = app.keyboards.firstMatch;
   NSLog(@"[RedCodeDeviceAcceptance] Keyboard hierarchy:\n%@", keyboard.debugDescription);
@@ -437,6 +444,67 @@ static void RedCodePatrolSwizzledWaitForQuiescenceIncludingAnimationsIdlePreEven
   XCTAssertTrue([recordButton waitForExistenceWithTimeout:5.0]);
   [self addScreenshotNamed:@"microphone-ready-after-settings-recovery" forApplication:app];
   [recordButton pressForDuration:2.0];
+}
+
+- (void)testSystemFilePickerCanCancel {
+  NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
+  NSString *account = environment[@"REDCODE_TEST_ACCOUNT"];
+  NSString *password = environment[@"REDCODE_TEST_PASSWORD"];
+  NSString *peerAccount = environment[@"REDCODE_TEST_PEER_ACCOUNT"];
+  XCTAssertGreaterThan(account.length, 0);
+  XCTAssertGreaterThan(password.length, 0);
+  XCTAssertGreaterThan(peerAccount.length, 0);
+
+  XCUIApplication *app = [[XCUIApplication alloc] init];
+  [app launch];
+
+  XCUIElement *contactsTab = [app.buttons matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", @"联系人"]].firstMatch;
+  if (![contactsTab waitForExistenceWithTimeout:2.0]) {
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.42)] tap];
+    XCTAssertTrue([app.keyboards.firstMatch waitForExistenceWithTimeout:3.0]);
+    [app typeText:account];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.5, 0.54)] tap];
+    [app typeText:password];
+    [self dismissKeyboardForApplication:app];
+    [[app coordinateWithNormalizedOffset:CGVectorMake(0.21, 0.68)] tap];
+    [app.buttons[@"登录账号"] tap];
+  }
+  XCTAssertTrue([contactsTab waitForExistenceWithTimeout:8.0]);
+  [contactsTab tap];
+  XCUIElement *peer = [app.staticTexts matchingPredicate:
+      [NSPredicate predicateWithFormat:@"label CONTAINS %@", peerAccount]].firstMatch;
+  XCTAssertTrue([peer waitForExistenceWithTimeout:5.0]);
+  [peer tap];
+  XCUIElement *sendMessage = app.buttons[@"发送消息"];
+  XCTAssertTrue([sendMessage waitForExistenceWithTimeout:5.0]);
+  [sendMessage tap];
+
+  XCUIElement *composer = app.textFields.firstMatch;
+  XCTAssertTrue([composer waitForExistenceWithTimeout:5.0]);
+  XCUIElement *moreButton = app.buttons[@"更多功能"];
+  XCTAssertTrue(moreButton.exists);
+  [moreButton tap];
+  XCUIElement *fileButton = app.buttons[@"文件"];
+  XCTAssertTrue([fileButton waitForExistenceWithTimeout:3.0]);
+  [fileButton tap];
+  [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:2.0]];
+  [self addScreenScreenshotNamed:@"system-file-picker-screen"];
+
+  XCUIElement *pickerTitle = app.staticTexts[@"最近项目"];
+  XCTAssertTrue([pickerTitle waitForExistenceWithTimeout:5.0]);
+  XCUIElement *closePicker = [[[app descendantsMatchingType:XCUIElementTypeAny]
+      matchingPredicate:[NSPredicate predicateWithFormat:@"label == %@", @"Cancel"]] firstMatch];
+  XCTAssertTrue([closePicker waitForExistenceWithTimeout:5.0]);
+  [self addScreenshotNamed:@"system-file-picker" forApplication:app];
+  [closePicker tap];
+
+  XCTAssertTrue([app waitForState:XCUIApplicationStateRunningForeground timeout:5.0]);
+  XCTAssertTrue([composer waitForExistenceWithTimeout:5.0]);
+  XCTAssertTrue(moreButton.exists);
+  XCTAssertFalse(app.staticTexts[@"访问文件失败"].exists);
+  XCTAssertFalse(app.staticTexts[@"处理文件失败"].exists);
+  [self addScreenshotNamed:@"chat-after-file-picker-cancel" forApplication:app];
 }
 
 @end

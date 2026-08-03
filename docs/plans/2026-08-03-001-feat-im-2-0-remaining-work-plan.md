@@ -125,7 +125,7 @@ flowchart LR
 #### R1.3 聊天、群与状态恢复
 
 - 双设备私聊已通过，继续补群聊互发、已读同步、前后台恢复和 WebSocket 重连。
-- 覆盖文本、图片、文件、语音附件的成功、取消、失败、重试和离线待发送。图片附件真实签名、直传、commit、广播和对端下载已于 2026-08-03 通过双 iOS Patrol（marker `1785773518-91298-11190`）；文件与语音附件完整链路及接收端语音播放器启动已于 2026-08-04 通过（marker `1785778188-93063-1916`）。2026-08-04 原生 XCTest 已证明照片首次拒绝、设置恢复、返回原聊天页打开并取消 PHPicker；系统文件选择器与真实麦克风采集仍待验收。
+- 覆盖文本、图片、文件、语音附件的成功、取消、失败、重试和离线待发送。图片附件真实签名、直传、commit、广播和对端下载已于 2026-08-03 通过双 iOS Patrol（marker `1785773518-91298-11190`）；文件与语音附件完整链路及接收端语音播放器启动已于 2026-08-04 通过（marker `1785778188-93063-1916`）。2026-08-04 原生 XCTest 已证明照片首次拒绝、设置恢复、返回原聊天页打开并取消 PHPicker，也已从真实“文件”入口打开并取消系统文件选择器。真实麦克风采集与音质按 Simulator 能力边界转 iPhone 真机。
 - 覆盖联系人申请/备注/删除、建群、成员角色、群治理和设置完整可视化巡检。
 - **Tests:** 扩展 `app/patrol_test/dual_device_chat_test.dart`；新增 `app/patrol_test/group_chat_test.dart`、`app/patrol_test/group_mute_test.dart`、`app/patrol_test/group_member_removal_test.dart`、`app/patrol_test/image_attachment_test.dart`、`app/patrol_test/rich_attachment_test.dart`、`app/patrol_test/offline_recovery_test.dart`；扩展 `app/integration_test/api_contract_flow_test.dart`；统一通过 R1.0 编排入口运行双设备用例。
 - **Scenarios:** A/B 已读状态一致；离线消息不重复；重连后顺序稳定；群成员权限变化后 UI 刷新；附件失败保留可重试状态。
@@ -135,6 +135,7 @@ flowchart LR
 - **Progress:** 2026-08-04 已完成 Simulator 最高系统字号与 Reduced Motion 组合验收。期间发现并修复登录页 182px 横向 overflow；修复后两轮 41 检查点 P0 导航分别通过（`ios_results_1785780497220.xcresult`、`ios_results_1785780881788.xcresult`）。真实横竖屏切换、布局边界和草稿恢复也已通过，证据为 `ios_results_1785783462845.xcresult`。
 - **Progress:** 2026-08-04 已通过真实 iPhone 17 Pro Simulator 上下安全区几何门禁，覆盖登录、四 Tab、聊天和设置长页，`xcresult` 为 `ios_results_1785781793361.xcresult`。
 - **Progress:** 2026-08-04 新增独立原生 XCTest 设备验收，使用普通 App 的 accessibility tree 真实拉起 iOS 系统软键盘，输入三行文本并比较 composer、发送按钮与键盘实际 frame；同时证明第一次返回只收键盘、第二次退出聊天。正式入口为 `make app.test.ios-device-acceptance`，通过证据为 `ios-device-acceptance-1785786732.xcresult`。
+- **Progress:** 2026-08-04 修复 UIScene 模式下 `file_selector_ios` 无法从 `AppDelegate.window` 找到 presenter 的问题，并新增 `make app.test.ios-file-picker-acceptance`。原生 XCTest 已从聊天“文件”入口打开系统“最近项目”选择器、点击 `Cancel`，并验证返回聊天后无失败提示；真实 PDF 上传闭环继续由双设备 Patrol 证明。
 
 #### R1.4 U8 收口门禁
 
