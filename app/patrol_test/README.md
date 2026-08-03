@@ -6,6 +6,7 @@
 - `login_smoke_test.dart`：登录页基础可见性、注册切换、mock 登录、四 Tab、二级路由、系统返回和 Android 前后台恢复 smoke。`enterText()` 不会拉起原生软键盘，键盘遮挡仍需设备人工验收
 - `harness_smoke_test.dart`：最小 Patrol harness 冒烟，优先用于验证 iOS / Android 原生测试桥是否可用
 - `dual_device_chat_test.dart`：双设备真实账号登录和私聊文本实时互发。只通过 `make app.test.patrol.dual` 编排运行；B 先进入会话等待，A 发送后 B 回复，双方均断言 WebSocket 实时消息可见
+- `device_layout_test.dart`：真实账号进入私聊后的长 composer、发送按钮边界和焦点优先返回回归。Patrol 4.3 无法通过 iOS native tree 定位 Flutter `TextField`，因此该用例不作为真实系统软键盘 PASS 证据
 
 注意：
 - `test_bundle.dart` 由 Patrol CLI 运行时自动生成，已加入 `.gitignore`，不要提交。

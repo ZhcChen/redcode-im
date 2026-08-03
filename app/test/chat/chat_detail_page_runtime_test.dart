@@ -604,4 +604,66 @@ void main() {
       slideTransitionCountBefore + 1,
     );
   });
+
+  testWidgets('chat back button dismisses focused composer before route', (
+    tester,
+  ) async {
+    final websocketService = _FakeWebSocketService();
+    final provider = _buildProvider(websocketService);
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => ChatDetailPageV2(
+                    roomId: 'room-1',
+                    chatName: 'Alice',
+                    chatProvider: provider,
+                    websocketService: websocketService,
+                  ),
+                ),
+              ),
+              child: const Text('打开聊天'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开聊天'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final input = find.byKey(const ValueKey('chat-input-text-field'));
+    await tester.tap(input);
+    await tester.pump();
+    expect(
+      tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .widget
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
+    await tester.pump();
+    expect(input, findsOneWidget);
+    expect(
+      tester
+          .state<EditableTextState>(find.byType(EditableText))
+          .widget
+          .focusNode
+          .hasFocus,
+      isFalse,
+    );
+
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded).first);
+    await tester.pumpAndSettle();
+    expect(input, findsNothing);
+    expect(find.text('打开聊天'), findsOneWidget);
+  });
 }

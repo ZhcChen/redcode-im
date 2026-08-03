@@ -204,6 +204,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   @override
   void initState() {
     super.initState();
+    _inputFocusNode.addListener(_handleInputFocusChanged);
     WidgetsBinding.instance.addObserver(this);
     _ownsProvider = widget.chatProvider == null;
     _chatProvider = widget.chatProvider ?? ChatProvider();
@@ -807,6 +808,7 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
 
   @override
   void dispose() {
+    _inputFocusNode.removeListener(_handleInputFocusChanged);
     _multiSelectMode = false;
     _selectedMessageIds.clear();
     _keyboardUpdateTimer?.cancel();
@@ -835,6 +837,12 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
     _scrollController.dispose();
     _inputFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleInputFocusChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -1058,65 +1066,73 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
       ),
       child: ChangeNotifierProvider.value(
         value: _chatProvider,
-        child: Scaffold(
-          backgroundColor: AppColors.background,
-          resizeToAvoidBottomInset: true,
-          body: SafeArea(
-            top: true,
-            bottom: false, // 禁用底部 SafeArea，减少键盘动画时的布局计算
-            child: Column(
-              children: [
-                _buildHeader(context),
-                if (_multiSelectMode) _buildMultiSelectBar(Theme.of(context)),
-                // 置顶消息 banner - 固定在导航栏下方，不跟随滚动
-                Consumer<ChatProvider>(
-                  builder: (context, provider, child) {
-                    final pinnedMessage = provider.pinnedMessage;
-                    if (pinnedMessage == null ||
-                        !provider.messages.contains(pinnedMessage)) {
-                      return const SizedBox.shrink();
-                    }
-                    return RepaintBoundary(
-                      key: ValueKey('pinned_banner_${pinnedMessage.id}'),
-                      child: _PinnedMessageBanner(
-                        message: pinnedMessage,
-                        onTap: () => _scrollToMessage(pinnedMessage.id),
-                        onUnpin: () =>
-                            unawaited(_togglePinMessage(pinnedMessage)),
-                        onIconTap: () => _showPinnedMessagesPanel(),
-                      ),
-                    );
-                  },
-                ),
-                Expanded(
-                  child: Stack(
-                    children: [
-                      RepaintBoundary(
-                        child: _buildMessageList(listBottomPadding),
-                      ),
-                      // 回到底部按钮
-                      if (!_isAtBottom)
-                        Positioned(
-                          right: 16,
-                          bottom: 16,
-                          child: _ScrollToBottomButton(
-                            onTap: () => _scrollToBottom(animated: true),
-                          ),
+        child: PopScope(
+          canPop: !_inputFocusNode.hasFocus && _keyboardInset <= 0,
+          onPopInvokedWithResult: (didPop, result) {
+            if (!didPop && (_inputFocusNode.hasFocus || _keyboardInset > 0)) {
+              _dismissKeyboard();
+            }
+          },
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            resizeToAvoidBottomInset: true,
+            body: SafeArea(
+              top: true,
+              bottom: false, // 禁用底部 SafeArea，减少键盘动画时的布局计算
+              child: Column(
+                children: [
+                  _buildHeader(context),
+                  if (_multiSelectMode) _buildMultiSelectBar(Theme.of(context)),
+                  // 置顶消息 banner - 固定在导航栏下方，不跟随滚动
+                  Consumer<ChatProvider>(
+                    builder: (context, provider, child) {
+                      final pinnedMessage = provider.pinnedMessage;
+                      if (pinnedMessage == null ||
+                          !provider.messages.contains(pinnedMessage)) {
+                        return const SizedBox.shrink();
+                      }
+                      return RepaintBoundary(
+                        key: ValueKey('pinned_banner_${pinnedMessage.id}'),
+                        child: _PinnedMessageBanner(
+                          message: pinnedMessage,
+                          onTap: () => _scrollToMessage(pinnedMessage.id),
+                          onUnpin: () =>
+                              unawaited(_togglePinMessage(pinnedMessage)),
+                          onIconTap: () => _showPinnedMessagesPanel(),
                         ),
-                    ],
+                      );
+                    },
                   ),
-                ),
-                RepaintBoundary(child: _buildInputArea()),
-                if (_showEmojiPanel)
-                  _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
-                if (_showMorePanel)
-                  _MoreActionsPanel(onActionSelected: _handleMoreAction),
-                if (_showVoicePanel)
-                  VoiceRecordingPanel(
-                    onRecordingComplete: _handleVoiceRecordingComplete,
-                    onCancel: _cancelVoiceRecording,
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        RepaintBoundary(
+                          child: _buildMessageList(listBottomPadding),
+                        ),
+                        // 回到底部按钮
+                        if (!_isAtBottom)
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: _ScrollToBottomButton(
+                              onTap: () => _scrollToBottom(animated: true),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-              ],
+                  RepaintBoundary(child: _buildInputArea()),
+                  if (_showEmojiPanel)
+                    _EmojiPanel(onEmojiSelected: _handleEmojiSelected),
+                  if (_showMorePanel)
+                    _MoreActionsPanel(onActionSelected: _handleMoreAction),
+                  if (_showVoicePanel)
+                    VoiceRecordingPanel(
+                      onRecordingComplete: _handleVoiceRecordingComplete,
+                      onCancel: _cancelVoiceRecording,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1305,9 +1321,18 @@ class _ChatDetailPageV2State extends State<ChatDetailPageV2>
   }
 
   void _handleBackNavigation() {
+    if (_inputFocusNode.hasFocus || _keyboardInset > 0) {
+      _dismissKeyboard();
+      return;
+    }
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  void _dismissKeyboard() {
+    _inputFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   void _revealMessageList() {

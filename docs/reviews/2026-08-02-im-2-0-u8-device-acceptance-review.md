@@ -34,6 +34,8 @@ iPhone 17 Pro Simulator 已通过 Flutter integration smoke。此前 Xcode 26.6 
 - API 运行时证据：两个账号分别完成 protobuf WebSocket 认证并订阅房间 `019fc568-5800-7783-877c-448008bc95ed`；两次 `POST /rooms/{room_id}/messages` 均记录“1 个订阅者”，证明消息经在线 WebSocket 链路送达对端，而非仅靠历史消息刷新。
 - `make app.test.patrol.dual` 连续两轮通过：marker 分别为 `1785745629-39354-344`、`1785745896-54948-13521`。两轮 A/B 日志的首条 `DUAL_IDENTITY` 均与各自角色、账号、marker 和 `dual-a-`/`dual-b-` 消息前缀一致，证明没有复用上一轮或对端的编译参数。
 - 两轮日志和 `xcresult` 分别归档到 `app/build/patrol-dual/<marker>/`。该目录是本地验收证据，不纳入 Git。
+- `make app.test.patrol.layout`：2026-08-03 在 iPhone 17 Pro Simulator 上通过，真实账号 A 登录并进入账号 B 私聊，验证长 composer、发送按钮设备边界和焦点优先返回；`xcresult` 为本地 `app/build/ios_results_1785747584703.xcresult`。
+- 横竖屏尺寸自动化发现并修复 `flutter_screenutil` 的手机横屏放大问题：横屏时不再启用会把逻辑高度强制抬到 700 的 `splitScreenMode`，动态旋转测试通过。
 
 ## 默认设备复核
 
@@ -65,11 +67,13 @@ iOS 首次执行 P0 Patrol 时发现测试无条件调用 `AndroidAutomator.pres
 
 Patrol 4.3.0 在 iOS Simulator 上读取全局 macOS `log stream`，并发时一份日志可能同时出现另一台 Simulator 的后续结构化日志。因此身份门禁校验每份日志的首条 `DUAL_IDENTITY`，而不是只判断全文是否包含期望值。
 
+R1.1 系统软键盘自动化尝试了 native index、native selector、native 坐标点击和 Flutter tap。当前 Patrol 4.3 XCTest native tree 不暴露 Flutter `TextField`，且无法稳定查询 `IOSElementType.keyboard`；因此软键盘遮挡没有记为 PASS，已按计划转入 `docs/reference/testing/app-ios-device-manual-checklist.md` 并标记 SKIPPED/PENDING。
+
 对应提交包括 `14855f43 test(app): 对齐 2.0 登录设备巡检` 和本次 P0 巡检扩展提交。
 
 ## 未完成项
 
-- 默认设备上的冷启动与登录主流程。
+- 默认设备上的冷启动与登录主流程；真实账号 Patrol 登录和进入私聊已通过，仍待进程级冷启动复核。
 - 系统键盘弹出、收起和输入框遮挡检查。
 - 顶部/底部安全区与长内容滚动检查。
 - 相册、相机、麦克风和通知权限的拒绝、再次请求与恢复。

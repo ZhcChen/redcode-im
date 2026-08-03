@@ -33,8 +33,7 @@ Size resolveScreenUtilDesignSize(
     math.max(screenSize.height, baseDesignSize.height),
   );
 
-  final densityFactor =
-      physicalSize != null || devicePixelRatio > 1
+  final densityFactor = physicalSize != null || devicePixelRatio > 1
       ? resolvePhoneDensityFactor(
           logicalSize: screenSize,
           devicePixelRatio: devicePixelRatio,
@@ -85,7 +84,10 @@ class AdaptiveScreenUtilInit extends StatelessWidget {
         return ScreenUtilInit(
           designSize: designSize,
           minTextAdapt: minTextAdapt,
-          splitScreenMode: splitScreenMode,
+          // ScreenUtil 在 splitScreenMode 下会把横屏高度强制抬到 700，
+          // 导致手机横屏的 `.h` 尺寸异常放大。
+          splitScreenMode:
+              splitScreenMode && constraints.maxHeight >= constraints.maxWidth,
           builder: builder,
           child: child,
         );

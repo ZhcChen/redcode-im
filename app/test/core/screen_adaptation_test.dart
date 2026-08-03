@@ -82,6 +82,36 @@ void main() {
   });
 
   group('screen util scaling', () {
+    testWidgets('recomputes design size after portrait to landscape resize', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1179, 2556);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        AdaptiveScreenUtilInit(
+          builder: (context, child) => const Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox.shrink(),
+          ),
+        ),
+      );
+      expect(ScreenUtil().screenWidth, 393);
+      expect(ScreenUtil().screenHeight, 852);
+
+      tester.view.physicalSize = const Size(2556, 1179);
+      await tester.pump();
+
+      expect(ScreenUtil().screenWidth, 852);
+      expect(ScreenUtil().screenHeight, 393);
+      expect(ScreenUtil().scaleWidth, lessThanOrEqualTo(1));
+      expect(ScreenUtil().scaleHeight, lessThanOrEqualTo(1));
+    });
+
     testWidgets('2k phones keep width and height scale at 1', (tester) async {
       tester.view.physicalSize = const Size(1440, 3200);
       tester.view.devicePixelRatio = 1440 / 412;
