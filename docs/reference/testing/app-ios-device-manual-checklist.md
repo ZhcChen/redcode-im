@@ -15,8 +15,8 @@
 | 返回优先级 | 键盘打开时点击聊天页返回键，再次点击 | 第一次只收键盘并保留聊天页，第二次退出聊天页 | PENDING | 自动化已证明“焦点优先返回”，仍需真实软键盘人工复核 |
 | 顶部/底部安全区 | 分别检查登录页、四 Tab、聊天页和长设置页 | 状态栏不遮挡标题，Home Indicator 不遮挡底栏或最后一项 | PENDING | 待竖屏截图 |
 | 横屏策略 | 聊天页旋转到横屏并恢复竖屏 | 页面不溢出，`.h/.sp` 不异常放大，恢复后状态保留 | PENDING | 尺寸算法自动化已通过，待设备截图 |
-| 大字号与长文本 | 系统文字调至最大，再巡检四 Tab、聊天和设置页 | 文案不重叠、不截断关键命令，列表可滚动至最后一项 | PENDING | 组件 2x text scale 自动化已通过，待设备截图 |
-| Reduced Motion | 打开“减弱动态效果”后重复导航和面板操作 | 功能状态不丢失，无依赖动画才能完成的操作 | PENDING | motion token 自动化已通过，待设备操作记录 |
+| 大字号与长文本 | 系统文字调至最大，再巡检四 Tab、聊天和设置页 | 文案不重叠、不截断关键命令，列表可滚动至最后一项 | PASS | Simulator `content_size=accessibility-extra-extra-extra-large`；首次设备截图发现登录页横向溢出 182px，修复欢迎文案换行和登录类型区域自适应高度后复验无 overflow；最高字号下 41 个 P0 导航/滚动检查通过，`app/build/ios_results_1785780497220.xcresult` |
+| Reduced Motion | 打开“减弱动态效果”后重复导航和面板操作 | 功能状态不丢失，无依赖动画才能完成的操作 | PASS | Simulator `ReduceMotionEnabled=1` 与最高字号组合下 41 个 P0 导航/滚动检查通过，`app/build/ios_results_1785780881788.xcresult`；验收后已恢复 `ReduceMotionEnabled=0` 和标准字号 |
 
 ## 2026-08-03 iOS 权限验收
 
@@ -26,7 +26,7 @@
 | 麦克风永久拒绝 | `simctl privacy revoke microphone` 后长按录音 | 不启动 recorder，显示“需要麦克风权限”和“前往设置” | PASS | 同一 Patrol 运行通过 |
 | 首次相册/麦克风拒绝 | `simctl privacy reset` 后触发业务入口并拒绝系统弹窗 | App 不死锁，返回对应设置引导 | PENDING | Patrol 权限 helper 不支持中文 Simulator，原生树也无法稳定枚举系统 alert；待人工记录 |
 | 从设置恢复权限 | 在设置中重新允许照片/麦克风，再回 App 重试 | 无需重登即可继续 picker/录音流程 | PENDING | `PermissionService` 每次触发重新查询状态，仍待设备人工复核 |
-| 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | Simulator 只验状态和降级；APNs token、前后台通知列入 iPhone 真机验收 |
+| 通知拒绝与恢复 | 首次拒绝通知，再从系统设置恢复 | App 可继续使用；恢复后可注册 token 并接收提醒 | PENDING | 2026-08-04 已由 XCTest 真实点击首次系统“不允许”，拒绝后正式 App 正常进入登录页；设置恢复、APNs token 和前后台通知仍待 iPhone 真机验收 |
 | 相机权限 | 在支持相机的设备上拒绝、永久拒绝并恢复 | 拒绝不死锁，永久拒绝有设置入口，恢复后无需重登 | SKIPPED | iOS Simulator 无真实相机能力，转 iPhone 真机验收 |
 | 真实采集质量 | 拍照、录制 1-60 秒语音并发送 | 图片方向/清晰度正常，音频可播放且时长正确 | SKIPPED | 必须 iPhone 真机验证 |
 

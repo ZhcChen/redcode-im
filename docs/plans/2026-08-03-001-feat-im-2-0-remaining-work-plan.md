@@ -131,6 +131,7 @@ flowchart LR
 - **Progress:** 2026-08-04 已通过双 iOS API/WebSocket 网络路径真实中断与恢复，marker `1785775688-87809-18168`；A 自动重新认证、恢复订阅并补拉 B 在隔离窗口发送的唯一消息。系统 Wi-Fi/蜂窝切换仍保留真机人工验收。
 - **Progress:** 2026-08-04 已通过 iPhone 17 Pro Simulator 真实账号 P0 页面巡检，覆盖联系人、群通知、个人资料、账号安全、聊天设置、隐私、关于和反馈等页面的打开、返回及反馈长页滚动。系统键盘、安全区、大字号、Reduced Motion 和各类数据状态仍按人工清单或专项用例验收。
 - **Progress:** 2026-08-04 已通过 iOS Simulator/Android Emulator 跨端私聊实时互发与双向已读（marker `1785778695-15873-13110`），以及 Android 后台恢复、iOS 离线发送和 Android 补拉（marker `1785779441-49039-18587`）。编排器显式记录平台并分别注入 `127.0.0.1` / `10.0.2.2`。
+- **Progress:** 2026-08-04 已完成 Simulator 最高系统字号与 Reduced Motion 组合验收。期间发现并修复登录页 182px 横向 overflow；修复后两轮 41 检查点 P0 导航分别通过（`ios_results_1785780497220.xcresult`、`ios_results_1785780881788.xcresult`）。真实系统横屏截图仍 PENDING。
 
 #### R1.4 U8 收口门禁
 

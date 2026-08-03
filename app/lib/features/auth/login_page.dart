@@ -152,15 +152,19 @@ class _LoginPageState extends State<LoginPage> {
                     Padding(
                       padding: EdgeInsets.fromLTRB(24.w, 8.h, 24.w, 0),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            _appName.isNotEmpty ? '欢迎来到 $_appName' : '欢迎',
-                            style: TextStyle(
-                              fontSize: 16.sp,
-                              color: AppColors.textBlack,
+                          Expanded(
+                            child: Text(
+                              _appName.isNotEmpty ? '欢迎来到 $_appName' : '欢迎',
+                              softWrap: true,
+                              style: TextStyle(
+                                fontSize: 16.sp,
+                                color: AppColors.textBlack,
+                              ),
                             ),
                           ),
+                          SizedBox(width: 12.w),
                           SvgPicture.asset(AppAssets.loginTitle, height: 24.h),
                         ],
                       ),
@@ -270,7 +274,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
       child: Container(
         color: const Color(0xFFF3F7F8),
-        height: 72.h,
+        constraints: BoxConstraints(minHeight: 72.h),
         child: Row(
           children: _type == LoginType.register
               ? [_buildTypeButton(LoginType.register, '注册')]
@@ -292,7 +296,8 @@ class _LoginPageState extends State<LoginPage> {
         onTap: () => setState(() => _type = type),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          height: 72.h,
+          constraints: BoxConstraints(minHeight: 72.h),
+          padding: EdgeInsets.symmetric(vertical: 16.h),
           decoration: BoxDecoration(
             color: isActive
                 ? Colors.white
