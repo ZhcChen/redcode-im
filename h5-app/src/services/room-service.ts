@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -105,6 +105,39 @@ export const roomService = {
 
   async removeAdmin(roomId: string, userId: string): Promise<void> {
     await requestJson(`/rooms/${roomId}/admins/${userId}`, { method: 'DELETE' }, requireToken());
+  },
+
+  async listRules(roomId: string): Promise<GroupRule[]> {
+    const response = await requestJson<{ rules?: Record<string, unknown>[] }>(
+      `/rooms/${roomId}/rules`,
+      {},
+      requireToken(),
+    );
+    return (response.rules ?? []).map(mapGroupRule);
+  },
+
+  async createRule(roomId: string, input: { title: string; content: string; orderIndex: number }): Promise<GroupRule> {
+    const response = await requestJson<{ rule: Record<string, unknown> }>(`/rooms/${roomId}/rules`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: input.title.trim(),
+        content: input.content.trim(),
+        order_index: input.orderIndex,
+      }),
+    }, requireToken());
+    return mapGroupRule(response.rule);
+  },
+
+  async updateRule(roomId: string, ruleId: string, input: { title: string; content: string }): Promise<GroupRule> {
+    const response = await requestJson<{ rule: Record<string, unknown> }>(`/rooms/${roomId}/rules/${ruleId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title: input.title.trim(), content: input.content.trim() }),
+    }, requireToken());
+    return mapGroupRule(response.rule);
+  },
+
+  async deleteRule(roomId: string, ruleId: string): Promise<void> {
+    await requestJson(`/rooms/${roomId}/rules/${ruleId}`, { method: 'DELETE' }, requireToken());
   },
 
   async fetchGroupSettings(roomId: string): Promise<GroupSettingsInfo> {

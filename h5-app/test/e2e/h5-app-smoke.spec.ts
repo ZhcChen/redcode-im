@@ -145,6 +145,15 @@ const loadAdminsViaApi = async (request: APIRequestContext, token: string, roomI
   return payload.admins ?? [];
 };
 
+const loadRulesViaApi = async (request: APIRequestContext, token: string, roomId: string) => {
+  const response = await request.get(`${apiBaseURL}/rooms/${roomId}/rules`, {
+    headers: authHeaders(token),
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { rules?: Array<Record<string, unknown>> };
+  return payload.rules ?? [];
+};
+
 const registerThroughUi = async (page: Page, username: string, password: string): Promise<TestSession> => {
   await page.goto('/login');
   await page.getByRole('tab', { name: '注册' }).click();
@@ -423,6 +432,38 @@ test.describe('h5-app browser smoke', () => {
     await expect.poll(async () => {
       const admins = await loadAdminsViaApi(request, ownerSession.token, roomId);
       return admins.some((admin) => String(admin.admin_id ?? admin.adminId ?? '') === candidate.session.user.id);
+    }).toBe(false);
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: /群规/ }).click();
+    const ruleTitle = `H5 群规 ${Date.now()}`;
+    await page.getByPlaceholder('请输入群规标题').fill(ruleTitle);
+    await page.getByPlaceholder('请输入群规内容').fill('请保持友善交流，不发布无关信息。');
+    await page.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(page.getByText('群规已添加')).toBeVisible();
+    let ruleId = '';
+    await expect.poll(async () => {
+      const rules = await loadRulesViaApi(request, ownerSession.token, roomId);
+      ruleId = String(rules.find((rule) => rule.title === ruleTitle)?.id ?? '');
+      return ruleId;
+    }).not.toBe('');
+
+    const ruleCard = page.locator('.rule-card').filter({ hasText: ruleTitle });
+    await ruleCard.getByRole('button', { name: '编辑' }).click();
+    await page.getByPlaceholder('请输入群规内容').fill('请保持友善交流，并尊重每一位群成员。');
+    await page.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(page.getByText('群规已更新')).toBeVisible();
+    await expect.poll(async () => {
+      const rules = await loadRulesViaApi(request, ownerSession.token, roomId);
+      return rules.find((rule) => String(rule.id ?? '') === ruleId)?.content;
+    }).toBe('请保持友善交流，并尊重每一位群成员。');
+
+    await ruleCard.getByRole('button', { name: '删除' }).click();
+    await ruleCard.getByRole('button', { name: '确认删除' }).click();
+    await expect(page.getByText('群规已删除')).toBeVisible();
+    await expect.poll(async () => {
+      const rules = await loadRulesViaApi(request, ownerSession.token, roomId);
+      return rules.some((rule) => String(rule.id ?? '') === ruleId);
     }).toBe(false);
 
     await page.getByRole('button', { name: '返回' }).click();

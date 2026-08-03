@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupSettingsInfo, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupRule, GroupSettingsInfo, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -84,6 +84,18 @@ export const mapGroupAdmin = (input: Record<string, unknown>): GroupAdmin => ({
   role: String(input.role ?? 'admin'),
   permissions: Array.isArray(input.permissions) ? input.permissions.map(String) : [],
   appointedAt: String(input.appointed_at ?? input.appointedAt ?? ''),
+});
+
+export const mapGroupRule = (input: Record<string, unknown>): GroupRule => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  title: String(input.title ?? ''),
+  content: String(input.content ?? ''),
+  creatorId: String(input.creator_id ?? input.creatorId ?? ''),
+  orderIndex: Number(input.order_index ?? input.orderIndex ?? 0),
+  isActive: Boolean(input.is_active ?? input.isActive ?? false),
+  createdAt: String(input.created_at ?? input.createdAt ?? ''),
+  updatedAt: String(input.updated_at ?? input.updatedAt ?? ''),
 });
 
 const normalizeRequestStatus = (status: string | number | null | undefined) => {

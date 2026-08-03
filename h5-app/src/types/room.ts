@@ -43,6 +43,18 @@ export interface GroupAdmin {
   appointedAt: string;
 }
 
+export interface GroupRule {
+  id: string;
+  roomId: string;
+  title: string;
+  content: string;
+  creatorId: string;
+  orderIndex: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

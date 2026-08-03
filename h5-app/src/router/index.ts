@@ -16,6 +16,7 @@ import GroupCreateView from '@/views/groups/GroupCreateView.vue';
 import GroupMembersView from '@/views/groups/GroupMembersView.vue';
 import GroupInviteView from '@/views/groups/GroupInviteView.vue';
 import GroupAdminsView from '@/views/groups/GroupAdminsView.vue';
+import GroupRulesView from '@/views/groups/GroupRulesView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -124,6 +125,12 @@ export const router = createRouter({
       path: '/groups/:roomId/admins',
       name: 'group-admins',
       component: GroupAdminsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/groups/:roomId/rules',
+      name: 'group-rules',
+      component: GroupRulesView,
       meta: { requiresAuth: true },
     },
     {

@@ -116,6 +116,32 @@ describe('h5 app service contracts', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/admins/u2', expect.objectContaining({ method: 'DELETE' }));
   });
 
+  it('runs group rule CRUD with backend-compatible payloads', async () => {
+    const rule = {
+      id: 'rule1', room_id: 'r1', title: '文明交流', content: '禁止人身攻击', creator_id: 'u1',
+      order_index: 0, is_active: true, created_at: '2026-08-04T00:00:00Z', updated_at: '2026-08-04T00:00:00Z',
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+      return mockJson(init?.method ? { rule } : { rules: [rule] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const rules = await roomService.listRules('r1');
+    await roomService.createRule('r1', { title: ' 文明交流 ', content: ' 禁止人身攻击 ', orderIndex: 0 });
+    await roomService.updateRule('r1', 'rule1', { title: '友善交流', content: '尊重他人' });
+    await roomService.deleteRule('r1', 'rule1');
+
+    expect(rules[0]).toMatchObject({ id: 'rule1', orderIndex: 0, isActive: true });
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:8010/rooms/r1/rules', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ title: '文明交流', content: '禁止人身攻击', order_index: 0 }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/rules/rule1', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ title: '友善交流', content: '尊重他人' }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, 'http://127.0.0.1:8010/rooms/r1/rules/rule1', expect.objectContaining({ method: 'DELETE' }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
