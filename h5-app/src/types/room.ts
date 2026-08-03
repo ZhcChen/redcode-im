@@ -81,6 +81,23 @@ export interface GroupJoinRequest {
   reviewedAt: string | null;
 }
 
+export type GroupInvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+export interface GroupInvitation {
+  id: string;
+  roomId: string;
+  roomName: string | null;
+  roomAvatarUrl: string | null;
+  inviterId: string;
+  inviterName: string | null;
+  inviteeId: string;
+  message: string | null;
+  status: GroupInvitationStatus;
+  invitedAt: string;
+  respondedAt: string | null;
+  expiresAt: string;
+}
+
 export interface GroupDirectoryEntry {
   roomId: string;
   name: string;

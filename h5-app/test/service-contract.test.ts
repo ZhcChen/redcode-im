@@ -201,6 +201,32 @@ describe('h5 app service contracts', () => {
     }));
   });
 
+  it('creates, lists, and responds to group invitations', async () => {
+    const invitation = {
+      id: 'gi1', room_id: 'r1', room_name: '项目群', room_avatar_url: null,
+      inviter_id: 'u1', inviter_name: 'Owner', invitee_id: 'u2', message: '欢迎加入',
+      status: 0, invited_at: '2026-08-04T00:00:00Z', responded_at: null, expires_at: '2026-08-11T00:00:00Z',
+    };
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return new Response(null, { status: 204 });
+      return mockJson(init?.method === 'POST' ? { invitations: [invitation] } : { invitations: [invitation] });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const received = await roomService.listReceivedInvitations('all');
+    await roomService.createInvitations('r1', ['u2'], ' 欢迎加入 ');
+    await roomService.respondToInvitation('r1', 'gi1', 'accepted');
+
+    expect(received[0]).toMatchObject({ roomName: '项目群', inviterName: 'Owner', status: 'pending' });
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:8010/group-invitations?status=all', expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:8010/rooms/r1/invitations', expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ user_ids: ['u2'], message: '欢迎加入' }),
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://127.0.0.1:8010/rooms/r1/invitations/gi1/respond', expect.objectContaining({
+      method: 'PATCH', body: JSON.stringify({ status: 'accepted' }),
+    }));
+  });
+
   it('fetches and responds to friend requests with Flutter-compatible routes', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -1,7 +1,7 @@
 import { requestJson, withQuery } from '@/api/http';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupDirectoryEntry, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
-import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupJoinRequest, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
+import { mapAddMembersResult, mapCreatedRoom, mapGroupAdmin, mapGroupInvitation, mapGroupJoinRequest, mapGroupMute, mapGroupRule, mapGroupSettings, mapRoomMember } from './mappers';
 import { requireToken } from './session';
 
 export const roomService = {
@@ -227,6 +227,37 @@ export const roomService = {
       body: JSON.stringify({ join_approval_required: required }),
     }, requireToken());
     return mapGroupSettings(response.settings);
+  },
+
+  async listReceivedInvitations(status: GroupInvitationStatus | 'all' = 'all'): Promise<GroupInvitation[]> {
+    const response = await requestJson<{ invitations?: Record<string, unknown>[] }>(
+      withQuery('/group-invitations', { status }),
+      {},
+      requireToken(),
+    );
+    return (response.invitations ?? []).map(mapGroupInvitation);
+  },
+
+  async createInvitations(roomId: string, userIds: string[], message?: string): Promise<GroupInvitation[]> {
+    const response = await requestJson<{ invitations?: Record<string, unknown>[] }>(`/rooms/${roomId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({
+        user_ids: userIds,
+        ...(message?.trim() ? { message: message.trim() } : {}),
+      }),
+    }, requireToken());
+    return (response.invitations ?? []).map(mapGroupInvitation);
+  },
+
+  async respondToInvitation(
+    roomId: string,
+    invitationId: string,
+    status: Extract<GroupInvitationStatus, 'accepted' | 'declined'>,
+  ): Promise<void> {
+    await requestJson(`/rooms/${roomId}/invitations/${invitationId}/respond`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }, requireToken());
   },
 
   async fetchGroupSettings(roomId: string): Promise<GroupSettingsInfo> {

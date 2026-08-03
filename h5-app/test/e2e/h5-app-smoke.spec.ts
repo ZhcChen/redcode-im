@@ -586,4 +586,61 @@ test.describe('h5-app browser smoke', () => {
       return members.some((member) => String(member.user_id ?? member.userId ?? '') === candidate.session.user.id);
     }).toBe(false);
   });
+
+  test('receives, accepts, and declines formal group invitations', async ({ page, request }) => {
+    const owner = await registerViaApi(request, 'h5e2eio');
+    const initialMember = await registerViaApi(request, 'h5e2eim');
+    const inviteeUsername = uniqueAccount('h5e2eit');
+    const inviteePassword = `H5pass-${inviteeUsername}`;
+    const inviteeSession = await registerThroughUi(page, inviteeUsername, inviteePassword);
+    const initialMemberIds = [initialMember.session.user.id];
+    const acceptedRoomId = await createGroupViaApi(
+      request,
+      owner.session.token,
+      `Invite Accept ${Date.now()}`,
+      initialMemberIds,
+    );
+    const declinedRoomId = await createGroupViaApi(
+      request,
+      owner.session.token,
+      `Invite Decline ${Date.now()}`,
+      initialMemberIds,
+    );
+
+    const createInvitation = async (roomId: string, message: string) => {
+      const response = await request.post(`${apiBaseURL}/rooms/${roomId}/invitations`, {
+        headers: authHeaders(owner.session.token),
+        data: { user_ids: [inviteeSession.user.id], message },
+      });
+      expect(response.ok()).toBeTruthy();
+      const payload = await response.json() as { invitations?: Array<{ id?: string }> };
+      const invitationId = String(payload.invitations?.[0]?.id ?? '');
+      expect(invitationId).not.toBe('');
+      return invitationId;
+    };
+    const acceptedInvitationId = await createInvitation(acceptedRoomId, '邀请你加入验收群');
+    const declinedInvitationId = await createInvitation(declinedRoomId, '这条邀请将被拒绝');
+
+    await page.getByRole('button', { name: /联系人/ }).click();
+    await page.locator('.contact-shortcuts').getByRole('button', { name: /群通知/ }).click();
+    await expect(page).toHaveURL(/\/group-invitations$/);
+
+    const acceptedCard = page.locator(`[data-invitation-id="${acceptedInvitationId}"]`);
+    await acceptedCard.getByRole('button', { name: '接受' }).click();
+    await acceptedCard.getByRole('button', { name: '确认接受' }).click();
+    await expect(page.getByText('已加入群聊')).toBeVisible();
+    await expect.poll(async () => {
+      const members = await loadMembersViaApi(request, owner.session.token, acceptedRoomId);
+      return members.some((member) => String(member.user_id ?? member.userId ?? '') === inviteeSession.user.id);
+    }).toBe(true);
+
+    const declinedCard = page.locator(`[data-invitation-id="${declinedInvitationId}"]`);
+    await declinedCard.getByRole('button', { name: '拒绝' }).click();
+    await declinedCard.getByRole('button', { name: '确认拒绝' }).click();
+    await expect(page.getByText('已拒绝邀请')).toBeVisible();
+    await expect.poll(async () => {
+      const members = await loadMembersViaApi(request, owner.session.token, declinedRoomId);
+      return members.some((member) => String(member.user_id ?? member.userId ?? '') === inviteeSession.user.id);
+    }).toBe(false);
+  });
 });

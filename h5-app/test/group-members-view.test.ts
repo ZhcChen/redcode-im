@@ -10,6 +10,7 @@ import GroupAdminsView from '@/views/groups/GroupAdminsView.vue';
 import GroupRulesView from '@/views/groups/GroupRulesView.vue';
 import GroupMutesView from '@/views/groups/GroupMutesView.vue';
 import GroupJoinRequestsView from '@/views/groups/GroupJoinRequestsView.vue';
+import GroupInvitationsView from '@/views/groups/GroupInvitationsView.vue';
 import GroupSettingsView from '@/views/GroupSettingsView.vue';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
@@ -159,5 +160,27 @@ describe('group member permissions', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('你没有审核入群申请的权限');
     expect(wrapper.text()).not.toContain('填写审核备注');
+  });
+
+  it('sends formal group invitations without directly adding members', async () => {
+    const wrapper = mount(GroupInviteView);
+    await flushPromises();
+    await wrapper.findAll('button').find((button) => button.text() === '发送邀请')?.trigger('click');
+    await wrapper.find('.contact-page__row').trigger('click');
+    await wrapper.get('textarea[placeholder="填写群邀请附言"]').setValue('欢迎加入');
+    await wrapper.findAll('button').find((button) => button.text() === '发送')?.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('已发送 1 条群邀请');
+  });
+
+  it('accepts received group invitations after confirmation', async () => {
+    const wrapper = mount(GroupInvitationsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('产品讨论群');
+    await wrapper.findAll('button').find((button) => button.text() === '接受')?.trigger('click');
+    await wrapper.findAll('button').find((button) => button.text() === '确认接受')?.trigger('click');
+    await flushPromises();
+    expect(wrapper.text()).toContain('已加入群聊');
+    expect(wrapper.text()).toContain('已接受');
   });
 });

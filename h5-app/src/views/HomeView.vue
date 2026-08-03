@@ -294,6 +294,9 @@ onBeforeUnmount(() => {
           <button class="work-card rc-focus-ring" type="button" @click="router.push({ name: 'group-directory' })">
             <span>群聊</span><strong>›</strong>
           </button>
+          <button class="work-card rc-focus-ring" type="button" @click="router.push({ name: 'group-invitations' })">
+            <span>群通知</span><strong>›</strong>
+          </button>
         </div>
         <form class="search-box search-box--with-action" @submit.prevent="contactsStore.searchUsers()">
           <label>

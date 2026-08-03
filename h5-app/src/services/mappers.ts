@@ -1,6 +1,6 @@
 import type { AuthUser, BackendUser } from '@/types/auth';
 import type { BackendFriendInfo, BackendFriendRequest, EnsureChatResult, FriendInfo, FriendRequestInfo } from '@/types/friend';
-import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
+import type { AddMembersResult, CreatedRoom, GroupAdmin, GroupInvitation, GroupInvitationStatus, GroupJoinRequest, GroupMute, GroupRule, GroupSettingsInfo, JoinRequestStatus, RoomMember } from '@/types/room';
 
 export const mapUser = (user: BackendUser | null | undefined): AuthUser => {
   const id = user?.id ?? user?.email ?? user?.username ?? 'unknown-user';
@@ -122,6 +122,21 @@ export const mapGroupJoinRequest = (input: Record<string, unknown>): GroupJoinRe
   reviewedAt: input.reviewed_at == null ? null : String(input.reviewed_at),
 });
 
+export const mapGroupInvitation = (input: Record<string, unknown>): GroupInvitation => ({
+  id: String(input.id ?? ''),
+  roomId: String(input.room_id ?? input.roomId ?? ''),
+  roomName: input.room_name == null ? null : String(input.room_name),
+  roomAvatarUrl: input.room_avatar_url == null ? null : String(input.room_avatar_url),
+  inviterId: String(input.inviter_id ?? input.inviterId ?? ''),
+  inviterName: input.inviter_name == null ? null : String(input.inviter_name),
+  inviteeId: String(input.invitee_id ?? input.inviteeId ?? ''),
+  message: input.message == null ? null : String(input.message),
+  status: normalizeInvitationStatus(input.status),
+  invitedAt: String(input.invited_at ?? input.invitedAt ?? ''),
+  respondedAt: input.responded_at == null ? null : String(input.responded_at),
+  expiresAt: String(input.expires_at ?? input.expiresAt ?? ''),
+});
+
 const normalizeRequestStatus = (status: string | number | null | undefined) => {
   if (typeof status === 'number') {
     if (status === 1) return 'accepted';
@@ -134,5 +149,12 @@ const normalizeRequestStatus = (status: string | number | null | undefined) => {
 const normalizeJoinRequestStatus = (status: unknown): JoinRequestStatus => {
   if (status === 1 || status === 'approved') return 'approved';
   if (status === 2 || status === 'rejected') return 'rejected';
+  return 'pending';
+};
+
+const normalizeInvitationStatus = (status: unknown): GroupInvitationStatus => {
+  if (status === 1 || status === 'accepted') return 'accepted';
+  if (status === 2 || status === 'declined') return 'declined';
+  if (status === 3 || status === 'expired') return 'expired';
   return 'pending';
 };
