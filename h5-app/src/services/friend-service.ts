@@ -52,6 +52,14 @@ export const friendService = {
     await requestJson(`/friends/${friendUserId}`, { method: 'DELETE' }, requireToken());
   },
 
+  async updateFriendRemark(friendUserId: string, remark: string): Promise<string | null> {
+    const response = await requestJson<{ remark?: string | null }>(`/friends/${friendUserId}/remark`, {
+      method: 'PATCH',
+      body: JSON.stringify({ remark: remark.trim() || null }),
+    }, requireToken());
+    return response.remark?.trim() || null;
+  },
+
   async ensurePrivateChat(friendUserId: string): Promise<EnsureChatResult> {
     const response = await requestJson<Record<string, unknown>>(
       `/friends/${friendUserId}/chat`,

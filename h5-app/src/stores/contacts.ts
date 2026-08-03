@@ -211,6 +211,44 @@ export const useContactsStore = defineStore('contacts', {
       return result.roomId;
     },
 
+    async updateFriendRemark(friendUserId: string, remark: string) {
+      const friend = this.friends.find((item) => item.user.id === friendUserId);
+      if (!friend) return null;
+      this.submitting = true;
+      this.error = '';
+      try {
+        const nextRemark = appEnv.useMockData ? remark.trim() || null : await friendService.updateFriendRemark(friendUserId, remark);
+        this.friends = this.friends.map((item) => (
+          item.user.id === friendUserId ? { ...item, remark: nextRemark } : item
+        ));
+        await this.persistFriends();
+        return nextRemark;
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : '更新好友备注失败';
+        throw error;
+      } finally {
+        this.submitting = false;
+      }
+    },
+
+    async deleteFriend(friendUserId: string) {
+      const previous = this.friends;
+      this.friends = this.friends.filter((item) => item.user.id !== friendUserId);
+      await this.persistFriends();
+      this.submitting = true;
+      this.error = '';
+      try {
+        if (!appEnv.useMockData) await friendService.deleteFriend(friendUserId);
+      } catch (error) {
+        this.friends = previous;
+        await this.persistFriends();
+        this.error = error instanceof Error ? error.message : '删除好友失败';
+        throw error;
+      } finally {
+        this.submitting = false;
+      }
+    },
+
     toggleGroupMember(friendUserId: string) {
       if (!friendUserId) return;
       this.selectedFriendIds = this.selectedFriendIds.includes(friendUserId)

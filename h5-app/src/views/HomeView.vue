@@ -166,6 +166,10 @@ const openPrivateChat = async (friendUserId: string) => {
   }
 };
 
+const openContactPage = async (name: 'contact-requests' | 'contact-add' | 'contact-profile', userId?: string) => {
+  await router.push({ name, ...(userId ? { params: { userId } } : {}) });
+};
+
 const createGroup = async () => {
   const roomId = await contactsStore.createGroup();
   if (roomId) {
@@ -291,6 +295,14 @@ onBeforeUnmount(() => {
       </section>
 
       <section v-else-if="shellStore.activeTab === 'contacts'" class="panel">
+        <div class="contact-shortcuts">
+          <button class="work-card rc-focus-ring" type="button" @click="openContactPage('contact-requests')">
+            <span>好友申请</span><strong>{{ contactsStore.pendingIncomingCount }}</strong>
+          </button>
+          <button class="work-card rc-focus-ring" type="button" @click="openContactPage('contact-add')">
+            <span>添加好友</span><strong>+</strong>
+          </button>
+        </div>
         <form class="search-box search-box--with-action" @submit.prevent="contactsStore.searchUsers()">
           <label>
             <span class="sr-only">搜索用户或联系人</span>
@@ -372,9 +384,10 @@ onBeforeUnmount(() => {
               <h3>{{ displayFriendName(friend) }}</h3>
               <p>{{ friend.user.email || friend.user.username }}</p>
             </div>
-            <button class="mini-action rc-focus-ring" type="button" @click="openPrivateChat(friend.user.id)">
-              私聊
-            </button>
+            <div class="contact-row__actions">
+              <button class="mini-action mini-action--ghost rc-focus-ring" type="button" @click="openContactPage('contact-profile', friend.user.id)">资料</button>
+              <button class="mini-action rc-focus-ring" type="button" @click="openPrivateChat(friend.user.id)">私聊</button>
+            </div>
           </article>
         </section>
 
@@ -748,6 +761,27 @@ onBeforeUnmount(() => {
   border-radius: 20px;
   background: var(--rc-surface);
   padding: 14px;
+}
+
+.contact-shortcuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.contact-shortcuts .work-card {
+  justify-content: space-between;
+  min-height: 52px;
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.contact-shortcuts strong {
+  color: var(--rc-primary);
+  font-size: 18px;
 }
 
 .section-title {

@@ -7,6 +7,10 @@ import GroupSettingsView from '@/views/GroupSettingsView.vue';
 import MessageSearchView from '@/views/MessageSearchView.vue';
 import MessageReadersView from '@/views/MessageReadersView.vue';
 import MessageForwardView from '@/views/MessageForwardView.vue';
+import ContactRequestsView from '@/views/contacts/ContactRequestsView.vue';
+import ContactAddView from '@/views/contacts/ContactAddView.vue';
+import ContactProfileView from '@/views/contacts/ContactProfileView.vue';
+import ContactReportView from '@/views/contacts/ContactReportView.vue';
 import ProfileSettingsView from '@/views/settings/ProfileSettingsView.vue';
 import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
 import DocumentView from '@/views/settings/DocumentView.vue';
@@ -43,6 +47,30 @@ export const router = createRouter({
       path: '/messages/search',
       name: 'message-search',
       component: MessageSearchView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/contacts/requests',
+      name: 'contact-requests',
+      component: ContactRequestsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/contacts/add',
+      name: 'contact-add',
+      component: ContactAddView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/contacts/:userId',
+      name: 'contact-profile',
+      component: ContactProfileView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/contacts/:userId/report',
+      name: 'contact-report',
+      component: ContactReportView,
       meta: { requiresAuth: true },
     },
     {

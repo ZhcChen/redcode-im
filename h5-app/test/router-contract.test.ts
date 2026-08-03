@@ -15,4 +15,12 @@ describe('h5 router contract', () => {
       meta: { requiresAuth: true },
     });
   });
+
+  it('exposes the contact workflow as refresh-safe routes', () => {
+    const routes = new Map(router.getRoutes().map((route) => [route.name, route]));
+    expect(routes.get('contact-requests')?.path).toBe('/contacts/requests');
+    expect(routes.get('contact-add')?.path).toBe('/contacts/add');
+    expect(routes.get('contact-profile')?.path).toBe('/contacts/:userId');
+    expect(routes.get('contact-report')?.path).toBe('/contacts/:userId/report');
+  });
 });

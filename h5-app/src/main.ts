@@ -6,6 +6,7 @@ import { router } from './router';
 
 import './styles/tokens.css';
 import './styles/global.css';
+import './views/contacts/contact-page.css';
 
 const app = createApp(App);
 

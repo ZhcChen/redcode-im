@@ -67,6 +67,17 @@ describe('contacts store', () => {
     });
   });
 
+  it('updates remarks and removes friends from the persisted contact state', async () => {
+    const store = useContactsStore();
+    await store.initialize();
+
+    await store.updateFriendRemark('mock-mia', '项目搭档');
+    expect(store.friends.find((friend) => friend.user.id === 'mock-mia')?.remark).toBe('项目搭档');
+
+    await store.deleteFriend('mock-mia');
+    expect(store.friends.some((friend) => friend.user.id === 'mock-mia')).toBe(false);
+  });
+
   it('creates a group from selected friends and clears draft', async () => {
     const chatStore = useChatStore();
     chatStore.initialized = true;

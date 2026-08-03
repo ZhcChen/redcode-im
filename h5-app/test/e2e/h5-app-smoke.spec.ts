@@ -239,10 +239,16 @@ test.describe('h5-app browser smoke', () => {
 
     await page.getByRole('button', { name: /联系人/ }).click();
     await expect(page.locator('h1').filter({ hasText: '联系人' })).toBeVisible();
+    await page.locator('.contact-shortcuts').getByRole('button', { name: /好友申请/ }).click();
+    await expect(page).toHaveURL(/\/contacts\/requests$/);
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.locator('.contact-shortcuts').getByRole('button', { name: /添加好友/ }).click();
+    await expect(page).toHaveURL(/\/contacts\/add$/);
     await page.getByPlaceholder('搜索账号 / 昵称').fill(target.username);
+    await page.getByPlaceholder('介绍一下自己').fill('来自 H5 E2E 的好友申请');
     await page.getByRole('button', { name: '搜索' }).click();
 
-    const searchResult = page.locator('.contact-row').filter({ hasText: target.username }).first();
+    const searchResult = page.locator('.contact-page__row').filter({ hasText: target.username }).first();
     await expect(searchResult).toBeVisible();
     await searchResult.getByRole('button', { name: '添加' }).click();
 
@@ -267,10 +273,29 @@ test.describe('h5-app browser smoke', () => {
     });
     expect(acceptResponse.ok()).toBeTruthy();
 
-    await page.reload();
+    await page.goto('/home');
     await page.getByRole('button', { name: /联系人/ }).click();
     const contactRow = page.locator('.contact-row').filter({ hasText: target.username }).filter({ hasText: '私聊' });
     await expect(contactRow).toBeVisible();
+    await contactRow.getByRole('button', { name: '资料' }).click();
+    await expect(page).toHaveURL(new RegExp(`/contacts/${target.session.user.id}$`));
+    await page.getByPlaceholder('留空可清除备注').fill('E2E 联系人');
+    await page.getByRole('button', { name: '保存备注' }).click();
+    await expect(page.getByText('备注已更新')).toBeVisible();
+
+    await page.getByRole('button', { name: '举报该用户' }).click();
+    await page.getByPlaceholder('请描述具体问题').fill('自动化举报流程验证');
+    await page.getByLabel('选择举报截图').setInputFiles({
+      name: 'report-evidence.png', mimeType: 'image/png', buffer: pngFixture,
+    });
+    await page.getByRole('button', { name: '提交举报' }).click();
+    await expect(page.getByText('举报已提交，我们会尽快审核。')).toBeVisible();
+    await page.getByRole('button', { name: '完成' }).click();
+
+    await page.getByRole('button', { name: '删除好友' }).click();
+    await page.getByRole('button', { name: '确认删除好友' }).click();
+    await expect(page).toHaveURL(/\/home$/);
+    await expect(page.getByText(target.username)).toHaveCount(0);
   });
 
   test('uploads current user avatar from profile settings', async ({ page }) => {
