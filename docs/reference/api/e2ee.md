@@ -158,3 +158,29 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 ```
 
 消息必须先成功投递，且 token 仍拥有该 active 设备、账号仍是当前房间成员。成功后幂等写入 `consumed_at`；撤销设备或退出房间后不能继续拉取或确认控制消息。
+
+## Application 消息发送
+
+`POST /rooms/{room_id}/messages/encrypted`
+
+```json
+{
+  "encrypted_content": "<base64 RCML v1 application envelope>",
+  "encryption_metadata": {
+    "protocol": "mls",
+    "version": 1,
+    "epoch": 2,
+    "sender_device_id": "0198...",
+    "content_type": "application",
+    "control_message_id": "0198..."
+  },
+  "idempotency_key": "0198..."
+}
+```
+
+- `sender_device_id` 必须是调用账号的 active 设备。
+- 房间状态必须为 `active`，消息 epoch 必须等于当前 active epoch。
+- `control_message_id` 必须引用当前 room、epoch 和 membership revision 的 Commit。
+- 房间处于 `preparing` 或 `rekey_required`、设备待批准/已撤销、epoch 过期或 Commit 引用不匹配时返回冲突或禁止，不会降级发送明文。
+- `persist` 模式在同一数据库事务中完成上述裁决与消息插入。相同幂等键和完全相同内容的重试返回原消息，不重复持久化、广播或 Push；内容漂移返回冲突。
+- `relay_only` 模式使用 Redis 保留 10 分钟幂等占位；重复键返回冲突且不会再次广播，不保存消息历史。
