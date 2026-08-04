@@ -19,15 +19,15 @@
 - E2EE 发布门禁（U10 剩余工作，active）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
 - 测试入口：`docs/reference/testing/README.md`
-- Flutter `app/` 已于 2026-08-04 废弃（目录待阶段 3 用户确认后删除）；原生双端
-  `android-app` / `ios-app` 已恢复为 2.0 客户端主线。
+- Flutter `app/` 已于 2026-08-04 废弃，目录已随阶段 3 删除（git 历史可追溯）；
+  原生双端 `android-app` / `ios-app` 已恢复为 2.0 客户端主线。
 
 ## 当前结论
 
 - 当前主线：原生双端（`android-app` / `ios-app`）重建 -> 文档对齐 -> 原生功能迁移
   （含 E2EE 接入、`ws.proto` 生成）-> E2EE 发布门禁 -> 多平台发布。
-- 当前立即任务：按 `2026-08-04-005` 完成阶段 2 文档对齐；阶段 3 删除 Flutter
-  `app/` 目录需用户确认后执行；随后进入原生功能迁移专项。
+- 当前立即任务：按 `2026-08-04-005` 完成阶段 4 全量回归与 review 沉淀；随后进入
+  原生功能迁移专项。
 - 当前下一阶段：原生双端 E2EE 接入（必做，须在服务端 E2EE active 前完成），并继续
   关闭 U10 E2EE Go/No-Go。
 - 当前发布阻断项：原生功能迁移、E2EE、签名/版本/升级/回滚链路。
