@@ -1,7 +1,8 @@
 ---
 title: "feat: 规划 RedCode IM 2.0 Flutter 多端重构"
 type: feat
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
 date: 2026-07-26
 ---
 

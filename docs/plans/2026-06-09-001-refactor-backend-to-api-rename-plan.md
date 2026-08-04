@@ -1,7 +1,7 @@
 ---
 title: "refactor: 后端模块 backend → api 完整重命名"
 type: refactor
-status: active
+status: completed
 date: 2026-06-09
 ---
 
@@ -103,7 +103,7 @@ date: 2026-06-09
 
 ## Implementation Units
 
-- [ ] **Unit 1：目录迁移与所有 `backend/` 路径引用对齐**
+- [x] **Unit 1：目录迁移与所有 `backend/` 路径引用对齐**
 
 **Goal:** `git mv backend api`，并把全仓所有指向 `backend/` 路径的引用改为 `api/`，crate 名暂不动，保证落地后即可编译、compose 可起、desktop 可构建。
 
@@ -131,7 +131,7 @@ date: 2026-06-09
 - `docker compose -f api/docker/dev/docker-compose.yml up -d` 起得来，`/healthz` 健康
 - `grep -rn "backend/" --exclude-dir={target,node_modules,.git,build}` 仅剩历史文档等有意保留项
 
-- [ ] **Unit 2：crate 与二进制改名 `redcode-im-backend` → `redcode-im-api`**
+- [x] **Unit 2：crate 与二进制改名 `redcode-im-backend` → `redcode-im-api`**
 
 **Goal:** 重命名 crate 与产物二进制，并同步所有消费方（含 desktop 代码 `use` 语句、Dockerfile/脚本里的二进制名、compose `--bin`）。
 
@@ -157,7 +157,7 @@ date: 2026-06-09
 - `cd desktop/src-tauri && cargo build` 通过（依赖名 + use 已更新）
 - `grep -rn "redcode.im.backend\|redcode_im_backend" --exclude-dir={target,node_modules,.git}` 仅剩 `Cargo.lock`（待重生成）与历史文档
 
-- [ ] **Unit 3：Docker Compose 服务名 `backend` → `api`**
+- [x] **Unit 3：Docker Compose 服务名 `backend` → `api`**
 
 **Goal:** 三个 compose 文件的服务键、container_name、服务间 hostname、depends_on 全部改为 `api`。
 
@@ -181,7 +181,7 @@ date: 2026-06-09
 - 测试栈可起、服务间 `http://api:8010` 可达
 - `make tests.contract`（或 `./tests/run.sh`）通过
 
-- [ ] **Unit 4：Makefile 目标 `backend.*` → `api.*` 并收口别名**
+- [x] **Unit 4：Makefile 目标 `backend.*` → `api.*` 并收口别名**
 
 **Goal:** 规范命令入口统一为 `api.*`，变量与文案同步，收口既有 `api-*` 旧别名。
 
@@ -207,7 +207,7 @@ date: 2026-06-09
 - `make status`、`make help` 文案一致无残留 `backend.`
 - `make api.test.unit` 可跑
 
-- [ ] **Unit 5：活跃文档与权威规范同步**
+- [x] **Unit 5：活跃文档与权威规范同步**
 
 **Goal:** 更新活跃/权威文档中的 `backend`/`redcode-im-backend`/路径引用为 `api`，历史文档保持原样。
 

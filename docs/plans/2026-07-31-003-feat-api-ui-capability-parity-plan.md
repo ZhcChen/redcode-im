@@ -1,7 +1,8 @@
 ---
 title: "feat: 对齐 API、Flutter 与 IM UI 能力"
 type: feat
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 date: 2026-07-31
 ---
 

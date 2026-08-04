@@ -1,7 +1,8 @@
 ---
 title: "feat: 将 im-ui-html 升级为 RedCode IM 2.0 设计源"
 type: feat
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md
 date: 2026-07-26
 ---
 

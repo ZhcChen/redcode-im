@@ -1,3 +1,8 @@
+---
+status: superseded
+superseded_by: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
+---
+
 # Desktop-EL 移植 Implementation Plan
 
 > **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If scope or architecture assumptions change, refresh the requirements with `ce:brainstorm` and update the implementation path with `ce:plan`. Steps use checkbox (`- [ ]`) syntax for tracking.

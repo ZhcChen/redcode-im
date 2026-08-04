@@ -1,7 +1,7 @@
 ---
 date: 2026-04-09
 topic: sql-baseline-reset
-status: active
+status: completed
 ---
 
 # SQL 基线重置与迁移体系加固计划

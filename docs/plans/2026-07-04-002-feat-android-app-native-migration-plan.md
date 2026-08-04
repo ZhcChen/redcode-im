@@ -1,7 +1,8 @@
 ---
 title: "feat: Migrate Flutter app functionality to native Android"
 type: feat
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
 date: 2026-07-04
 ---
 
