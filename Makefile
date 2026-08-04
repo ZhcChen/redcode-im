@@ -118,6 +118,7 @@ H5_APP_PORT := 8016
 H5_APP_LOG := /tmp/redcode-h5-app.log
 H5_APP_BASE_URL ?= http://localhost:$(H5_APP_PORT)
 H5_APP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
+H5_APP_WS_URL ?= $(patsubst https://%,wss://%,$(patsubst http://%,ws://%,$(H5_APP_API_BASE_URL)))/ws
 
 IM_UI_DIR := $(ROOT_DIR)/im-ui-html
 IM_UI_PORT := 8020
@@ -174,7 +175,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -951,6 +952,10 @@ h5-app.test.unit: ## 执行 h5-app 全量 Vitest
 h5-app.test.live: ## 执行 h5-app 真实后端普通账号注册/登录 smoke（需 api dev 就绪）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:live
+
+h5-app.test.e2ee.live: ## 执行 h5-app 双账号 E2EE 真实后端联调（要求服务端已显式启用 E2EE）
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_WS_URL="$(H5_APP_WS_URL)" $(BUN) run test:e2ee:live
 
 h5-app.test.e2e: ## 执行 h5-app 浏览器 E2E smoke（需 api dev 就绪；默认 Chrome channel）
 	@$(call require_cmd,$(BUN))

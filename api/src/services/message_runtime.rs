@@ -164,6 +164,18 @@ pub async fn is_relay_only_runtime(state: &AppState) -> Result<bool, AppError> {
     Ok(load_message_runtime_settings(&store).await?.is_relay_only())
 }
 
+pub async fn is_e2ee_runtime(state: &AppState) -> Result<bool, AppError> {
+    let setting = SettingsStore::new(state.database.clone())
+        .get_general_setting(MESSAGE_CONTENT_AUDIT_MODE_KEY)
+        .await?;
+    Ok(setting
+        .as_ref()
+        .map(|record| MessageContentAuditMode::parse(&record.value))
+        .transpose()?
+        .unwrap_or(MessageContentAuditMode::Plaintext)
+        == MessageContentAuditMode::E2ee)
+}
+
 pub async fn update_message_runtime_settings(
     store: &SettingsStore,
     server_storage_mode: MessageServerStorageMode,

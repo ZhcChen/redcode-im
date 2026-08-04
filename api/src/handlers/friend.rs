@@ -25,6 +25,7 @@ use crate::models::{
     Claims, CreateFriendRequest, FriendInfo, FriendRequestAction, FriendRequestInfo,
     RespondFriendRequest,
 };
+use crate::services::message_runtime::is_e2ee_runtime;
 use crate::websocket::ServerPush;
 use crate::AppState;
 
@@ -220,49 +221,52 @@ pub async fn respond_friend_request(
             .ensure_private_room(request.requester_id, request.addressee_id, room_name)
             .await?;
 
-        let trimmed = request
-            .message
-            .as_ref()
-            .map(|msg| msg.trim())
-            .unwrap_or_default();
+        if !is_e2ee_runtime(&state).await? {
+            let trimmed = request
+                .message
+                .as_ref()
+                .map(|msg| msg.trim())
+                .unwrap_or_default();
 
-        let (sender_id, content, message_type) = if trimmed.is_empty() {
-            (
-                request.requester_id,
-                format!("你与 {} 已成为好友，开始聊天吧！", addressee_display),
-                MessageType::System,
-            )
-        } else {
-            (request.requester_id, trimmed.to_string(), MessageType::Text)
-        };
+            let (sender_id, content, message_type) = if trimmed.is_empty() {
+                (
+                    request.requester_id,
+                    format!("你与 {} 已成为好友，开始聊天吧！", addressee_display),
+                    MessageType::System,
+                )
+            } else {
+                (request.requester_id, trimmed.to_string(), MessageType::Text)
+            };
 
-        let message_store = MessageStore::new(state.database.pool());
-        let created_message = message_store
-            .create_message(room.id, sender_id, content, message_type.clone(), None)
-            .await?;
+            let message_store = MessageStore::new(state.database.pool());
+            let created_message = message_store
+                .create_message(room.id, sender_id, content, message_type.clone(), None)
+                .await?;
 
-        match message_store
-            .get_message_with_sender(created_message.id)
-            .await?
-        {
-            Some(enriched) => {
-                let mut part_ids = vec![enriched.id];
-                if let Some(qid) = enriched.quoted_message_id {
-                    part_ids.push(qid);
+            match message_store
+                .get_message_with_sender(created_message.id)
+                .await?
+            {
+                Some(enriched) => {
+                    let mut part_ids = vec![enriched.id];
+                    if let Some(qid) = enriched.quoted_message_id {
+                        part_ids.push(qid);
+                    }
+                    let parts_map = message_store.get_message_parts_map(&part_ids).await?;
+
+                    if let Err(err) = broadcast_message_to_room(&state, &enriched, &parts_map).await
+                    {
+                        warn!(
+                            "Failed to broadcast welcome message for room {}: {}",
+                            room.id, err
+                        );
+                    }
                 }
-                let parts_map = message_store.get_message_parts_map(&part_ids).await?;
-
-                if let Err(err) = broadcast_message_to_room(&state, &enriched, &parts_map).await {
-                    warn!(
-                        "Failed to broadcast welcome message for room {}: {}",
-                        room.id, err
-                    );
-                }
+                None => warn!(
+                    "Created welcome message {} for room {} but failed to load enriched data",
+                    created_message.id, room.id
+                ),
             }
-            None => warn!(
-                "Created welcome message {} for room {} but failed to load enriched data",
-                created_message.id, room.id
-            ),
         }
     }
 
