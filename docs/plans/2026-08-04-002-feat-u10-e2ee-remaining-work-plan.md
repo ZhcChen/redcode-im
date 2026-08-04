@@ -7,6 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 execution: code
 absorbed_from: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
+status: active
 ---
 
 # feat: U10 E2EE 剩余工作执行计划

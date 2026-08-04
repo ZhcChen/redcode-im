@@ -8,6 +8,7 @@ product_contract_source: ce-plan-bootstrap
 execution: code
 deepened: 2026-08-02
 absorbed_from: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
+status: active
 ---
 
 # feat: RedCode IM 2.0 正式开发执行计划
