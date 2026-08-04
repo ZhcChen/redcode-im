@@ -4,8 +4,11 @@
 
 - 协议候选：OpenMLS 0.8.1，实现 RFC 9420（MLS 1.0）。
 - U1 隔离 PoC：已通过，证据见 `docs/reviews/2026-08-04-u10-e2ee-u1-openmls-poc.md`。
+- U4 安全存储与身份信任：H5 侧已独立验收（`docs/reviews/2026-08-05-u10-e2ee-u4-acceptance.md`）；
+  原生双端待原生 E2EE 专项接入后补齐，整体保持 partial。
 - 生产发布：No-Go。U2-U9 与独立安全审查完成前，不得启用 E2EE 生产模式。
-- 实施计划：`docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md`。
+- 实施计划：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
+  （承接 `2026-08-04-001` 完整契约与 U1-U3 基线）。
 
 本文替代旧版手写 X3DH、Double Ratchet 和 Sender Keys 设计。RedCode IM 不自行实现密码协议、密钥日程或密码原语，也不使用无法在原生双端（JNI / xcframework）与 H5 浏览器共享的独立协议实现。
 
