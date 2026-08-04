@@ -79,3 +79,112 @@
   "success": true
 }
 ```
+
+## GET /rooms/:room_id/unread_count — 获取单房间未读数
+
+返回指定房间对当前用户的未读计数与最后已读位置。
+
+- 需要认证：是
+- 标识：getUnreadCount
+
+### 响应
+#### HTTP 200
+```json
+{
+  "room_id": "8b2d5f33-1a6a-4c8a-9c2e-1c7b7fc6e5a1",
+  "unread_count": 3,
+  "last_read_message_id": "1f9d2a9e-9b82-4c3f-9b60-f0c4a7f7b1c2",
+  "last_read_at": "2025-10-20T10:15:20Z"
+}
+```
+
+#### HTTP 403
+不是该房间成员（code 40301）
+
+## GET /unread_counts — 获取全部未读数
+
+返回当前用户全部房间的未读计数（`relay_only` 运行时下均为 0）。
+
+- 需要认证：是
+- 标识：getAllUnreadCounts
+
+### 响应
+#### HTTP 200
+```json
+[
+  {
+    "room_id": "8b2d5f33-1a6a-4c8a-9c2e-1c7b7fc6e5a1",
+    "unread_count": 3,
+    "last_read_message_id": null,
+    "last_read_at": null
+  }
+]
+```
+
+## POST /rooms/:room_id/notification-settings — 更新房间通知设置
+
+设置当前用户在该房间的通知偏好。
+
+- 需要认证：是
+- 标识：updateNotificationSettings
+
+### 请求体
+```json
+{
+  "notification_settings": 0
+}
+```
+
+取值：
+
+| 值 | 说明 |
+|---|---|
+| `0` | 全部通知 |
+| `1` | 仅提及 |
+| `2` | 免打扰 |
+
+### 响应
+#### HTTP 200
+```json
+{
+  "notification_settings": 0
+}
+```
+
+#### HTTP 400
+非法取值（code 42201）
+
+## POST /rooms/:room_id/pin — 置顶房间
+
+将房间置顶到当前用户聊天列表顶部。
+
+- 需要认证：是
+- 标识：pinRoom
+
+### 响应
+#### HTTP 200
+```json
+{
+  "is_pinned": true,
+  "pinned_at": "2026-07-28T09:55:00Z"
+}
+```
+
+#### HTTP 403
+不是该房间成员（code 40301）
+
+## DELETE /rooms/:room_id/pin — 取消置顶
+
+取消当前用户对该房间的置顶。
+
+- 需要认证：是
+- 标识：unpinRoom
+
+### 响应
+#### HTTP 200
+```json
+{
+  "is_pinned": false,
+  "pinned_at": null
+}
+```
