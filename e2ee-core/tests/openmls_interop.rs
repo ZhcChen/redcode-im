@@ -1,65 +1,20 @@
-use std::io::Cursor;
-
 use openmls::prelude::tls_codec::Deserialize;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls_memory_storage::MemoryStorage;
-use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
+use redcode_e2ee_core::ProtocolProvider;
 
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-#[derive(Debug, Default)]
-struct TestProvider {
-    crypto: RustCrypto,
-    storage: MemoryStorage,
-}
-
-impl TestProvider {
-    fn export_state(&self) -> Vec<u8> {
-        let mut state = Vec::new();
-        self.storage
-            .serialize(&mut state)
-            .expect("serialize provider state");
-        state
-    }
-
-    fn import_state(state: &[u8]) -> Self {
-        Self {
-            crypto: RustCrypto::default(),
-            storage: MemoryStorage::deserialize(&mut Cursor::new(state))
-                .expect("deserialize provider state"),
-        }
-    }
-}
-
-impl OpenMlsProvider for TestProvider {
-    type CryptoProvider = RustCrypto;
-    type RandProvider = RustCrypto;
-    type StorageProvider = MemoryStorage;
-
-    fn storage(&self) -> &Self::StorageProvider {
-        &self.storage
-    }
-
-    fn crypto(&self) -> &Self::CryptoProvider {
-        &self.crypto
-    }
-
-    fn rand(&self) -> &Self::RandProvider {
-        &self.crypto
-    }
-}
-
 struct Device {
-    provider: TestProvider,
+    provider: ProtocolProvider,
     credential: CredentialWithKey,
     signer: SignatureKeyPair,
 }
 
 impl Device {
     fn new(identity: &str) -> Self {
-        let provider = TestProvider::default();
+        let provider = ProtocolProvider::default();
         let signer =
             SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).expect("create signature key");
         signer
@@ -198,8 +153,8 @@ fn two_devices_exchange_messages_and_resume_from_exported_state() {
         b"reply from the second device"
     );
 
-    let state = bob.provider.export_state();
-    let restored_provider = TestProvider::import_state(&state);
+    let state = bob.provider.export_state().expect("export provider state");
+    let restored_provider = ProtocolProvider::import_state(&state).expect("import provider state");
     let mut restored_group = MlsGroup::load(restored_provider.storage(), bob_group.group_id())
         .expect("load persisted group")
         .expect("persisted group exists");

@@ -1,14 +1,12 @@
 #![cfg(target_arch = "wasm32")]
 
-use std::io::Cursor;
-
 use base64::{engine::general_purpose::STANDARD, Engine};
 use openmls::prelude::tls_codec::Deserialize;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls_memory_storage::MemoryStorage;
-use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
+use redcode_e2ee_core::ProtocolProvider;
+use redcode_e2ee_core::{new_protocol_state, validate_protocol_state};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
 use web_sys::{Request, RequestInit};
@@ -21,41 +19,28 @@ use fixture_format::CrossRuntimeFixture;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
+#[wasm_bindgen_test]
+fn wasm_exports_versioned_protocol_state_contract() {
+    let state = new_protocol_state();
+    assert!(validate_protocol_state(&state));
+    assert_eq!(&state[..4], b"RCST");
+
+    let mut damaged = state;
+    damaged[0] = 0;
+    assert!(!validate_protocol_state(&damaged));
+}
+
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-#[derive(Debug, Default)]
-struct BrowserProvider {
-    crypto: RustCrypto,
-    storage: MemoryStorage,
-}
-
-impl OpenMlsProvider for BrowserProvider {
-    type CryptoProvider = RustCrypto;
-    type RandProvider = RustCrypto;
-    type StorageProvider = MemoryStorage;
-
-    fn storage(&self) -> &Self::StorageProvider {
-        &self.storage
-    }
-
-    fn crypto(&self) -> &Self::CryptoProvider {
-        &self.crypto
-    }
-
-    fn rand(&self) -> &Self::RandProvider {
-        &self.crypto
-    }
-}
-
 struct BrowserDevice {
-    provider: BrowserProvider,
+    provider: ProtocolProvider,
     credential: CredentialWithKey,
     signer: SignatureKeyPair,
 }
 
 impl BrowserDevice {
     fn new(identity: &str) -> Self {
-        let provider = BrowserProvider::default();
+        let provider = ProtocolProvider::default();
         let signer =
             SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).expect("create signing key");
         signer.store(provider.storage()).expect("store signing key");
@@ -156,11 +141,8 @@ async fn wasm_resumes_native_state_and_exports_the_advanced_state() {
     let fixture =
         CrossRuntimeFixture::decode(include_bytes!("../interop/fixtures/native_to_wasm.bin"))
             .expect("decode native fixture");
-    let provider = BrowserProvider {
-        crypto: RustCrypto::default(),
-        storage: MemoryStorage::deserialize(&mut Cursor::new(&fixture.provider_state))
-            .expect("deserialize native provider state"),
-    };
+    let provider = ProtocolProvider::import_state(&fixture.provider_state)
+        .expect("deserialize native provider state");
     let mut group = MlsGroup::load(provider.storage(), &GroupId::from_slice(&fixture.group_id))
         .expect("load native group in wasm")
         .expect("native group exists in wasm");
@@ -181,10 +163,8 @@ async fn wasm_resumes_native_state_and_exports_the_advanced_state() {
         b"native message processed by wasm"
     );
 
-    let mut advanced_state = Vec::new();
-    provider
-        .storage
-        .serialize(&mut advanced_state)
+    let advanced_state = provider
+        .export_state()
         .expect("serialize wasm-advanced state");
     let receiver = option_env!("RC_E2EE_STATE_RECEIVER").expect("state receiver URL");
     let request_init = RequestInit::new();

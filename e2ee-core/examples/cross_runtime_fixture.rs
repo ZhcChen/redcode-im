@@ -1,6 +1,6 @@
 use std::{
     env, fs,
-    io::{Cursor, Read, Write},
+    io::{Read, Write},
     net::TcpListener,
     path::Path,
 };
@@ -9,9 +9,8 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use openmls::prelude::tls_codec::Deserialize;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls_memory_storage::MemoryStorage;
-use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
+use redcode_e2ee_core::ProtocolProvider;
 
 #[path = "../interop/fixture.rs"]
 mod fixture_format;
@@ -20,55 +19,15 @@ use fixture_format::CrossRuntimeFixture;
 
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-#[derive(Debug, Default)]
-struct FixtureProvider {
-    crypto: RustCrypto,
-    storage: MemoryStorage,
-}
-
-impl FixtureProvider {
-    fn export_state(&self) -> Vec<u8> {
-        let mut state = Vec::new();
-        self.storage.serialize(&mut state).expect("serialize state");
-        state
-    }
-
-    fn import_state(state: &[u8]) -> Self {
-        Self {
-            crypto: RustCrypto::default(),
-            storage: MemoryStorage::deserialize(&mut Cursor::new(state))
-                .expect("deserialize state"),
-        }
-    }
-}
-
-impl OpenMlsProvider for FixtureProvider {
-    type CryptoProvider = RustCrypto;
-    type RandProvider = RustCrypto;
-    type StorageProvider = MemoryStorage;
-
-    fn storage(&self) -> &Self::StorageProvider {
-        &self.storage
-    }
-
-    fn crypto(&self) -> &Self::CryptoProvider {
-        &self.crypto
-    }
-
-    fn rand(&self) -> &Self::RandProvider {
-        &self.crypto
-    }
-}
-
 struct FixtureDevice {
-    provider: FixtureProvider,
+    provider: ProtocolProvider,
     credential: CredentialWithKey,
     signer: SignatureKeyPair,
 }
 
 impl FixtureDevice {
     fn new(identity: &str) -> Self {
-        let provider = FixtureProvider::default();
+        let provider = ProtocolProvider::default();
         let signer =
             SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).expect("create signing key");
         signer.store(provider.storage()).expect("store signing key");
@@ -173,7 +132,7 @@ fn generate(path: &Path) {
         .expect("serialize second fixture message");
     let fixture = CrossRuntimeFixture {
         group_id: group_id.to_vec(),
-        provider_state: bob.provider.export_state(),
+        provider_state: bob.provider.export_state().expect("export provider state"),
         first_message,
         second_message,
     };
@@ -235,7 +194,7 @@ fn verify(fixture_path: &Path, state_path: &Path) {
         CrossRuntimeFixture::decode(&fs::read(fixture_path).expect("read cross-runtime fixture"))
             .expect("decode cross-runtime fixture");
     let state = fs::read(state_path).expect("read browser state");
-    let provider = FixtureProvider::import_state(&state);
+    let provider = ProtocolProvider::import_state(&state).expect("import browser state");
     let mut group = MlsGroup::load(provider.storage(), &GroupId::from_slice(&fixture.group_id))
         .expect("load browser-exported group")
         .expect("browser-exported group exists");
@@ -261,5 +220,5 @@ fn as_message_in(message: MlsMessageOut) -> MlsMessageIn {
 }
 
 fn as_message_in_bytes(message: &[u8]) -> MlsMessageIn {
-    MlsMessageIn::tls_deserialize_exact(message.to_vec()).expect("deserialize MLS message")
+    MlsMessageIn::tls_deserialize_exact(message).expect("deserialize MLS message")
 }
