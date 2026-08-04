@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:app/core/e2ee/secure_state_storage.dart';
 import 'package:app/core/e2ee/core_bridge.dart';
+import 'package:app/core/e2ee/device_profile.dart';
 import 'package:app/core/e2ee/identity_trust.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -123,6 +124,32 @@ void main() {
         storage.readRecords('account-a'),
         throwsA(isA<E2eeStateCorruptedException>()),
       );
+    });
+
+    test('encrypts device profile and removes it on account cleanup', () async {
+      const profile = E2eeDeviceProfile(
+        deviceId: 'device-a',
+        deviceLabel: 'Alice iPhone',
+        registered: true,
+        keyPackagePublished: true,
+        lastControlSequences: {'room-a': 7},
+      );
+      await storage.writeDeviceProfile('account-a', profile);
+
+      expect(
+        (await storage.readDeviceProfile('account-a'))!.lastControlSequences,
+        {'room-a': 7},
+      );
+      expect(states.values.keys.single, endsWith('.device-profile'));
+      expect(
+        String.fromCharCodes(states.values.values.single),
+        isNot(contains('device-a')),
+      );
+
+      await storage.delete('account-a');
+      expect(await storage.readDeviceProfile('account-a'), isNull);
+      expect(keys.values, isEmpty);
+      expect(states.values, isEmpty);
     });
   });
 }

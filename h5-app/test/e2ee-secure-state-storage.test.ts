@@ -9,6 +9,7 @@ import {
   E2eeStorageUnavailableError,
 } from '@/e2ee/secure-state-storage';
 import type { E2eeIdentityTrustRecord } from '@/e2ee/identity-trust';
+import type { E2eeDeviceProfile } from '@/e2ee/device-profile';
 
 const createStorage = () => new E2eeSecureStateStorage({
   databaseName: `e2ee-test-${crypto.randomUUID()}`,
@@ -123,6 +124,24 @@ describe('E2eeSecureStateStorage', () => {
 
     await expect(storage.readRecords('account-a'))
       .rejects.toBeInstanceOf(E2eeStateCorruptedError);
+  });
+
+  it('encrypts device profile and removes it on account cleanup', async () => {
+    const storage = createStorage();
+    const profile: E2eeDeviceProfile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: { 'room-a': 7 },
+    };
+
+    await storage.writeDeviceProfile('account-a', profile);
+    expect(await storage.readDeviceProfile('account-a')).toEqual(profile);
+    expect(window.localStorage.length).toBe(0);
+
+    await storage.delete('account-a');
+    expect(await storage.readDeviceProfile('account-a')).toBeNull();
   });
 
   it('keeps wrapping keys non-extractable', async () => {

@@ -8,9 +8,10 @@ import '../storage/token_storage.dart';
 import 'identity_trust.dart';
 
 class E2eeIdentityServiceException implements Exception {
-  const E2eeIdentityServiceException(this.message);
+  const E2eeIdentityServiceException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;
@@ -40,6 +41,7 @@ class E2eeIdentityService {
     if (response.statusCode != 200) {
       throw E2eeIdentityServiceException(
         response.statusCode == 404 ? '联系人尚未初始化端到端加密' : '获取联系人 E2EE 身份失败',
+        statusCode: response.statusCode,
       );
     }
     try {

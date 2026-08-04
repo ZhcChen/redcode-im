@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
 import 'identity_trust.dart';
+import 'device_profile.dart';
 
 const _stateMagic = [0x52, 0x43, 0x45, 0x53]; // RCES
 const _stateVersion = 1;
@@ -19,6 +20,8 @@ const _keyLength = 32;
 const _aadPrefix = 'redcode-im/e2ee-state/v1\u0000';
 const _trustAadPrefix = 'redcode-im/e2ee-identity-trust/v1\u0000';
 const _trustSlot = 'identity-trust';
+const _profileAadPrefix = 'redcode-im/e2ee-device-profile/v1\u0000';
+const _profileSlot = 'device-profile';
 
 class E2eeStateCorruptedException implements Exception {
   const E2eeStateCorruptedException([this.message = 'E2EE 协议状态已损坏或无法解密']);
@@ -161,6 +164,30 @@ class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     E2eeIdentityTrustManager.encodeRegistry(records),
   );
 
+  Future<E2eeDeviceProfile?> readDeviceProfile(String accountId) async {
+    final plaintext = await _readEncrypted(
+      accountId,
+      _profileSlot,
+      _profileAadPrefix,
+    );
+    if (plaintext == null) return null;
+    try {
+      return E2eeDeviceProfile.decode(plaintext);
+    } on Object {
+      throw const E2eeStateCorruptedException('E2EE 设备档案已损坏');
+    }
+  }
+
+  Future<void> writeDeviceProfile(
+    String accountId,
+    E2eeDeviceProfile profile,
+  ) => _writeEncrypted(
+    accountId,
+    _profileSlot,
+    _profileAadPrefix,
+    profile.encode(),
+  );
+
   Future<void> _writeEncrypted(
     String accountId,
     String? slot,
@@ -238,6 +265,7 @@ class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     await _wrappingKeys.delete(_keyName(namespace));
     await _encryptedStates.delete(namespace);
     await _encryptedStates.delete(_storageKey(namespace, _trustSlot));
+    await _encryptedStates.delete(_storageKey(namespace, _profileSlot));
   }
 
   @override

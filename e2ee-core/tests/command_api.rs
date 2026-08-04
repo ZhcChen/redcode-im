@@ -54,6 +54,13 @@ fn initialization_returns_stable_registration_material() {
     assert_eq!(second[3], first[3]);
     assert_ne!(second[5], first[5]);
     assert_ne!(second[6], first[6]);
+
+    let restored = command(8, &[&first[0]]);
+    assert_eq!(restored[1], first[2]);
+    assert_eq!(restored[2], first[3]);
+    assert_eq!(restored[3], first[4]);
+    assert_eq!(restored[4], first[5]);
+    assert_eq!(restored[5], first[6]);
 }
 
 #[test]

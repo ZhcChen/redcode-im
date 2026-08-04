@@ -7,7 +7,8 @@ export type E2eeCommandOperation =
   | 'add-member'
   | 'join-group'
   | 'encrypt'
-  | 'decrypt';
+  | 'decrypt'
+  | 'public-material';
 
 const OPERATION: Record<E2eeCommandOperation, number> = {
   initialize: 1,
@@ -17,6 +18,7 @@ const OPERATION: Record<E2eeCommandOperation, number> = {
   'join-group': 5,
   encrypt: 6,
   decrypt: 7,
+  'public-material': 8,
 };
 
 export class E2eeCommandError extends Error {
@@ -66,6 +68,17 @@ export class E2eeSession {
     return this.execute('initialize', [new TextEncoder().encode(deviceIdentity)]);
   }
 
+  initializeWithRoot(deviceIdentity: string, rootPublicKey?: Uint8Array) {
+    return this.execute('initialize', [
+      new TextEncoder().encode(deviceIdentity),
+      ...(rootPublicKey ? [rootPublicKey] : []),
+    ]);
+  }
+
+  generateKeyPackage(state: Uint8Array) {
+    return this.execute('generate-key-package', [state]);
+  }
+
   createGroup(state: Uint8Array, roomId: string) {
     return this.execute('create-group', [state, new TextEncoder().encode(roomId)]);
   }
@@ -84,6 +97,10 @@ export class E2eeSession {
 
   decrypt(state: Uint8Array, roomId: string, ciphertext: Uint8Array) {
     return this.execute('decrypt', [state, new TextEncoder().encode(roomId), ciphertext]);
+  }
+
+  publicMaterial(state: Uint8Array) {
+    return this.execute('public-material', [state]);
   }
 
   static decodeResponse(response: Uint8Array): E2eeCommandResult {

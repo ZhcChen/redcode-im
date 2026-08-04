@@ -42,6 +42,21 @@ export const registrationMaterialFromCommand = (
   };
 };
 
+export const registrationMaterialFromRestoredCommand = (
+  result: E2eeCommandResult,
+): E2eeDeviceRegistrationMaterial => {
+  if (result.fields.length !== 6) throw new E2eeCommandError('E2EE 公开材料响应字段数量无效');
+  return {
+    state: result.field(0),
+    keyPackage: new Uint8Array(),
+    rootPublicKey: result.field(1),
+    rootFingerprint: result.field(2),
+    credential: result.field(3),
+    credentialFingerprint: result.field(4),
+    approvalPublicKey: result.field(5),
+  };
+};
+
 export const e2eeMlsApiService = {
   registerDevice(
     deviceId: string,

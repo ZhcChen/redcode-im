@@ -4,6 +4,11 @@ import {
   type E2eeIdentityTrustRecord,
   type E2eeIdentityTrustStore,
 } from '@/e2ee/identity-trust';
+import {
+  decodeDeviceProfile,
+  encodeDeviceProfile,
+  type E2eeDeviceProfile,
+} from '@/e2ee/device-profile';
 
 const DATABASE_NAME = 'redcode-h5-e2ee-state';
 const DATABASE_VERSION = 1;
@@ -14,6 +19,8 @@ const NONCE_BYTES = 12;
 const AAD_PREFIX = 'redcode-im/e2ee-state/v1\0';
 const TRUST_AAD_PREFIX = 'redcode-im/e2ee-identity-trust/v1\0';
 const TRUST_SUFFIX = ':identity-trust';
+const PROFILE_AAD_PREFIX = 'redcode-im/e2ee-device-profile/v1\0';
+const PROFILE_SUFFIX = ':device-profile';
 
 interface StoredEncryptedState {
   version: number;
@@ -104,6 +111,29 @@ export class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     await this.delete(accountId);
   }
 
+  async readDeviceProfile(accountId: string): Promise<E2eeDeviceProfile | null> {
+    const data = await this.readEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${PROFILE_SUFFIX}`,
+      PROFILE_AAD_PREFIX,
+    );
+    if (!data) return null;
+    try {
+      return decodeDeviceProfile(data);
+    } catch {
+      throw new E2eeStateCorruptedError('E2EE 设备档案已损坏');
+    }
+  }
+
+  async writeDeviceProfile(accountId: string, profile: E2eeDeviceProfile): Promise<void> {
+    await this.writeEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${PROFILE_SUFFIX}`,
+      PROFILE_AAD_PREFIX,
+      encodeDeviceProfile(profile),
+    );
+  }
+
   private async writeEncrypted(
     accountId: string,
     storageKey: string,
@@ -188,6 +218,7 @@ export class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
         deleteRecord(db, KEY_STORE, namespace),
         deleteRecord(db, STATE_STORE, namespace),
         deleteRecord(db, STATE_STORE, `${namespace}${TRUST_SUFFIX}`),
+        deleteRecord(db, STATE_STORE, `${namespace}${PROFILE_SUFFIX}`),
       ]);
     } finally {
       db.close();

@@ -10,7 +10,8 @@ enum E2eeCommandOperation {
   addMember(4),
   joinGroup(5),
   encrypt(6),
-  decrypt(7);
+  decrypt(7),
+  publicMaterial(8);
 
   const E2eeCommandOperation(this.value);
   final int value;
@@ -115,6 +116,9 @@ class RedcodeE2eeSession {
     utf8.encode(roomId),
     ciphertext,
   ]);
+
+  E2eeCommandResult publicMaterial(List<int> state) =>
+      execute(E2eeCommandOperation.publicMaterial, [state]);
 
   static E2eeCommandResult decodeResponse(List<int> response) {
     if (response.length < 8 || ascii.decode(response.sublist(0, 4)) != 'RCCR') {
