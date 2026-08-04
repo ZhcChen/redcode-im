@@ -19,10 +19,6 @@ FLUTTER := flutter
 CARGO := cargo
 GO := go
 PATROL := patrol
-SWIFT := swift
-XCODEBUILD := xcodebuild
-XCRUN := xcrun
-RUBY := ruby
 
 E2EE_CORE_DIR := $(ROOT_DIR)/e2ee-core
 
@@ -123,38 +119,6 @@ H5_APP_WS_URL ?= $(patsubst https://%,wss://%,$(patsubst http://%,ws://%,$(H5_AP
 IM_UI_DIR := $(ROOT_DIR)/im-ui-html
 IM_UI_PORT := 8020
 
-IOS_APP_DIR := $(ROOT_DIR)/ios-app
-IOS_APP_PROJECT := $(IOS_APP_DIR)/RedCodeIM.xcodeproj
-IOS_APP_SCHEME := RedCodeIM
-IOS_APP_TARGET := RedCodeIM
-IOS_APP_DERIVED_DATA := $(IOS_APP_DIR)/DerivedData
-IOS_APP_BUNDLE_ID := com.redcode.im.iosapp
-IOS_APP_SIMULATOR_NAME ?= iPhone 17 Pro
-IOS_APP_SIMULATOR_ID ?=
-IOS_APP_DEVICE_ID ?=
-IOS_APP_DEVELOPMENT_TEAM ?=
-IOS_APNS_PROVIDER_CONFIGURED ?=
-IOS_APP_LAN_IP ?=
-IOS_APP_API_BASE_URL ?=
-IOS_APP_WS_URL ?=
-IOS_APP_XCODEBUILD_DEVICE_FLAGS ?= -allowProvisioningUpdates
-
-ANDROID_APP_DIR := $(ROOT_DIR)/android-app
-ANDROID_GRADLEW := $(APP_DIR)/android/gradlew
-ANDROID_GRADLE ?= $(shell command -v gradle 2>/dev/null || find "$$HOME/.gradle/wrapper/dists" -path "*/gradle-9.3.1/bin/gradle" -type f -print -quit 2>/dev/null || printf "%s" "$(ANDROID_GRADLEW)")
-ANDROID_SDK_ROOT ?= $(HOME)/Library/Android/sdk
-ANDROID_HOME ?= $(ANDROID_SDK_ROOT)
-ADB ?= $(ANDROID_HOME)/platform-tools/adb
-ANDROID_APP_PREFERRED_DEVICE ?= 3A091FDJG001DN
-ANDROID_APP_DEVICE ?= $(shell if [ -x "$(ADB)" ]; then "$(ADB)" devices | awk -v preferred="$(ANDROID_APP_PREFERRED_DEVICE)" 'NR > 1 && $$2 == "device" { if ($$1 == preferred) { print $$1; found = 1; exit } if ($$1 ~ /^emulator-/ && emulator == "") emulator = $$1; if (first == "") first = $$1 } END { if (!found) print (emulator != "" ? emulator : (first != "" ? first : "emulator-5554")) }'; else printf "%s" "emulator-5554"; fi)
-ANDROID_APP_LAN_IP ?= $(shell iface="$$(route get default 2>/dev/null | awk '/interface:/{print $$2; exit}')"; if [ -n "$$iface" ]; then ipconfig getifaddr "$$iface" 2>/dev/null; fi)
-ANDROID_APP_API_BASE_URL ?= $(shell device="$(ANDROID_APP_DEVICE)"; lan_ip="$(ANDROID_APP_LAN_IP)"; if printf "%s" "$$device" | grep -q '^emulator-'; then printf "http://10.0.2.2:$(API_PORT)"; elif [ -n "$$lan_ip" ]; then printf "http://%s:$(API_PORT)" "$$lan_ip"; else printf "__ANDROID_APP_LAN_IP_REQUIRED__"; fi)
-ANDROID_APP_WS_URL ?= $(shell device="$(ANDROID_APP_DEVICE)"; lan_ip="$(ANDROID_APP_LAN_IP)"; if printf "%s" "$$device" | grep -q '^emulator-'; then printf "ws://10.0.2.2:$(API_PORT)/ws"; elif [ -n "$$lan_ip" ]; then printf "ws://%s:$(API_PORT)/ws" "$$lan_ip"; else printf "__ANDROID_APP_LAN_IP_REQUIRED__"; fi)
-ANDROID_APP_USE_REMOTE_AUTH ?= false
-ANDROID_APP_LIVE_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
-ANDROID_APP_LIVE_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
-ANDROID_APP_PACKAGE := com.redcode.im.androidapp
-ANDROID_APP_APK := $(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk
 CRG_VERSION ?= 2.3.7
 CRG := uvx --from code-review-graph==$(CRG_VERSION) code-review-graph
 CRG_BASE = $(if $(strip $(BASE)),$(BASE),HEAD~1)
@@ -163,21 +127,12 @@ define require_cmd
 command -v $(1) >/dev/null 2>&1 || { echo "[make] 缺少命令: $(1)"; exit 1; }
 endef
 
-define require_android_app_network
-if [ "$(ANDROID_APP_API_BASE_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ] || [ "$(ANDROID_APP_WS_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ]; then \
-	echo "[android-app] 当前目标设备是物理设备，但未能解析本机 LAN IP；请设置 ANDROID_APP_LAN_IP=<LAN_IP>" >&2; \
-	exit 66; \
-fi
-endef
-
 .PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review \
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
-	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
-	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
 	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.ios-device-acceptance app.test.ios-permission-acceptance app.test.ios-file-picker-acceptance app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.cross app.test.patrol.cross-offline app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
@@ -248,8 +203,6 @@ status: ## 查看各模块状态（api / admin / desktop / h5-app / app / websit
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(WEBSITE_SCREEN)"; then echo "screen: running ($(WEBSITE_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(WEBSITE_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(WEBSITE_PORT): listening"; else echo "port $(WEBSITE_PORT): stopped"; fi
 	@echo
-	@echo "[android-app]"
-	@if [ -x "$(ADB)" ]; then "$(ADB)" devices -l | sed -n '1,6p'; else echo "adb: unavailable ($(ADB))"; fi
 
 install.all: ## 安装 admin / desktop / h5-app / website 依赖，并拉取 app 依赖
 	@$(MAKE) admin.install
@@ -960,212 +913,6 @@ h5-app.test.e2ee.live: ## 执行 h5-app 双账号 E2EE 真实后端联调（要�
 h5-app.test.e2e: ## 执行 h5-app 浏览器 E2E smoke（需 api dev 就绪；默认 Chrome channel）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" $(BUN) run test:e2e
-
-ios-app.describe: ## 查看 ios-app SwiftPM package 描述
-	@$(call require_cmd,$(SWIFT))
-	@cd "$(IOS_APP_DIR)" && $(SWIFT) package describe
-
-ios-app.test: ## 运行 ios-app SwiftPM 单元测试
-	@$(call require_cmd,$(SWIFT))
-	@cd "$(IOS_APP_DIR)" && $(SWIFT) test
-
-ios-app.test.live: ## 执行 ios-app 真实后端 smoke（认证 + WS + 聊天互发，需 api dev 就绪）
-	@$(call require_cmd,$(SWIFT))
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_API_SMOKE=1 $(SWIFT) test --filter AuthAPIClientLiveTests
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_WS_SMOKE=1 $(SWIFT) test --filter WebSocketClientLiveTests
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 $(SWIFT) test --filter ChatAPIClientLiveTests
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 $(SWIFT) test --filter FriendAPIClientLiveTests
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 $(SWIFT) test --filter RoomAPIClientLiveTests
-	@cd "$(IOS_APP_DIR)" && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 $(SWIFT) test --filter MediaAPIClientLiveTests
-
-ios-app.test.interop: h5-app.test.live ios-app.test.live ## 执行 H5/API/iOS 联调 smoke（需 api dev 就绪）
-
-ios-app.apns.preflight: ## 检查 iPhone 真机/APNs 验收前置条件
-	@$(call require_cmd,$(XCRUN))
-	@IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" IOS_APP_API_BASE_URL="$(IOS_APP_API_BASE_URL)" IOS_APP_WS_URL="$(IOS_APP_WS_URL)" IOS_APNS_PROVIDER_CONFIGURED="$(IOS_APNS_PROVIDER_CONFIGURED)" "$(IOS_APP_DIR)/scripts/apns_real_device_preflight.sh"
-
-ios-app.resolve.device: ## 输出当前可用 iPhone 真机标识
-	@$(call require_cmd,$(XCRUN))
-	@$(call require_cmd,$(RUBY))
-	@IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" "$(IOS_APP_DIR)/scripts/resolve_real_device.sh"
-
-ios-app.resolve.lan-ip: ## 输出当前本机局域网 IPv4（真机验收用）
-	@IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh"
-
-ios-app.apns.preflight.local: ## 自动检测 LAN IP 后执行 iPhone/APNs 预检
-	@LAN_IP="$$(IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh")"; \
-	echo "[ios-app] LAN_IP=$$LAN_IP"; \
-	$(MAKE) ios-app.apns.preflight \
-		IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" \
-		IOS_APP_API_BASE_URL="http://$$LAN_IP:$(API_PORT)" \
-		IOS_APP_WS_URL="ws://$$LAN_IP:$(API_PORT)/ws" \
-		IOS_APNS_PROVIDER_CONFIGURED="$(IOS_APNS_PROVIDER_CONFIGURED)"
-
-ios-app.build.device: ## 构建 ios-app iPhone 真机 Debug app（需签名 Team）
-	@$(call require_cmd,$(XCODEBUILD))
-	@[ -n "$(IOS_APP_DEVELOPMENT_TEAM)" ] || { echo "[ios-app] 缺少 IOS_APP_DEVELOPMENT_TEAM；真机构建需传 Apple Developer Team ID。" >&2; exit 66; }
-	@[ -n "$(IOS_APP_API_BASE_URL)" ] || { echo "[ios-app] 缺少 IOS_APP_API_BASE_URL；真机 App 不能使用默认 loopback API。" >&2; exit 66; }
-	@[ -n "$(IOS_APP_WS_URL)" ] || { echo "[ios-app] 缺少 IOS_APP_WS_URL；真机 App 不能使用默认 loopback WS。" >&2; exit 66; }
-	@if [[ ! "$(IOS_APP_API_BASE_URL)" =~ ^https?:// ]]; then echo "[ios-app] IOS_APP_API_BASE_URL 必须使用 http/https: $(IOS_APP_API_BASE_URL)" >&2; exit 66; fi
-	@if [[ ! "$(IOS_APP_WS_URL)" =~ ^wss?:// ]]; then echo "[ios-app] IOS_APP_WS_URL 必须使用 ws/wss: $(IOS_APP_WS_URL)" >&2; exit 66; fi
-	@if [[ "$(IOS_APP_API_BASE_URL)" =~ ://(localhost|127\.|0\.0\.0\.0|\[::1\]) ]]; then echo "[ios-app] 真机构建不能使用 loopback API 地址: $(IOS_APP_API_BASE_URL)" >&2; exit 66; fi
-	@if [[ "$(IOS_APP_WS_URL)" =~ ://(localhost|127\.|0\.0\.0\.0|\[::1\]) ]]; then echo "[ios-app] 真机构建不能使用 loopback WS 地址: $(IOS_APP_WS_URL)" >&2; exit 66; fi
-	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -scheme "$(IOS_APP_SCHEME)" -configuration Debug -sdk iphoneos -destination "generic/platform=iOS" SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" REDCODE_API_BASE_URL="$(IOS_APP_API_BASE_URL)" REDCODE_WS_URL="$(IOS_APP_WS_URL)" DEVELOPMENT_TEAM="$(IOS_APP_DEVELOPMENT_TEAM)" CODE_SIGN_STYLE=Automatic $(IOS_APP_XCODEBUILD_DEVICE_FLAGS) build
-
-ios-app.install.device: ios-app.apns.preflight ios-app.build.device ## 安装 ios-app 到 iPhone 真机
-	@$(call require_cmd,$(XCRUN))
-	@DEVICE_ID="$$(IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" "$(IOS_APP_DIR)/scripts/resolve_real_device.sh")"; \
-	echo "[ios-app] installing device: $$DEVICE_ID"; \
-	$(XCRUN) devicectl device install app --device "$$DEVICE_ID" "$(IOS_APP_DERIVED_DATA)/Build/Products/Debug-iphoneos/$(IOS_APP_SCHEME).app"
-
-ios-app.smoke.device: ios-app.install.device ## 安装并启动 ios-app 到 iPhone 真机
-	@$(call require_cmd,$(XCRUN))
-	@DEVICE_ID="$$(IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" "$(IOS_APP_DIR)/scripts/resolve_real_device.sh")"; \
-	echo "[ios-app] launching device: $$DEVICE_ID"; \
-	DEVICECTL_CHILD_REDCODE_API_BASE_URL="$(IOS_APP_API_BASE_URL)" DEVICECTL_CHILD_REDCODE_WS_URL="$(IOS_APP_WS_URL)" \
-	$(XCRUN) devicectl device process launch --device "$$DEVICE_ID" --terminate-existing "$(IOS_APP_BUNDLE_ID)"
-
-ios-app.smoke.device.local: ## 自动检测 LAN IP 后构建、安装并启动到 iPhone 真机
-	@LAN_IP="$$(IOS_APP_LAN_IP="$(IOS_APP_LAN_IP)" "$(IOS_APP_DIR)/scripts/resolve_lan_ip.sh")"; \
-	echo "[ios-app] LAN_IP=$$LAN_IP"; \
-	$(MAKE) ios-app.smoke.device \
-		IOS_APP_DEVICE_ID="$(IOS_APP_DEVICE_ID)" \
-		IOS_APP_DEVELOPMENT_TEAM="$(IOS_APP_DEVELOPMENT_TEAM)" \
-		IOS_APNS_PROVIDER_CONFIGURED="$(IOS_APNS_PROVIDER_CONFIGURED)" \
-		IOS_APP_API_BASE_URL="http://$$LAN_IP:$(API_PORT)" \
-		IOS_APP_WS_URL="ws://$$LAN_IP:$(API_PORT)/ws"
-
-ios-app.build.simulator: ## 构建 ios-app 本机 iOS Simulator Debug app
-	@$(call require_cmd,$(XCODEBUILD))
-	@$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -target "$(IOS_APP_TARGET)" -configuration Debug -sdk iphonesimulator SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" REDCODE_API_BASE_URL="$(IOS_APP_API_BASE_URL)" REDCODE_WS_URL="$(IOS_APP_WS_URL)" build
-
-ios-app.ui-test: ## 运行 ios-app 本机 iOS Simulator XCUITest
-	@$(call require_cmd,$(XCODEBUILD))
-	@$(call require_cmd,$(XCRUN))
-	@$(call require_cmd,$(RUBY))
-	@DEVICE_ID="$(IOS_APP_SIMULATOR_ID)"; \
-	if [ -z "$$DEVICE_ID" ]; then \
-		DEVICE_ID="$$( $(XCRUN) simctl list devices available -j | $(RUBY) -rjson -e 'data = JSON.parse(STDIN.read); preferred = ARGV.fetch(0); devices = data.fetch("devices").values.flatten.select { |device| device["isAvailable"] }; selected = devices.find { |device| device["name"] == preferred } || devices.find { |device| device["name"].start_with?("iPhone") }; abort("[ios-app] 未找到可用 iOS Simulator") unless selected; puts selected["udid"]' "$(IOS_APP_SIMULATOR_NAME)")"; \
-	fi; \
-	echo "[ios-app] ui-test simulator: $$DEVICE_ID"; \
-	$(XCRUN) simctl boot "$$DEVICE_ID" 2>/dev/null || true; \
-	$(XCRUN) simctl bootstatus "$$DEVICE_ID" -b; \
-	DESTINATION="platform=iOS Simulator,id=$$DEVICE_ID"; \
-	DESTINATION_STATUS="$$( $(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -scheme "$(IOS_APP_SCHEME)" -configuration Debug -destination "$$DESTINATION" -showdestinations 2>&1 || true )"; \
-	if ! printf "%s\n" "$$DESTINATION_STATUS" | grep -q "Available destinations"; then \
-		echo "[ios-app] xcodebuild 当前无法使用该 Simulator 运行 XCUITest。"; \
-		echo "[ios-app] 常见原因：Xcode SDK 与已安装 Simulator runtime 不匹配；请在 Xcode > Settings > Components 安装匹配 runtime。"; \
-		printf "%s\n" "$$DESTINATION_STATUS"; \
-		exit 70; \
-	fi; \
-	$(XCODEBUILD) -project "$(IOS_APP_PROJECT)" -scheme "$(IOS_APP_SCHEME)" -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,id=$$DEVICE_ID" SYMROOT="$(IOS_APP_DERIVED_DATA)/Build/Products" OBJROOT="$(IOS_APP_DERIVED_DATA)/Build/Intermediates.noindex" test
-
-ios-app.smoke.simulator: ios-app.build.simulator ## 安装并启动 ios-app 到本机 iOS Simulator
-	@$(call require_cmd,$(XCRUN))
-	@$(call require_cmd,$(RUBY))
-	@DEVICE_ID="$(IOS_APP_SIMULATOR_ID)"; \
-	if [ -z "$$DEVICE_ID" ]; then \
-		DEVICE_ID="$$( $(XCRUN) simctl list devices available -j | $(RUBY) -rjson -e 'data = JSON.parse(STDIN.read); preferred = ARGV.fetch(0); devices = data.fetch("devices").values.flatten.select { |device| device["isAvailable"] }; selected = devices.find { |device| device["name"] == preferred } || devices.find { |device| device["name"].start_with?("iPhone") }; abort("[ios-app] 未找到可用 iOS Simulator") unless selected; puts selected["udid"]' "$(IOS_APP_SIMULATOR_NAME)")"; \
-	fi; \
-	echo "[ios-app] simulator: $$DEVICE_ID"; \
-	$(XCRUN) simctl boot "$$DEVICE_ID" 2>/dev/null || true; \
-	$(XCRUN) simctl bootstatus "$$DEVICE_ID" -b; \
-	$(XCRUN) simctl install "$$DEVICE_ID" "$(IOS_APP_DERIVED_DATA)/Build/Products/Debug-iphonesimulator/$(IOS_APP_SCHEME).app"; \
-	$(XCRUN) simctl launch "$$DEVICE_ID" "$(IOS_APP_BUNDLE_ID)"; \
-	$(XCRUN) simctl get_app_container "$$DEVICE_ID" "$(IOS_APP_BUNDLE_ID)" app
-
-ios-app.check: ios-app.test ios-app.build.simulator ## 运行 ios-app 当前可用检查
-
-android-app.test: android-app.test.unit ## 运行 android-app 默认 JVM 单元测试
-
-android-app.test.unit: ## 运行 android-app JVM 单元测试
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest
-
-android-app.test.live: ## 执行 android-app 真实后端聊天/好友 smoke（需 api dev 就绪）
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@ANDROID_HOME="$(ANDROID_HOME)" \
-		RED_CODE_ANDROID_LIVE_SMOKE=1 \
-		ANDROID_APP_LIVE_API_BASE_URL="$(ANDROID_APP_LIVE_API_BASE_URL)" \
-		ANDROID_APP_LIVE_WS_URL="$(ANDROID_APP_LIVE_WS_URL)" \
-		"$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks --tests 'com.redcode.im.androidapp.live.*'
-
-android-app.test.interop.support: ## 执行 H5/API/Android 联调所需的 Android 本地能力定向测试
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@echo "[android-app] interop support: avatar cache + emoji cache + permission recovery + audio playback"
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" testDebugUnitTest --rerun-tasks \
-		--tests 'com.redcode.im.androidapp.data.AvatarCacheRepositoryTest' \
-		--tests 'com.redcode.im.androidapp.data.EmojiRepositoryTest' \
-		--tests 'com.redcode.im.androidapp.feature.PermissionRecoveryTest' \
-		--tests 'com.redcode.im.androidapp.feature.ChatViewModelTest'
-
-android-app.test.interop: ## 执行 H5/API/Android 聊天/好友/媒体互通 smoke（自动启动 api dev 栈）
-	@echo "[android-app] interop: start Compose API stack"
-	@$(MAKE) api.up || { echo "[android-app] interop failed during api.up"; echo "[hint] API logs: make api.logs"; exit 1; }
-	@$(MAKE) api.wait || { echo "[android-app] interop failed during api.wait"; echo "[hint] API status: make api.ps"; echo "[hint] API logs: make api.logs"; exit 1; }
-	@echo "[android-app] interop: run H5 live smoke"
-	@$(MAKE) h5-app.test.live || { echo "[android-app] interop failed during h5-app.test.live"; echo "[hint] H5 live log: rerun make h5-app.test.live and inspect Vitest output"; echo "[hint] API logs: make api.logs"; exit 1; }
-	@echo "[android-app] interop: run Android live smoke"
-	@$(MAKE) android-app.test.live || { echo "[android-app] interop failed during android-app.test.live"; echo "[hint] Android unit report: $(ANDROID_APP_DIR)/app/build/reports/tests/testDebugUnitTest/index.html"; echo "[hint] Android test results: $(ANDROID_APP_DIR)/app/build/test-results/testDebugUnitTest"; echo "[hint] API logs: make api.logs"; exit 1; }
-	@echo "[android-app] interop: run Android local support tests"
-	@$(MAKE) android-app.test.interop.support || { echo "[android-app] interop failed during android-app.test.interop.support"; echo "[hint] Android unit report: $(ANDROID_APP_DIR)/app/build/reports/tests/testDebugUnitTest/index.html"; echo "[hint] Android coverage report: $(ANDROID_APP_DIR)/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html"; exit 1; }
-	@echo "[android-app] interop ok"
-	@echo "[android-app] reports: $(ANDROID_APP_DIR)/app/build/reports/tests/testDebugUnitTest/index.html"
-	@echo "[android-app] coverage: $(ANDROID_APP_DIR)/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html"
-
-android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" coverageDebugUnitTest
-	@echo "[android-app] coverage: $(ANDROID_APP_DIR)/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html"
-
-android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android Emulator 的 10.0.2.2，可传真机 LAN API/WS）
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@$(require_android_app_network)
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
-		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
-		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
-		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
-		assembleDebug
-
-android-app.lint: ## 运行 android-app Android Lint
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" lintDebug
-
-android-app.resolve.device: ## 输出当前 Android 设备 ID（优先 Pixel 8 Pro，缺失时回退 Emulator）
-	@$(call require_cmd,$(ADB))
-	@DEVICE_ID="$$( "$(ADB)" devices | awk -v preferred="$(ANDROID_APP_PREFERRED_DEVICE)" 'NR > 1 && $$2 == "device" { if ($$1 == preferred) { print $$1; found = 1; exit } if ($$1 ~ /^emulator-/ && emulator == "") emulator = $$1; if (first == "") first = $$1 } END { if (!found) print (emulator != "" ? emulator : first) }' )"; \
-	if [ -z "$$DEVICE_ID" ]; then echo "[android-app] 未找到已连接 Android 设备" >&2; exit 66; fi; \
-	echo "$$DEVICE_ID"
-
-android-app.resolve.network: ## 输出当前 android-app 设备和 API/WS 地址
-	@$(require_android_app_network)
-	@echo "ANDROID_APP_DEVICE=$(ANDROID_APP_DEVICE)"
-	@echo "ANDROID_APP_LAN_IP=$(ANDROID_APP_LAN_IP)"
-	@echo "ANDROID_APP_API_BASE_URL=$(ANDROID_APP_API_BASE_URL)"
-	@echo "ANDROID_APP_WS_URL=$(ANDROID_APP_WS_URL)"
-
-android-app.connected-test: ## 在当前 Android 设备上运行 Compose instrumented tests
-	@$(call require_cmd,$(ANDROID_GRADLE))
-	@$(call require_cmd,$(ADB))
-	@$(require_android_app_network)
-	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
-	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
-		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
-		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
-		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
-		connectedDebugAndroidTest
-
-android-app.install: android-app.build.debug ## 安装 android-app Debug APK 到当前 Android 设备
-	@$(call require_cmd,$(ADB))
-	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" wait-for-device
-	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" install -r "$(ANDROID_APP_APK)"
-
-android-app.smoke.emulator: android-app.install ## 安装并启动 android-app 到当前 Android 设备
-	@$(call require_cmd,$(ADB))
-	@"$(ADB)" -s "$(ANDROID_APP_DEVICE)" shell am start -n "$(ANDROID_APP_PACKAGE)/.MainActivity"
-	@echo "[android-app] launched on $(ANDROID_APP_DEVICE)"
-
-android-app.check: android-app.test.unit android-app.lint android-app.build.debug ## 运行 android-app 当前可用检查
 
 website.install: ## 安装 website 依赖（bun install）
 	@$(call require_cmd,$(BUN))
