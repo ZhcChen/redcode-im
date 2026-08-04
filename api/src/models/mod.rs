@@ -27,6 +27,7 @@ pub struct UserInfo {
     pub username: String,
     pub email: String,
     pub nickname: Option<String>,
+    pub signature: Option<String>,
     pub avatar_url: Option<String>,
     pub avatar_object_key: Option<String>,
     pub status: UserStatus,
@@ -67,6 +68,7 @@ pub struct LoginResponse {
 #[allow(dead_code)]
 pub struct UpdateUserRequest {
     pub nickname: Option<String>,
+    pub signature: Option<String>,
     pub avatar_url: Option<String>,
     pub avatar_object_key: Option<String>,
     pub friend_remark: Option<String>,

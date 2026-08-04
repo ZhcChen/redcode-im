@@ -156,6 +156,7 @@ impl<'a> MessageReadStore<'a> {
                     email: row.2,
                     password_hash: row.3,
                     nickname: row.4,
+                    signature: None,
                     avatar_url: row.5,
                     avatar_object_key: row.6,
                     status: row.7,

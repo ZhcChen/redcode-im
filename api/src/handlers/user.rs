@@ -364,6 +364,7 @@ pub async fn commit_avatar_upload(
     let file_url = storage_service.get_file_url(key);
     let update_req = DbUpdateUserRequest {
         nickname: None,
+        signature: None,
         avatar_url: Some(file_url.clone()),
         avatar_object_key: Some(key.to_string()),
         status: None,

@@ -30,7 +30,7 @@ impl UserStore {
             r#"
             INSERT INTO users (id, username, email, password_hash, nickname, status, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-            RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             "#,
         )
         .bind(user_id)
@@ -50,7 +50,7 @@ impl UserStore {
     pub async fn find_by_username(&self, username: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE username = $1 AND status = $2 AND deleted_at IS NULL
             "#,
@@ -67,7 +67,7 @@ impl UserStore {
     pub async fn find_by_id(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE id = $1 AND status = $2 AND deleted_at IS NULL
             "#,
@@ -84,7 +84,7 @@ impl UserStore {
     pub async fn find_by_id_any_status(&self, user_id: &Uuid) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE id = $1 AND deleted_at IS NULL
             "#,
@@ -100,7 +100,7 @@ impl UserStore {
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE email = $1 AND status = $2 AND deleted_at IS NULL
             "#,
@@ -117,7 +117,7 @@ impl UserStore {
     pub async fn find_by_username_any_status(&self, username: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE username = $1 AND deleted_at IS NULL
             "#,
@@ -153,7 +153,7 @@ impl UserStore {
     pub async fn find_by_email_any_status(&self, email: &str) -> Result<Option<User>, Error> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE email = $1 AND deleted_at IS NULL
             "#,
@@ -177,6 +177,12 @@ impl UserStore {
         if let Some(nickname) = &request.nickname {
             query.push(", nickname = ");
             query.push_bind(nickname);
+            has_update = true;
+        }
+
+        if let Some(signature) = &request.signature {
+            query.push(", signature = ");
+            query.push_bind(signature);
             has_update = true;
         }
 
@@ -207,7 +213,7 @@ impl UserStore {
         query.push(" AND status = ");
         query.push_bind(UserStatus::Active);
         query.push(" AND deleted_at IS NULL");
-        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at");
+        query.push(" RETURNING id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at");
 
         let user = query
             .build_query_as::<User>()
@@ -286,7 +292,7 @@ impl UserStore {
         let offset = ((page - 1) * page_size) as i64;
 
         let mut data_builder = QueryBuilder::<Postgres>::new(
-            "SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at FROM users WHERE 1=1",
+            "SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at FROM users WHERE 1=1",
         );
         apply_user_filters(&mut data_builder, status.as_ref(), username);
         data_builder.push(" ORDER BY created_at DESC LIMIT ");
@@ -358,7 +364,7 @@ impl UserStore {
 
         let users = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE deleted_at IS NULL
               AND status = $4
@@ -392,7 +398,7 @@ impl UserStore {
 
         let users = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, status, created_at, updated_at, deleted_at
+            SELECT id, username, email, password_hash, nickname, avatar_url, avatar_object_key, signature, status, created_at, updated_at, deleted_at
             FROM users
             WHERE id = ANY($1)
               AND deleted_at IS NULL
