@@ -6,6 +6,9 @@ use sqlx::{PgPool, Postgres, Transaction};
 use std::collections::HashMap;
 use uuid::Uuid;
 
+use crate::database::e2ee_control_store::validate_application_send_conn;
+use crate::error::AppError;
+
 pub struct MessageStore<'a> {
     pub pool: &'a PgPool,
 }
@@ -149,8 +152,56 @@ impl<'a> MessageStore<'a> {
         message_type: MessageType,
         quoted_message_id: Option<Uuid>,
         parts: &[NewMessagePart],
-    ) -> Result<Message, sqlx::Error> {
-        let mut tx = self.pool.begin().await?;
+        idempotency_key: Uuid,
+        sender_device_id: Uuid,
+        epoch: i64,
+        control_message_id: Uuid,
+    ) -> Result<(Message, bool), AppError> {
+        let mut tx = self.pool.begin().await.map_err(AppError::DatabaseError)?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(format!(
+                "encrypted-message:{room_id}:{sender_id}:{idempotency_key}"
+            ))
+            .execute(&mut *tx)
+            .await
+            .map_err(AppError::DatabaseError)?;
+        let existing = sqlx::query_as::<_, Message>(
+            "SELECT id, room_id, sender_id, content, encrypted_content, encryption_metadata,
+                    message_type, quoted_message_id, forward_from_message_id,
+                    forward_from_room_id, forward_from_sender_id,
+                    forward_from_sender_username, forward_from_sender_nickname,
+                    created_at, updated_at, deleted_at
+             FROM messages
+             WHERE room_id = $1 AND sender_id = $2 AND encrypted_idempotency_key = $3
+             FOR UPDATE",
+        )
+        .bind(room_id)
+        .bind(sender_id)
+        .bind(idempotency_key)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?;
+        if let Some(existing) = existing {
+            if existing.encrypted_content.as_deref() == Some(encrypted_content.as_slice())
+                && existing.encryption_metadata.as_ref() == encryption_metadata.as_ref()
+                && existing.quoted_message_id == quoted_message_id
+            {
+                tx.commit().await.map_err(AppError::DatabaseError)?;
+                return Ok((existing, false));
+            }
+            return Err(AppError::MessageRuntimeConflict(
+                "encrypted idempotency_key 已绑定其他消息内容".to_string(),
+            ));
+        }
+        validate_application_send_conn(
+            tx.as_mut(),
+            room_id,
+            sender_id,
+            sender_device_id,
+            epoch,
+            control_message_id,
+        )
+        .await?;
         let message_id = crate::id::generate();
 
         let message = sqlx::query_as::<_, Message>(
@@ -162,8 +213,9 @@ impl<'a> MessageStore<'a> {
                 encrypted_content,
                 encryption_metadata,
                 message_type,
-                quoted_message_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                quoted_message_id,
+                encrypted_idempotency_key
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id, room_id, sender_id, content, encrypted_content, encryption_metadata, message_type, quoted_message_id,
                       forward_from_message_id, forward_from_room_id, forward_from_sender_id,
                       forward_from_sender_username, forward_from_sender_nickname,
@@ -177,15 +229,19 @@ impl<'a> MessageStore<'a> {
         .bind(encryption_metadata)
         .bind(message_type)
         .bind(quoted_message_id)
+        .bind(idempotency_key)
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .map_err(AppError::DatabaseError)?;
 
         if !parts.is_empty() {
-            insert_message_parts(&mut tx, message_id, parts).await?;
+            insert_message_parts(&mut tx, message_id, parts)
+                .await
+                .map_err(AppError::DatabaseError)?;
         }
 
-        tx.commit().await?;
-        Ok(message)
+        tx.commit().await.map_err(AppError::DatabaseError)?;
+        Ok((message, true))
     }
 
     pub async fn create_message(

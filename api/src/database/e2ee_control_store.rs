@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::{FromRow, PgPool};
+use sqlx::{FromRow, PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -364,4 +364,72 @@ fn control_message_matches(
         && existing.content_type == input.content_type
         && existing.envelope == input.envelope
         && existing.idempotency_key == input.idempotency_key
+}
+
+pub async fn validate_application_send_conn(
+    connection: &mut PgConnection,
+    room_id: Uuid,
+    user_id: Uuid,
+    sender_device_id: Uuid,
+    epoch: i64,
+    control_message_id: Uuid,
+) -> Result<(), AppError> {
+    let device_allowed = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+            SELECT 1 FROM e2ee_devices
+            WHERE id = $1 AND user_id = $2 AND status = 'active'
+         )",
+    )
+    .bind(sender_device_id)
+    .bind(user_id)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(AppError::DatabaseError)?;
+    if !device_allowed {
+        return Err(AppError::Forbidden(
+            "加密消息发送设备不存在、未批准或已撤销".to_string(),
+        ));
+    }
+
+    let state = sqlx::query_as::<_, RoomEpochRecord>(
+        "SELECT room_id, membership_revision, active_epoch, status, updated_at
+         FROM e2ee_room_epochs WHERE room_id = $1 FOR SHARE",
+    )
+    .bind(room_id)
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(AppError::DatabaseError)?
+    .ok_or_else(|| AppError::MessageRuntimeConflict("房间尚未建立 E2EE epoch".to_string()))?;
+    if state.status != "active" {
+        return Err(AppError::MessageRuntimeConflict(
+            "房间 E2EE 状态未就绪或需要 rekey".to_string(),
+        ));
+    }
+    if state.active_epoch != epoch {
+        return Err(AppError::MessageRuntimeConflict(format!(
+            "消息 epoch 已过期，当前 active epoch 为 {}",
+            state.active_epoch
+        )));
+    }
+
+    let control_matches = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+            SELECT 1 FROM e2ee_control_messages
+            WHERE id = $1 AND room_id = $2 AND content_type = 'commit'
+              AND epoch = $3 AND membership_revision = $4
+         )",
+    )
+    .bind(control_message_id)
+    .bind(room_id)
+    .bind(epoch)
+    .bind(state.membership_revision)
+    .fetch_one(&mut *connection)
+    .await
+    .map_err(AppError::DatabaseError)?;
+    if !control_matches {
+        return Err(AppError::MessageRuntimeConflict(
+            "control_message_id 未引用当前 epoch 的 Commit".to_string(),
+        ));
+    }
+    Ok(())
 }

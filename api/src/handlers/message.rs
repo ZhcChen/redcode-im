@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::database::settings_store::SettingsStore;
 use crate::database::{
+    e2ee_control_store::validate_application_send_conn,
     file_upload_audit_store::FileUploadAuditStore,
     file_upload_multipart_store::FileUploadMultipartStore,
     file_upload_store::FileUploadStore,
@@ -38,7 +39,7 @@ use crate::redis::models::{
     RoomHistoryClearedPayload,
 };
 use crate::services::e2ee_envelope::{
-    validate_envelope, EncryptionMetadata, ENCRYPTED_MESSAGE_PLACEHOLDER,
+    validate_envelope, EncryptedContentType, EncryptionMetadata, ENCRYPTED_MESSAGE_PLACEHOLDER,
 };
 use crate::services::message_runtime::{
     is_relay_only_runtime, load_message_runtime_settings, relay_only_unsupported,
@@ -67,6 +68,7 @@ pub struct SendEncryptedMessagePayload {
     pub encrypted_content: String,
     /// 服务端可验证的非敏感路由元数据
     pub encryption_metadata: EncryptionMetadata,
+    pub idempotency_key: Uuid,
     #[serde(default)]
     pub quoted_message_id: Option<Uuid>,
 }
@@ -1378,6 +1380,7 @@ pub async fn send_encrypted_message(
     let SendEncryptedMessagePayload {
         encrypted_content,
         encryption_metadata,
+        idempotency_key,
         quoted_message_id,
     } = payload;
 
@@ -1399,7 +1402,23 @@ pub async fn send_encrypted_message(
     }
     validate_envelope(&encrypted_content, &encryption_metadata)
         .map_err(|message| AppError::ValidationError(message.to_string()))?;
-    let encryption_metadata = serde_json::to_value(encryption_metadata)
+    if encryption_metadata.content_type != EncryptedContentType::Application {
+        return Err(AppError::ValidationError(
+            "消息发送端点只接受 application envelope".to_string(),
+        ));
+    }
+    if idempotency_key.is_nil() {
+        return Err(AppError::ValidationError(
+            "idempotency_key 不能是 nil UUID".to_string(),
+        ));
+    }
+    let control_message_id = encryption_metadata.control_message_id.ok_or_else(|| {
+        AppError::ValidationError("application 消息必须引用 control_message_id".to_string())
+    })?;
+    let sender_device_id = encryption_metadata.sender_device_id;
+    let epoch = i64::try_from(encryption_metadata.epoch)
+        .map_err(|_| AppError::ValidationError("encryption_metadata.epoch 无效".to_string()))?;
+    let encryption_metadata = serde_json::to_value(&encryption_metadata)
         .map_err(|error| AppError::InternalError(format!("E2EE 元数据序列化失败: {error}")))?;
 
     let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
@@ -1440,6 +1459,22 @@ pub async fn send_encrypted_message(
     }];
 
     if relay_only_runtime {
+        let mut validation_tx = state
+            .database
+            .pool()
+            .begin()
+            .await
+            .map_err(AppError::DatabaseError)?;
+        validate_application_send_conn(
+            validation_tx.as_mut(),
+            room_id,
+            sender_id,
+            sender_device_id,
+            epoch,
+            control_message_id,
+        )
+        .await?;
+
         let now = Utc::now();
         let runtime_message_id = crate::id::generate();
         let sender = load_runtime_sender(&state, sender_id).await?;
@@ -1464,13 +1499,57 @@ pub async fn send_encrypted_message(
         )
         .await?;
 
+        let relay_idempotency_key =
+            format!("e2ee:relay-idempotency:{room_id}:{sender_id}:{idempotency_key}");
+        let mut redis_connection = state.redis.get_session_connection();
+        let reservation_result: Result<Option<String>, _> = redis::cmd("SET")
+            .arg(&relay_idempotency_key)
+            .arg("1")
+            .arg("NX")
+            .arg("EX")
+            .arg(600)
+            .query_async(&mut redis_connection)
+            .await;
+        let reserved = match reservation_result {
+            Ok(reserved) => reserved,
+            Err(_) => {
+                if let Err(rollback_error) = validation_tx.rollback().await {
+                    error!("回滚 relay_only 加密消息裁决事务失败: {}", rollback_error);
+                }
+                revoke_relay_only_attachment_grants(&state, room_id, &relay_attachment_grants)
+                    .await;
+                return Err(AppError::CacheError("加密消息幂等键写入失败".to_string()));
+            }
+        };
+        if reserved.is_none() {
+            validation_tx
+                .rollback()
+                .await
+                .map_err(AppError::DatabaseError)?;
+            revoke_relay_only_attachment_grants(&state, room_id, &relay_attachment_grants).await;
+            return Err(AppError::MessageRuntimeConflict(
+                "encrypted idempotency_key 已使用".to_string(),
+            ));
+        }
+
         if let Err(e) = broadcast_message_to_room(&state, &runtime_message, &part_map).await {
+            let _: Result<i64, _> = redis::cmd("DEL")
+                .arg(&relay_idempotency_key)
+                .query_async(&mut redis_connection)
+                .await;
+            if let Err(rollback_error) = validation_tx.rollback().await {
+                error!("回滚 relay_only 加密消息裁决事务失败: {}", rollback_error);
+            }
             revoke_relay_only_attachment_grants(&state, room_id, &relay_attachment_grants).await;
             error!("广播 relay_only 加密消息失败: {}", e);
             return Err(AppError::ServiceUnavailable(
                 "relay_only 加密消息实时广播失败，请稍后重试".to_string(),
             ));
         }
+        validation_tx
+            .commit()
+            .await
+            .map_err(AppError::DatabaseError)?;
 
         let api_message = db_message_to_api_message_info(
             &runtime_message,
@@ -1483,7 +1562,7 @@ pub async fn send_encrypted_message(
         }));
     }
 
-    let created = store
+    let (created, was_created) = store
         .create_encrypted_message_with_parts(
             room_id,
             sender_id,
@@ -1493,6 +1572,10 @@ pub async fn send_encrypted_message(
             MessageType::Text,
             quoted_message_id,
             &db_parts,
+            idempotency_key,
+            sender_device_id,
+            epoch,
+            control_message_id,
         )
         .await?;
 
@@ -1508,18 +1591,20 @@ pub async fn send_encrypted_message(
     let part_map = store.get_message_parts_map(&part_query_ids).await?;
 
     // 实时广播到房间内所有WebSocket连接（通过Redis Pub/Sub）
-    if let Err(e) = broadcast_message_to_room(&state, &enriched, &part_map).await {
-        error!("广播消息失败: {}", e);
-    }
+    if was_created {
+        if let Err(e) = broadcast_message_to_room(&state, &enriched, &part_map).await {
+            error!("广播消息失败: {}", e);
+        }
 
-    crate::services::push::enqueue_new_message(
-        &state,
-        PushMessageSnapshot::from_message(
-            &enriched,
-            part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
-        ),
-    )
-    .await;
+        crate::services::push::enqueue_new_message(
+            &state,
+            PushMessageSnapshot::from_message(
+                &enriched,
+                part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
+            ),
+        )
+        .await;
+    }
 
     let api_message = db_message_to_api_message_info(
         &enriched,

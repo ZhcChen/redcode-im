@@ -2,6 +2,7 @@ mod support;
 
 use axum::{body::Body, http::StatusCode};
 use base64::Engine;
+use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
 use redis::AsyncCommands;
 use serde_json::{json, Value};
@@ -21,7 +22,12 @@ struct TestUser {
     token: String,
 }
 
-fn encrypted_message_body() -> String {
+fn encrypted_message_body(
+    sender_device_id: Uuid,
+    control_message_id: Uuid,
+    idempotency_key: Uuid,
+    epoch: i64,
+) -> String {
     let payload = b"test MLS ciphertext";
     let mut envelope = b"RCML".to_vec();
     envelope.extend_from_slice(&1_u16.to_be_bytes());
@@ -33,12 +39,99 @@ fn encrypted_message_body() -> String {
         "encryption_metadata": {
             "protocol": "mls",
             "version": 1,
-            "epoch": 1,
-            "sender_device_id": "00000000-0000-0000-0000-000000000001",
-            "content_type": "application"
-        }
+            "epoch": epoch,
+            "sender_device_id": sender_device_id,
+            "content_type": "application",
+            "control_message_id": control_message_id
+        },
+        "idempotency_key": idempotency_key
     })
     .to_string()
+}
+
+async fn prepare_e2ee_room(
+    app: &TestApp,
+    owner: &TestUser,
+    room_id: &str,
+    marker: u8,
+) -> (Uuid, Uuid) {
+    let device_id = Uuid::new_v4();
+    let signing_key = SigningKey::from_bytes(&[marker; 32]);
+    let device = json!({
+        "device_id": device_id,
+        "device_label": format!("ws-device-{marker}"),
+        "root_public_key": base64::engine::general_purpose::STANDARD.encode([marker; 32]),
+        "root_fingerprint": base64::engine::general_purpose::STANDARD.encode([marker.wrapping_add(1); 32]),
+        "credential": base64::engine::general_purpose::STANDARD.encode(vec![marker; 128]),
+        "credential_fingerprint": base64::engine::general_purpose::STANDARD.encode([marker.wrapping_add(2); 32]),
+        "approval_public_key": base64::engine::general_purpose::STANDARD.encode(signing_key.verifying_key().to_bytes()),
+        "protocol_version": 1,
+    });
+    let (status, response) = app
+        .post_json_authed("/e2ee/mls/devices", &owner.token, &device.to_string())
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    let epoch_uri = format!("/rooms/{room_id}/e2ee/epoch");
+    let (status, response) = app.get_authed(&epoch_uri, &owner.token).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let revision = body_json(&response)["membership_revision"]
+        .as_i64()
+        .expect("membership revision");
+    let control_id = submit_test_commit(app, owner, room_id, device_id, 1, revision, marker).await;
+    (device_id, control_id)
+}
+
+async fn submit_test_commit(
+    app: &TestApp,
+    owner: &TestUser,
+    room_id: &str,
+    device_id: Uuid,
+    epoch: i64,
+    revision: i64,
+    marker: u8,
+) -> Uuid {
+    let payload = vec![marker; 48];
+    let mut envelope = b"RCML".to_vec();
+    envelope.extend_from_slice(&1_u16.to_be_bytes());
+    envelope.push(2);
+    envelope.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    envelope.extend_from_slice(&payload);
+    let control_id = Uuid::new_v4();
+    let body = json!({
+        "id": control_id,
+        "epoch": epoch,
+        "membership_revision": revision,
+        "sender_device_id": device_id,
+        "recipient_device_id": null,
+        "content_type": "commit",
+        "envelope": base64::engine::general_purpose::STANDARD.encode(envelope),
+        "idempotency_key": Uuid::new_v4(),
+    });
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &owner.token,
+            &body.to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    control_id
 }
 
 async fn register_and_login(app: &TestApp, prefix: &str) -> TestUser {
@@ -476,7 +569,10 @@ async fn message_send_endpoints_follow_content_audit_mode() {
     let member = register_and_login(&app, "mode-member").await;
     let room_id = create_room(&app, &owner, &[&member]).await;
     let admin_token = bootstrap_admin_token(&app).await;
-    let encrypted_body = encrypted_message_body();
+    let (owner_device_id, commit_id) = prepare_e2ee_room(&app, &owner, &room_id, 61).await;
+    let encrypted_idempotency_key = Uuid::new_v4();
+    let encrypted_body =
+        encrypted_message_body(owner_device_id, commit_id, encrypted_idempotency_key, 1);
 
     let (status, body) = app
         .post_json_authed(
@@ -537,6 +633,82 @@ async fn message_send_endpoints_follow_content_audit_mode() {
     assert_eq!(&persisted.1[..4], b"RCML");
     assert_eq!(persisted.2["protocol"].as_str(), Some("mls"));
     assert_eq!(persisted.2["content_type"].as_str(), Some("application"));
+
+    let (status, retry_body) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_body,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&retry_body)
+    );
+    assert_eq!(
+        body_json(&retry_body)["message"]["id"],
+        persisted_message_id.to_string()
+    );
+    let persisted_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM messages WHERE room_id = $1 AND encrypted_idempotency_key = $2",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room UUID"))
+    .bind(encrypted_idempotency_key)
+    .fetch_one(&app.pool)
+    .await
+    .expect("count idempotent encrypted message");
+    assert_eq!(persisted_count, 1);
+
+    let mut forged_device = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    forged_device["idempotency_key"] = json!(Uuid::new_v4());
+    forged_device["encryption_metadata"]["sender_device_id"] = json!(Uuid::new_v4());
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &forged_device.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let mut forged_control = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    forged_control["idempotency_key"] = json!(Uuid::new_v4());
+    forged_control["encryption_metadata"]["control_message_id"] = json!(Uuid::new_v4());
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &forged_control.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    let second_commit = submit_test_commit(&app, &owner, &room_id, owner_device_id, 2, 2, 62).await;
+    assert_ne!(second_commit, commit_id);
+    let (status, retry_after_epoch_advance) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_body,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body_json(&retry_after_epoch_advance)["message"]["id"],
+        persisted_message_id.to_string()
+    );
+    let mut stale_epoch = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    stale_epoch["idempotency_key"] = json!(Uuid::new_v4());
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &stale_epoch.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
 
     let mut custom_summary = serde_json::from_str::<Value>(&encrypted_body).unwrap();
     custom_summary["content_summary"] = json!("sensitive plaintext summary");
@@ -1261,7 +1433,8 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
     assert_no_message_push_job(&app, &message_id).await;
 
     set_message_runtime_modes(&app, &admin_token, "relay_only", "e2ee").await;
-    let encrypted_body = encrypted_message_body();
+    let (owner_device_id, commit_id) = prepare_e2ee_room(&app, &owner, &room_id, 71).await;
+    let encrypted_body = encrypted_message_body(owner_device_id, commit_id, Uuid::new_v4(), 1);
     let (status, encrypted_resp) = app
         .post_json_authed(
             &format!("/rooms/{room_id}/messages/encrypted"),
@@ -1302,6 +1475,14 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
     );
     assert_message_persistence(&app, &encrypted_message_id, 0).await;
     assert_no_message_push_job(&app, &encrypted_message_id).await;
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &encrypted_body,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
     set_message_runtime(&app, &admin_token, "relay_only").await;
 
     let ungranted_key = format!("messages/{room_id}/images_20260723/ungranted.png");
@@ -1703,7 +1884,7 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
         Some(json!({"content": "quoted relay", "quoted_message_id": message_id})),
     )
     .await;
-    let mut encrypted_quote = serde_json::from_str::<Value>(&encrypted_message_body()).unwrap();
+    let mut encrypted_quote = serde_json::from_str::<Value>(&encrypted_body).unwrap();
     encrypted_quote["quoted_message_id"] = json!(message_id);
     let encrypted_quote = encrypted_quote.to_string();
     let (status, body) = app
