@@ -105,6 +105,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260804173000_e2ee_revision_deleted_room_guard.sql"
         )),
     ),
+    (
+        "20260804190000_encrypted_message_idempotency.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260804190000_encrypted_message_idempotency.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

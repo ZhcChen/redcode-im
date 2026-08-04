@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 7;
+const EXPECTED_MIGRATION_COUNT: i64 = 8;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -172,6 +172,7 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     assert!(column_exists(pool, "messages", "edited_at").await?);
     assert!(column_exists(pool, "messages", "encrypted_content").await?);
     assert!(column_exists(pool, "messages", "encryption_metadata").await?);
+    assert!(column_exists(pool, "messages", "encrypted_idempotency_key").await?);
     assert!(column_exists(pool, "app_versions", "app_store_url").await?);
     assert!(column_exists(pool, "e2ee_devices", "approved_by_device_id").await?);
     assert!(column_exists(pool, "e2ee_devices", "revoked_at").await?);
