@@ -34,6 +34,11 @@ interface MlsApi {
     material: E2eeDeviceRegistrationMaterial,
   ): Promise<unknown>;
   publishKeyPackage(deviceId: string, keyPackage: Uint8Array): Promise<unknown>;
+  publishKeyPackages(deviceId: string, keyPackages: Uint8Array[]): Promise<unknown>;
+  fetchKeyPackageInventory(deviceId: string): Promise<{
+    available: number;
+    maxAvailable: number;
+  }>;
 }
 
 export class E2eeDeviceNotReadyError extends Error {
@@ -43,7 +48,15 @@ export class E2eeDeviceNotReadyError extends Error {
   }
 }
 
+const KEY_PACKAGE_LOW_WATERMARK = 10;
+const KEY_PACKAGE_TARGET = 40;
+const KEY_PACKAGE_BATCH_LIMIT = 20;
+const REPLENISH_RETRY_AFTER_MS = 60_000;
+
 export class E2eeDeviceLifecycle {
+  private readonly replenishLocks = new Map<string, Promise<{ replenished: number }>>();
+  private readonly nextRetryAt = new Map<string, number>();
+
   constructor(
     private readonly storage: DeviceStorage = e2eeSecureStateStorage,
     private readonly core: SessionCore = e2eeSession,
@@ -107,6 +120,67 @@ export class E2eeDeviceLifecycle {
     }
 
     return { profile: readyProfile, state };
+  }
+
+  /**
+   * 按低水位补充本设备 KeyPackage 库存。账号级互斥：并发调用共享同一个
+   * Promise；失败后进入退避窗口，不阻塞已建立房间的消息链。
+   */
+  async topUpKeyPackages(accountId: string): Promise<{ replenished: number }> {
+    const existing = this.replenishLocks.get(accountId);
+    if (existing) return existing;
+    const task = this.doTopUp(accountId).finally(() => {
+      this.replenishLocks.delete(accountId);
+    });
+    this.replenishLocks.set(accountId, task);
+    return task;
+  }
+
+  private async doTopUp(accountId: string): Promise<{ replenished: number }> {
+    const profile = await this.storage.readDeviceProfile(accountId);
+    if (!profile?.registered || !profile.keyPackagePublished) {
+      throw new E2eeDeviceNotReadyError('E2EE 设备未完成初始化，无法补充 KeyPackage');
+    }
+    const retryAt = this.nextRetryAt.get(accountId);
+    if (retryAt !== undefined && Date.now() < retryAt) {
+      return { replenished: 0 };
+    }
+
+    const inventory = await this.mlsApi.fetchKeyPackageInventory(profile.deviceId);
+    if (inventory.available >= KEY_PACKAGE_LOW_WATERMARK) {
+      this.nextRetryAt.delete(accountId);
+      return { replenished: 0 };
+    }
+
+    const needed = Math.min(
+      KEY_PACKAGE_TARGET - inventory.available,
+      KEY_PACKAGE_BATCH_LIMIT,
+    );
+    if (needed <= 0) {
+      this.nextRetryAt.delete(accountId);
+      return { replenished: 0 };
+    }
+
+    try {
+      let state = await this.storage.read(accountId);
+      if (!state) throw new E2eeDeviceNotReadyError('E2EE 设备状态缺失');
+      const keyPackages: Uint8Array[] = [];
+      for (let index = 0; index < needed; index += 1) {
+        const generated = await this.core.generateKeyPackage(state);
+        state = generated.field(0);
+        keyPackages.push(generated.field(1));
+      }
+      await this.storage.write(accountId, state);
+      const result = await this.mlsApi.publishKeyPackages(profile.deviceId, keyPackages);
+      const inserted = typeof result === 'object' && result !== null
+        ? Number((result as { inserted?: unknown }).inserted)
+        : keyPackages.length;
+      this.nextRetryAt.delete(accountId);
+      return { replenished: Number.isFinite(inserted) ? inserted : keyPackages.length };
+    } catch (error) {
+      this.nextRetryAt.set(accountId, Date.now() + REPLENISH_RETRY_AFTER_MS);
+      throw error;
+    }
   }
 }
 

@@ -58,6 +58,67 @@ describe('e2eeMlsApiService', () => {
     expect(packages[0]?.package_ref).toBe('A5BYxvLAy0ksUzsKTRTvd8wPeKvMztUofYShogEc+4E=');
   });
 
+  it('publishes a key package batch and returns inserted count', async () => {
+    let payload: Record<string, unknown> = {};
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      payload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response('{"inserted":2}', { status: 200 });
+    }));
+
+    const result = await e2eeMlsApiService.publishKeyPackages(
+      'device-a',
+      [new Uint8Array([1]), new Uint8Array([2])],
+      new Date('2026-08-11T00:00:00.000Z'),
+      webcrypto as unknown as Crypto,
+    );
+
+    expect(result.inserted).toBe(2);
+    expect((payload.packages as Record<string, unknown>[]).length).toBe(2);
+    expect(payload.packages).toSatisfy(
+      (packages: Record<string, unknown>[]) => packages.every((item) => (
+        typeof item.id === 'string'
+        && typeof item.package_ref === 'string'
+        && typeof item.key_package === 'string'
+        && item.protocol_version === 1
+      )),
+    );
+  });
+
+  it('rejects empty or oversized key package batches', async () => {
+    await expect(e2eeMlsApiService.publishKeyPackages(
+      'device-a',
+      [],
+      undefined,
+      webcrypto as unknown as Crypto,
+    )).rejects.toThrow('批次不能为空');
+    await expect(e2eeMlsApiService.publishKeyPackages(
+      'device-a',
+      new Array(101).fill(new Uint8Array([1])),
+      undefined,
+      webcrypto as unknown as Crypto,
+    )).rejects.toThrow('最多 100 个');
+  });
+
+  it('fetches key package inventory with numeric bounds', async () => {
+    let url = '';
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      url = String(input);
+      return new Response('{"available":3,"max_available":500}', { status: 200 });
+    }));
+
+    const inventory = await e2eeMlsApiService.fetchKeyPackageInventory('device-a');
+
+    expect(url).toContain('/e2ee/mls/devices/device-a/key-packages');
+    expect(inventory).toEqual({ available: 3, maxAvailable: 500 });
+  });
+
+  it('fails closed on malformed inventory response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"available":"x"}', { status: 200 })));
+
+    await expect(e2eeMlsApiService.fetchKeyPackageInventory('device-a'))
+      .rejects.toThrow('库存响应格式无效');
+  });
+
   it('never sends plaintext fields to the encrypted endpoint', async () => {
     let payload: Record<string, unknown> = {};
     vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {

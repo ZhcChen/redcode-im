@@ -364,3 +364,300 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     .expect("query Bob device");
     assert!(bob_device_survives);
 }
+
+fn package_body(packages: &[(Uuid, Vec<u8>)]) -> String {
+    json!({
+        "packages": packages.iter().map(|(id, key_package)| json!({
+            "id": id,
+            "package_ref": BASE64_STANDARD.encode(id.as_bytes()),
+            "key_package": BASE64_STANDARD.encode(key_package),
+            "protocol_version": 1,
+            "expires_at": Utc::now() + Duration::hours(1),
+        })).collect::<Vec<_>>(),
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn key_package_inventory_supports_low_watermark_replenishment() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-inventory-alice").await;
+    let bob = register_user(&app, "mls-inventory-bob").await;
+    let room_id = create_room(&app, &alice, &bob).await;
+    let alice_first_id = Uuid::new_v4();
+    let alice_second_id = Uuid::new_v4();
+    let bob_device_id = Uuid::new_v4();
+    let alice_first_key = SigningKey::from_bytes(&[61; 32]);
+    let alice_second_key = SigningKey::from_bytes(&[62; 32]);
+    let bob_key = SigningKey::from_bytes(&[71; 32]);
+
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_first_id, "Alice main", 41, &alice_first_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_second_id, "Alice web", 42, &alice_second_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &bob,
+        &device_request(bob_device_id, "Bob android", 51, &bob_key),
+    )
+    .await;
+
+    // 批准 alice 第二台设备，使其可发布 KeyPackage
+    let approval_payload =
+        device_approval_payload(alice.id, alice_first_id, alice_second_id, 1, &[42; 32]);
+    let signature = alice_first_key.sign(&approval_payload);
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/e2ee/mls/devices/{alice_second_id}/approve"),
+            &alice.token,
+            &json!({
+                "approver_device_id": alice_first_id,
+                "signature": BASE64_STANDARD.encode(signature.to_bytes()),
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let inventory_uri = format!("/e2ee/mls/devices/{alice_second_id}/key-packages");
+
+    // 未发布时库存为零；未批准/他人设备查询被拒绝
+    let (status, response) = app.get_authed(&inventory_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 0);
+    assert_eq!(body_json(&response)["maxAvailable"], 500);
+
+    // 发布 3 个 KeyPackage 后库存可见
+    let publish_uri = format!("/e2ee/mls/devices/{alice_second_id}/key-packages");
+    let package_ids = [Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
+    let (status, response) = app
+        .post_json_authed(
+            &publish_uri,
+            &alice.token,
+            &package_body(&package_ids.iter().map(|id| (*id, vec![62; 256])).collect::<Vec<_>>()),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    assert_eq!(body_json(&response)["inserted"], 3);
+
+    let (status, response) = app.get_authed(&inventory_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 3);
+
+    // Bob 不能查询 Alice 设备的库存
+    let (status, _) = app.get_authed(&inventory_uri, &bob.token).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // 领取一枚后库存减一；重复领取返回 404
+    let claim_uri = format!("/e2ee/mls/devices/{alice_second_id}/key-packages/claim");
+    let (status, response) = app
+        .post_json_authed(
+            &claim_uri,
+            &bob.token,
+            &json!({"room_id": room_id, "consumer_device_id": bob_device_id}).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let claimed_id = body_json(&response)["id"].as_str().unwrap().to_string();
+    assert!(package_ids.iter().any(|id| id.to_string() == claimed_id));
+    let (status, response) = app.get_authed(&inventory_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 2);
+}
+
+#[tokio::test]
+async fn concurrent_claims_consume_each_key_package_once() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-concurrent-alice").await;
+    let bob = register_user(&app, "mls-concurrent-bob").await;
+    let room_id = create_room(&app, &alice, &bob).await;
+    let alice_first_id = Uuid::new_v4();
+    let alice_second_id = Uuid::new_v4();
+    let bob_device_id = Uuid::new_v4();
+    let alice_first_key = SigningKey::from_bytes(&[81; 32]);
+    let alice_second_key = SigningKey::from_bytes(&[82; 32]);
+    let bob_key = SigningKey::from_bytes(&[91; 32]);
+
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_first_id, "Alice main", 41, &alice_first_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_second_id, "Alice web", 42, &alice_second_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &bob,
+        &device_request(bob_device_id, "Bob android", 51, &bob_key),
+    )
+    .await;
+
+    let approval_payload =
+        device_approval_payload(alice.id, alice_first_id, alice_second_id, 1, &[42; 32]);
+    let signature = alice_first_key.sign(&approval_payload);
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/e2ee/mls/devices/{alice_second_id}/approve"),
+            &alice.token,
+            &json!({
+                "approver_device_id": alice_first_id,
+                "signature": BASE64_STANDARD.encode(signature.to_bytes()),
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Bob 发布两个 KeyPackage，Alice 两台设备并发领取，各自只能消费一枚
+    let package_ids = [Uuid::new_v4(), Uuid::new_v4()];
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/e2ee/mls/devices/{bob_device_id}/key-packages"),
+            &bob.token,
+            &package_body(&package_ids.iter().map(|id| (*id, vec![72; 256])).collect::<Vec<_>>()),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    assert_eq!(body_json(&response)["inserted"], 2);
+
+    let claim_uri = format!("/e2ee/mls/devices/{bob_device_id}/key-packages/claim");
+    let first_body = json!({"room_id": room_id, "consumer_device_id": alice_first_id}).to_string();
+    let second_body = json!({"room_id": room_id, "consumer_device_id": alice_second_id}).to_string();
+    let first_claim = app.post_json_authed(
+        &claim_uri,
+        &alice.token,
+        &first_body,
+    );
+    let second_claim = app.post_json_authed(
+        &claim_uri,
+        &alice.token,
+        &second_body,
+    );
+    let ((first_status, first_response), (second_status, second_response)) =
+        tokio::join!(first_claim, second_claim);
+    assert_eq!(first_status, StatusCode::OK);
+    assert_eq!(second_status, StatusCode::OK);
+    let first_body = body_json(&first_response);
+    let second_body = body_json(&second_response);
+    let first_claimed = first_body["id"].as_str().unwrap();
+    let second_claimed = second_body["id"].as_str().unwrap();
+    assert_ne!(first_claimed, second_claimed);
+
+    // 第三台并发领取者拿不到任何 KeyPackage
+    let (status, _) = app
+        .post_json_authed(
+            &claim_uri,
+            &alice.token,
+            &json!({"room_id": room_id, "consumer_device_id": alice_first_id}).to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, response) = app
+        .get_authed(&format!("/e2ee/mls/devices/{bob_device_id}/key-packages"), &bob.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 0);
+}
+
+#[tokio::test]
+async fn concurrent_replenishment_respects_per_device_cap() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-cap-alice").await;
+    let alice_device_id = Uuid::new_v4();
+    let alice_key = SigningKey::from_bytes(&[101; 32]);
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_device_id, "Alice main", 41, &alice_key),
+    )
+    .await;
+
+    // 两批并发补充各 100 个，服务端必须都接受且不重复计数
+    let publish_uri = format!("/e2ee/mls/devices/{alice_device_id}/key-packages");
+    let first_body = package_body(
+        &(0..100)
+            .map(|index| (Uuid::new_v4(), vec![110 + (index % 10) as u8; 256]))
+            .collect::<Vec<_>>(),
+    );
+    let second_body = package_body(
+        &(0..100)
+            .map(|index| (Uuid::new_v4(), vec![120 + (index % 10) as u8; 256]))
+            .collect::<Vec<_>>(),
+    );
+    let (first_status, first_response) = app
+        .post_json_authed(&publish_uri, &alice.token, &first_body)
+        .await;
+    let (second_status, second_response) = app
+        .post_json_authed(&publish_uri, &alice.token, &second_body)
+        .await;
+    assert_eq!(first_status, StatusCode::OK);
+    assert_eq!(second_status, StatusCode::OK);
+    assert_eq!(body_json(&first_response)["inserted"], 100);
+    assert_eq!(body_json(&second_response)["inserted"], 100);
+
+    let (status, response) = app
+        .get_authed(&publish_uri, &alice.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 200);
+
+    // 补充到每设备上限 500 后，继续发布必须被服务端拒绝
+    for _ in 0..3 {
+        let body = package_body(
+            &(0..100)
+                .map(|index| (Uuid::new_v4(), vec![130 + (index % 10) as u8; 256]))
+                .collect::<Vec<_>>(),
+        );
+        let (status, response) = app
+            .post_json_authed(&publish_uri, &alice.token, &body)
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&response)
+        );
+    }
+    let over_limit_body = package_body(
+        &(0..100)
+            .map(|index| (Uuid::new_v4(), vec![140 + (index % 10) as u8; 256]))
+            .collect::<Vec<_>>(),
+    );
+    let (status, _) = app
+        .post_json_authed(&publish_uri, &alice.token, &over_limit_body)
+        .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+
+    let (status, response) = app.get_authed(&publish_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["available"], 500);
+}

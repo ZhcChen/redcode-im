@@ -12,6 +12,9 @@ import initCore from '@/e2ee/core-wasm/redcode_e2ee_core.js';
 const enabled = process.env.H5_APP_E2EE_LIVE_ENABLED === 'true';
 const apiBaseUrl = process.env.H5_APP_API_BASE_URL || 'http://127.0.0.1:8010';
 const sessionStorageKey = 'redcode-h5-session';
+// 共享环境清理依据：账号名前缀带 run ID，供
+// tests/scripts/cleanup-e2ee-live-fixtures.sh 定向清理。
+const runId = (process.env.E2EE_LIVE_RUN_ID || 'manual').replace(/[^a-zA-Z0-9_-]/g, '');
 
 interface LiveSession {
   token: string;
@@ -36,7 +39,7 @@ const request = async <T>(path: string, init: RequestInit = {}, token?: string):
 
 const register = async (prefix: string): Promise<LiveSession> => {
   const suffix = `${Date.now()}${Math.random().toString(16).slice(2, 8)}`;
-  const username = `${prefix}${suffix}`.slice(0, 20);
+  const username = `${prefix}${runId}${suffix}`.slice(0, 20);
   const password = `E2ee-${suffix}`;
   await request('/auth/register', {
     method: 'POST',

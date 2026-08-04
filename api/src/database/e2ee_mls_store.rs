@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
-const MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE: i64 = 500;
+pub const MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE: i64 = 500;
 
 #[derive(Debug, Clone)]
 pub struct RegisterDeviceInput {
@@ -451,6 +451,39 @@ impl<'a> E2eeMlsStore<'a> {
         }
         tx.commit().await.map_err(AppError::DatabaseError)?;
         Ok(inserted)
+    }
+
+    /// 查询可信设备当前可用的 KeyPackage 库存；设备不存在、不属于当前账号或
+    /// 不是 active 状态时返回 Forbidden，避免把库存信息泄露给未批准设备。
+    pub async fn count_available_key_packages(
+        &self,
+        user_id: Uuid,
+        device_id: Uuid,
+    ) -> Result<i64, AppError> {
+        let status = sqlx::query_scalar::<_, String>(
+            "SELECT status FROM e2ee_devices
+             WHERE id = $1 AND user_id = $2",
+        )
+        .bind(device_id)
+        .bind(user_id)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)?
+        .ok_or_else(|| AppError::Forbidden("设备不存在或不属于当前账号".to_string()))?;
+        if status != "active" {
+            return Err(AppError::Forbidden(
+                "只有可信设备可以查询 KeyPackage 库存".to_string(),
+            ));
+        }
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM e2ee_key_packages
+             WHERE device_id = $1 AND consumed_at IS NULL AND expires_at > NOW()",
+        )
+        .bind(device_id)
+        .fetch_one(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)?;
+        Ok(count)
     }
 
     pub async fn take_key_package(

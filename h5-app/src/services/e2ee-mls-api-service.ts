@@ -34,6 +34,11 @@ export interface E2eePeerDevice {
   credentialFingerprint: Uint8Array;
 }
 
+export interface E2eeKeyPackageInventory {
+  available: number;
+  maxAvailable: number;
+}
+
 export const registrationMaterialFromCommand = (
   result: E2eeCommandResult,
 ): E2eeDeviceRegistrationMaterial => {
@@ -107,6 +112,47 @@ export const e2eeMlsApiService = {
         }],
       }),
     }, requireToken());
+  },
+
+  async publishKeyPackages(
+    deviceId: string,
+    keyPackages: Uint8Array[],
+    expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    cryptoProvider: Crypto = globalThis.crypto,
+  ) {
+    if (!keyPackages.length) throw new Error('E2EE KeyPackage 批次不能为空');
+    if (keyPackages.length > 100) throw new Error('E2EE KeyPackage 单批最多 100 个');
+    if (!cryptoProvider?.subtle) throw new Error('WebCrypto 不可用');
+    const packages = await Promise.all(keyPackages.map(async (keyPackage) => {
+      const packageRef = new Uint8Array(
+        await cryptoProvider.subtle.digest('SHA-256', toArrayBuffer(keyPackage)),
+      );
+      return {
+        id: cryptoProvider.randomUUID(),
+        package_ref: bytesToBase64(packageRef),
+        key_package: bytesToBase64(keyPackage),
+        protocol_version: 1,
+        expires_at: expiresAt.toISOString(),
+      };
+    }));
+    return requestJson<{ inserted: number }>(`/e2ee/mls/devices/${deviceId}/key-packages`, {
+      method: 'POST',
+      body: JSON.stringify({ packages }),
+    }, requireToken());
+  },
+
+  async fetchKeyPackageInventory(deviceId: string): Promise<E2eeKeyPackageInventory> {
+    const response = await requestJson<Record<string, unknown>>(
+      `/e2ee/mls/devices/${deviceId}/key-packages`,
+      {},
+      requireToken(),
+    );
+    const available = Number(response.available);
+    const maxAvailable = Number(response.max_available);
+    if (!Number.isSafeInteger(available) || !Number.isSafeInteger(maxAvailable)) {
+      throw new Error('E2EE KeyPackage 库存响应格式无效');
+    }
+    return { available, maxAvailable };
   },
 
   async listPeerDevices(userId: string): Promise<E2eePeerDevice[]> {

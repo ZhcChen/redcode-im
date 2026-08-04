@@ -480,7 +480,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/e2ee/mls/devices/{device_id}/key-packages",
-            post(e2ee::publish_mls_key_packages),
+            post(e2ee::publish_mls_key_packages).get(e2ee::get_mls_key_package_inventory),
         )
         .route(
             "/e2ee/mls/devices/{device_id}/key-packages/claim",

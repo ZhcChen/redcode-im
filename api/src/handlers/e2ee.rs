@@ -15,6 +15,7 @@ use crate::database::e2ee_control_store::{
 use crate::database::e2ee_key_store::{E2eeKeyStore, OneTimePreKeyInsert, SignedPreKeyInsert};
 use crate::database::e2ee_mls_store::{
     ClaimedKeyPackage, E2eeDeviceRecord, E2eeMlsStore, NewKeyPackage, RegisterDeviceInput,
+    MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE,
 };
 use crate::database::friend_store::FriendStore;
 use crate::error::AppError;
@@ -560,6 +561,29 @@ pub async fn publish_mls_key_packages(
         .publish_key_packages(user_id, device_id, &packages)
         .await?;
     Ok(Json(PublishMlsKeyPackagesResponse { inserted }))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyPackageInventoryResponse {
+    pub available: i64,
+    pub max_available: i64,
+}
+
+/// 查询可信设备当前可用 KeyPackage 库存，供客户端低水位补充决策。
+pub async fn get_mls_key_package_inventory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(device_id): Path<Uuid>,
+) -> Result<Json<KeyPackageInventoryResponse>, AppError> {
+    let user_id = claims_user_id(&claims)?;
+    let available = E2eeMlsStore::new(state.database.pool())
+        .count_available_key_packages(user_id, device_id)
+        .await?;
+    Ok(Json(KeyPackageInventoryResponse {
+        available,
+        max_available: MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE,
+    }))
 }
 
 #[derive(Debug, Deserialize)]

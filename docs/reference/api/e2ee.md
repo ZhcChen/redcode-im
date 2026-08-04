@@ -111,6 +111,21 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 
 单次发布 `1..100` 个，只允许当前账号的 `active` 设备发布；有效期必须晚于当前时间且不超过 30 天，协议版本必须与设备一致。重复 `package_ref` 不重复插入，响应 `inserted` 是本次实际新增数量。每账号设备每分钟最多发布 60 次，每台设备最多保留 500 个未过期、未消费 KeyPackage。
 
+### 库存查询
+
+`GET /e2ee/mls/devices/{device_id}/key-packages`
+
+```json
+{
+  "available": 12,
+  "maxAvailable": 500
+}
+```
+
+返回当前账号 `active` 设备尚未消费、未过期的 KeyPackage 数量与每设备上限。客户端在
+首次初始化、进入前台和受控周期检查时读取该库存，低于低水位后批量补充；未批准、已
+撤销或不属于当前账号的设备返回 `403`。
+
 ### 领取
 
 `POST /e2ee/mls/devices/{target_device_id}/key-packages/claim`
