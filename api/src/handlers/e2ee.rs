@@ -474,8 +474,17 @@ pub async fn publish_mls_key_packages(
             expires_at: package.expires_at,
         });
     }
+    let user_id = claims_user_id(&claims)?;
+    enforce_e2ee_rate_limit(
+        &state,
+        &format!("rl:e2ee:key-package:publish:{user_id}:{device_id}"),
+        60,
+        60,
+        "KeyPackage 发布过于频繁：每分钟最多 60 次",
+    )
+    .await?;
     let inserted = E2eeMlsStore::new(state.database.pool())
-        .publish_key_packages(claims_user_id(&claims)?, device_id, &packages)
+        .publish_key_packages(user_id, device_id, &packages)
         .await?;
     Ok(Json(PublishMlsKeyPackagesResponse { inserted }))
 }
@@ -516,10 +525,19 @@ pub async fn claim_mls_key_package(
     Path(target_device_id): Path<Uuid>,
     Json(req): Json<ClaimMlsKeyPackageRequest>,
 ) -> Result<Json<ClaimedMlsKeyPackageResponse>, AppError> {
+    let user_id = claims_user_id(&claims)?;
+    enforce_e2ee_rate_limit(
+        &state,
+        &format!("rl:e2ee:key-package:claim:{user_id}"),
+        120,
+        60,
+        "KeyPackage 领取过于频繁：每分钟最多 120 次",
+    )
+    .await?;
     let package = E2eeMlsStore::new(state.database.pool())
         .take_key_package_for_room(
             req.room_id,
-            claims_user_id(&claims)?,
+            user_id,
             target_device_id,
             req.consumer_device_id,
         )
@@ -586,6 +604,33 @@ fn decode_b64_range(value: &str, field: &str, min: usize, max: usize) -> Result<
         )));
     }
     Ok(decoded)
+}
+
+async fn enforce_e2ee_rate_limit(
+    state: &AppState,
+    key: &str,
+    max_requests: i64,
+    window_seconds: i64,
+    message: &str,
+) -> Result<(), AppError> {
+    let mut connection = state.redis.get_session_connection();
+    let count: i64 = redis::cmd("INCR")
+        .arg(key)
+        .query_async(&mut connection)
+        .await
+        .map_err(|_| AppError::CacheError("E2EE 限流计数失败".to_string()))?;
+    if count == 1 {
+        let _: () = redis::cmd("EXPIRE")
+            .arg(key)
+            .arg(window_seconds)
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| AppError::CacheError("E2EE 限流窗口设置失败".to_string()))?;
+    }
+    if count > max_requests {
+        return Err(AppError::RateLimitExceeded(message.to_string()));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]

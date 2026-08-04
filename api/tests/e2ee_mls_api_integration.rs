@@ -268,4 +268,46 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     assert!(!response
         .windows("approval_public_key".len())
         .any(|window| window == b"approval_public_key"));
+
+    let bob_package_body = json!({
+        "packages": [{
+            "id": Uuid::new_v4(),
+            "package_ref": BASE64_STANDARD.encode([81; 32]),
+            "key_package": BASE64_STANDARD.encode(vec![82; 128]),
+            "protocol_version": 1,
+            "expires_at": Utc::now() + Duration::hours(1),
+        }]
+    })
+    .to_string();
+    let bob_publish_uri = format!("/e2ee/mls/devices/{bob_device_id}/key-packages");
+    for attempt in 1..=60 {
+        let (status, response) = app
+            .post_json_authed(&bob_publish_uri, &bob.token, &bob_package_body)
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "publish attempt {attempt}: {}",
+            String::from_utf8_lossy(&response)
+        );
+    }
+    let (status, _) = app
+        .post_json_authed(&bob_publish_uri, &bob.token, &bob_package_body)
+        .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(alice.id)
+        .execute(&app.pool)
+        .await
+        .expect("delete Alice account");
+    let bob_device_survives: bool = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM e2ee_devices WHERE id = $1 AND user_id = $2)",
+    )
+    .bind(bob_device_id)
+    .bind(bob.id)
+    .fetch_one(&app.pool)
+    .await
+    .expect("query Bob device");
+    assert!(bob_device_survives);
 }

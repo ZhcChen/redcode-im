@@ -126,6 +126,29 @@ async fn device_trust_and_key_package_consumption_are_fail_closed() {
         .expect("repeat claim")
         .is_none());
 
+    let excessive_packages = (0..501)
+        .map(|_| NewKeyPackage {
+            id: Uuid::new_v4(),
+            package_ref: Uuid::new_v4().as_bytes().to_vec(),
+            key_package: vec![71; 64],
+            protocol_version: 1,
+            expires_at: Utc::now() + Duration::hours(1),
+        })
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        store
+            .publish_key_packages(user_id, third_id, &excessive_packages)
+            .await,
+        Err(AppError::RateLimitExceeded(_))
+    ));
+    let third_inventory: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM e2ee_key_packages WHERE device_id = $1")
+            .bind(third_id)
+            .fetch_one(&app.pool)
+            .await
+            .expect("count rolled back inventory");
+    assert_eq!(third_inventory, 0);
+
     let revoked = store
         .revoke_device(user_id, second_id)
         .await

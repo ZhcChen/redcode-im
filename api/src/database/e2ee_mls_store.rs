@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
+const MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE: i64 = 500;
+
 #[derive(Debug, Clone)]
 pub struct RegisterDeviceInput {
     pub device_id: Uuid,
@@ -389,6 +391,19 @@ impl<'a> E2eeMlsStore<'a> {
             .await
             .map_err(AppError::DatabaseError)?;
             inserted += result.rows_affected() as usize;
+        }
+        let available_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM e2ee_key_packages
+             WHERE device_id = $1 AND consumed_at IS NULL AND expires_at > NOW()",
+        )
+        .bind(device_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?;
+        if available_count > MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE {
+            return Err(AppError::RateLimitExceeded(format!(
+                "每台设备最多保留 {MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE} 个可用 KeyPackage"
+            )));
         }
         tx.commit().await.map_err(AppError::DatabaseError)?;
         Ok(inserted)
