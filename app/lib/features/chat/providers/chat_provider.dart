@@ -522,6 +522,15 @@ class ChatProvider with ChangeNotifier {
 
   /// 重发消息
   Future<void> resendMessage(String messageId) async {
+    final index = _messages.indexWhere((message) => message.id == messageId);
+    if (index >= 0 &&
+        _messages[index].extra?['e2ee_decryption_failed'] == true) {
+      final roomId = _messages[index].roomId;
+      await _messageService.retryEncryptedMessage(roomId, messageId);
+      _messages = _messageService.getMessages(roomId);
+      notifyListeners();
+      return;
+    }
     await _messageService.resendMessage(messageId);
   }
 

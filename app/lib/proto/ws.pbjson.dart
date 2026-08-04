@@ -468,6 +468,20 @@ const ServerMessage$json = {
       '6': '.ws.MessagePart',
       '10': 'parts'
     },
+    {
+      '1': 'encrypted_content',
+      '3': 14,
+      '4': 1,
+      '5': 12,
+      '10': 'encryptedContent'
+    },
+    {
+      '1': 'encryption_metadata_json',
+      '3': 15,
+      '4': 1,
+      '5': 9,
+      '10': 'encryptionMetadataJson'
+    },
   ],
 };
 
@@ -481,7 +495,9 @@ final $typed_data.Uint8List serverMessageDescriptor = $convert.base64Decode(
     'dlX3R5cGUYCSABKAlSC21lc3NhZ2VUeXBlEhwKCXRpbWVzdGFtcBgKIAEoCVIJdGltZXN0YW1w'
     'EjgKDnF1b3RlZF9tZXNzYWdlGAsgASgLMhEud3MuUXVvdGVkTWVzc2FnZVINcXVvdGVkTWVzc2'
     'FnZRI7Cg9mb3J3YXJkX21lc3NhZ2UYDCABKAsyEi53cy5Gb3J3YXJkTWVzc2FnZVIOZm9yd2Fy'
-    'ZE1lc3NhZ2USJQoFcGFydHMYDSADKAsyDy53cy5NZXNzYWdlUGFydFIFcGFydHM=');
+    'ZE1lc3NhZ2USJQoFcGFydHMYDSADKAsyDy53cy5NZXNzYWdlUGFydFIFcGFydHMSKwoRZW5jcn'
+    'lwdGVkX2NvbnRlbnQYDiABKAxSEGVuY3J5cHRlZENvbnRlbnQSOAoYZW5jcnlwdGlvbl9tZXRh'
+    'ZGF0YV9qc29uGA8gASgJUhZlbmNyeXB0aW9uTWV0YWRhdGFKc29u');
 
 @$core.Deprecated('Use quotedMessageDescriptor instead')
 const QuotedMessage$json = {
@@ -999,6 +1015,20 @@ const PubSubMessage$json = {
       '6': '.ws.MessagePart',
       '10': 'parts'
     },
+    {
+      '1': 'encrypted_content',
+      '3': 16,
+      '4': 1,
+      '5': 12,
+      '10': 'encryptedContent'
+    },
+    {
+      '1': 'encryption_metadata_json',
+      '3': 17,
+      '4': 1,
+      '5': 9,
+      '10': 'encryptionMetadataJson'
+    },
   ],
 };
 
@@ -1014,7 +1044,9 @@ final $typed_data.Uint8List pubSubMessageDescriptor = $convert.base64Decode(
     'Rhcl91cmwYDCABKAlSD3NlbmRlckF2YXRhclVybBI4Cg5xdW90ZWRfbWVzc2FnZRgNIAEoCzIR'
     'LndzLlF1b3RlZE1lc3NhZ2VSDXF1b3RlZE1lc3NhZ2USOwoPZm9yd2FyZF9tZXNzYWdlGA4gAS'
     'gLMhIud3MuRm9yd2FyZE1lc3NhZ2VSDmZvcndhcmRNZXNzYWdlEiUKBXBhcnRzGA8gAygLMg8u'
-    'd3MuTWVzc2FnZVBhcnRSBXBhcnRz');
+    'd3MuTWVzc2FnZVBhcnRSBXBhcnRzEisKEWVuY3J5cHRlZF9jb250ZW50GBAgASgMUhBlbmNyeX'
+    'B0ZWRDb250ZW50EjgKGGVuY3J5cHRpb25fbWV0YWRhdGFfanNvbhgRIAEoCVIWZW5jcnlwdGlv'
+    'bk1ldGFkYXRhSnNvbg==');
 
 @$core.Deprecated('Use pubSubReadReceiptDescriptor instead')
 const PubSubReadReceipt$json = {

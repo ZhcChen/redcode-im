@@ -1541,6 +1541,8 @@ class WebSocketMessage {
   final WebSocketQuotedMessage? quotedMessage;
   final WebSocketForwardMessage? forwardMessage;
   final List<WebSocketMessagePart> parts;
+  final Uint8List? encryptedContent;
+  final Map<String, dynamic>? encryptionMetadata;
 
   WebSocketMessage({
     required this.id,
@@ -1556,6 +1558,8 @@ class WebSocketMessage {
     required this.quotedMessage,
     required this.forwardMessage,
     required this.parts,
+    this.encryptedContent,
+    this.encryptionMetadata,
   });
 
   factory WebSocketMessage.fromJson(Map<String, dynamic> json) {
@@ -1632,6 +1636,8 @@ class WebSocketMessage {
       quotedMessage: quotedMessage,
       forwardMessage: forwardMessage,
       parts: parts,
+      encryptedContent: _decodeOptionalBase64(json['encrypted_content']),
+      encryptionMetadata: _normalizeStringMap(json['encryption_metadata']),
     );
   }
 
@@ -1674,7 +1680,34 @@ class WebSocketMessage {
       quotedMessage: quotedMessage,
       forwardMessage: forwardMessage,
       parts: parts,
+      encryptedContent: proto.encryptedContent.isEmpty
+          ? null
+          : Uint8List.fromList(proto.encryptedContent),
+      encryptionMetadata: _decodeOptionalJsonMap(proto.encryptionMetadataJson),
     );
+  }
+
+  static Uint8List? _decodeOptionalBase64(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      return base64Decode(raw);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _decodeOptionalJsonMap(String raw) {
+    if (raw.isEmpty) return null;
+    try {
+      return _normalizeStringMap(jsonDecode(raw));
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _normalizeStringMap(dynamic raw) {
+    if (raw is! Map) return null;
+    return raw.map((key, value) => MapEntry(key.toString(), value));
   }
 
   String get displayName {

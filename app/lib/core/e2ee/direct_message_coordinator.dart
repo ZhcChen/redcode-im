@@ -27,7 +27,34 @@ class E2eeDecryptedText {
   final int epoch;
 }
 
-class E2eeDirectMessageCoordinator {
+abstract interface class E2eeDirectMessageTransport {
+  Future<void> prepareText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  });
+
+  Future<Map<String, dynamic>> sendText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  });
+
+  Future<Map<String, dynamic>> retryPendingSend(String accountId);
+
+  Future<E2eeDecryptedText> decryptText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required Uint8List ciphertext,
+  });
+}
+
+class E2eeDirectMessageCoordinator implements E2eeDirectMessageTransport {
   factory E2eeDirectMessageCoordinator({
     E2eeSecureStateStorage? storage,
     E2eeDeviceLifecycle? lifecycle,
@@ -73,6 +100,7 @@ class E2eeDirectMessageCoordinator {
   final String Function() _newId;
   Future<void> _tail = Future.value();
 
+  @override
   Future<Map<String, dynamic>> sendText({
     required String accountId,
     required String deviceLabel,
@@ -80,6 +108,40 @@ class E2eeDirectMessageCoordinator {
     required String peerUserId,
     required String text,
   }) => _exclusive(() async {
+    await _prepareText(
+      accountId: accountId,
+      deviceLabel: deviceLabel,
+      roomId: roomId,
+      peerUserId: peerUserId,
+      text: text,
+    );
+    return (await _resumePending(accountId, allowApplication: true))!;
+  });
+
+  @override
+  Future<void> prepareText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  }) => _exclusive(
+    () => _prepareText(
+      accountId: accountId,
+      deviceLabel: deviceLabel,
+      roomId: roomId,
+      peerUserId: peerUserId,
+      text: text,
+    ),
+  );
+
+  Future<void> _prepareText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  }) async {
     final normalizedText = text.trim();
     if (normalizedText.isEmpty) {
       throw const E2eeDirectMessageException('加密消息内容不能为空');
@@ -134,8 +196,7 @@ class E2eeDirectMessageCoordinator {
       controlMessageId: controlMessageId,
     );
     await _storage.writePendingOperation(accountId, operation);
-    return (await _resumePending(accountId, allowApplication: true))!;
-  });
+  }
 
   Future<void> syncControlMessages({
     required String accountId,
@@ -143,6 +204,7 @@ class E2eeDirectMessageCoordinator {
     required String roomId,
   }) => _exclusive(() => _syncControlMessages(accountId, deviceLabel, roomId));
 
+  @override
   Future<Map<String, dynamic>> retryPendingSend(String accountId) => _exclusive(
     () async {
       final response = await _resumePending(accountId, allowApplication: true);
@@ -153,6 +215,7 @@ class E2eeDirectMessageCoordinator {
     },
   );
 
+  @override
   Future<E2eeDecryptedText> decryptText({
     required String accountId,
     required String deviceLabel,

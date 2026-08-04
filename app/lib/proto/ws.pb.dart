@@ -1130,6 +1130,8 @@ class ServerMessage extends $pb.GeneratedMessage {
     QuotedMessage? quotedMessage,
     ForwardMessage? forwardMessage,
     $core.Iterable<MessagePart>? parts,
+    $core.List<$core.int>? encryptedContent,
+    $core.String? encryptionMetadataJson,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -1145,6 +1147,9 @@ class ServerMessage extends $pb.GeneratedMessage {
     if (quotedMessage != null) result.quotedMessage = quotedMessage;
     if (forwardMessage != null) result.forwardMessage = forwardMessage;
     if (parts != null) result.parts.addAll(parts);
+    if (encryptedContent != null) result.encryptedContent = encryptedContent;
+    if (encryptionMetadataJson != null)
+      result.encryptionMetadataJson = encryptionMetadataJson;
     return result;
   }
 
@@ -1177,6 +1182,9 @@ class ServerMessage extends $pb.GeneratedMessage {
         subBuilder: ForwardMessage.create)
     ..pPM<MessagePart>(13, _omitFieldNames ? '' : 'parts',
         subBuilder: MessagePart.create)
+    ..a<$core.List<$core.int>>(
+        14, _omitFieldNames ? '' : 'encryptedContent', $pb.PbFieldType.OY)
+    ..aOS(15, _omitFieldNames ? '' : 'encryptionMetadataJson')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1312,6 +1320,24 @@ class ServerMessage extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(13)
   $pb.PbList<MessagePart> get parts => $_getList(12);
+
+  @$pb.TagNumber(14)
+  $core.List<$core.int> get encryptedContent => $_getN(13);
+  @$pb.TagNumber(14)
+  set encryptedContent($core.List<$core.int> value) => $_setBytes(13, value);
+  @$pb.TagNumber(14)
+  $core.bool hasEncryptedContent() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearEncryptedContent() => $_clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.String get encryptionMetadataJson => $_getSZ(14);
+  @$pb.TagNumber(15)
+  set encryptionMetadataJson($core.String value) => $_setString(14, value);
+  @$pb.TagNumber(15)
+  $core.bool hasEncryptionMetadataJson() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearEncryptionMetadataJson() => $_clearField(15);
 }
 
 class QuotedMessage extends $pb.GeneratedMessage {
@@ -3419,6 +3445,8 @@ class PubSubMessage extends $pb.GeneratedMessage {
     QuotedMessage? quotedMessage,
     ForwardMessage? forwardMessage,
     $core.Iterable<MessagePart>? parts,
+    $core.List<$core.int>? encryptedContent,
+    $core.String? encryptionMetadataJson,
   }) {
     final result = create();
     if (id != null) result.id = id;
@@ -3436,6 +3464,9 @@ class PubSubMessage extends $pb.GeneratedMessage {
     if (quotedMessage != null) result.quotedMessage = quotedMessage;
     if (forwardMessage != null) result.forwardMessage = forwardMessage;
     if (parts != null) result.parts.addAll(parts);
+    if (encryptedContent != null) result.encryptedContent = encryptedContent;
+    if (encryptionMetadataJson != null)
+      result.encryptionMetadataJson = encryptionMetadataJson;
     return result;
   }
 
@@ -3471,6 +3502,9 @@ class PubSubMessage extends $pb.GeneratedMessage {
         subBuilder: ForwardMessage.create)
     ..pPM<MessagePart>(15, _omitFieldNames ? '' : 'parts',
         subBuilder: MessagePart.create)
+    ..a<$core.List<$core.int>>(
+        16, _omitFieldNames ? '' : 'encryptedContent', $pb.PbFieldType.OY)
+    ..aOS(17, _omitFieldNames ? '' : 'encryptionMetadataJson')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3618,6 +3652,24 @@ class PubSubMessage extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(15)
   $pb.PbList<MessagePart> get parts => $_getList(14);
+
+  @$pb.TagNumber(16)
+  $core.List<$core.int> get encryptedContent => $_getN(15);
+  @$pb.TagNumber(16)
+  set encryptedContent($core.List<$core.int> value) => $_setBytes(15, value);
+  @$pb.TagNumber(16)
+  $core.bool hasEncryptedContent() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearEncryptedContent() => $_clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.String get encryptionMetadataJson => $_getSZ(16);
+  @$pb.TagNumber(17)
+  set encryptionMetadataJson($core.String value) => $_setString(16, value);
+  @$pb.TagNumber(17)
+  $core.bool hasEncryptionMetadataJson() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearEncryptionMetadataJson() => $_clearField(17);
 }
 
 class PubSubReadReceipt extends $pb.GeneratedMessage {

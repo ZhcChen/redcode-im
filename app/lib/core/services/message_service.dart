@@ -10,6 +10,8 @@ import 'package:uuid/uuid.dart' as uuid_pkg;
 
 import '../constants/app_assets.dart';
 import '../constants/app_config.dart';
+import '../e2ee/direct_message_coordinator.dart';
+import '../e2ee/mls_api_service.dart';
 import '../network/direct_upload.dart';
 import '../utils/file_hash.dart';
 import '../storage/attachment_cache.dart';
@@ -97,11 +99,14 @@ class MessageService with ChangeNotifier {
     ChatCache? chatCache,
     http.Client? client,
     AppConfigService? appConfigService,
+    E2eeDirectMessageTransport? e2eeDirectMessages,
   }) : _tokenStorage = tokenStorage ?? const TokenStorage(),
        _messageStorage = messageStorage ?? const MessageStorage(),
        _chatCache = chatCache ?? const ChatCache(),
        _client = client ?? http.Client(),
-       _appConfigService = appConfigService ?? AppConfigService.instance {
+       _appConfigService = appConfigService ?? AppConfigService.instance,
+       _e2eeDirectMessages =
+           e2eeDirectMessages ?? E2eeDirectMessageCoordinator() {
     _appConfigService.addListener(_handleAppConfigChanged);
     _cachedChatsLoaded = _loadCachedChats();
   }
@@ -111,6 +116,7 @@ class MessageService with ChangeNotifier {
   final ChatCache _chatCache;
   final http.Client _client;
   final AppConfigService _appConfigService;
+  final E2eeDirectMessageTransport _e2eeDirectMessages;
   late final Future<void> _cachedChatsLoaded;
 
   // 消息存储 (roomId -> messages)
@@ -816,8 +822,25 @@ class MessageService with ChangeNotifier {
     }
 
     final tempId = const uuid_pkg.Uuid().v4();
+    final runtime = _appConfigService.currentMessageRuntime;
+    if (runtime.isE2ee) {
+      if (attachments.isNotEmpty || quotedMessage != null) {
+        throw StateError('E2EE 附件和引用消息将在后续版本支持');
+      }
+      final peerUserId = _singleChatPeerUserId(roomId);
+      if (peerUserId == null) {
+        throw StateError('当前会话缺少 E2EE 联系人标识');
+      }
+      await _e2eeDirectMessages.prepareText(
+        accountId: session.user.id,
+        deviceLabel: 'RedCode Flutter',
+        roomId: roomId,
+        peerUserId: peerUserId,
+        text: trimmedText!,
+      );
+    }
     final plans = <_AttachmentUploadPlan>[];
-    final pendingMessage = _buildPendingMessage(
+    var pendingMessage = _buildPendingMessage(
       tempId: tempId,
       roomId: roomId,
       senderId: session.user.id,
@@ -831,6 +854,11 @@ class MessageService with ChangeNotifier {
       plans: plans,
       quotedMessage: quotedMessage,
     );
+    if (runtime.isE2ee) {
+      pendingMessage = pendingMessage.copyWith(
+        extra: _mergeExtra(pendingMessage.extra, {'e2ee_pending': true}),
+      );
+    }
 
     _addMessage(pendingMessage);
     _pendingMessages[tempId] = pendingMessage;
@@ -876,18 +904,23 @@ class MessageService with ChangeNotifier {
         await _executeAttachmentUpload(plan);
       }
 
-      final response = await _sendMessageAPI(
-        roomId,
-        content: trimmedText,
-        parts: partsPayload,
-        quotedMessageId: quotedMessage?.id,
-      );
+      final response = runtime.isE2ee
+          ? await _retryE2eeSend(session.user.id)
+          : await _sendMessageAPI(
+              roomId,
+              content: trimmedText,
+              parts: partsPayload,
+              quotedMessageId: quotedMessage?.id,
+            );
 
-      final updated = _messageFromResponse(
+      var updated = _messageFromResponse(
         response,
         session.user.id,
         overrideStatus: MessageStatus.sent,
       );
+      if (runtime.isE2ee) {
+        updated = updated.copyWith(content: trimmedText);
+      }
 
       if (_pendingMessages.containsKey(tempId)) {
         _replaceMessage(tempId, updated);
@@ -898,11 +931,11 @@ class MessageService with ChangeNotifier {
 
       _updateChatLastMessage(roomId, updated);
       unawaited(_hydrateAttachmentLocalPaths(updated));
-    } catch (error, stackTrace) {
-      debugPrint('Failed to send message: $error');
-      if (kDebugMode) {
-        debugPrint(stackTrace.toString());
+    } catch (error) {
+      if (error is E2eeMlsApiException && error.isRuntimeConflict) {
+        await _appConfigService.refreshMessageRuntime();
       }
+      debugPrint('Failed to send message');
       _updateMessageStatus(tempId, MessageStatus.failed);
       throw const MessageSendRetryScheduled();
     }
@@ -929,25 +962,58 @@ class MessageService with ChangeNotifier {
         message: message,
         token: session.token,
       );
-      final response = await _sendMessageAPI(
-        payload.roomId,
-        content: payload.content,
-        parts: payload.parts,
-        quotedMessageId: payload.quotedMessageId,
-      );
+      final isE2eePending = message.extra?['e2ee_pending'] == true;
+      final response = isE2eePending
+          ? await _retryE2eeSend(session.user.id)
+          : await _sendMessageAPI(
+              payload.roomId,
+              content: payload.content,
+              parts: payload.parts,
+              quotedMessageId: payload.quotedMessageId,
+            );
 
-      final updated = _messageFromResponse(
+      var updated = _messageFromResponse(
         response,
         session.user.id,
         overrideStatus: MessageStatus.sent,
       );
+      if (isE2eePending) {
+        updated = updated.copyWith(content: payload.content ?? message.content);
+      }
       _replaceMessage(messageId, updated);
       _clearPendingMessageTracking(messageId);
       unawaited(_hydrateAttachmentLocalPaths(updated));
     } catch (e) {
-      debugPrint('Failed to resend message: $e');
+      if (e is E2eeMlsApiException && e.isRuntimeConflict) {
+        await _appConfigService.refreshMessageRuntime();
+      }
+      debugPrint('Failed to resend message');
       _updateMessageStatus(messageId, MessageStatus.failed);
     }
+  }
+
+  String? _singleChatPeerUserId(String roomId) {
+    final chat = _chats.cast<Chat?>().firstWhere(
+      (candidate) => candidate?.roomId == roomId,
+      orElse: () => null,
+    );
+    if (chat == null || chat.type != ChatType.single) return null;
+    final value = chat.extra?['friend_user_id'] ?? chat.extra?['friendUserId'];
+    return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
+
+  Future<MessageResponse> _retryE2eeSend(String accountId) async {
+    final response = await _e2eeDirectMessages.retryPendingSend(accountId);
+    final rawMessage = response['message'];
+    if (rawMessage is Map<String, dynamic>) {
+      return MessageResponse.fromJson(rawMessage);
+    }
+    if (rawMessage is Map) {
+      return MessageResponse.fromJson(
+        rawMessage.map((key, value) => MapEntry(key.toString(), value)),
+      );
+    }
+    throw const E2eeDirectMessageException('E2EE 消息响应格式无效');
   }
 
   Future<void> forwardMessage({
@@ -1629,7 +1695,7 @@ class MessageService with ChangeNotifier {
         '${AppConfig.apiBaseUrl}/rooms/$roomId/messages',
       ).replace(queryParameters: query);
 
-      final response = await http.get(
+      final response = await _client.get(
         uri,
         headers: {'Authorization': 'Bearer ${session.token}'},
       );
@@ -1640,11 +1706,28 @@ class MessageService with ChangeNotifier {
           throw Exception('Invalid message list response');
         }
 
-        final newMessages = decoded
-            .whereType<Map<String, dynamic>>()
-            .map(MessageResponse.fromJson)
-            .map((msg) => _messageFromResponse(msg, session.user.id))
-            .toList();
+        final responses =
+            decoded
+                .whereType<Map<String, dynamic>>()
+                .map(MessageResponse.fromJson)
+                .toList()
+              ..sort(
+                (left, right) => left.createdAt.compareTo(right.createdAt),
+              );
+        final newMessages = <Message>[];
+        for (final response in responses) {
+          final existing = _findMessageById(roomId, response.id);
+          if (existing != null) {
+            newMessages.add(existing);
+            continue;
+          }
+          newMessages.add(
+            await _resolveEncryptedMessage(
+              _messageFromResponse(response, session.user.id),
+              session.user.id,
+            ),
+          );
+        }
 
         for (final message in newMessages) {
           unawaited(_hydrateAttachmentLocalPaths(message));
@@ -1701,8 +1784,24 @@ class MessageService with ChangeNotifier {
     final session = await _tokenStorage.readSession();
     if (session == null) return;
 
+    if (_findMessageById(wsMessage.roomId, wsMessage.id) != null) return;
+
     var message = _messageFromWebSocket(wsMessage, session.user.id);
-    final matchedPendingId = _findMatchingPendingMessageId(message);
+    var matchedPendingId = _findMatchingPendingMessageId(message);
+    if (matchedPendingId == null &&
+        message.isSelf &&
+        message.encryptedContent != null) {
+      matchedPendingId = _pendingMessages.entries
+          .where((entry) => entry.value.roomId == message.roomId)
+          .map((entry) => entry.key)
+          .firstOrNull;
+      final pending = matchedPendingId == null
+          ? null
+          : _pendingMessages[matchedPendingId];
+      if (pending != null) {
+        message = message.copyWith(content: pending.content);
+      }
+    }
 
     if (matchedPendingId != null) {
       _clearPendingMessageTracking(matchedPendingId);
@@ -1710,6 +1809,8 @@ class MessageService with ChangeNotifier {
       unawaited(_hydrateAttachmentLocalPaths(message));
       return;
     }
+
+    message = await _resolveEncryptedMessage(message, session.user.id);
 
     message = _applyPendingReadReceipt(message);
 
@@ -1735,6 +1836,66 @@ class MessageService with ChangeNotifier {
 
     notifyListeners();
     unawaited(_persistMessages(message.roomId));
+  }
+
+  Message? _findMessageById(String roomId, String messageId) {
+    final messages = _messagesByRoom[roomId];
+    if (messages == null) return null;
+    for (final message in messages) {
+      if (message.id == messageId) return message;
+    }
+    return null;
+  }
+
+  Future<Message> _resolveEncryptedMessage(
+    Message message,
+    String accountId,
+  ) async {
+    final ciphertext = message.encryptedContent;
+    final metadata = message.encryptionMetadata;
+    if (ciphertext == null && metadata == null) return message;
+    if (ciphertext == null || !_isSupportedE2eeMetadata(metadata)) {
+      return _markEncryptedMessageFailed(message);
+    }
+    try {
+      final decrypted = await _e2eeDirectMessages.decryptText(
+        accountId: accountId,
+        deviceLabel: 'RedCode Flutter',
+        roomId: message.roomId,
+        ciphertext: ciphertext,
+      );
+      return message.copyWith(
+        content: decrypted.text,
+        status: message.isSelf ? MessageStatus.sent : MessageStatus.delivered,
+        extra: _mergeExtra(message.extra, {
+          'e2ee_epoch': decrypted.epoch,
+          'e2ee_decryption_failed': null,
+        }),
+      );
+    } catch (_) {
+      return _markEncryptedMessageFailed(message);
+    }
+  }
+
+  bool _isSupportedE2eeMetadata(Map<String, dynamic>? metadata) {
+    return metadata?['protocol'] == 'mls' &&
+        metadata?['version'] == 1 &&
+        metadata?['content_type'] == 'application';
+  }
+
+  Message _markEncryptedMessageFailed(Message message) => message.copyWith(
+    content: '[无法解密的消息]',
+    status: MessageStatus.failed,
+    extra: _mergeExtra(message.extra, {'e2ee_decryption_failed': true}),
+  );
+
+  Future<void> retryEncryptedMessage(String roomId, String messageId) async {
+    final message = _findMessageById(roomId, messageId);
+    if (message?.encryptedContent == null) return;
+    final session = await _tokenStorage.readSession();
+    if (session == null) return;
+    final resolved = await _resolveEncryptedMessage(message!, session.user.id);
+    _replaceMessage(messageId, resolved);
   }
 
   void _maybeNotifyLocalForIncomingMessage(Message message) {
@@ -4599,6 +4760,8 @@ class MessageService with ChangeNotifier {
       pinnedAt: response.pinnedAt,
       parts: parts,
       reactions: response.reactions,
+      encryptedContent: response.encryptedContent,
+      encryptionMetadata: response.encryptionMetadata,
     );
   }
 
@@ -4649,6 +4812,8 @@ class MessageService with ChangeNotifier {
       isDeleted: isDeleted,
       pinnedAt: pinnedAt,
       parts: parts,
+      encryptedContent: wsMessage.encryptedContent,
+      encryptionMetadata: wsMessage.encryptionMetadata,
     );
   }
 
@@ -5083,6 +5248,8 @@ class MessageResponse {
   final String? pinnedBy;
   final List<MessagePartResponse> parts;
   final List<MessageReactionSummary>? reactions;
+  final Uint8List? encryptedContent;
+  final Map<String, dynamic>? encryptionMetadata;
 
   MessageResponse({
     required this.id,
@@ -5106,6 +5273,8 @@ class MessageResponse {
     required this.pinnedBy,
     required this.parts,
     this.reactions,
+    this.encryptedContent,
+    this.encryptionMetadata,
   });
 
   factory MessageResponse.fromJson(Map<String, dynamic> json) {
@@ -5192,7 +5361,23 @@ class MessageResponse {
       pinnedBy: json['pinned_by']?.toString(),
       parts: parts,
       reactions: _parseReactionsFromJson(json['reactions']),
+      encryptedContent: _parseEncryptedContent(json['encrypted_content']),
+      encryptionMetadata: _parseStringMap(json['encryption_metadata']),
     );
+  }
+
+  static Uint8List? _parseEncryptedContent(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      return base64Decode(raw);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _parseStringMap(dynamic raw) {
+    if (raw is! Map) return null;
+    return raw.map((key, value) => MapEntry(key.toString(), value));
   }
 
   static List<MessageReactionSummary>? _parseReactionsFromJson(dynamic raw) {

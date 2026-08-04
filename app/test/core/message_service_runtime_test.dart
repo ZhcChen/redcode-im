@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:app/core/e2ee/direct_message_coordinator.dart';
+import 'package:app/core/e2ee/mls_api_service.dart';
 import 'package:app/core/services/app_config_service.dart';
 import 'package:app/core/services/message_service.dart';
 import 'package:app/core/services/settings_service.dart';
@@ -55,6 +58,74 @@ class _FakeChatCache extends ChatCache {
     savedChats = List<Chat>.from(chats);
   }
 }
+
+class _FakeE2eeDirectMessages implements E2eeDirectMessageTransport {
+  _FakeE2eeDirectMessages({this.onRetry, this.decryptResult});
+
+  final Future<Map<String, dynamic>> Function()? onRetry;
+  final E2eeDecryptedText? decryptResult;
+  int prepareCalls = 0;
+  int retryCalls = 0;
+  int decryptCalls = 0;
+
+  @override
+  Future<void> prepareText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  }) async {
+    prepareCalls += 1;
+  }
+
+  @override
+  Future<Map<String, dynamic>> retryPendingSend(String accountId) async {
+    retryCalls += 1;
+    return onRetry?.call() ?? _encryptedMessageResponse();
+  }
+
+  @override
+  Future<Map<String, dynamic>> sendText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required String peerUserId,
+    required String text,
+  }) async => _encryptedMessageResponse();
+
+  @override
+  Future<E2eeDecryptedText> decryptText({
+    required String accountId,
+    required String deviceLabel,
+    required String roomId,
+    required Uint8List ciphertext,
+  }) async {
+    decryptCalls += 1;
+    return decryptResult ??
+        const E2eeDecryptedText(text: 'decrypted', epoch: 1);
+  }
+}
+
+Map<String, dynamic> _encryptedMessageResponse({String id = 'encrypted-1'}) => {
+  'message': {
+    'id': id,
+    'room_id': 'room-1',
+    'sender_id': 'user-self',
+    'sender_username': 'alice',
+    'sender_nickname': 'Alice',
+    'content': '[加密消息]',
+    'encrypted_content': base64Encode([1, 2, 3]),
+    'encryption_metadata': {
+      'protocol': 'mls',
+      'version': 1,
+      'epoch': 1,
+      'content_type': 'application',
+    },
+    'message_type': 'text',
+    'created_at': '2026-04-12T12:00:00Z',
+  },
+};
 
 Message _pendingImageMessage({
   required String id,
@@ -131,6 +202,182 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
   });
+
+  test('E2EE text is prepared before optimistic message is queued', () async {
+    late MessageService service;
+    final e2ee = _FakeE2eeDirectMessages(
+      onRetry: () async {
+        expect(service.getMessages('room-1'), hasLength(1));
+        expect(
+          service.getMessages('room-1').single.status,
+          MessageStatus.sending,
+        );
+        return _encryptedMessageResponse();
+      },
+    );
+    service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(),
+      chatCache: _FakeChatCache(
+        chats: <Chat>[
+          Chat(
+            id: 'room-1',
+            roomId: 'room-1',
+            name: 'Bob',
+            type: ChatType.single,
+            lastMessage: '',
+            lastMessageTime: DateTime(2026, 4, 12),
+            extra: const {'friend_user_id': 'user-peer'},
+          ),
+        ],
+      ),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'e2ee',
+        ),
+      ),
+      e2eeDirectMessages: e2ee,
+    );
+    addTearDown(service.dispose);
+    await Future<void>.delayed(Duration.zero);
+
+    await service.sendTextMessage('room-1', 'secret');
+
+    expect(e2ee.prepareCalls, 1);
+    expect(e2ee.retryCalls, 1);
+    expect(service.getMessages('room-1').single.content, 'secret');
+    expect(service.getMessages('room-1').single.status, MessageStatus.sent);
+  });
+
+  test('duplicate encrypted history does not decrypt twice', () async {
+    final e2ee = _FakeE2eeDirectMessages(
+      decryptResult: const E2eeDecryptedText(text: 'history secret', epoch: 1),
+    );
+    final service = MessageService(
+      tokenStorage: const _FakeTokenStorage(session),
+      messageStorage: _FakeMessageStorage(),
+      chatCache: _FakeChatCache(),
+      appConfigService: _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'e2ee',
+        ),
+      ),
+      e2eeDirectMessages: e2ee,
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode([_encryptedMessageResponse()['message']]),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    addTearDown(service.dispose);
+
+    await service.loadMessages('room-1');
+    await service.loadMessages('room-1');
+
+    expect(e2ee.decryptCalls, 1);
+    expect(service.getMessages('room-1').single.content, 'history secret');
+  });
+
+  test(
+    'duplicate encrypted websocket event does not advance decrypt twice',
+    () async {
+      final e2ee = _FakeE2eeDirectMessages(
+        decryptResult: const E2eeDecryptedText(text: 'live secret', epoch: 1),
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(),
+        appConfigService: _FakeAppConfigService(
+          runtime: const MessageRuntimeSettings(
+            serverStorageMode: 'persist',
+            contentAuditMode: 'e2ee',
+          ),
+        ),
+        e2eeDirectMessages: e2ee,
+      );
+      addTearDown(service.dispose);
+      final event = WebSocketMessage(
+        id: 'encrypted-ws-1',
+        roomId: 'room-1',
+        senderId: 'user-peer',
+        senderUsername: 'bob',
+        senderNickname: 'Bob',
+        senderAvatarUrl: null,
+        content: '[加密消息]',
+        messageType: 'text',
+        timestamp: DateTime(2026, 4, 12, 12),
+        extra: null,
+        quotedMessage: null,
+        forwardMessage: null,
+        parts: const [],
+        encryptedContent: Uint8List.fromList([1, 2, 3]),
+        encryptionMetadata: const {
+          'protocol': 'mls',
+          'version': 1,
+          'content_type': 'application',
+        },
+      );
+
+      await service.handleWebSocketMessage(event);
+      await service.handleWebSocketMessage(event);
+
+      expect(e2ee.decryptCalls, 1);
+      expect(service.getMessages('room-1').single.content, 'live secret');
+    },
+  );
+
+  test(
+    'E2EE runtime conflict refreshes settings without automatic retry',
+    () async {
+      final appConfig = _FakeAppConfigService(
+        runtime: const MessageRuntimeSettings(
+          serverStorageMode: 'persist',
+          contentAuditMode: 'e2ee',
+        ),
+      );
+      final e2ee = _FakeE2eeDirectMessages(
+        onRetry: () async => throw const E2eeMlsApiException(
+          'runtime conflict',
+          statusCode: 409,
+        ),
+      );
+      final service = MessageService(
+        tokenStorage: const _FakeTokenStorage(session),
+        messageStorage: _FakeMessageStorage(),
+        chatCache: _FakeChatCache(
+          chats: <Chat>[
+            Chat(
+              id: 'room-1',
+              roomId: 'room-1',
+              name: 'Bob',
+              type: ChatType.single,
+              lastMessage: '',
+              lastMessageTime: DateTime(2026, 4, 12),
+              extra: const {'friend_user_id': 'user-peer'},
+            ),
+          ],
+        ),
+        appConfigService: appConfig,
+        e2eeDirectMessages: e2ee,
+      );
+      addTearDown(service.dispose);
+      await Future<void>.delayed(Duration.zero);
+
+      await expectLater(
+        service.sendTextMessage('room-1', 'draft'),
+        throwsA(isA<MessageSendRetryScheduled>()),
+      );
+
+      expect(appConfig.refreshCalls, 1);
+      expect(e2ee.retryCalls, 1);
+      expect(service.getMessages('room-1').single.status, MessageStatus.failed);
+    },
+  );
 
   test(
     'syncOfflineMessages skips server history fetch in relay_only mode',
@@ -1057,12 +1304,19 @@ class _FakeAppConfigService extends AppConfigService {
       super(settingsService: SettingsService());
 
   MessageRuntimeSettings _runtime;
+  int refreshCalls = 0;
 
   @override
   MessageRuntimeSettings get currentMessageRuntime => _runtime;
 
   @override
   Future<MessageRuntimeSettings> getMessageRuntime() async => _runtime;
+
+  @override
+  Future<MessageRuntimeSettings> refreshMessageRuntime() async {
+    refreshCalls += 1;
+    return _runtime;
+  }
 
   void updateRuntime(MessageRuntimeSettings runtime) {
     _runtime = runtime;

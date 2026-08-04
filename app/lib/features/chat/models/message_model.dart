@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import '../../../core/services/message_service.dart';
 
 const Object _unset = Object();
@@ -506,6 +509,8 @@ class Message {
   final DateTime? pinnedAt;
   final List<MessagePart> parts;
   final List<MessageReactionSummary>? reactions;
+  final Uint8List? encryptedContent;
+  final Map<String, dynamic>? encryptionMetadata;
 
   Message({
     required this.id,
@@ -529,6 +534,8 @@ class Message {
     this.pinnedAt,
     List<MessagePart>? parts,
     this.reactions,
+    this.encryptedContent,
+    this.encryptionMetadata,
   }) : parts = parts ?? const [];
 
   /// 复制并修改部分字段
@@ -554,6 +561,8 @@ class Message {
     Object? pinnedAt = _unset,
     Object? parts = _unset,
     Object? reactions = _unset,
+    Object? encryptedContent = _unset,
+    Object? encryptionMetadata = _unset,
   }) {
     return Message(
       id: id ?? this.id,
@@ -595,6 +604,12 @@ class Message {
       reactions: identical(reactions, _unset)
           ? this.reactions
           : reactions as List<MessageReactionSummary>?,
+      encryptedContent: identical(encryptedContent, _unset)
+          ? this.encryptedContent
+          : encryptedContent as Uint8List?,
+      encryptionMetadata: identical(encryptionMetadata, _unset)
+          ? this.encryptionMetadata
+          : encryptionMetadata as Map<String, dynamic>?,
     );
   }
 
@@ -686,6 +701,9 @@ class Message {
       'parts': parts.map((part) => part.toCacheJson()).toList(),
       if (reactions != null && reactions!.isNotEmpty)
         'reactions': reactions!.map((r) => r.toCacheJson()).toList(),
+      if (encryptedContent != null)
+        'encryptedContent': base64Encode(encryptedContent!),
+      if (encryptionMetadata != null) 'encryptionMetadata': encryptionMetadata,
     };
   }
 
@@ -741,7 +759,23 @@ class Message {
       pinnedAt: _parseTimestamp(json['pinnedAt']),
       parts: parsedParts,
       reactions: _parseReactionsFromCache(json['reactions']),
+      encryptedContent: _parseEncryptedContent(json['encryptedContent']),
+      encryptionMetadata: _parseStringMap(json['encryptionMetadata']),
     );
+  }
+
+  static Uint8List? _parseEncryptedContent(dynamic raw) {
+    if (raw is! String || raw.isEmpty) return null;
+    try {
+      return base64Decode(raw);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _parseStringMap(dynamic raw) {
+    if (raw is! Map) return null;
+    return raw.map((key, value) => MapEntry(key.toString(), value));
   }
 
   static List<MessageReactionSummary>? _parseReactionsFromCache(dynamic raw) {
