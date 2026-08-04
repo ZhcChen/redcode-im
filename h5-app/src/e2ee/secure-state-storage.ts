@@ -1,3 +1,5 @@
+import { validateE2eeProtocolState } from '@/e2ee/core-bridge';
+
 const DATABASE_NAME = 'redcode-h5-e2ee-state';
 const DATABASE_VERSION = 1;
 const KEY_STORE = 'wrapping-keys';
@@ -30,12 +32,14 @@ export interface E2eeSecureStateStorageOptions {
   databaseName?: string;
   indexedDb?: IDBFactory | null;
   crypto?: Crypto | null;
+  validateProtocolState?: (state: Uint8Array) => Promise<boolean>;
 }
 
 export class E2eeSecureStateStorage {
   private readonly databaseName: string;
   private readonly indexedDb?: IDBFactory;
   private readonly cryptoProvider?: Crypto;
+  private readonly validateProtocolState: (state: Uint8Array) => Promise<boolean>;
 
   constructor(options: E2eeSecureStateStorageOptions = {}) {
     this.databaseName = options.databaseName ?? DATABASE_NAME;
@@ -45,9 +49,13 @@ export class E2eeSecureStateStorage {
     this.cryptoProvider = options.crypto === undefined
       ? globalThis.crypto
       : options.crypto ?? undefined;
+    this.validateProtocolState = options.validateProtocolState ?? validateE2eeProtocolState;
   }
 
   async write(accountId: string, state: Uint8Array): Promise<void> {
+    if (!await this.validateProtocolState(state)) {
+      throw new E2eeStateCorruptedError('拒绝保存无效的 E2EE 协议状态');
+    }
     const namespace = this.accountNamespace(accountId);
     const db = await this.open();
     try {
@@ -103,7 +111,11 @@ export class E2eeSecureStateStorage {
           wrappingKey,
           toArrayBuffer(new Uint8Array(encrypted.ciphertext)),
         );
-        return new Uint8Array(plaintext);
+        const state = new Uint8Array(plaintext);
+        if (!await this.validateProtocolState(state)) {
+          throw new E2eeStateCorruptedError();
+        }
+        return state;
       } catch (error) {
         if (error instanceof E2eeStateCorruptedError) throw error;
         throw new E2eeStateCorruptedError();

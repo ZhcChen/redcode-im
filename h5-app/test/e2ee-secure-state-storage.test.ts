@@ -13,6 +13,7 @@ const createStorage = () => new E2eeSecureStateStorage({
   databaseName: `e2ee-test-${crypto.randomUUID()}`,
   indexedDb: new IDBFactory(),
   crypto: webcrypto as unknown as Crypto,
+  validateProtocolState: async () => true,
 });
 
 describe('E2eeSecureStateStorage', () => {
@@ -36,6 +37,19 @@ describe('E2eeSecureStateStorage', () => {
     expect(await storage.read('account-a')).toBeNull();
   });
 
+  it('never persists state rejected by the shared core', async () => {
+    const storage = new E2eeSecureStateStorage({
+      databaseName: `e2ee-test-${crypto.randomUUID()}`,
+      indexedDb: new IDBFactory(),
+      crypto: webcrypto as unknown as Crypto,
+      validateProtocolState: async () => false,
+    });
+
+    await expect(storage.write('account-a', new Uint8Array([1, 2, 3])))
+      .rejects.toBeInstanceOf(E2eeStateCorruptedError);
+    expect(await storage.read('account-a')).toBeNull();
+  });
+
   it('fails closed when encrypted state is tampered with', async () => {
     const indexedDb = new IDBFactory();
     const databaseName = `e2ee-test-${crypto.randomUUID()}`;
@@ -43,6 +57,7 @@ describe('E2eeSecureStateStorage', () => {
       databaseName,
       indexedDb,
       crypto: webcrypto as unknown as Crypto,
+      validateProtocolState: async () => true,
     });
     await storage.write('account-a', new Uint8Array([1, 2, 3]));
 
@@ -63,6 +78,7 @@ describe('E2eeSecureStateStorage', () => {
       databaseName,
       indexedDb,
       crypto: webcrypto as unknown as Crypto,
+      validateProtocolState: async () => true,
     });
     await storage.write('account-a', new Uint8Array([1]));
 
@@ -78,10 +94,12 @@ describe('E2eeSecureStateStorage', () => {
     const noIndexedDb = new E2eeSecureStateStorage({
       indexedDb: null,
       crypto: webcrypto as unknown as Crypto,
+      validateProtocolState: async () => true,
     });
     const noWebCrypto = new E2eeSecureStateStorage({
       indexedDb: new IDBFactory(),
       crypto: null,
+      validateProtocolState: async () => true,
     });
 
     await expect(noIndexedDb.write('account-a', new Uint8Array([1])))

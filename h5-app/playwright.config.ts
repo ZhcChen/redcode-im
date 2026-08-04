@@ -5,6 +5,7 @@ const baseURL = process.env.H5_APP_BASE_URL ?? `http://127.0.0.1:${port}`;
 const apiBaseURL = process.env.H5_APP_API_BASE_URL ?? process.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8010';
 const wsURL = process.env.H5_APP_WS_URL ?? process.env.VITE_WS_URL ?? 'ws://127.0.0.1:8010/ws';
 const browserChannel = process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? 'chrome';
+const browserExecutable = process.env.H5_APP_BROWSER_EXECUTABLE;
 
 export default defineConfig({
   testDir: './test/e2e',
@@ -32,7 +33,9 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        ...(browserChannel ? { channel: browserChannel } : {}),
+        ...(browserExecutable
+          ? { launchOptions: { executablePath: browserExecutable } }
+          : browserChannel ? { channel: browserChannel } : {}),
       },
     },
   ],
