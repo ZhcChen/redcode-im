@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { friendService } from '@/services/friend-service';
 import { mapMessageAttachments, messageService } from '@/services/message-service';
 import { messageAttachmentUploadService } from '@/services/message-attachment-upload-service';
 import { roomService } from '@/services/room-service';
@@ -34,6 +35,23 @@ const registerAndLogin = async (prefix: string): Promise<AuthSession> => {
 
 const useH5Session = (session: AuthSession) => {
   window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
+};
+
+const iosRequestJson = async <T>(
+  session: AuthSession,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> => {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${session.token}`,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  });
+  expect(response.ok).toBe(true);
+  return response.json() as Promise<T>;
 };
 
 const iosSendTextMessage = async (
@@ -142,6 +160,78 @@ describe.skipIf(!enabled)('h5-app ios interop live smoke', () => {
 
     expect(h5Message.attachments?.[0]?.key).toBe(part.key);
     expect(iosVisibleMessages.some((message) => message.id === h5Message.id && message.attachments?.[0]?.key === part.key)).toBe(true);
+  });
+
+  it('keeps H5 and iOS-compatible friend state interoperable after refresh', async () => {
+    const h5Session = await registerAndLogin('h5-friend');
+    const iosSession = await registerAndLogin('ios-friend');
+    useH5Session(h5Session);
+
+    const sentRequest = await friendService.sendFriendRequest(iosSession.user.id, 'hello from h5');
+    const incoming = await iosRequestJson<Array<Record<string, unknown>>>(
+      iosSession,
+      '/friends/requests?direction=incoming&status=pending',
+    );
+    expect(incoming.some((request) => {
+      const requester = request.requester as Record<string, unknown> | undefined;
+      return request.id === sentRequest.id && requester?.id === h5Session.user.id;
+    })).toBe(true);
+
+    const accepted = await iosRequestJson<Record<string, unknown>>(
+      iosSession,
+      `/friends/requests/${sentRequest.id}/respond`,
+      { method: 'POST', body: JSON.stringify({ action: 'accept' }) },
+    );
+    expect(String(accepted.id)).toBe(sentRequest.id);
+
+    useH5Session(h5Session);
+    const h5Friends = await friendService.fetchFriends();
+    expect(h5Friends.some((friend) => friend.user.id === iosSession.user.id)).toBe(true);
+  });
+
+  it('shares approved membership and H5 group governance with iOS-compatible clients', async () => {
+    const ownerSession = await registerAndLogin('h5-owner');
+    const iosSession = await registerAndLogin('ios-joiner');
+    const seedMemberSession = await registerAndLogin('h5-seed');
+    useH5Session(ownerSession);
+
+    const room = await roomService.createGroup({
+      name: `h5 governed group ${Date.now()}`,
+      memberIds: [seedMemberSession.user.id],
+    });
+    const approvalSettings = await roomService.updateJoinApproval(room.id, true);
+    expect(approvalSettings.joinApprovalRequired).toBe(true);
+
+    const created = await iosRequestJson<{ request: Record<string, unknown> }>(
+      iosSession,
+      `/rooms/${room.id}/join-requests`,
+      { method: 'POST', body: JSON.stringify({ message: 'join from ios' }) },
+    );
+    const requestId = String(created.request.id);
+    expect(requestId).toBeTruthy();
+
+    useH5Session(ownerSession);
+    const pendingRequests = await roomService.listJoinRequests(room.id);
+    expect(pendingRequests.some((request) => request.id === requestId && request.applicantId === iosSession.user.id)).toBe(true);
+    const reviewed = await roomService.reviewJoinRequest(room.id, requestId, 'approved', 'approved by h5');
+    expect(reviewed.status).toBe('approved');
+
+    await iosRequestJson<Record<string, unknown>>(iosSession, `/rooms/${room.id}/join`, { method: 'POST' });
+
+    const rule = await roomService.createRule(room.id, {
+      title: 'Cross-platform rule',
+      content: 'State must be visible after refresh',
+      orderIndex: 0,
+    });
+    const members = await iosRequestJson<Array<Record<string, unknown>> | { members?: Array<Record<string, unknown>> }>(
+      iosSession,
+      `/rooms/${room.id}/members`,
+    );
+    const memberRows = Array.isArray(members) ? members : members.members ?? [];
+    expect(memberRows.some((member) => member.user_id === iosSession.user.id)).toBe(true);
+
+    const rules = await iosRequestJson<{ rules?: Array<Record<string, unknown>> }>(iosSession, `/rooms/${room.id}/rules`);
+    expect(rules.rules?.some((item) => item.id === rule.id && item.title === 'Cross-platform rule')).toBe(true);
   });
 });
 
