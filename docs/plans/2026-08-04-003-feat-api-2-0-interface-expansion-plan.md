@@ -5,7 +5,7 @@ type: feat
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 execution: code
-status: active
+status: completed
 ---
 
 # feat: API 2.0 接口能力补齐
@@ -180,3 +180,21 @@ status: active
 - R1-R8 全部落地并有测试证据。
 - 新接口均为 additive，未改既有接口语义。
 - 提交按 U1-U6 拆分，每单元一个 Conventional Commit 并推送。
+
+## 执行结果（2026-08-04）
+
+- U1 个性签名：`users.signature` + `UserInfo.signature` + `PATCH /users/me`。
+- U2 黑名单：`/users/blocked` 拉黑/取消/列表；私聊发消息、创建私聊、好友申请
+  双向拦截。
+- U3 群公告：`/rooms/{id}/announcement` GET/PUT/DELETE；WS
+  `group_announcement_updated`（JSON + protobuf）；修正 base.sql 遗留旧表。
+- U4 消息收藏：`/rooms/{id}/messages/{mid}/favorite` + `/messages/favorites`。
+- U5 登录设备管理：登录/刷新登记设备、`/auth/devices`、
+  `/auth/devices/{id}/revoke`（批量失效 refresh token）。
+- U6 扫码登录：`/auth/qr/sessions` 创建/轮询/确认/取消；一次性 login_code 换
+  token；WS `qr_subscribe` / `qr_status_changed` 匿名实时推送。
+- R7 注销补强：`DELETE /users/me` 增加停用 Push 设备与登录设备。
+- 测试：`api/tests/api_2_0_capability_integration.rs` 9 项集成测试全部通过；
+  `make api.test` 全量回归通过（含既有 auth/ws/e2ee 用例）。
+- 提交：`ba295ad4`（迁移）→ `5d21d62e`（U1）→ `a5ce2c78`（U2）→
+  `724c7d1c`（U3）→ `3fd6df9e`（U4）→ `420908dd`（U5）→ `2d7da501`（U6）。

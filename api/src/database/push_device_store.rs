@@ -121,6 +121,23 @@ impl<'a> PushDeviceStore<'a> {
         Ok(result.rows_affected() > 0)
     }
 
+    /// 停用用户全部 Push 设备（注销账号时调用）。
+    pub async fn deactivate_all_for_user(&self, user_id: Uuid) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"
+            UPDATE push_devices
+            SET is_active = FALSE,
+                updated_at = NOW()
+            WHERE user_id = $1 AND is_active IS TRUE
+            "#,
+        )
+        .bind(user_id)
+        .execute(self.pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
     pub async fn list_active_devices_for_users(
         &self,
         user_ids: &[Uuid],

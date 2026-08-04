@@ -103,4 +103,18 @@ impl UserDeviceStore {
 
         Ok(result.rows_affected() > 0)
     }
+
+    /// 撤销用户全部登录设备（注销账号时调用）。
+    pub async fn revoke_all_for_user(&self, user_id: Uuid) -> Result<u64, AppError> {
+        let result = sqlx::query(
+            "UPDATE user_devices SET revoked_at = NOW()
+             WHERE user_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(user_id)
+        .execute(self.pool())
+        .await
+        .map_err(|e| AppError::DatabaseError(e))?;
+
+        Ok(result.rows_affected())
+    }
 }

@@ -658,6 +658,16 @@ pub async fn deactivate_me(
         warn!("Failed to cleanup sessions for user {}: {}", user_id, err);
     }
 
+    // 停用 Push 设备与登录设备（refresh token 因用户已软删除而在刷新时失效）
+    let push_store = crate::database::push_device_store::PushDeviceStore::new(
+        state.database.pool(),
+    );
+    let _ = push_store.deactivate_all_for_user(user_id).await;
+    let device_store = crate::database::user_device_store::UserDeviceStore::new(
+        state.database.clone(),
+    );
+    let _ = device_store.revoke_all_for_user(user_id).await;
+
     Ok(Json(json!({
         "success": true,
         "message": "Account deactivated"
