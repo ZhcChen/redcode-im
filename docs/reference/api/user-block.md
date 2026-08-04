@@ -11,7 +11,7 @@
 - 拉黑是单向关系：A 拉黑 B，A 的列表中出现 B。
 - 拦截采用**双向判断**：A 拉黑 B，或 B 拉黑 A，均视为存在阻断关系。
 - 拉黑**不影响**已存在的历史消息读取。
-- 不能拉黑自己（`422 ValidationError`）。
+- 不能拉黑自己（HTTP 400，code 42201）。
 
 ## 1. 获取拉黑列表
 
@@ -65,7 +65,7 @@
 ```
 
 - 幂等：重复拉黑同一用户返回成功，不重复插入。
-- 拉黑自己返回 `422`。
+- 拉黑自己返回 HTTP 400（code 42201）。
 
 ## 3. 取消拉黑
 
@@ -85,7 +85,7 @@
 
 存在双向阻断关系时，以下操作返回 `403 Forbidden`：
 
-- 创建私聊：`POST /rooms`（`room_type=private`）
+- 创建私聊：`POST /friends/{friend_user_id}/chat`
 - 发送消息：`POST /rooms/{room_id}/messages`
 - 发起好友申请：`POST /friends/requests`
 

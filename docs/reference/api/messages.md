@@ -112,20 +112,16 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（未携带或携带无效的 `Authorization: Bearer <token>`；鉴权中间件层返回
+空响应体，不返回 JSON）
 
 #### HTTP 403
 非房间成员禁止发送
 示例：
 ```json
 {
-  "error": "Not a room member"
+  "code": 40301,
+  "message": "User xxx is not a member of room xxx"
 }
 ```
 
@@ -199,20 +195,15 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 #### HTTP 403
 非房间成员禁止访问
 示例：
 ```json
 {
-  "error": "Not a room member"
+  "code": 40301,
+  "message": "User xxx is not a member of room xxx"
 }
 ```
 
@@ -359,7 +350,8 @@
 ```
 
 - 幂等：重复收藏返回成功。
-- 非房间成员返回 `403`；消息不存在或不属于该房间返回 `404` / `422`。
+- 非房间成员返回 `403`；消息不存在返回 `404`；消息不属于该房间返回
+  HTTP 400（code 42201）。
 
 ### 2. 取消收藏
 

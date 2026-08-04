@@ -55,26 +55,12 @@
       "type": "string",
       "description": "用户昵称（可选）",
       "example": "测试用户"
-    },
-    "device_id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "客户端生成的稳定设备标识（可选，API 2.0）",
-      "example": "11111111-1111-1111-1111-111111111111"
-    },
-    "device_name": {
-      "type": "string",
-      "description": "设备名称（可选，API 2.0）",
-      "example": "iPhone 17 Pro"
-    },
-    "platform": {
-      "type": "string",
-      "description": "平台标识（可选，API 2.0），如 ios/android/macos/windows/web",
-      "example": "ios"
     }
   }
 }
 ```
+- 注册请求中的 `device_id` / `device_name` / `platform` 暂不生效；设备信息在
+  首次登录/短信登录时登记（见 `auth-devices.md`）。
 - 示例：
 ```json
 {
@@ -102,7 +88,8 @@
 请求参数错误
 ```json
 {
-  "error": "Username must be at least 3 characters"
+  "code": 42201,
+  "message": "Username must be at least 3 characters"
 }
 ```
 
@@ -110,7 +97,8 @@
 邮箱或用户名已存在
 ```json
 {
-  "error": "Username already exists"
+  "code": 40901,
+  "message": "Username already exists"
 }
 ```
 
@@ -158,7 +146,8 @@
 账号或密码错误
 ```json
 {
-  "error": "Invalid username or password"
+  "code": 40004,
+  "message": "用户名或密码错误"
 }
 ```
 
@@ -192,7 +181,8 @@
 请求参数错误
 ```json
 {
-  "error": "手机号不能为空"
+  "code": 42201,
+  "message": "手机号不能为空"
 }
 ```
 
@@ -239,7 +229,8 @@
 验证码错误或已过期
 ```json
 {
-  "error": "验证码错误或已过期"
+  "code": 42201,
+  "message": "验证码错误或已过期"
 }
 ```
 
@@ -274,12 +265,13 @@
 refresh_token 无效或已过期
 ```json
 {
-  "error": "Invalid or expired refresh token"
+  "code": 40002,
+  "message": "刷新令牌已过期，请重新登录"
 }
 ```
 
-> 设备字段说明：`device_id` / `device_name` / `platform` 均为可选，用于登记
-> 登录设备；`deviceId` 在响应中出现。设备列表与撤销见
+> 设备字段说明：刷新请求体只接受 `refresh_token`，登录设备沿用原设备标识；
+> `deviceId` 在响应中返回。设备列表与撤销见
 > [auth-devices.md](./auth-devices.md)；PC 扫码登录见
 > [qr-login.md](./qr-login.md)。
 
@@ -322,7 +314,8 @@ refresh_token 无效或已过期
 用户名或密码错误
 ```json
 {
-  "error": "Invalid username or password"
+  "code": 40004,
+  "message": "用户名或密码错误"
 }
 ```
 
@@ -384,12 +377,7 @@ Authorization: Bearer <your-jwt-token>
 ```
 
 ##### HTTP 401
-未授权访问
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权访问（未携带或携带无效的 Bearer token；鉴权中间件层返回空响应体）
 
 ---
 
@@ -499,7 +487,8 @@ Authorization: Bearer <your-jwt-token>
 原密码错误
 ```json
 {
-  "error": "原密码错误"
+  "code": 42201,
+  "message": "原密码错误"
 }
 ```
 
@@ -513,6 +502,7 @@ interface Claims {
   sub: string;       // 用户ID
   username: string;  // 用户名
   is_admin: boolean; // 是否为管理员Token
+  device_id?: string; // 当前设备ID（API 2.0，普通用户 token 携带）
   exp: number;       // 过期时间戳
   iat: number;       // 签发时间戳
 }
@@ -537,4 +527,4 @@ Authorization: Bearer <your-jwt-token>
 
 ---
 
-**文档最后更新**: 2026-01-13
+**文档最后更新**: 2026-08-04

@@ -456,7 +456,7 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 ### Protocol Buffers 格式
 使用二进制 Protocol Buffers 格式，性能更高，带宽占用更少。
 
-协议定义位置: `api/src/proto/ws.proto`
+协议定义位置: `api/proto/ws.proto`
 
 连接时通过 `format` 参数指定：
 ```
@@ -493,9 +493,9 @@ ws://localhost:8010/ws?token=xxx&format=proto
 
 | 类型 | 数量 |
 |------|------|
-| 客户端发送事件 | 5 种 |
-| 服务端推送事件 | 22 种 |
+| 客户端发送事件 | 6 种 |
+| 服务端推送事件 | 24 种 |
 
 ---
 
-**文档最后更新**: 2026-01-13
+**文档最后更新**: 2026-08-04

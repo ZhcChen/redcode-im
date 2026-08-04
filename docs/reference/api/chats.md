@@ -45,13 +45,7 @@
 - `friend_avatar_object_key`：对方用户的头像对象键（对象存储路径）
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 ## DELETE /chats/:room_id — 归档会话
 

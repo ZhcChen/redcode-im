@@ -44,13 +44,7 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 ## POST /friends/requests — 创建好友请求
 
@@ -122,20 +116,15 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 #### HTTP 404
 目标用户不存在
 示例：
 ```json
 {
-  "error": "Not Found"
+  "code": 40401,
+  "message": "目标用户不存在"
 }
 ```
 
@@ -203,20 +192,15 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 #### HTTP 404
 请求不存在
 示例：
 ```json
 {
-  "error": "Not Found"
+  "code": 40401,
+  "message": "请求不存在"
 }
 ```
 
@@ -246,19 +230,14 @@
 ```
 
 #### HTTP 401
-未授权
-示例：
-```json
-{
-  "error": "Unauthorized"
-}
-```
+未授权（鉴权中间件层返回空响应体）
 
 #### HTTP 404
 好友不存在或已停用
 示例：
 ```json
 {
-  "error": "Not Found"
+  "code": 40401,
+  "message": "好友不存在或已停用"
 }
 ```

@@ -4,8 +4,8 @@ PC 端显示二维码，手机端已登录用户扫码确认，PC 端实时登�
 
 - 版本：API 2.0.0
 - 二维码会话有效期：5 分钟
-- 实时通道：WebSocket `qr_subscribe`（事件编号 24，见 `websocket.md`）；
-  REST 轮询作为兜底
+- 实时通道：WebSocket `qr_subscribe`（客户端事件 6；订阅后由服务端事件 24
+  `qr_status_changed` 推送结果，见 `websocket.md`）；REST 轮询作为兜底
 
 ## 完整流程
 
