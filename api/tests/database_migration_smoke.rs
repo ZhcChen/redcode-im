@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 5;
+const EXPECTED_MIGRATION_COUNT: i64 = 6;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -180,6 +180,15 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     assert!(column_exists(pool, "e2ee_room_epochs", "membership_revision").await?);
     assert!(column_exists(pool, "e2ee_control_messages", "idempotency_key").await?);
     assert!(column_exists(pool, "e2ee_control_receipts", "consumed_at").await?);
+    let revision_trigger_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS (
+            SELECT 1 FROM pg_trigger
+            WHERE tgname = 'trg_room_members_e2ee_revision' AND NOT tgisinternal
+         )",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert!(revision_trigger_exists);
 
     let admin_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM admin_users WHERE deleted_at IS NULL")
