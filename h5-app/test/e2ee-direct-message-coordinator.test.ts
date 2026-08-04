@@ -196,6 +196,251 @@ describe('E2eeDirectMessageCoordinator', () => {
     expect(Array.from(storage.state ?? [])).toEqual([4]);
     expect(storage.pending).toBeNull();
   });
+
+  it('blocks sends when the peer root identity changes without touching MLS APIs', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    };
+    storage.records['peer-b'] = {
+      trusted: {
+        userId: 'peer-b',
+        publicKey: new Uint8Array(32).fill(3),
+        fingerprint: new Uint8Array(32).fill(4),
+        protocolVersion: 1,
+      },
+      trustedAt: '2026-08-04T00:00:00.000Z',
+    };
+    const api = {
+      getRoomEpoch: vi.fn(),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      { fetchRootIdentity: vi.fn(async (userId: string) => ({
+        userId,
+        publicKey: new Uint8Array(32).fill(5),
+        fingerprint: new Uint8Array(32).fill(6),
+        protocolVersion: 1,
+      })) },
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+      },
+    );
+
+    await expect(coordinator.sendText({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      peerUserId: 'peer-b',
+      text: 'secret text',
+    })).rejects.toThrow('身份已变化');
+
+    expect(api.claimKeyPackage).not.toHaveBeenCalled();
+    expect(api.submitControlMessage).not.toHaveBeenCalled();
+    expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(storage.pending).toBeNull();
+  });
+
+  it('fails clearly when the peer has no E2EE device', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    };
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 1,
+        activeEpoch: 0,
+        status: 'pending',
+      })),
+      listPeerDevices: vi.fn(async () => []),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      { fetchRootIdentity: vi.fn(async (userId: string) => ({
+        userId,
+        publicKey: new Uint8Array(32).fill(3),
+        fingerprint: new Uint8Array(32).fill(4),
+        protocolVersion: 1,
+      })) },
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+      },
+    );
+
+    await expect(coordinator.sendText({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      peerUserId: 'peer-b',
+      text: 'secret text',
+    })).rejects.toThrow('联系人没有可用的 E2EE 设备');
+
+    expect(api.claimKeyPackage).not.toHaveBeenCalled();
+    expect(api.submitControlMessage).not.toHaveBeenCalled();
+    expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(storage.pending).toBeNull();
+  });
+
+  it('fails bootstrap clearly when no key package is claimable', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    };
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 1,
+        activeEpoch: 0,
+        status: 'pending',
+      })),
+      listPeerDevices: vi.fn(async () => [{
+        id: 'device-b',
+        protocolVersion: 1,
+        credentialFingerprint: new Uint8Array(32),
+      }]),
+      claimKeyPackage: vi.fn(async () => {
+        throw new Error('KeyPackage 不存在或已被领取');
+      }),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      { fetchRootIdentity: vi.fn(async (userId: string) => ({
+        userId,
+        publicKey: new Uint8Array(32).fill(3),
+        fingerprint: new Uint8Array(32).fill(4),
+        protocolVersion: 1,
+      })) },
+      api,
+      {
+        createGroup: vi.fn(async () => new E2eeCommandResult([new Uint8Array([2])])),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+      },
+    );
+
+    await expect(coordinator.sendText({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      peerUserId: 'peer-b',
+      text: 'secret text',
+    })).rejects.toThrow('KeyPackage 不存在或已被领取');
+
+    expect(api.claimKeyPackage).toHaveBeenCalledOnce();
+    expect(api.submitControlMessage).not.toHaveBeenCalled();
+    expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(storage.pending).toBeNull();
+  });
+
+  it('rejects stale local epoch before persisting pending application state', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: { 'room-a': 'commit-1' },
+    };
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 1,
+        activeEpoch: 2,
+        status: 'active',
+      })),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      { fetchRootIdentity: vi.fn(async (userId: string) => ({
+        userId,
+        publicKey: new Uint8Array(32).fill(3),
+        fingerprint: new Uint8Array(32).fill(4),
+        protocolVersion: 1,
+      })) },
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(async () => new E2eeCommandResult([
+          new Uint8Array([4]),
+          new Uint8Array([82, 67, 77, 76, 12]),
+          epochBytes(1),
+        ])),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+      },
+    );
+
+    await expect(coordinator.sendText({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      peerUserId: 'peer-b',
+      text: 'secret text',
+    })).rejects.toThrow('本地 E2EE epoch 已过期');
+
+    expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
+    expect(storage.pending).toBeNull();
+  });
 });
 
 class MemoryStorage {

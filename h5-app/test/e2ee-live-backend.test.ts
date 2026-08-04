@@ -272,6 +272,119 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
     ]));
   }, 60_000);
+
+  it('establishes consecutive new private rooms and recovers after key package top-up', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const general = await request<{
+      message_runtime?: { server_storage_mode?: string; content_audit_mode?: string };
+    }>('/settings/general');
+    expect(general.message_runtime).toMatchObject({
+      server_storage_mode: 'persist',
+      content_audit_mode: 'e2ee',
+    });
+
+    const alice = await register('e2eea');
+    const carol = await register('e2eec');
+    const dave = await register('e2eed');
+    const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
+    await initCore({ module_or_path: wasm });
+    const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
+    const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
+    const { messageService } = await import('@/services/message-service');
+    const { friendService } = await import('@/services/friend-service');
+
+    const link = async (left: LiveSession, right: LiveSession, marker: string) => {
+      useSession(left);
+      const requestId = await friendService.sendFriendRequest(right.user.id, marker);
+      useSession(right);
+      await friendService.respondFriendRequest(requestId.id, 'accept');
+      useSession(left);
+      return friendService.ensurePrivateChat(right.user.id);
+    };
+    const roomAliceCarol = await link(alice, carol, `u2-ac-${crypto.randomUUID()}`);
+    const roomAliceDave = await link(alice, dave, `u2-ad-${crypto.randomUUID()}`);
+    const roomCarolDave = await link(carol, dave, `u2-cd-${crypto.randomUUID()}`);
+
+    useSession(alice);
+    await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 live Alice');
+    useSession(carol);
+    await e2eeDeviceLifecycle.ensureReady(carol.user.id, 'H5 live Carol');
+    useSession(dave);
+    await e2eeDeviceLifecycle.ensureReady(dave.user.id, 'H5 live Dave');
+
+    // 同一 Alice 设备连续创建两个新私聊：分别消费 Carol、Dave 各自唯一的 KeyPackage。
+    const firstMarker = `u2-first-${crypto.randomUUID()}`;
+    useSession(alice);
+    const firstResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 live Alice',
+      roomId: roomAliceCarol.roomId,
+      peerUserId: carol.user.id,
+      text: firstMarker,
+    });
+    expect(JSON.stringify(firstResponse)).not.toContain(firstMarker);
+    const secondMarker = `u2-second-${crypto.randomUUID()}`;
+    const secondResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 live Alice',
+      roomId: roomAliceDave.roomId,
+      peerUserId: dave.user.id,
+      text: secondMarker,
+    });
+    expect(JSON.stringify(secondResponse)).not.toContain(secondMarker);
+
+    // Dave 唯一 KeyPackage 已被第二个会话消费，Carol 再发起第三个会话必须明确失败，
+    // 且服务端不能进入半提交状态（房间 epoch 仍为 0）。
+    const thirdMarker = `u2-third-${crypto.randomUUID()}`;
+    useSession(carol);
+    await expect(e2eeDirectMessageCoordinator.sendText({
+      accountId: carol.user.id,
+      deviceLabel: 'H5 live Carol',
+      roomId: roomCarolDave.roomId,
+      peerUserId: dave.user.id,
+      text: thirdMarker,
+    })).rejects.toThrow();
+    const failedEpoch = await request<{ active_epoch?: number }>(
+      `/rooms/${roomCarolDave.roomId}/e2ee/epoch`,
+      {},
+      carol.token,
+    );
+    expect(failedEpoch.active_epoch).toBe(0);
+
+    // Dave 低水位补充后，同一 Dave 设备可加入第三个新会话并解密 Carol 的消息。
+    useSession(dave);
+    const replenished = await e2eeDeviceLifecycle.topUpKeyPackages(dave.user.id);
+    expect(replenished.replenished).toBeGreaterThan(0);
+    useSession(carol);
+    const thirdResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: carol.user.id,
+      deviceLabel: 'H5 live Carol',
+      roomId: roomCarolDave.roomId,
+      peerUserId: dave.user.id,
+      text: thirdMarker,
+    });
+    expect(JSON.stringify(thirdResponse)).not.toContain(thirdMarker);
+
+    useSession(dave);
+    const daveHistory = await messageService.loadMessages(
+      roomCarolDave.roomId,
+      { limit: 20 },
+      dave.user.id,
+    );
+    expect(daveHistory.some((message) => message.content === thirdMarker)).toBe(true);
+
+    const rawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${roomCarolDave.roomId}/messages?limit=20`,
+      {},
+      carol.token,
+    );
+    const serialized = JSON.stringify(rawHistory);
+    expect(serialized).not.toContain(firstMarker);
+    expect(serialized).not.toContain(secondMarker);
+    expect(serialized).not.toContain(thirdMarker);
+  }, 90_000);
 });
 
 interface CoordinationServer {
