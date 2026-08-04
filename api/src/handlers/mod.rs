@@ -11,6 +11,7 @@ pub mod group_announcement;
 pub mod group_management;
 pub mod health;
 pub mod message;
+pub mod message_favorite;
 pub mod message_read;
 pub mod message_search;
 pub mod multipart_upload;

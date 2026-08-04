@@ -17,6 +17,7 @@ pub mod group_management_store;
 pub mod group_announcement_store;
 pub mod member_with_user_info;
 pub mod message_reaction_store;
+pub mod message_favorite_store;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;

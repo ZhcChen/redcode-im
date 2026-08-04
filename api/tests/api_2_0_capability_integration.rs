@@ -299,3 +299,74 @@ async fn test_group_announcement_owner_manage_member_read() {
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+// ==================== U4: 消息收藏 ====================
+
+#[tokio::test]
+async fn test_message_favorite_is_private_and_idempotent() {
+    let app = spawn_test_app().await;
+    let user_a = register_user(&app, "fava").await;
+    let user_b = register_user(&app, "favb").await;
+    let outsider = register_user(&app, "favout").await;
+
+    // 建私聊并发消息
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/friends/{}/chat", user_b.id),
+            &user_a.token,
+            "{}",
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let room_id = body_json(&response)["room_id"].as_str().unwrap().to_string();
+
+    let (status, response) = send_message(&app, &user_a.token, &room_id).await;
+    assert_eq!(status, StatusCode::OK);
+    let message_id = body_json(&response)["message"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    // 收藏（幂等）
+    let fav_url = format!("/rooms/{room_id}/messages/{message_id}/favorite");
+    let (status, _) = app
+        .post_json_authed(&fav_url, &user_a.token, "{}")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = app
+        .post_json_authed(&fav_url, &user_a.token, "{}")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // A 列表可见，B 不可见（隔离）
+    let (status, response) = app
+        .get_authed("/messages/favorites", &user_a.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let list = body_json(&response);
+    assert_eq!(list["total"], 1);
+    assert_eq!(list["items"][0]["messageId"], message_id);
+
+    let (status, response) = app
+        .get_authed("/messages/favorites", &user_b.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["total"], 0);
+
+    // 非成员收藏被拒
+    let (status, _) = app
+        .post_json_authed(&fav_url, &outsider.token, "{}")
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // 取消后列表为空
+    let (status, _) = app
+        .delete_authed(&fav_url, &user_a.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, response) = app
+        .get_authed("/messages/favorites", &user_a.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["total"], 0);
+}
