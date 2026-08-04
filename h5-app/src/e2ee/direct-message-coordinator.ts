@@ -11,6 +11,7 @@ import { e2eeSession, type E2eeCommandResult } from '@/e2ee/session';
 import { e2eeIdentityService } from '@/services/e2ee-identity-service';
 import {
   e2eeMlsApiService,
+  type E2eeControlMessage,
   type E2eePeerDevice,
   type E2eeRoomEpoch,
 } from '@/services/e2ee-mls-api-service';
@@ -37,6 +38,9 @@ interface SessionCore {
   createGroup(state: Uint8Array, roomId: string): Promise<E2eeCommandResult>;
   addMember(state: Uint8Array, roomId: string, keyPackage: Uint8Array): Promise<E2eeCommandResult>;
   encrypt(state: Uint8Array, roomId: string, plaintext: Uint8Array): Promise<E2eeCommandResult>;
+  decrypt(state: Uint8Array, roomId: string, ciphertext: Uint8Array): Promise<E2eeCommandResult>;
+  joinGroup(state: Uint8Array, welcome: Uint8Array): Promise<E2eeCommandResult>;
+  processCommit(state: Uint8Array, roomId: string, commit: Uint8Array): Promise<E2eeCommandResult>;
 }
 
 interface MlsApi {
@@ -62,6 +66,8 @@ interface MlsApi {
     idempotencyKey: string;
     controlMessageId?: string;
   }): Promise<Record<string, unknown>>;
+  listControlMessages(roomId: string, deviceId: string, afterSequence?: number, limit?: number): Promise<E2eeControlMessage[]>;
+  consumeControlMessage(roomId: string, messageId: string, deviceId: string): Promise<void>;
 }
 
 export class E2eeDirectMessageError extends Error {
@@ -69,6 +75,11 @@ export class E2eeDirectMessageError extends Error {
     super(message);
     this.name = 'E2eeDirectMessageError';
   }
+}
+
+export interface E2eeDecryptedText {
+  text: string;
+  epoch: number;
 }
 
 export class E2eeDirectMessageCoordinator {
@@ -96,8 +107,7 @@ export class E2eeDirectMessageCoordinator {
     return this.exclusive(async () => {
       const text = input.text.trim();
       if (!text) throw new E2eeDirectMessageError('加密消息内容不能为空');
-      await this.resumePending(input.accountId);
-      await this.lifecycle.ensureReady(input.accountId, input.deviceLabel);
+      await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
       let context = await this.storedContext(input.accountId);
       const identity = await this.identityApi.fetchRootIdentity(input.peerUserId);
       await this.trust.observe(input.accountId, identity);
@@ -135,8 +145,75 @@ export class E2eeDirectMessageCoordinator {
         epoch: encryptedEpoch,
         controlMessageId,
       });
-      return (await this.resumePending(input.accountId))!;
+      return (await this.resumePending(input.accountId, true))!;
     });
+  }
+
+  syncControlMessages(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+  }): Promise<void> {
+    return this.exclusive(() => this.syncControls(input.accountId, input.deviceLabel, input.roomId));
+  }
+
+  retryPendingSend(accountId: string): Promise<Record<string, unknown>> {
+    return this.exclusive(async () => {
+      const response = await this.resumePending(accountId, true);
+      if (!response) throw new E2eeDirectMessageError('没有待重试的 E2EE 消息');
+      return response;
+    });
+  }
+
+  decryptText(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    ciphertext: Uint8Array;
+  }): Promise<E2eeDecryptedText> {
+    return this.exclusive(async () => {
+      if (!input.ciphertext.length) throw new E2eeDirectMessageError('E2EE 密文不能为空');
+      await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
+      const context = await this.storedContext(input.accountId);
+      const decrypted = await this.core.decrypt(context.state, input.roomId, input.ciphertext);
+      const text = decodeTextPayload(decrypted.field(1));
+      await this.storage.write(input.accountId, decrypted.field(0));
+      return { text, epoch: safeEpoch(decrypted, 2) };
+    });
+  }
+
+  private async syncControls(accountId: string, deviceLabel: string, roomId: string) {
+    await this.resumePending(accountId);
+    await this.lifecycle.ensureReady(accountId, deviceLabel);
+    while (true) {
+      const context = await this.storedContext(accountId);
+      const messages = await this.api.listControlMessages(
+        roomId,
+        context.profile.deviceId,
+        context.profile.lastControlSequences[roomId] ?? 0,
+        100,
+      );
+      if (!messages.length) return;
+      const nextState = await this.applyControlBatch(context, roomId, messages);
+      if (!nextState) return;
+      await this.storage.writePendingOperation(accountId, {
+        kind: 'inbound',
+        roomId,
+        nextState,
+        senderDeviceId: context.profile.deviceId,
+        idempotencyKey: messages.at(-1)!.id,
+        controls: messages.map((message) => ({
+          id: message.id,
+          epoch: message.epoch,
+          membershipRevision: message.membershipRevision,
+          contentType: message.contentType,
+          envelope: message.envelope,
+          sequenceNo: message.sequenceNo,
+        })),
+      });
+      await this.resumePending(accountId);
+      if (messages.length < 100) return;
+    }
   }
 
   private async bootstrapRoom(input: {
@@ -182,7 +259,10 @@ export class E2eeDirectMessageCoordinator {
     await this.resumePending(input.accountId);
   }
 
-  private async resumePending(accountId: string): Promise<Record<string, unknown> | null> {
+  private async resumePending(
+    accountId: string,
+    allowApplication = false,
+  ): Promise<Record<string, unknown> | null> {
     const operation = await this.storage.readPendingOperation(accountId);
     if (!operation) return null;
     if (operation.kind === 'bootstrap') {
@@ -209,6 +289,27 @@ export class E2eeDirectMessageCoordinator {
       await this.storage.deletePendingOperation(accountId);
       return null;
     }
+    if (operation.kind === 'inbound') {
+      const profile = await this.requiredProfile(accountId);
+      const lastCommit = operation.controls.filter((item) => item.contentType === 'commit').at(-1);
+      await this.storage.write(accountId, operation.nextState);
+      await this.storage.writeDeviceProfile(accountId, {
+        ...profile,
+        lastControlSequences: {
+          ...profile.lastControlSequences,
+          [operation.roomId]: operation.controls.at(-1)!.sequenceNo!,
+        },
+        lastCommitMessageIds: lastCommit
+          ? { ...profile.lastCommitMessageIds, [operation.roomId]: lastCommit.id }
+          : profile.lastCommitMessageIds,
+      });
+      for (const control of operation.controls) {
+        await this.api.consumeControlMessage(operation.roomId, control.id, operation.senderDeviceId);
+      }
+      await this.storage.deletePendingOperation(accountId);
+      return null;
+    }
+    if (!allowApplication) throw new E2eeDirectMessageError('存在待手动重试的 E2EE 消息');
     const response = await this.api.sendEncryptedMessage({
       roomId: operation.roomId,
       senderDeviceId: operation.senderDeviceId,
@@ -226,6 +327,44 @@ export class E2eeDirectMessageCoordinator {
     const profile = await this.storage.readDeviceProfile(accountId);
     if (!profile) throw new E2eeDirectMessageError('E2EE 设备档案缺失');
     return profile;
+  }
+
+  private async applyControlBatch(
+    context: { profile: E2eeDeviceProfile; state: Uint8Array },
+    roomId: string,
+    messages: E2eeControlMessage[],
+  ): Promise<Uint8Array | null> {
+    let state = context.state;
+    let joined = Boolean(context.profile.lastCommitMessageIds[roomId]);
+    let startIndex = 0;
+    if (!joined) {
+      const welcomeIndex = messages.findIndex((message) => message.contentType === 'welcome');
+      if (welcomeIndex < 0) return null;
+      const welcome = messages[welcomeIndex]!;
+      const matchingCommit = messages.slice(0, welcomeIndex + 1)
+        .filter((message) => message.contentType === 'commit' && message.epoch === welcome.epoch)
+        .at(-1);
+      if (!matchingCommit) throw new E2eeDirectMessageError('Welcome 缺少对应的 E2EE Commit');
+      const result = await this.core.joinGroup(state, welcome.envelope);
+      if (safeEpoch(result, 1) !== welcome.epoch) {
+        throw new E2eeDirectMessageError('Welcome epoch 与本地状态不一致');
+      }
+      state = result.field(0);
+      joined = true;
+      startIndex = welcomeIndex + 1;
+    }
+    if (!joined) return null;
+    for (const message of messages.slice(startIndex)) {
+      if (message.contentType !== 'commit') {
+        throw new E2eeDirectMessageError('已入群设备收到意外 Welcome');
+      }
+      const result = await this.core.processCommit(state, roomId, message.envelope);
+      if (safeEpoch(result, 1) !== message.epoch) {
+        throw new E2eeDirectMessageError('Commit epoch 与本地状态不一致');
+      }
+      state = result.field(0);
+    }
+    return state;
   }
 
   private async storedContext(accountId: string) {
@@ -246,6 +385,18 @@ const safeEpoch = (result: E2eeCommandResult, index: number) => {
   const epoch = result.epoch(index);
   if (epoch > BigInt(Number.MAX_SAFE_INTEGER)) throw new E2eeDirectMessageError('E2EE epoch 超出安全范围');
   return Number(epoch);
+};
+
+const decodeTextPayload = (plaintext: Uint8Array) => {
+  try {
+    const payload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)) as Record<string, unknown>;
+    if (payload.version !== 1 || payload.type !== 'text' || typeof payload.text !== 'string' || !payload.text.trim()) {
+      throw new Error('invalid payload');
+    }
+    return payload.text;
+  } catch {
+    throw new E2eeDirectMessageError('E2EE 文本消息格式无效');
+  }
 };
 
 export const e2eeDirectMessageCoordinator = new E2eeDirectMessageCoordinator();

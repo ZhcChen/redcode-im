@@ -32,6 +32,9 @@ describe('E2eeDirectMessageCoordinator', () => {
         new Uint8Array([82, 67, 77, 76, 12]),
         epochBytes(1),
       ])),
+      decrypt: vi.fn(),
+      joinGroup: vi.fn(),
+      processCommit: vi.fn(),
     };
     let activeEpoch = 0;
     let failWelcomeOnce = true;
@@ -60,6 +63,8 @@ describe('E2eeDirectMessageCoordinator', () => {
       sendEncryptedMessage: vi.fn(async (_input: {
         ciphertext: Uint8Array;
       }) => ({ message: { id: 'server-message' } })),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(async () => {}),
     };
     const ids = ['commit-a', 'welcome-a', 'bootstrap-a', 'message-a'];
     const coordinator = new E2eeDirectMessageCoordinator(
@@ -101,6 +106,95 @@ describe('E2eeDirectMessageCoordinator', () => {
       .toEqual([82, 67, 77, 76, 12]);
     expect(storage.pending).toBeNull();
     expect(storage.profile?.lastCommitMessageIds['room-a']).toBe('commit-a');
+  });
+
+  it('restores welcome and later commits before acknowledging controls', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-b',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    };
+    const controls = [{
+      id: 'commit-1', epoch: 1, membershipRevision: 1, contentType: 'commit' as const,
+      envelope: new Uint8Array([10]), sequenceNo: 1,
+    }, {
+      id: 'welcome-1', epoch: 1, membershipRevision: 1, contentType: 'welcome' as const,
+      envelope: new Uint8Array([11]), sequenceNo: 2,
+    }, {
+      id: 'commit-2', epoch: 2, membershipRevision: 1, contentType: 'commit' as const,
+      envelope: new Uint8Array([12]), sequenceNo: 3,
+    }];
+    let failWelcomeOnce = true;
+    const consumeIds: string[] = [];
+    const api = {
+      getRoomEpoch: vi.fn(),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async (_roomId: string, _deviceId: string, after = 0) => (
+        controls.filter((control) => control.sequenceNo > after)
+      )),
+      consumeControlMessage: vi.fn(async (_roomId: string, messageId: string) => {
+        consumeIds.push(messageId);
+        if (messageId === 'welcome-1' && failWelcomeOnce) {
+          failWelcomeOnce = false;
+          throw new Error('temporary');
+        }
+      }),
+    };
+    const core = {
+      createGroup: vi.fn(),
+      addMember: vi.fn(),
+      encrypt: vi.fn(),
+      decrypt: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([4]),
+        new TextEncoder().encode(JSON.stringify({ version: 1, type: 'text', text: 'hello Bob' })),
+        epochBytes(2),
+      ])),
+      joinGroup: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([2]), epochBytes(1),
+      ])),
+      processCommit: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([3]), epochBytes(2),
+      ])),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      {} as never,
+      api,
+      core,
+    );
+
+    await expect(coordinator.syncControlMessages({
+      accountId: 'account-b', deviceLabel: 'ignored', roomId: 'room-a',
+    })).rejects.toThrow('temporary');
+    expect(storage.pending).not.toBeNull();
+
+    await coordinator.syncControlMessages({
+      accountId: 'account-b', deviceLabel: 'ignored', roomId: 'room-a',
+    });
+    const decrypted = await coordinator.decryptText({
+      accountId: 'account-b',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      ciphertext: new Uint8Array([82, 67, 77, 76]),
+    });
+
+    expect(core.joinGroup).toHaveBeenCalledOnce();
+    expect(core.processCommit).toHaveBeenCalledOnce();
+    expect(consumeIds).toEqual(['commit-1', 'welcome-1', 'commit-1', 'welcome-1', 'commit-2']);
+    expect(storage.profile?.lastControlSequences['room-a']).toBe(3);
+    expect(storage.profile?.lastCommitMessageIds['room-a']).toBe('commit-2');
+    expect(decrypted).toEqual({ text: 'hello Bob', epoch: 2 });
+    expect(Array.from(storage.state ?? [])).toEqual([4]);
+    expect(storage.pending).toBeNull();
   });
 });
 

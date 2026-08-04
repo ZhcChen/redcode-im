@@ -107,7 +107,7 @@ describe('e2eeMlsApiService', () => {
         return new Response('{"consumed":true}', { status: 200 });
       }
       return new Response(
-        '[{"id":"control-a","epoch":2,"content_type":"commit",'
+        '[{"id":"control-a","epoch":2,"membership_revision":1,"content_type":"commit",'
         + '"envelope":"UkNNTA==","sequence_no":7}]',
         { status: 200 },
       );

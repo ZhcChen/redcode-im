@@ -95,6 +95,7 @@ class E2eeControlMessage {
   const E2eeControlMessage({
     required this.id,
     required this.epoch,
+    required this.membershipRevision,
     required this.contentType,
     required this.envelope,
     required this.sequenceNo,
@@ -102,6 +103,7 @@ class E2eeControlMessage {
 
   final String id;
   final int epoch;
+  final int membershipRevision;
   final String contentType;
   final Uint8List envelope;
   final int sequenceNo;
@@ -175,23 +177,27 @@ class E2eeMlsApiService {
       throw const E2eeMlsApiException('E2EE 设备列表响应格式无效');
     }
     try {
-      return rows.map((row) {
-        if (row is! Map<String, dynamic>) throw const FormatException();
-        final id = row['id'];
-        final protocolVersion = row['protocol_version'];
-        final fingerprint = row['credential_fingerprint'];
-        if (id is! String ||
-            id.trim().isEmpty ||
-            protocolVersion != 1 ||
-            fingerprint is! String) {
-          throw const FormatException();
-        }
-        return E2eePeerDevice(
-          id: id,
-          protocolVersion: protocolVersion as int,
-          credentialFingerprint: Uint8List.fromList(base64Decode(fingerprint)),
-        );
-      }).toList(growable: false);
+      return rows
+          .map((row) {
+            if (row is! Map<String, dynamic>) throw const FormatException();
+            final id = row['id'];
+            final protocolVersion = row['protocol_version'];
+            final fingerprint = row['credential_fingerprint'];
+            if (id is! String ||
+                id.trim().isEmpty ||
+                protocolVersion != 1 ||
+                fingerprint is! String) {
+              throw const FormatException();
+            }
+            return E2eePeerDevice(
+              id: id,
+              protocolVersion: protocolVersion as int,
+              credentialFingerprint: Uint8List.fromList(
+                base64Decode(fingerprint),
+              ),
+            );
+          })
+          .toList(growable: false);
     } on Object {
       throw const E2eeMlsApiException('E2EE 设备列表响应格式无效');
     }
@@ -279,6 +285,7 @@ class E2eeMlsApiService {
           return E2eeControlMessage(
             id: row['id'] as String,
             epoch: row['epoch'] as int,
+            membershipRevision: row['membership_revision'] as int,
             contentType: row['content_type'] as String,
             envelope: Uint8List.fromList(
               base64Decode(row['envelope'] as String),

@@ -112,10 +112,7 @@ void main() {
     final service = E2eeMlsApiService(
       tokenStorage: tokenStorage,
       client: MockClient((request) async {
-        expect(
-          request.url.path,
-          '/e2ee/mls/identities/account-b/devices',
-        );
+        expect(request.url.path, '/e2ee/mls/identities/account-b/devices');
         return http.Response(
           '[{"id":"device-b","protocol_version":1,'
           '"credential_fingerprint":"${base64Encode(List.filled(32, 7))}"}]',
@@ -140,7 +137,7 @@ void main() {
           requests.add(request);
           if (request.method == 'GET') {
             return http.Response(
-              '[{"id":"control-a","epoch":2,"content_type":"commit",'
+              '[{"id":"control-a","epoch":2,"membership_revision":1,"content_type":"commit",'
               '"envelope":"UkNNTA==","sequence_no":7}]',
               200,
             );

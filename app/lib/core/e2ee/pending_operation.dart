@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 const _pendingOperationVersion = 1;
 
-enum E2eePendingOperationKind { bootstrap, application }
+enum E2eePendingOperationKind { bootstrap, application, inbound }
 
 class E2eePendingControl {
   const E2eePendingControl({
@@ -13,6 +13,7 @@ class E2eePendingControl {
     required this.contentType,
     required this.envelope,
     this.recipientDeviceId,
+    this.sequenceNo,
   });
 
   final String id;
@@ -21,6 +22,7 @@ class E2eePendingControl {
   final String contentType;
   final Uint8List envelope;
   final String? recipientDeviceId;
+  final int? sequenceNo;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -29,6 +31,7 @@ class E2eePendingControl {
     'content_type': contentType,
     'envelope': base64Encode(envelope),
     'recipient_device_id': recipientDeviceId,
+    'sequence_no': sequenceNo,
   };
 }
 
@@ -107,7 +110,10 @@ class E2eePendingOperation {
                   raw['content_type'] != 'welcome') ||
               raw['envelope'] is! String ||
               (raw['recipient_device_id'] != null &&
-                  raw['recipient_device_id'] is! String)) {
+                  raw['recipient_device_id'] is! String) ||
+              (raw['sequence_no'] != null &&
+                  (raw['sequence_no'] is! int ||
+                      (raw['sequence_no'] as int) <= 0))) {
             throw const FormatException('E2EE 待处理控制消息格式无效');
           }
           return E2eePendingControl(
@@ -117,6 +123,7 @@ class E2eePendingOperation {
             contentType: raw['content_type'] as String,
             envelope: base64Decode(raw['envelope'] as String),
             recipientDeviceId: raw['recipient_device_id'] as String?,
+            sequenceNo: raw['sequence_no'] as int?,
           );
         })
         .toList(growable: false);
@@ -153,7 +160,13 @@ class E2eePendingOperation {
                 ciphertext == null ||
                 ciphertext!.isEmpty ||
                 epoch == null ||
-                controlMessageId == null))) {
+                controlMessageId == null)) ||
+        (kind == E2eePendingOperationKind.inbound &&
+            (controls.isEmpty ||
+                controls.any((control) => control.sequenceNo == null) ||
+                ciphertext != null ||
+                epoch != null ||
+                controlMessageId != null))) {
       throw const FormatException('E2EE 待处理操作字段组合无效');
     }
   }

@@ -22,6 +22,7 @@ export interface E2eeRoomEpoch {
 export interface E2eeControlMessage {
   id: string;
   epoch: number;
+  membershipRevision: number;
   contentType: 'commit' | 'welcome';
   envelope: Uint8Array;
   sequenceNo: number;
@@ -197,6 +198,7 @@ export const e2eeMlsApiService = {
     return rows.map((row) => ({
       id: String(row.id),
       epoch: Number(row.epoch),
+      membershipRevision: Number(row.membership_revision),
       contentType: String(row.content_type) as 'commit' | 'welcome',
       envelope: base64ToBytes(String(row.envelope)),
       sequenceNo: Number(row.sequence_no),

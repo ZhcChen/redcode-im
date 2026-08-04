@@ -1,6 +1,6 @@
 const PENDING_OPERATION_VERSION = 1;
 
-export type E2eePendingOperationKind = 'bootstrap' | 'application';
+export type E2eePendingOperationKind = 'bootstrap' | 'application' | 'inbound';
 
 export interface E2eePendingControl {
   id: string;
@@ -9,6 +9,7 @@ export interface E2eePendingControl {
   contentType: 'commit' | 'welcome';
   envelope: Uint8Array;
   recipientDeviceId?: string;
+  sequenceNo?: number;
 }
 
 export interface E2eePendingOperation {
@@ -37,6 +38,7 @@ export const encodePendingOperation = (operation: E2eePendingOperation) => new T
     content_type: control.contentType,
     envelope: bytesToBase64(control.envelope),
     recipient_device_id: control.recipientDeviceId ?? null,
+    sequence_no: control.sequenceNo ?? null,
   })),
   ciphertext: operation.ciphertext ? bytesToBase64(operation.ciphertext) : null,
   epoch: operation.epoch ?? null,
@@ -46,7 +48,7 @@ export const encodePendingOperation = (operation: E2eePendingOperation) => new T
 export const decodePendingOperation = (value: Uint8Array): E2eePendingOperation => {
   const data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(value)) as Record<string, unknown>;
   if (data.version !== PENDING_OPERATION_VERSION
-    || (data.kind !== 'bootstrap' && data.kind !== 'application')
+    || (data.kind !== 'bootstrap' && data.kind !== 'application' && data.kind !== 'inbound')
     || typeof data.room_id !== 'string' || !data.room_id.trim()
     || typeof data.next_state !== 'string'
     || typeof data.sender_device_id !== 'string' || !data.sender_device_id.trim()
@@ -80,7 +82,8 @@ const parseControl = (value: unknown): E2eePendingControl => {
     || !Number.isSafeInteger(value.membership_revision) || Number(value.membership_revision) <= 0
     || (value.content_type !== 'commit' && value.content_type !== 'welcome')
     || typeof value.envelope !== 'string'
-    || (value.recipient_device_id != null && typeof value.recipient_device_id !== 'string')) {
+    || (value.recipient_device_id != null && typeof value.recipient_device_id !== 'string')
+    || (value.sequence_no != null && (!Number.isSafeInteger(value.sequence_no) || Number(value.sequence_no) <= 0))) {
     throw new Error('E2EE 待处理控制消息格式无效');
   }
   return {
@@ -90,13 +93,15 @@ const parseControl = (value: unknown): E2eePendingControl => {
     contentType: value.content_type,
     envelope: base64ToBytes(value.envelope),
     recipientDeviceId: value.recipient_device_id ?? undefined,
+    sequenceNo: value.sequence_no == null ? undefined : Number(value.sequence_no),
   };
 };
 
 const validateShape = (operation: E2eePendingOperation) => {
   if (!operation.nextState.length
     || (operation.kind === 'bootstrap' && (!operation.controls.length || operation.ciphertext || operation.epoch != null))
-    || (operation.kind === 'application' && (operation.controls.length || !operation.ciphertext?.length || operation.epoch == null || !operation.controlMessageId))) {
+    || (operation.kind === 'application' && (operation.controls.length || !operation.ciphertext?.length || operation.epoch == null || !operation.controlMessageId))
+    || (operation.kind === 'inbound' && (!operation.controls.length || operation.controls.some((item) => item.sequenceNo == null) || operation.ciphertext || operation.epoch != null || operation.controlMessageId))) {
     throw new Error('E2EE 待处理操作字段组合无效');
   }
 };

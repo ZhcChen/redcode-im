@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:app/core/e2ee/device_lifecycle.dart';
@@ -78,6 +79,118 @@ void main() {
       expect(restoredProfile!.lastCommitMessageIds['room-a'], 'commit-a');
     },
   );
+
+  test(
+    'restores welcome and later commits before acknowledging controls',
+    () async {
+      const core = RedcodeE2eeSession();
+      final sender = core.initialize('account-a/device-a');
+      final peer = core.initialize('account-b/device-b');
+      final charlie = core.initialize('account-c/device-c');
+      final created = core.createGroup(sender.field(0), 'room-a');
+      final peerAdded = core.addMember(
+        created.field(0),
+        'room-a',
+        peer.field(1),
+      );
+      final charlieAdded = core.addMember(
+        peerAdded.field(0),
+        'room-a',
+        charlie.field(1),
+      );
+      final storage = E2eeSecureStateStorage(
+        wrappingKeys: _MemoryWrappingKeys(),
+        encryptedStates: _MemoryEncryptedStates(),
+      );
+      const profile = E2eeDeviceProfile(
+        deviceId: 'device-b',
+        deviceLabel: 'Bob Android',
+        registered: true,
+        keyPackagePublished: true,
+      );
+      await storage.write('account-b', peer.field(0));
+      await storage.writeDeviceProfile('account-b', profile);
+      final api = _ReceiveApi([
+        E2eeControlMessage(
+          id: 'commit-1',
+          epoch: 1,
+          membershipRevision: 1,
+          contentType: 'commit',
+          envelope: peerAdded.field(1),
+          sequenceNo: 1,
+        ),
+        E2eeControlMessage(
+          id: 'welcome-1',
+          epoch: 1,
+          membershipRevision: 1,
+          contentType: 'welcome',
+          envelope: peerAdded.field(2),
+          sequenceNo: 2,
+        ),
+        E2eeControlMessage(
+          id: 'commit-2',
+          epoch: 2,
+          membershipRevision: 1,
+          contentType: 'commit',
+          envelope: charlieAdded.field(1),
+          sequenceNo: 3,
+        ),
+      ]);
+      final coordinator = E2eeDirectMessageCoordinator(
+        storage: storage,
+        lifecycle: _FakeLifecycle(
+          E2eeDeviceContext(profile: profile, state: peer.field(0)),
+        ),
+        api: api,
+        core: core,
+      );
+
+      await expectLater(
+        coordinator.syncControlMessages(
+          accountId: 'account-b',
+          deviceLabel: 'ignored',
+          roomId: 'room-a',
+        ),
+        throwsA(isA<E2eeMlsApiException>()),
+      );
+      expect(await storage.readPendingOperation('account-b'), isNotNull);
+
+      await coordinator.syncControlMessages(
+        accountId: 'account-b',
+        deviceLabel: 'ignored',
+        roomId: 'room-a',
+      );
+
+      final encrypted = core.encrypt(
+        charlieAdded.field(0),
+        'room-a',
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode({'version': 1, 'type': 'text', 'text': 'hello Bob'}),
+          ),
+        ),
+      );
+      final decrypted = await coordinator.decryptText(
+        accountId: 'account-b',
+        deviceLabel: 'ignored',
+        roomId: 'room-a',
+        ciphertext: encrypted.field(1),
+      );
+      expect(decrypted.text, 'hello Bob');
+      expect(decrypted.epoch, 2);
+      final restoredProfile = await storage.readDeviceProfile('account-b');
+      expect(restoredProfile!.lastControlSequences['room-a'], 3);
+      expect(restoredProfile.lastCommitMessageIds['room-a'], 'commit-2');
+      expect(api.consumeIds, [
+        'commit-1',
+        'welcome-1',
+        'commit-1',
+        'welcome-1',
+        'commit-2',
+      ]);
+      expect(await storage.readPendingOperation('account-b'), isNull);
+    },
+  );
 }
 
 class _FakeLifecycle extends E2eeDeviceLifecycle {
@@ -110,6 +223,21 @@ class _FakeApi extends E2eeMlsApiService {
   var activeEpoch = 0;
   var failWelcomeOnce = true;
   Uint8List sentCiphertext = Uint8List(0);
+
+  @override
+  Future<List<E2eeControlMessage>> listControlMessages({
+    required String roomId,
+    required String deviceId,
+    int afterSequence = 0,
+    int limit = 50,
+  }) async => const [];
+
+  @override
+  Future<void> consumeControlMessage({
+    required String roomId,
+    required String messageId,
+    required String deviceId,
+  }) async {}
 
   @override
   Future<E2eeRoomEpoch> getRoomEpoch(String roomId) async => E2eeRoomEpoch(
@@ -175,6 +303,37 @@ class _FakeApi extends E2eeMlsApiService {
     return {
       'message': {'id': 'server-message'},
     };
+  }
+}
+
+class _ReceiveApi extends E2eeMlsApiService {
+  _ReceiveApi(this.messages);
+  final List<E2eeControlMessage> messages;
+  final consumeIds = <String>[];
+  var failSecondConsumeOnce = true;
+
+  @override
+  Future<List<E2eeControlMessage>> listControlMessages({
+    required String roomId,
+    required String deviceId,
+    int afterSequence = 0,
+    int limit = 50,
+  }) async => messages
+      .where((message) => message.sequenceNo > afterSequence)
+      .take(limit)
+      .toList(growable: false);
+
+  @override
+  Future<void> consumeControlMessage({
+    required String roomId,
+    required String messageId,
+    required String deviceId,
+  }) async {
+    consumeIds.add(messageId);
+    if (messageId == 'welcome-1' && failSecondConsumeOnce) {
+      failSecondConsumeOnce = false;
+      throw const E2eeMlsApiException('temporary');
+    }
   }
 }
 
