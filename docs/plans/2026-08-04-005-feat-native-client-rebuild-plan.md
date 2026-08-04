@@ -27,8 +27,9 @@ status: active
   失败且无法快速修复、或恢复过程中发现需要变更 API 合同 / WS 协议 / 共享核心
   契约时，停止对应单元并转入子计划，不在本计划内临时发明协议。
 - **尾部归属：** 原生端功能迁移（聊天、联系人、群治理、E2EE 接入等）、
-  `e2ee-core` JNI / xcframework 绑定、`ws.proto` 生成 Kotlin/Swift、双端发布
-  链路均不在本轮范围，由后续专项计划承接。
+  `e2ee-core` JNI / xcframework 绑定（必做项，且必须在服务端 E2EE active
+  前完成）、`ws.proto` 生成 Kotlin/Swift（生成细节随 Android/iOS 实际工程
+  方案在后续专项落地）、双端发布链路均不在本轮范围，由后续专项计划承接。
 
 ---
 
@@ -56,6 +57,18 @@ status: active
 
 - **跨端策略：** 不共享 UI、不引入 KMP；共享 API 契约（2.0）、`ws.proto`、
   `e2ee-core` 与视觉规范（`im-ui-html/`）。
+
+### 决策 6：共享加密核心接入约束（必做项）
+
+- `e2ee-core` 是 IM 2.0 端到端加密的唯一协议核心，原生双端是正式客户端，
+  **必须接入**，不存在“是否引入”的取舍。
+- 接入形态已定：Android 编译 `.so` 经 JNI 调用，iOS 编译 `.xcframework`
+  经 Swift 调用；同一 Rust 核心，只换绑定层。
+- 时间约束：服务端 E2EE 切 `active` 后，不支持 E2EE 的客户端发送会被拒绝
+  （U10 R13）；因此原生端接入必须**在服务端 E2EE active 之前**完成，接入
+  计划以 U10 门禁时间线为准，本轮重建只保留接口预留，不实现接入。
+- `ws.proto` 生成方案不提前决策：protoc 生成 Kotlin/Swift 是方向，具体工具链、
+  产物提交策略随 Android/iOS 实际工程方案在后续原生功能专项中落地。
 
 ### 决策 3：JDK 选型
 
@@ -127,7 +140,7 @@ status: active
 
 - 本轮不实现原生端功能迁移（聊天、联系人、群治理、E2EE 接入、扫一扫等）。
 - 本轮不接入 `e2ee-core` JNI / xcframework，不引入 `ws.proto` protobuf 生成；
-  两者作为后续原生功能计划的输入。
+  两者作为后续原生功能计划的输入（e2ee-core 为必做约束，见决策 6）。
 - 不引入 KMP，不共享跨端 UI 代码。
 - 不删除 `h5-app/`；`desktop/` 继续仅作为历史实现参考。
 - 不重写历史 review / report 文档；只在活跃计划与入口文档中修正指向。
