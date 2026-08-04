@@ -163,6 +163,7 @@ flowchart LR
 
 - **Goal:** 先把现有 E2EE 文档深化为可执行专项计划并完成 Go/No-Go，再实现后台开关、服务端强制和客户端密钥生命周期，禁止失败后静默降级明文。
 - **Source plan:** `docs/plans/2026-07-31-003-feat-api-ui-capability-parity-plan.md`。
+- **Execution plan:** `docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md`。
 - **Planning gate:** 在正式实现前更新专项计划，明确协议库及许可证、key API、数据库模型、设备身份与撤销、最低客户端版本、灰度/回滚、Push/搜索/举报降级和跨端互操作方案；未形成 Go 结论时停止 R3 实现。
 - **Files:** 深化后的专项计划为唯一实现依据，主要涉及 `api/src/`、`admin/src/`、`app/lib/`、`h5-app/src/` 和安全文档。
 - **Tests:** API 模式裁决、密钥和设备测试；Flutter/H5 单聊与群聊互操作；数据库、Push 和日志明文泄漏检查；安全审查。
