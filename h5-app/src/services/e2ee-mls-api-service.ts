@@ -1,0 +1,207 @@
+import { requestJson, withQuery } from '@/api/http';
+import { E2eeCommandError, type E2eeCommandResult } from '@/e2ee/session';
+
+import { requireToken } from './session';
+
+export interface E2eeDeviceRegistrationMaterial {
+  state: Uint8Array;
+  keyPackage: Uint8Array;
+  rootPublicKey: Uint8Array;
+  rootFingerprint: Uint8Array;
+  credential: Uint8Array;
+  credentialFingerprint: Uint8Array;
+  approvalPublicKey: Uint8Array;
+}
+
+export interface E2eeRoomEpoch {
+  membershipRevision: number;
+  activeEpoch: number;
+  status: string;
+}
+
+export interface E2eeControlMessage {
+  id: string;
+  epoch: number;
+  contentType: 'commit' | 'welcome';
+  envelope: Uint8Array;
+  sequenceNo: number;
+}
+
+export const registrationMaterialFromCommand = (
+  result: E2eeCommandResult,
+): E2eeDeviceRegistrationMaterial => {
+  if (result.fields.length !== 7) throw new E2eeCommandError('E2EE 初始化响应字段数量无效');
+  return {
+    state: result.field(0),
+    keyPackage: result.field(1),
+    rootPublicKey: result.field(2),
+    rootFingerprint: result.field(3),
+    credential: result.field(4),
+    credentialFingerprint: result.field(5),
+    approvalPublicKey: result.field(6),
+  };
+};
+
+export const e2eeMlsApiService = {
+  registerDevice(
+    deviceId: string,
+    deviceLabel: string,
+    material: E2eeDeviceRegistrationMaterial,
+  ) {
+    return requestJson<Record<string, unknown>>('/e2ee/mls/devices', {
+      method: 'POST',
+      body: JSON.stringify({
+        device_id: deviceId,
+        device_label: deviceLabel,
+        root_public_key: bytesToBase64(material.rootPublicKey),
+        root_fingerprint: bytesToBase64(material.rootFingerprint),
+        credential: bytesToBase64(material.credential),
+        credential_fingerprint: bytesToBase64(material.credentialFingerprint),
+        approval_public_key: bytesToBase64(material.approvalPublicKey),
+        protocol_version: 1,
+      }),
+    }, requireToken());
+  },
+
+  async publishKeyPackage(
+    deviceId: string,
+    keyPackage: Uint8Array,
+    expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    cryptoProvider: Crypto = globalThis.crypto,
+  ) {
+    if (!cryptoProvider?.subtle) throw new Error('WebCrypto 不可用');
+    const packageRef = new Uint8Array(
+      await cryptoProvider.subtle.digest('SHA-256', toArrayBuffer(keyPackage)),
+    );
+    return requestJson<{ inserted: number }>(`/e2ee/mls/devices/${deviceId}/key-packages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        packages: [{
+          id: cryptoProvider.randomUUID(),
+          package_ref: bytesToBase64(packageRef),
+          key_package: bytesToBase64(keyPackage),
+          protocol_version: 1,
+          expires_at: expiresAt.toISOString(),
+        }],
+      }),
+    }, requireToken());
+  },
+
+  async claimKeyPackage(roomId: string, consumerDeviceId: string, targetDeviceId: string) {
+    const response = await requestJson<Record<string, unknown>>(
+      `/e2ee/mls/devices/${targetDeviceId}/key-packages/claim`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ room_id: roomId, consumer_device_id: consumerDeviceId }),
+      },
+      requireToken(),
+    );
+    return {
+      id: String(response.id),
+      deviceId: String(response.device_id),
+      keyPackage: base64ToBytes(String(response.key_package)),
+    };
+  },
+
+  async getRoomEpoch(roomId: string): Promise<E2eeRoomEpoch> {
+    const response = await requestJson<Record<string, unknown>>(
+      `/rooms/${roomId}/e2ee/epoch`,
+      {},
+      requireToken(),
+    );
+    return {
+      membershipRevision: Number(response.membership_revision),
+      activeEpoch: Number(response.active_epoch),
+      status: String(response.status),
+    };
+  },
+
+  submitControlMessage(input: {
+    roomId: string;
+    messageId: string;
+    epoch: number;
+    membershipRevision: number;
+    senderDeviceId: string;
+    contentType: 'commit' | 'welcome';
+    envelope: Uint8Array;
+    recipientDeviceId?: string;
+    idempotencyKey?: string;
+  }) {
+    return requestJson<Record<string, unknown>>(`/rooms/${input.roomId}/e2ee/control-messages`, {
+      method: 'POST',
+      body: JSON.stringify({
+        id: input.messageId,
+        epoch: input.epoch,
+        membership_revision: input.membershipRevision,
+        sender_device_id: input.senderDeviceId,
+        recipient_device_id: input.recipientDeviceId ?? null,
+        content_type: input.contentType,
+        envelope: bytesToBase64(input.envelope),
+        idempotency_key: input.idempotencyKey ?? input.messageId,
+      }),
+    }, requireToken());
+  },
+
+  async listControlMessages(
+    roomId: string,
+    deviceId: string,
+    afterSequence = 0,
+    limit = 50,
+  ): Promise<E2eeControlMessage[]> {
+    const rows = await requestJson<Record<string, unknown>[]>(withQuery(
+      `/rooms/${roomId}/e2ee/control-messages`,
+      { device_id: deviceId, after_sequence: afterSequence, limit },
+    ), {}, requireToken());
+    return rows.map((row) => ({
+      id: String(row.id),
+      epoch: Number(row.epoch),
+      contentType: String(row.content_type) as 'commit' | 'welcome',
+      envelope: base64ToBytes(String(row.envelope)),
+      sequenceNo: Number(row.sequence_no),
+    }));
+  },
+
+  async consumeControlMessage(roomId: string, messageId: string, deviceId: string) {
+    await requestJson(`/rooms/${roomId}/e2ee/control-messages/${messageId}/consume`, {
+      method: 'POST',
+      body: JSON.stringify({ device_id: deviceId }),
+    }, requireToken());
+  },
+
+  sendEncryptedMessage(input: {
+    roomId: string;
+    senderDeviceId: string;
+    epoch: number;
+    ciphertext: Uint8Array;
+    idempotencyKey: string;
+    controlMessageId?: string;
+  }) {
+    return requestJson<Record<string, unknown>>(`/rooms/${input.roomId}/messages/encrypted`, {
+      method: 'POST',
+      body: JSON.stringify({
+        encrypted_content: bytesToBase64(input.ciphertext),
+        encryption_metadata: {
+          protocol: 'mls',
+          version: 1,
+          epoch: input.epoch,
+          sender_device_id: input.senderDeviceId,
+          content_type: 'application',
+          control_message_id: input.controlMessageId ?? null,
+        },
+        idempotency_key: input.idempotencyKey,
+      }),
+    }, requireToken());
+  },
+};
+
+const bytesToBase64 = (value: Uint8Array) => {
+  let binary = '';
+  for (const byte of value) binary += String.fromCharCode(byte);
+  return btoa(binary);
+};
+
+const base64ToBytes = (value: string) => Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+const toArrayBuffer = (value: Uint8Array) => value.buffer.slice(
+  value.byteOffset,
+  value.byteOffset + value.byteLength,
+) as ArrayBuffer;

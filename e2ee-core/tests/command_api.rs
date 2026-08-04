@@ -41,6 +41,22 @@ fn command_api_fails_closed_for_malformed_input() {
 }
 
 #[test]
+fn initialization_returns_stable_registration_material() {
+    let first = command(1, &[b"alice-device-1"]);
+    assert_eq!(first.len(), 7);
+    assert_eq!(first[2].len(), 32);
+    assert_eq!(first[3].len(), 32);
+    assert_eq!(first[5].len(), 32);
+    assert_eq!(first[6].len(), 32);
+
+    let second = command(1, &[b"alice-device-2", &first[2]]);
+    assert_eq!(second[2], first[2]);
+    assert_eq!(second[3], first[3]);
+    assert_ne!(second[5], first[5]);
+    assert_ne!(second[6], first[6]);
+}
+
+#[test]
 fn generated_key_package_remains_joinable_after_state_restore() {
     let alice = command(1, &[b"alice-device-1"]);
     let bob = command(1, &[b"bob-device-1"]);

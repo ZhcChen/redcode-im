@@ -2,6 +2,7 @@ use openmls::prelude::tls_codec::{Deserialize, Serialize};
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_traits::OpenMlsProvider;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{Envelope, EnvelopeKind, ProtocolProvider, StateError};
@@ -9,11 +10,22 @@ use crate::{Envelope, EnvelopeKind, ProtocolProvider, StateError};
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 const IDENTITY_KEY: &[u8] = b"redcode/session/identity/v1";
 const SIGNATURE_PUBLIC_KEY: &[u8] = b"redcode/session/signature-public/v1";
+const ROOT_PUBLIC_KEY: &[u8] = b"redcode/session/root-public/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MlsBootstrap {
     pub key_package: Vec<u8>,
     pub state: Vec<u8>,
+    pub public_material: MlsPublicMaterial,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MlsPublicMaterial {
+    pub root_public_key: Vec<u8>,
+    pub root_fingerprint: Vec<u8>,
+    pub credential: Vec<u8>,
+    pub credential_fingerprint: Vec<u8>,
+    pub approval_public_key: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +50,13 @@ pub struct MlsSession {
 
 impl MlsSession {
     pub fn initialize(identity: &[u8]) -> Result<MlsBootstrap, MlsSessionError> {
+        Self::initialize_with_root(identity, None)
+    }
+
+    pub fn initialize_with_root(
+        identity: &[u8],
+        root_public_key: Option<&[u8]>,
+    ) -> Result<MlsBootstrap, MlsSessionError> {
         if identity.is_empty() || identity.len() > u16::MAX as usize {
             return Err(MlsSessionError::InvalidIdentity);
         }
@@ -47,6 +66,12 @@ impl MlsSession {
         signer
             .store(provider.storage())
             .map_err(operation("store signature key"))?;
+        let root_public_key = root_public_key
+            .map(ToOwned::to_owned)
+            .unwrap_or_else(|| signer.to_public_vec());
+        if root_public_key.len() != 32 {
+            return Err(MlsSessionError::InvalidRootPublicKey);
+        }
         {
             let mut values = provider
                 .storage
@@ -55,12 +80,14 @@ impl MlsSession {
                 .map_err(|_| MlsSessionError::StorageLockPoisoned)?;
             values.insert(IDENTITY_KEY.to_vec(), identity.to_vec());
             values.insert(SIGNATURE_PUBLIC_KEY.to_vec(), signer.to_public_vec());
+            values.insert(ROOT_PUBLIC_KEY.to_vec(), root_public_key);
         }
         let session = Self { provider };
         let key_package = session.generate_key_package()?;
         Ok(MlsBootstrap {
             key_package,
             state: session.export_state()?,
+            public_material: session.public_material()?,
         })
     }
 
@@ -85,6 +112,36 @@ impl MlsSession {
             .key_package()
             .tls_serialize_detached()
             .map_err(operation("serialize key package"))
+    }
+
+    pub fn public_material(&self) -> Result<MlsPublicMaterial, MlsSessionError> {
+        let values = self
+            .provider
+            .storage
+            .values
+            .read()
+            .map_err(|_| MlsSessionError::StorageLockPoisoned)?;
+        let identity = values
+            .get(IDENTITY_KEY)
+            .ok_or(MlsSessionError::NotInitialized)?;
+        let signature_public = values
+            .get(SIGNATURE_PUBLIC_KEY)
+            .ok_or(MlsSessionError::NotInitialized)?;
+        let root_public_key = values
+            .get(ROOT_PUBLIC_KEY)
+            .ok_or(MlsSessionError::NotInitialized)?
+            .clone();
+        let mut credential = Vec::with_capacity(identity.len() + 1 + signature_public.len());
+        credential.extend_from_slice(identity);
+        credential.push(0);
+        credential.extend_from_slice(signature_public);
+        Ok(MlsPublicMaterial {
+            root_fingerprint: Sha256::digest(&root_public_key).to_vec(),
+            credential_fingerprint: Sha256::digest(&credential).to_vec(),
+            approval_public_key: signature_public.clone(),
+            root_public_key,
+            credential,
+        })
     }
 
     pub fn create_group(&mut self, group_id: &[u8]) -> Result<Vec<u8>, MlsSessionError> {
@@ -280,6 +337,8 @@ pub enum MlsSessionError {
     InvalidIdentity,
     #[error("invalid group id")]
     InvalidGroupId,
+    #[error("invalid account root public key")]
+    InvalidRootPublicKey,
     #[error("empty application plaintext")]
     EmptyPlaintext,
     #[error("MLS session is not initialized")]

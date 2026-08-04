@@ -5,7 +5,9 @@ use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
 
 mod session;
-pub use session::{MlsApplication, MlsBootstrap, MlsMemberAdd, MlsSession, MlsSessionError};
+pub use session::{
+    MlsApplication, MlsBootstrap, MlsMemberAdd, MlsPublicMaterial, MlsSession, MlsSessionError,
+};
 
 mod command;
 pub use command::execute_command;

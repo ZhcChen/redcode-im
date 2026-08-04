@@ -26,9 +26,21 @@ fn execute(request: &[u8]) -> Result<Vec<Vec<u8>>, String> {
     let (operation, fields) = decode_request(request)?;
     match operation {
         INITIALIZE => {
-            require_fields(&fields, 1)?;
-            let bootstrap = MlsSession::initialize(&fields[0]).map_err(display)?;
-            Ok(vec![bootstrap.state, bootstrap.key_package])
+            if !(1..=2).contains(&fields.len()) {
+                return Err("invalid E2EE command field count".to_string());
+            }
+            let bootstrap =
+                MlsSession::initialize_with_root(&fields[0], fields.get(1).map(Vec::as_slice))
+                    .map_err(display)?;
+            Ok(vec![
+                bootstrap.state,
+                bootstrap.key_package,
+                bootstrap.public_material.root_public_key,
+                bootstrap.public_material.root_fingerprint,
+                bootstrap.public_material.credential,
+                bootstrap.public_material.credential_fingerprint,
+                bootstrap.public_material.approval_public_key,
+            ])
         }
         GENERATE_KEY_PACKAGE => {
             require_fields(&fields, 1)?;

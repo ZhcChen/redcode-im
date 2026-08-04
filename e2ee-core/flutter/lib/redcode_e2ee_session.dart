@@ -72,8 +72,13 @@ class RedcodeE2eeSession {
     return decodeResponse(_core.executeCommand(request.takeBytes()));
   }
 
-  E2eeCommandResult initialize(String deviceIdentity) =>
-      execute(E2eeCommandOperation.initialize, [utf8.encode(deviceIdentity)]);
+  E2eeCommandResult initialize(
+    String deviceIdentity, {
+    List<int>? rootPublicKey,
+  }) => execute(E2eeCommandOperation.initialize, [
+    utf8.encode(deviceIdentity),
+    if (rootPublicKey != null) rootPublicKey,
+  ]);
 
   E2eeCommandResult createGroup(List<int> state, String roomId) =>
       execute(E2eeCommandOperation.createGroup, [state, utf8.encode(roomId)]);
