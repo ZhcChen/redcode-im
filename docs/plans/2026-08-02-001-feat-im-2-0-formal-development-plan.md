@@ -20,7 +20,7 @@ status: active
 - **首个里程碑：** Flutter 移动端 P0，覆盖登录、四 Tab App Shell、会话、聊天、搜索、联系人、群治理、我的和设置，并默认使用本机 iOS Simulator 完成真实 API 验收。
 - **执行策略：** 按纵向业务闭环迁移，不推倒重写服务层，不长期维护两套业务状态，不在首个里程碑并行展开 H5、P1 和桌面实现。
 - **停止条件：** 发现设计能力缺少 API 契约、需要修改消息加密协议、需要新增数据库模型或平台插件不支持目标平台时，停止对应单元并转入其已有专项计划或新建子计划，不在 UI 单元中临时发明协议。
-- **尾部归属：** Flutter 移动 P0 完成后依次进入 H5 P0、E2EE 发布门禁、P1 能力、Flutter 桌面和发布切换；`ios-app/`、`android-app/`、`desktop/` 只保留为迁移期行为参考和回归对照。
+- **尾部归属：** Flutter 移动 P0 完成后依次进入 H5 P0、E2EE 发布门禁、P1 能力、Flutter 桌面和发布切换；`ios-app/`、`android-app/` 已移除（2026-08-04），`desktop/` 仅保留为历史实现参考。
 
 ---
 
@@ -63,7 +63,7 @@ RedCode IM 2.0 已完成 HTML 设计源冻结，当前开发任务从“继续�
 
 **设计与架构**
 
-- R1. `im-ui-html/docs/design-tokens.md`、`component-inventory.md`、`page-map.md` 和 `platform-handoff.md` 是 2.0 UI 实现基线；正式端不得从 `ios-app/`、`android-app/` 或 `desktop/` 反向覆盖已冻结设计。
+- R1. `im-ui-html/docs/design-tokens.md`、`component-inventory.md`、`page-map.md` 和 `platform-handoff.md` 是 2.0 UI 实现基线；正式端不得从 `desktop/` 反向覆盖已冻结设计（`ios-app/`、`android-app/` 已于 2026-08-04 移除）。
 - R2. `app/` 必须保留单 Flutter 工程，移动端和桌面端通过 shell、布局和平台能力适配共享业务层，不拆成两个业务工程。
 - R3. 2.0 UI 基础能力先落在 `app/lib/core/theme/`、`app/lib/core/widgets/` 和 shell 目录；只有出现稳定的第二个 Dart 消费者时才评估抽取 `packages/im_ui_kit/`。
 - R4. 页面迁移必须复用现有 service、storage、model、WebSocket 和 API contract，不允许为了 UI 重构复制第二套网络层或持久化层。
@@ -110,7 +110,7 @@ RedCode IM 2.0 已完成 HTML 设计源冻结，当前开发任务从“继续�
 - 不继续重设计已冻结的 `im-ui-html/` 页面；只允许修复有运行证据的设计缺陷并同步冻结文档与回归。
 - 不恢复 SMS 登录、短信重置密码、Google/Apple 登录作为 2.0 首发客户端能力。
 - 不在本计划内创建 Win7 Flutter 工程。
-- 不把 `ios-app/`、`android-app/` 或 `desktop/` 继续开发成并行正式主线。
+- 不把 `desktop/` 继续开发成并行正式主线；`ios-app/`、`android-app/` 已于 2026-08-04 移除。
 - 不在 UI 重构中自行设计密码协议、媒体传输协议或新的消息格式。
 
 ### Dependencies
@@ -332,7 +332,7 @@ app/lib/
 - **Files:** 修改 `.github/workflows/release-artifacts.yml`、`app/scripts/`、根 `Makefile`、`docs/reference/operations/github-actions-build.md`、版本和升级文档；必要时调整 `website/` 下载映射。
 - **Approach:** 先让各平台 check/build 独立通过，再组成发布门禁；产物包含平台、架构、版本和校验；iOS 签名与未签名产物明确分离；旧模块在真实使用迁移完成前不直接删除。
 - **Test Scenarios:** 手工 dispatch；`v2.0.0` tag；Android APK/AAB；iOS unsigned/signed 边界；Windows/macOS/Linux 产物；失败平台阻断发布；版本 API 与官网下载；1.x 升级和缓存迁移；回滚到上一稳定版本。
-- **Verification:** CI 全矩阵通过，发布说明和 checksum 完整，测试环境完成升级/回滚演练；`ios-app/`、`android-app/`、`desktop/` 的保留或归档进入独立清理计划。
+- **Verification:** CI 全矩阵通过，发布说明和 checksum 完整，测试环境完成升级/回滚演练；`desktop/` 的保留或归档进入独立清理计划（`ios-app/`、`android-app/` 已移除）。
 
 ---
 

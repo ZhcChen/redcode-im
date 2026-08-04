@@ -11,7 +11,6 @@
 - **数据库**: 禁止修改已有迁移文件；新增变更使用 `YYYYMMDDHHMMSS_desc.sql`；禁用 PostgreSQL 枚举。
 - **测试**: 核心逻辑修改后必须运行测试（API 使用 `make api.test`，由 Docker Compose 在容器内执行 Rust 测试；移动端 `flutter test`；全栈回归入口见 `docs/reference/testing/README.md`）。
 - **App 设备验收顺序**: Flutter `app/` 模块默认使用本机 iOS Simulator 进行 smoke、integration 与联调验证；除非用户明确指定其他设备。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
-- **iOS 原生 App 验收设备**: `ios-app` 模块默认使用本机 iOS Simulator 进行开发、smoke、UI test 与 H5/API 联调验收。只有 APNs、相机、麦克风、后台通知、签名发布等 Simulator 无法完整验证的能力，才单独安排 iPhone 真机验证。
 - **App 真机测试网络**: 每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/reviews/`、`docs/solutions/`、`docs/prompts/`、`docs/reference/`、`docs/reports/`）。

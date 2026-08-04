@@ -107,7 +107,7 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 
 ### Scope Boundaries
 
-- 只覆盖 Flutter `app/`、H5 `h5-app/`、API 和 Admin；`ios-app/`、`android-app/`、`desktop/` 不在本轮正式 E2EE 客户端范围。
+- 只覆盖 Flutter `app/`、H5 `h5-app/`、API 和 Admin；`ios-app/`、`android-app/` 已移除（2026-08-04），`desktop/` 不在本轮正式 E2EE 客户端范围。
 - 不自制 X3DH、Double Ratchet、Sender Keys 或替换 OpenMLS。
 - 不承诺 H5 抵抗已攻陷 Origin、恶意扩展或运行时 XSS；H5 安全声明继续采用上游计划的受限 Web 威胁模型。
 - 不在本计划内实现服务端可搜索密文、密钥托管或管理员解密。

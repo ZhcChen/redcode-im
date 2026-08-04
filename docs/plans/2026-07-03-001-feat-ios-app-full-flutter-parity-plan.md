@@ -1,7 +1,8 @@
 ---
 title: "feat: Migrate full Flutter app functionality to native iOS"
 type: feat
-status: completed
+status: archived
+archived_reason: 原生 ios-app 模块已于 2026-08-04 移除
 date: 2026-07-03
 origin: docs/plans/2026-07-02-002-feat-ios-app-native-migration-plan.md
 deepened: 2026-07-03

@@ -1,8 +1,8 @@
 ---
 title: "feat: Migrate Flutter app functionality to native Android"
 type: feat
-status: superseded
-superseded_by: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
+status: archived
+archived_reason: 原生 android-app 模块已于 2026-08-04 移除
 date: 2026-07-04
 ---
 

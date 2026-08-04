@@ -1,3 +1,8 @@
+---
+status: archived
+archived_reason: 原生 ios-app 模块已于 2026-08-04 移除
+---
+
 # ios-app 剩余 Flutter parity 结构化执行清单
 
 本文档把 `ios-app/docs/full-migration-task-tree.md` 中未完成项目整理为执行顺序清单。原则是先补齐可测试的数据/API/缓存底座，再补 UI，再做 H5/API/iOS 联调，最后做媒体、通知和切换验收。

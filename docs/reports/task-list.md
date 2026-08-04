@@ -1,26 +1,22 @@
 # RedCode IM 剩余任务清单
 
-更新时间：2026-08-03
+更新时间：2026-08-04
 
 本文档是当前仓库剩余任务的唯一 active 总入口。IM 2.0 的产品合同以
-`docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md` 为准，当前执行
-顺序、验收标准和停止条件以
-`docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md` 为准。更早的剩余
-任务分解仅作历史追踪，不再决定当前优先级。
+`docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md` 为准，执行顺序、
+验收标准和停止条件以该计划的执行状态总账为准（`2026-08-03-001` 已并入并标记
+superseded）。更早的剩余任务分解仅作历史追踪，不再决定当前优先级。
 
 ## 入口文档
 
 - 剩余任务完整执行分解：`docs/reports/remaining-task-breakdown-2026-07-05.md`
 - IM 2.0 正式开发总计划：`docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md`
-- IM 2.0 剩余工作计划：`docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
-- Android 原生迁移执行清单：`android-app/docs/remaining-migration-tasks.md`
-- Android 全量迁移任务树：`android-app/docs/full-migration-task-tree.md`
-- iOS 原生 parity 收口报告：`docs/reports/2026-07-04-ios-app-parity-cutover-readiness.md`
-- iOS 剩余补验清单：`docs/plans/2026-07-04-001-ios-app-remaining-parity-execution-list.md`
 - H5 Flutter parity 计划：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
 - 测试入口：`docs/reference/testing/README.md`
+- 原生模块（`android-app` / `ios-app`）已于 2026-08-04 移除；相关计划与报告
+  标记 archived，代码保留在 git 历史。
 
 ## 当前结论
 
@@ -29,14 +25,12 @@
 - 当前下一阶段：U8 关闭后执行 H5 差异审计，并把 E2EE 专项计划深化到 Go/No-Go。
 - 当前发布阻断项：U8、H5 P0、E2EE、多平台桌面构建、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
-- `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收，现作为原生恢复时的归档基线。
+- `ANDROID-P1-01 聊天扩展` 已完成实现和本地验收；随 android-app 模块移除归档。
 - `h5-app` 已具备聊天、搜索、联系人 store、群设置和设置页面等基础能力，但尚未按 Flutter 2.0 P0 完成页面、状态、API 和跨端互操作差异审计。
-- `ios-app` 主链路已完成；仅保留 iPhone 真机/APNs 补验。
-- `android-app` 已完成 P0 媒体切片和聊天扩展；剩余集中在设置账号配置、通知
-  mock、底座协议和最终切换准备。
 - Flutter `app/` 保留并继续维护，当前作为第一个版本正式移动端主线，按已闭合
   API 合同作为发布、回滚和行为对照基线。
-- Android / iOS 原生开发暂时暂停；不删除代码和文档，后续用户重新激活时再恢复。
+- Android / iOS 原生模块已于 2026-08-04 移除；代码保留在 git 历史，相关计划
+  标记 archived。
 - Google / Apple 登录不进入当前主线；默认普通账号密码注册/登录。
 - 邮箱注册/登录只作为后台配置能力保留；当前自动化不依赖真实邮箱资源或邮箱
   验证码二次验证。
@@ -86,6 +80,7 @@
   - 已串联 H5 live smoke、Android live smoke 与 Android 本地能力定向测试。
   - 已覆盖认证、联系人、好友、建群、文本、富媒体、头像缓存、权限恢复状态机和
     语音播放状态机。
+  - 随 android-app 模块移除归档（2026-08-04）。
 - [x] `ANDROID-P1-01` 聊天扩展
   - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
   - 已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
@@ -104,46 +99,12 @@
 
 以上是 1.x/既有 parity 基线，不代表已满足 Flutter 2.0 P0。当前剩余项统一由 `IM2-U9` 管理。
 
-## Android 剩余任务
+## Android / iOS 原生模块
 
-状态：暂时暂停；保留任务清单，不进入当前首版执行队列。
-
-- [x] `ANDROID-P1-01` 聊天扩展
-  - 内置 emoji、表情包列表、表情资源缓存、贴纸发送、聊天背景、聊天设置。
-  - 已通过 unit/connected/lint/build/Pixel 8 Pro smoke/live/interop/coverage 验证。
-- [ ] `ANDROID-P1-02` 设置、账号和配置
-  - 个人资料、昵称更新、头像上传入口、账号安全、修改密码、协议文档、关于、
-    反馈、配置、版本检查。
-- [ ] `ANDROID-P1-03` 全量对照和覆盖率提升
-  - Flutter vs Android 对照、缺口清单、覆盖率提升、下线条件和回滚策略。
-- [ ] `ANDROID-P2-01` 通知和 Push 的 Emulator/mock 可测部分
-  - 通知权限、本地通知、通知导航、FCM token mock、登出通知态清理。
-- [ ] `ANDROID-P2-02` HTTP client 与统一错误模型
-  - 错误码分类、重试建议、用户可读错误映射。
-- [ ] `ANDROID-P2-03` WebSocket protobuf 二进制帧
-  - 保留 JSON fallback，补 protobuf 解码、去重和订阅恢复测试。
-- [ ] `ANDROID-P2-04` DataStore、live smoke 分层和清理
-  - 聊天/通知/外观偏好、live 子集、登出清理文件 cache/通知态/DataStore。
-
-## iOS 剩余任务
-
-状态：暂时暂停；保留真机/APNs 补验入口，不进入当前首版执行队列。
-
-当前无阻塞 H5/API/iOS 主链路的 P0/P1 功能缺口。
-
-待补验：
-- [ ] iPhone 真机签名、安装和启动。
-- [ ] APNs token 获取。
-- [ ] Apple APNs 真实离线系统通知。
-- [ ] 系统通知点击唤醒。
-- [ ] 冷启动通知深链。
-
-恢复入口：
-
-```bash
-IOS_APNS_PROVIDER_CONFIGURED=1 make ios-app.apns.preflight.local
-IOS_APNS_PROVIDER_CONFIGURED=1 IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID> make ios-app.smoke.device.local
-```
+状态：已移除（2026-08-04）。`android-app` / `ios-app` 模块及其任务队列不再
+维护，真机/APNs 补验入口随模块移除；相关执行计划（2026-07-02-002、
+2026-07-03-001、2026-07-04-001、2026-07-04-002）标记 archived，代码保留在
+git 历史。APNs / FCM 能力由 Flutter `app/` 的 Push 链路覆盖。
 
 ## API / 架构剩余任务
 
@@ -194,19 +155,14 @@ iOS 真机待补验见上方 iOS 剩余任务。
   - `make h5-app.test.unit`
   - `make h5-app.test.live`
   - `make h5-app.test.e2e`
-  - `make android-app.test.interop`（原生恢复专项，不属于 Flutter 首版门禁）
-  - `make ios-app.test.interop`（原生恢复专项，不属于 Flutter 首版门禁）
   - `cd admin && bun run type:check`
   - `cd desktop && bun run test`
   - `cd website && bun run test`
-- [ ] `RELEASE-P3-02` 原生切换条件
-  - Flutter `app/` 不移除。
-  - 首版发布以 Flutter `app/` 为准，Android/iOS 原生切换条件暂不作为当前版本门禁。
-  - Android 原生 P0/P1 完成、interop 通过、真机必要项补验或明确豁免。
-  - iOS 原生主链路已完成；正式上架如要求 APNs/真机则恢复补验。
+- [x] `RELEASE-P3-02` 原生切换条件
+  - Android/iOS 原生模块已于 2026-08-04 移除，切换条件不再适用，条目归档。
 - [ ] `RELEASE-P3-03` 发布与回滚文档
-  - 原生 Android/iOS 切换步骤、H5 联调基线、API 兼容边界、缓存清理和回滚步骤、
-    Push/对象存储/消息总线回滚开关。
+  - H5 联调基线、API 兼容边界、缓存清理和回滚步骤、Push/对象存储/消息总线
+    回滚开关。
 
 ## 执行规则
 

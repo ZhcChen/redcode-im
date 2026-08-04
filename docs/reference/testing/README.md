@@ -51,7 +51,7 @@ make app.test.scripts
 make app.test.integration.smoke
 ```
 
-当前第一个版本以 Flutter `app/` 作为正式移动端主线；`ios-app` / `android-app` 原生迁移暂时暂停，只保留后续恢复入口。
+当前 2.0 以 Flutter `app/` 作为唯一正式移动端主线；`ios-app` / `android-app` 原生模块已于 2026-08-04 移除。
 
 Flutter `app/` 默认使用本机 iOS Simulator 进行设备验收。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
 每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
@@ -222,74 +222,6 @@ make h5-app.test.unit
 make h5-app.test.live
 make h5-app.test.e2e
 ```
-
-### iOS 原生 App 自测
-```bash
-make ios-app.check
-make ios-app.test
-make ios-app.test.live
-make ios-app.test.interop
-make ios-app.build.simulator
-make ios-app.smoke.simulator
-make ios-app.apns.preflight
-make ios-app.smoke.device
-make ios-app.smoke.device.local
-```
-
-说明：
-- `ios-app` 默认使用本机 iOS Simulator 做开发、smoke、UI test 与 H5/API 联调验收。
-- Simulator 联调 API/WS 使用 `127.0.0.1`。
-- `ios-app.check` 运行 SwiftPM 单元测试并构建 Simulator Debug app。
-- `ios-app.test.live` 需要本机 Compose API 已启动，覆盖 iOS 认证、WebSocket、聊天互发、好友私聊、群管理和媒体 mock live smoke。
-- `ios-app.test.interop` 需要本机 Compose API 已启动，会串联 `h5-app.test.live` 与 `ios-app.test.live`，作为 H5/API/iOS 联调总入口。
-- `ios-app.smoke.simulator` 构建、安装并启动空壳 App 到本机 iOS Simulator。
-- `ios-app.ui-test` 运行 XCUITest；当前本机已通过，覆盖认证协议门禁/登录和聊天详情发送 smoke。若 Xcode SDK 与已安装 Simulator runtime 不匹配，会失败并提示在 Xcode > Settings > Components 安装匹配 runtime。
-- `ios-app.apns.preflight` 是 APNs 真机补验入口，检查 iPhone 真机连接、`IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 非 loopback、Admin 真实 APNs provider 已配置确认以及 API `/healthz` 可达。
-- `ios-app.smoke.device` 是 iPhone 真机构建/安装/启动入口，会先执行 `ios-app.apns.preflight`；需传 `IOS_APP_DEVELOPMENT_TEAM=<Apple Team ID>`，可用 `IOS_APP_DEVICE_ID=<设备标识>` 固定目标设备。
-- `ios-app.apns.preflight.local` / `ios-app.smoke.device.local` 每次运行都会重新检测当前本机局域网 IPv4，并自动生成真机可访问的 API/WS 地址；如自动检测失败，可传 `IOS_APP_LAN_IP=<LAN_IP>` 覆盖。
-- `ios-app` 与 Flutter `app` 均默认使用本机 iOS Simulator，但各自使用独立测试入口。
-- `ios-app` 真机调试构建可通过 `IOS_APP_API_BASE_URL` / `IOS_APP_WS_URL` 写入 App Info.plist；`ios-app.smoke.device` 启动时也会通过 `devicectl` 注入 `REDCODE_API_BASE_URL` / `REDCODE_WS_URL`；App 运行时也支持从兼容的 `API_BASE_URL` / `WS_URL` 读取覆盖。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_API_SMOKE=1 swift test --filter AuthAPIClientLiveTests` 验证认证 API live smoke。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_WS_SMOKE=1 swift test --filter WebSocketClientLiveTests` 验证 WebSocket live smoke。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_CHAT_SMOKE=1 swift test --filter ChatAPIClientLiveTests` 验证聊天 `/chats`、建群、文本互发和已读 live smoke。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_FRIEND_SMOKE=1 swift test --filter FriendAPIClientLiveTests` 验证好友搜索、申请、接受、好友列表、打开私聊和私聊消息 live smoke。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_ROOM_SMOKE=1 swift test --filter RoomAPIClientLiveTests` 验证群管理 live smoke。
-- 本机 Compose API 已启动时，可运行 `cd ios-app && RED_CODE_IOS_LIVE_MEDIA_SMOKE=1 swift test --filter MediaAPIClientLiveTests` 验证对象存储 mock 上传、commit、富媒体发送和下载 smoke。
-- `h5-app.test.live` 已覆盖 H5 富媒体发送互通：H5 直传 mock 对象存储、commit、发送富媒体消息，以及 iOS-compatible HTTP 读取附件。
-- `api/docker/dev/docker-compose.yml` 已内置 `external-mock`，本地媒体/头像/附件联调默认走 mock S3，不访问线上对象存储；FCM/APNs 测试发送默认走 mock Push，不访问线上推送服务；API presigned URL 通过 `REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT=http://127.0.0.1:19080` 改写为 Simulator/H5 可访问地址。
-- 表情、贴纸、消息搜索和聊天扩展当前由 SwiftPM 单测覆盖：`EmojiAPIClientTests`、`ChatAPIClientTests` 搜索用例、`StorageTests` 搜索/偏好用例、`ChatExtensionControllerTests`。贴纸发送在 iOS 侧先下载/缓存表情图，再复用消息图片上传链路，不直接写入 `emoji-items/*` 附件 key。
-- 设置、账号、协议文档、反馈、App 配置和版本检查当前由 SwiftPM 单测覆盖：`SettingsAPIClientTests`、`SettingsControllerTests`、`StorageTests` AppConfig 缓存用例，以及 Auth profile 更新用例。
-- Push、本地通知和通知导航当前由 SwiftPM 单测覆盖：`PushAPIClientTests`、`PushControllerTests`、`StorageTests` Push identity 用例。API 侧 APNs/FCM provider 配置、mock 投递和日志链路由 `make api.test` 覆盖；Simulator 可验证本地通知调度条件、payload 导航和登出清理；真实 APNs token 获取、系统离线通知投递和通知点击唤醒需要 iPhone 真机与 Apple 平台凭据，本轮已按用户要求跳过并记录，`.local` 真机入口保留供后续恢复补验。
-
-### Android 原生 App 自测
-```bash
-make android-app.test.unit
-make android-app.lint
-make android-app.coverage
-make android-app.build.debug
-make android-app.connected-test
-make android-app.smoke.emulator
-make android-app.test.live
-make android-app.test.interop
-make android-app.test.interop.support
-```
-
-说明：
-- `android-app` 使用 Kotlin + Jetpack Compose + ViewModel + Repository/Flow 的 Android 官方推荐架构。
-- 当前优先使用已授权的 `Pixel 8 Pro (3A091FDJG001DN)` 真机；无该真机时回退本机 Android Studio Emulator，设备 ID 可用 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
-- Android Emulator 访问宿主机 Compose API 使用 `10.0.2.2:8010`，默认 `ANDROID_APP_API_BASE_URL=http://10.0.2.2:8010`、`ANDROID_APP_WS_URL=ws://10.0.2.2:8010/ws`。
-- Android 真机访问宿主机 Compose API 时，必须每次测试前重新检测本机局域网 IPv4，并使用 `ANDROID_APP_API_BASE_URL=http://<LAN_IP>:8010`、`ANDROID_APP_WS_URL=ws://<LAN_IP>:8010/ws`；Makefile 默认检测到非 Emulator 设备时会自动生成当前 LAN API/WS，可用 `make android-app.resolve.network` 查看，禁止复用历史 LAN IP。
-- Android 原生 App 默认使用本地模拟认证；需要真实 `/auth/register`、`/auth/login`、`/auth/me` 合同时传 `ANDROID_APP_USE_REMOTE_AUTH=true` 构建或运行。
-- `android-app.test.unit` 运行 JVM 单元测试，不需要启动 API。
-- `android-app.lint` 运行 Android Lint。
-- `android-app.coverage` 生成 Jacoco 覆盖率报告：`android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
-- `android-app.connected-test` 在当前 Android 设备上运行 Compose instrumented tests；Android 17 / SDK 37 真机依赖 AndroidX Test/Espresso 3.7.x，避免旧版 Espresso 反射 `InputManager.getInstance` 失败。
-- `android-app.connected-test` 当前包含 Compose 登录/协议门禁 smoke、聊天扩展 UI smoke、权限恢复 banner、语音播放 UI smoke、Room in-memory DAO/Repository 测试、Android Keystore 加密会话存储测试和 DataStore 协议/聊天偏好测试。
-- `android-app.smoke.emulator` 构建、安装并启动 App 到当前 Android 设备；目标名保留历史命名，真机可通过 `ANDROID_APP_DEVICE=<device-id>` 覆盖。
-- `android-app.test.live` 需要本机 Compose API 已启动，使用 Android APIClient/Auth/Chat/Contacts/Rooms/Emoji 数据层覆盖注册、建群、双向文本互发、附件签名/mock 对象存储直传/commit/双方可见/下载 URL、已读、好友申请/接受、私聊消息、群管理和表情列表 fallback live smoke；若测试账号实际拥有远端表情包，还会覆盖表情 download URL、下载和本地 cache 命中。该入口强制 `--rerun-tasks`，避免 Gradle 缓存跳过真实联调。
-- `android-app.test.interop` 会自动启动并等待本机 Compose API dev 栈，然后串联 `h5-app.test.live`、`android-app.test.live` 与 `android-app.test.interop.support`，作为 H5/API/Android 聊天、富媒体附件、好友、群管理、表情列表 fallback/缓存单测、头像缓存、权限降级状态机和语音播放状态机互通 smoke 入口。
-- `android-app.test.interop.support` 是不依赖 API 的定向 JVM 测试集合，覆盖头像缓存、表情资源缓存、权限恢复状态机和语音播放 ViewModel 状态机；失败时查看 `android-app/app/build/reports/tests/testDebugUnitTest/index.html` 与 `android-app/app/build/reports/jacoco/jacocoDebugUnitTestReport/html/index.html`。
-- 必须真机才能覆盖的能力（FCM 真实 token/云端投递、厂商 ROM 后台限制、相机/麦克风硬件差异、系统相册/文件选择器厂商差异、Play 签名与发布链路）不在 Emulator 阶段伪造通过，统一记录在 `android-app/docs/full-migration-task-tree.md`。
 
 ### Admin 自测
 ```bash
@@ -537,14 +469,14 @@ make api.test          # Compose 内 Rust 单元 + 集成（自动拉起 pg/redi
 - admin route / core flow smoke
 - app integration smoke
 - api + app 联调时先启动 api，再跑 `make app.test.integration.network` 与 `make app.test.integration.contract`；设备联调用 `make app.test.integration.device.contract`（默认本机 iOS Simulator）。
-- API + Flutter app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth/contract、admin live backend、desktop live backend smoke。H5 保留独立 `make h5-app.test.live`；Android/iOS 原生迁移暂时暂停，不进入当前 `test.live` 门禁。
+- API + Flutter app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth/contract、admin live backend、desktop live backend smoke。H5 保留独立 `make h5-app.test.live`；原生 `android-app` / `ios-app` 已移除。
 
 ---
 
 ## 5. 当前约定
 
 - `make api.test` = api Rust 单元（Compose 内 `cargo test --lib`）+ 集成（Compose 内 `cargo test --tests`，axum oneshot 对单一临时测试库）
-- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose test/smoke/迁移守护、app check/unit/scripts/api-paths/smoke、admin check/routes、desktop check/unit、website unit、Compose config、tooling、perf Go 自检；Android/iOS 原生迁移暂时暂停，不进入当前首版门禁。
+- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose test/smoke/迁移守护、app check/unit/scripts/api-paths/smoke、admin check/routes、desktop check/unit、website unit、Compose config、tooling、perf Go 自检。
 - `make test.live` = 真实后端联调入口；会启动 `api/docker/dev/docker-compose.yml` 与 admin dev，并跑 app network/auth/contract、admin live backend、desktop live backend smoke。
 - `tests/` 不承载 app / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录

@@ -12,12 +12,12 @@
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
 | [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁 |
-| [IM 2.0 剩余工作计划](plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md) | 当前 U8-U13 的执行拆分、测试场景和完成条件 |
-| [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 当前 2.0 主线方向：`app/` 单 Flutter 工程承载移动端 + 桌面端 |
-| [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 当前 2.0 设计入口：先在 `im-ui-html/` 收敛规范、组件和页面 |
-| [IM UI 预览冻结与多端交付计划](plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md) | 三设备回归、冻结基线与 Flutter/H5 handoff |
+| [IM 2.0 剩余工作计划](plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md) | 历史执行总账：已并入 08-02-001 执行状态总账 |
+| [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 历史决策记录：已由 08-02-001 承接 |
+| [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 历史决策记录：设计源已冻结并由 08-02-001 引用 |
+| [IM UI 预览冻结与多端交付计划](plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md) | 已完成/历史：冻结基线与 handoff 已落地 |
 | [IM UI 多端交付差异](../im-ui-html/docs/platform-handoff.md) | 设计源、Flutter 主线和 H5 当前覆盖矩阵 |
-| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史方向参考：已不作为 2.0 主线 |
+| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史归档：原生模块已于 2026-08-04 移除 |
 | [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
 | [解决方案沉淀](solutions/) | `compound` / `ce:compound` 产出目录 |
 | [参考提示词](prompts/) | 可复制或改写给 Codex 的轻工作流提示词 |
@@ -124,7 +124,7 @@
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行顺序、验收命令与跳过项 |
-| [iOS 原生 parity 收口报告](reports/2026-07-04-ios-app-parity-cutover-readiness.md) | iOS 原生迁移完成度、跳过项与切换条件 |
+| [iOS 原生 parity 收口报告](reports/2026-07-04-ios-app-parity-cutover-readiness.md) | 历史归档：原生模块已于 2026-08-04 移除 |
 | [API Compose 性能基线](reports/performance/api-compose-baseline-2026-07-01.md) | API Compose-first 性能指标与后续优化方向 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
 | [模块功能清单（2026-03-01）](reports/module-function-inventory-2026-03-01.md) | 五大模块功能基线 |
