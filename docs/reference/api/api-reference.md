@@ -104,7 +104,35 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-#### 7. 管理员登录
+#### 6. 查询管理员初始化状态
+- **接口**: `GET /api/admin/bootstrap/status`
+- **权限**: 公开
+- **功能**: 查询系统是否已初始化管理员；首次部署引导时用于判断是否需要初始化
+- **Handler**: `auth::get_admin_bootstrap_status`
+
+**响应示例**：
+```json
+{
+  "bootstrap_required": true
+}
+```
+
+#### 7. 初始化管理员
+- **接口**: `POST /api/admin/bootstrap/init`
+- **权限**: 公开
+- **功能**: 系统尚无管理员时创建初始管理员账号并返回管理员登录信息
+- **Handler**: `auth::bootstrap_admin`
+
+**请求示例**：
+```json
+{
+  "username": "admin",
+  "password": "admin123",
+  "display_name": "系统管理员"
+}
+```
+
+#### 8. 管理员登录
 - **接口**: `POST /auth/admin/login`
 - **权限**: 公开
 - **功能**: 管理员账号登录，返回管理员专用 Token
@@ -118,7 +146,7 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
-#### 8. 管理员刷新令牌
+#### 9. 管理员刷新令牌
 - **接口**: `POST /auth/admin/refresh`
 - **权限**: 公开
 - **功能**: 刷新管理员访问令牌
@@ -126,13 +154,13 @@ Authorization: Bearer <your-jwt-token>
 
 ### 需要认证的路由
 
-#### 9. 获取当前用户信息
+#### 10. 获取当前用户信息
 - **接口**: `GET /auth/me`
 - **权限**: 需要认证
 - **功能**: 获取当前登录用户的详细信息
 - **Handler**: `auth::get_current_user`
 
-#### 10. 短信重置密码
+#### 11. 短信重置密码
 - **接口**: `POST /auth/password/reset`
 - **权限**: 需要认证
 - **功能**: 通过短信验证码重置密码
@@ -142,19 +170,19 @@ Authorization: Bearer <your-jwt-token>
 
 > 以下接口需要管理员 Token（通过 `/auth/admin/login` 获取）
 
-#### 11. 获取当前管理员信息
+#### 12. 获取当前管理员信息
 - **接口**: `GET /auth/admin/me`
 - **权限**: 管理员
 - **功能**: 获取当前登录管理员的详细信息
 - **Handler**: `auth::get_current_admin_user`
 
-#### 12. 更新当前管理员信息
+#### 13. 更新当前管理员信息
 - **接口**: `PATCH /auth/admin/me`
 - **权限**: 管理员
 - **功能**: 更新当前管理员的昵称等信息
 - **Handler**: `auth::update_current_admin_user`
 
-#### 13. 修改管理员密码
+#### 14. 修改管理员密码
 - **接口**: `POST /auth/admin/me/password`
 - **权限**: 管理员
 - **功能**: 修改当前管理员密码
@@ -173,13 +201,13 @@ Authorization: Bearer <your-jwt-token>
 > 详细说明见 `auth-devices.md`。登录/注册/短信登录请求体可携带
 > `device_id`、`device_name`、`platform`。
 
-#### 14. 获取设备列表
+#### 15. 获取设备列表
 - **接口**: `GET /auth/devices`
 - **权限**: 需要认证
 - **功能**: 列出当前账号全部登录设备（含当前设备标记）
 - **Handler**: `auth_device::list_devices`
 
-#### 15. 撤销设备
+#### 16. 撤销设备
 - **接口**: `POST /auth/devices/:device_id/revoke`
 - **权限**: 需要认证
 - **功能**: 撤销指定设备：refresh token 立即失效、对应 WS 会话被断开；
@@ -190,25 +218,25 @@ Authorization: Bearer <your-jwt-token>
 
 > 完整流程见 `qr-login.md`。二维码会话 TTL 5 分钟，`loginCode` 一次性使用。
 
-#### 16. 创建扫码会话
+#### 17. 创建扫码会话
 - **接口**: `POST /auth/qr/sessions`
 - **权限**: 否（PC 端匿名）
 - **功能**: 创建扫码登录会话，返回 `qrId` 与 `expiresAt`
 - **Handler**: `qr_login::create_session`
 
-#### 17. 轮询扫码状态
+#### 18. 轮询扫码状态
 - **接口**: `GET /auth/qr/sessions/:qr_id`
 - **权限**: 否（PC 端匿名）
 - **功能**: 查询状态；confirmed 时一次性返回 `loginCode`
 - **Handler**: `qr_login::get_session`
 
-#### 18. 手机端确认扫码
+#### 19. 手机端确认扫码
 - **接口**: `POST /auth/qr/sessions/:qr_id/confirm`
 - **权限**: 需要认证（手机端已登录）
 - **功能**: 确认二维码登录；确认后向 PC 端 WS 推送 `qr_status_changed`
 - **Handler**: `qr_login::confirm_session`
 
-#### 19. 取消扫码会话
+#### 20. 取消扫码会话
 - **接口**: `POST /auth/qr/sessions/:qr_id/cancel`
 - **权限**: 否（PC 端匿名）
 - **功能**: 取消等待中的扫码会话
@@ -1182,28 +1210,56 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **功能**: 检查用户是否拥有指定权限
 - **Handler**: `admin::check_user_permission`
 
+#### 20. 获取角色权限
+- **接口**: `GET /api/admin/roles/:role_id/permissions`
+- **权限**: 管理员
+- **功能**: 获取指定角色已绑定的权限 ID 与权限编码
+- **Handler**: `admin::get_role_permissions`
+
+**响应示例**：
+```json
+{
+  "role_id": "uuid",
+  "permission_ids": ["uuid"],
+  "permission_codes": ["user:read"]
+}
+```
+
+#### 21. 更新角色权限
+- **接口**: `PUT /api/admin/roles/:role_id/permissions`
+- **权限**: 管理员
+- **功能**: 全量更新角色绑定的权限集合
+- **Handler**: `admin::update_role_permissions`
+
+**请求示例**：
+```json
+{
+  "permission_ids": ["uuid"]
+}
+```
+
 ### 文件管理
 
-#### 20. 获取文件统计
+#### 22. 获取文件统计
 - **接口**: `GET /api/admin/files/stats`
 - **权限**: 管理员
 - **功能**: 获取文件存储统计信息
 - **Handler**: `admin::get_file_management_stats`
 
-#### 21. 获取文件列表
+#### 23. 获取文件列表
 - **接口**: `GET /api/admin/files`
 - **权限**: 管理员
 - **功能**: 分页获取所有上传的文件
 - **Handler**: `admin::get_file_list`
 - **查询参数**: `?page=1&page_size=20`
 
-#### 22. 删除文件
+#### 24. 删除文件
 - **接口**: `DELETE /api/admin/files/:file_id`
 - **权限**: 管理员
 - **功能**: 删除指定文件
 - **Handler**: `admin::delete_file`
 
-#### 23. 批量删除文件
+#### 25. 批量删除文件
 - **接口**: `POST /api/admin/files/batch-delete`
 - **权限**: 管理员
 - **功能**: 批量删除多个文件
@@ -1211,13 +1267,13 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 管理员用户管理
 
-#### 24. 获取管理员用户列表
+#### 26. 获取管理员用户列表
 - **接口**: `GET /api/admin/admin-users`
 - **权限**: 管理员
 - **功能**: 获取所有管理员用户列表
 - **Handler**: `admin::get_admin_user_list`
 
-#### 25. 创建管理员用户
+#### 27. 创建管理员用户
 - **接口**: `POST /api/admin/admin-users`
 - **权限**: 管理员
 - **功能**: 创建新的管理员账号
@@ -1232,15 +1288,34 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 }
 ```
 
-#### 26. 更新管理员状态
+#### 28. 更新管理员状态
 - **接口**: `PATCH /api/admin/admin-users/:admin_user_id/status`
 - **权限**: 管理员
 - **功能**: 启用或禁用管理员账号
 - **Handler**: `admin::update_admin_user_status`
 
+#### 29. 获取管理员角色
+- **接口**: `GET /api/admin/admin-users/:admin_user_id/roles`
+- **权限**: 管理员
+- **功能**: 获取指定管理员账号绑定的角色
+- **Handler**: `admin::get_admin_user_roles`
+
+#### 30. 更新管理员角色
+- **接口**: `PUT /api/admin/admin-users/:admin_user_id/roles`
+- **权限**: 管理员
+- **功能**: 全量更新管理员账号绑定的角色集合
+- **Handler**: `admin::update_admin_user_roles`
+
+**请求示例**：
+```json
+{
+  "role_ids": ["uuid"]
+}
+```
+
 ### 反馈管理
 
-#### 27. 获取反馈列表
+#### 31. 获取反馈列表
 - **接口**: `GET /api/admin/feedbacks`
 - **权限**: 管理员
 - **功能**: 获取用户提交的反馈列表
@@ -1248,7 +1323,7 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 举报管理
 
-#### 28. 获取举报列表
+#### 32. 获取举报列表
 - **接口**: `GET /api/admin/reports`
 - **权限**: 管理员
 - **功能**: 获取用户提交的举报列表
@@ -1256,19 +1331,19 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 系统日志管理
 
-#### 29. 获取系统日志列表
+#### 33. 获取系统日志列表
 - **接口**: `GET /api/admin/logs`
 - **权限**: 管理员
 - **功能**: 分页获取系统操作日志
 - **Handler**: `admin::list_system_logs`
 
-#### 30. 获取系统日志统计
+#### 34. 获取系统日志统计
 - **接口**: `GET /api/admin/logs/stats`
 - **权限**: 管理员
 - **功能**: 获取系统日志统计信息
 - **Handler**: `admin::get_system_log_stats`
 
-#### 31. 清理系统日志
+#### 35. 清理系统日志
 - **接口**: `POST /api/admin/logs/cleanup`
 - **权限**: 管理员
 - **功能**: 清理过期的系统日志
@@ -1276,19 +1351,19 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### Push 通知管理
 
-#### 32. 获取 Push 发送日志
+#### 36. 获取 Push 发送日志
 - **接口**: `GET /api/admin/push/logs`
 - **权限**: 管理员
 - **功能**: 获取推送发送日志，用于排障
 - **Handler**: `push_logs::list_push_logs`
 
-#### 33. 清理 Push 发送日志
+#### 37. 清理 Push 发送日志
 - **接口**: `POST /api/admin/push/logs/cleanup`
 - **权限**: 管理员
 - **功能**: 清理过期的推送日志
 - **Handler**: `push_logs::cleanup_push_logs`
 
-#### 34. 获取 Push 队列统计
+#### 38. 获取 Push 队列统计
 - **接口**: `GET /api/admin/push/job-queue/stats`
 - **权限**: 管理员
 - **功能**: 获取推送任务队列的统计信息
@@ -1296,19 +1371,19 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 聊天记录管理
 
-#### 35. 获取聊天记录
+#### 39. 获取聊天记录
 - **接口**: `GET /api/admin/chat-history`
 - **权限**: 管理员
 - **功能**: 搜索和查看聊天记录
 - **Handler**: `chat_history::get_chat_history`
 
-#### 36. 获取用户所在房间
+#### 40. 获取用户所在房间
 - **接口**: `GET /api/admin/users/:user_id/rooms`
 - **权限**: 管理员
 - **功能**: 获取指定用户加入的所有房间
 - **Handler**: `chat_history::get_user_rooms`
 
-#### 37. 获取房间聊天记录
+#### 41. 获取房间聊天记录
 - **接口**: `GET /api/admin/rooms/:room_id/chat-history`
 - **权限**: 管理员
 - **功能**: 获取指定房间的聊天记录
@@ -1316,27 +1391,107 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 
 ### 用户地理分布
 
-#### 38. 获取用户地理分布
+#### 42. 获取用户地理分布
 - **接口**: `GET /api/admin/users/geolocation/distribution`
 - **权限**: 管理员
 - **功能**: 获取全局用户的地理位置分布统计
 - **Handler**: `activity_logs::get_global_user_distribution`
 
+### 地理位置服务管理
+
+#### 43. 获取 ipinfo Token 列表
+- **接口**: `GET /api/admin/ipinfo-tokens`
+- **权限**: 管理员
+- **功能**: 分页获取 ipinfo.io Token 列表，可按状态过滤
+- **Handler**: `admin::get_token_list`
+- **查询参数**: `?page=1&page_size=10&status=active`
+
+#### 44. 创建 ipinfo Token
+- **接口**: `POST /api/admin/ipinfo-tokens`
+- **权限**: 管理员
+- **功能**: 新增 ipinfo.io Token 配置
+- **Handler**: `admin::create_token`
+
+**请求示例**：
+```json
+{
+  "name": "default",
+  "token": "ipinfo_token_value",
+  "monthly_limit": 50000
+}
+```
+
+#### 45. 更新 ipinfo Token
+- **接口**: `PATCH /api/admin/ipinfo-tokens/:token_id`
+- **权限**: 管理员
+- **功能**: 更新 Token 名称、值、月配额或状态
+- **Handler**: `admin::update_token`
+
+#### 46. 删除 ipinfo Token
+- **接口**: `DELETE /api/admin/ipinfo-tokens/:token_id`
+- **权限**: 管理员
+- **功能**: 删除指定 Token（级联删除使用记录）
+- **Handler**: `admin::delete_token`
+
+#### 47. 重置 ipinfo Token 使用量
+- **接口**: `POST /api/admin/ipinfo-tokens/:token_id/reset`
+- **权限**: 管理员
+- **功能**: 将 Token 使用量归零并顺延一个月有效期
+- **Handler**: `admin::reset_token_usage`
+
+#### 48. 测试地理位置 API
+- **接口**: `POST /api/admin/test-geolocation-api`
+- **权限**: 管理员
+- **功能**: 使用指定 IP 调用地理位置服务，验证 Token 与链路是否可用
+- **Handler**: `admin::test_geolocation_api`
+
+**请求示例**：
+```json
+{
+  "ip_address": "8.8.8.8"
+}
+```
+
+#### 49. 获取 IP 地理位置解析开关
+- **接口**: `GET /api/admin/ip-geolocation/enabled`
+- **权限**: 管理员
+- **功能**: 查询 IP 地理位置解析功能是否启用
+- **Handler**: `admin::get_ip_geolocation_enabled`
+
+#### 50. 设置 IP 地理位置解析开关
+- **接口**: `PATCH /api/admin/ip-geolocation/enabled`
+- **权限**: 管理员
+- **功能**: 启用或停用 IP 地理位置解析功能
+- **Handler**: `admin::set_ip_geolocation_enabled`
+
+**请求示例**：
+```json
+{
+  "enabled": true
+}
+```
+
+#### 51. 清理全部 App 数据（仅开发环境）
+- **接口**: `POST /admin/data/cleanup/all`
+- **权限**: 管理员
+- **功能**: 清空 App 用户业务数据（保留系统配置与管理数据），仅开发环境可用
+- **Handler**: `admin::cleanup_all_app_data`
+
 ### 文件内容审核
 
-#### 39. 获取文件审核任务列表
+#### 52. 获取文件审核任务列表
 - **接口**: `GET /api/admin/file-upload-audit/tasks`
 - **权限**: 管理员
 - **功能**: 获取文件上传审核任务列表
 - **Handler**: `admin::list_file_upload_audit_tasks`
 
-#### 40. 获取文件审核任务详情
+#### 53. 获取文件审核任务详情
 - **接口**: `GET /api/admin/file-upload-audit/tasks/:task_id`
 - **权限**: 管理员
 - **功能**: 获取指定审核任务的详细信息
 - **Handler**: `admin::get_file_upload_audit_task`
 
-#### 41. 重新审核文件
+#### 54. 重新审核文件
 - **接口**: `POST /api/admin/file-upload-audit/tasks/:task_id/requeue`
 - **权限**: 管理员
 - **功能**: 将审核任务重新加入队列
@@ -2462,42 +2617,51 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 
 ### API 统计
 
-- **公开路由**: 20+ 个
-- **需要认证的路由**: 150+ 个
-- **管理后台路由**: 80+ 个
+- **公开路由**: 28 个
+- **需要认证的路由**: 114 个
+- **管理后台路由**: 95 个
+- **路由总数**: 237 个
 - **WebSocket 事件类型**: 24 种（服务端推送） + 6 种（客户端发送）
 
 ### Handler 模块列表
 
-1. `auth.rs` - 认证相关
-2. `user.rs` - 用户管理
-3. `friend.rs` - 好友系统
-4. `room.rs` - 房间管理
-5. `message.rs` - 消息处理（含 reactions）
-6. `message_read.rs` - 消息已读
-7. `message_search.rs` - 消息搜索
-8. `group_management.rs` - 群组管理
-9. `admin.rs` - 管理后台
-10. `version.rs` - 版本管理
-11. `settings.rs` - 系统设置
-12. `feedback.rs` - 反馈系统
-13. `push.rs` - Push 通知
-14. `push_settings.rs` - Push 配置
-15. `push_logs.rs` - Push 日志
-16. `push_queue.rs` - Push 队列
-17. `report.rs` - 举报系统
-18. `activity_logs.rs` - 活动日志
-19. `emoji_pack.rs` - 贴纸表情包
-20. `multipart_upload.rs` - 分片上传
-21. `upload_policy.rs` - 上传策略
-22. `chat_history.rs` - 聊天记录管理
-23. `websocket/mod.rs` - WebSocket
+1. `activity_logs.rs` - 活动日志
+2. `admin.rs` - 管理后台
+3. `admin_storage_config.rs` - 存储配置管理
+4. `auth.rs` - 认证相关
+5. `auth_device.rs` - 登录设备
+6. `chat_history.rs` - 聊天记录管理
+7. `e2ee.rs` - E2EE / MLS
+8. `emoji_pack.rs` - 贴纸表情包
+9. `feedback.rs` - 反馈系统
+10. `friend.rs` - 好友系统
+11. `group_announcement.rs` - 群公告
+12. `group_management.rs` - 群组管理
+13. `health.rs` - 就绪检查
+14. `message.rs` - 消息处理（含 reactions）
+15. `message_favorite.rs` - 消息收藏
+16. `message_read.rs` - 消息已读
+17. `message_search.rs` - 消息搜索
+18. `multipart_upload.rs` - 分片上传
+19. `push.rs` - Push 通知
+20. `push_settings.rs` - Push 配置
+21. `push_logs.rs` - Push 日志
+22. `push_queue.rs` - Push 队列
+23. `qr_login.rs` - 扫码登录
+24. `report.rs` - 举报系统
+25. `room.rs` - 房间管理
+26. `settings.rs` - 系统设置
+27. `upload_policy.rs` - 上传策略
+28. `user.rs` - 用户管理
+29. `user_block.rs` - 黑名单
+30. `version.rs` - 版本管理
+31. `websocket/mod.rs` - WebSocket
 
 ### 技术栈
 
 - **Web 框架**: Axum 0.8.6
 - **异步运行时**: Tokio 1.44
-- **数据库**: PostgreSQL 15 + SQLx 0.8.6
+- **数据库**: PostgreSQL 17 + SQLx 0.8.6
 - **缓存**: Redis 7 (redis 0.32.7)
 - **序列化**: Protocol Buffers (prost 0.14.1)
 - **认证**: JWT (jsonwebtoken 9.3)
@@ -2506,5 +2670,5 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 
 ---
 
-**文档最后更新**: 2026-08-04
+**文档最后更新**: 2026-08-05
 **API 版本**: 2.0.0

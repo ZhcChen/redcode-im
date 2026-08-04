@@ -33,7 +33,9 @@
 
 - `GET /`：服务信息
 - `GET /healthz`：健康检查
+- `GET /readyz`：就绪检查（数据库/缓存依赖探测）
 - `GET /ws`：WebSocket 升级（支持查询参数 `token`、`format`）
+- `GET /api/admin/bootstrap/status` / `POST /api/admin/bootstrap/init`：管理员初始化引导
 
 ### 认证（用户）
 
