@@ -370,3 +370,140 @@ async fn test_message_favorite_is_private_and_idempotent() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body_json(&response)["total"], 0);
 }
+
+// ==================== U5: 登录设备管理 ====================
+
+async fn register_with_device(
+    app: &TestApp,
+    prefix: &str,
+    device_id: &str,
+    device_name: &str,
+) -> (TestUser, String) {
+    let username = unique_username(prefix);
+    let body = json!({
+        "username": username.clone(),
+        "password": "pass123456",
+        "nickname": username.clone(),
+    })
+    .to_string();
+    let (status, _) = app.post_json("/auth/register", &body).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let login = json!({
+        "username": username,
+        "password": "pass123456",
+        "device_id": device_id,
+        "device_name": device_name,
+        "platform": "ios",
+    })
+    .to_string();
+    let (status, response) = app.post_json("/auth/login", &login).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let body = body_json(&response);
+    let user = TestUser {
+        id: Uuid::parse_str(body["user"]["id"].as_str().unwrap()).unwrap(),
+        token: body["token"].as_str().unwrap().to_string(),
+    };
+    let refresh_token = body["refresh_token"].as_str().unwrap().to_string();
+    (user, refresh_token)
+}
+
+#[tokio::test]
+async fn test_device_list_and_revoke_invalidates_refresh_token() {
+    let app = spawn_test_app().await;
+    let device_a = "11111111-1111-1111-1111-111111111111";
+    let device_b = "22222222-2222-2222-2222-222222222222";
+    let username = unique_username("devuser");
+    let body = json!({
+        "username": username.clone(),
+        "password": "pass123456",
+        "nickname": username.clone(),
+    })
+    .to_string();
+    let (status, _) = app.post_json("/auth/register", &body).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let login_a = json!({
+        "username": username.clone(),
+        "password": "pass123456",
+        "device_id": device_a,
+        "device_name": "iPhone 17 Pro",
+        "platform": "ios",
+    })
+    .to_string();
+    let (status, response) = app.post_json("/auth/login", &login_a).await;
+    assert_eq!(status, StatusCode::OK);
+    let body = body_json(&response);
+    let user = TestUser {
+        id: Uuid::parse_str(body["user"]["id"].as_str().unwrap()).unwrap(),
+        token: body["token"].as_str().unwrap().to_string(),
+    };
+    let refresh_a = body["refresh_token"].as_str().unwrap().to_string();
+
+    // 同一账号第二台设备登录
+    let login_b = json!({
+        "username": username,
+        "password": "pass123456",
+        "device_id": device_b,
+        "device_name": "MacBook",
+        "platform": "macos",
+    })
+    .to_string();
+    let (status, _) = app.post_json("/auth/login", &login_b).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // 当前 token 的设备列表
+    let (status, response) = app.get_authed("/auth/devices", &user.token).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let devices = body_json(&response);
+    assert_eq!(devices.as_array().unwrap().len(), 2);
+    let current = devices
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["isCurrent"] == true)
+        .expect("current device");
+    assert_eq!(current["deviceId"], device_a);
+
+    // 撤销设备 A
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/auth/devices/{device_a}/revoke"),
+            &user.token,
+            "{}",
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    // 列表显示已撤销
+    let (status, response) = app.get_authed("/auth/devices", &user.token).await;
+    assert_eq!(status, StatusCode::OK);
+    let list = body_json(&response);
+    let revoked = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|d| d["deviceId"] == device_a)
+        .expect("revoked device");
+    assert!(revoked["revokedAt"].is_string());
+
+    // 被撤销设备的 refresh token 失效
+    let refresh = json!({"refresh_token": refresh_a}).to_string();
+    let (status, response) = app.post_json("/auth/refresh", &refresh).await;
+    assert_eq!(
+        status,
+        StatusCode::UNAUTHORIZED,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+}

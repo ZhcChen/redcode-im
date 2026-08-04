@@ -42,6 +42,12 @@ pub struct CreateUserRequest {
     pub email: String,
     pub password: String,
     pub nickname: Option<String>,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    #[serde(default)]
+    pub device_name: Option<String>,
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 /// 用户登录请求
@@ -52,6 +58,12 @@ pub struct LoginRequest {
     #[serde(default)]
     pub email: String,
     pub password: String,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    #[serde(default)]
+    pub device_name: Option<String>,
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 /// 登录响应
@@ -59,6 +71,8 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub user: UserInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
     /// 刷新令牌（用于在访问令牌过期后无感刷新）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
@@ -380,6 +394,9 @@ pub struct Claims {
     /// 是否为管理员 Token（用于区分 admin/user 路由权限）
     #[serde(default)]
     pub is_admin: bool,
+    /// 登录设备 ID（设备管理用，旧 Token 无此字段）
+    #[serde(default)]
+    pub device_id: Option<String>,
     pub exp: usize, // 过期时间戳
     pub iat: usize, // 签发时间戳
 }

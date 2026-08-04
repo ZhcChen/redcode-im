@@ -30,6 +30,34 @@ const REFRESH_TOKEN_TTL_SECONDS: usize = 30 * 24 * 60 * 60;
 struct RefreshTokenPayload {
     user_id: String,
     is_admin: bool,
+    #[serde(default)]
+    device_id: Option<String>,
+}
+
+/// 解析客户端设备 ID；未提供时生成新设备 ID。
+fn resolve_device_id(payload_device: Option<&str>) -> String {
+    payload_device
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string())
+}
+
+/// 登记登录设备并返回设备 ID。
+async fn register_login_device(
+    state: &AppState,
+    user_id: &str,
+    device_id: &str,
+    device_name: Option<&str>,
+    platform: Option<&str>,
+) -> Result<(), AppError> {
+    let store = crate::database::user_device_store::UserDeviceStore::new(
+        state.database.clone(),
+    );
+    let user_uuid = uuid::Uuid::parse_str(user_id)
+        .map_err(|e| AppError::InvalidToken(format!("无效的用户ID: {}", e)))?;
+    store
+        .upsert_device(user_uuid, device_id, device_name, platform)
+        .await
 }
 
 #[derive(Debug, Serialize)]
@@ -75,6 +103,7 @@ async fn generate_and_store_refresh_token(
     state: &AppState,
     user_id: &str,
     is_admin: bool,
+    device_id: Option<&str>,
 ) -> Result<String, AppError> {
     let refresh_token = uuid::Uuid::new_v4().to_string();
     let key = format!("{}{}", REFRESH_TOKEN_PREFIX, refresh_token);
@@ -82,6 +111,7 @@ async fn generate_and_store_refresh_token(
     let payload = RefreshTokenPayload {
         user_id: user_id.to_string(),
         is_admin,
+        device_id: device_id.map(|v| v.to_string()),
     };
     let value = serde_json::to_string(&payload)
         .map_err(|_| AppError::InternalError("刷新令牌序列化失败".to_string()))?;
@@ -92,6 +122,17 @@ async fn generate_and_store_refresh_token(
     conn.set_ex::<_, _, ()>(&key, value, REFRESH_TOKEN_TTL_SECONDS as u64)
         .await
         .map_err(|_| AppError::CacheError("刷新令牌写入失败".to_string()))?;
+
+    // 按设备索引刷新令牌，供设备撤销时批量失效
+    if let Some(device) = device_id {
+        let set_key = format!("auth:refresh:by-device:{device}");
+        conn.sadd::<_, _, ()>(&set_key, &refresh_token)
+            .await
+            .map_err(|_| AppError::CacheError("刷新令牌索引写入失败".to_string()))?;
+        conn.expire::<_, ()>(&set_key, REFRESH_TOKEN_TTL_SECONDS as i64)
+            .await
+            .ok();
+    }
 
     Ok(refresh_token)
 }
@@ -182,6 +223,9 @@ pub async fn register(
         email: email.clone(),
         password: password.to_string(),
         nickname: payload.nickname.clone(),
+        device_id: payload.device_id.clone(),
+        device_name: payload.device_name.clone(),
+        platform: payload.platform.clone(),
     };
     let mut db_req = api_create_user_to_db(&create_request);
     if db_req
@@ -234,6 +278,9 @@ pub async fn login(
             String::new()
         },
         password: payload.password,
+        device_id: payload.device_id.clone(),
+        device_name: payload.device_name.clone(),
+        platform: payload.platform.clone(),
     };
     let db_req = api_login_to_db(&normalized_payload);
 
@@ -251,11 +298,22 @@ pub async fn login(
 
     info!("User logged in successfully: {}", db_user.email);
 
+    let device_id = resolve_device_id(payload.device_id.as_deref());
+    register_login_device(
+        &state,
+        &db_user.id.to_string(),
+        &device_id,
+        payload.device_name.as_deref(),
+        payload.platform.as_deref(),
+    )
+    .await?;
+
     // 生成 JWT 访问令牌
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
         is_admin: false,
+        device_id: Some(device_id.clone()),
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -264,16 +322,18 @@ pub async fn login(
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     // 生成刷新令牌并存入 Redis（30 天滑动过期）
-    let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
-        .await
-        .map_err(|e| {
-            tracing::warn!("生成刷新令牌失败: {:?}", e);
-            AppError::InternalError("生成刷新令牌失败".to_string())
-        })?;
+    let refresh_token =
+        generate_and_store_refresh_token(&state, &db_user.id.to_string(), false, Some(&device_id))
+            .await
+            .map_err(|e| {
+                tracing::warn!("生成刷新令牌失败: {:?}", e);
+                AppError::InternalError("生成刷新令牌失败".to_string())
+            })?;
 
     let response = LoginResponse {
         token,
         user: db_user_to_api_user_info(&db_user),
+        device_id: Some(device_id),
         refresh_token: Some(refresh_token),
     };
 
@@ -334,11 +394,24 @@ pub async fn refresh_token(
         return Err(AppError::Forbidden("账户已被封禁，无法登录".to_string()));
     }
 
+    let device_id = payload.device_id.clone().unwrap_or_else(|| {
+        uuid::Uuid::new_v4().to_string()
+    });
+    register_login_device(
+        &state,
+        &db_user.id.to_string(),
+        &device_id,
+        None,
+        None,
+    )
+    .await?;
+
     // 生成新的访问令牌
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
         is_admin: false,
+        device_id: Some(device_id.clone()),
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -354,6 +427,7 @@ pub async fn refresh_token(
     let response = LoginResponse {
         token: new_token,
         user: db_user_to_api_user_info(&db_user),
+        device_id: Some(device_id),
         refresh_token: Some(token.to_string()),
     };
 
@@ -369,6 +443,12 @@ pub struct SendSmsRequest {
 pub struct SmsLoginRequest {
     pub phone: String,
     pub code: String,
+    #[serde(default)]
+    pub device_id: Option<String>,
+    #[serde(default)]
+    pub device_name: Option<String>,
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -531,10 +611,21 @@ pub async fn login_with_sms(
             .map_err(|_| AppError::CacheError("Redis 删除失败".to_string()))?;
     }
 
+    let device_id = resolve_device_id(payload.device_id.as_deref());
+    register_login_device(
+        &state,
+        &db_user.id.to_string(),
+        &device_id,
+        payload.device_name.as_deref(),
+        payload.platform.as_deref(),
+    )
+    .await?;
+
     let claims = Claims {
         sub: db_user.id.to_string(),
         username: db_user.username.clone(),
         is_admin: false,
+        device_id: Some(device_id.clone()),
         exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -543,16 +634,18 @@ pub async fn login_with_sms(
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     // 生成刷新令牌并存入 Redis（30 天滑动过期）
-    let refresh_token = generate_and_store_refresh_token(&state, &db_user.id.to_string(), false)
-        .await
-        .map_err(|e| {
-            tracing::warn!("生成刷新令牌失败: {:?}", e);
-            AppError::InternalError("生成刷新令牌失败".to_string())
-        })?;
+    let refresh_token =
+        generate_and_store_refresh_token(&state, &db_user.id.to_string(), false, Some(&device_id))
+            .await
+            .map_err(|e| {
+                tracing::warn!("生成刷新令牌失败: {:?}", e);
+                AppError::InternalError("生成刷新令牌失败".to_string())
+            })?;
 
     let response = LoginResponse {
         token,
         user: db_user_to_api_user_info(&db_user),
+        device_id: Some(device_id),
         refresh_token: Some(refresh_token),
     };
 
@@ -638,6 +731,9 @@ fn build_auto_registration_request(username: &str) -> CreateUserRequest {
         email: build_auto_registration_email(username),
         password: build_auto_registration_password(username),
         nickname: Some(username.to_string()),
+        device_id: None,
+        device_name: None,
+        platform: None,
     }
 }
 
@@ -740,6 +836,7 @@ async fn issue_admin_session_response(
         sub: db_admin_user.id.to_string(),
         username: db_admin_user.username.clone(),
         is_admin: true,
+        device_id: None,
         exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };
@@ -748,7 +845,7 @@ async fn issue_admin_session_response(
         generate_token(&claims).map_err(|_| AppError::InternalError("生成令牌失败".to_string()))?;
 
     let refresh_token =
-        generate_and_store_refresh_token(&state, &db_admin_user.id.to_string(), true)
+        generate_and_store_refresh_token(&state, &db_admin_user.id.to_string(), true, None)
             .await
             .map_err(|e| {
                 tracing::warn!("生成管理员刷新令牌失败: {:?}", e);
@@ -967,6 +1064,9 @@ pub async fn admin_login(
             username: payload.username.clone(),
             email: String::new(),
             password: payload.password.clone(),
+            device_id: None,
+            device_name: None,
+            platform: None,
         })
         .await?
     {
@@ -1118,6 +1218,7 @@ pub async fn admin_refresh_token(
         sub: db_admin_user.id.to_string(),
         username: db_admin_user.username.clone(),
         is_admin: true,
+        device_id: None,
         exp: (chrono::Utc::now() + chrono::Duration::hours(8)).timestamp() as usize,
         iat: chrono::Utc::now().timestamp() as usize,
     };

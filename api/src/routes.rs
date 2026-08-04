@@ -6,9 +6,9 @@ use axum::{
 
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
-    activity_logs, admin, admin_storage_config, auth, chat_history, e2ee, emoji_pack, feedback,
-    friend, group_announcement, group_management, health, healthz, message, message_favorite,
-    message_read, message_search,
+    activity_logs, admin, admin_storage_config, auth, auth_device, chat_history, e2ee, emoji_pack,
+    feedback, friend, group_announcement, group_management, health, healthz, message,
+    message_favorite, message_read, message_search,
     multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
     upload_policy, user, user_block, version, ws,
 };
@@ -433,6 +433,11 @@ pub fn create_routes() -> Router<AppState> {
     // 需要认证的路由（普通用户）
     let user_routes = Router::new()
         .route("/auth/me", get(auth::get_current_user))
+        .route("/auth/devices", get(auth_device::list_devices))
+        .route(
+            "/auth/devices/{device_id}/revoke",
+            post(auth_device::revoke_device),
+        )
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
         // E2EE（端到端加密）密钥管理
         .route("/e2ee/keys/bundle", post(e2ee::upload_key_bundle))
