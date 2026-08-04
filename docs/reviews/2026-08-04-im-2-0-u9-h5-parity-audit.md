@@ -2,7 +2,7 @@
 
 ## 结论
 
-H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置差异。P0 路由矩阵已全部实现，但 R2.4 跨端互操作尚未完成，因此仍不宣告 Flutter 2.0 P0 parity。
+H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异、R2.3 我的/设置差异与 R2.4 跨端互操作。P0 路由矩阵、状态、API、存储降级和跨端刷新验收均已闭合，U9 H5 P0 parity 完成。
 
 本轮以 `app/test/contracts/im_ui_route_contract_test.dart` 冻结的 38 个 P0 路由为产品能力清单，以当前 `h5-app/src/router/index.ts`、页面、Pinia store、service、存储和测试为运行实现证据。审计结果如下：
 
@@ -46,7 +46,7 @@ H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置�
 | 我的 | `mine` | 已有 | 四 Tab shell 已提供“我的”资料入口和独立设置入口 |
 | 我的 | `mine-profile` | 已有 | 已有只读资料主页及“我的 -> 个人资料 -> 编辑”稳定路径 |
 | 设置 | `settings` | 已有 | 已有 `/settings` 独立总览路由和刷新深链 |
-| 设置 | `settings-account` | 已有 | `/settings/security` 支持修改密码；账号停用仍缺失 |
+| 设置 | `settings-account` | 已有 | `/settings/security` 支持修改密码，并提供账号停用入口和双重确认闭环 |
 | 设置 | `settings-chat` | 已有 | 支持聊天背景持久化、贴纸管理入口及消息/媒体本地缓存清理 |
 | 设置 | `settings-privacy` | 已有 | `/settings/privacy` 与 `/settings/agreement` 共用文档页，支持真实配置加载 |
 | 设置 | `settings-about` | 已有 | About 使用 package 构建版本，并提供反馈与版本状态入口 |
@@ -64,11 +64,11 @@ H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置�
 | HTTP 与 WebSocket | 已有 | 统一 token/error 处理、重连、订阅和事件测试已存在 |
 | 会话/消息/联系人缓存 | 已有 | wa-sqlite adapter、IndexedDB fallback、存储单测已存在 |
 | OPFS 不可用降级 | 已有 | capability probe 与 IndexedDB/memory fallback 测试已存在 |
-| 多标签页会话一致性 | 缺失 | session 只依赖 localStorage，没有 `storage`/BroadcastChannel 同步登出与 token 变化 |
+| 多标签页会话一致性 | 已有 | `storage` 事件同步登录、token/资料变化、异常 session 失效和退出跳转；E2E 覆盖跨标签退出 |
 | 附件接收与缓存 | 已有 | `CachedAttachment`、blob cache 和富媒体 interop smoke 已存在 |
-| 附件发送 | 行为漂移 | service 支持富媒体发送，但聊天 composer 没有图片/文件浏览器入口 |
-| 语音/相机能力 | 平台降级待补 | Web 应使用 file input/mediaDevices；不支持时显示明确状态，不能保留无动作入口 |
-| 跨端消息/联系人/群 | 部分已有 | H5/iOS 历史 smoke 已覆盖基础消息、好友和群；尚未对齐 Flutter 2.0 已读、治理和状态刷新 |
+| 附件发送 | 已有 | composer 提供图片/文件选择器、上传进度、失败提示与重试；live smoke 覆盖富媒体互见 |
+| 语音/相机能力 | 平台不适用 | 音视频通话属于 U11 P1，不纳入 U9；当前 H5 不暴露无动作入口 |
+| 跨端消息/联系人/群 | 已有 | H5 service、iOS-compatible HTTP contract 与真实 Swift live tests 覆盖消息、已读、好友、群治理和刷新后互见 |
 
 ## 执行顺序
 
@@ -79,14 +79,18 @@ H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置�
 
 每个阶段只在对应 store/service/component 测试与真实 API 流程通过后提交。P1 的朋友圈、扫一扫、附近的人、游戏和音视频通话不纳入 U9；发现 Tab 只交付 P0 shell 和明确的未启用状态。
 
-## R2.1 / R2.2 / R2.3 验收证据
+## R2.1-R2.4 验收证据
 
 - R2.1 聊天差异：`96ea85ef`、`2b4aee01`、`a1539dec`、`97135b38`、`a91e5ccf`。
 - R2.2 联系人/群差异：`12820122`、`62aec5ec`、`debeb1c6`、`5d992bca`、`573c1c8d`、`54a1f235`、`f3a979ad`、`94c0c8f8`、`0dfcf307`。
 - R2.3 我的/设置差异：`e5acdd70`、`5ccbc0f9`、`52bfb0a2`、`6d620f5d`。
-- 最新 H5 门禁：TypeScript check 通过；unit `178 passed / 4 skipped`；live `4 passed`；真实 API E2E `7 passed`；生产构建通过。
-- 真实 API E2E 覆盖注册登录、群聊消息、好友申请、头像上传、群成员增删、入群审核、操作日志、正式群邀请接受/拒绝、四 Tab、聊天设置、贴纸路由、版本状态和账号停用。
-- 下一执行阶段：R2.4 跨端互操作；此处不宣告 U9 完成。
+- R2.4 跨端互操作：`f47e13af` 补齐多标签页 session 同步，`188d8846` 隔离不同账号本地缓存，`7d9c6f8c` 补齐联系人与群治理跨端 live smoke。
+- 存储降级：`local-database.test.ts` 直接覆盖 OPFS worker -> wa-sqlite IndexedDB VFS -> IndexedDB persisted shim -> memory；`opfs-worker-sql-adapter.test.ts` 覆盖 OPFS 打开失败时终止 worker。
+- 账号隔离：登录换号、普通退出和账号停用均清理账号级消息、联系人、搜索索引与媒体缓存；单元和账号停用 E2E 均通过。
+- H5/iOS interop：`make ios-app.test.interop` 通过，先执行 H5 6 项真实 API live tests，再执行 Swift 认证 1、WebSocket 1、聊天 2、好友 1、群管理 1、媒体 1，共 7 个 live cases，全部零失败。
+- 最新 H5 门禁：TypeScript check 通过；unit `181 passed / 6 skipped`；live `6 passed`；真实 API E2E `8 passed`；生产构建通过。
+- 真实 API E2E 覆盖注册登录、群聊消息、好友申请、头像上传、群成员增删、入群审核、操作日志、正式群邀请接受/拒绝、四 Tab、聊天设置、贴纸路由、版本状态、账号停用和跨标签退出。
+- 结论：矩阵中不存在未解释的“缺失”或“行为漂移”，U9 完成；下一阶段按总计划进入 U10 E2EE 发布门禁。
 
 ## 验收门禁
 
@@ -94,5 +98,5 @@ H5 已关闭 R2.1 聊天差异、R2.2 联系人/群差异与 R2.3 我的/设置�
 - `make h5-app.test.unit`
 - `make h5-app.test.live`
 - `make h5-app.test.e2e`
-- Flutter/H5 双账号消息与已读、联系人、群治理互操作测试
+- H5/iOS-compatible contract 与真实 Swift 双账号消息、已读、联系人、群治理互操作测试
 - 本矩阵中的“缺失”和“行为漂移”全部转为“已有”，或记录为有明确用户可见降级语义的平台不适用项

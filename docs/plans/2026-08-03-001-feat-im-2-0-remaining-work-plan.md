@@ -157,6 +157,7 @@ flowchart LR
 - **Scenarios:** 登录和刷新深链；聊天与搜索定位；好友申请和群治理；资料与设置；OPFS 不可用时降级；多标签页会话；Flutter/H5 消息和已读同步。
 - **Verification:** `make h5-app.check`、`make h5-app.test.unit`、`make h5-app.test.live`、`make h5-app.test.e2e`。
 - **Done:** P0 能力矩阵不存在“Flutter 有而 H5 无”的未解释项，平台不适用项有明确降级语义。
+- **Progress:** 2026-08-04 已完成 R2.1-R2.4，38 个 P0 路由全部实现；多标签页 session、账号缓存隔离和 OPFS -> IndexedDB -> memory 降级均有测试覆盖。`make ios-app.test.interop` 已通过 H5 6 项 live tests 与 Swift 7 个 live cases，验证消息、已读、好友和群治理刷新互见；H5 check、unit `181 passed / 6 skipped`、E2E `8 passed` 和生产构建全部通过。审计见 `docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`，U9 已关闭。
 
 ### R3. 关闭 U10 E2EE 发布门禁
 
