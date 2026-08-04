@@ -42,7 +42,7 @@ export const useAuthStore = defineStore('auth', {
       try {
         const session = await loginWithAccount(account, password, appEnv.useMockData);
         if (this.session?.user.id && this.session.user.id !== session.user.id) {
-          await accountDataService.clearAll();
+          await accountDataService.clearAll(this.session.user.id);
         }
         this.session = session;
         writeStoredSession(session);
@@ -60,7 +60,7 @@ export const useAuthStore = defineStore('auth', {
         await registerWithAccount(account, password, appEnv.useMockData);
         const session = await loginWithAccount(account, password, appEnv.useMockData);
         if (this.session?.user.id && this.session.user.id !== session.user.id) {
-          await accountDataService.clearAll();
+          await accountDataService.clearAll(this.session.user.id);
         }
         this.session = session;
         writeStoredSession(session);
@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', {
       }
     },
     async logout(clearLocalData = true) {
-      if (clearLocalData) await accountDataService.clearAll();
+      if (clearLocalData) await accountDataService.clearAll(this.session?.user.id);
       this.session = null;
       this.error = '';
       writeStoredSession(null);

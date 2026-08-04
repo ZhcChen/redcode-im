@@ -36,6 +36,7 @@ describe('auth store', () => {
     const clear = vi.spyOn(accountDataService, 'clearAll').mockResolvedValue();
     await store.login('second_user', 'password');
     expect(clear).toHaveBeenCalledOnce();
+    expect(clear).toHaveBeenCalledWith('mock-user-first_user');
   });
 
   it('synchronizes login updates and logout from another browser tab', () => {

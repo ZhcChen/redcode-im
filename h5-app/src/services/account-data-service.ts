@@ -1,13 +1,14 @@
 import { attachmentCacheService } from '@/services/attachment-cache';
 import { avatarCacheService } from '@/services/avatar-cache';
 import { emojiCacheService } from '@/services/emoji-cache';
+import { e2eeSecureStateStorage } from '@/e2ee/secure-state-storage';
 import { ChatSummaryStorage } from '@/storage/chat-summary-storage';
 import { ContactStorage } from '@/storage/contact-storage';
 import { MessageSearchStorage } from '@/storage/message-search-storage';
 import { MessageStorage } from '@/storage/message-storage';
 
 export const accountDataService = {
-  async clearAll() {
+  async clearAll(accountId?: string) {
     await Promise.all([
       new ChatSummaryStorage().clear(),
       new ContactStorage().clear(),
@@ -16,6 +17,7 @@ export const accountDataService = {
       attachmentCacheService.clearAll(),
       avatarCacheService.clearAll(),
       emojiCacheService.clearAll(),
+      accountId ? e2eeSecureStateStorage.delete(accountId) : Promise.resolve(),
     ]);
   },
 };
