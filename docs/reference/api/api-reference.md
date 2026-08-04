@@ -6,10 +6,15 @@
 
 - [基础信息](#基础信息)
 - [认证 API](#认证-api)
+- [登录设备 API](#登录设备-api)
+- [扫码登录 API](#扫码登录-api)
 - [用户管理 API](#用户管理-api)
+- [黑名单 API](#黑名单-api)
 - [好友系统 API](#好友系统-api)
 - [房间/群组 API](#房间群组-api)
+- [群公告 API](#群公告-api)
 - [消息 API](#消息-api)
+- [消息收藏 API](#消息收藏-api)
 - [消息已读 API](#消息已读-api)
 - [消息搜索 API](#消息搜索-api)
 - [群组管理 API](#群组管理-api)
@@ -163,6 +168,51 @@ Authorization: Bearer <your-jwt-token>
 }
 ```
 
+### 登录设备 API（API 2.0）
+
+> 详细说明见 `auth-devices.md`。登录/注册/短信登录请求体可携带
+> `device_id`、`device_name`、`platform`。
+
+#### 14. 获取设备列表
+- **接口**: `GET /auth/devices`
+- **权限**: 需要认证
+- **功能**: 列出当前账号全部登录设备（含当前设备标记）
+- **Handler**: `auth_device::list_devices`
+
+#### 15. 撤销设备
+- **接口**: `POST /auth/devices/:device_id/revoke`
+- **权限**: 需要认证
+- **功能**: 撤销指定设备，使其 access/refresh token 失效并断开 WS 会话
+- **Handler**: `auth_device::revoke_device`
+
+### 扫码登录 API（API 2.0）
+
+> 完整流程见 `qr-login.md`。二维码会话 TTL 5 分钟，`loginCode` 一次性使用。
+
+#### 16. 创建扫码会话
+- **接口**: `POST /auth/qr/sessions`
+- **权限**: 否（PC 端匿名）
+- **功能**: 创建扫码登录会话，返回 `qrId` 与 `expiresAt`
+- **Handler**: `qr_login::create_session`
+
+#### 17. 轮询扫码状态
+- **接口**: `GET /auth/qr/sessions/:qr_id`
+- **权限**: 否（PC 端匿名）
+- **功能**: 查询状态；confirmed 时一次性返回 `loginCode`
+- **Handler**: `qr_login::get_session`
+
+#### 18. 手机端确认扫码
+- **接口**: `POST /auth/qr/sessions/:qr_id/confirm`
+- **权限**: 需要认证（手机端已登录）
+- **功能**: 确认二维码登录；确认后向 PC 端 WS 推送 `qr_status_changed`
+- **Handler**: `qr_login::confirm_session`
+
+#### 19. 取消扫码会话
+- **接口**: `POST /auth/qr/sessions/:qr_id/cancel`
+- **权限**: 否（PC 端匿名）
+- **功能**: 取消等待中的扫码会话
+- **Handler**: `qr_login::cancel_session`
+
 ---
 
 ## 用户管理 API
@@ -227,6 +277,28 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 获取指定用户头像的临时下载链接
 - **Handler**: `user::get_user_avatar_download_url`
+
+### 黑名单 API（API 2.0）
+
+> 详细说明见 `user-block.md`。双向任一方向拉黑即阻断私聊、发消息与好友申请。
+
+#### 10. 获取拉黑列表
+- **接口**: `GET /users/blocked`
+- **权限**: 需要认证
+- **功能**: 分页获取当前用户拉黑列表（limit 默认 50，1-100）
+- **Handler**: `user_block::list_blocked`
+
+#### 11. 拉黑用户
+- **接口**: `POST /users/blocked`
+- **权限**: 需要认证
+- **功能**: 拉黑指定用户（幂等；不能拉黑自己）
+- **Handler**: `user_block::block_user`
+
+#### 12. 取消拉黑
+- **接口**: `DELETE /users/blocked/:user_id`
+- **权限**: 需要认证
+- **功能**: 取消对指定用户的拉黑
+- **Handler**: `user_block::unblock_user`
 
 ---
 
@@ -440,6 +512,28 @@ Authorization: Bearer <your-jwt-token>
 - **权限**: 需要认证
 - **功能**: 取消房间置顶
 - **Handler**: `room::unpin_room`
+
+### 群公告 API（API 2.0）
+
+> 详细说明见 `group-announcement.md`。仅群主/管理员可写，群成员可读。
+
+#### 17. 获取群公告
+- **接口**: `GET /rooms/:room_id/announcement`
+- **权限**: 需要认证（群成员）
+- **功能**: 获取当前群公告；无公告返回 404
+- **Handler**: `group_announcement::get_announcement`
+
+#### 18. 发布/更新群公告
+- **接口**: `PUT /rooms/:room_id/announcement`
+- **权限**: 需要认证（群主/管理员）
+- **功能**: 覆盖式发布或更新公告；成功后向群内推送 WS 事件 23
+- **Handler**: `group_announcement::update_announcement`
+
+#### 19. 删除群公告
+- **接口**: `DELETE /rooms/:room_id/announcement`
+- **权限**: 需要认证（群主/管理员）
+- **功能**: 删除公告并推送 WS 事件 23（content 为 null）
+- **Handler**: `group_announcement::delete_announcement`
 
 ---
 
@@ -667,6 +761,28 @@ DELETE /rooms/:room_id/messages/:message_id/reactions?reaction_key=👍
 - **Handler**: `message::generate_message_attachment_download_url`
 - **查询参数**: `?key=xxx&expires_in_seconds=600`
 - **说明**：`persist` 优先校验该 `key` 必须已被当前房间的持久化消息分片引用（附件或缩略图），否则 fallback 检查未过期 relay-only 临时授权；`relay_only` 校验发送时写入的 Redis TTL 临时授权，且附件 key 必须属于当前房间前缀 `messages/{room_id}/` 并已完成上传提交。授权缺失/过期返回 HTTP 404，Redis 授权服务不可用返回 HTTP 503；relay-only 临时授权生成的下载 URL 有效期不会超过 Redis grant 剩余 TTL。
+
+### 消息收藏 API（API 2.0）
+
+> 详细说明见 `messages.md` 的「消息收藏」章节。收藏仅本人可见，重复收藏幂等。
+
+#### 14. 收藏消息
+- **接口**: `POST /rooms/:room_id/messages/:message_id/favorite`
+- **权限**: 需要认证（房间成员）
+- **功能**: 收藏指定消息（幂等）
+- **Handler**: `message_favorite::favorite_message`
+
+#### 15. 取消收藏
+- **接口**: `DELETE /rooms/:room_id/messages/:message_id/favorite`
+- **权限**: 需要认证（房间成员）
+- **功能**: 取消收藏；未收藏返回 404
+- **Handler**: `message_favorite::unfavorite_message`
+
+#### 16. 获取收藏列表
+- **接口**: `GET /messages/favorites`
+- **权限**: 需要认证
+- **功能**: 分页获取本人收藏（limit 默认 50，1-100，按收藏时间倒序）
+- **Handler**: `message_favorite::list_favorites`
 
 ---
 

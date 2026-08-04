@@ -86,6 +86,7 @@ interface UserInfo {
   nickname: string | null;       // 昵称
   avatar_url: string | null;     // 头像URL（临时签名链接）
   avatar_object_key: string | null; // 头像存储key
+  signature: string | null;      // 个性签名（API 2.0）
   status: UserStatus;            // 用户状态
 }
 ```
@@ -106,6 +107,9 @@ interface LoginRequest {
   username: string;              // 登录账号；邮箱登录兼容开关开启时也可传 email
   email?: string;                // 默认关闭，仅兼容旧邮箱登录客户端
   password: string;              // 密码
+  device_id?: string;            // 客户端稳定设备标识（API 2.0，可选）
+  device_name?: string;          // 设备名称（API 2.0，可选）
+  platform?: string;             // 平台标识（API 2.0，可选）
 }
 ```
 
@@ -115,6 +119,7 @@ interface LoginResponse {
   token: string;                 // JWT访问令牌
   user: UserInfo;                // 用户信息
   refresh_token?: string;        // 刷新令牌（可选）
+  deviceId?: string;             // 本次登录设备ID（API 2.0，可选）
 }
 ```
 
@@ -124,6 +129,7 @@ interface UpdateUserRequest {
   nickname?: string;             // 新昵称
   avatar_url?: string;           // 新头像URL
   avatar_object_key?: string;    // 新头像存储key
+  signature?: string;            // 个性签名（API 2.0，可选；空串清空）
   friend_remark?: string;        // 好友备注
 }
 ```
@@ -566,4 +572,71 @@ interface PaginatedResponse<T> {
 
 ---
 
-**文档最后更新**: 2026-01-13
+## API 2.0 新增模型
+
+### BlockedUserInfo - 黑名单列表项
+```typescript
+interface BlockedUserInfo {
+  userId: string;                // 被拉黑用户ID
+  username: string;              // 用户名
+  nickname: string | null;       // 昵称
+  avatarUrl: string | null;      // 头像URL
+  signature: string | null;      // 个性签名
+  blockedAt: string;             // 拉黑时间（RFC3339）
+}
+```
+
+### GroupAnnouncement - 群公告
+```typescript
+interface GroupAnnouncement {
+  roomId: string;                // 群房间ID
+  content: string;               // 公告内容
+  createdBy: string;             // 创建者用户ID
+  updatedBy: string;             // 最后更新者用户ID
+  createdAt: string;             // 创建时间（RFC3339）
+  updatedAt: string;             // 更新时间（RFC3339）
+}
+```
+
+### FavoriteMessageInfo - 消息收藏项
+```typescript
+interface FavoriteMessageInfo {
+  messageId: string;             // 消息ID
+  roomId: string;                // 房间ID
+  senderId: string;              // 发送者用户ID
+  content: string;               // 消息内容
+  messageType: string;           // 消息类型
+  messageCreatedAt: string;      // 消息创建时间（RFC3339）
+  favoritedAt: string;           // 收藏时间（RFC3339）
+}
+```
+
+### UserDeviceInfo - 登录设备
+```typescript
+interface UserDeviceInfo {
+  deviceId: string;              // 设备ID
+  deviceName: string;            // 设备名称
+  platform: string;              // 平台标识
+  lastSeenAt: string;            // 最后活跃时间（RFC3339）
+  createdAt: string;             // 登记时间（RFC3339）
+  revokedAt: string | null;      // 撤销时间；null 表示未撤销
+  isCurrent: boolean;            // 是否为当前请求设备
+}
+```
+
+### QrSessionResponse - 扫码会话
+```typescript
+interface QrSessionResponse {
+  qrId: string;                  // 二维码会话ID（UUID）
+  expiresAt: string;             // 过期时间（RFC3339，默认 5 分钟）
+}
+
+interface QrSessionStatusResponse {
+  status: "pending" | "confirmed" | "cancelled" | "expired";
+  loginCode?: string;            // 仅 confirmed 时返回，一次性
+}
+```
+
+---
+
+**文档最后更新**: 2026-08-04
