@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 3;
+const EXPECTED_MIGRATION_COUNT: i64 = 4;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));
@@ -156,6 +156,12 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
         "push_logs",
         "push_job_queue",
         "e2ee_identity_keys",
+        "e2ee_account_identities",
+        "e2ee_devices",
+        "e2ee_key_packages",
+        "e2ee_room_epochs",
+        "e2ee_control_messages",
+        "e2ee_control_receipts",
         "object_storage_configs",
         "user_room_preferences",
     ] {
@@ -167,6 +173,12 @@ async fn empty_database_migrate_builds_current_baseline() -> Result<(), Box<dyn 
     assert!(column_exists(pool, "messages", "encrypted_content").await?);
     assert!(column_exists(pool, "messages", "encryption_metadata").await?);
     assert!(column_exists(pool, "app_versions", "app_store_url").await?);
+    assert!(column_exists(pool, "e2ee_devices", "approved_by_device_id").await?);
+    assert!(column_exists(pool, "e2ee_devices", "revoked_at").await?);
+    assert!(column_exists(pool, "e2ee_key_packages", "consumed_at").await?);
+    assert!(column_exists(pool, "e2ee_room_epochs", "membership_revision").await?);
+    assert!(column_exists(pool, "e2ee_control_messages", "idempotency_key").await?);
+    assert!(column_exists(pool, "e2ee_control_receipts", "consumed_at").await?);
 
     let admin_count: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM admin_users WHERE deleted_at IS NULL")

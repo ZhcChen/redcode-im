@@ -75,6 +75,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260728175513_user_room_preferences.sql"
         )),
     ),
+    (
+        "20260804084500_e2ee_mls_state.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260804084500_e2ee_mls_state.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -585,6 +592,12 @@ async fn ensure_database_matches_current_baseline(
         "push_logs",
         "push_job_queue",
         "e2ee_identity_keys",
+        "e2ee_account_identities",
+        "e2ee_devices",
+        "e2ee_key_packages",
+        "e2ee_room_epochs",
+        "e2ee_control_messages",
+        "e2ee_control_receipts",
         "object_storage_configs",
     ];
     const REQUIRED_VIEWS: &[&str] = &["group_detail_view"];
