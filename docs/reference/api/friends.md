@@ -241,3 +241,93 @@
   "message": "好友不存在或已停用"
 }
 ```
+
+## GET /friends — 获取好友列表
+
+获取当前用户的全部好友。
+
+- 需要认证：是
+- 标识：listFriends
+
+### 请求体
+无
+
+### 响应
+#### HTTP 200
+成功，返回 FriendInfo 数组（无好友时为空数组）：
+```json
+[
+  {
+    "id": "5c6d7e8f-9012-3456-7890-abcdef123456",
+    "user": {
+      "id": "f2c3d4e5-6f78-9012-3456-7890abcdef12",
+      "username": "bob",
+      "email": "bob@example.com",
+      "nickname": "Bob",
+      "avatar_url": null,
+      "avatar_object_key": null,
+      "signature": null,
+      "status": "active"
+    },
+    "created_at": "2025-10-20T10:00:00Z",
+    "friend_remark": "小明同学"
+  }
+]
+```
+
+#### HTTP 401
+未授权（鉴权中间件层返回空响应体）
+
+## PATCH /friends/:friend_user_id/remark — 更新好友备注
+
+设置或更新好友的备注名；`remark` 传空串可清除备注。
+
+- 需要认证：是
+- 标识：updateFriendRemark
+
+### 请求体
+```json
+{
+  "remark": "小明同学"
+}
+```
+
+### 响应
+#### HTTP 200
+```json
+{
+  "remark": "小明同学"
+}
+```
+
+#### HTTP 400
+不能给自己设置备注（code 42201）
+
+#### HTTP 401
+未授权（鉴权中间件层返回空响应体）
+
+## DELETE /friends/:friend_user_id — 删除好友
+
+删除与指定用户的好友关系（双向删除），并向双方在线连接推送
+`friendship_deleted` 事件（见 `websocket.md` 事件 19）。
+
+- 需要认证：是
+- 标识：deleteFriend
+
+### 响应
+#### HTTP 200
+```json
+{
+  "success": true,
+  "message": "删除好友成功"
+}
+```
+
+#### HTTP 404
+好友关系不存在
+```json
+{
+  "code": 40401,
+  "message": "好友关系不存在"
+}
+```
