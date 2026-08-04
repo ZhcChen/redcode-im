@@ -1,4 +1,9 @@
 import { validateE2eeProtocolState } from '@/e2ee/core-bridge';
+import {
+  E2eeIdentityTrustManager,
+  type E2eeIdentityTrustRecord,
+  type E2eeIdentityTrustStore,
+} from '@/e2ee/identity-trust';
 
 const DATABASE_NAME = 'redcode-h5-e2ee-state';
 const DATABASE_VERSION = 1;
@@ -7,6 +12,8 @@ const STATE_STORE = 'encrypted-states';
 const STATE_VERSION = 1;
 const NONCE_BYTES = 12;
 const AAD_PREFIX = 'redcode-im/e2ee-state/v1\0';
+const TRUST_AAD_PREFIX = 'redcode-im/e2ee-identity-trust/v1\0';
+const TRUST_SUFFIX = ':identity-trust';
 
 interface StoredEncryptedState {
   version: number;
@@ -35,7 +42,7 @@ export interface E2eeSecureStateStorageOptions {
   validateProtocolState?: (state: Uint8Array) => Promise<boolean>;
 }
 
-export class E2eeSecureStateStorage {
+export class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
   private readonly databaseName: string;
   private readonly indexedDb?: IDBFactory;
   private readonly cryptoProvider?: Crypto;
@@ -56,6 +63,53 @@ export class E2eeSecureStateStorage {
     if (!await this.validateProtocolState(state)) {
       throw new E2eeStateCorruptedError('拒绝保存无效的 E2EE 协议状态');
     }
+    await this.writeEncrypted(accountId, this.accountNamespace(accountId), AAD_PREFIX, state);
+  }
+
+  async read(accountId: string): Promise<Uint8Array | null> {
+    const state = await this.readEncrypted(accountId, this.accountNamespace(accountId), AAD_PREFIX);
+    if (state && !await this.validateProtocolState(state)) {
+      throw new E2eeStateCorruptedError();
+    }
+    return state;
+  }
+
+  async readRecords(accountId: string): Promise<Record<string, E2eeIdentityTrustRecord>> {
+    const data = await this.readEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${TRUST_SUFFIX}`,
+      TRUST_AAD_PREFIX,
+    );
+    if (!data) return {};
+    try {
+      return E2eeIdentityTrustManager.decodeRegistry(data);
+    } catch {
+      throw new E2eeStateCorruptedError('E2EE 信任记录已损坏');
+    }
+  }
+
+  async writeRecords(
+    accountId: string,
+    records: Record<string, E2eeIdentityTrustRecord>,
+  ): Promise<void> {
+    await this.writeEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${TRUST_SUFFIX}`,
+      TRUST_AAD_PREFIX,
+      E2eeIdentityTrustManager.encodeRegistry(records),
+    );
+  }
+
+  async deleteRecords(accountId: string): Promise<void> {
+    await this.delete(accountId);
+  }
+
+  private async writeEncrypted(
+    accountId: string,
+    storageKey: string,
+    aadPrefix: string,
+    plaintext: Uint8Array,
+  ): Promise<void> {
     const namespace = this.accountNamespace(accountId);
     const db = await this.open();
     try {
@@ -74,13 +128,13 @@ export class E2eeSecureStateStorage {
         {
           name: 'AES-GCM',
           iv: toArrayBuffer(nonce),
-          additionalData: toArrayBuffer(this.associatedData(accountId)),
+          additionalData: toArrayBuffer(this.associatedData(aadPrefix, accountId)),
           tagLength: 128,
         },
         wrappingKey,
-        toArrayBuffer(state),
+        toArrayBuffer(plaintext),
       );
-      await writeRecord<StoredEncryptedState>(db, STATE_STORE, namespace, {
+      await writeRecord<StoredEncryptedState>(db, STATE_STORE, storageKey, {
         version: STATE_VERSION,
         nonce: Array.from(nonce),
         ciphertext: Array.from(new Uint8Array(ciphertext)),
@@ -90,11 +144,15 @@ export class E2eeSecureStateStorage {
     }
   }
 
-  async read(accountId: string): Promise<Uint8Array | null> {
+  private async readEncrypted(
+    accountId: string,
+    storageKey: string,
+    aadPrefix: string,
+  ): Promise<Uint8Array | null> {
     const namespace = this.accountNamespace(accountId);
     const db = await this.open();
     try {
-      const encrypted = await readRecord<StoredEncryptedState>(db, STATE_STORE, namespace);
+      const encrypted = await readRecord<StoredEncryptedState>(db, STATE_STORE, storageKey);
       if (!encrypted) return null;
       const wrappingKey = await readRecord<CryptoKey>(db, KEY_STORE, namespace);
       if (!wrappingKey || encrypted.version !== STATE_VERSION) {
@@ -105,17 +163,13 @@ export class E2eeSecureStateStorage {
           {
             name: 'AES-GCM',
             iv: toArrayBuffer(new Uint8Array(encrypted.nonce)),
-            additionalData: toArrayBuffer(this.associatedData(accountId)),
+            additionalData: toArrayBuffer(this.associatedData(aadPrefix, accountId)),
             tagLength: 128,
           },
           wrappingKey,
           toArrayBuffer(new Uint8Array(encrypted.ciphertext)),
         );
-        const state = new Uint8Array(plaintext);
-        if (!await this.validateProtocolState(state)) {
-          throw new E2eeStateCorruptedError();
-        }
-        return state;
+        return new Uint8Array(plaintext);
       } catch (error) {
         if (error instanceof E2eeStateCorruptedError) throw error;
         throw new E2eeStateCorruptedError();
@@ -133,6 +187,7 @@ export class E2eeSecureStateStorage {
       await Promise.all([
         deleteRecord(db, KEY_STORE, namespace),
         deleteRecord(db, STATE_STORE, namespace),
+        deleteRecord(db, STATE_STORE, `${namespace}${TRUST_SUFFIX}`),
       ]);
     } finally {
       db.close();
@@ -160,8 +215,8 @@ export class E2eeSecureStateStorage {
     return `account:${normalized}`;
   }
 
-  private associatedData(accountId: string): Uint8Array {
-    return new TextEncoder().encode(`${AAD_PREFIX}${accountId.trim()}`);
+  private associatedData(prefix: string, accountId: string): Uint8Array {
+    return new TextEncoder().encode(`${prefix}${accountId.trim()}`);
   }
 
   private async open(): Promise<IDBDatabase> {

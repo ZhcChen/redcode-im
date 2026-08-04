@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'core_bridge.dart';
+import 'identity_trust.dart';
 
 const _stateMagic = [0x52, 0x43, 0x45, 0x53]; // RCES
 const _stateVersion = 1;
@@ -16,6 +17,8 @@ const _nonceLength = 12;
 const _macLength = 16;
 const _keyLength = 32;
 const _aadPrefix = 'redcode-im/e2ee-state/v1\u0000';
+const _trustAadPrefix = 'redcode-im/e2ee-identity-trust/v1\u0000';
+const _trustSlot = 'identity-trust';
 
 class E2eeStateCorruptedException implements Exception {
   const E2eeStateCorruptedException([this.message = 'E2EE 协议状态已损坏或无法解密']);
@@ -95,7 +98,7 @@ class FileE2eeEncryptedStateStore implements E2eeEncryptedStateStore {
   }
 }
 
-class E2eeSecureStateStorage {
+class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
   E2eeSecureStateStorage({
     E2eeWrappingKeyStore? wrappingKeys,
     E2eeEncryptedStateStore? encryptedStates,
@@ -118,6 +121,52 @@ class E2eeSecureStateStorage {
     if (!_protocolCore.validateProtocolState(state)) {
       throw const E2eeStateCorruptedException('E2EE 协议状态格式无效');
     }
+    await _writeEncrypted(accountId, null, _aadPrefix, state);
+  }
+
+  Future<Uint8List?> read(String accountId) async {
+    final plaintext = await _readEncrypted(accountId, null, _aadPrefix);
+    if (plaintext == null) return null;
+    if (!_protocolCore.validateProtocolState(plaintext)) {
+      throw const E2eeStateCorruptedException('E2EE 协议状态格式无效');
+    }
+    return plaintext;
+  }
+
+  @override
+  Future<Map<String, E2eeIdentityTrustRecord>> readRecords(
+    String accountId,
+  ) async {
+    final plaintext = await _readEncrypted(
+      accountId,
+      _trustSlot,
+      _trustAadPrefix,
+    );
+    if (plaintext == null) return {};
+    try {
+      return E2eeIdentityTrustManager.decodeRegistry(plaintext);
+    } on Object {
+      throw const E2eeStateCorruptedException('E2EE 信任记录已损坏');
+    }
+  }
+
+  @override
+  Future<void> writeRecords(
+    String accountId,
+    Map<String, E2eeIdentityTrustRecord> records,
+  ) => _writeEncrypted(
+    accountId,
+    _trustSlot,
+    _trustAadPrefix,
+    E2eeIdentityTrustManager.encodeRegistry(records),
+  );
+
+  Future<void> _writeEncrypted(
+    String accountId,
+    String? slot,
+    String aadPrefix,
+    List<int> plaintext,
+  ) async {
     final namespace = _namespace(accountId);
     final keyName = _keyName(namespace);
     var keyBytes = await _wrappingKeys.read(keyName);
@@ -131,10 +180,10 @@ class E2eeSecureStateStorage {
 
     final nonce = _cipher.newNonce();
     final box = await _cipher.encrypt(
-      state,
+      plaintext,
       secretKey: SecretKey(keyBytes),
       nonce: nonce,
-      aad: _associatedData(accountId),
+      aad: _associatedData(aadPrefix, accountId),
     );
     final encoded = <int>[
       ..._stateMagic,
@@ -143,12 +192,16 @@ class E2eeSecureStateStorage {
       ...box.mac.bytes,
       ...box.cipherText,
     ];
-    await _encryptedStates.write(namespace, encoded);
+    await _encryptedStates.write(_storageKey(namespace, slot), encoded);
   }
 
-  Future<Uint8List?> read(String accountId) async {
+  Future<Uint8List?> _readEncrypted(
+    String accountId,
+    String? slot,
+    String aadPrefix,
+  ) async {
     final namespace = _namespace(accountId);
-    final encoded = await _encryptedStates.read(namespace);
+    final encoded = await _encryptedStates.read(_storageKey(namespace, slot));
     if (encoded == null) return null;
     final keyBytes = await _wrappingKeys.read(_keyName(namespace));
     if (keyBytes == null || keyBytes.length != _keyLength) {
@@ -172,11 +225,8 @@ class E2eeSecureStateStorage {
       final plaintext = await _cipher.decrypt(
         box,
         secretKey: SecretKey(keyBytes),
-        aad: _associatedData(accountId),
+        aad: _associatedData(aadPrefix, accountId),
       );
-      if (!_protocolCore.validateProtocolState(plaintext)) {
-        throw const E2eeStateCorruptedException('E2EE 协议状态格式无效');
-      }
       return Uint8List.fromList(plaintext);
     } on SecretBoxAuthenticationError {
       throw const E2eeStateCorruptedException();
@@ -187,7 +237,11 @@ class E2eeSecureStateStorage {
     final namespace = _namespace(accountId);
     await _wrappingKeys.delete(_keyName(namespace));
     await _encryptedStates.delete(namespace);
+    await _encryptedStates.delete(_storageKey(namespace, _trustSlot));
   }
+
+  @override
+  Future<void> deleteRecords(String accountId) => delete(accountId);
 
   static String _namespace(String accountId) {
     final normalized = accountId.trim();
@@ -200,8 +254,11 @@ class E2eeSecureStateStorage {
   static String _keyName(String namespace) =>
       'redcode.e2ee.wrapping-key.$namespace';
 
-  static List<int> _associatedData(String accountId) =>
-      utf8.encode('$_aadPrefix${accountId.trim()}');
+  static String _storageKey(String namespace, String? slot) =>
+      slot == null ? namespace : '$namespace.$slot';
+
+  static List<int> _associatedData(String prefix, String accountId) =>
+      utf8.encode('$prefix${accountId.trim()}');
 
   static bool _hasMagic(List<int> value) {
     for (var index = 0; index < _stateMagic.length; index++) {

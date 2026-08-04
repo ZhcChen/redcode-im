@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:app/core/e2ee/secure_state_storage.dart';
 import 'package:app/core/e2ee/core_bridge.dart';
+import 'package:app/core/e2ee/identity_trust.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -71,6 +72,57 @@ void main() {
       expect(await storage.read('account-b'), [2]);
       expect(keys.values, hasLength(1));
       expect(states.values, hasLength(1));
+    });
+
+    test(
+      'encrypts identity trust records outside ordinary app storage',
+      () async {
+        final record = E2eeIdentityTrustRecord(
+          trusted: E2eeRootIdentity(
+            userId: 'account-b',
+            publicKey: Uint8List(32)..fillRange(0, 32, 7),
+            fingerprint: Uint8List(32)..fillRange(0, 32, 9),
+            protocolVersion: 1,
+          ),
+          trustedAt: DateTime.utc(2026, 8, 4),
+        );
+
+        await storage.writeRecords('account-a', {'account-b': record});
+
+        expect(
+          (await storage.readRecords(
+            'account-a',
+          ))['account-b']!.trusted.fingerprint,
+          record.trusted.fingerprint,
+        );
+        expect(states.values.keys.single, endsWith('.identity-trust'));
+        expect(
+          String.fromCharCodes(states.values.values.single),
+          isNot(contains('account-b')),
+        );
+      },
+    );
+
+    test('fails closed after identity trust ciphertext tampering', () async {
+      final record = E2eeIdentityTrustRecord(
+        trusted: E2eeRootIdentity(
+          userId: 'account-b',
+          publicKey: Uint8List(32)..fillRange(0, 32, 7),
+          fingerprint: Uint8List(32)..fillRange(0, 32, 9),
+          protocolVersion: 1,
+        ),
+        trustedAt: DateTime.utc(2026, 8, 4),
+      );
+      await storage.writeRecords('account-a', {'account-b': record});
+      final encrypted = states.values.entries
+          .singleWhere((entry) => entry.key.endsWith('.identity-trust'))
+          .value;
+      encrypted[encrypted.length - 1] ^= 0xff;
+
+      await expectLater(
+        storage.readRecords('account-a'),
+        throwsA(isA<E2eeStateCorruptedException>()),
+      );
     });
   });
 }

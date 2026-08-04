@@ -8,6 +8,7 @@ import {
   E2eeStateCorruptedError,
   E2eeStorageUnavailableError,
 } from '@/e2ee/secure-state-storage';
+import type { E2eeIdentityTrustRecord } from '@/e2ee/identity-trust';
 
 const createStorage = () => new E2eeSecureStateStorage({
   databaseName: `e2ee-test-${crypto.randomUUID()}`,
@@ -35,6 +36,27 @@ describe('E2eeSecureStateStorage', () => {
     await storage.delete('account-a');
 
     expect(await storage.read('account-a')).toBeNull();
+  });
+
+  it('encrypts identity trust records without localStorage fallback', async () => {
+    const storage = createStorage();
+    const record: E2eeIdentityTrustRecord = {
+      trusted: {
+        userId: 'account-b',
+        publicKey: new Uint8Array(32).fill(7),
+        fingerprint: new Uint8Array(32).fill(9),
+        protocolVersion: 1,
+      },
+      trustedAt: '2026-08-04T00:00:00.000Z',
+    };
+
+    await storage.writeRecords('account-a', { 'account-b': record });
+
+    expect((await storage.readRecords('account-a'))['account-b']?.trusted.fingerprint)
+      .toEqual(record.trusted.fingerprint);
+    expect(window.localStorage.length).toBe(0);
+    await storage.deleteRecords('account-a');
+    expect(await storage.readRecords('account-a')).toEqual({});
   });
 
   it('never persists state rejected by the shared core', async () => {
@@ -69,6 +91,38 @@ describe('E2eeSecureStateStorage', () => {
     db.close();
 
     await expect(storage.read('account-a')).rejects.toBeInstanceOf(E2eeStateCorruptedError);
+  });
+
+  it('fails closed when identity trust ciphertext is tampered with', async () => {
+    const indexedDb = new IDBFactory();
+    const databaseName = `e2ee-test-${crypto.randomUUID()}`;
+    const storage = new E2eeSecureStateStorage({
+      databaseName,
+      indexedDb,
+      crypto: webcrypto as unknown as Crypto,
+      validateProtocolState: async () => true,
+    });
+    await storage.writeRecords('account-a', {
+      'account-b': {
+        trusted: {
+          userId: 'account-b',
+          publicKey: new Uint8Array(32).fill(7),
+          fingerprint: new Uint8Array(32).fill(9),
+          protocolVersion: 1,
+        },
+        trustedAt: '2026-08-04T00:00:00.000Z',
+      },
+    });
+
+    const db = await openDatabase(indexedDb, databaseName);
+    const namespace = 'account:account-a:identity-trust';
+    const encrypted = await readRawState(db, namespace);
+    encrypted.ciphertext[0] ^= 0xff;
+    await writeRawState(db, namespace, encrypted);
+    db.close();
+
+    await expect(storage.readRecords('account-a'))
+      .rejects.toBeInstanceOf(E2eeStateCorruptedError);
   });
 
   it('keeps wrapping keys non-extractable', async () => {

@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'package:app/core/e2ee/identity_trust.dart';
 import 'package:app/core/e2ee/secure_state_storage.dart';
 import 'package:app/core/storage/token_storage.dart';
 import 'package:app/features/auth/data/auth_repository.dart';
@@ -24,6 +27,17 @@ void main() {
     );
     await tokenStorage.saveSession(session);
     await e2eeStorage.write('account-a', e2eeStorage.newProtocolState());
+    await e2eeStorage.writeRecords('account-a', {
+      'account-b': E2eeIdentityTrustRecord(
+        trusted: E2eeRootIdentity(
+          userId: 'account-b',
+          publicKey: Uint8List(32)..fillRange(0, 32, 7),
+          fingerprint: Uint8List(32)..fillRange(0, 32, 9),
+          protocolVersion: 1,
+        ),
+        trustedAt: DateTime.utc(2026, 8, 4),
+      ),
+    });
 
     final repository = AuthRepository(
       storage: tokenStorage,
@@ -34,6 +48,7 @@ void main() {
 
     expect(await tokenStorage.readSession(), isNull);
     expect(await e2eeStorage.read('account-a'), isNull);
+    expect(await e2eeStorage.readRecords('account-a'), isEmpty);
     expect(wrappingKeys.values, isEmpty);
     expect(encryptedStates.values, isEmpty);
   });
