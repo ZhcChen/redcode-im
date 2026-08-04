@@ -440,6 +440,26 @@ pub fn create_routes() -> Router<AppState> {
             get(e2ee::get_key_bundles),
         )
         .route(
+            "/e2ee/mls/devices",
+            post(e2ee::register_mls_device).get(e2ee::list_mls_devices),
+        )
+        .route(
+            "/e2ee/mls/devices/{device_id}",
+            delete(e2ee::revoke_mls_device),
+        )
+        .route(
+            "/e2ee/mls/devices/{device_id}/approve",
+            post(e2ee::approve_mls_device),
+        )
+        .route(
+            "/e2ee/mls/devices/{device_id}/key-packages",
+            post(e2ee::publish_mls_key_packages),
+        )
+        .route(
+            "/e2ee/mls/devices/{device_id}/key-packages/claim",
+            post(e2ee::claim_mls_key_package),
+        )
+        .route(
             "/system/upload-policy",
             get(upload_policy::get_upload_policy_user),
         )

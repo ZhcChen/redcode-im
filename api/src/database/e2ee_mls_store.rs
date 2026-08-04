@@ -12,6 +12,7 @@ pub struct RegisterDeviceInput {
     pub root_fingerprint: Vec<u8>,
     pub credential: Vec<u8>,
     pub credential_fingerprint: Vec<u8>,
+    pub approval_public_key: Vec<u8>,
     pub protocol_version: i16,
 }
 
@@ -21,6 +22,8 @@ pub struct E2eeDeviceRecord {
     pub user_id: Uuid,
     pub device_label: String,
     pub protocol_version: i16,
+    pub credential_fingerprint: Vec<u8>,
+    pub approval_public_key: Option<Vec<u8>>,
     pub status: String,
     pub approved_by_device_id: Option<Uuid>,
     pub approved_at: Option<DateTime<Utc>>,
@@ -106,15 +109,18 @@ impl<'a> E2eeMlsStore<'a> {
             .map_err(AppError::DatabaseError)?;
         }
 
-        let existing = sqlx::query_as::<_, (Uuid, String, Vec<u8>, Vec<u8>, i16)>(
-            "SELECT user_id, device_label, credential, credential_fingerprint, protocol_version
+        let existing = sqlx::query_as::<_, (Uuid, String, Vec<u8>, Vec<u8>, Option<Vec<u8>>, i16)>(
+            "SELECT user_id, device_label, credential, credential_fingerprint,
+                    approval_public_key, protocol_version
              FROM e2ee_devices WHERE id = $1",
         )
         .bind(input.device_id)
         .fetch_optional(&mut *tx)
         .await
         .map_err(AppError::DatabaseError)?;
-        if let Some((owner_id, label, credential, fingerprint, protocol_version)) = existing {
+        if let Some((owner_id, label, credential, fingerprint, approval_key, protocol_version)) =
+            existing
+        {
             if owner_id != user_id {
                 return Err(AppError::AlreadyExists(
                     "device_id 已被其他账号使用".to_string(),
@@ -123,6 +129,7 @@ impl<'a> E2eeMlsStore<'a> {
             if label != input.device_label
                 || credential != input.credential
                 || fingerprint != input.credential_fingerprint
+                || approval_key.as_deref() != Some(input.approval_public_key.as_slice())
                 || protocol_version != input.protocol_version
             {
                 return Err(AppError::MessageRuntimeConflict(
@@ -130,7 +137,8 @@ impl<'a> E2eeMlsStore<'a> {
                 ));
             }
             let existing = sqlx::query_as::<_, E2eeDeviceRecord>(
-                "SELECT id, user_id, device_label, protocol_version, status,
+                "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                        approval_public_key, status,
                         approved_by_device_id, approved_at, revoked_at, created_at, updated_at
                  FROM e2ee_devices WHERE id = $1",
             )
@@ -150,10 +158,11 @@ impl<'a> E2eeMlsStore<'a> {
         let device = sqlx::query_as::<_, E2eeDeviceRecord>(
             "INSERT INTO e2ee_devices (
                 id, user_id, device_label, credential, credential_fingerprint,
-                protocol_version, status, approved_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7,
-                CASE WHEN $7 = 'active' THEN NOW() ELSE NULL END)
-             RETURNING id, user_id, device_label, protocol_version, status,
+                approval_public_key, protocol_version, status, approved_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+                CASE WHEN $8 = 'active' THEN NOW() ELSE NULL END)
+             RETURNING id, user_id, device_label, protocol_version, credential_fingerprint,
+                       approval_public_key, status,
                        approved_by_device_id, approved_at, revoked_at, created_at, updated_at",
         )
         .bind(input.device_id)
@@ -161,6 +170,7 @@ impl<'a> E2eeMlsStore<'a> {
         .bind(input.device_label)
         .bind(input.credential)
         .bind(input.credential_fingerprint)
+        .bind(input.approval_public_key)
         .bind(input.protocol_version)
         .bind(status)
         .fetch_one(&mut *tx)
@@ -220,7 +230,8 @@ impl<'a> E2eeMlsStore<'a> {
              SET status = 'active', approved_by_device_id = $1,
                  approved_at = NOW(), updated_at = NOW()
              WHERE id = $2
-             RETURNING id, user_id, device_label, protocol_version, status,
+             RETURNING id, user_id, device_label, protocol_version, credential_fingerprint,
+                       approval_public_key, status,
                        approved_by_device_id, approved_at, revoked_at, created_at, updated_at",
         )
         .bind(approver_device_id)
@@ -242,7 +253,8 @@ impl<'a> E2eeMlsStore<'a> {
             "UPDATE e2ee_devices
              SET status = 'revoked', revoked_at = COALESCE(revoked_at, NOW()), updated_at = NOW()
              WHERE id = $1 AND user_id = $2 AND status <> 'revoked'
-             RETURNING id, user_id, device_label, protocol_version, status,
+             RETURNING id, user_id, device_label, protocol_version, credential_fingerprint,
+                       approval_public_key, status,
                        approved_by_device_id, approved_at, revoked_at, created_at, updated_at",
         )
         .bind(device_id)
@@ -294,14 +306,71 @@ impl<'a> E2eeMlsStore<'a> {
         }
     }
 
+    pub async fn list_devices(&self, user_id: Uuid) -> Result<Vec<E2eeDeviceRecord>, AppError> {
+        sqlx::query_as::<_, E2eeDeviceRecord>(
+            "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                    approval_public_key, status, approved_by_device_id, approved_at,
+                    revoked_at, created_at, updated_at
+             FROM e2ee_devices
+             WHERE user_id = $1
+             ORDER BY created_at, id",
+        )
+        .bind(user_id)
+        .fetch_all(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)
+    }
+
+    pub async fn get_device(
+        &self,
+        user_id: Uuid,
+        device_id: Uuid,
+    ) -> Result<E2eeDeviceRecord, AppError> {
+        sqlx::query_as::<_, E2eeDeviceRecord>(
+            "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                    approval_public_key, status, approved_by_device_id, approved_at,
+                    revoked_at, created_at, updated_at
+             FROM e2ee_devices WHERE user_id = $1 AND id = $2",
+        )
+        .bind(user_id)
+        .bind(device_id)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)?
+        .ok_or_else(|| AppError::NotFound("E2EE 设备不存在".to_string()))
+    }
+
     pub async fn publish_key_packages(
         &self,
         user_id: Uuid,
         device_id: Uuid,
         packages: &[NewKeyPackage],
     ) -> Result<usize, AppError> {
-        self.ensure_active_device(user_id, device_id).await?;
         let mut tx = self.pool.begin().await.map_err(AppError::DatabaseError)?;
+        let device = sqlx::query_as::<_, (String, i16)>(
+            "SELECT status, protocol_version FROM e2ee_devices
+             WHERE id = $1 AND user_id = $2
+             FOR SHARE",
+        )
+        .bind(device_id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?
+        .ok_or_else(|| AppError::Forbidden("发布设备不存在或不属于当前账号".to_string()))?;
+        if device.0 != "active" {
+            return Err(AppError::Forbidden(
+                "只有可信设备可以发布 KeyPackage".to_string(),
+            ));
+        }
+        if packages
+            .iter()
+            .any(|package| package.protocol_version != device.1)
+        {
+            return Err(AppError::ValidationError(
+                "KeyPackage 协议版本与设备不一致".to_string(),
+            ));
+        }
         let mut inserted = 0;
         for package in packages {
             let result = sqlx::query(
@@ -327,6 +396,7 @@ impl<'a> E2eeMlsStore<'a> {
 
     pub async fn take_key_package(
         &self,
+        consumer_user_id: Uuid,
         target_device_id: Uuid,
         consumer_device_id: Uuid,
     ) -> Result<Option<ClaimedKeyPackage>, AppError> {
@@ -343,7 +413,8 @@ impl<'a> E2eeMlsStore<'a> {
                   AND target.status = 'active'
                   AND EXISTS (
                     SELECT 1 FROM e2ee_devices AS consumer
-                    WHERE consumer.id = $2 AND consumer.status = 'active'
+                    WHERE consumer.id = $2 AND consumer.user_id = $3
+                      AND consumer.status = 'active'
                   )
                 ORDER BY package.created_at, package.id
                 LIMIT 1
@@ -354,6 +425,58 @@ impl<'a> E2eeMlsStore<'a> {
         )
         .bind(target_device_id)
         .bind(consumer_device_id)
+        .bind(consumer_user_id)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)
+    }
+
+    pub async fn take_key_package_for_room(
+        &self,
+        room_id: Uuid,
+        consumer_user_id: Uuid,
+        target_device_id: Uuid,
+        consumer_device_id: Uuid,
+    ) -> Result<Option<ClaimedKeyPackage>, AppError> {
+        sqlx::query_as::<_, ClaimedKeyPackage>(
+            "UPDATE e2ee_key_packages
+             SET consumed_at = NOW(), consumed_by_device_id = $2
+             WHERE id = (
+                SELECT package.id
+                FROM e2ee_key_packages AS package
+                JOIN e2ee_devices AS target ON target.id = package.device_id
+                WHERE package.device_id = $1
+                  AND package.consumed_at IS NULL
+                  AND package.expires_at > NOW()
+                  AND target.status = 'active'
+                  AND EXISTS (
+                    SELECT 1 FROM e2ee_devices AS consumer
+                    WHERE consumer.id = $2 AND consumer.user_id = $3
+                      AND consumer.status = 'active'
+                  )
+                  AND EXISTS (
+                    SELECT 1 FROM room_members AS consumer_member
+                    WHERE consumer_member.room_id = $4
+                      AND consumer_member.user_id = $3
+                      AND consumer_member.deleted_at IS NULL
+                  )
+                  AND EXISTS (
+                    SELECT 1 FROM room_members AS target_member
+                    WHERE target_member.room_id = $4
+                      AND target_member.user_id = target.user_id
+                      AND target_member.deleted_at IS NULL
+                  )
+                ORDER BY package.created_at, package.id
+                LIMIT 1
+                FOR UPDATE OF package SKIP LOCKED
+             )
+             RETURNING id, device_id, package_ref, key_package, protocol_version,
+                       expires_at, consumed_at, consumed_by_device_id",
+        )
+        .bind(target_device_id)
+        .bind(consumer_device_id)
+        .bind(consumer_user_id)
+        .bind(room_id)
         .fetch_optional(self.pool)
         .await
         .map_err(AppError::DatabaseError)

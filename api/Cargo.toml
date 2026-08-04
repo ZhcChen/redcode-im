@@ -21,6 +21,7 @@
  # 认证和加密
  jsonwebtoken = "9.3"
  bcrypt = "0.16"
+ed25519-dalek = "2.1"
 
  # 时间处理
  chrono = { version = "0.4", features = ["serde"] }

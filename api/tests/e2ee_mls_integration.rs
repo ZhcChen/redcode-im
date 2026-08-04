@@ -41,6 +41,7 @@ fn device_input(device_id: Uuid, label: &str, marker: u8) -> RegisterDeviceInput
         root_fingerprint: vec![12; 32],
         credential: vec![marker; 128],
         credential_fingerprint: vec![marker; 32],
+        approval_public_key: vec![marker; 32],
         protocol_version: 1,
     }
 }
@@ -107,20 +108,20 @@ async fn device_trust_and_key_package_consumption_are_fail_closed() {
     let third_pool = app.pool.clone();
     let first_claim = async move {
         E2eeMlsStore::new(&first_pool)
-            .take_key_package(second_id, first_id)
+            .take_key_package(user_id, second_id, first_id)
             .await
             .expect("first consumer claim")
     };
     let third_claim = async move {
         E2eeMlsStore::new(&third_pool)
-            .take_key_package(second_id, third_id)
+            .take_key_package(user_id, second_id, third_id)
             .await
             .expect("third consumer claim")
     };
     let (first_claim, third_claim) = tokio::join!(first_claim, third_claim);
     assert_eq!(first_claim.is_some() as u8 + third_claim.is_some() as u8, 1);
     assert!(store
-        .take_key_package(second_id, first_id)
+        .take_key_package(user_id, second_id, first_id)
         .await
         .expect("repeat claim")
         .is_none());

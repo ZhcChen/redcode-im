@@ -5,10 +5,14 @@ use axum::{
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::database::e2ee_key_store::{E2eeKeyStore, OneTimePreKeyInsert, SignedPreKeyInsert};
+use crate::database::e2ee_mls_store::{
+    ClaimedKeyPackage, E2eeDeviceRecord, E2eeMlsStore, NewKeyPackage, RegisterDeviceInput,
+};
 use crate::error::AppError;
 use crate::models::{convert::string_to_uuid, Claims};
 use crate::AppState;
@@ -235,4 +239,344 @@ fn decode_b64(value: &str, field: &str) -> Result<Vec<u8>, AppError> {
     BASE64_STANDARD
         .decode(trimmed)
         .map_err(|_| AppError::ValidationError(format!("{} base64 解码失败", field)))
+}
+
+const MLS_PROTOCOL_VERSION: i16 = 1;
+const MAX_KEY_PACKAGES_PER_REQUEST: usize = 100;
+const MAX_KEY_PACKAGE_LIFETIME_DAYS: i64 = 30;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegisterMlsDeviceRequest {
+    pub device_id: Uuid,
+    pub device_label: String,
+    pub root_public_key: String,
+    pub root_fingerprint: String,
+    pub credential: String,
+    pub credential_fingerprint: String,
+    pub approval_public_key: String,
+    pub protocol_version: i16,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MlsDeviceResponse {
+    pub id: Uuid,
+    pub device_label: String,
+    pub protocol_version: i16,
+    pub credential_fingerprint: String,
+    pub status: String,
+    pub approved_by_device_id: Option<Uuid>,
+    pub approved_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<E2eeDeviceRecord> for MlsDeviceResponse {
+    fn from(value: E2eeDeviceRecord) -> Self {
+        Self {
+            id: value.id,
+            device_label: value.device_label,
+            protocol_version: value.protocol_version,
+            credential_fingerprint: BASE64_STANDARD.encode(value.credential_fingerprint),
+            status: value.status,
+            approved_by_device_id: value.approved_by_device_id,
+            approved_at: value.approved_at,
+            revoked_at: value.revoked_at,
+            created_at: value.created_at,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+pub async fn register_mls_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<RegisterMlsDeviceRequest>,
+) -> Result<Json<MlsDeviceResponse>, AppError> {
+    let user_id = claims_user_id(&claims)?;
+    let label = req.device_label.trim();
+    if label.is_empty() || label.len() > 128 {
+        return Err(AppError::ValidationError("device_label 无效".to_string()));
+    }
+    require_protocol_version(req.protocol_version)?;
+    let root_public_key = decode_b64_range(&req.root_public_key, "root_public_key", 1, 4096)?;
+    let root_fingerprint = decode_b64_range(&req.root_fingerprint, "root_fingerprint", 16, 128)?;
+    let credential = decode_b64_range(&req.credential, "credential", 1, 65_536)?;
+    let credential_fingerprint = decode_b64_range(
+        &req.credential_fingerprint,
+        "credential_fingerprint",
+        16,
+        128,
+    )?;
+    let approval_public_key =
+        decode_b64_range(&req.approval_public_key, "approval_public_key", 32, 32)?;
+    VerifyingKey::from_bytes(
+        approval_public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| AppError::ValidationError("approval_public_key 无效".to_string()))?,
+    )
+    .map_err(|_| {
+        AppError::ValidationError("approval_public_key 不是有效 Ed25519 公钥".to_string())
+    })?;
+
+    let record = E2eeMlsStore::new(state.database.pool())
+        .register_device(
+            user_id,
+            RegisterDeviceInput {
+                device_id: req.device_id,
+                device_label: label.to_string(),
+                root_public_key,
+                root_fingerprint,
+                credential,
+                credential_fingerprint,
+                approval_public_key,
+                protocol_version: req.protocol_version,
+            },
+        )
+        .await?;
+    Ok(Json(record.into()))
+}
+
+pub async fn list_mls_devices(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<MlsDeviceResponse>>, AppError> {
+    let devices = E2eeMlsStore::new(state.database.pool())
+        .list_devices(claims_user_id(&claims)?)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(Json(devices))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ApproveMlsDeviceRequest {
+    pub approver_device_id: Uuid,
+    pub signature: String,
+}
+
+pub async fn approve_mls_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(target_device_id): Path<Uuid>,
+    Json(req): Json<ApproveMlsDeviceRequest>,
+) -> Result<Json<MlsDeviceResponse>, AppError> {
+    let user_id = claims_user_id(&claims)?;
+    if req.approver_device_id == target_device_id {
+        return Err(AppError::ValidationError("设备不能批准自身".to_string()));
+    }
+    let store = E2eeMlsStore::new(state.database.pool());
+    let approver = store.get_device(user_id, req.approver_device_id).await?;
+    if approver.status != "active" {
+        return Err(AppError::Forbidden(
+            "只有可信设备可以批准新设备".to_string(),
+        ));
+    }
+    let target = store.get_device(user_id, target_device_id).await?;
+    if target.status != "pending_approval" {
+        return Err(AppError::MessageRuntimeConflict(
+            "目标设备不处于待批准状态".to_string(),
+        ));
+    }
+    let public_key = approver.approval_public_key.ok_or_else(|| {
+        AppError::MessageRuntimeConflict("批准设备缺少签名公钥，需要重新登记设备".to_string())
+    })?;
+    let signature = decode_b64_range(&req.signature, "signature", 64, 64)?;
+    verify_device_approval(
+        &public_key,
+        &signature,
+        &device_approval_payload(
+            user_id,
+            req.approver_device_id,
+            target_device_id,
+            target.protocol_version,
+            &target.credential_fingerprint,
+        ),
+    )?;
+
+    Ok(Json(
+        store
+            .approve_device(user_id, req.approver_device_id, target_device_id)
+            .await?
+            .into(),
+    ))
+}
+
+pub async fn revoke_mls_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(device_id): Path<Uuid>,
+) -> Result<Json<MlsDeviceResponse>, AppError> {
+    let device = E2eeMlsStore::new(state.database.pool())
+        .revoke_device(claims_user_id(&claims)?, device_id)
+        .await?;
+    Ok(Json(device.into()))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PublishMlsKeyPackagesRequest {
+    pub packages: Vec<MlsKeyPackageUpload>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MlsKeyPackageUpload {
+    pub id: Uuid,
+    pub package_ref: String,
+    pub key_package: String,
+    pub protocol_version: i16,
+    pub expires_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublishMlsKeyPackagesResponse {
+    pub inserted: usize,
+}
+
+pub async fn publish_mls_key_packages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(device_id): Path<Uuid>,
+    Json(req): Json<PublishMlsKeyPackagesRequest>,
+) -> Result<Json<PublishMlsKeyPackagesResponse>, AppError> {
+    if req.packages.is_empty() || req.packages.len() > MAX_KEY_PACKAGES_PER_REQUEST {
+        return Err(AppError::ValidationError(format!(
+            "packages 数量必须在 1 到 {MAX_KEY_PACKAGES_PER_REQUEST} 之间"
+        )));
+    }
+    let now = Utc::now();
+    let latest_expiry = now + Duration::days(MAX_KEY_PACKAGE_LIFETIME_DAYS);
+    let mut packages = Vec::with_capacity(req.packages.len());
+    for package in req.packages {
+        require_protocol_version(package.protocol_version)?;
+        if package.expires_at <= now || package.expires_at > latest_expiry {
+            return Err(AppError::ValidationError(
+                "expires_at 必须在未来 30 天内".to_string(),
+            ));
+        }
+        packages.push(NewKeyPackage {
+            id: package.id,
+            package_ref: decode_b64_range(&package.package_ref, "package_ref", 16, 128)?,
+            key_package: decode_b64_range(&package.key_package, "key_package", 1, 1_048_576)?,
+            protocol_version: package.protocol_version,
+            expires_at: package.expires_at,
+        });
+    }
+    let inserted = E2eeMlsStore::new(state.database.pool())
+        .publish_key_packages(claims_user_id(&claims)?, device_id, &packages)
+        .await?;
+    Ok(Json(PublishMlsKeyPackagesResponse { inserted }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimMlsKeyPackageRequest {
+    pub room_id: Uuid,
+    pub consumer_device_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ClaimedMlsKeyPackageResponse {
+    pub id: Uuid,
+    pub device_id: Uuid,
+    pub package_ref: String,
+    pub key_package: String,
+    pub protocol_version: i16,
+    pub expires_at: DateTime<Utc>,
+}
+
+impl From<ClaimedKeyPackage> for ClaimedMlsKeyPackageResponse {
+    fn from(value: ClaimedKeyPackage) -> Self {
+        Self {
+            id: value.id,
+            device_id: value.device_id,
+            package_ref: BASE64_STANDARD.encode(value.package_ref),
+            key_package: BASE64_STANDARD.encode(value.key_package),
+            protocol_version: value.protocol_version,
+            expires_at: value.expires_at,
+        }
+    }
+}
+
+pub async fn claim_mls_key_package(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(target_device_id): Path<Uuid>,
+    Json(req): Json<ClaimMlsKeyPackageRequest>,
+) -> Result<Json<ClaimedMlsKeyPackageResponse>, AppError> {
+    let package = E2eeMlsStore::new(state.database.pool())
+        .take_key_package_for_room(
+            req.room_id,
+            claims_user_id(&claims)?,
+            target_device_id,
+            req.consumer_device_id,
+        )
+        .await?
+        .ok_or_else(|| AppError::NotFound("没有可领取的 KeyPackage".to_string()))?;
+    Ok(Json(package.into()))
+}
+
+pub fn device_approval_payload(
+    user_id: Uuid,
+    approver_device_id: Uuid,
+    target_device_id: Uuid,
+    protocol_version: i16,
+    target_credential_fingerprint: &[u8],
+) -> Vec<u8> {
+    let mut payload = b"redcode-im/e2ee/device-approval/v1\0".to_vec();
+    payload.extend_from_slice(user_id.as_bytes());
+    payload.extend_from_slice(approver_device_id.as_bytes());
+    payload.extend_from_slice(target_device_id.as_bytes());
+    payload.extend_from_slice(&protocol_version.to_be_bytes());
+    payload.extend_from_slice(&(target_credential_fingerprint.len() as u16).to_be_bytes());
+    payload.extend_from_slice(target_credential_fingerprint);
+    payload
+}
+
+fn verify_device_approval(
+    public_key: &[u8],
+    signature: &[u8],
+    payload: &[u8],
+) -> Result<(), AppError> {
+    let verifying_key = VerifyingKey::from_bytes(
+        public_key
+            .try_into()
+            .map_err(|_| AppError::Forbidden("设备批准签名公钥无效".to_string()))?,
+    )
+    .map_err(|_| AppError::Forbidden("设备批准签名公钥无效".to_string()))?;
+    let signature = Signature::from_slice(signature)
+        .map_err(|_| AppError::Forbidden("设备批准签名无效".to_string()))?;
+    verifying_key
+        .verify(payload, &signature)
+        .map_err(|_| AppError::Forbidden("设备批准签名验证失败".to_string()))
+}
+
+fn claims_user_id(claims: &Claims) -> Result<Uuid, AppError> {
+    string_to_uuid(&claims.sub)
+        .map_err(|e| AppError::InvalidToken(format!("Invalid user ID in token: {e}")))
+}
+
+fn require_protocol_version(version: i16) -> Result<(), AppError> {
+    if version == MLS_PROTOCOL_VERSION {
+        Ok(())
+    } else {
+        Err(AppError::ValidationError(
+            "仅支持 MLS protocol_version=1".to_string(),
+        ))
+    }
+}
+
+fn decode_b64_range(value: &str, field: &str, min: usize, max: usize) -> Result<Vec<u8>, AppError> {
+    let decoded = decode_b64(value, field)?;
+    if decoded.len() < min || decoded.len() > max {
+        return Err(AppError::ValidationError(format!(
+            "{field} 解码后长度必须在 {min} 到 {max} 字节之间"
+        )));
+    }
+    Ok(decoded)
 }
