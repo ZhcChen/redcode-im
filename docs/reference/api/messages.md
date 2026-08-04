@@ -336,3 +336,75 @@
 - `relay_only`：校验发送时写入的 Redis TTL 临时授权；授权缺失/过期返回 404，Redis 授权服务不可用返回 503。
 - `relay_only` 下附件 key 必须属于当前房间前缀 `messages/{room_id}/`，且发送前必须已经完成附件上传提交；跨房间或未提交的 object key 不会生成下载授权。
 - 通过 relay-only 临时授权生成下载 URL 时，实际 `expires_in_seconds` 不会超过 Redis grant 剩余 TTL；切回 `persist` 后，TTL 内的 relay-only 附件仍可下载。
+
+---
+
+## 消息收藏（API 2.0）
+
+收藏消息供本人快速回顾。收藏数据仅收藏者本人可见，服务端生效；重复收藏幂等。
+
+- 版本：API 2.0.0
+- 认证：以下接口均需要 `Authorization: Bearer <token>`
+
+### 1. 收藏消息
+
+- **方法**：`POST`
+- **路径**：`/rooms/:room_id/messages/:message_id/favorite`
+- **认证**：Bearer Token
+
+响应：
+
+```json
+{ "success": true }
+```
+
+- 幂等：重复收藏返回成功。
+- 非房间成员返回 `403`；消息不存在或不属于该房间返回 `404` / `422`。
+
+### 2. 取消收藏
+
+- **方法**：`DELETE`
+- **路径**：`/rooms/:room_id/messages/:message_id/favorite`
+- **认证**：Bearer Token
+
+响应：
+
+```json
+{ "success": true }
+```
+
+- 未收藏该消息时返回 `404`。
+
+### 3. 收藏列表
+
+- **方法**：`GET`
+- **路径**：`/messages/favorites`
+- **认证**：Bearer Token
+
+查询参数：
+
+| 参数 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `limit` | int | 50 | 每页数量，服务端限制 1-100 |
+| `offset` | int | 0 | 偏移量 |
+
+响应（按收藏时间倒序）：
+
+```json
+{
+  "items": [
+    {
+      "messageId": "550e8400-e29b-41d4-a716-446655440000",
+      "roomId": "550e8400-e29b-41d4-a716-446655440001",
+      "senderId": "550e8400-e29b-41d4-a716-446655440002",
+      "content": "重要通知",
+      "messageType": "text",
+      "messageCreatedAt": "2026-08-04T09:00:00Z",
+      "favoritedAt": "2026-08-04T10:00:00Z"
+    }
+  ],
+  "total": 1
+}
+```
+
+- 只返回收藏者本人的收藏；不同用户之间的收藏数据相互隔离。

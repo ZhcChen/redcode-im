@@ -55,6 +55,22 @@
       "type": "string",
       "description": "用户昵称（可选）",
       "example": "测试用户"
+    },
+    "device_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "客户端生成的稳定设备标识（可选，API 2.0）",
+      "example": "11111111-1111-1111-1111-111111111111"
+    },
+    "device_name": {
+      "type": "string",
+      "description": "设备名称（可选，API 2.0）",
+      "example": "iPhone 17 Pro"
+    },
+    "platform": {
+      "type": "string",
+      "description": "平台标识（可选，API 2.0），如 ios/android/macos/windows/web",
+      "example": "ios"
     }
   }
 }
@@ -112,7 +128,10 @@
 ```json
 {
   "username": "testuser",
-  "password": "password123"
+  "password": "password123",
+  "device_id": "11111111-1111-1111-1111-111111111111",
+  "device_name": "iPhone 17 Pro",
+  "platform": "ios"
 }
 ```
 
@@ -123,6 +142,7 @@
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "deviceId": "11111111-1111-1111-1111-111111111111",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "testuser",
@@ -189,7 +209,10 @@
 ```json
 {
   "phone": "13800138000",
-  "code": "123456"
+  "code": "123456",
+  "device_id": "11111111-1111-1111-1111-111111111111",
+  "device_name": "Android Phone",
+  "platform": "android"
 }
 ```
 
@@ -200,6 +223,7 @@
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+  "deviceId": "11111111-1111-1111-1111-111111111111",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "13800138000",
@@ -241,7 +265,8 @@
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
-  "refresh_token": "eyJhbGciOiJIUzI1NiIs..."
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+  "deviceId": "11111111-1111-1111-1111-111111111111"
 }
 ```
 
@@ -252,6 +277,11 @@ refresh_token 无效或已过期
   "error": "Invalid or expired refresh token"
 }
 ```
+
+> 设备字段说明：`device_id` / `device_name` / `platform` 均为可选，用于登记
+> 登录设备；`deviceId` 在响应中出现。设备列表与撤销见
+> [auth-devices.md](./auth-devices.md)；PC 扫码登录见
+> [qr-login.md](./qr-login.md)。
 
 ---
 

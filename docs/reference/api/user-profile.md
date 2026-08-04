@@ -9,6 +9,7 @@
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `avatar_object_key` | string 或 `null` | 对象存储中的头像 Key，用于客户端判断本地缓存是否需要刷新 |
+| `signature` | string 或 `null` | 个性签名（API 2.0 新增） |
 
 示例：
 
@@ -20,9 +21,13 @@
   "nickname": "新昵称",
   "avatar_url": "https://cdn.example.com/avatars/8c7c4f/avatar.png",
   "avatar_object_key": "avatars/8c7c4f01-9b51-4cbf-aac0-2f0d13f0c9a4/20251104160012-5f7a9e3b.png",
+  "signature": "保持热爱，奔赴山海",
   "status": "active"
 }
 ```
+
+`signature` 在所有返回用户公开资料的位置都会出现：`GET /auth/me`、
+`GET /users/{user_id}`、好友列表、群成员列表、黑名单列表等。
 
 ## 1. 更新用户资料
 
@@ -36,13 +41,15 @@
 {
   "nickname": "新昵称",
   "avatar_url": "https://cdn.example.com/avatars/...",
-  "avatar_object_key": "avatars/..."
+  "avatar_object_key": "avatars/...",
+  "signature": "新的个性签名"
 }
 ```
 
 注意事项：
 
 - `avatar_url` 与 `avatar_object_key` 通常在头像直传 commit 时自动更新，客户端一般无需手动写入。
+- `signature` 为可选字符串；不传则不修改当前签名，传空字符串可清空签名。
 
 ## 2. 修改密码
 
