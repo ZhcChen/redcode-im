@@ -14,6 +14,7 @@ const JOIN_GROUP: u8 = 5;
 const ENCRYPT: u8 = 6;
 const DECRYPT: u8 = 7;
 const PUBLIC_MATERIAL: u8 = 8;
+const PROCESS_COMMIT: u8 = 9;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub fn execute_command(request: &[u8]) -> Vec<u8> {
@@ -102,6 +103,14 @@ fn execute(request: &[u8]) -> Result<Vec<Vec<u8>>, String> {
                 material.credential_fingerprint,
                 material.approval_public_key,
             ])
+        }
+        PROCESS_COMMIT => {
+            require_fields(&fields, 3)?;
+            let mut session = MlsSession::import(&fields[0]).map_err(display)?;
+            let (state, epoch) = session
+                .process_commit(&fields[1], &fields[2])
+                .map_err(display)?;
+            Ok(vec![state, epoch.to_be_bytes().to_vec()])
         }
         _ => Err("unsupported E2EE command".to_string()),
     }

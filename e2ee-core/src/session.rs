@@ -217,6 +217,30 @@ impl MlsSession {
         Ok((self.export_state()?, epoch))
     }
 
+    pub fn process_commit(
+        &mut self,
+        group_id: &[u8],
+        commit: &[u8],
+    ) -> Result<(Vec<u8>, u64), MlsSessionError> {
+        let envelope = require_envelope(commit, EnvelopeKind::Commit)?;
+        let message = MlsMessageIn::tls_deserialize_exact(envelope.payload())
+            .map_err(operation("decode commit"))?
+            .try_into_protocol_message()
+            .map_err(operation("convert commit"))?;
+        let mut group = self.load_group(group_id)?;
+        let processed = group
+            .process_message(&self.provider, message)
+            .map_err(operation("process commit"))?;
+        let ProcessedMessageContent::StagedCommitMessage(staged) = processed.into_content() else {
+            return Err(MlsSessionError::UnexpectedMessage);
+        };
+        group
+            .merge_staged_commit(&self.provider, *staged)
+            .map_err(operation("merge commit"))?;
+        let epoch = group.epoch().as_u64();
+        Ok((self.export_state()?, epoch))
+    }
+
     pub fn encrypt(
         &mut self,
         group_id: &[u8],

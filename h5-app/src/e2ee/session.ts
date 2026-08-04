@@ -8,7 +8,8 @@ export type E2eeCommandOperation =
   | 'join-group'
   | 'encrypt'
   | 'decrypt'
-  | 'public-material';
+  | 'public-material'
+  | 'process-commit';
 
 const OPERATION: Record<E2eeCommandOperation, number> = {
   initialize: 1,
@@ -19,6 +20,7 @@ const OPERATION: Record<E2eeCommandOperation, number> = {
   encrypt: 6,
   decrypt: 7,
   'public-material': 8,
+  'process-commit': 9,
 };
 
 export class E2eeCommandError extends Error {
@@ -101,6 +103,10 @@ export class E2eeSession {
 
   publicMaterial(state: Uint8Array) {
     return this.execute('public-material', [state]);
+  }
+
+  processCommit(state: Uint8Array, roomId: string, commit: Uint8Array) {
+    return this.execute('process-commit', [state, new TextEncoder().encode(roomId), commit]);
   }
 
   static decodeResponse(response: Uint8Array): E2eeCommandResult {

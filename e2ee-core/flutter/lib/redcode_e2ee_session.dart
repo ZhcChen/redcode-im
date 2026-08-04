@@ -11,7 +11,8 @@ enum E2eeCommandOperation {
   joinGroup(5),
   encrypt(6),
   decrypt(7),
-  publicMaterial(8);
+  publicMaterial(8),
+  processCommit(9);
 
   const E2eeCommandOperation(this.value);
   final int value;
@@ -119,6 +120,16 @@ class RedcodeE2eeSession {
 
   E2eeCommandResult publicMaterial(List<int> state) =>
       execute(E2eeCommandOperation.publicMaterial, [state]);
+
+  E2eeCommandResult processCommit(
+    List<int> state,
+    String roomId,
+    List<int> commit,
+  ) => execute(E2eeCommandOperation.processCommit, [
+    state,
+    utf8.encode(roomId),
+    commit,
+  ]);
 
   static E2eeCommandResult decodeResponse(List<int> response) {
     if (response.length < 8 || ascii.decode(response.sublist(0, 4)) != 'RCCR') {

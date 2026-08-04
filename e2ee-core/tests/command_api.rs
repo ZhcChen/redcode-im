@@ -78,6 +78,30 @@ fn generated_key_package_remains_joinable_after_state_restore() {
     assert_eq!(u64::from_be_bytes(joined[1].clone().try_into().unwrap()), 1);
 }
 
+#[test]
+fn existing_member_processes_later_commit_before_decrypting() {
+    let alice = command(1, &[b"alice-device-1"]);
+    let bob = command(1, &[b"bob-device-1"]);
+    let charlie = command(1, &[b"charlie-device-1"]);
+    let created = command(3, &[&alice[0], b"room-three-devices"]);
+    let bob_added = command(4, &[&created[0], b"room-three-devices", &bob[1]]);
+    let bob_joined = command(5, &[&bob[0], &bob_added[2]]);
+    let charlie_added = command(4, &[&bob_added[0], b"room-three-devices", &charlie[1]]);
+
+    let bob_updated = command(
+        9,
+        &[&bob_joined[0], b"room-three-devices", &charlie_added[1]],
+    );
+    let encrypted = command(6, &[&charlie_added[0], b"room-three-devices", b"epoch two"]);
+    let decrypted = command(7, &[&bob_updated[0], b"room-three-devices", &encrypted[1]]);
+
+    assert_eq!(
+        u64::from_be_bytes(bob_updated[1].clone().try_into().unwrap()),
+        2
+    );
+    assert_eq!(decrypted[1], b"epoch two");
+}
+
 fn command(operation: u8, fields: &[&[u8]]) -> Vec<Vec<u8>> {
     response_fields(&request(operation, fields)).expect("command succeeds")
 }
