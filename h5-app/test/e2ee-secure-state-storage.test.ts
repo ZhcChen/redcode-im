@@ -135,6 +135,7 @@ describe('E2eeSecureStateStorage', () => {
       registered: true,
       keyPackagePublished: true,
       lastControlSequences: { 'room-a': 7 },
+      lastCommitMessageIds: { 'room-a': 'control-a' },
     };
 
     await storage.writeDeviceProfile('account-a', profile);

@@ -76,6 +76,7 @@ export class E2eeDeviceLifecycle {
         registered: false,
         keyPackagePublished: false,
         lastControlSequences: {},
+        lastCommitMessageIds: {},
       };
       await this.storage.writeDeviceProfile(accountId, profile);
       material = registrationMaterialFromCommand(

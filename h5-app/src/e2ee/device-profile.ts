@@ -6,6 +6,7 @@ export interface E2eeDeviceProfile {
   registered: boolean;
   keyPackagePublished: boolean;
   lastControlSequences: Record<string, number>;
+  lastCommitMessageIds: Record<string, string>;
 }
 
 export const encodeDeviceProfile = (profile: E2eeDeviceProfile) => new TextEncoder().encode(JSON.stringify({
@@ -15,6 +16,7 @@ export const encodeDeviceProfile = (profile: E2eeDeviceProfile) => new TextEncod
   registered: profile.registered,
   key_package_published: profile.keyPackagePublished,
   last_control_sequences: profile.lastControlSequences,
+  last_commit_message_ids: profile.lastCommitMessageIds,
 }));
 
 export const decodeDeviceProfile = (value: Uint8Array): E2eeDeviceProfile => {
@@ -25,12 +27,19 @@ export const decodeDeviceProfile = (value: Uint8Array): E2eeDeviceProfile => {
     || typeof data.device_label !== 'string'
     || typeof data.registered !== 'boolean'
     || typeof data.key_package_published !== 'boolean'
-    || !isRecord(data.last_control_sequences)) {
+    || !isRecord(data.last_control_sequences)
+    || (data.last_commit_message_ids != null && !isRecord(data.last_commit_message_ids))) {
     throw new Error('E2EE 设备档案格式无效');
   }
   const sequences = Object.fromEntries(Object.entries(data.last_control_sequences).map(([key, item]) => {
     if (!Number.isSafeInteger(item) || Number(item) < 0) throw new Error('E2EE 控制消息游标无效');
     return [key, Number(item)];
+  }));
+  const commitIds = Object.fromEntries(Object.entries(
+    isRecord(data.last_commit_message_ids) ? data.last_commit_message_ids : {},
+  ).map(([key, item]) => {
+    if (!key.trim() || typeof item !== 'string' || !item.trim()) throw new Error('E2EE Commit 索引无效');
+    return [key, item];
   }));
   return {
     deviceId: data.device_id,
@@ -38,6 +47,7 @@ export const decodeDeviceProfile = (value: Uint8Array): E2eeDeviceProfile => {
     registered: data.registered,
     keyPackagePublished: data.key_package_published,
     lastControlSequences: sequences,
+    lastCommitMessageIds: commitIds,
   };
 };
 

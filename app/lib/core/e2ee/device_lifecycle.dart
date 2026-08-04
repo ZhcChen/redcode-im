@@ -70,6 +70,7 @@ class E2eeDeviceLifecycle {
         deviceLabel: deviceLabel,
         registered: false,
         keyPackagePublished: false,
+        lastCommitMessageIds: const {},
       );
       await _storage.writeDeviceProfile(accountId, profile);
       final initialized = _core.initialize(
