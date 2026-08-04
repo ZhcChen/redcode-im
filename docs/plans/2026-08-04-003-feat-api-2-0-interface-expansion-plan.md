@@ -193,8 +193,9 @@ status: completed
   `/auth/devices/{id}/revoke`（批量失效 refresh token）。
 - U6 扫码登录：`/auth/qr/sessions` 创建/轮询/确认/取消；一次性 login_code 换
   token；WS `qr_subscribe` / `qr_status_changed` 匿名实时推送。
-- R7 注销补强：`DELETE /users/me` 增加停用 Push 设备与登录设备。
-- 测试：`api/tests/api_2_0_capability_integration.rs` 9 项集成测试全部通过；
+- R7 注销补强：`DELETE /users/me` 增加停用 Push 设备与登录设备；注销后
+  资料不可查、refresh/登录被拒（集成测试 `test_deactivate_cleans_up_devices_and_blocks_deleted_user`）。
+- 测试：`api/tests/api_2_0_capability_integration.rs` 10 项集成测试全部通过；
   `make api.test` 全量回归通过（含既有 auth/ws/e2ee 用例）。
 - 提交：`ba295ad4`（迁移）→ `5d21d62e`（U1）→ `a5ce2c78`（U2）→
   `724c7d1c`（U3）→ `3fd6df9e`（U4）→ `420908dd`（U5）→ `2d7da501`（U6）。

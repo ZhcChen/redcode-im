@@ -378,7 +378,7 @@ async fn register_with_device(
     prefix: &str,
     device_id: &str,
     device_name: &str,
-) -> (TestUser, String) {
+) -> (TestUser, String, String) {
     let username = unique_username(prefix);
     let body = json!({
         "username": username.clone(),
@@ -410,7 +410,7 @@ async fn register_with_device(
         token: body["token"].as_str().unwrap().to_string(),
     };
     let refresh_token = body["refresh_token"].as_str().unwrap().to_string();
-    (user, refresh_token)
+    (user, refresh_token, username)
 }
 
 #[tokio::test]
@@ -418,32 +418,8 @@ async fn test_device_list_and_revoke_invalidates_refresh_token() {
     let app = spawn_test_app().await;
     let device_a = "11111111-1111-1111-1111-111111111111";
     let device_b = "22222222-2222-2222-2222-222222222222";
-    let username = unique_username("devuser");
-    let body = json!({
-        "username": username.clone(),
-        "password": "pass123456",
-        "nickname": username.clone(),
-    })
-    .to_string();
-    let (status, _) = app.post_json("/auth/register", &body).await;
-    assert_eq!(status, StatusCode::OK);
-
-    let login_a = json!({
-        "username": username.clone(),
-        "password": "pass123456",
-        "device_id": device_a,
-        "device_name": "iPhone 17 Pro",
-        "platform": "ios",
-    })
-    .to_string();
-    let (status, response) = app.post_json("/auth/login", &login_a).await;
-    assert_eq!(status, StatusCode::OK);
-    let body = body_json(&response);
-    let user = TestUser {
-        id: Uuid::parse_str(body["user"]["id"].as_str().unwrap()).unwrap(),
-        token: body["token"].as_str().unwrap().to_string(),
-    };
-    let refresh_a = body["refresh_token"].as_str().unwrap().to_string();
+    let (user, refresh_a, username) =
+        register_with_device(&app, "devuser", device_a, "iPhone 17 Pro").await;
 
     // 同一账号第二台设备登录
     let login_b = json!({
@@ -506,6 +482,80 @@ async fn test_device_list_and_revoke_invalidates_refresh_token() {
         "{}",
         String::from_utf8_lossy(&response)
     );
+}
+
+// ==================== R7: 注销补强 ====================
+
+#[tokio::test]
+async fn test_deactivate_cleans_up_devices_and_blocks_deleted_user() {
+    let app = spawn_test_app().await;
+    let device_id = "33333333-3333-3333-3333-333333333333";
+    let (user, refresh_token, username) =
+        register_with_device(&app, "deluser", device_id, "iPhone 17").await;
+
+    // 预置一条 Push 设备记录，验证注销时会被停用
+    sqlx::query(
+        r#"
+        INSERT INTO push_devices (user_id, platform, channel, device_id, device_token, is_active)
+        VALUES ($1, 'apns', 'apns', $2, 'token-abc', TRUE)
+        "#,
+    )
+    .bind(user.id)
+    .bind(device_id)
+    .execute(&app.pool)
+    .await
+    .expect("插入 push 设备");
+
+    // 注销前：登录设备已登记
+    let (status, response) = app.get_authed("/auth/devices", &user.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response).as_array().unwrap().len(), 1);
+
+    // 注销账号
+    let (status, response) = app.delete_authed("/users/me", &user.token).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    // 已删除用户的资料不可再被查询
+    let (status, _) = app.get_authed(&format!("/users/{}", user.id), &user.token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // 旧 refresh token 失效
+    let refresh = json!({"refresh_token": refresh_token}).to_string();
+    let (status, _) = app.post_json("/auth/refresh", &refresh).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // 已删除用户无法重新登录
+    let login = json!({
+        "username": username,
+        "password": "pass123456",
+    })
+    .to_string();
+    let (status, _) = app.post_json("/auth/login", &login).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // 登录设备全部撤销、Push 设备全部停用
+    let active_devices = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM user_devices WHERE user_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(user.id)
+    .fetch_one(&app.pool)
+    .await
+    .expect("查询登录设备");
+    assert_eq!(active_devices, 0);
+
+    let active_push = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM push_devices WHERE user_id = $1 AND is_active IS TRUE",
+    )
+    .bind(user.id)
+    .fetch_one(&app.pool)
+    .await
+    .expect("查询 push 设备");
+    assert_eq!(active_push, 0);
 }
 
 // ==================== U6: 扫码登录 ====================
