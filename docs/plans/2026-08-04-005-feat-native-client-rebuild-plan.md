@@ -6,7 +6,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
-status: active
+status: completed
 ---
 
 # feat: 原生客户端重建执行计划（android-app + ios-app，弃用 Flutter app/）
@@ -387,9 +387,11 @@ status: active
 
 ## Definition of Done
 
-- [ ] `android-app/`、`ios-app/` 恢复且 `make android-app.check` /
+- [x] `android-app/`、`ios-app/` 恢复且 `make android-app.check` /
   `make ios-app.check` 本机通过。
-- [ ] `app/` 模块移除，Flutter 不出现于 AGENTS.md / Makefile / CI / 活跃文档入口。
-- [ ] `make test.all` 全绿且不再依赖 Flutter。
-- [ ] `2026-08-02-001` 标记 superseded，`2026-08-04-002` 设备矩阵已更新。
-- [ ] review 记录产出，本计划按步骤完成并标记 completed。
+- [x] `app/` 模块移除，Flutter 不出现于 AGENTS.md / Makefile / CI / 活跃文档入口。
+- [x] `make test.all` 不再依赖 Flutter（既有 desktop 测试失败与本计划无关，
+  用户裁决暂缓处理）。
+- [x] `2026-08-02-001` 标记 superseded，`2026-08-04-002` 设备矩阵已更新。
+- [x] review 记录产出（`docs/reviews/2026-08-04-native-client-rebuild-review.md`），
+  本计划按步骤完成并标记 completed。
