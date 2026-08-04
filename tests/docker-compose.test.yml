@@ -61,6 +61,9 @@ x-api-test-environment: &api-test-environment
   PUSH_FCM_BASE_URL: http://external-mock:19080/fcm
   PUSH_APNS_BASE_URL: http://external-mock:19080/apns
   WS_OUTBOUND_QUEUE_SIZE: "${WS_OUTBOUND_QUEUE_SIZE:-1024}"
+  RATE_LIMIT_ENABLED: "${RATE_LIMIT_ENABLED:-true}"
+  RATE_LIMIT_WINDOW_SECONDS: "${RATE_LIMIT_WINDOW_SECONDS:-60}"
+  RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS:-6000}"
   CARGO_TARGET_DIR: /app/target
   CARGO_BUILD_JOBS: "${CARGO_BUILD_JOBS:-1}"
   TZ: Asia/Shanghai

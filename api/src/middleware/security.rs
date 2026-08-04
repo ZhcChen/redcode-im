@@ -15,15 +15,19 @@ use axum::{
 use std::collections::HashMap;
 use std::{
     net::SocketAddr,
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
 use tracing::warn;
 
+use crate::error::AppError;
+
 /// IP 速率限制存储
+#[derive(Clone)]
 pub struct RateLimitStore {
     /// 存储每个 IP 的请求记录
-    requests: RwLock<HashMap<String, Vec<u64>>>,
+    requests: Arc<RwLock<HashMap<String, Vec<u64>>>>,
     /// 时间窗口（秒）
     window_size: u64,
     /// 最大请求数
@@ -34,7 +38,7 @@ impl RateLimitStore {
     /// 创建新的速率限制存储
     pub fn new(window_size: u64, max_requests: u64) -> Self {
         Self {
-            requests: RwLock::new(HashMap::new()),
+            requests: Arc::new(RwLock::new(HashMap::new())),
             window_size,
             max_requests,
         }
@@ -156,12 +160,12 @@ pub async fn rate_limit_middleware(
     rate_limit_store: axum::extract::State<RateLimitStore>,
     request: axum::extract::Request,
     next: Next,
-) -> Result<Response, (StatusCode, String)> {
+) -> Result<Response, AppError> {
     let ip = addr.ip().to_string();
     let uri = request.uri().clone();
 
     // 跳过健康检查和静态资源的速率限制
-    let skip_paths = ["/healthz", "/metrics", "/favicon.ico"];
+    let skip_paths = ["/healthz", "/readyz", "/metrics", "/favicon.ico"];
     if skip_paths.iter().any(|path| uri.path().starts_with(path)) {
         return Ok(next.run(request).await);
     }
@@ -169,9 +173,8 @@ pub async fn rate_limit_middleware(
     // 检查速率限制
     if rate_limit_store.is_rate_limited(&ip).await {
         warn!("Rate limit exceeded for IP: {}", ip);
-        return Err((
-            StatusCode::TOO_MANY_REQUESTS,
-            format!("Too many requests from {}. Please try again later.", ip),
+        return Err(AppError::RateLimitExceeded(
+            "请求过于频繁，请稍后再试".to_string(),
         ));
     }
 
@@ -246,6 +249,62 @@ pub fn create_cors_layer() -> tower_http::cors::CorsLayer {
         ])
         // 设置预检缓存时间（1小时）
         .max_age(Duration::from_secs(3600))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::extract::connect_info::MockConnectInfo;
+    use axum::{body::Body, http::Request, routing::get, Router};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn rate_limit_store_counts_requests_in_window() {
+        let store = RateLimitStore::new(60, 2);
+        assert!(!store.is_rate_limited("1.2.3.4").await);
+        assert!(!store.is_rate_limited("1.2.3.4").await);
+        assert!(store.is_rate_limited("1.2.3.4").await);
+        // 不同 IP 独立计数
+        assert!(!store.is_rate_limited("5.6.7.8").await);
+    }
+
+    #[tokio::test]
+    async fn rate_limit_middleware_returns_json_429_and_skips_healthz() {
+        let store = RateLimitStore::new(60, 2);
+        let addr: std::net::SocketAddr = "127.0.0.1:12345".parse().unwrap();
+        let app = Router::new()
+            .route("/", get(|| async { "ok" }))
+            .route("/healthz", get(|| async { "healthy" }))
+            .layer(axum::middleware::from_fn_with_state(
+                store,
+                rate_limit_middleware,
+            ))
+            .layer(MockConnectInfo(addr));
+
+        // 健康检查跳过限流
+        let req = Request::builder()
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        for _ in 0..2 {
+            let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+        }
+
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["code"], 42901);
+    }
 }
 
 /// JWT 安全增强

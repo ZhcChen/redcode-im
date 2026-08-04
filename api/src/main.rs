@@ -123,7 +123,43 @@ async fn main() {
             middleware::metrics_middleware,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
+        .layer(cors);
+
+    // 全局 IP 限流（默认启用；测试/压测环境可通过 env 放宽或关闭）
+    let rate_limit_enabled = env::var("RATE_LIMIT_ENABLED")
+        .ok()
+        .map(|v| v.trim().parse::<bool>().unwrap_or(true))
+        .unwrap_or(true);
+    let app = if rate_limit_enabled {
+        let window_seconds = env::var("RATE_LIMIT_WINDOW_SECONDS")
+            .ok()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(60);
+        let max_requests = env::var("RATE_LIMIT_MAX_REQUESTS")
+            .ok()
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(6000);
+        let rate_limit_store = middleware::security::RateLimitStore::new(
+            window_seconds,
+            max_requests,
+        );
+        let app = app.layer(axum::middleware::from_fn_with_state(
+            rate_limit_store,
+            middleware::security::rate_limit_middleware,
+        ));
+        info!(
+            "全局 IP 限流已启用: {} 秒窗口 / {} 次",
+            window_seconds, max_requests
+        );
+        app
+    } else {
+        info!("全局 IP 限流已关闭（RATE_LIMIT_ENABLED=false）");
+        app
+    };
+
+    let app = app
         .with_state(state)
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
 
