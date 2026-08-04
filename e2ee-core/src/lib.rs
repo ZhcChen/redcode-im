@@ -14,6 +14,11 @@ pub fn protocol_version() -> u16 {
     PROTOCOL_VERSION
 }
 
+#[no_mangle]
+pub extern "C" fn rc_e2ee_protocol_version() -> u16 {
+    PROTOCOL_VERSION
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum EnvelopeKind {

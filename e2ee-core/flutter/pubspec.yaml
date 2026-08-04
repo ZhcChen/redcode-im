@@ -1,0 +1,11 @@
+name: redcode_e2ee_core_ffi_smoke
+description: Isolated Flutter FFI smoke tests for the RedCode E2EE core.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
