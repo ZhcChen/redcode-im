@@ -1,7 +1,7 @@
 # 根目录统一开发 / 构建 / 测试入口
 #
 # 设计原则：
-# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / h5-app.* / app.* / website.* / tests.*
+# 1. 命令按模块 namespaced：api.* / admin.* / desktop.* / h5-app.* / ios-app.* / android-app.* / website.* / tests.*
 # 2. 保留旧命令别名，避免打断已有使用习惯。
 # 3. api 默认走 Compose-first；admin / desktop / h5-app / website 默认走 screen 后台运行。
 
@@ -15,10 +15,8 @@ BUN := bun
 SCREEN := screen
 CURL := curl
 TAIL := tail
-FLUTTER := flutter
 CARGO := cargo
 GO := go
-PATROL := patrol
 SWIFT := swift
 XCODEBUILD := xcodebuild
 XCRUN := xcrun
@@ -64,48 +62,6 @@ DESKTOP_PORT := 1420
 DESKTOP_LOG := /tmp/redcode-desktop.log
 DESKTOP_API_BASE_URL ?= http://127.0.0.1:$(API_PORT)
 DESKTOP_WS_URL ?= ws://127.0.0.1:$(API_PORT)/ws
-
-APP_DIR := $(ROOT_DIR)/app
-APP_ENV ?= .env.development
-FLUTTER_DEVICE ?=
-APP_TEST_DEVICE ?=
-FRONTEND_TEST_DEVICE ?=
-APP_SELECTED_TEST_DEVICE := $(strip $(or $(APP_TEST_DEVICE),$(FRONTEND_TEST_DEVICE),$(FLUTTER_DEVICE)))
-APP_ANDROID_ENV ?= production
-APP_IOS_ENV ?= production
-APP_API_BASE_URL ?=
-APP_WS_URL ?=
-APP_IOS_CLANG_WRAPPER := $(APP_DIR)/scripts/xcode_clang_probe_wrapper.sh
-PATROL_IOS_DEVICE ?= iPhone 17 Pro
-PATROL_DEVICE ?= $(PATROL_IOS_DEVICE)
-PATROL_JAVA_HOME ?= $(shell /usr/libexec/java_home -v 21 2>/dev/null || true)
-PATROL_TEST_SERVER_PORT ?= 19081
-PATROL_APP_SERVER_PORT ?= 19082
-PATROL_DUAL_DEVICE_A ?=
-PATROL_DUAL_DEVICE_B ?=
-PATROL_DUAL_ACCOUNT_A ?=
-PATROL_DUAL_ACCOUNT_B ?=
-PATROL_DUAL_PASSWORD ?=
-PATROL_CROSS_IOS_DEVICE ?=
-PATROL_CROSS_ANDROID_DEVICE ?=
-PATROL_CROSS_IOS_ACCOUNT ?=
-PATROL_CROSS_ANDROID_ACCOUNT ?=
-PATROL_CROSS_PASSWORD ?=
-PATROL_LAYOUT_DEVICE ?= $(PATROL_IOS_DEVICE)
-PATROL_LAYOUT_ACCOUNT ?=
-PATROL_LAYOUT_PEER_ACCOUNT ?=
-PATROL_LAYOUT_PASSWORD ?=
-APP_IOS_ACCEPTANCE_DEVICE ?=
-APP_IOS_ACCEPTANCE_ACCOUNT ?=
-APP_IOS_ACCEPTANCE_PEER_ACCOUNT ?=
-APP_IOS_ACCEPTANCE_PASSWORD ?=
-PATROL_PERMISSION_DEVICE ?= $(PATROL_IOS_DEVICE)
-PATROL_PERMISSION_ACCOUNT ?=
-PATROL_PERMISSION_PEER_ACCOUNT ?=
-PATROL_PERMISSION_PASSWORD ?=
-PATROL_PAGE_DEVICE ?= $(PATROL_IOS_DEVICE)
-PATROL_PAGE_ACCOUNT ?=
-PATROL_PAGE_PASSWORD ?=
 
 WEBSITE_DIR := $(ROOT_DIR)/website
 WEBSITE_SCREEN := website
@@ -179,7 +135,6 @@ endef
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
-	app.install app.run app.check app.test app.test.unit app.test.scripts app.test.api-paths app.test.core app.test.chat app.test.widgets app.test.features app.test.integration.smoke app.test.integration.network app.test.integration.auth app.test.integration.contract app.test.integration.device app.test.integration.device.auth app.test.integration.device.contract app.test.integration.device.reverse app.test.integration.device.auth.reverse app.test.ios-device-acceptance app.test.ios-permission-acceptance app.test.ios-file-picker-acceptance app.test.patrol.harness app.test.patrol.login app.test.patrol.dual app.test.patrol.cross app.test.patrol.cross-offline app.test.patrol.group app.test.patrol.group-mute app.test.patrol.group-member-removal app.test.patrol.image-attachment app.test.patrol.rich-attachment app.test.patrol.network app.test.patrol.contact app.test.patrol.offline app.test.patrol.pages app.test.patrol.layout app.test.patrol.permission app.build.android app.build.ios app.proto \
 	website.install website.up website.down website.logs website.build website.test website.test.unit website.test.download \
 	tests.all tests.compose.config tests.tooling tests.mocks.external tests.perf.check \
 	api-up api-down api-logs api-ps \
@@ -222,7 +177,7 @@ crg.review: ## 手工审查当前改动影响（可传 BASE=<git-ref>，默认 H
 	@echo "[crg] 审查基线: $(CRG_BASE)"
 	@$(CRG) detect-changes --repo "$(ROOT_DIR)" --base "$(CRG_BASE)" --brief
 
-status: ## 查看各模块状态（api / admin / desktop / h5-app / app / website）
+status: ## 查看各模块状态（api / admin / desktop / h5-app / website / android-app / ios-app）
 	@echo "[api]"
 	@$(call require_cmd,$(DOCKER))
 	@$(DOCKER) compose -f "$(API_COMPOSE_FILE)" ps || true
@@ -236,10 +191,6 @@ status: ## 查看各模块状态（api / admin / desktop / h5-app / app / websit
 	@echo "[desktop]"
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(DESKTOP_SCREEN)"; then echo "screen: running ($(DESKTOP_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(DESKTOP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(DESKTOP_PORT): listening"; else echo "port $(DESKTOP_PORT): stopped"; fi
-	@echo
-	@echo "[app]"
-	@echo "run command: make app.run APP_ENV=$(APP_ENV) FLUTTER_DEVICE=$(FLUTTER_DEVICE)"
-	@echo
 	@echo "[h5-app]"
 	@if $(SCREEN) -ls 2>/dev/null | grep -q "[[:digit:]]\\.$(H5_APP_SCREEN)"; then echo "screen: running ($(H5_APP_SCREEN))"; else echo "screen: stopped"; fi
 	@if lsof -nP -iTCP:$(H5_APP_PORT) -sTCP:LISTEN >/dev/null 2>&1; then echo "port $(H5_APP_PORT): listening"; else echo "port $(H5_APP_PORT): stopped"; fi
@@ -251,21 +202,18 @@ status: ## 查看各模块状态（api / admin / desktop / h5-app / app / websit
 	@echo "[android-app]"
 	@if [ -x "$(ADB)" ]; then "$(ADB)" devices -l | sed -n '1,6p'; else echo "adb: unavailable ($(ADB))"; fi
 
-install.all: ## 安装 admin / desktop / h5-app / website 依赖，并拉取 app 依赖
+install.all: ## 安装 admin / desktop / h5-app / website 依赖
 	@$(MAKE) admin.install
 	@$(MAKE) desktop.install
 	@$(MAKE) h5-app.install
 	@$(MAKE) website.install
-	@$(MAKE) app.install
 
 test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务）
 	@$(MAKE) api.test
 	@$(MAKE) api.test.smoke
 	@$(MAKE) api.migration.guard
-	@$(MAKE) app.check
-	@$(MAKE) app.test.scripts
-	@$(MAKE) app.test.unit
-	@$(MAKE) app.test.integration.smoke
+	@$(MAKE) android-app.test.unit
+	@$(MAKE) ios-app.test
 	@$(MAKE) admin.check
 	@$(MAKE) admin.test.routes
 	@$(MAKE) desktop.check
@@ -278,14 +226,13 @@ test.all: ## 运行仓库全量自包含回归（不启动 live dev 联调服务
 	@$(MAKE) tests.tooling
 	@$(MAKE) tests.perf.check
 
-test.live: ## 启动 api/admin dev 并运行 Flutter app/admin/desktop 真实后端联调 smoke
+test.live: ## 启动 api/admin dev 并运行原生双端/admin/desktop 真实后端联调 smoke
 	@$(MAKE) api.up
 	@$(MAKE) api.wait
 	@$(MAKE) admin.up
 	@$(MAKE) admin.wait
-	@$(MAKE) app.test.integration.network
-	@$(MAKE) app.test.integration.auth
-	@$(MAKE) app.test.integration.contract
+	@$(MAKE) android-app.test.live
+	@$(MAKE) ios-app.test.live
 	@$(MAKE) admin.test.live
 	@$(MAKE) desktop.test.live
 
@@ -662,178 +609,6 @@ desktop.package.macos.intel: ## 打包 macOS Intel（默认 ad-hoc 签名）
 desktop.package.linux: ## 打包 Linux AppImage
 	@cd "$(DESKTOP_DIR)" && ./scripts/build-linux.sh stable-linux
 
-app.install: ## 获取 app Flutter 依赖
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) pub get
-
-app.run: ## 运行 app（可覆盖 APP_ENV / FLUTTER_DEVICE）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && if [ -n "$(FLUTTER_DEVICE)" ]; then ./scripts/run.sh --env "$(APP_ENV)" "$(FLUTTER_DEVICE)"; else ./scripts/run.sh --env "$(APP_ENV)"; fi
-
-app.check: ## 执行 app Flutter analyze
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) analyze
-
-app.test: app.test.unit ## 执行 app 默认 Flutter 测试
-
-app.test.unit: ## 执行 app 全量 Flutter test
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) test
-
-app.test.scripts: ## 执行 app shell 脚本契约测试
-	@cd "$(APP_DIR)" && ./scripts/test_integration_contract_test.sh
-	@cd "$(APP_DIR)" && ./scripts/xcode_clang_probe_wrapper_contract_test.sh
-	@cd "$(APP_DIR)" && ./scripts/test_patrol_dual_device_contract_test.sh
-	@cd "$(APP_DIR)" && ./scripts/test_network_fault_proxy.sh
-	@$(MAKE) app.test.api-paths
-
-app.test.api-paths: ## 校验 Flutter REST path 均已在 API routes.rs 注册
-	@python3 "$(APP_DIR)/scripts/verify_api_paths.py"
-
-app.test.core: ## 执行 app core 测试
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) test test/core
-
-app.test.chat: ## 执行 app chat 测试
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) test test/chat
-
-app.test.widgets: ## 执行 app widgets 测试
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) test test/widgets
-
-app.test.features: ## 执行 app features 模型测试
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && $(FLUTTER) test test/features
-
-app.test.integration.smoke: ## 执行 app integration smoke（不访问真实 api）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh smoke
-
-app.test.integration.network: ## 执行 app network integration（默认验收设备；非真机可覆盖 APP_API_BASE_URL / APP_WS_URL）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh network
-
-app.test.integration.auth: ## 执行 app 真实普通账号注册/登录 integration（默认验收设备；非真机可覆盖 APP_API_BASE_URL / APP_WS_URL）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh auth
-
-app.test.integration.contract: ## 执行 app 真实 API 合同 integration（认证/好友/群/消息/设置）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" API_BASE_URL="$(APP_API_BASE_URL)" WS_URL="$(APP_WS_URL)" ./scripts/test_integration.sh contract
-
-app.test.integration.device: ## 执行 app 设备 network integration（默认本机 iOS Simulator）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device
-
-app.test.integration.device.auth: ## 执行 app 设备真实普通账号注册/登录 integration（默认本机 iOS Simulator）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device --target integration_test/auth_account_flow_test.dart
-
-app.test.integration.device.contract: app.test.integration.contract ## app.test.integration.contract 的设备联调别名
-
-app.test.integration.device.reverse: ## 执行 app Android 真机 network integration（adb reverse，必须显式指定设备）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse
-
-app.test.integration.device.auth.reverse: ## 执行 app Android 真机真实普通账号注册/登录 integration（adb reverse，必须显式指定设备）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && APP_TEST_DEVICE="$(APP_SELECTED_TEST_DEVICE)" ./scripts/test_integration.sh device-reverse --target integration_test/auth_account_flow_test.dart
-
-app.test.patrol.harness: ## 执行 app Patrol harness smoke（可覆盖 PATROL_DEVICE / PATROL_*_PORT）
-	@$(call require_cmd,$(PATROL))
-	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/harness_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)"
-
-app.test.patrol.login: ## 执行 app Patrol 登录与 P0 导航 smoke（mock 模式，可覆盖 PATROL_DEVICE / PATROL_*_PORT）
-	@$(call require_cmd,$(PATROL))
-	@cd "$(APP_DIR)" && PATH="$$HOME/Library/Android/sdk/platform-tools:$$PATH" JAVA_HOME="$${JAVA_HOME:-$(PATROL_JAVA_HOME)}" CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/login_smoke_test.dart -d "$(PATROL_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define USE_MOCK_DATA=true --dart-define API_BASE_URL=http://127.0.0.1:1 --dart-define WS_URL=ws://127.0.0.1:1/ws
-
-app.test.patrol.dual: ## 执行双 iOS Simulator 真实私聊互发（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.cross: ## 执行 iOS Simulator(A) 与 Android Emulator(B) 真实私聊互发
-	@cd "$(APP_DIR)" && JAVA_HOME="$(PATROL_JAVA_HOME)" DUAL_API_BASE_URL_A=http://127.0.0.1:8010 DUAL_WS_URL_A=ws://127.0.0.1:8010/ws DUAL_API_BASE_URL_B=http://10.0.2.2:8010 DUAL_WS_URL_B=ws://10.0.2.2:8010/ws DUAL_DEVICE_A="$(PATROL_CROSS_IOS_DEVICE)" DUAL_DEVICE_B="$(PATROL_CROSS_ANDROID_DEVICE)" DUAL_ACCOUNT_A="$(PATROL_CROSS_IOS_ACCOUNT)" DUAL_ACCOUNT_B="$(PATROL_CROSS_ANDROID_ACCOUNT)" DUAL_PASSWORD="$(PATROL_CROSS_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.cross-offline: ## 执行 Android Emulator(A) 与 iOS Simulator(B) 前后台重连和离线恢复
-	@cd "$(APP_DIR)" && JAVA_HOME="$(PATROL_JAVA_HOME)" DUAL_TEST_TARGET=patrol_test/offline_recovery_test.dart DUAL_API_BASE_URL_A=http://10.0.2.2:8010 DUAL_WS_URL_A=ws://10.0.2.2:8010/ws DUAL_API_BASE_URL_B=http://127.0.0.1:8010 DUAL_WS_URL_B=ws://127.0.0.1:8010/ws DUAL_DEVICE_A="$(PATROL_CROSS_ANDROID_DEVICE)" DUAL_DEVICE_B="$(PATROL_CROSS_IOS_DEVICE)" DUAL_ACCOUNT_A="$(PATROL_CROSS_ANDROID_ACCOUNT)" DUAL_ACCOUNT_B="$(PATROL_CROSS_IOS_ACCOUNT)" DUAL_PASSWORD="$(PATROL_CROSS_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.group: ## 执行双 iOS Simulator 真实建群与群聊互发（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_chat_test.dart DUAL_COMPLETION_EVENT=DUAL_GROUP_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.group-mute: ## 执行双 iOS Simulator 群聊禁言状态同步（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_mute_test.dart DUAL_COMPLETION_EVENT=DUAL_GROUP_MUTE_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.group-member-removal: ## 执行双 iOS Simulator 群成员移除状态同步（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/group_member_removal_test.dart DUAL_COMPLETION_EVENT=DUAL_GROUP_MEMBER_REMOVAL_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.image-attachment: ## 执行双 iOS Simulator 图片附件上传与下载（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/image_attachment_test.dart DUAL_COMPLETION_EVENT=DUAL_IMAGE_ATTACHMENT_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.rich-attachment: ## 执行双 iOS Simulator 文件与语音附件上传、下载（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/rich_attachment_test.dart DUAL_COMPLETION_EVENT=DUAL_RICH_ATTACHMENT_COMPLETE DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.network: ## 执行双 iOS Simulator 真实网络中断与恢复（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_network.sh
-
-app.test.patrol.contact: ## 执行双 iOS Simulator 联系人申请、备注与删除闭环（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/contact_lifecycle_test.dart DUAL_IDENTITY_PREFIX=contact DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.offline: ## 执行双 iOS Simulator 前后台重连与离线消息恢复（必须传设备 UUID、账号和密码）
-	@cd "$(APP_DIR)" && DUAL_TEST_TARGET=patrol_test/offline_recovery_test.dart DUAL_DEVICE_A="$(PATROL_DUAL_DEVICE_A)" DUAL_DEVICE_B="$(PATROL_DUAL_DEVICE_B)" DUAL_ACCOUNT_A="$(PATROL_DUAL_ACCOUNT_A)" DUAL_ACCOUNT_B="$(PATROL_DUAL_ACCOUNT_B)" DUAL_PASSWORD="$(PATROL_DUAL_PASSWORD)" ./scripts/test_patrol_dual_device.sh
-
-app.test.patrol.pages: ## 执行真实账号 P0 页面导航与滚动巡检（必须传设备 UUID、账号和密码）
-	@$(call require_cmd,$(PATROL))
-	@test -n "$(PATROL_PAGE_DEVICE)" -a -n "$(PATROL_PAGE_ACCOUNT)" -a -n "$(PATROL_PAGE_PASSWORD)" || (echo "缺少 PATROL_PAGE_DEVICE/ACCOUNT/PASSWORD" >&2; exit 2)
-	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/page_navigation_test.dart -d "$(PATROL_PAGE_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define PAGE_ACCOUNT="$(PATROL_PAGE_ACCOUNT)" --dart-define PAGE_PASSWORD="$(PATROL_PAGE_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
-
-app.test.patrol.layout: ## 执行真实账号聊天布局与焦点返回回归（必须传账号、对端账号和密码）
-	@$(call require_cmd,$(PATROL))
-	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/device_layout_test.dart -d "$(PATROL_LAYOUT_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define LAYOUT_ACCOUNT="$(PATROL_LAYOUT_ACCOUNT)" --dart-define LAYOUT_PEER_ACCOUNT="$(PATROL_LAYOUT_PEER_ACCOUNT)" --dart-define LAYOUT_PASSWORD="$(PATROL_LAYOUT_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
-
-app.test.ios-device-acceptance: ## 执行 iOS Simulator 真实软键盘、遮挡与返回优先级验收
-	@test -n "$(APP_IOS_ACCEPTANCE_DEVICE)" -a -n "$(APP_IOS_ACCEPTANCE_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PASSWORD)" || (echo "缺少 APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
-	@xcrun simctl bootstatus "$(APP_IOS_ACCEPTANCE_DEVICE)" -b
-	@xcrun simctl uninstall "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-	@cd "$(APP_DIR)/ios" && result="../build/ios-device-acceptance-$$(date +%s).xcresult" && dart_defines="$$(printf '%s' 'API_BASE_URL=http://127.0.0.1:8010' | base64),$$(printf '%s' 'WS_URL=ws://127.0.0.1:8010/ws' | base64)" && REDCODE_TEST_ACCOUNT="$(APP_IOS_ACCEPTANCE_ACCOUNT)" REDCODE_TEST_PEER_ACCOUNT="$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" REDCODE_TEST_PASSWORD="$(APP_IOS_ACCEPTANCE_PASSWORD)" xcodebuild test -quiet -workspace Runner.xcworkspace -scheme Runner -testPlan TestPlan -destination "platform=iOS Simulator,id=$(APP_IOS_ACCEPTANCE_DEVICE)" -only-testing:RunnerUITests/RedCodeDeviceAcceptanceTests/testSystemKeyboardLayoutAndBackPriority -resultBundlePath "$$result" DART_DEFINES="$$dart_defines" 'GCC_PREPROCESSOR_DEFINITIONS=$$(inherited) CLEAR_PERMISSIONS=0 FULL_ISOLATION=0' && echo "iOS 设备验收证据: $(APP_DIR)/$${result#../}"
-
-app.test.ios-permission-acceptance: ## 执行 iOS Simulator 照片/麦克风首次拒绝与设置恢复验收
-	@test -n "$(APP_IOS_ACCEPTANCE_DEVICE)" -a -n "$(APP_IOS_ACCEPTANCE_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PASSWORD)" || (echo "缺少 APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
-	@xcrun simctl bootstatus "$(APP_IOS_ACCEPTANCE_DEVICE)" -b
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.apple.Preferences 2>/dev/null || true
-	@xcrun simctl privacy "$(APP_IOS_ACCEPTANCE_DEVICE)" reset all com.chatlyme.app
-	@cd "$(APP_DIR)/ios" && result="../build/ios-photo-permission-acceptance-$$(date +%s).xcresult" && dart_defines="$$(printf '%s' 'API_BASE_URL=http://127.0.0.1:8010' | base64),$$(printf '%s' 'WS_URL=ws://127.0.0.1:8010/ws' | base64)" && REDCODE_TEST_ACCOUNT="$(APP_IOS_ACCEPTANCE_ACCOUNT)" REDCODE_TEST_PEER_ACCOUNT="$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" REDCODE_TEST_PASSWORD="$(APP_IOS_ACCEPTANCE_PASSWORD)" xcodebuild test -quiet -workspace Runner.xcworkspace -scheme Runner -testPlan TestPlan -destination "platform=iOS Simulator,id=$(APP_IOS_ACCEPTANCE_DEVICE)" -only-testing:RunnerUITests/RedCodeDeviceAcceptanceTests/testPhotoDenialAndSettingsRecovery -resultBundlePath "$$result" DART_DEFINES="$$dart_defines" 'GCC_PREPROCESSOR_DEFINITIONS=$$(inherited) CLEAR_PERMISSIONS=0 FULL_ISOLATION=0' && echo "iOS 照片权限验收证据: $(APP_DIR)/$${result#../}"
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.apple.Preferences 2>/dev/null || true
-	@xcrun simctl privacy "$(APP_IOS_ACCEPTANCE_DEVICE)" reset microphone com.chatlyme.app
-	@cd "$(APP_DIR)/ios" && result="../build/ios-microphone-permission-acceptance-$$(date +%s).xcresult" && dart_defines="$$(printf '%s' 'API_BASE_URL=http://127.0.0.1:8010' | base64),$$(printf '%s' 'WS_URL=ws://127.0.0.1:8010/ws' | base64)" && REDCODE_TEST_ACCOUNT="$(APP_IOS_ACCEPTANCE_ACCOUNT)" REDCODE_TEST_PEER_ACCOUNT="$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" REDCODE_TEST_PASSWORD="$(APP_IOS_ACCEPTANCE_PASSWORD)" xcodebuild test -quiet -workspace Runner.xcworkspace -scheme Runner -testPlan TestPlan -destination "platform=iOS Simulator,id=$(APP_IOS_ACCEPTANCE_DEVICE)" -only-testing:RunnerUITests/RedCodeDeviceAcceptanceTests/testMicrophoneDenialAndSettingsRecovery -resultBundlePath "$$result" DART_DEFINES="$$dart_defines" 'GCC_PREPROCESSOR_DEFINITIONS=$$(inherited) CLEAR_PERMISSIONS=0 FULL_ISOLATION=0' && echo "iOS 麦克风权限验收证据: $(APP_DIR)/$${result#../}"
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-
-app.test.ios-file-picker-acceptance: ## 执行 iOS Simulator 系统文件选择器打开与取消验收
-	@test -n "$(APP_IOS_ACCEPTANCE_DEVICE)" -a -n "$(APP_IOS_ACCEPTANCE_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" -a -n "$(APP_IOS_ACCEPTANCE_PASSWORD)" || (echo "缺少 APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
-	@xcrun simctl bootstatus "$(APP_IOS_ACCEPTANCE_DEVICE)" -b
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-	@cd "$(APP_DIR)/ios" && result="../build/ios-file-picker-acceptance-$$(date +%s).xcresult" && dart_defines="$$(printf '%s' 'API_BASE_URL=http://127.0.0.1:8010' | base64),$$(printf '%s' 'WS_URL=ws://127.0.0.1:8010/ws' | base64)" && REDCODE_TEST_ACCOUNT="$(APP_IOS_ACCEPTANCE_ACCOUNT)" REDCODE_TEST_PEER_ACCOUNT="$(APP_IOS_ACCEPTANCE_PEER_ACCOUNT)" REDCODE_TEST_PASSWORD="$(APP_IOS_ACCEPTANCE_PASSWORD)" xcodebuild test -quiet -workspace Runner.xcworkspace -scheme Runner -testPlan TestPlan -destination "platform=iOS Simulator,id=$(APP_IOS_ACCEPTANCE_DEVICE)" -only-testing:RunnerUITests/RedCodeDeviceAcceptanceTests/testSystemFilePickerCanCancel -resultBundlePath "$$result" DART_DEFINES="$$dart_defines" 'GCC_PREPROCESSOR_DEFINITIONS=$$(inherited) CLEAR_PERMISSIONS=0 FULL_ISOLATION=0' && echo "iOS 文件选择器验收证据: $(APP_DIR)/$${result#../}"
-	@xcrun simctl terminate "$(APP_IOS_ACCEPTANCE_DEVICE)" com.chatlyme.app 2>/dev/null || true
-
-app.test.patrol.permission: ## 执行 iOS 相册与麦克风永久拒绝降级验收（必须传 Simulator UUID、账号和密码）
-	@$(call require_cmd,$(PATROL))
-	@test -n "$(PATROL_PERMISSION_DEVICE)" -a -n "$(PATROL_PERMISSION_ACCOUNT)" -a -n "$(PATROL_PERMISSION_PEER_ACCOUNT)" -a -n "$(PATROL_PERMISSION_PASSWORD)" || (echo "缺少 PATROL_PERMISSION_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD" >&2; exit 2)
-	@xcrun simctl privacy "$(PATROL_PERMISSION_DEVICE)" revoke photos com.chatlyme.app
-	@xcrun simctl privacy "$(PATROL_PERMISSION_DEVICE)" revoke microphone com.chatlyme.app
-	@cd "$(APP_DIR)" && CC="$(APP_IOS_CLANG_WRAPPER)" $(PATROL) test -t patrol_test/permission_flow_test.dart -d "$(PATROL_PERMISSION_DEVICE)" --test-server-port "$(PATROL_TEST_SERVER_PORT)" --app-server-port "$(PATROL_APP_SERVER_PORT)" --dart-define PERMISSION_ACCOUNT="$(PATROL_PERMISSION_ACCOUNT)" --dart-define PERMISSION_PEER_ACCOUNT="$(PATROL_PERMISSION_PEER_ACCOUNT)" --dart-define PERMISSION_PASSWORD="$(PATROL_PERMISSION_PASSWORD)" --dart-define API_BASE_URL=http://127.0.0.1:8010 --dart-define WS_URL=ws://127.0.0.1:8010/ws
-
-app.build.android: ## 构建 Android 安装包（默认 production）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && ./scripts/build_android.sh "$(APP_ANDROID_ENV)"
-
-app.build.ios: ## 构建 iOS IPA（无签名，默认 production）
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(APP_DIR)" && ./scripts/build_ipa.sh "$(APP_IOS_ENV)"
-
-app.proto: ## 重新生成 Flutter WebSocket proto
-	@cd "$(APP_DIR)" && ./scripts/gen_ws_proto.sh
-
 h5-app.install: ## 安装 h5-app 依赖（bun install）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) install
@@ -893,9 +668,9 @@ e2ee-core.check.targets: ## 检查 E2EE 核心 iOS、Android 与 WASM 目标构�
 	@$(CARGO) check --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --target aarch64-linux-android
 	@$(CARGO) check --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --target wasm32-unknown-unknown
 
-e2ee-core.test.flutter: ## 运行 E2EE 核心 Flutter FFI smoke
-	@$(call require_cmd,$(FLUTTER))
-	@cd "$(E2EE_CORE_DIR)/flutter" && $(FLUTTER) test
+e2ee-core.test.flutter: ## （历史交付物）运行 E2EE 核心 Flutter FFI smoke；Flutter 客户端已下线，仅作 e2ee-core 历史验证保留
+	@$(call require_cmd,flutter)
+	@cd "$(E2EE_CORE_DIR)/flutter" && flutter test
 
 e2ee-core.test.wasm: ## 在 Chrome 中运行 E2EE 核心 WASM 协议测试
 	@$(call require_cmd,wasm-pack)

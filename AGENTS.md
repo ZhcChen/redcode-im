@@ -9,9 +9,9 @@
 - **语言**: 默认使用 **简体中文** 回复，保留专业技术词汇原文。
 - **Git 提交与推送**: 遵循 **Conventional Commits** 与“最小可解释业务闭环”提交；每轮任务开始和提交前必须检查 `git status --short`，只 stage 本轮相关文件，commit 后立即 push 当前分支。完整细则见 `docs/standards/git-workflow.md`。
 - **数据库**: 禁止修改已有迁移文件；新增变更使用 `YYYYMMDDHHMMSS_desc.sql`；禁用 PostgreSQL 枚举。
-- **测试**: 核心逻辑修改后必须运行测试（API 使用 `make api.test`，由 Docker Compose 在容器内执行 Rust 测试；移动端 `flutter test`；全栈回归入口见 `docs/reference/testing/README.md`）。
-- **App 设备验收顺序**: Flutter `app/` 模块默认使用本机 iOS Simulator 进行 smoke、integration 与联调验证；除非用户明确指定其他设备。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
-- **App 真机测试网络**: 每次真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
+- **测试**: 核心逻辑修改后必须运行测试（API 使用 `make api.test`，由 Docker Compose 在容器内执行 Rust 测试；移动端使用 `make android-app.test` / `make ios-app.test`；全栈回归入口见 `docs/reference/testing/README.md`）。
+- **App 设备验收顺序**: 原生客户端双端（`android-app/` + `ios-app/`）默认使用本机 iOS Simulator 进行 smoke、integration 与联调验证；除非用户明确指定其他设备。Android 侧默认使用本机 Android Emulator。相机、麦克风、APNs、后台通知等 Simulator/Emulator 无法完整验证的能力，单独安排 iPhone 真机验证。
+- **App 真机测试网络**: 每次原生端真机 smoke、integration、联调前，必须先重新检测当前本机局域网 IP，并用该 IP 生成 `API_BASE_URL` / `WS_URL`，禁止复用历史局域网地址；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 - **工具**: 优先使用项目内 `docs/` 文档建立上下文；需要官方库或框架资料时优先使用 Context7；需要浏览器行为排查时优先使用 Chrome DevTools MCP。
 - **文档结构**: `docs/` 根目录仅保留 `index.md`，其余文档按主题放在子目录（如 `docs/brainstorms/`、`docs/plans/`、`docs/reviews/`、`docs/solutions/`、`docs/prompts/`、`docs/reference/`、`docs/reports/`）。
 - **Docker Compose**: 本机统一使用 `docker compose`；API 开发、测试与验收默认走 Compose-first；测试栈要求 PostgreSQL/Redis 不映射宿主端口（避免冲突）。
@@ -47,7 +47,7 @@
   - 停止：`make h5-app.down`
   - 日志：`make h5-app.logs`
   - 开发端口：`8016`
-  - H5 App 是 Flutter `app/` 的 Web 版本，视觉 token 优先复用 Flutter 移动端的颜色、圆角、间距和登录/App Shell 结构。
+  - H5 App 以 `im-ui-html/` 设计源与原生双端（`android-app/` / `ios-app/`）为参考，视觉 token 优先复用原生移动端的颜色、圆角、间距和登录/App Shell 结构。
 - **测试栈（不要复用 dev）**:
   - api 测试栈：`tests/docker-compose.test.yml`（pg/redis/external-mock/rust-tests/api-smoke；PG/Redis/external-mock 均不映射宿主端口）
   - 入口：`make api.test`（Rust 单元 `--lib` + 集成 `--tests` 均在 Compose 容器内执行；axum oneshot 进程内）；详见 `docs/reference/testing/README.md`
@@ -67,7 +67,7 @@
     导致附件上传与下载链路异常；`.env` 含密钥，禁止提交入库
 - **本地回归入口**:
   - `make test.all`：自包含回归，不启动 live dev 联调服务。
-  - `make test.live`：启动 API dev 与 Admin dev，并执行 app/admin/desktop 真实后端联调 smoke。
+  - `make test.live`：启动 API dev 与 Admin dev，并执行原生双端/admin/desktop 真实后端联调 smoke。
 - **API 性能基线**:
   - 入口：`make api.perf.smoke` / `make api.perf.healthz` / `make api.perf.readyz` / `make api.perf.auth` / `make api.perf`
   - 性能测试必须走 `tests/docker-compose.test.yml`，由 Compose 限制 API/PG/Redis/mock 资源；压测容器在 Compose 网络内访问 `http://api:8010`，不要映射 PG/Redis/mock 宿主端口。
@@ -122,9 +122,9 @@
 ## 5. 技术栈速查
 - 后端: Rust (Axum, SQLx, Redis) -> `api/src/`
 - 桌面端: TypeScript (Vue 3, Tauri) -> `desktop/src/`
-- 移动端: Dart (Flutter) -> `app/lib/`
+- 移动端: Kotlin (Jetpack Compose, Material 3) -> `android-app/`；Swift (SwiftUI) -> `ios-app/`
 - H5 App: TypeScript (Vue 3, Vite 8, Vue Router, Pinia) -> `h5-app/src/`
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`
 
 ---
-*上次更新: 2026-08-04（对齐 agent-light-workflow 并保留 CE 兼容层；补充测试环境 im-test-1 部署指令）*
+*上次更新: 2026-08-04（客户端主线切换为原生双端 android-app/ios-app，下线 Flutter app/ 入口）*
