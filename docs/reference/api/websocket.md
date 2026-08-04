@@ -4,7 +4,8 @@
 
 建立WebSocket连接用于实时消息传递。支持认证、加入房间、消息推送与好友请求红点更新等事件。
 
-- 需要认证：否（连接时不需要，但需要发送 auth 事件完成认证）
+- 需要认证：否（连接时不需要，但需要发送 auth 事件完成认证；`qr_subscribe`
+  扫码订阅例外，可在 auth 前匿名发送）
 - 标识：ws-connection
 > 说明：当前实现中，连接建立后仍需发送一次 `auth` 事件完成绑定（收到 `authed` 推送才算认证完成）；测试入口请参考 `docs/reference/testing/README.md`。
 
@@ -71,6 +72,21 @@ WebSocket连接建立成功
 ```
 - 服务端会对 typing 事件进行节流（约 1200ms），避免频繁广播
 - 发送消息、离开房间或断开连接时会自动清除 typing 状态
+
+### 6. qr_subscribe - 订阅扫码登录结果（API 2.0）
+PC 端创建扫码会话后发送，用于实时接收扫码结果（事件 24）；**无需先发送 auth**，
+匿名连接也可订阅。
+```json
+{
+  "type": "qr_subscribe",
+  "qr_id": "qr-uuid"
+}
+```
+- `qr_id`：`POST /auth/qr/sessions` 返回的 `qrId`，格式为 UUID。
+- 一个连接可订阅一个二维码会话；会话状态变化时服务端推送
+  `qr_status_changed`。
+- protobuf 对应：`ClientQrSubscribe { qr_id = 1 }`（`ClientEvent` 中
+  `qr_subscribe = 6`）。
 
 ---
 
@@ -396,6 +412,39 @@ WebSocket 服务端会向客户端推送以下类型的事件：
 }
 ```
 - `expires_in_ms`: 输入状态过期时间（毫秒），客户端应在过期后自动清除显示
+
+### 23. group_announcement_updated - 群公告更新（API 2.0）
+群主/管理员发布、更新或删除群公告时，向群内在线成员推送。
+```json
+{
+  "type": "group_announcement_updated",
+  "room_id": "room-uuid",
+  "content": "公告内容",
+  "updated_by": "user-uuid",
+  "updated_at": "2026-08-04T10:30:00Z"
+}
+```
+- `content` 为 `null` 表示公告已被删除。
+- 事件号 23；protobuf 对应 `ServerGroupAnnouncementUpdated`
+  （字段 `room_id`、`content`、`updated_by`、`updated_at`，编号 1-4）。
+- 接口定义见 `group-announcement.md`。
+
+### 24. qr_status_changed - 扫码登录状态（API 2.0）
+扫码会话状态变化时，向订阅了该会话的连接推送（含匿名订阅）。
+```json
+{
+  "type": "qr_status_changed",
+  "qr_id": "qr-uuid",
+  "status": "confirmed",
+  "login_code": "一次性 login code"
+}
+```
+- `status`：`pending` / `confirmed` / `cancelled` / `expired`。
+- `login_code` 仅在 `confirmed` 时携带，一次性使用；PC 端用它调用
+  `POST /auth/refresh` 换取 access token。
+- 事件号 24；protobuf 对应 `ServerQrStatusChanged`
+  （字段 `qr_id`、`status`、`login_code`，编号 1-3）。
+- 完整流程见 `qr-login.md`。
 
 ---
 
