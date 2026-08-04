@@ -16,8 +16,8 @@ RedCode IM 的测试策略调整为：
 
 ### 模块内测试
 - `api/tests/`：Rust 集成测试（axum oneshot 进程内 + 共享 harness `api/tests/support`）
-- `app/test/`：Flutter 单元 / widget 测试
-- `app/integration_test/`：Flutter integration smoke / network / auth / API contract
+- `android-app/app/src/test/`：Android JVM 单元测试（Kotlin/Compose）
+- `ios-app/Tests/`：iOS SwiftPM 单元测试（XCTest）
 - `admin/playwright-tests/`：Admin E2E / smoke
 - `desktop/test/`：Desktop 模块测试
 - `website/test/`：Website 模块测试
@@ -43,50 +43,42 @@ API 单元、集成、smoke 均通过 `tests/docker-compose.test.yml` 在 Docker
 make tests.mocks.external
 ```
 
-### App 自测
+### 原生移动端自测
 ```bash
-cd app && flutter analyze
-cd app && flutter test
-make app.test.scripts
-make app.test.integration.smoke
+make android-app.check    # unit + lint + debug APK
+make android-app.test.unit
+make android-app.lint
+make ios-app.check        # SwiftPM unit + Simulator build
+make ios-app.test
 ```
 
-当前 2.0 以 Flutter `app/` 作为唯一正式移动端主线；`ios-app` / `android-app` 原生模块已于 2026-08-04 移除。
+当前 2.0 以原生双端（`android-app/` + `ios-app/`）作为唯一正式移动端主线；Flutter
+`app/` 已于 2026-08-04 废弃，其历史验收记录保留在 `docs/reviews/`。
 
-Flutter `app/` 默认使用本机 iOS Simulator 进行设备验收。相机、麦克风、APNs、后台通知等 Simulator 无法完整验证的能力，单独安排 iPhone 真机验证。
-每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成 `API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史 IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
-设备枚举有超时保护：`flutter devices` 默认 20 秒、`xcrun simctl list devices available` 默认 20 秒，可用 `FLUTTER_DEVICES_TIMEOUT_SECONDS` / `SIMCTL_TIMEOUT_SECONDS` 覆盖。若 iOS Simulator 因本机 Xcode/CoreSimulator runtime 不匹配不可用，本机 API/WS/auth 联调可以显式指定 `APP_TEST_DEVICE=macos` 作为临时兜底。
+原生双端默认使用本机 iOS Simulator 进行设备验收，Android 侧默认使用本机 Android
+Emulator。相机、麦克风、APNs、后台通知等 Simulator/Emulator 无法完整验证的能力，单独
+安排 iPhone 真机验证。每次真机执行前，必须先重新检测当前本机局域网 IP，并据此生成
+`API_BASE_URL=http://<LAN_IP>:8010` 与 `WS_URL=ws://<LAN_IP>:8010/ws`，不要复用历史
+IP；切换到本机 iOS Simulator 时使用 `127.0.0.1`。
 
-Xcode 26.6 的 `clang -v -E -dM` capability probe 可能因 SwiftBuild 的 16 KB 输出管道未及时消费而卡在 `CreateBuildDescription`。Flutter app 脚本会在该 Xcode 版本下自动设置 `CC=app/scripts/xcode_clang_probe_wrapper.sh`：仅对 `-dM` 探测移除 `-v`，其他编译参数原样透传。合同测试入口为 `make app.test.scripts`。
-推荐使用 Makefile 入口自动完成：
+真实后端 smoke 使用原生端 live 入口：
 
 ```bash
-# 不访问真实 api，快速验证 integration harness
-make app.test.integration.smoke
+# Android 真实后端聊天/好友 smoke（需 api dev 就绪）
+make android-app.test.live
 
-# 本机 api 联通性验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
-make app.test.integration.network
+# iOS 真实后端 smoke（认证 + WS + 聊天互发，需 api dev 就绪）
+make ios-app.test.live
 
-# 真实账号密码注册/登录验证（默认验收设备；真机自动使用当前 LAN IP，Simulator 使用 127.0.0.1）
-make app.test.integration.auth
+# iOS Simulator 构建 / XCUITest / 安装启动
+make ios-app.build.simulator
+make ios-app.ui-test
+make ios-app.smoke.simulator
 
-# Flutter 首版核心 API 合同验证（认证/好友/群/消息/附件上传下载/设置/Push device mock）
-make app.test.integration.contract
-
-# Flutter REST path 与 api/src/routes.rs 机械化对照
-make app.test.api-paths
-
-# 设备联调验证：默认本机 iOS Simulator
-make app.test.integration.device
-make app.test.integration.device.auth
-make app.test.integration.device.contract
-
-# Android USB 真机联调兜底：adb reverse，适合局域网隔离或 Android 本地网络限制导致 LAN IP 不通时
-make app.test.integration.device.reverse
-make app.test.integration.device.auth.reverse
+# Android 设备相关
+make android-app.connected-test
+make android-app.smoke.emulator
 ```
-
-`APP_TEST_DEVICE` / `FRONTEND_TEST_DEVICE` / `FLUTTER_DEVICE` 都为空时，脚本动态选择首个可用的本机 iOS Simulator；需要强制指定设备时可传入对应设备 ID。
 
 ### IM UI 设计源回归
 
@@ -101,90 +93,14 @@ make im-ui.test.visual
 - `make im-ui.test` 会按固定端口规则先停止 `8020` 占用，再运行 43 条正式路由在三种设备外壳上的 Console、横向溢出和关键交互回归。
 - 三种外壳为 `iPhone 12 Pro`、`iPhone 16 Pro Max`、`Pixel 8 Pro`，由桌面预览工具栏切换，不等同于浏览器原生设备描述符。
 - `make im-ui.test.visual` 按 8 条高风险路由生成 24 张截图到 `im-ui-html/test-results/visual-review/`，只供人工评审，不提交、不做像素断言。
-- Chrome 模拟无法覆盖系统软键盘、真实安全区、触觉反馈和硬件权限，相关能力仍按 Flutter 正式端设备验收顺序补验。
+- Chrome 模拟无法覆盖系统软键盘、真实安全区、触觉反馈和硬件权限，相关能力仍按原生
+  双端设备验收顺序补验。
 
-### App Patrol
-```bash
-make app.test.patrol.harness
-make app.test.patrol.login
-make app.test.patrol.layout \
-  PATROL_LAYOUT_DEVICE=<simulator-uuid> \
-  PATROL_LAYOUT_ACCOUNT=<account> \
-  PATROL_LAYOUT_PEER_ACCOUNT=<peer-account> \
-  PATROL_LAYOUT_PASSWORD=<password>
-make app.test.patrol.permission \
-  PATROL_PERMISSION_DEVICE=<simulator-uuid> \
-  PATROL_PERMISSION_ACCOUNT=<account> \
-  PATROL_PERMISSION_PEER_ACCOUNT=<peer-account> \
-  PATROL_PERMISSION_PASSWORD=<password>
-make app.test.patrol.pages \
-  PATROL_PAGE_DEVICE=<simulator-uuid> \
-  PATROL_PAGE_ACCOUNT=<account> \
-  PATROL_PAGE_PASSWORD=<password>
-make app.test.patrol.dual \
-  PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
-  PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
-  PATROL_DUAL_ACCOUNT_A=<account-a> \
-  PATROL_DUAL_ACCOUNT_B=<account-b> \
-  PATROL_DUAL_PASSWORD=<password>
-make app.test.patrol.group \
-  PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
-  PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
-  PATROL_DUAL_ACCOUNT_A=<account-a> \
-  PATROL_DUAL_ACCOUNT_B=<account-b> \
-  PATROL_DUAL_PASSWORD=<password>
-make app.test.patrol.rich-attachment \
-  PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
-  PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
-  PATROL_DUAL_ACCOUNT_A=<account-a> \
-  PATROL_DUAL_ACCOUNT_B=<account-b> \
-  PATROL_DUAL_PASSWORD=<password>
-make app.test.patrol.cross \
-  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
-  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
-  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
-  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
-  PATROL_CROSS_PASSWORD=<password>
-make app.test.patrol.cross-offline \
-  PATROL_CROSS_IOS_DEVICE=<ios-simulator-uuid> \
-  PATROL_CROSS_ANDROID_DEVICE=<android-emulator-id> \
-  PATROL_CROSS_IOS_ACCOUNT=<ios-account> \
-  PATROL_CROSS_ANDROID_ACCOUNT=<android-account> \
-  PATROL_CROSS_PASSWORD=<password>
-make app.test.patrol.offline \
-  PATROL_DUAL_DEVICE_A=<simulator-a-uuid> \
-  PATROL_DUAL_DEVICE_B=<simulator-b-uuid> \
-  PATROL_DUAL_ACCOUNT_A=<account-a> \
-  PATROL_DUAL_ACCOUNT_B=<account-b> \
-  PATROL_DUAL_PASSWORD=<password>
+### 历史 Flutter / Patrol 验收
 
-# 指定 Android Emulator / 真机
-make app.test.patrol.harness PATROL_DEVICE=emulator-5554
-make app.test.patrol.login PATROL_DEVICE=emulator-5554
-```
-
-补充约定：
-- Patrol 默认使用 `PATROL_DEVICE='iPhone 17 Pro'`，可在命令行覆盖；Android 本地验收可传 `PATROL_DEVICE=emulator-5554` 或真机设备 ID。
-- Android Patrol 默认通过 Makefile 补充 `PATH=$HOME/Library/Android/sdk/platform-tools:$PATH` 并优先使用 JDK 21；若本机缺少 JDK 21，需先安装或显式设置 `JAVA_HOME`。
-- iOS Patrol 需要 Xcode SDK 与已安装 Simulator runtime 匹配；若 Xcode 提示 `iOS xx.x is not installed`，先在 Xcode Settings > Components 安装对应 runtime。
-- 默认显式使用 `PATROL_TEST_SERVER_PORT=19081`、`PATROL_APP_SERVER_PORT=19082`，避免本机已有服务占用 Patrol 默认 `8081 / 8082` 导致 `markPatrolAppServiceReady()` 命中宿主机其他进程。
-- 双设备私聊使用 `make app.test.patrol.dual`，群聊使用 `make app.test.patrol.group`，群禁言使用 `make app.test.patrol.group-mute`，成员移除使用 `make app.test.patrol.group-member-removal`，图片附件使用 `make app.test.patrol.image-attachment`，文件与语音附件使用 `make app.test.patrol.rich-attachment`，网络恢复使用 `make app.test.patrol.network`，联系人生命周期使用 `make app.test.patrol.contact`，前后台与离线恢复使用 `make app.test.patrol.offline`。这些入口均要求两个不同且已启动的 Simulator UUID，使用 `19081-19084` 四个独立 Patrol 端口，并为 A/B 建立临时工程副本，隔离 Patrol 固定的 `build/ios_integ`、Flutter build cache 和生成文件。
-- 双设备脚本生成唯一 marker，B 端通过实际角色、账号和会话就绪日志后才启动 A；任一端失败会清理另一进程。日志与 `xcresult` 保存在 `app/build/patrol-dual/<marker>/`，可用 `DUAL_RESULT_ROOT` 覆盖归档根目录。
-- 双设备默认访问 Simulator 的 `http://127.0.0.1:8010` 和 `ws://127.0.0.1:8010/ws`；可用 `DUAL_API_BASE_URL`、`DUAL_WS_URL` 覆盖，但不得复用真机 LAN IP 配置。
-- 跨平台入口要求一个已 Booted 的 iOS Simulator 和一个 ADB 状态为 `device` 的 Android Emulator。`app.test.patrol.cross` 使用 iOS A/Android B 验证实时互发与双向已读；`app.test.patrol.cross-offline` 反转角色，让 Android A 执行 Home/恢复并补拉 iOS B 在离线窗口发送的消息。脚本分别注入 `127.0.0.1` 与 `10.0.2.2`，调用者不得手工复用另一平台地址。
-- 群聊 Patrol 还覆盖发送方打开群消息已读详情并核对已读/未读成员，以及群主任命管理员后，对端停留在群设置页时根据 WebSocket 事件实时刷新治理入口。群目标要求双方 `DUAL_GROUP_COMPLETE` 业务完成标记，避免 XCTest 成功后收尾卡住造成假失败。
-- 群禁言 Patrol 独立覆盖普通成员个人禁言/解禁、全体禁言开启/关闭、输入区提示和两次恢复发送。目标要求双方 `DUAL_GROUP_MUTE_COMPLETE`；操作全体禁言时必须等待并点击行内实际 `CustomSwitch`，不能只点击带 Key 的整行容器。
-- 群成员移除 Patrol 覆盖群主真实 UI 移除、被移除方实时退出详情和上级页面提示，目标要求双方 `DUAL_GROUP_MEMBER_REMOVAL_COMPLETE`。
-- 图片附件 Patrol 覆盖真实相册业务入口、图片解析、签名、S3-compatible PUT、commit、发送、对端 WebSocket 接收和下载落盘，目标要求双方 `DUAL_IMAGE_ATTACHMENT_COMPLETE`。固定 PNG 由测试进程替换 picker 返回值；Patrol 4.5 无法稳定驱动独立系统进程中的 iOS 26 PHPicker，因此 PHPicker 打开与取消由 `app.test.ios-permission-acceptance` 的原生 XCTest 独立验收。
-- 文件与语音附件 Patrol 覆盖真实“文件”业务入口、PDF 与 M4A 的签名、S3-compatible PUT、commit、对端 WebSocket 接收、强制下载字节一致，以及接收端点击语音气泡启动播放器，目标要求双方 `DUAL_RICH_ATTACHMENT_COMPLETE`。固定 PDF 替换 file selector 返回值，M4A 通过正式 `sendVoiceMessage` 发送；`app.test.ios-file-picker-acceptance` 使用原生 XCTest 覆盖 iOS 系统文件选择器打开与取消。真实麦克风采集质量仍需 iPhone 真机验收。
-- 网络恢复 Patrol 只让 A 通过 `19100` 可控 TCP 代理访问 API/WebSocket，B 继续直连 `8010`。测试会销毁 A 的现有连接、拒绝新连接，在 B 发送离线消息后恢复转发，并要求 A 自动重新认证、补拉且不重复；目标要求双方 `DUAL_NETWORK_RECOVERY_COMPLETE`。该证据不替代系统 Wi-Fi/蜂窝切换人工验收。
-- 联系人 Patrol 覆盖备注优先展示、删除好友、重新搜索申请、对端接受和双方联系人恢复；编排器通过场景化身份前缀防止并发日志串流造成误判。
-- `app.test.patrol.layout` 覆盖真实账号私聊的长 composer、横竖屏恢复与 Flutter 焦点返回；`app.test.ios-device-acceptance` 使用独立原生 XCTest 驱动普通 App，覆盖卸载后的进程级冷启动与真实登录、真实 iOS 软键盘、三行 composer/发送按钮不被遮挡、第一次返回收键盘、第二次退出聊天，以及联系人资料和“设置 -> 关于”的 iOS 左缘侧滑多层回退。该入口要求显式传入 `APP_IOS_ACCEPTANCE_DEVICE/ACCOUNT/PEER_ACCOUNT/PASSWORD`，证据保存到 `app/build/ios-device-acceptance-*.xcresult`。
-- `app.test.patrol.permission` 会先通过 `simctl privacy revoke` 把照片和麦克风设为真实永久拒绝，再验证聊天入口的设置引导。`app.test.ios-permission-acceptance` 使用原生 XCTest 分别覆盖照片/麦克风首次拒绝和系统设置恢复，并验证 PHPicker 或录音入口可再次进入；重置必须使用真实 bundle id `com.chatlyme.app`，且不能在 reset 后卸载 App。Simulator 不用于证明真实麦克风采集质量。
-- `app.test.ios-file-picker-acceptance` 使用原生 XCTest 从真实聊天“文件”入口打开 `UIDocumentPickerViewController`，断言系统“最近项目”页面出现，点击 `Cancel` 后验证原聊天 composer 与更多功能入口仍存在且无失败提示。该入口只证明打开与取消；PDF 选择结果后的上传链路由双设备 Patrol 覆盖。
-- `app.test.patrol.pages` 使用真实账号巡检联系人、群聊、群通知、个人资料、账号安全、聊天设置、隐私政策、关于和反馈等 P0 页面，验证页面可打开、可返回，并滚动反馈页到提交按钮。它不证明系统软键盘、安全区、大字号、Reduced Motion 或所有空态、错误态和长文本状态。
-- Flutter API contract 的附件场景使用运行时生成的小型 PDF，覆盖上传签名、S3-compatible PUT、commit、消息 parts、第二账号可见和强制下载字节一致；默认关闭 `ENABLE_REAL_CONTRACT_INTEGRATION` 时仅完成编译，只有 `make app.test.integration.contract` 或 `make app.test.integration.device.contract` 的真实 API 运行结果才可记为 PASS。
-- `app/patrol_test/test_bundle.dart` 是 Patrol 运行时生成文件，不纳入版本控制。
+Flutter `app/` 已于 2026-08-04 废弃，`make app.test.*`、Patrol 与
+`app/scripts/` 相关入口均已下线。历史验收记录（U8 设备验收、双端联调、附件链路等）
+保留在 `docs/reviews/`，作为原生双端功能迁移的验收基线，不再提供可复跑入口。
 
 ### H5 App 自测
 ```bash
@@ -197,7 +113,7 @@ make h5-app.test.e2e
 ```
 
 说明：
-- `h5-app` 是 Flutter `app/` 的 H5 Web parity 模块，保留为 Web 端 parity 与 API 联调辅助入口；当前移动端首版以 Flutter `app/` 为准。
+- `h5-app` 以 `im-ui-html/` 设计源与原生双端为参考，作为 Web 形态与 API 联调验收入口。
 - H5 dev server 固定端口为 `8016`，API 固定端口为 `8010`。
 - 本地联调依赖由 `api/docker/dev/docker-compose.yml` 创建；PostgreSQL、Redis、external-mock 随 API dev 栈启动。
 - 本地对象存储、Push 和 IPInfo 均走 `external-mock`，H5 媒体、头像和附件联调不得访问线上对象存储、FCM 或 APNs。
@@ -400,23 +316,17 @@ make api.perf.release.small
 make api.perf.release.standard
 make api.perf.release.large
 
-make app.check
-make app.test.unit
-make app.test.core
-make app.test.chat
-make app.test.widgets
-make app.test.features
-make app.test.integration.smoke
-make app.test.integration.network
-make app.test.integration.auth
-make app.test.integration.contract
-make app.test.api-paths
-make app.test.integration.device
-make app.test.integration.device.auth
-make app.test.patrol.harness
-make app.test.patrol.login
-make app.test.patrol.dual PATROL_DUAL_DEVICE_A=<uuid-a> PATROL_DUAL_DEVICE_B=<uuid-b> PATROL_DUAL_ACCOUNT_A=<account-a> PATROL_DUAL_ACCOUNT_B=<account-b> PATROL_DUAL_PASSWORD=<password>
-make app.test.integration.device.auth.reverse
+make android-app.check
+make android-app.test.unit
+make android-app.lint
+make android-app.build.debug
+make android-app.test.live
+make ios-app.check
+make ios-app.test
+make ios-app.test.live
+make ios-app.build.simulator
+make ios-app.ui-test
+make ios-app.smoke.simulator
 
 make admin.test.e2e
 make admin.test.routes
@@ -440,7 +350,6 @@ make website.test.unit
 make website.test.download
 
 make api.test
-make app.test
 make admin.test
 make desktop.test
 make website.test
@@ -460,24 +369,30 @@ make tests.all
 make api.test          # Compose 内 Rust 单元 + 集成（自动拉起 pg/redis/external-mock）
 ```
 
-### 改 app / admin / desktop / website
+### 改 android-app / ios-app / admin / desktop / website
 先跑各自模块测试，不要往 `tests/` 里加模块测试。
 
 ### 发版前
 按改动面补：
 - api contract
 - admin route / core flow smoke
-- app integration smoke
-- api + app 联调时先启动 api，再跑 `make app.test.integration.network` 与 `make app.test.integration.contract`；设备联调用 `make app.test.integration.device.contract`（默认本机 iOS Simulator）。
-- API + Flutter app/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和 Admin dev，并执行 app network/auth/contract、admin live backend、desktop live backend smoke。H5 保留独立 `make h5-app.test.live`；原生 `android-app` / `ios-app` 已移除。
+- 原生端 integration / live smoke：`make android-app.test.live`、`make ios-app.test.live`
+- API + 原生双端/admin/desktop 联调统一跑 `make test.live`；该入口会启动 API dev 和
+  Admin dev，并执行 android-app/ios-app live、admin live backend、desktop live backend
+  smoke。H5 保留独立 `make h5-app.test.live`。
 
 ---
 
 ## 5. 当前约定
 
 - `make api.test` = api Rust 单元（Compose 内 `cargo test --lib`）+ 集成（Compose 内 `cargo test --tests`，axum oneshot 对单一临时测试库）
-- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose test/smoke/迁移守护、app check/unit/scripts/api-paths/smoke、admin check/routes、desktop check/unit、website unit、Compose config、tooling、perf Go 自检。
-- `make test.live` = 真实后端联调入口；会启动 `api/docker/dev/docker-compose.yml` 与 admin dev，并跑 app network/auth/contract、admin live backend、desktop live backend smoke。
-- `tests/` 不承载 app / admin / desktop / website 的测试用例
+- `make test.all` = 自包含全量回归，不启动 live dev 联调服务；包含 API Compose
+  test/smoke/迁移守护、android-app JVM unit、ios-app SwiftPM unit、admin check/routes、
+  desktop check/unit、h5-app check/unit、website unit、Compose config、tooling、perf
+  Go 自检。
+- `make test.live` = 真实后端联调入口；会启动 `api/docker/dev/docker-compose.yml` 与
+  admin dev，并跑 android-app/ios-app live、admin live backend、desktop live backend
+  smoke。
+- `tests/` 不承载 android-app / ios-app / admin / desktop / website 的测试用例
 - 新增测试时，优先放回模块自己的目录
 - 仓库根目录 `make test.all` / `make test.live` 是本地回归与联调编排入口，内部仍调用各模块自己的测试命令。

@@ -10,15 +10,16 @@
 | [规划文档目录](plans/) | `plan` / `ce:plan` 产出目录 |
 | [审查/验证记录](reviews/) | `review` / `ce:review` 产出目录 |
 | [任务清单](reports/task-list.md) | 当前 active 剩余任务总入口 |
-| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行级拆解、优先级和验收标准 |
-| [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁 |
+| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 历史执行总账：2026-07 口径，已被 08-04-005 / task-list 取代 |
+| [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁（已 superseded，客户端主线见 08-04-005） |
+| [原生客户端重建执行计划](plans/2026-08-04-005-feat-native-client-rebuild-plan.md) | 当前客户端主线：android-app + ios-app 原生双端重建，弃用 Flutter app/ |
 | [IM 2.0 剩余工作计划](plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md) | 历史执行总账：已并入 08-02-001 执行状态总账 |
 | [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 历史决策记录：已由 08-02-001 承接 |
 | [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 历史决策记录：设计源已冻结并由 08-02-001 引用 |
 | [IM UI 预览冻结与多端交付计划](plans/2026-08-01-002-refactor-im-ui-preview-stabilization-and-handoff-plan.md) | 已完成/历史：冻结基线与 handoff 已落地 |
-| [IM UI 多端交付差异](../im-ui-html/docs/platform-handoff.md) | 设计源、Flutter 主线和 H5 当前覆盖矩阵 |
-| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史归档：原生模块已于 2026-08-04 移除 |
-| [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | H5 联调入口与 Flutter parity 计划 |
+| [IM UI 多端交付差异](../im-ui-html/docs/platform-handoff.md) | 设计源、原生双端和 H5 当前覆盖矩阵 |
+| [Android 原生迁移计划](plans/2026-07-04-002-feat-android-app-native-migration-plan.md) | 历史参考：原生双端已于 2026-08-04 恢复为主线（见 08-04-005） |
+| [H5 Flutter parity 计划](plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md) | 历史归档：Flutter parity 已由 2026-08-02-001 U9 关闭 |
 | [解决方案沉淀](solutions/) | `compound` / `ce:compound` 产出目录 |
 | [参考提示词](prompts/) | 可复制或改写给 Codex 的轻工作流提示词 |
 | [Code Review Graph 受控使用](reference/tooling/code-review-graph.md) | CE 旁路证据的触发、操作、降级与回滚边界 |
@@ -97,7 +98,7 @@
 | [部署环境](reference/operations/deployment-env.md) | 环境配置说明 |
 | [开发与构建](reference/operations/dev-and-build.md) | 本地开发指南 |
 | [Docker 部署](reference/operations/docker-deploy.md) | 容器化部署 |
-| [GitHub Actions 构建发布](reference/operations/github-actions-build.md) | app / desktop / api 发布产物构建流程 |
+| [GitHub Actions 构建发布](reference/operations/github-actions-build.md) | android-app / desktop / api 发布产物构建流程 |
 | [故障排查手册](reference/operations/troubleshooting.md) | 常见问题排查 |
 | [备份与恢复](reference/operations/backup-restore.md) | 数据备份策略 |
 | [升级与迁移](reference/operations/upgrade-migration.md) | 版本升级指南 |
@@ -123,7 +124,7 @@
 | 文档 | 说明 |
 |------|------|
 | [任务清单](reports/task-list.md) | 当前待办与阻塞项 |
-| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 当前剩余任务的执行顺序、验收命令与跳过项 |
+| [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 历史执行总账：2026-07 口径，已被 08-04-005 / task-list 取代 |
 | [iOS 原生 parity 收口报告](reports/2026-07-04-ios-app-parity-cutover-readiness.md) | 历史归档：原生模块已于 2026-08-04 移除 |
 | [API Compose 性能基线](reports/performance/api-compose-baseline-2026-07-01.md) | API Compose-first 性能指标与后续优化方向 |
 | [项目评估报告](reports/project-status-assessment-report-2025-11-08.md) | 项目现状与风险 |
@@ -133,7 +134,7 @@
 | [批次B-2验收报告（2026-03-01）](reports/2026-03-01-batch-b2-rooms-messages-uploads-acceptance.md) | API rooms/messages/uploads 测试重建验收 |
 | [批次B-3验收报告（2026-03-01）](reports/2026-03-01-batch-b3-versions-admin-ws-acceptance.md) | API versions/admin/ws 测试重建验收 |
 | [批次C验收报告（2026-03-01）](reports/2026-03-01-batch-c-admin-acceptance.md) | Admin 测试重建验收 |
-| [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-app-acceptance.md) | App Flutter 测试重建验收 |
+| [批次D验收报告（2026-03-01）](reports/2026-03-01-batch-d-app-acceptance.md) | App Flutter 测试重建验收（历史基线，Flutter 已废弃） |
 | [批次E验收报告（2026-03-01）](reports/2026-03-01-batch-e-desktop-website-acceptance.md) | Desktop + Website 测试重建验收 |
 | [全模块回归验收报告（2026-03-04）](reports/2026-03-04-full-module-regression-acceptance.md) | 全模块回归执行结果与问题处理记录 |
 
@@ -144,7 +145,8 @@
 | 模块 | 说明 |
 |------|------|
 | [api](../api/README.md) | 后端服务 (Rust) |
-| [app](../app/README.md) | 移动端 (Flutter) |
+| [android-app](../android-app/README.md) | 移动端 Android (Kotlin + Jetpack Compose) |
+| [ios-app](../ios-app/README.md) | 移动端 iOS (Swift + SwiftUI) |
 | [h5-app](../h5-app/README.md) | H5 App (Vue 3 + Vite 8) |
 | [desktop](../desktop/README.md) | 桌面端 (Vue + Tauri) |
 | [admin](../admin/README.md) | 管理后台 (Vue) |
@@ -152,4 +154,4 @@
 
 ---
 
-**文档最后更新**: 2026-08-01
+**文档最后更新**: 2026-08-04

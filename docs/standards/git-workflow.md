@@ -103,7 +103,8 @@ git diff --cached
 - API 代码：优先运行 `make api.test`；必要时补充 `make api.test.smoke` 或更小范围的 Compose 内测试。
 - SQL migration / `api/sql/base.sql`：必须运行 `make api.migration.guard`，并在提交说明或回复中说明基线来源和兼容风险。
 - Docker Compose / 测试入口：运行 `make tests.compose.config`，必要时补充对应 smoke。
-- App 代码：运行对应 `flutter test` 或 integration；验收设备顺序遵循 `AGENTS.md`。
+- App 代码：运行 `make android-app.test.unit` / `make ios-app.test` 或对应
+  live/integration；验收设备顺序遵循 `AGENTS.md`。
 - Admin 代码：运行对应单测、构建或 `make admin.test.live`。
 - Desktop 代码：运行对应单测、构建或 `make desktop.test.live`。
 - 性能测试框架：运行 `make tests.perf.check`，必要时补充 `make api.perf.smoke`。

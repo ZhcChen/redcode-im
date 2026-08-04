@@ -3,6 +3,12 @@
 重整时间：2026-07-05
 口径更新：2026-07-23
 
+> **历史归档：** 本文档为 2026-07 口径的详细执行总账，其中的 Flutter 主线、原生模块
+> 暂停等表述已被 2026-08-04 决策取代。当前执行以
+> `docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`（原生双端客户端主线）、
+> `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`（E2EE 门禁）与
+> `docs/reports/task-list.md` 为准；本文档仅作历史追踪。
+
 本文档是当前仓库剩余任务的本地执行总账，作为
 `docs/reports/task-list.md` 的详细版。后续执行以本文档顺序推进；模块内更细的
 历史树继续参考对应模块文档。

@@ -8,7 +8,7 @@ product_contract_source: ce-plan-bootstrap
 execution: code
 deepened: 2026-08-02
 absorbed_from: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
-status: active
+status: superseded
 ---
 
 # feat: RedCode IM 2.0 正式开发执行计划
@@ -20,15 +20,18 @@ status: active
 - **首个里程碑：** Flutter 移动端 P0，覆盖登录、四 Tab App Shell、会话、聊天、搜索、联系人、群治理、我的和设置，并默认使用本机 iOS Simulator 完成真实 API 验收。
 - **执行策略：** 按纵向业务闭环迁移，不推倒重写服务层，不长期维护两套业务状态，不在首个里程碑并行展开 H5、P1 和桌面实现。
 - **停止条件：** 发现设计能力缺少 API 契约、需要修改消息加密协议、需要新增数据库模型或平台插件不支持目标平台时，停止对应单元并转入其已有专项计划或新建子计划，不在 UI 单元中临时发明协议。
-- **尾部归属：** Flutter 移动 P0 完成后依次进入 H5 P0、E2EE 发布门禁、P1 能力、Flutter 桌面和发布切换；`ios-app/`、`android-app/` 已移除（2026-08-04），`desktop/` 仅保留为历史实现参考。
+- **尾部归属：** 客户端主线已切换为原生双端，见
+  `docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`；本计划 U1-U9
+  已完成证据保留为历史基线，不再作为活跃客户端执行主线。
 
 ---
 
 ## 执行状态总账（2026-08-04 校准）
 
-本计划是 IM 2.0 唯一活跃执行计划；原执行总账
+本计划曾是 IM 2.0 唯一活跃执行计划，原执行总账
 `docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md` 已并入本节并标记
-superseded。
+superseded。客户端主线已切换为原生双端（`2026-08-04-005`），本计划同步标记
+superseded；U1-U9 已完成证据保留。
 
 - **U1-U7（实现）**：已实现并验证。`app/` 四 Tab shell、认证、聊天、联系人、
   群治理、我的与设置完成；静态检查、单测、iOS integration/auth/API contract、

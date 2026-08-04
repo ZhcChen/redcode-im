@@ -1,7 +1,9 @@
 # WebSocket 消息系统集成文档
 
 ## 概述
-已完成Flutter前端与后端WebSocket的实时消息系统集成，支持消息的发送、接收和状态管理。
+已完成客户端与后端 WebSocket 的实时消息系统集成，支持消息的发送、接收和状态管理。
+客户端主线已切换为原生双端（`android-app` / `ios-app`）与 H5；本文的历史 Flutter
+实现仅作协议与集成语义参考。
 
 ## 实现的功能
 
@@ -32,7 +34,7 @@
 
 ```
 ┌─────────────────┐
-│   Flutter App   │
+│   客户端 App    │
 ├─────────────────┤
 │  ChatProvider   │ ← 管理聊天状态
 ├─────────────────┤
@@ -132,11 +134,17 @@ cd api
 ./test_flow.sh
 ```
 
-### 3. 运行Flutter应用
+### 3. 运行客户端应用
 ```bash
-cd app
-flutter run
+# 原生双端
+make android-app.smoke.emulator
+make ios-app.smoke.simulator
+
+# H5（开发服务 8016）
+make h5-app.up
 ```
+
+> 下方代码示例为历史 Flutter/Dart 协议示例；接口语义适用于任何客户端实现。
 
 ### 4. 测试消息功能
 1. 使用alice账号登录（用户名：alice，密码：password123）

@@ -81,10 +81,14 @@ cd api
 
 ### 测试流程
 
-1. **启动Flutter应用**
+1. **启动客户端应用**
 ```bash
-cd app
-flutter run
+# 原生双端
+make android-app.smoke.emulator
+make ios-app.smoke.simulator
+
+# H5（开发服务 8016）
+make h5-app.up
 ```
 
 2. **登录测试**

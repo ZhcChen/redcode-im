@@ -14,8 +14,13 @@ status: active
 
 ## Goal Capsule
 
-- **目标：** 从已通过的 Flutter/H5 单房间双向 E2EE 基线出发，关闭 U4 验收、U5 剩余场景、U6 多设备与群聊、U7 附件与功能降级、U8 Admin 发布门禁和 U9 安全收口，最终形成可审计的生产 Go/No-Go 结论。
-- **当前起点：** U1-U3 已完成；U4 主要实现已落地但缺独立验收记录；U5 已通过 Flutter/H5 双向真实 API 联调、WebSocket/历史解密和服务端原始历史密文检查，但多会话 KeyPackage 补充、双方各两设备、离线/重复/损坏/切换矩阵仍未关闭。
+- **目标：** 从已通过的 Flutter/H5 单房间双向 E2EE 基线（历史基线）出发，客户端主线切换为
+  原生双端后，关闭 U4 验收、U5 剩余场景、U6 多设备与群聊、U7 附件与功能降级、U8 Admin
+  发布门禁和 U9 安全收口，最终形成可审计的生产 Go/No-Go 结论。
+- **当前起点：** U1-U3 已完成；U4 主要实现已落地但缺独立验收记录；U5 已通过
+  Flutter/H5 双向真实 API 联调（历史基线，Flutter 客户端已废弃）、WebSocket/历史解密和
+  服务端原始历史密文检查，但多会话 KeyPackage 补充、双方各两设备、离线/重复/损坏/切换
+  矩阵仍未关闭。
 - **权威顺序：** 运行时与跨端验收 > API/数据库/WS 捕获 > 自动化测试 > 本计划 > `docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md` > 旧架构说明。
 - **执行顺序：** `U0 基线冻结 -> U1 KeyPackage 补充 -> U2 U5 单聊收口 -> U3 多设备 -> U4 群聊 -> U5 附件与降级 -> U6 Admin 门禁 -> U7 安全与发布收口`。
 - **停止条件：** 任一客户端出现明文回退、身份变化被静默接受、撤销设备/移除成员仍可解密新 epoch、服务端/日志/Push/S3 出现非预期明文、KeyPackage 并发重复消费，或 Admin 能绕过覆盖率门禁启用 E2EE 时立即维持 No-Go。
@@ -37,7 +42,13 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 
 ### Problem Frame
 
-当前 Flutter/H5 可以在两个干净首设备账号之间完成双向密文互解，但真实联调证明每台设备首次只发布一个 KeyPackage；该 KeyPackage 被房间 bootstrap 消费后，不会自动补充，第二个新会话会失败。与此同时，双方各两设备、设备批准/撤销、群成员变化、附件、Push/搜索/举报边界以及 Admin prepare/active 尚未形成完整闭环。
+当前 Flutter/H5 可以在两个干净首设备账号之间完成双向密文互解（历史基线；Flutter `app/`
+已于 2026-08-04 废弃，正式客户端主线切换为原生双端），但真实联调证明每台设备首次只发布
+一个 KeyPackage；该 KeyPackage 被房间 bootstrap 消费后，不会自动补充，第二个新会话会
+失败。与此同时，双方各两设备、设备批准/撤销、群成员变化、附件、Push/搜索/举报边界以及
+Admin prepare/active 尚未形成完整闭环。原生双端的 E2EE 接入按
+`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md` 尾部归属由后续专项落地，
+本计划保留协议、验收门禁与 Go/No-Go 结论约束。
 
 剩余工作必须按协议依赖推进：先保证一次性 KeyPackage 有可恢复库存，再关闭单聊状态机，之后才能扩展多设备和群聊；附件与外围功能只能建立在稳定 epoch 行为之上；Admin 开关和发布灰度最后接入，不能反向驱动客户端降级。
 
@@ -45,9 +56,9 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 
 **基线与单聊**
 
-- R1. U4 的 Flutter/H5 安全存储、账号隔离、注销销毁、损坏状态 fail closed、身份 TOFU/变化阻断和跨端安全码必须有独立验收记录。
+- R1. U4 的原生双端/H5 安全存储、账号隔离、注销销毁、损坏状态 fail closed、身份 TOFU/变化阻断和跨端安全码必须有独立验收记录（历史 Flutter 证据仅作基线参考）。
 - R2. 每个活跃可信设备必须维持可配置的 KeyPackage 低水位库存；领取后自动补充，补充失败可重试且不阻塞已建立房间，未批准或已撤销设备不得发布。
-- R3. Flutter/H5 单聊必须覆盖第二个新会话、重启恢复、离线补拉、WebSocket 重复、历史明文/新密文混排、身份变化、无 KeyPackage、过期 epoch、损坏密文和 runtime 切换，所有失败均不得明文回退。
+- R3. 原生双端/H5 单聊必须覆盖第二个新会话、重启恢复、离线补拉、WebSocket 重复、历史明文/新密文混排、身份变化、无 KeyPackage、过期 epoch、损坏密文和 runtime 切换，所有失败均不得明文回退。
 - R4. live 测试必须按消息 ID 关联发送响应、WebSocket 和历史记录，并对数据库、Redis、日志及 Push queue 执行明文 marker 抽检。
 
 **多设备与群聊**
@@ -74,7 +85,7 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 
 - F1. KeyPackage 补充
   - **Trigger:** 设备首次注册、客户端进入前台、周期库存检查或库存低于阈值。
-  - **Actors:** Flutter/H5 设备生命周期、E2EE API、PostgreSQL。
+  - **Actors:** 原生双端/H5 设备生命周期、E2EE API、PostgreSQL。
   - **Steps:** 查询设备库存；可信设备批量生成并发布；服务端原子领取一次；客户端确认剩余库存并异步补充。
   - **Outcome:** 第二个及后续新会话可建立，重复/并发补充不产生重复可消费记录。
   - **Covered by:** R2、R3、R15。
@@ -86,7 +97,7 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
   - **Covered by:** R5、R6。
 - F3. 群成员变化
   - **Trigger:** 邀请、退出、移除或设备集合变化。
-  - **Actors:** 房间成员 API、MLS 提交者、Flutter/H5 客户端。
+  - **Actors:** 房间成员 API、MLS 提交者、原生双端/H5 客户端。
   - **Steps:** membership revision 变化；房间进入 `rekey_required`；授权提交者生成 Commit/Welcome；服务端验证并激活新 epoch；客户端恢复发送。
   - **Outcome:** 旧成员/设备不能读取新内容，新成员默认不能读取旧内容。
   - **Covered by:** R7、R8。
@@ -99,15 +110,17 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 
 ### Acceptance Examples
 
-- AE1. **Covers R2-R4:** 给同一 H5 设备连续创建两个新私聊，首个房间消费 KeyPackage 后库存自动恢复，第二个 Flutter 联系人仍能建立 MLS group 并双向互解；服务端无明文 marker。
-- AE2. **Covers R5-R6:** 第二台 Flutter 设备未批准时发布 KeyPackage 返回拒绝；批准后能读取新消息；撤销并推进 epoch 后，即使持有旧状态也无法解密后续消息。
+- AE1. **Covers R2-R4:** 给同一 H5 设备连续创建两个新私聊，首个房间消费 KeyPackage 后库存自动恢复，第二个原生端联系人仍能建立 MLS group 并双向互解；服务端无明文 marker。
+- AE2. **Covers R5-R6:** 第二台原生端设备未批准时发布 KeyPackage 返回拒绝；批准后能读取新消息；撤销并推进 epoch 后，即使持有旧状态也无法解密后续消息。
 - AE3. **Covers R7-R8:** 三成员群移除成员 C 后，A/B 在新 epoch 互发成功，C 无法解密；新加入成员 D 不能读取加入前历史。
-- AE4. **Covers R9-R11:** H5 上传图片、Flutter 下载解密成功；篡改 object 或 tag 后失败；S3、DB、Redis、日志和 Push 扫描不含明文或 DEK。
+- AE4. **Covers R9-R11:** H5 上传图片、原生端下载解密成功；篡改 object 或 tag 后失败；S3、DB、Redis、日志和 Push 扫描不含明文或 DEK。
 - AE5. **Covers R12-R14:** 客户端覆盖不足时 Admin prepare 显示阻断且不能 active；覆盖满足后灰度启用；回滚后明文新发恢复，支持客户端仍可读取历史密文。
 
 ### Scope Boundaries
 
-- 只覆盖 Flutter `app/`、H5 `h5-app/`、API 和 Admin；`ios-app/`、`android-app/` 已移除（2026-08-04），`desktop/` 不在本轮正式 E2EE 客户端范围。
+- 只覆盖原生双端 `android-app/` / `ios-app/`、H5 `h5-app/`、API 和 Admin；Flutter
+  `app/` 已废弃（2026-08-04，历史实现仅作协议基线），`desktop/` 不在本轮正式 E2EE
+  客户端范围。
 - 不自制 X3DH、Double Ratchet、Sender Keys 或替换 OpenMLS。
 - 不承诺 H5 抵抗已攻陷 Origin、恶意扩展或运行时 XSS；H5 安全声明继续采用上游计划的受限 Web 威胁模型。
 - 不在本计划内实现服务端可搜索密文、密钥托管或管理员解密。
@@ -120,7 +133,9 @@ Unit 10（message runtime 全链路降级），见 U6/U7。
 ### Key Technical Decisions
 
 - KTD1. **KeyPackage 使用低水位库存，不使用“每设备永久一个”。** 客户端生成私有材料，服务端只保存一次性公有 KeyPackage；客户端在首次初始化、进入前台和受控周期检查时读取自身库存并批量补足。对端领取不会被假设为可靠通知，因此目标库存必须能覆盖设备离线期间的合理新会话数量。该模型直接解除已观察到的第二房间阻断，同时保留一次性领取语义。
-- KTD2. **库存补充是设备生命周期能力，不嵌入单个聊天页面。** Flutter `E2eeDeviceLifecycle` 与 H5 `e2eeDeviceLifecycle` 负责补充和退避；页面只消费“可用/待批准/不可用”状态，避免每个会话重复实现密钥逻辑。
+- KTD2. **库存补充是设备生命周期能力，不嵌入单个聊天页面。** 原生双端与 H5 的设备
+  生命周期模块负责补充和退避（历史 Flutter `E2eeDeviceLifecycle` 仅作协议参考）；页面只
+  消费“可用/待批准/不可用”状态，避免每个会话重复实现密钥逻辑。
 - KTD3. **U5 先完成单设备多会话，再进入多设备。** KeyPackage 库存、离线恢复和重复处理未稳定前，不并行调试设备批准与群成员状态机。
 - KTD4. **设备撤销与成员变化统一通过 epoch 前进关闭访问窗口。** 单纯标记数据库状态不足以满足 R6/R8；受影响房间在新 Commit 激活前保持 `rekey_required` 并拒绝 application message。
 - KTD5. **附件密钥只在端侧 envelope 中传递。** S3 保存密文对象，API 保存密文元数据；DEK 不进入上传签名、对象 metadata、Push、日志或服务端搜索索引。
@@ -166,14 +181,18 @@ flowchart TB
 
 ## Implementation Units
 
+> 客户端主线说明：U0-U7 中的客户端验收均以原生双端（`android-app/` / `ios-app/`）与
+> H5 为准；各单元 Files 中 `app/` 路径为已废弃 Flutter 实现的历史协议参考，原生端
+> E2EE 文件路径由后续原生 E2EE 专项（承接 `2026-08-04-005` 尾部归属）补齐。
+
 ### U0. 冻结当前基线并关闭 U4 验收
 
 - **Goal:** 形成 U4 独立验收证据，并把当前已完成/未完成边界同步到测试索引和架构文档。
 - **Requirements:** R1、R15。
 - **Files:** `app/test/core/e2ee_secure_state_storage_test.dart`、`app/test/core/e2ee_identity_trust_test.dart`、`h5-app/test/e2ee-secure-state-storage.test.ts`、`h5-app/test/e2ee-identity-trust.test.ts`、`h5-app/test/e2e/e2ee-core-smoke.spec.ts`、`docs/reviews/`、`docs/reference/testing/README.md`、`docs/reference/architecture/end-to-end-encryption-design.md`。
 - **Approach:** 复核已有实现而非重写；补缺失的平台存储抽检、账号切换/注销、损坏状态和跨端安全码证据；记录 H5 威胁模型边界。
-- **Test Scenarios:** Flutter/H5 首次初始化与重启；账号 A/B 隔离；注销只清理当前账号；包装密钥缺失/密文篡改 fail closed；localStorage/普通 SQLite/日志无私钥状态；身份首次信任、变化阻断和明确重新信任；跨端安全码一致。
-- **Verification:** `flutter test`、`make h5-app.test.unit`、`make h5-app.test.e2e`，以及平台存储与日志抽检。
+- **Test Scenarios:** 原生双端/H5 首次初始化与重启（历史 Flutter 证据保留为基线）；账号 A/B 隔离；注销只清理当前账号；包装密钥缺失/密文篡改 fail closed；localStorage/普通 SQLite/日志无私钥状态；身份首次信任、变化阻断和明确重新信任；跨端安全码一致。
+- **Verification:** `make android-app.test`、`make ios-app.test`、`make h5-app.test.unit`、`make h5-app.test.e2e`，以及平台存储与日志抽检。
 - **Dependencies:** 无。
 
 ### U1. 实现 KeyPackage 低水位补充与测试夹具清理
@@ -183,17 +202,17 @@ flowchart TB
 - **Files:** `api/src/handlers/e2ee.rs`、`api/src/database/e2ee_mls_store.rs`、`api/tests/e2ee_mls_api_integration.rs`、`app/lib/core/e2ee/device_lifecycle.dart`、`app/lib/core/e2ee/mls_api_service.dart`、`app/test/core/e2ee_device_lifecycle_test.dart`、`h5-app/src/e2ee/device-lifecycle.ts`、`h5-app/src/e2ee/session.ts`、`h5-app/test/e2ee-device-lifecycle.test.ts`、`h5-app/test/e2ee-live-backend.test.ts`、`tests/`。
 - **Approach:** 增加可信设备库存查询与批量发布合同；客户端按低水位异步补充并使用账号级互斥；API 保持 `FOR UPDATE SKIP LOCKED` 一次性领取和库存上限；live fixture 使用 run ID 清理自身数据。
 - **Test Scenarios:** 首次发布目标库存；领取一枚后补充；连续创建至少三个新会话；两个领取者并发不重复消费；两个客户端并发补充不超上限；未批准/撤销设备发布失败；离线补充失败后退避恢复；清理只删除当前 run 夹具。
-- **Verification:** `make api.test`、`flutter test`、`make h5-app.test.unit`、临时 `persist/e2ee` 下 `make h5-app.test.e2ee.live`，结束后恢复 `persist/plaintext`。
+- **Verification:** `make api.test`、`make android-app.test`、`make ios-app.test`、`make h5-app.test.unit`、临时 `persist/e2ee` 下 `make h5-app.test.e2ee.live`，结束后恢复 `persist/plaintext`。
 - **Dependencies:** U0。
 
 ### U2. 关闭 U5 单聊剩余状态机门禁
 
-- **Goal:** 让 Flutter/H5 单聊在恢复、重复、损坏和模式变化下保持一致且 fail closed。
+- **Goal:** 让原生双端/H5 单聊在恢复、重复、损坏和模式变化下保持一致且 fail closed。
 - **Requirements:** R3、R4。
 - **Files:** `app/lib/core/e2ee/direct_message_coordinator.dart`、`app/lib/core/services/message_service.dart`、`app/lib/core/services/websocket_service.dart`、`app/test/core/e2ee_direct_message_coordinator_test.dart`、`app/test/core/message_service_runtime_test.dart`、`app/test/e2ee_cross_client_live_test.dart`、`h5-app/src/e2ee/direct-message-coordinator.ts`、`h5-app/src/services/message-service.ts`、`h5-app/src/services/websocket-service.ts`、`h5-app/test/e2ee-direct-message-coordinator.test.ts`、`h5-app/test/e2ee-message-service.test.ts`、`h5-app/test/e2ee-live-backend.test.ts`。
 - **Approach:** 复用 pending operation 和按消息 ID 去重；离线/history/WS 都进入同一解密入口；模式冲突只刷新 runtime 并保留草稿，不自动改走明文端点。
-- **Test Scenarios:** Flutter -> H5、H5 -> Flutter 第二个新会话；双方重启后继续互发；离线后 history 补拉；同一 WS 帧两次只展示一次；历史明文与新密文混排；根身份变化阻断；无 KeyPackage、过期 epoch、损坏密文明确失败；`plaintext <-> e2ee` 切换不自动重发；DB/Redis/log/Push marker 为零。
-- **Verification:** Flutter/H5 全量单测、跨端 live、WS 消息 ID 关联、PostgreSQL/Redis/API 日志/Push queue 抽检，并新增 `docs/reviews/` U5 完整验收记录。
+- **Test Scenarios:** 原生端 -> H5、H5 -> 原生端 第二个新会话；双方重启后继续互发；离线后 history 补拉；同一 WS 帧两次只展示一次；历史明文与新密文混排；根身份变化阻断；无 KeyPackage、过期 epoch、损坏密文明确失败；`plaintext <-> e2ee` 切换不自动重发；DB/Redis/log/Push marker 为零。
+- **Verification:** 原生双端/H5 全量单测、跨端 live、WS 消息 ID 关联、PostgreSQL/Redis/API 日志/Push queue 抽检，并新增 `docs/reviews/` U5 完整验收记录。
 - **Dependencies:** U1。
 
 ### U3. 实现双方各两设备批准、同步与撤销
@@ -203,7 +222,7 @@ flowchart TB
 - **Files:** `api/src/handlers/e2ee.rs`、`api/src/database/e2ee_key_store.rs`、`api/src/database/e2ee_control_store.rs`、`api/tests/e2ee_mls_api_integration.rs`、`app/lib/core/e2ee/`、`app/lib/features/settings/`、`app/test/core/`、`h5-app/src/e2ee/`、`h5-app/src/views/`、`h5-app/test/`。
 - **Approach:** 使用已有 approval public key 和设备状态合同；新增设备保持 pending，可信设备核验后签名批准；每个批准设备作为 MLS leaf；撤销设备触发受影响房间 `rekey_required`，新 epoch 激活前暂停发送。
 - **Test Scenarios:** A/B 各两设备；未批准设备不能发布/领取/解密；批准后四设备收到新消息；同账号设备重启恢复；撤销 A2 后 A1/B1/B2 继续互发，A2 无法解密；批准/撤销重复请求幂等；设备离线后补拉 Commit；身份安全码展示一致。
-- **Verification:** `make api.test`、Flutter/H5 unit、至少四客户端自动化联调、设备管理 UI 验收、撤销后 marker 密文不可解证明。
+- **Verification:** `make api.test`、原生双端/H5 unit、至少四客户端自动化联调、设备管理 UI 验收、撤销后 marker 密文不可解证明。
 - **Dependencies:** U2。
 
 ### U4. 实现三成员群聊与成员变化 rekey
@@ -213,7 +232,7 @@ flowchart TB
 - **Files:** `api/src/handlers/room.rs`、`api/src/handlers/group_management.rs`、`api/src/database/group_management_store.rs`、`api/src/database/e2ee_control_store.rs`、`api/tests/group_invitation_integration.rs`、`app/lib/core/e2ee/`、`app/lib/features/chat/`、`app/test/chat/`、`h5-app/src/e2ee/`、`h5-app/src/stores/`、`h5-app/test/group-*.test.ts`。
 - **Approach:** 成员变化先推进 membership revision 并进入 `rekey_required`；授权提交者为所有活跃设备生成 Commit/Welcome；API 验证 revision、设备集合和 epoch 后原子激活；发送端仅接受 active epoch。
 - **Test Scenarios:** 三账号至少四设备群互发；邀请新成员；普通成员退出；管理员移除；并发邀请与移除 revision 冲突；Commit 丢失后补拉；重复/乱序控制消息；旧成员/撤销设备不能解密新消息；新成员不能读取加入前历史。
-- **Verification:** `make api.test`、Flutter/H5 群聊 unit、三账号四设备跨端 live、API/WS/DB epoch 关联抽检。
+- **Verification:** `make api.test`、原生双端/H5 群聊 unit、三账号四设备跨端 live、API/WS/DB epoch 关联抽检。
 - **Dependencies:** U3。
 
 ### U5. 加密附件并关闭外围功能边界
@@ -222,8 +241,8 @@ flowchart TB
 - **Requirements:** R9-R11。
 - **Files:** `app/lib/core/services/message_service.dart`、`app/lib/core/network/direct_upload.dart`、`app/lib/core/storage/attachment_cache.dart`、`app/test/core/message_service_attachment_retry_test.dart`、`h5-app/src/services/message-attachment-upload-service.ts`、`h5-app/src/services/message-service.ts`、`h5-app/test/`、`api/src/services/push.rs`、`api/src/handlers/message_search.rs`、`api/src/handlers/report.rs`、`api/tests/`、`tests/mocks/external/`。
 - **Approach:** 端侧生成每附件 DEK/nonce，上传前 AEAD 加密，密钥 envelope 随 E2EE application payload 发送；下载后验证并解密到受控临时缓存；外围功能按“端侧实现或明确禁用”逐项收口。
-- **Test Scenarios:** Flutter/H5 图片、音频、视频、文件互解；密文/tag/object key 篡改失败；上传重试 nonce 不复用；Push 无正文；服务端搜索/审核不可用；本地搜索只索引解密内容；引用/转发重新加密；举报仅上传用户明确选择的证据；S3/DB/Redis/log/WS/Push marker 为零。
-- **Verification:** 附件 live、S3 mock payload 与对象扫描、Push queue/mock provider 检查、Flutter/H5 unit/E2E、`make api.test`。
+- **Test Scenarios:** 原生双端/H5 图片、音频、视频、文件互解；密文/tag/object key 篡改失败；上传重试 nonce 不复用；Push 无正文；服务端搜索/审核不可用；本地搜索只索引解密内容；引用/转发重新加密；举报仅上传用户明确选择的证据；S3/DB/Redis/log/WS/Push marker 为零。
+- **Verification:** 附件 live、S3 mock payload 与对象扫描、Push queue/mock provider 检查、原生双端/H5 unit/E2E、`make api.test`。
 - **Dependencies:** U4。
 
 ### U6. 实现 Admin prepare/active 与客户端兼容门禁
@@ -234,10 +253,10 @@ flowchart TB
 - **Approach:** 引入设备平台/版本/构建能力记录、prepare/readiness revision 和 active 原子校验；readiness 按服务端最低版本规则聚合活跃设备覆盖、KeyPackage 库存与阻断原因；客户端遇到 runtime 冲突保留草稿并刷新配置。
 - **承接 Unit 10:** 收口 `2026-04-09-admin-rbac` Unit 10 的 message runtime
   全链路降级：`api/src/services/message_runtime.rs`、message/history/search/read
-  handlers 与 Flutter/H5 客户端模式降级统一在本单元验收；Admin 开启、客户端兼容
+  handlers 与原生双端/H5 客户端模式降级统一在本单元验收；Admin 开启、客户端兼容
   与回滚不得绕过该链路。
 - **Test Scenarios:** 覆盖不足、库存不足、旧客户端在线、待批准设备和安全审查未通过时 active 拒绝；readiness 过期重新校验；成功 active；旧客户端明文发送拒绝；active -> plaintext 回滚；历史密文仍可读；Admin 清晰显示阻断项和影响范围。
-- **Verification:** `make api.test`、Admin type-check/unit/Playwright live、Flutter/H5 runtime tests、并发更新与回滚测试。
+- **Verification:** `make api.test`、Admin type-check/unit/Playwright live、原生双端/H5 runtime tests、并发更新与回滚测试。
 - **Dependencies:** U5。
 
 ### U7. 完成安全审查、灰度、回滚与发布裁决
@@ -259,7 +278,7 @@ flowchart TB
 | Git 质量 | U0-U7 | `git diff --check`、`git diff --cached --check` | 无空白错误，只提交当前闭环 |
 | 共享核心 | U0、U3-U5、U7 | `cargo test --manifest-path e2ee-core/Cargo.toml`、四目标构建、WASM browser smoke | Native/WASM 状态与协议行为一致 |
 | API | U1-U7 | `make api.test` | KeyPackage、设备、epoch、权限、runtime 和 migration 全通过 |
-| Flutter | U0-U7 | `flutter test`、跨端 live、适用设备 integration | 单聊、多设备、群聊、附件和失败路径均 fail closed |
+| 原生双端 | U0-U7 | `make android-app.test`、`make ios-app.test`、跨端 live、适用设备 integration | 单聊、多设备、群聊、附件和失败路径均 fail closed |
 | H5 | U0-U7 | `make h5-app.check`、`make h5-app.test.unit`、`make h5-app.test.live`、`make h5-app.test.e2e`、`make h5-app.build` | WASM、存储、跨端、页面和生产构建通过 |
 | Admin | U6-U7 | type-check、unit、Playwright live | prepare/active、阻断原因、并发和回滚可见且受服务端约束 |
 | 泄漏 | U2、U5、U7 | DB、Redis、API 日志、Push queue/provider、WS、S3 marker 扫描 | 除端侧解密内存和明确举报证据外零明文 |
@@ -272,16 +291,16 @@ flowchart TB
 
 ## Definition of Done
 
-- D1. U4 安全存储和身份信任有独立验收记录，Flutter/H5 的协议状态、私钥和包装密钥不进入普通存储或日志。
+- D1. U4 安全存储和身份信任有独立验收记录，原生双端/H5 的协议状态、私钥和包装密钥不进入普通存储或日志（历史 Flutter 证据保留为基线）。
 - D2. 同一可信设备可连续建立至少三个新会话，KeyPackage 并发领取只消费一次，低水位补充可重试且受库存/速率上限约束。
-- D3. Flutter/H5 单聊在重启、离线、重复、历史混排、身份变化、损坏密文、过期 epoch 和 runtime 切换后行为一致且不回退明文。
+- D3. 原生双端/H5 单聊在重启、离线、重复、历史混排、身份变化、损坏密文、过期 epoch 和 runtime 切换后行为一致且不回退明文。
 - D4. 双方各两设备完成批准、同步和撤销；未批准或已撤销设备不能解密后续 epoch。
 - D5. 三成员至少四设备群聊在加入、退出、移除、并发变化和控制消息乱序后状态一致；旧成员不能读取新内容，新成员不能读取旧内容。
-- D6. 图片、音频、视频和文件跨 Flutter/H5 互解，篡改失败，上传重试不复用 nonce，S3 和服务端数据面不含明文或 DEK。
+- D6. 图片、音频、视频和文件跨原生双端/H5 互解，篡改失败，上传重试不复用 nonce，S3 和服务端数据面不含明文或 DEK。
 - D7. Push、搜索、审核、举报、引用和转发均有明确 E2EE 行为；不支持能力不可伪装为可用。
 - D8. Admin 无法绕过 readiness 启用 E2EE；active、最低版本阻断、配置冲突和 plaintext 回滚均由服务端原子裁决。
 - D9. DB、Redis、日志、Push、WebSocket、S3、备份和测试夹具扫描无非预期明文、RCST、私钥或 token。
-- D10. `make api.test`、Flutter/H5/Admin 全量门禁、`make test.all`、`make test.live`、四目标核心构建、SBOM 和漏洞/许可证检查全部通过。
+- D10. `make api.test`、原生双端/H5/Admin 全量门禁、`make test.all`、`make test.live`、四目标核心构建、SBOM 和漏洞/许可证检查全部通过。
 - D11. 架构、测试、运行手册、故障排查、灰度和回滚文档与运行时一致，废弃伪代码和实验实现不留在生产路径。
 - D12. 独立安全审查无 P0/P1 阻断项并明确给出 Go；否则 U10 保持 No-Go，开发和生产默认均维持 `persist/plaintext`。
 

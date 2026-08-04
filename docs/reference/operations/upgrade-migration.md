@@ -241,7 +241,7 @@ CREATE INDEX CONCURRENTLY idx_messages_new ON messages(new_column);
 
 ## 客户端升级
 
-### 移动端 (Flutter)
+### 移动端（原生双端）
 
 #### 强制更新
 
@@ -258,18 +258,8 @@ CREATE INDEX CONCURRENTLY idx_messages_new ON messages(new_column);
 
 #### 热更新
 
-```bash
-# 创建热更新包
-cd mobile
-flutter build bundle
-
-# 上传热更新
-curl -X POST http://localhost:8010/api/admin/hot-updates \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -F "platform=android" \
-  -F "patch_version=1.2.0-patch1" \
-  -F "file=@build/app.bundle"
-```
+原生双端当前不采用 Flutter 热更新；历史 Flutter 热更新方案见
+`docs/reference/architecture/version-linkage-plan.md`（已标注废弃参考）。
 
 ### 桌面端 (Tauri)
 

@@ -1,24 +1,27 @@
 ﻿# 版本联动方案（整包 + 热更新）
 
-> 适用于 RedCode IM 当前多端架构：Flutter 移动端（Android/iOS）、Tauri 桌面端（Windows/macOS/Linux）、Admin 版本管理后台以及 Website 官网。
+> 适用于 RedCode IM 当前多端架构：原生移动端（`android-app` / `ios-app`）、Tauri 桌面端（Windows/macOS/Linux）、Admin 版本管理后台以及 Website 官网。
 
 ## 1. 平台与更新方式
 
 | 模块 | 技术栈 | 更新方式 |
 | --- | --- | --- |
-| app（Flutter） | Android / iOS | **整包更新**（App Store/TestFlight、APK/应用商店）<br>**热更新**（仅 Flutter 层；绑定基线整包版本或范围） |
+| android-app / ios-app（原生） | Android / iOS | **整包更新**（App Store/TestFlight、APK/应用商店）；原生端暂不采用 Flutter 热更新 |
 | desktop（Tauri） | Windows / macOS / Linux | **整包更新**（下载安装包，客户端或官网提示） |
-| admin（Vue） | 版本管理后台 | 管理整包版本、上传安装包、维护热更新补丁（Flutter 专用） |
+| admin（Vue） | 版本管理后台 | 管理整包版本、上传安装包；热更新补丁仅历史 Flutter 方案保留 |
 | website（Nuxt） | 官网首页下载按钮 | 调用后端「无 Token 的临时下载链接」接口，获取整包下载地址（B2 私有对象存储 + 临时签名） |
 
 ## 2. 整包更新流程
 
 1. **Admin 录入整包版本**：平台、版本号、构建号、渠道、下载 Key / URL、强制标记、发布时间。
 2. **官网下载按钮**：调用后端开放接口（无需 Token）获取最新整包的临时下载地址（基于 B2 临时签名），赋给按钮（Android 直链 APK，iOS 跳 App Store/TestFlight）。
-3. **Flutter / Tauri 客户端**：启动时调用 `/versions/latest?platform=xxx&channel=stable&current_version=1.0.0`，若返回 `has_update && mandatory`，则强制整包升级（iOS 只能跳 App Store，Android 可内置下载流程），否则提示或忽略。
+3. **原生双端 / Tauri 客户端**：启动时调用 `/versions/latest?platform=xxx&channel=stable&current_version=1.0.0`，若返回 `has_update && mandatory`，则强制整包升级（iOS 只能跳 App Store，Android 可内置下载流程），否则提示或忽略。
 4. **桌面端**：保持整包更新策略即可，暂不做热更新。
 
-## 3. 热更新流程（Flutter 移动端）
+## 3. 热更新流程（历史 Flutter 方案，原生双端不采用）
+
+> Flutter `app/` 已于 2026-08-04 废弃，以下热更新流程仅保留为历史方案参考；
+> 原生双端（Kotlin/Swift）当前只做整包更新，不引入 OTA 热更新补丁。
 
 1. **后台数据结构**
    - 新建 `hot_updates` 表（或扩展版本表），字段包含：`platform`、`app_version_id`（或版本范围）、`patch_version`、`download_url`、`checksum`、`rollout_percentage`、`mandatory`、`description`、`is_active`、`released_at` 等。
@@ -59,12 +62,10 @@
 2. 新增“热更新管理”界面（列表 + 表单 + 上传 + 灰度/回滚）。表单需提示 patch 必须绑定整包。
 3. 若官网管理需要，可展示整包下载链接或版本列表。
 
-### Flutter 客户端
-1. 引入热更新管理器：  
-   - 检查整包更新 → 请求热更新 → 下载/校验/应用 patch。  
-   - 保存当前 `patch_version`，失败时回滚并可提示用户整包升级。  
-   - 选择合适热更新方案（如下发 Dart bundle / assets diff / 第三方 OTA SDK）。
-2. UI 提示：正常情况下热更新无感；若 patch 强制、失败或需整包升级，需提示用户。
+### 原生双端客户端
+1. 检查整包更新：启动时调用 `/versions/latest`，按 `has_update && mandatory`
+   执行强制或提示升级；iOS 跳 App Store/TestFlight，Android 支持应用内下载安装。
+2. UI 提示：非强制更新提供忽略/稍后，强制更新阻断旧版本使用；不实现 OTA 热更新。
 
 ### Desktop 客户端
 1. 继续沿用整包更新（提示用户下载新版本），暂不支持热更新。
@@ -80,4 +81,4 @@
 
 ---
 
-此方案确立后，优先完成后端数据库与 API，再接入 Admin UI，最后对接 Flutter 客户端即可。桌面端保持整包更新即可，官网下载按钮直接调用开放的临时下载接口。
+此方案确立后，优先完成后端数据库与 API，再接入 Admin UI，最后对接原生双端客户端即可。桌面端保持整包更新即可，官网下载按钮直接调用开放的临时下载接口。

@@ -33,11 +33,12 @@ Push 平台（FCM/APNs/厂商推送等）的 **凭据与开关**需要由 **Admi
   - 无效 token 自动停用：当 FCM 返回 `UNREGISTERED`（或明显的 token 非法）时，会将对应 `push_devices` 记录置为 `is_active=false`（等待客户端重新注册）
   - 覆盖触发点：新消息、好友请求、群解散/踢人/转让群主等群管理事件
 
-### Flutter
+### 原生双端（Android / iOS）
 
-- 使用 `firebase_core` + `firebase_messaging` 获取 FCM token
+- Android 使用 Firebase Messaging SDK 获取 FCM token；iOS 使用 APNs device token 并
+  可按需接入 FCM 转发
 - 登录成功后自动注册设备；登出时注销设备
-- 处理通知点击（`getInitialMessage` / `onMessageOpenedApp`）→ 打开 `ChatDetailPageV2`
+- 处理通知点击 → 打开对应会话详情页
 - 本地通知兜底：WebSocket 新消息且 App 非前台时弹本地通知（不依赖 Firebase 配置）
 
 ## 数据结构
@@ -133,15 +134,13 @@ API 会附带以下 `data`：
 - `PUSH_DB_QUEUE_CLEANUP_INTERVAL_SECONDS=86400`：清理间隔（秒）
 - `PUSH_DB_QUEUE_CLEANUP_BATCH_SIZE=10000` / `PUSH_DB_QUEUE_CLEANUP_MAX_BATCHES=20`：清理批量与单次上限
 
-### Flutter（Android / iOS）
+### 原生双端（Android / iOS）
 
 - Android：需要 Firebase 项目与 `google-services.json`
-  - 由于仓库默认不携带该文件，`app/android/app/build.gradle.kts` 已做“存在才启用 google-services 插件”的降级处理
+  - 由于仓库默认不携带该文件，`android-app/app/build.gradle.kts` 已做“存在才启用 google-services 插件”的降级处理
 - iOS：
   - 需要 `GoogleService-Info.plist`
-  - Push capability（仓库已提供 entitlements）：
-    - Debug：`app/ios/Runner/RunnerDebug.entitlements`
-    - Release/Profile：`app/ios/Runner/RunnerRelease.entitlements`
+  - Push capability（仓库已提供 entitlements）：`ios-app/App/RedCodeIM.entitlements`
   - 并按 Firebase Messaging 文档配置 APNs（`.p8` / Key ID / Team ID）
 
 ### Desktop（Windows / macOS）
@@ -158,18 +157,18 @@ API 会附带以下 `data`：
    - 配置并启用 FCM：粘贴 Firebase Service Account JSON
 3. 可使用“测试发送”验证（建议优先填 `device_token`，其次 `user_id`）。
 
-### 2) Android（Flutter）
+### 2) Android（原生）
 
-1. Firebase 控制台新增 Android App（应用 ID 与 Flutter `applicationId` 一致）。
-2. 下载 `google-services.json` 放入：`app/android/app/google-services.json`（仓库已忽略该文件，请勿提交）。
+1. Firebase 控制台新增 Android App（应用 ID 与 `android-app` 的 `applicationId` 一致）。
+2. 下载 `google-services.json` 放入：`android-app/app/google-services.json`（仓库已忽略该文件，请勿提交）。
 3. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
 
-### 3) iOS（Flutter）
+### 3) iOS（原生）
 
 1. Firebase 控制台新增 iOS App（Bundle ID 与 Xcode 工程一致）。
-2. 下载 `GoogleService-Info.plist` 放入：`app/ios/Runner/GoogleService-Info.plist`（仓库已忽略该文件，请勿提交），并确保加入 Runner target。
+2. 下载 `GoogleService-Info.plist` 放入 `ios-app/` 对应 target（仓库已忽略该文件，请勿提交），并确保加入 target。
 3. Xcode：开启 Push Notifications capability
-   - 仓库已提供 entitlements：`app/ios/Runner/RunnerDebug.entitlements`、`app/ios/Runner/RunnerRelease.entitlements`
+   - 仓库已提供 entitlements：`ios-app/App/RedCodeIM.entitlements`
 4. Apple Developer：创建 APNs Auth Key（`.p8`），在 Firebase Cloud Messaging 中配置（Key ID / Team ID / Bundle ID 对应）。
 5. 运行 App 登录一次，客户端会自动注册设备（`POST /push/devices`）。
 

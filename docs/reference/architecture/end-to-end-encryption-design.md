@@ -7,7 +7,7 @@
 - 生产发布：No-Go。U2-U9 与独立安全审查完成前，不得启用 E2EE 生产模式。
 - 实施计划：`docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md`。
 
-本文替代旧版手写 X3DH、Double Ratchet 和 Sender Keys 设计。RedCode IM 不自行实现密码协议、密钥日程或密码原语，也不使用无法在 Flutter Native 与 H5 浏览器共享的独立协议实现。
+本文替代旧版手写 X3DH、Double Ratchet 和 Sender Keys 设计。RedCode IM 不自行实现密码协议、密钥日程或密码原语，也不使用无法在原生双端（JNI / xcframework）与 H5 浏览器共享的独立协议实现。
 
 ## 安全目标与边界
 
@@ -35,7 +35,7 @@ H5 E2EE 不抵抗已攻陷的同源 Origin、运行时 XSS 或恶意浏览器扩
 
 `e2ee-core/` 是唯一协议核心：
 
-- Flutter 通过稳定 C ABI / FFI 调用。
+- Android 通过稳定 C ABI / JNI 调用 `.so`，iOS 通过 `xcframework` 调用。
 - H5 通过 `wasm-bindgen` 调用同一 Rust 核心。
 - API 只独立解析 RCML envelope 头与非敏感路由 metadata，不运行 OpenMLS，也不持有群密钥。
 - OpenMLS 与 provider 版本必须精确锁定，不跟随 RC 或 `main`。
@@ -159,11 +159,11 @@ pending_approval -> active -> revoked
 
 ## 平台状态存储
 
-### Flutter
+### 原生双端（Android / iOS）
 
 - MLS provider state 作为不透明 bytes 保存。
 - iOS 使用 Keychain 保护 wrapping key；Android 使用 Keystore 保护 wrapping key。
-- 普通 SQLite、SharedPreferences、日志和崩溃上报不得出现私钥或未包装状态。
+- 普通 SQLite（GRDB）、SharedPreferences、日志和崩溃上报不得出现私钥或未包装状态。
 - 账号切换按账号和设备命名空间隔离；注销销毁对应句柄与本地状态。
 
 ### H5
@@ -217,7 +217,7 @@ E2EE active 时：
 最低验证包括：
 
 - Host、iOS、Android、WASM 构建。
-- Flutter FFI 和 Chrome WASM runtime。
+- 原生双端 JNI/xcframework 和 Chrome WASM runtime。
 - Native/WASM 双向状态接续。
 - 双向单聊、双方多设备、三成员群聊、重启、重复、乱序和离线恢复。
 - 成员移除和设备撤销后的新 epoch 拒绝。
