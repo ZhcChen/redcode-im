@@ -141,26 +141,34 @@
 
 ## POST /rooms/:room_id/messages/encrypted — 发送加密消息
 
-向指定房间发送加密消息。需要认证。`encrypted_content` 必须是 Base64 编码；`content_summary` 用于列表摘要和旧客户端占位。`persist` 模式写入密文历史；`relay_only` 模式只返回运行时快照并通过 WebSocket 透传密文，不写服务端历史或离线 Push 消息快照。
+向指定房间发送加密消息。需要认证。`encrypted_content` 必须是 Base64 编码的 RCML v1 envelope；`encryption_metadata` 只允许非敏感路由字段。客户端不得提交 `content_summary`，服务端统一使用固定占位 `[加密消息]`。`persist` 模式写入密文历史；`relay_only` 模式只返回运行时快照并通过 WebSocket 透传密文，不写服务端历史或离线 Push 消息快照。
 
 ### 请求体
 ```json
 {
-  "content_summary": "[加密消息]",
-  "encrypted_content": "aGVsbG8=",
+  "encrypted_content": "UkNNTAABAQAAAApjaXBoZXJ0ZXh0",
   "encryption_metadata": {
-    "alg": "test",
-    "iv": "iv1"
+    "protocol": "mls",
+    "version": 1,
+    "epoch": 1,
+    "sender_device_id": "550e8400-e29b-41d4-a716-446655440000",
+    "content_type": "application",
+    "control_message_id": "018f5be3-3277-7d45-a6f3-bd2ebc89f321"
   },
   "quoted_message_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
+- RCML v1 二进制头为 `magic(4) + version(u16 BE) + kind(u8) + payload_length(u32 BE)`；`kind` 的 `1/2/3` 分别对应 `application/commit/welcome`。
+- `protocol` 当前只接受 `mls`，`version` 当前只接受 `1`，`epoch` 必须大于 `0`。
+- `content_type` 必须与 RCML envelope kind 一致；payload 上限为 16 MiB，声明长度必须与实际长度一致。
+- `control_message_id` 可选，用于引用使当前 application 可处理的控制消息。
+- 请求体和 `encryption_metadata` 均拒绝未知字段；提交 `content_summary`、未知协议版本或任意算法参数会失败，不会降级为明文发送。
 - `quoted_message_id` 可选；`relay_only` 下不支持，返回 HTTP 400 ErrorResponse，`code=42201`，`message` 包含 `relay_only`。
 - `relay_only` 实时广播失败返回 HTTP 503 ErrorResponse，`code=50302`。
 
 ### 响应
-成功时返回与普通发送相同的 `{"message": ...}` 结构，`message.encrypted_content` 与 `message.encryption_metadata` 会按服务端消息模型返回。
+成功时返回与普通发送相同的 `{"message": ...}` 结构。`message.content` 固定为 `[加密消息]`，`message.encrypted_content` 与规范化后的 `message.encryption_metadata` 按服务端消息模型返回。
 
 ## GET /rooms/:room_id/messages?limit=50 — 获取消息列表
 

@@ -1,3 +1,4 @@
+pub mod e2ee_envelope;
 pub mod file_upload_audit;
 pub mod file_upload_cleanup;
 pub mod geolocation;

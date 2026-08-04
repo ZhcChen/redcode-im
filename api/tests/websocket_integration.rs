@@ -1,6 +1,7 @@
 mod support;
 
 use axum::{body::Body, http::StatusCode};
+use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
 use redis::AsyncCommands;
 use serde_json::{json, Value};
@@ -18,6 +19,26 @@ mN/fOb81W2J8TNvVe4bOgzZAGGWjZYIv/IdHh3Fya9fOEo7CRaKSZs0N
 struct TestUser {
     id: String,
     token: String,
+}
+
+fn encrypted_message_body() -> String {
+    let payload = b"test MLS ciphertext";
+    let mut envelope = b"RCML".to_vec();
+    envelope.extend_from_slice(&1_u16.to_be_bytes());
+    envelope.push(1);
+    envelope.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    envelope.extend_from_slice(payload);
+    json!({
+        "encrypted_content": base64::engine::general_purpose::STANDARD.encode(envelope),
+        "encryption_metadata": {
+            "protocol": "mls",
+            "version": 1,
+            "epoch": 1,
+            "sender_device_id": "00000000-0000-0000-0000-000000000001",
+            "content_type": "application"
+        }
+    })
+    .to_string()
 }
 
 async fn register_and_login(app: &TestApp, prefix: &str) -> TestUser {
@@ -455,12 +476,7 @@ async fn message_send_endpoints_follow_content_audit_mode() {
     let member = register_and_login(&app, "mode-member").await;
     let room_id = create_room(&app, &owner, &[&member]).await;
     let admin_token = bootstrap_admin_token(&app).await;
-    let encrypted_body = json!({
-        "content_summary": "[加密消息]",
-        "encrypted_content": "aGVsbG8=",
-        "encryption_metadata": {"alg": "test"}
-    })
-    .to_string();
+    let encrypted_body = encrypted_message_body();
 
     let (status, body) = app
         .post_json_authed(
@@ -498,6 +514,62 @@ async fn message_send_endpoints_follow_content_audit_mode() {
         "e2ee 模式应接受加密消息: {}",
         String::from_utf8_lossy(&body)
     );
+    let sent = body_json(&body);
+    assert_eq!(sent["message"]["content"].as_str(), Some("[加密消息]"));
+    assert_eq!(
+        sent["message"]["encryption_metadata"]["protocol"].as_str(),
+        Some("mls")
+    );
+    let persisted_message_id = Uuid::parse_str(
+        sent["message"]["id"]
+            .as_str()
+            .expect("encrypted message id"),
+    )
+    .expect("encrypted message UUID");
+    let persisted: (String, Vec<u8>, Value) = sqlx::query_as(
+        "SELECT content, encrypted_content, encryption_metadata FROM messages WHERE id = $1",
+    )
+    .bind(persisted_message_id)
+    .fetch_one(&app.pool)
+    .await
+    .expect("load persisted encrypted message");
+    assert_eq!(persisted.0, "[加密消息]");
+    assert_eq!(&persisted.1[..4], b"RCML");
+    assert_eq!(persisted.2["protocol"].as_str(), Some("mls"));
+    assert_eq!(persisted.2["content_type"].as_str(), Some("application"));
+
+    let mut custom_summary = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    custom_summary["content_summary"] = json!("sensitive plaintext summary");
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &custom_summary.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut arbitrary_metadata = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    arbitrary_metadata["encryption_metadata"]["alg"] = json!("custom");
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &arbitrary_metadata.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut unknown_version = serde_json::from_str::<Value>(&encrypted_body).unwrap();
+    unknown_version["encryption_metadata"]["version"] = json!(2);
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/encrypted"),
+            &owner.token,
+            &unknown_version.to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
@@ -1189,12 +1261,7 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
     assert_no_message_push_job(&app, &message_id).await;
 
     set_message_runtime_modes(&app, &admin_token, "relay_only", "e2ee").await;
-    let encrypted_body = json!({
-        "content_summary": "[加密消息]",
-        "encrypted_content": "aGVsbG8=",
-        "encryption_metadata": {"alg": "test", "iv": "iv1"}
-    })
-    .to_string();
+    let encrypted_body = encrypted_message_body();
     let (status, encrypted_resp) = app
         .post_json_authed(
             &format!("/rooms/{room_id}/messages/encrypted"),
@@ -1214,12 +1281,12 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
         .expect("relay_only encrypted response message id")
         .to_string();
     assert_eq!(
-        encrypted_sent["message"]["encrypted_content"].as_str(),
-        Some("aGVsbG8=")
+        encrypted_sent["message"]["content"].as_str(),
+        Some("[加密消息]")
     );
     assert_eq!(
-        encrypted_sent["message"]["encryption_metadata"]["alg"].as_str(),
-        Some("test")
+        encrypted_sent["message"]["encryption_metadata"]["protocol"].as_str(),
+        Some("mls")
     );
 
     let encrypted_pushed = next_json_of_type(&mut member_ws, "message").await;
@@ -1228,13 +1295,10 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
         encrypted_pushed["message_id"].as_str(),
         Some(encrypted_message_id.as_str())
     );
+    assert_eq!(encrypted_pushed["content"].as_str(), Some("[加密消息]"));
     assert_eq!(
-        encrypted_pushed["encrypted_content"].as_str(),
-        Some("aGVsbG8=")
-    );
-    assert_eq!(
-        encrypted_pushed["encryption_metadata"]["alg"].as_str(),
-        Some("test")
+        encrypted_pushed["encryption_metadata"]["content_type"].as_str(),
+        Some("application")
     );
     assert_message_persistence(&app, &encrypted_message_id, 0).await;
     assert_no_message_push_job(&app, &encrypted_message_id).await;
@@ -1639,12 +1703,9 @@ async fn relay_only_message_broadcasts_without_server_persistence() {
         Some(json!({"content": "quoted relay", "quoted_message_id": message_id})),
     )
     .await;
-    let encrypted_quote = json!({
-        "content_summary": "[加密消息]",
-        "encrypted_content": "aGVsbG8=",
-        "quoted_message_id": message_id
-    })
-    .to_string();
+    let mut encrypted_quote = serde_json::from_str::<Value>(&encrypted_message_body()).unwrap();
+    encrypted_quote["quoted_message_id"] = json!(message_id);
+    let encrypted_quote = encrypted_quote.to_string();
     let (status, body) = app
         .post_json_authed(
             &format!("/rooms/{room_id}/messages/encrypted"),

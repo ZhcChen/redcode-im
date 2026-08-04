@@ -37,6 +37,9 @@ use crate::redis::models::{
     MessageUpdatePayload, PinUpdatePayload, PubSubPayload, QuotedMessagePayload,
     RoomHistoryClearedPayload,
 };
+use crate::services::e2ee_envelope::{
+    validate_envelope, EncryptionMetadata, ENCRYPTED_MESSAGE_PLACEHOLDER,
+};
 use crate::services::message_runtime::{
     is_relay_only_runtime, load_message_runtime_settings, relay_only_unsupported,
 };
@@ -58,15 +61,12 @@ pub struct SendMessagePayload {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendEncryptedMessagePayload {
-    /// 兼容旧客户端/列表摘要：加密消息可写入占位文本
-    #[serde(default)]
-    pub content_summary: Option<String>,
-    /// E2EE 密文载荷（Base64 编码）
+    /// 版本化 E2EE envelope（Base64 编码）
     pub encrypted_content: String,
-    /// E2EE 元数据（JSON），如算法/版本/iv/counter 等
-    #[serde(default)]
-    pub encryption_metadata: Option<Value>,
+    /// 服务端可验证的非敏感路由元数据
+    pub encryption_metadata: EncryptionMetadata,
     #[serde(default)]
     pub quoted_message_id: Option<Uuid>,
 }
@@ -1376,7 +1376,6 @@ pub async fn send_encrypted_message(
     }
 
     let SendEncryptedMessagePayload {
-        content_summary,
         encrypted_content,
         encryption_metadata,
         quoted_message_id,
@@ -1386,15 +1385,7 @@ pub async fn send_encrypted_message(
         return Err(relay_only_unsupported("引用消息"));
     }
 
-    let content_summary = content_summary
-        .unwrap_or_else(|| "[加密消息]".to_string())
-        .trim()
-        .to_string();
-    let content_summary = if content_summary.is_empty() {
-        "[加密消息]".to_string()
-    } else {
-        content_summary
-    };
+    let content_summary = ENCRYPTED_MESSAGE_PLACEHOLDER.to_string();
 
     let encrypted_content = BASE64_STANDARD
         .decode(encrypted_content.trim())
@@ -1406,6 +1397,10 @@ pub async fn send_encrypted_message(
             "encrypted_content 不能为空".to_string(),
         ));
     }
+    validate_envelope(&encrypted_content, &encryption_metadata)
+        .map_err(|message| AppError::ValidationError(message.to_string()))?;
+    let encryption_metadata = serde_json::to_value(encryption_metadata)
+        .map_err(|error| AppError::InternalError(format!("E2EE 元数据序列化失败: {error}")))?;
 
     let quoted_message_id = if let Some(quoted_id) = quoted_message_id {
         let quoted = store
@@ -1454,7 +1449,7 @@ pub async fn send_encrypted_message(
             &sender,
             content_summary.clone(),
             Some(encrypted_content),
-            encryption_metadata,
+            Some(encryption_metadata),
             MessageType::Text,
             now,
         );
@@ -1494,7 +1489,7 @@ pub async fn send_encrypted_message(
             sender_id,
             content_summary.clone(),
             encrypted_content,
-            encryption_metadata,
+            Some(encryption_metadata),
             MessageType::Text,
             quoted_message_id,
             &db_parts,
