@@ -5,7 +5,7 @@ type: docs
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 execution: docs
-status: active
+status: completed
 ---
 
 # docs: API 2.0 对外开放接口合同文档整理
@@ -144,3 +144,21 @@ status: active
 - R1-R8 全部落地并有可检索证据。
 - 新增 5 个文档、更新 8 个文档，内容与当前源码一致。
 - 提交按 U1-U4 拆分，每单元一个 Conventional Commit 并推送。
+
+## 执行结果（2026-08-04）
+
+- U1 基础与入门：新增 `developer-guide.md`；README 升级 2.0.0 / 2026-08-04 并
+  补索引；api-overview 补 6 组新接口导航。
+- U2 REST 专题：新增 `user-block.md`、`group-announcement.md`、
+  `auth-devices.md`、`qr-login.md`；`messages.md` 补消息收藏；
+  `user-profile.md` 补个性签名；`auth.md` 补设备参数与响应 `deviceId`。
+- U3 WebSocket：`websocket.md` 补客户端事件 6 `qr_subscribe`（支持匿名订阅）、
+  服务端事件 23 `group_announcement_updated`、24 `qr_status_changed`，含
+  JSON 与 protobuf 字段。
+- U4 模型与全量清单：`models.md` 补 `UserInfo.signature`、
+  `LoginResponse.deviceId`、设备字段与 6 个 API 2.0 新模型；`api-reference.md`
+  补黑名单/群公告/消息收藏/登录设备/扫码登录小节与目录锚点。
+- 验收：9 个关键词全覆盖；文档相对链接无断链；`git diff --check` 通过；
+  无源码/迁移/测试改动。
+- 提交：`4151f4cb`（U1）→ `16d81b78`（U2）→ `21bc3998`（U3）→
+  `5c60f53a`（U4）。
