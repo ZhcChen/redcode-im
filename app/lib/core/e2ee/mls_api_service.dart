@@ -79,6 +79,18 @@ class E2eeClaimedKeyPackage {
   final Uint8List keyPackage;
 }
 
+class E2eePeerDevice {
+  const E2eePeerDevice({
+    required this.id,
+    required this.protocolVersion,
+    required this.credentialFingerprint,
+  });
+
+  final String id;
+  final int protocolVersion;
+  final Uint8List credentialFingerprint;
+}
+
 class E2eeControlMessage {
   const E2eeControlMessage({
     required this.id,
@@ -147,6 +159,42 @@ class E2eeMlsApiService {
         ],
       },
     );
+  }
+
+  Future<List<E2eePeerDevice>> listPeerDevices(String userId) async {
+    final normalized = userId.trim();
+    if (normalized.isEmpty) {
+      throw const E2eeMlsApiException('E2EE 用户标识不能为空');
+    }
+    final data = await _request(
+      'GET',
+      '/e2ee/mls/identities/${Uri.encodeComponent(normalized)}/devices',
+    );
+    final rows = data['items'];
+    if (rows is! List) {
+      throw const E2eeMlsApiException('E2EE 设备列表响应格式无效');
+    }
+    try {
+      return rows.map((row) {
+        if (row is! Map<String, dynamic>) throw const FormatException();
+        final id = row['id'];
+        final protocolVersion = row['protocol_version'];
+        final fingerprint = row['credential_fingerprint'];
+        if (id is! String ||
+            id.trim().isEmpty ||
+            protocolVersion != 1 ||
+            fingerprint is! String) {
+          throw const FormatException();
+        }
+        return E2eePeerDevice(
+          id: id,
+          protocolVersion: protocolVersion as int,
+          credentialFingerprint: Uint8List.fromList(base64Decode(fingerprint)),
+        );
+      }).toList(growable: false);
+    } on Object {
+      throw const E2eeMlsApiException('E2EE 设备列表响应格式无效');
+    }
   }
 
   Future<E2eeClaimedKeyPackage> claimKeyPackage({

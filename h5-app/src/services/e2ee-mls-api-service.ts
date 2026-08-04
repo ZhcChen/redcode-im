@@ -27,6 +27,12 @@ export interface E2eeControlMessage {
   sequenceNo: number;
 }
 
+export interface E2eePeerDevice {
+  id: string;
+  protocolVersion: number;
+  credentialFingerprint: Uint8Array;
+}
+
 export const registrationMaterialFromCommand = (
   result: E2eeCommandResult,
 ): E2eeDeviceRegistrationMaterial => {
@@ -100,6 +106,27 @@ export const e2eeMlsApiService = {
         }],
       }),
     }, requireToken());
+  },
+
+  async listPeerDevices(userId: string): Promise<E2eePeerDevice[]> {
+    const normalized = userId.trim();
+    if (!normalized) throw new Error('E2EE 用户标识不能为空');
+    const rows = await requestJson<Record<string, unknown>[]>(
+      `/e2ee/mls/identities/${encodeURIComponent(normalized)}/devices`,
+      {},
+      requireToken(),
+    );
+    return rows.map((row) => {
+      const id = typeof row.id === 'string' ? row.id : '';
+      const protocolVersion = Number(row.protocol_version);
+      const fingerprint = typeof row.credential_fingerprint === 'string'
+        ? base64ToBytes(row.credential_fingerprint)
+        : new Uint8Array();
+      if (!id.trim() || protocolVersion !== 1 || fingerprint.length < 16) {
+        throw new Error('E2EE 设备列表响应格式无效');
+      }
+      return { id, protocolVersion, credentialFingerprint: fingerprint };
+    });
   },
 
   async claimKeyPackage(roomId: string, consumerDeviceId: string, targetDeviceId: string) {

@@ -108,6 +108,28 @@ void main() {
     );
   });
 
+  test('discovers only validated peer device material', () async {
+    final service = E2eeMlsApiService(
+      tokenStorage: tokenStorage,
+      client: MockClient((request) async {
+        expect(
+          request.url.path,
+          '/e2ee/mls/identities/account-b/devices',
+        );
+        return http.Response(
+          '[{"id":"device-b","protocol_version":1,'
+          '"credential_fingerprint":"${base64Encode(List.filled(32, 7))}"}]',
+          200,
+        );
+      }),
+    );
+
+    final devices = await service.listPeerDevices('account-b');
+
+    expect(devices.single.id, 'device-b');
+    expect(devices.single.credentialFingerprint, List.filled(32, 7));
+  });
+
   test(
     'lists control messages in sequence and acknowledges consumption',
     () async {

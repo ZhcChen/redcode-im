@@ -86,6 +86,21 @@ describe('e2eeMlsApiService', () => {
     });
   });
 
+  it('discovers only validated peer device material', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(JSON.stringify([{
+      id: 'device-b',
+      protocol_version: 1,
+      credential_fingerprint: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+    }]), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const devices = await e2eeMlsApiService.listPeerDevices('account-b');
+
+    expect(devices[0]?.id).toBe('device-b');
+    expect(devices[0]?.credentialFingerprint).toEqual(new Uint8Array(32).fill(7));
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/identities/account-b/devices');
+  });
+
   it('lists and consumes offline control messages in sequence', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).includes('/consume')) {
