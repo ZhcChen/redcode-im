@@ -4,6 +4,7 @@ import 'package:app/core/e2ee/secure_state_storage.dart';
 import 'package:app/core/e2ee/core_bridge.dart';
 import 'package:app/core/e2ee/device_profile.dart';
 import 'package:app/core/e2ee/identity_trust.dart';
+import 'package:app/core/e2ee/pending_operation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -150,6 +151,38 @@ void main() {
       expect(await storage.readDeviceProfile('account-a'), isNull);
       expect(keys.values, isEmpty);
       expect(states.values, isEmpty);
+    });
+
+    test('encrypts resumable operation and deletes it independently', () async {
+      final operation = E2eePendingOperation(
+        kind: E2eePendingOperationKind.bootstrap,
+        roomId: 'room-a',
+        nextState: Uint8List.fromList([1, 2, 3]),
+        senderDeviceId: 'device-a',
+        idempotencyKey: 'operation-a',
+        controls: [
+          E2eePendingControl(
+            id: 'control-a',
+            epoch: 1,
+            membershipRevision: 1,
+            contentType: 'commit',
+            envelope: Uint8List.fromList([82, 67, 77, 76]),
+          ),
+        ],
+      );
+
+      await storage.writePendingOperation('account-a', operation);
+
+      final restored = await storage.readPendingOperation('account-a');
+      expect(restored!.nextState, [1, 2, 3]);
+      expect(restored.controls.single.id, 'control-a');
+      expect(
+        String.fromCharCodes(states.values.values.single),
+        isNot(contains('control-a')),
+      );
+
+      await storage.deletePendingOperation('account-a');
+      expect(await storage.readPendingOperation('account-a'), isNull);
     });
   });
 }

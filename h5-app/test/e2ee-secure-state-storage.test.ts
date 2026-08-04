@@ -10,6 +10,7 @@ import {
 } from '@/e2ee/secure-state-storage';
 import type { E2eeIdentityTrustRecord } from '@/e2ee/identity-trust';
 import type { E2eeDeviceProfile } from '@/e2ee/device-profile';
+import type { E2eePendingOperation } from '@/e2ee/pending-operation';
 
 const createStorage = () => new E2eeSecureStateStorage({
   databaseName: `e2ee-test-${crypto.randomUUID()}`,
@@ -142,6 +143,34 @@ describe('E2eeSecureStateStorage', () => {
 
     await storage.delete('account-a');
     expect(await storage.readDeviceProfile('account-a')).toBeNull();
+  });
+
+  it('encrypts resumable operation and deletes it independently', async () => {
+    const storage = createStorage();
+    const operation: E2eePendingOperation = {
+      kind: 'bootstrap',
+      roomId: 'room-a',
+      nextState: new Uint8Array([1, 2, 3]),
+      senderDeviceId: 'device-a',
+      idempotencyKey: 'operation-a',
+      controls: [{
+        id: 'control-a',
+        epoch: 1,
+        membershipRevision: 1,
+        contentType: 'commit',
+        envelope: new Uint8Array([82, 67, 77, 76]),
+      }],
+    };
+
+    await storage.writePendingOperation('account-a', operation);
+    const restored = await storage.readPendingOperation('account-a');
+
+    expect(restored?.nextState).toEqual(new Uint8Array([1, 2, 3]));
+    expect(restored?.controls[0]?.id).toBe('control-a');
+    expect(window.localStorage.length).toBe(0);
+
+    await storage.deletePendingOperation('account-a');
+    expect(await storage.readPendingOperation('account-a')).toBeNull();
   });
 
   it('keeps wrapping keys non-extractable', async () => {

@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import 'core_bridge.dart';
 import 'identity_trust.dart';
 import 'device_profile.dart';
+import 'pending_operation.dart';
 
 const _stateMagic = [0x52, 0x43, 0x45, 0x53]; // RCES
 const _stateVersion = 1;
@@ -22,6 +23,8 @@ const _trustAadPrefix = 'redcode-im/e2ee-identity-trust/v1\u0000';
 const _trustSlot = 'identity-trust';
 const _profileAadPrefix = 'redcode-im/e2ee-device-profile/v1\u0000';
 const _profileSlot = 'device-profile';
+const _operationAadPrefix = 'redcode-im/e2ee-pending-operation/v1\u0000';
+const _operationSlot = 'pending-operation';
 
 class E2eeStateCorruptedException implements Exception {
   const E2eeStateCorruptedException([this.message = 'E2EE 协议状态已损坏或无法解密']);
@@ -188,6 +191,33 @@ class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     profile.encode(),
   );
 
+  Future<E2eePendingOperation?> readPendingOperation(String accountId) async {
+    final plaintext = await _readEncrypted(
+      accountId,
+      _operationSlot,
+      _operationAadPrefix,
+    );
+    if (plaintext == null) return null;
+    try {
+      return E2eePendingOperation.decode(plaintext);
+    } on Object {
+      throw const E2eeStateCorruptedException('E2EE 待处理操作已损坏');
+    }
+  }
+
+  Future<void> writePendingOperation(
+    String accountId,
+    E2eePendingOperation operation,
+  ) => _writeEncrypted(
+    accountId,
+    _operationSlot,
+    _operationAadPrefix,
+    operation.encode(),
+  );
+
+  Future<void> deletePendingOperation(String accountId) => _encryptedStates
+      .delete(_storageKey(_namespace(accountId), _operationSlot));
+
   Future<void> _writeEncrypted(
     String accountId,
     String? slot,
@@ -266,6 +296,7 @@ class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     await _encryptedStates.delete(namespace);
     await _encryptedStates.delete(_storageKey(namespace, _trustSlot));
     await _encryptedStates.delete(_storageKey(namespace, _profileSlot));
+    await _encryptedStates.delete(_storageKey(namespace, _operationSlot));
   }
 
   @override

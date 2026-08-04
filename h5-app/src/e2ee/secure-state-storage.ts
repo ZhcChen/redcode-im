@@ -9,6 +9,11 @@ import {
   encodeDeviceProfile,
   type E2eeDeviceProfile,
 } from '@/e2ee/device-profile';
+import {
+  decodePendingOperation,
+  encodePendingOperation,
+  type E2eePendingOperation,
+} from '@/e2ee/pending-operation';
 
 const DATABASE_NAME = 'redcode-h5-e2ee-state';
 const DATABASE_VERSION = 1;
@@ -21,6 +26,8 @@ const TRUST_AAD_PREFIX = 'redcode-im/e2ee-identity-trust/v1\0';
 const TRUST_SUFFIX = ':identity-trust';
 const PROFILE_AAD_PREFIX = 'redcode-im/e2ee-device-profile/v1\0';
 const PROFILE_SUFFIX = ':device-profile';
+const OPERATION_AAD_PREFIX = 'redcode-im/e2ee-pending-operation/v1\0';
+const OPERATION_SUFFIX = ':pending-operation';
 
 interface StoredEncryptedState {
   version: number;
@@ -134,6 +141,38 @@ export class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
     );
   }
 
+  async readPendingOperation(accountId: string): Promise<E2eePendingOperation | null> {
+    const data = await this.readEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${OPERATION_SUFFIX}`,
+      OPERATION_AAD_PREFIX,
+    );
+    if (!data) return null;
+    try {
+      return decodePendingOperation(data);
+    } catch {
+      throw new E2eeStateCorruptedError('E2EE 待处理操作已损坏');
+    }
+  }
+
+  async writePendingOperation(accountId: string, operation: E2eePendingOperation): Promise<void> {
+    await this.writeEncrypted(
+      accountId,
+      `${this.accountNamespace(accountId)}${OPERATION_SUFFIX}`,
+      OPERATION_AAD_PREFIX,
+      encodePendingOperation(operation),
+    );
+  }
+
+  async deletePendingOperation(accountId: string): Promise<void> {
+    const db = await this.open();
+    try {
+      await deleteRecord(db, STATE_STORE, `${this.accountNamespace(accountId)}${OPERATION_SUFFIX}`);
+    } finally {
+      db.close();
+    }
+  }
+
   private async writeEncrypted(
     accountId: string,
     storageKey: string,
@@ -219,6 +258,7 @@ export class E2eeSecureStateStorage implements E2eeIdentityTrustStore {
         deleteRecord(db, STATE_STORE, namespace),
         deleteRecord(db, STATE_STORE, `${namespace}${TRUST_SUFFIX}`),
         deleteRecord(db, STATE_STORE, `${namespace}${PROFILE_SUFFIX}`),
+        deleteRecord(db, STATE_STORE, `${namespace}${OPERATION_SUFFIX}`),
       ]);
     } finally {
       db.close();
