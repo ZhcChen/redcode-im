@@ -75,7 +75,7 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 }
 ```
 
-单次发布 `1..100` 个，只允许当前账号的 `active` 设备发布；有效期必须晚于当前时间且不超过 30 天，协议版本必须与设备一致。重复 `package_ref` 不重复插入，响应 `inserted` 是本次实际新增数量。
+单次发布 `1..100` 个，只允许当前账号的 `active` 设备发布；有效期必须晚于当前时间且不超过 30 天，协议版本必须与设备一致。重复 `package_ref` 不重复插入，响应 `inserted` 是本次实际新增数量。每账号设备每分钟最多发布 60 次，每台设备最多保留 500 个未过期、未消费 KeyPackage。
 
 ### 领取
 
@@ -88,7 +88,7 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 }
 ```
 
-调用 token 必须拥有该 `consumer_device_id`，调用账号与目标设备账号都必须是 `room_id` 的当前成员，且消费设备和目标设备都必须为 `active`。领取通过数据库原子更新和 `FOR UPDATE SKIP LOCKED` 完成，一个 KeyPackage 最多成功返回一次；没有可用项统一返回 `404`，不暴露其他账号的设备状态。
+调用 token 必须拥有该 `consumer_device_id`，调用账号与目标设备账号都必须是 `room_id` 的当前成员，且消费设备和目标设备都必须为 `active`。领取通过数据库原子更新和 `FOR UPDATE SKIP LOCKED` 完成，一个 KeyPackage 最多成功返回一次；每账号每分钟最多领取 120 次。没有可用项统一返回 `404`，不暴露其他账号的设备状态。
 
 ## 错误边界
 
