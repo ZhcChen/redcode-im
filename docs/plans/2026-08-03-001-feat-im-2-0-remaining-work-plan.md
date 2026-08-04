@@ -6,6 +6,8 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
 execution: code
+status: superseded
+superseded_by: docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md
 ---
 
 # feat: RedCode IM 2.0 剩余工作执行计划

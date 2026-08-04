@@ -6,6 +6,8 @@ artifact_readiness: implementation-ready
 product_contract_source: legacy-requirements
 execution: code
 origin: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
+status: superseded
+superseded_by: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 ---
 
 # U10 E2EE 发布门禁实施计划

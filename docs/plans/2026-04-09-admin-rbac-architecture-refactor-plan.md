@@ -1,7 +1,7 @@
 ---
 date: 2026-04-09
 topic: admin-rbac-architecture-refactor
-status: active
+status: completed
 updated: 2026-04-10
 branch: feat/storage-b2-admin
 ---
@@ -242,7 +242,7 @@ branch: feat/storage-b2-admin
   - `go test ./...`（`tests/go/` 下）
 
 ### Unit 10: Message runtime 全链路收口
-- **状态**: pending-next
+- **状态**: transferred（已移交 U10 E2EE 专项承接，见 2026-08-04-002 的 U6/U7）
 - **目标**: 当前后台已支持 `persist / relay_only` 与 `plaintext / e2ee` 配置，但客户端与全部消息链路还没有完全按模式降级。
 - **关键文件**:
   - `backend/src/services/message_runtime.rs`
@@ -257,11 +257,11 @@ branch: feat/storage-b2-admin
 
 ## 当前剩余任务的执行顺序
 1. 当前主线 Unit 1-9 已完成并完成验证。
-2. Unit 10（message runtime 全链路收口）继续保持 `pending-next`，作为下一条独立主线推进。
+2. Unit 10（message runtime 全链路收口）已移交 U10 E2EE 专项计划（2026-08-04-002 的 U6/U7）承接，本计划收口。
 3. Unit 7：补完 B2 合同验证与 API 文档。
 4. Unit 8：整理 SQL 迁移体系并跑一致性校验。
 5. Unit 9：补 Go / backend 合约测试。
-6. Unit 10：作为下一工作层开始切 message runtime 全链路。
+6. Unit 10：已移交 U10 E2EE 专项计划执行，见第 2 条。
 
 ## 完成判定
 - Admin 不再依赖 `src/api` 作为主调用层。

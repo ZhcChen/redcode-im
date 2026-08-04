@@ -7,6 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 execution: code
 deepened: 2026-08-02
+absorbed_from: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
 ---
 
 # feat: RedCode IM 2.0 正式开发执行计划
@@ -19,6 +20,31 @@ deepened: 2026-08-02
 - **执行策略：** 按纵向业务闭环迁移，不推倒重写服务层，不长期维护两套业务状态，不在首个里程碑并行展开 H5、P1 和桌面实现。
 - **停止条件：** 发现设计能力缺少 API 契约、需要修改消息加密协议、需要新增数据库模型或平台插件不支持目标平台时，停止对应单元并转入其已有专项计划或新建子计划，不在 UI 单元中临时发明协议。
 - **尾部归属：** Flutter 移动 P0 完成后依次进入 H5 P0、E2EE 发布门禁、P1 能力、Flutter 桌面和发布切换；`ios-app/`、`android-app/`、`desktop/` 只保留为迁移期行为参考和回归对照。
+
+---
+
+## 执行状态总账（2026-08-04 校准）
+
+本计划是 IM 2.0 唯一活跃执行计划；原执行总账
+`docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md` 已并入本节并标记
+superseded。
+
+- **U1-U7（实现）**：已实现并验证。`app/` 四 Tab shell、认证、聊天、联系人、
+  群治理、我的与设置完成；静态检查、单测、iOS integration/auth/API contract、
+  Patrol 登录和双 iOS 私聊实时互发通过。
+- **U8（设备验收）**：DONE（2026-08-04）。Simulator 可验证项全部 PASS；相机、
+  真实麦克风采集、APNs/通知投递和系统 Wi-Fi/蜂窝切换作为真机专属项 SKIPPED，
+  并保留在设备清单。证据：
+  `docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`。
+- **U9（H5 P0 parity）**：DONE（2026-08-04）。R2.1-R2.4 完成，38 个 P0 路由
+  全部实现；H5 check/unit/E2E 与 Flutter/H5 互操作通过。证据：
+  `docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
+- **U10（E2EE 发布门禁）**：IN-PROGRESS。执行与 Go/No-Go 以
+  `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准
+  （承接 `2026-08-04-001` 契约与 U1-U3 基线）；U4-U9 未关闭前生产保持 No-Go，
+  禁止将 `content_audit_mode` 切到 `e2ee`。
+- **U11-U13（P1 / 桌面 / 发布）**：未开始；发布约束与执行顺序沿用下文
+  Sequencing 与 U11-U13 单元定义。
 
 ---
 
@@ -250,6 +276,8 @@ app/lib/
 
 ### U8. 完成 Flutter 移动 P0 设备验收
 
+- **Status:** DONE（2026-08-04；Simulator 可验证项全部 PASS，相机/麦克风采集/
+  APNs/系统网络切换保留 iPhone 真机清单）。
 - **Goal:** 证明 U4-U7 在正式设备环境构成稳定、无 1.x UI 回退的移动端 2.0 闭环。
 - **Requirements:** R5-R10、R16。
 - **Files:** 修改 `app/integration_test/`、`app/patrol_test/`、`app/scripts/`、`docs/reviews/` 和 `docs/reference/testing/README.md`。
@@ -259,6 +287,8 @@ app/lib/
 
 ### U9. 完成 H5 P0 parity
 
+- **Status:** DONE（2026-08-04；R2.1-R2.4 完成，38 个 P0 路由，Flutter/H5
+  互操作与生产构建通过）。
 - **Goal:** 让 H5 对齐 Flutter P0 的产品语义和 API 能力，补齐当前缺失路由而不复制 Flutter 平台实现。
 - **Requirements:** R11、R16。
 - **Files:** 修改 `h5-app/src/router/index.ts`、`views/`、`stores/`、`services/`、`styles/tokens.css`、测试与 `h5-app/README.md`。
@@ -268,9 +298,10 @@ app/lib/
 
 ### U10. 关闭 E2EE 2.0 发布门禁
 
+- **Status:** IN-PROGRESS（2026-08-04；生产 No-Go，U4-U9 未关闭）。
 - **Goal:** 按既有专项计划完成后台开关、服务端强制、客户端密钥生命周期和跨端互操作，不让 UI 重构掩盖安全缺口。
 - **Requirements:** R12、R16。
-- **Files:** 以 `docs/plans/2026-07-31-003-feat-api-ui-capability-parity-plan.md` 的 U2-U5 为准，涉及 `api/`、`admin/`、`app/`、`h5-app/` 及安全参考文档。
+- **Files:** 执行以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准（承接 `2026-08-04-001` 契约与 U1-U3 基线），涉及 `api/`、`admin/`、`app/`、`h5-app/` 及安全参考文档。
 - **Approach:** 先完成协议库 Go/No-Go，再做单聊、多设备和群聊；服务端是模式最终裁决者；失败禁止降级明文。
 - **Test Scenarios:** plaintext/e2ee 模式互斥；历史明文共存；身份变化；设备撤销；多设备扇出；群成员变更和 sender-key 轮换；Push/日志/数据库无明文；H5/Flutter 互操作。
 - **Verification:** 专项计划全部 DoD、API/客户端测试和安全审查通过；未通过时 2.0 可继续内部 UI 开发但不得正式发布宣称 E2EE 完成。

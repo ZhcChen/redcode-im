@@ -6,6 +6,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 execution: code
+absorbed_from: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 ---
 
 # feat: U10 E2EE 剩余工作执行计划
@@ -26,6 +27,12 @@ execution: code
 ### Summary
 
 上游计划已经冻结协议候选、服务端 envelope、设备/epoch 数据模型和客户端安全存储方向。本计划只组织尚未完成的实现与验收，不重新选择协议，不修改已经完成的 U1-U3，也不把当前单房间跨端通过扩大解释为生产可用。
+
+本计划为 U10 唯一活跃执行计划：承接
+`docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md` 的完整契约
+（R1-R17、F1-F5）、Go/No-Go 矩阵与 U1-U3 完成基线；上游计划已标记 superseded
+并保留为历史。同时收口 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md`
+Unit 10（message runtime 全链路降级），见 U6/U7。
 
 ### Problem Frame
 
@@ -224,6 +231,10 @@ flowchart TB
 - **Requirements:** R12、R13。
 - **Files:** `api/sql/migrations/` 新 migration、`api/sql/base.sql`、`api/src/services/message_runtime.rs`、`api/src/handlers/settings.rs`、`api/src/database/settings_store.rs`、`api/src/database/e2ee_mls_store.rs`、`api/tests/admin_integration.rs`、`admin/src/features/settings/pages/general-settings-page.vue`、`admin/src/services/general-settings.ts`、Admin 对应测试、`app/lib/core/services/settings_service.dart`、`h5-app/src/services/settings-service.ts` 及对应测试。
 - **Approach:** 引入设备平台/版本/构建能力记录、prepare/readiness revision 和 active 原子校验；readiness 按服务端最低版本规则聚合活跃设备覆盖、KeyPackage 库存与阻断原因；客户端遇到 runtime 冲突保留草稿并刷新配置。
+- **承接 Unit 10:** 收口 `2026-04-09-admin-rbac` Unit 10 的 message runtime
+  全链路降级：`api/src/services/message_runtime.rs`、message/history/search/read
+  handlers 与 Flutter/H5 客户端模式降级统一在本单元验收；Admin 开启、客户端兼容
+  与回滚不得绕过该链路。
 - **Test Scenarios:** 覆盖不足、库存不足、旧客户端在线、待批准设备和安全审查未通过时 active 拒绝；readiness 过期重新校验；成功 active；旧客户端明文发送拒绝；active -> plaintext 回滚；历史密文仍可读；Admin 清晰显示阻断项和影响范围。
 - **Verification:** `make api.test`、Admin type-check/unit/Playwright live、Flutter/H5 runtime tests、并发更新与回滚测试。
 - **Dependencies:** U5。
