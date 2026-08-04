@@ -68,7 +68,8 @@ status: active
 
 - **版本号：** `android-app` / `ios-app` 按 **2.0.0** 与 App 2.0 版本面对齐
   （API 文档版本基线已是 2.0.0）。
-- **最低系统：** Android `minSdk 26+`；iOS `17+`（SwiftData 依赖）。若后续
+- **最低系统：** Android `minSdk 24`（Android 7.0，覆盖约 98% 活跃设备）；
+  iOS `17+`（SwiftData 依赖）。若后续
   产品要求 iOS 16，则本地存储改用 GRDB/SQLite，作为子计划另行裁决。
 - **DI：** Android 采用手动 DI（沿用恢复基座的组装方式），不引入 Hilt/Koin。
 
@@ -202,7 +203,7 @@ status: active
 
 - 所属阶段：阶段 0
 - 目标：两模块 README 从“Flutter 并行迁移”更新为“2.0 原生主线”，记录版本
-  2.0.0、JDK 21、minSdk 26+ / iOS 17+、手动 DI 与原生验收规则。
+  2.0.0、JDK 21、minSdk 24 / iOS 17+、手动 DI 与原生验收规则。
 - 涉及文件 / 模块：`android-app/README.md`、`ios-app/README.md`。
 - 前置依赖：单元 0.1。
 - 验证方式：README 无“Flutter 并行开发”表述，无指向 `app/` 的错误命令。
