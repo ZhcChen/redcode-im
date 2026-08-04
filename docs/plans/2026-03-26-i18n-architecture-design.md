@@ -1,3 +1,9 @@
+---
+status: archived
+archived_at: 2026-08-04
+archived_reason: 2.0 主线未包含多语言需求，架构设计保留为历史参考
+---
+
 # RedCode IM 多语言架构设计
 
 ## 1. 背景

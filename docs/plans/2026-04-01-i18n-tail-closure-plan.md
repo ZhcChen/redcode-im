@@ -1,3 +1,9 @@
+---
+status: archived
+archived_at: 2026-08-04
+archived_reason: 2.0 主线未包含多语言需求，tail 收尾不再续期
+---
+
 # I18N 收尾收口 Implementation Plan
 
 > **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If the remaining i18n scope changes, revisit assumptions with `ce:brainstorm` and refresh the implementation path with `ce:plan`. Steps use checkbox (`- [ ]`) syntax for tracking.

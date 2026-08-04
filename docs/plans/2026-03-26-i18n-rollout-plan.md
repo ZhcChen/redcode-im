@@ -1,3 +1,9 @@
+---
+status: archived
+archived_at: 2026-08-04
+archived_reason: 2.0 主线未包含多语言需求，整体多语言实施未开展
+---
+
 # RedCode IM 多语言总实施计划 Implementation Plan
 
 > **For agentic workers:** REQUIRED WORKFLOW: Use `ce:work` to execute this plan task-by-task. If execution发现需求或范围变化，先回到 `ce:brainstorm` / `ce:plan` 更新文档；变更完成后使用 `ce:review` 审查。Steps use checkbox (`- [ ]`) syntax for tracking.
