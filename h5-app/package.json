@@ -12,6 +12,7 @@
     "test": "VITE_USE_MOCK_DATA=true vitest run",
     "test:watch": "VITE_USE_MOCK_DATA=true vitest",
     "test:live": "H5_APP_LIVE_BACKEND_ENABLED=true vitest run test/live-backend-smoke.test.ts test/live-service-smoke.test.ts test/ios-h5-chat-interop-smoke.test.ts",
+    "test:e2ee:live": "H5_APP_E2EE_LIVE_ENABLED=true vitest run test/e2ee-live-backend.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.9.1",
@@ -31,7 +33,8 @@
     "typescript": "~5.9.3",
     "vite": "^8.1.2",
     "vitest": "^4.1.9",
-    "vue-tsc": "^3.3.6"
+    "vue-tsc": "^3.3.6",
+    "ws": "^8.18.3"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
