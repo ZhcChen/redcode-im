@@ -51,6 +51,21 @@
 或目标不存在时统一返回 `404`，避免枚举账号身份状态。客户端必须对首次读取执行
 TOFU；后续指纹变化时阻断发送，不得用本响应静默覆盖本地可信记录。
 
+### 查询对方设备列表
+
+`GET /e2ee/mls/identities/{user_id}/devices` 返回目标账号当前 `active` 设备
+的公开信息（仅本人或已建立好友关系可查，否则统一返回 `404`）：
+
+```json
+[
+  {
+    "id": "0198...",
+    "protocol_version": 1,
+    "credential_fingerprint": "<base64>"
+  }
+]
+```
+
 ### 批准新设备
 
 `POST /e2ee/mls/devices/{target_device_id}/approve`
@@ -203,3 +218,45 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 - 房间处于 `preparing` 或 `rekey_required`、设备待批准/已撤销、epoch 过期或 Commit 引用不匹配时返回冲突或禁止，不会降级发送明文。
 - `persist` 模式在同一数据库事务中完成上述裁决与消息插入。相同幂等键和完全相同内容的重试返回原消息，不重复持久化、广播或 Push；内容漂移返回冲突。
 - `relay_only` 模式使用 Redis 保留 10 分钟幂等占位；重复键返回冲突且不会再次广播，不保存消息历史。
+
+## 遗留 Key Bundle 链路（旧客户端兼容）
+
+以下为 2.0 之前的 Signal 风格 Key Bundle 链路，仅用于旧客户端兼容；新客户端
+统一走上方 MLS 设备/KeyPackage 链路。
+
+### 上传 Key Bundle
+
+`POST /e2ee/keys/bundle`
+
+```json
+{
+  "device_id": "device-id",
+  "identity_key": "<base64 32 bytes>",
+  "signed_pre_key": {
+    "key_id": 1,
+    "public_key": "<base64 32 bytes>",
+    "signature": "<base64>"
+  },
+  "one_time_pre_keys": [
+    { "key_id": 101, "public_key": "<base64 32 bytes>" }
+  ]
+}
+```
+
+响应：
+
+```json
+{
+  "success": true,
+  "message": "Key bundle 上传成功",
+  "device_id": "device-id",
+  "one_time_pre_keys_saved": 1
+}
+```
+
+### 获取目标 Key Bundle
+
+`GET /e2ee/users/{user_id}/key-bundles` 返回目标账号各设备的
+Identity Key、Signed Pre-Key，并原子取用一个 One-Time Pre-Key
+（`one_time_pre_key` 可能为 `null`，`one_time_pre_key_remaining` 为剩余数量）；
+目标未初始化 E2EE 时返回 `404`。

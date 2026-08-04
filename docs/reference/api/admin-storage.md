@@ -157,3 +157,31 @@ REDCODE_IM_S3_PRESIGN_PUBLIC_ENDPOINT=https://storage.example.com
 ---
 
 说明：这些接口仅用于配置验证与日常排障，正式业务请使用面向消息、头像、版本管理等业务接口。
+
+## 存储提供商管理
+
+| 操作 | 方法 | 路径 | 说明 |
+| --- | --- | --- | --- |
+| 列表 | `GET` | `/api/admin/storage-providers` | 获取全部存储提供商 |
+| 创建 | `POST` | `/api/admin/storage-providers` | 新增提供商（`provider_type` 当前为 `s3_compatible`） |
+| 默认提供商 | `GET` | `/api/admin/storage-providers/default` | 获取当前默认提供商 |
+| 更新 | `PATCH` | `/api/admin/storage-providers/{provider_id}` | 修改提供商配置 |
+| 删除 | `DELETE` | `/api/admin/storage-providers/{provider_id}` | 删除提供商 |
+
+## 存储配置管理
+
+存储配置采用「验证 → 探测 → 应用 → 可回滚」的流程，全部接口仅管理员可用：
+
+| 操作 | 方法 | 路径 | 说明 |
+| --- | --- | --- | --- |
+| 当前配置 | `GET` | `/api/admin/system/storage-config` | 返回 `{ "current": {...} }` |
+| 校验 | `POST` | `/api/admin/system/storage-config/validate` | 校验配置合法性，返回 `{ "valid": true, "normalized": {...} }` |
+| 探测 | `POST` | `/api/admin/system/storage-config/probe` | 校验并探测连通性/权限，返回 `{ "normalized": ..., "probe": ... }` |
+| 应用 | `POST` | `/api/admin/system/storage-config/apply` | 应用新配置并记录历史 |
+| 历史 | `GET` | `/api/admin/system/storage-config/history` | 返回 `{ "list": [...] }` |
+| 初始化 bucket | `POST` | `/api/admin/system/storage-config/init-bucket` | 按配置创建私有/公开 bucket |
+| 回滚 | `POST` | `/api/admin/system/storage-config/rollback` | 回滚到上一份可用配置 |
+
+> 应用或回滚前建议先执行 `validate` + `probe`；`RUSTFS_INTERNAL_ENDPOINT` 等
+> 容器内地址不应改为公网域名，否则对象存储签名链路会绕回反代导致上传/下载异常
+> （见 `deploy/im-test-1/README.md`）。
