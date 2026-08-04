@@ -51,6 +51,20 @@
 - **测试栈（不要复用 dev）**:
   - api 测试栈：`tests/docker-compose.test.yml`（pg/redis/external-mock/rust-tests/api-smoke；PG/Redis/external-mock 均不映射宿主端口）
   - 入口：`make api.test`（Rust 单元 `--lib` + 集成 `--tests` 均在 Compose 容器内执行；axum oneshot 进程内）；详见 `docs/reference/testing/README.md`
+- **测试环境部署（im-test-1）**:
+  - 测试环境服务器别名：`im-test-1`（单机测试环境：PostgreSQL/Redis/RustFS/API/Admin）
+  - 部署配置与完整步骤以 `deploy/im-test-1/README.md` 为准；公网入口：
+    API `https://im-test-1.codelib.cc`、Admin `https://im-test-admin-1.codelib.cc`
+  - 首次部署：`cd deploy/im-test-1 && cp .env.example .env`，至少替换
+    `POSTGRES_PASSWORD` / `REDIS_PASSWORD` / `RUSTFS_ACCESS_KEY` /
+    `RUSTFS_SECRET_KEY` / `JWT_SECRET` / `DATA_ENCRYPTION_KEY` 后再启动
+  - 镜像加载：API 正式版产物 `./load-api-image.sh <tar.gz>`；Admin / RustFS
+    走 `./load-admin-image.sh` / `./load-rustfs-image.sh` 离线加载
+  - 启动与验证：`docker compose up -d`，然后
+    `curl https://im-test-1.codelib.cc/healthz`、`curl -I https://im-test-admin-1.codelib.cc`
+  - 关键约束：`RUSTFS_INTERNAL_ENDPOINT` 必须保持容器网络内地址 `rustfs:9000`，
+    不要改成公网域名，否则 API 生成/校验 S3 签名会把对象存储流量绕回反代，
+    导致附件上传与下载链路异常；`.env` 含密钥，禁止提交入库
 - **本地回归入口**:
   - `make test.all`：自包含回归，不启动 live dev 联调服务。
   - `make test.live`：启动 API dev 与 Admin dev，并执行 app/admin/desktop 真实后端联调 smoke。
@@ -113,4 +127,4 @@
 - 管理后台: Vue 3 (Arco Design) -> `admin/src/`
 
 ---
-*上次更新: 2026-07-30（对齐 agent-light-workflow 并保留 CE 兼容层）*
+*上次更新: 2026-08-04（对齐 agent-light-workflow 并保留 CE 兼容层；补充测试环境 im-test-1 部署指令）*
