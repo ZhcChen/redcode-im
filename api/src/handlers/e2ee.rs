@@ -335,6 +335,40 @@ pub async fn get_mls_account_identity(
     }))
 }
 
+#[derive(Debug, Serialize)]
+pub struct MlsPeerDeviceResponse {
+    pub id: Uuid,
+    pub protocol_version: i16,
+    pub credential_fingerprint: String,
+}
+
+pub async fn list_mls_peer_devices(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(target_user_id): Path<Uuid>,
+) -> Result<Json<Vec<MlsPeerDeviceResponse>>, AppError> {
+    let current_user_id = claims_user_id(&claims)?;
+    if current_user_id != target_user_id
+        && !FriendStore::new(state.database.clone())
+            .are_already_friends(current_user_id, target_user_id)
+            .await?
+    {
+        return Err(AppError::NotFound("E2EE 设备不存在".to_string()));
+    }
+
+    let devices = E2eeMlsStore::new(state.database.pool())
+        .list_active_devices(target_user_id)
+        .await?
+        .into_iter()
+        .map(|device| MlsPeerDeviceResponse {
+            id: device.id,
+            protocol_version: device.protocol_version,
+            credential_fingerprint: BASE64_STANDARD.encode(device.credential_fingerprint),
+        })
+        .collect();
+    Ok(Json(devices))
+}
+
 pub async fn register_mls_device(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

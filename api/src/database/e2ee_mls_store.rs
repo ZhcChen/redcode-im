@@ -349,6 +349,24 @@ impl<'a> E2eeMlsStore<'a> {
         .map_err(AppError::DatabaseError)
     }
 
+    pub async fn list_active_devices(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<E2eeDeviceRecord>, AppError> {
+        sqlx::query_as::<_, E2eeDeviceRecord>(
+            "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                    approval_public_key, status, approved_by_device_id, approved_at,
+                    revoked_at, created_at, updated_at
+             FROM e2ee_devices
+             WHERE user_id = $1 AND status = 'active'
+             ORDER BY created_at, id",
+        )
+        .bind(user_id)
+        .fetch_all(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)
+    }
+
     pub async fn get_device(
         &self,
         user_id: Uuid,

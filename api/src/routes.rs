@@ -448,6 +448,10 @@ pub fn create_routes() -> Router<AppState> {
             get(e2ee::get_mls_account_identity),
         )
         .route(
+            "/e2ee/mls/identities/{user_id}/devices",
+            get(e2ee::list_mls_peer_devices),
+        )
+        .route(
             "/e2ee/mls/devices/{device_id}",
             delete(e2ee::revoke_mls_device),
         )

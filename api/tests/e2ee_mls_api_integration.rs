@@ -136,7 +136,10 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     assert_eq!(bob_device["status"], "active");
 
     let identity_uri = format!("/e2ee/mls/identities/{}", bob.id);
+    let peer_devices_uri = format!("/e2ee/mls/identities/{}/devices", bob.id);
     let (status, _) = app.get_authed(&identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = app.get_authed(&peer_devices_uri, &alice.token).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (first_user, second_user) = if alice.id < bob.id {
         (alice.id, bob.id)
@@ -164,9 +167,26 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     );
     assert_eq!(identity["protocol_version"], 1);
 
+    let (status, response) = app.get_authed(&peer_devices_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    let devices = body_json(&response);
+    let devices = devices.as_array().expect("peer device list");
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0]["id"], bob_device_id.to_string());
+    assert_eq!(devices[0]["protocol_version"], 1);
+    assert!(devices[0].get("device_label").is_none());
+    assert!(devices[0].get("status").is_none());
+
     let self_identity_uri = format!("/e2ee/mls/identities/{}", alice.id);
     let (status, _) = app.get_authed(&self_identity_uri, &alice.token).await;
     assert_eq!(status, StatusCode::OK);
+    let self_devices_uri = format!("/e2ee/mls/identities/{}/devices", alice.id);
+    let (status, response) = app.get_authed(&self_devices_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    let devices = body_json(&response);
+    let devices = devices.as_array().expect("self active device list");
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0]["id"], alice_first_id.to_string());
 
     let package_id = Uuid::new_v4();
     let package_ref = [61; 32];
