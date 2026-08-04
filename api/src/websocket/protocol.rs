@@ -153,6 +153,12 @@ pub enum ServerPush {
     TypingUpdate {
         data: crate::redis::models::TypingUpdatePayload,
     },
+    GroupAnnouncementUpdated {
+        room_id: Uuid,
+        content: Option<String>,
+        updated_by: Uuid,
+        updated_at: String,
+    },
 }
 
 impl ServerPush {
@@ -180,6 +186,7 @@ impl ServerPush {
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
             ServerPush::ReactionUpdate { .. } => "reaction_update",
             ServerPush::TypingUpdate { .. } => "typing_update",
+            ServerPush::GroupAnnouncementUpdated { .. } => "group_announcement_updated",
         }
     }
 
@@ -360,6 +367,18 @@ impl ServerPush {
                 "user_id": data.user_id,
                 "is_typing": data.is_typing,
                 "expires_in_ms": data.expires_in_ms,
+            }),
+            ServerPush::GroupAnnouncementUpdated {
+                room_id,
+                content,
+                updated_by,
+                updated_at,
+            } => json!({
+                "type": "group_announcement_updated",
+                "room_id": room_id,
+                "content": content,
+                "updated_by": updated_by,
+                "updated_at": updated_at,
             }),
         }
     }
@@ -550,6 +569,17 @@ impl ServerPush {
                 user_id: data.user_id.to_string(),
                 is_typing: data.is_typing,
                 expires_in_ms: data.expires_in_ms,
+            }),
+            ServerPush::GroupAnnouncementUpdated {
+                room_id,
+                content,
+                updated_by,
+                updated_at,
+            } => Payload::GroupAnnouncementUpdated(ws::ServerGroupAnnouncementUpdated {
+                room_id: room_id.to_string(),
+                content: content.clone().unwrap_or_default(),
+                updated_by: updated_by.to_string(),
+                updated_at: updated_at.clone(),
             }),
         };
 

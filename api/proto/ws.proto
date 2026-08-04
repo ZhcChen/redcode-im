@@ -55,6 +55,7 @@ message ServerEvent {
     ServerFriendshipDeleted friendship_deleted = 20;
     ServerReactionUpdate reaction_update = 21;
     ServerTypingUpdate typing_update = 22;
+    ServerGroupAnnouncementUpdated group_announcement_updated = 23;
   }
 }
 
@@ -208,6 +209,14 @@ message ServerGroupSettingsUpdated {
   optional string global_mute_reason = 3;
   optional string global_mute_until = 4;
   optional string global_mute_set_by = 5;
+}
+
+// 群公告更新事件；content 为空串表示公告已删除。
+message ServerGroupAnnouncementUpdated {
+  string room_id = 1;
+  string content = 2;
+  string updated_by = 3;
+  string updated_at = 4;
 }
 
 message ServerRoomUpdated {

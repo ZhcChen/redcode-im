@@ -199,3 +199,103 @@ async fn test_block_self_is_rejected() {
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
+
+// ==================== U3: 群公告 ====================
+
+async fn create_group(app: &TestApp, owner: &TestUser, member: &TestUser) -> String {
+    let (status, response) = app
+        .post_json_authed(
+            "/rooms",
+            &owner.token,
+            &json!({
+                "name": "announcement group",
+                "room_type": "group",
+                "member_ids": [member.id],
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    body_json(&response)["room"]["id"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn test_group_announcement_owner_manage_member_read() {
+    let app = spawn_test_app().await;
+    let owner = register_user(&app, "annowner").await;
+    let member = register_user(&app, "annmember").await;
+    let outsider = register_user(&app, "annoutsider").await;
+    let room_id = create_group(&app, &owner, &member).await;
+
+    // 普通成员不能发布
+    let (status, response) = app
+        .put_json_authed(
+            &format!("/rooms/{room_id}/announcement"),
+            &member.token,
+            r#"{"content":"member try"}"#,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    // 未发布时读取为 404
+    let (status, response) = app
+        .get_authed(&format!("/rooms/{room_id}/announcement"), &member.token)
+        .await;
+    if status != StatusCode::NOT_FOUND {
+        eprintln!(
+            "announcement read status={status:?} body={:?}",
+            String::from_utf8_lossy(&response)
+        );
+    }
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // 群主发布，成员可读
+    let (status, response) = app
+        .put_json_authed(
+            &format!("/rooms/{room_id}/announcement"),
+            &owner.token,
+            r#"{"content":"welcome to the group"}"#,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let body = body_json(&response);
+    assert_eq!(body["content"], "welcome to the group");
+    assert_eq!(body["roomId"], room_id);
+
+    let (status, response) = app
+        .get_authed(&format!("/rooms/{room_id}/announcement"), &member.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["content"], "welcome to the group");
+
+    // 非成员不能读取
+    let (status, _) = app
+        .get_authed(&format!("/rooms/{room_id}/announcement"), &outsider.token)
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // 群主删除后 404
+    let (status, _) = app
+        .delete_authed(&format!("/rooms/{room_id}/announcement"), &owner.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = app
+        .get_authed(&format!("/rooms/{room_id}/announcement"), &member.token)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

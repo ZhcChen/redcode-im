@@ -14,6 +14,7 @@ pub mod file_upload_multipart_store;
 pub mod file_upload_store;
 pub mod friend_store;
 pub mod group_management_store;
+pub mod group_announcement_store;
 pub mod member_with_user_info;
 pub mod message_reaction_store;
 pub mod message_read_store;
@@ -118,6 +119,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20260804180000_api_2_0_capability_expansion.sql"
+        )),
+    ),
+    (
+        "20260804181000_group_announcements_rebuild.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260804181000_group_announcements_rebuild.sql"
         )),
     ),
 ];

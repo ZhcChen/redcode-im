@@ -7,7 +7,7 @@ use axum::{
 use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, admin_storage_config, auth, chat_history, e2ee, emoji_pack, feedback,
-    friend, group_management, health, healthz, message, message_read, message_search,
+    friend, group_announcement, group_management, health, healthz, message, message_read, message_search,
     multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
     upload_policy, user, user_block, version, ws,
 };
@@ -766,6 +766,12 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/rooms/{room_id}/detail",
             get(group_management::get_group_detail),
+        )
+        .route(
+            "/rooms/{room_id}/announcement",
+            get(group_announcement::get_announcement)
+                .put(group_announcement::update_announcement)
+                .delete(group_announcement::delete_announcement),
         )
         // 贴纸用户 API
         .route(

@@ -7,6 +7,7 @@ pub mod e2ee;
 pub mod emoji_pack;
 pub mod feedback;
 pub mod friend;
+pub mod group_announcement;
 pub mod group_management;
 pub mod health;
 pub mod message;
