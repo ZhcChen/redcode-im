@@ -9,7 +9,7 @@ use crate::handlers::{
     activity_logs, admin, admin_storage_config, auth, chat_history, e2ee, emoji_pack, feedback,
     friend, group_management, health, healthz, message, message_read, message_search,
     multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
-    upload_policy, user, version, ws,
+    upload_policy, user, user_block, version, ws,
 };
 use crate::AppState;
 
@@ -554,6 +554,12 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/users/{user_id}/avatar/url",
             get(user::get_user_avatar_download_url),
+        )
+        .route("/users/blocked", get(user_block::list_blocked))
+        .route("/users/blocked", post(user_block::block_user))
+        .route(
+            "/users/blocked/{user_id}",
+            delete(user_block::unblock_user),
         )
         // friends
         .route(

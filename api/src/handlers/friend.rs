@@ -62,6 +62,10 @@ pub async fn create_friend_request(
         .ok_or_else(|| AppError::NotFound("当前用户不存在".to_string()))?;
 
     let friend_store = FriendStore::new(state.database.clone());
+
+    crate::handlers::user_block::ensure_not_mutually_blocked(&state, requester_id, target_user_id)
+        .await?;
+
     let request = friend_store
         .create_request(requester_id, target_user_id, payload.message.clone())
         .await?;
@@ -330,6 +334,13 @@ pub async fn ensure_private_chat(
         .find_by_id(&friend_user_id)
         .await?
         .ok_or_else(|| AppError::NotFound("好友不存在或已被停用".to_string()))?;
+
+    crate::handlers::user_block::ensure_not_mutually_blocked(
+        &state,
+        current_user_id,
+        friend_user_id,
+    )
+    .await?;
 
     // 使用好友的显示名称作为房间名称（昵称优先，否则使用用户名）
     let friend_display = friend_user

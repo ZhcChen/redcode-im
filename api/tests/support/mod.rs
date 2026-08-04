@@ -146,6 +146,21 @@ impl TestApp {
         self.send("PUT", uri, Some(token), Body::from(json.to_owned()), true)
             .await
     }
+
+    pub async fn patch_json_authed(
+        &self,
+        uri: &str,
+        token: &str,
+        json: &str,
+    ) -> (StatusCode, Vec<u8>) {
+        self.send("PATCH", uri, Some(token), Body::from(json.to_owned()), true)
+            .await
+    }
+
+    pub async fn delete_authed(&self, uri: &str, token: &str) -> (StatusCode, Vec<u8>) {
+        self.send("DELETE", uri, Some(token), Body::empty(), false)
+            .await
+    }
 }
 
 /// 把响应体字节解析为 JSON Value（测试断言用）。

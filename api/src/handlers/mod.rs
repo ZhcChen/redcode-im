@@ -22,6 +22,7 @@ pub mod room;
 pub mod settings;
 pub mod upload_policy;
 pub mod user;
+pub mod user_block;
 pub mod version;
 
 use axum::{

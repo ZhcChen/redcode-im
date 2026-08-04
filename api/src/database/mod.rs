@@ -29,6 +29,7 @@ pub mod room_store;
 pub mod settings_store;
 pub mod storage_provider_store;
 pub mod user_store;
+pub mod user_block_store;
 
 /// 数据库连接池
 #[derive(Clone)]

@@ -995,6 +995,25 @@ pub async fn send_message(
         )));
     }
 
+    // 私聊房间存在拉黑关系时拒绝发送（双向任一方向拉黑即阻断）
+    {
+        let room_store = crate::database::room_store::RoomStore::new(state.database.pool());
+        if let Ok(room) = room_store.get_room(room_id).await {
+            if room.room_type == crate::database::models::RoomType::Private {
+                if let Ok(members) = room_store.list_members(room_id).await {
+                    if let Some(peer) = members.iter().find(|m| m.user_id != sender_id) {
+                        crate::handlers::user_block::ensure_not_mutually_blocked(
+                            &state,
+                            sender_id,
+                            peer.user_id,
+                        )
+                        .await?;
+                    }
+                }
+            }
+        }
+    }
+
     ensure_group_message_permissions(&state, room_id, sender_id).await?;
 
     // 简单速率限制：用户在房间内每10秒最多发送30条
