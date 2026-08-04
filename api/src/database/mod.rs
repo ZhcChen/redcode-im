@@ -5,6 +5,7 @@ use std::{env, time::Duration};
 pub mod account_store;
 pub mod admin_rbac_store;
 pub mod document_store;
+pub mod e2ee_control_store;
 pub mod e2ee_key_store;
 pub mod e2ee_mls_store;
 pub mod emoji_pack_store;

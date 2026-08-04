@@ -459,6 +459,15 @@ pub fn create_routes() -> Router<AppState> {
             "/e2ee/mls/devices/{device_id}/key-packages/claim",
             post(e2ee::claim_mls_key_package),
         )
+        .route("/rooms/{room_id}/e2ee/epoch", get(e2ee::get_mls_room_epoch))
+        .route(
+            "/rooms/{room_id}/e2ee/control-messages",
+            post(e2ee::submit_mls_control_message).get(e2ee::list_mls_control_messages),
+        )
+        .route(
+            "/rooms/{room_id}/e2ee/control-messages/{message_id}/consume",
+            post(e2ee::consume_mls_control_message),
+        )
         .route(
             "/system/upload-policy",
             get(upload_policy::get_upload_policy_user),

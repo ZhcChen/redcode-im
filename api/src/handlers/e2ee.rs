@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     response::Json,
 };
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -9,12 +9,19 @@ use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::database::e2ee_control_store::{
+    ControlMessageRecord, E2eeControlStore, RoomEpochRecord, SubmitControlMessageInput,
+};
 use crate::database::e2ee_key_store::{E2eeKeyStore, OneTimePreKeyInsert, SignedPreKeyInsert};
 use crate::database::e2ee_mls_store::{
     ClaimedKeyPackage, E2eeDeviceRecord, E2eeMlsStore, NewKeyPackage, RegisterDeviceInput,
 };
 use crate::error::AppError;
 use crate::models::{convert::string_to_uuid, Claims};
+use crate::services::e2ee_envelope::{
+    validate_envelope, EncryptedContentType, EncryptionMetadata, EncryptionProtocol,
+    PROTOCOL_VERSION,
+};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -579,4 +586,237 @@ fn decode_b64_range(value: &str, field: &str, min: usize, max: usize) -> Result<
         )));
     }
     Ok(decoded)
+}
+
+#[derive(Debug, Serialize)]
+pub struct RoomEpochResponse {
+    pub room_id: Uuid,
+    pub membership_revision: i64,
+    pub active_epoch: i64,
+    pub status: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<RoomEpochRecord> for RoomEpochResponse {
+    fn from(value: RoomEpochRecord) -> Self {
+        Self {
+            room_id: value.room_id,
+            membership_revision: value.membership_revision,
+            active_epoch: value.active_epoch,
+            status: value.status,
+            updated_at: value.updated_at,
+        }
+    }
+}
+
+pub async fn get_mls_room_epoch(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<RoomEpochResponse>, AppError> {
+    let epoch = E2eeControlStore::new(state.database.pool())
+        .get_room_epoch(room_id, claims_user_id(&claims)?)
+        .await?;
+    Ok(Json(epoch.into()))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubmitMlsControlMessageRequest {
+    pub id: Uuid,
+    pub epoch: i64,
+    pub membership_revision: i64,
+    pub sender_device_id: Uuid,
+    pub recipient_device_id: Option<Uuid>,
+    pub content_type: MlsControlContentType,
+    pub envelope: String,
+    pub idempotency_key: Uuid,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MlsControlContentType {
+    Commit,
+    Welcome,
+}
+
+impl MlsControlContentType {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Commit => "commit",
+            Self::Welcome => "welcome",
+        }
+    }
+
+    fn envelope_type(self) -> EncryptedContentType {
+        match self {
+            Self::Commit => EncryptedContentType::Commit,
+            Self::Welcome => EncryptedContentType::Welcome,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct MlsControlMessageResponse {
+    pub id: Uuid,
+    pub room_id: Uuid,
+    pub epoch: i64,
+    pub membership_revision: i64,
+    pub sender_device_id: Uuid,
+    pub recipient_device_id: Option<Uuid>,
+    pub content_type: String,
+    pub envelope: String,
+    pub idempotency_key: Uuid,
+    pub sequence_no: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<ControlMessageRecord> for MlsControlMessageResponse {
+    fn from(value: ControlMessageRecord) -> Self {
+        Self {
+            id: value.id,
+            room_id: value.room_id,
+            epoch: value.epoch,
+            membership_revision: value.membership_revision,
+            sender_device_id: value.sender_device_id,
+            recipient_device_id: value.recipient_device_id,
+            content_type: value.content_type,
+            envelope: BASE64_STANDARD.encode(value.envelope),
+            idempotency_key: value.idempotency_key,
+            sequence_no: value.sequence_no,
+            created_at: value.created_at,
+        }
+    }
+}
+
+pub async fn submit_mls_control_message(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Json(req): Json<SubmitMlsControlMessageRequest>,
+) -> Result<Json<MlsControlMessageResponse>, AppError> {
+    if req.id.is_nil() || req.idempotency_key.is_nil() {
+        return Err(AppError::ValidationError(
+            "id 和 idempotency_key 不能是 nil UUID".to_string(),
+        ));
+    }
+    if req.epoch <= 0 || req.membership_revision <= 0 {
+        return Err(AppError::ValidationError(
+            "epoch 和 membership_revision 必须大于 0".to_string(),
+        ));
+    }
+    match req.content_type {
+        MlsControlContentType::Commit if req.recipient_device_id.is_some() => {
+            return Err(AppError::ValidationError(
+                "Commit 必须广播，不能指定 recipient_device_id".to_string(),
+            ))
+        }
+        MlsControlContentType::Welcome if req.recipient_device_id.is_none() => {
+            return Err(AppError::ValidationError(
+                "Welcome 必须指定 recipient_device_id".to_string(),
+            ))
+        }
+        _ => {}
+    }
+    let envelope = decode_b64_range(
+        &req.envelope,
+        "envelope",
+        12,
+        crate::services::e2ee_envelope::MAX_PAYLOAD_BYTES + 11,
+    )?;
+    let epoch = u64::try_from(req.epoch)
+        .map_err(|_| AppError::ValidationError("epoch 无效".to_string()))?;
+    validate_envelope(
+        &envelope,
+        &EncryptionMetadata {
+            protocol: EncryptionProtocol::Mls,
+            version: PROTOCOL_VERSION,
+            epoch,
+            sender_device_id: req.sender_device_id,
+            content_type: req.content_type.envelope_type(),
+            control_message_id: Some(req.id),
+        },
+    )
+    .map_err(|message| AppError::ValidationError(message.to_string()))?;
+
+    let record = E2eeControlStore::new(state.database.pool())
+        .submit_control_message(
+            room_id,
+            claims_user_id(&claims)?,
+            SubmitControlMessageInput {
+                id: req.id,
+                epoch: req.epoch,
+                membership_revision: req.membership_revision,
+                sender_device_id: req.sender_device_id,
+                recipient_device_id: req.recipient_device_id,
+                content_type: req.content_type.as_str().to_string(),
+                envelope,
+                idempotency_key: req.idempotency_key,
+            },
+        )
+        .await?;
+    Ok(Json(record.into()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListMlsControlMessagesQuery {
+    pub device_id: Uuid,
+    #[serde(default)]
+    pub after_sequence: i64,
+    pub limit: Option<i64>,
+}
+
+pub async fn list_mls_control_messages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+    Query(query): Query<ListMlsControlMessagesQuery>,
+) -> Result<Json<Vec<MlsControlMessageResponse>>, AppError> {
+    if query.after_sequence < 0 {
+        return Err(AppError::ValidationError(
+            "after_sequence 不能小于 0".to_string(),
+        ));
+    }
+    let limit = query.limit.unwrap_or(50);
+    if !(1..=100).contains(&limit) {
+        return Err(AppError::ValidationError(
+            "limit 必须在 1 到 100 之间".to_string(),
+        ));
+    }
+    let messages = E2eeControlStore::new(state.database.pool())
+        .list_control_messages(
+            room_id,
+            claims_user_id(&claims)?,
+            query.device_id,
+            query.after_sequence,
+            limit,
+        )
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(Json(messages))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ConsumeMlsControlMessageRequest {
+    pub device_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConsumeMlsControlMessageResponse {
+    pub consumed: bool,
+}
+
+pub async fn consume_mls_control_message(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((room_id, message_id)): Path<(Uuid, Uuid)>,
+    Json(req): Json<ConsumeMlsControlMessageRequest>,
+) -> Result<Json<ConsumeMlsControlMessageResponse>, AppError> {
+    E2eeControlStore::new(state.database.pool())
+        .consume_control_message(room_id, claims_user_id(&claims)?, req.device_id, message_id)
+        .await?;
+    Ok(Json(ConsumeMlsControlMessageResponse { consumed: true }))
 }
