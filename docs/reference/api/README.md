@@ -11,6 +11,7 @@
 - [存储测试](./admin-storage.md)
 - [WebSocket](./websocket.md)
 - [消息](./messages.md)
+- [E2EE MLS](./e2ee.md)
 - [会话](./chats.md)
 - [群目录](./group-directory.md)
 - [好友](./friends.md)
