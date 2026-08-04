@@ -83,6 +83,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260804084500_e2ee_mls_state.sql"
         )),
     ),
+    (
+        "20260804143000_e2ee_device_approval_key.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260804143000_e2ee_device_approval_key.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
