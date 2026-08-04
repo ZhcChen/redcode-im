@@ -1,5 +1,7 @@
 import { webcrypto } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 
 import { IDBFactory } from 'fake-indexeddb';
@@ -51,7 +53,7 @@ const useSession = (session: LiveSession) => {
 };
 
 describe.skipIf(!enabled)('H5 E2EE live backend', () => {
-  it('exchanges ciphertext bidirectionally in a private room', async () => {
+  it('exchanges ciphertext bidirectionally in a private room and across Flutter/H5', async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
 
@@ -65,6 +67,8 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     const alice = await register('e2eea');
     const bob = await register('e2eeb');
+    const flutterAlice = await register('e2eef');
+    const h5CrossBob = await register('e2eeh');
     const { friendService } = await import('@/services/friend-service');
     const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
     await initCore({ module_or_path: wasm });
@@ -81,11 +85,20 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     useSession(alice);
     const chat = await friendService.ensurePrivateChat(bob.user.id);
     expect(chat.roomType).toBe('private');
+    useSession(flutterAlice);
+    const crossFriendRequest = await friendService.sendFriendRequest(h5CrossBob.user.id, '');
+    useSession(h5CrossBob);
+    await friendService.respondFriendRequest(crossFriendRequest.id, 'accept');
+    useSession(flutterAlice);
+    const crossChat = await friendService.ensurePrivateChat(h5CrossBob.user.id);
+    expect(crossChat.roomType).toBe('private');
 
     useSession(alice);
     await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 live Alice');
     useSession(bob);
     await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 live Bob');
+    useSession(h5CrossBob);
+    await e2eeDeviceLifecycle.ensureReady(h5CrossBob.user.id, 'H5 cross Bob');
     const aliceSocket = createSocket(H5WebSocketService);
     const bobSocket = new H5WebSocketService({
       autoReconnect: false,
@@ -176,8 +189,218 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ encrypted_content: expect.any(String) }),
       expect.objectContaining({ encrypted_content: expect.any(String) }),
     ]));
-  }, 20_000);
+
+    const flutterMarker = `u5-flutter-${crypto.randomUUID()}`;
+    const h5Marker = `u5-h5-${crypto.randomUUID()}`;
+    const crossBobSocket = new H5WebSocketService({
+      autoReconnect: false,
+      factory: (url) => new WebSocket(url) as unknown as globalThis.WebSocket,
+    });
+    onTestFinished(() => crossBobSocket.disconnect());
+    const crossAuthenticated = waitForStatus(crossBobSocket, 'authenticated');
+    await crossBobSocket.connect(h5CrossBob.token);
+    await crossAuthenticated;
+    useSession(h5CrossBob);
+    const crossJoined = waitForEvent(
+      crossBobSocket,
+      (event) => event.type === 'joined' && event.room_id === crossChat.roomId,
+    );
+    crossBobSocket.ensureRoomsSubscribed([crossChat.roomId]);
+    await crossJoined;
+    const flutterWebSocketMessage = waitForEvent(
+      crossBobSocket,
+      (event) => event.type === 'message' && event.room_id === crossChat.roomId,
+      30_000,
+    );
+    const coordination = await createCoordinationServer({
+      token: flutterAlice.token,
+      account_id: flutterAlice.user.id,
+      username: flutterAlice.user.username,
+      peer_user_id: h5CrossBob.user.id,
+      room_id: crossChat.roomId,
+      flutter_marker: flutterMarker,
+      h5_marker: h5Marker,
+    });
+    onTestFinished(() => coordination.close());
+    const flutter = spawnFlutterClient(coordination.url, coordination.secret);
+    onTestFinished(() => {
+      flutter.kill();
+    });
+
+    const flutterSent = await coordination.waitFor('flutter-sent');
+    const flutterMessageId = requiredString(flutterSent, 'message_id');
+    const flutterWebSocketEvent = await flutterWebSocketMessage;
+    expect(requiredString(flutterWebSocketEvent, 'id')).toBe(flutterMessageId);
+    useSession(h5CrossBob);
+    const flutterVisibleFromWebSocket = await messageService.resolveEncryptedMessage(
+      mapWebSocketMessage(flutterWebSocketEvent),
+      h5CrossBob.user.id,
+    );
+    expect(flutterVisibleFromWebSocket.content).toBe(flutterMarker);
+    const flutterHistory = await messageService.loadMessages(crossChat.roomId, { limit: 20 }, h5CrossBob.user.id);
+    expect(flutterHistory.some((message) => (
+      message.id === flutterMessageId && message.content === flutterMarker
+    ))).toBe(true);
+
+    const h5Response = await e2eeDirectMessageCoordinator.sendText({
+      accountId: h5CrossBob.user.id,
+      deviceLabel: 'H5 cross Bob',
+      roomId: crossChat.roomId,
+      peerUserId: flutterAlice.user.id,
+      text: h5Marker,
+    });
+    const h5MessageId = responseMessageId(h5Response);
+    coordination.publish('h5-sent', { message_id: h5MessageId });
+    const flutterReceived = await coordination.waitFor('flutter-received');
+    expect(requiredString(flutterReceived, 'message_id')).toBe(h5MessageId);
+
+    const exitCode = await flutter.exitCode;
+    expect(exitCode, 'Flutter 跨端联调进程失败').toBe(0);
+    const crossRawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${crossChat.roomId}/messages?limit=20`,
+      {},
+      flutterAlice.token,
+    );
+    const crossSerialized = JSON.stringify(crossRawHistory);
+    expect(crossSerialized).not.toContain(flutterMarker);
+    expect(crossSerialized).not.toContain(h5Marker);
+    expect(crossRawHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: flutterMessageId, encrypted_content: expect.any(String) }),
+      expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
+    ]));
+  }, 60_000);
 });
+
+interface CoordinationServer {
+  url: string;
+  secret: string;
+  close(): Promise<void>;
+  publish(step: string, payload: Record<string, string>): void;
+  waitFor(step: string): Promise<Record<string, string>>;
+}
+
+const createCoordinationServer = async (
+  fixture: Record<string, string>,
+): Promise<CoordinationServer> => {
+  const secret = crypto.randomUUID();
+  const steps = new Map<string, Record<string, string>>();
+  const waiters = new Map<string, Array<(payload: Record<string, string>) => void>>();
+  const publish = (step: string, payload: Record<string, string>) => {
+    steps.set(step, payload);
+    waiters.get(step)?.splice(0).forEach((resolve) => resolve(payload));
+  };
+  const waitFor = (step: string) => {
+    const existing = steps.get(step);
+    if (existing) return Promise.resolve(existing);
+    return new Promise<Record<string, string>>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Coordination timeout: ${step}`)), 30_000);
+      const wrapped = (payload: Record<string, string>) => {
+        clearTimeout(timer);
+        resolve(payload);
+      };
+      waiters.set(step, [...(waiters.get(step) ?? []), wrapped]);
+    });
+  };
+  const server = createServer(async (request, response) => {
+    if (request.headers.authorization !== `Bearer ${secret}`) {
+      response.writeHead(401).end();
+      return;
+    }
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname.slice(1);
+    if (request.method === 'GET' && path === 'fixture') {
+      sendJson(response, fixture);
+      return;
+    }
+    if (request.method === 'GET') {
+      const payload = steps.get(path);
+      if (!payload) {
+        response.writeHead(204).end();
+        return;
+      }
+      sendJson(response, payload);
+      return;
+    }
+    if (request.method === 'POST') {
+      const payload = await readJsonBody(request);
+      publish(path, payload);
+      sendJson(response, { ok: 'true' });
+      return;
+    }
+    response.writeHead(404).end();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Coordination server address unavailable');
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    secret,
+    publish,
+    waitFor,
+    close: () => new Promise<void>((resolve, reject) => (
+      server.close((error) => error ? reject(error) : resolve())
+    )),
+  };
+};
+
+const spawnFlutterClient = (coordinationUrl: string, secret: string) => {
+  const child = spawn('flutter', [
+    'test',
+    'test/e2ee_cross_client_live_test.dart',
+    '--dart-define=ENABLE_E2EE_CROSS_CLIENT_LIVE=true',
+    `--dart-define=API_BASE_URL=${apiBaseUrl}`,
+  ], {
+    cwd: resolve(process.cwd(), '../app'),
+    env: {
+      ...process.env,
+      E2EE_COORDINATION_URL: coordinationUrl,
+      E2EE_COORDINATION_SECRET: secret,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output = `${output}${chunk}`.slice(-8_000); });
+  child.stderr.on('data', (chunk) => { output = `${output}${chunk}`.slice(-8_000); });
+  const exitCode = new Promise<number>((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code !== 0) {
+        const sanitized = output
+          .replaceAll(secret, '[REDACTED]')
+          .replace(/u5-(?:flutter|h5)-[0-9a-f-]+/gi, '[REDACTED_MARKER]');
+        process.stderr.write(sanitized);
+      }
+      resolve(code ?? 1);
+    });
+  });
+  return { exitCode, kill: () => child.kill('SIGTERM') };
+};
+
+const sendJson = (response: import('node:http').ServerResponse, payload: Record<string, string>) => {
+  response.writeHead(200, { 'Content-Type': 'application/json' });
+  response.end(JSON.stringify(payload));
+};
+
+const readJsonBody = async (request: import('node:http').IncomingMessage) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  const payload = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, String(value)]));
+};
+
+const requiredString = (payload: Record<string, unknown>, key: string) => {
+  const value = payload[key];
+  if (typeof value !== 'string' || !value) throw new Error(`Missing coordination field: ${key}`);
+  return value;
+};
+
+const responseMessageId = (response: Record<string, unknown>) => {
+  const message = response.message;
+  if (!message || typeof message !== 'object') throw new Error('Missing encrypted response message');
+  return requiredString(message as Record<string, unknown>, 'id');
+};
 
 const createSocket = (SocketService: typeof import('@/services/websocket-service').H5WebSocketService) => (
   new SocketService({
@@ -208,11 +431,12 @@ const waitForStatus = async (
 const waitForEvent = async <T extends Record<string, unknown>>(
   socket: { onEvent(listener: (event: T) => void): () => void },
   predicate: (event: T) => boolean,
+  timeoutMs = 5_000,
 ) => new Promise<T>((resolve, reject) => {
   const timer = setTimeout(() => {
     unsubscribe();
     reject(new Error('WebSocket event timeout'));
-  }, 5_000);
+  }, timeoutMs);
   const unsubscribe = socket.onEvent((event) => {
     if (!predicate(event)) return;
     clearTimeout(timer);
