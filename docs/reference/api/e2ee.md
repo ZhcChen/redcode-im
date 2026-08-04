@@ -96,3 +96,65 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 - `403`：设备未获批准、已撤销、签名失败或设备不属于当前账号。
 - `404`：设备或可领取 KeyPackage 不存在；领取接口用此状态隐藏归属差异。
 - `409` / 业务码 `40902`：根身份、设备材料或设备状态发生冲突。
+
+## 房间 Epoch
+
+`GET /rooms/{room_id}/e2ee/epoch` 返回：
+
+```json
+{
+  "room_id": "0198...",
+  "membership_revision": 3,
+  "active_epoch": 1,
+  "status": "rekey_required",
+  "updated_at": "2026-08-04T16:00:00Z"
+}
+```
+
+`membership_revision` 由数据库根据 `room_members` 的活跃成员集合变化自动推进。新增、恢复、退出或移除成员会推进 revision；角色、通知设置和已读状态变化不会推进。房间处于 `active` 时发生成员变化，状态立即转为 `rekey_required`。
+
+## 控制消息
+
+### 提交 Commit 或 Welcome
+
+`POST /rooms/{room_id}/e2ee/control-messages`
+
+```json
+{
+  "id": "0198...",
+  "epoch": 2,
+  "membership_revision": 3,
+  "sender_device_id": "0198...",
+  "recipient_device_id": null,
+  "content_type": "commit",
+  "envelope": "<base64 RCML v1 envelope>",
+  "idempotency_key": "0198..."
+}
+```
+
+- `commit` 必须广播，`recipient_device_id` 为 `null`；epoch 必须严格等于当前 `active_epoch + 1`。提交成功后服务端原子推进 active epoch，并为当前房间所有其他 active 设备创建 receipt。
+- `welcome` 必须指定当前房间的 active 接收设备；epoch 必须等于当前 active epoch。
+- `membership_revision` 必须等于服务端当前值。成员变化与 Commit 并发时，旧 revision 请求返回冲突，客户端必须刷新状态并重新生成 Commit。
+- envelope 必须是对应 kind 的 RCML v1，最大 payload 为 16 MiB。服务端只校验外层合同，不解密 MLS 内容。
+- 同一房间的 `idempotency_key` 或全局 `id` 只能绑定完全相同的消息。完全相同的重试返回原 sequence；内容漂移返回冲突。
+
+### 分页拉取
+
+`GET /rooms/{room_id}/e2ee/control-messages?device_id={device_id}&after_sequence=0&limit=50`
+
+- `limit` 范围为 `1..100`，按 `sequence_no` 升序返回。
+- token 必须拥有该 active 设备，账号必须仍是房间当前成员。
+- 只返回提交时为该设备生成 receipt 的广播 Commit 或定向 Welcome。
+- 成功返回即原子记录 `delivered_at`；重复拉取不重复创建 receipt。
+
+### 确认消费
+
+`POST /rooms/{room_id}/e2ee/control-messages/{message_id}/consume`
+
+```json
+{
+  "device_id": "0198..."
+}
+```
+
+消息必须先成功投递，且 token 仍拥有该 active 设备、账号仍是当前房间成员。成功后幂等写入 `consumed_at`；撤销设备或退出房间后不能继续拉取或确认控制消息。
