@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:app/core/e2ee/secure_state_storage.dart';
+import 'package:app/core/e2ee/core_bridge.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -13,6 +16,7 @@ void main() {
       storage = E2eeSecureStateStorage(
         wrappingKeys: keys,
         encryptedStates: states,
+        protocolCore: _TestProtocolCore(),
       );
     });
 
@@ -48,6 +52,15 @@ void main() {
       );
     });
 
+    test('rejects invalid protocol state before persistence', () async {
+      await expectLater(
+        storage.write('account-a', const []),
+        throwsA(isA<E2eeStateCorruptedException>()),
+      );
+      expect(keys.values, isEmpty);
+      expect(states.values, isEmpty);
+    });
+
     test('deletes ciphertext and wrapping key for one account', () async {
       await storage.write('account-a', [1]);
       await storage.write('account-b', [2]);
@@ -60,6 +73,14 @@ void main() {
       expect(states.values, hasLength(1));
     });
   });
+}
+
+class _TestProtocolCore implements E2eeProtocolCore {
+  @override
+  Uint8List newProtocolState() => Uint8List.fromList([1]);
+
+  @override
+  bool validateProtocolState(List<int> state) => state.isNotEmpty;
 }
 
 class _MemoryWrappingKeys implements E2eeWrappingKeyStore {

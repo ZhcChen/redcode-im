@@ -181,12 +181,15 @@ pub unsafe extern "C" fn rc_e2ee_state_validate(data: *const u8, length: usize) 
 /// When non-null, `output` must reference `capacity` writable bytes for the duration of this call.
 #[no_mangle]
 pub unsafe extern "C" fn rc_e2ee_state_new(output: *mut u8, capacity: usize) -> usize {
-    let state = new_protocol_state();
+    let mut state = new_protocol_state();
+    let length = state.len();
     if output.is_null() || capacity < state.len() {
-        return state.len();
+        state.fill(0);
+        return length;
     }
     unsafe { std::ptr::copy_nonoverlapping(state.as_ptr(), output, state.len()) };
-    state.len()
+    state.fill(0);
+    length
 }
 
 fn read_state_length(encoded: &[u8], offset: &mut usize) -> Result<usize, StateError> {

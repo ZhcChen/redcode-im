@@ -1,12 +1,16 @@
-name: redcode_e2ee_core_ffi_smoke
-description: Isolated Flutter FFI smoke tests for the RedCode E2EE core.
+name: redcode_e2ee_core
+description: Native Assets binding for the RedCode E2EE core.
 publish_to: none
 version: 0.1.0
 
 environment:
-  sdk: ^3.9.2
+  sdk: ^3.10.0
+
+dependencies:
+  code_assets: ^1.2.1
+  ffi: ^2.1.4
+  hooks: ^2.0.2
 
 dev_dependencies:
-  ffi: ^2.1.4
   flutter_test:
     sdk: flutter

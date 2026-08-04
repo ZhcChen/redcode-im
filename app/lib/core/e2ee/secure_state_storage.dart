@@ -8,6 +8,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'core_bridge.dart';
+
 const _stateMagic = [0x52, 0x43, 0x45, 0x53]; // RCES
 const _stateVersion = 1;
 const _nonceLength = 12;
@@ -98,16 +100,24 @@ class E2eeSecureStateStorage {
     E2eeWrappingKeyStore? wrappingKeys,
     E2eeEncryptedStateStore? encryptedStates,
     Cipher? cipher,
+    E2eeProtocolCore? protocolCore,
   }) : _wrappingKeys = wrappingKeys ?? const FlutterSecureWrappingKeyStore(),
        _encryptedStates =
            encryptedStates ?? const FileE2eeEncryptedStateStore(),
-       _cipher = cipher ?? AesGcm.with256bits();
+       _cipher = cipher ?? AesGcm.with256bits(),
+       _protocolCore = protocolCore ?? NativeE2eeProtocolCore();
 
   final E2eeWrappingKeyStore _wrappingKeys;
   final E2eeEncryptedStateStore _encryptedStates;
   final Cipher _cipher;
+  final E2eeProtocolCore _protocolCore;
+
+  Uint8List newProtocolState() => _protocolCore.newProtocolState();
 
   Future<void> write(String accountId, List<int> state) async {
+    if (!_protocolCore.validateProtocolState(state)) {
+      throw const E2eeStateCorruptedException('E2EE 协议状态格式无效');
+    }
     final namespace = _namespace(accountId);
     final keyName = _keyName(namespace);
     var keyBytes = await _wrappingKeys.read(keyName);
@@ -164,6 +174,9 @@ class E2eeSecureStateStorage {
         secretKey: SecretKey(keyBytes),
         aad: _associatedData(accountId),
       );
+      if (!_protocolCore.validateProtocolState(plaintext)) {
+        throw const E2eeStateCorruptedException('E2EE 协议状态格式无效');
+      }
       return Uint8List.fromList(plaintext);
     } on SecretBoxAuthenticationError {
       throw const E2eeStateCorruptedException();

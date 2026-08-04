@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 2.0.0+1
 
 environment:
-  sdk: ^3.9.2
+  sdk: ^3.10.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -69,6 +69,8 @@ dependencies:
   video_player: ^2.10.0
   flutter_secure_storage: ^10.3.1
   cryptography: ^2.9.0
+  redcode_e2ee_core:
+    path: ../e2ee-core/flutter
 
 dev_dependencies:
   flutter_test:

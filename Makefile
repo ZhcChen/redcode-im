@@ -893,12 +893,8 @@ e2ee-core.check.targets: ## 检查 E2EE 核心 iOS、Android 与 WASM 目标构�
 	@$(CARGO) check --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --target wasm32-unknown-unknown
 
 e2ee-core.test.flutter: ## 运行 E2EE 核心 Flutter FFI smoke
-	@$(call require_cmd,$(CARGO))
 	@$(call require_cmd,$(FLUTTER))
-	@$(CARGO) build --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml"
-	@cd "$(E2EE_CORE_DIR)/flutter" && \
-		E2EE_CORE_LIBRARY="$(E2EE_CORE_DIR)/target/debug/libredcode_e2ee_core.dylib" \
-		$(FLUTTER) test
+	@cd "$(E2EE_CORE_DIR)/flutter" && $(FLUTTER) test
 
 e2ee-core.test.wasm: ## 在 Chrome 中运行 E2EE 核心 WASM 协议测试
 	@$(call require_cmd,wasm-pack)

@@ -23,7 +23,7 @@ void main() {
       user: AuthUser(id: 'account-a', username: 'alice'),
     );
     await tokenStorage.saveSession(session);
-    await e2eeStorage.write('account-a', [1, 2, 3]);
+    await e2eeStorage.write('account-a', e2eeStorage.newProtocolState());
 
     final repository = AuthRepository(
       storage: tokenStorage,
