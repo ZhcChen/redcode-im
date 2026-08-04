@@ -25,6 +25,27 @@ external int _stateNew(Pointer<Uint8> output, int capacity);
 )
 external int _stateValidate(Pointer<Uint8> data, int length);
 
+@Native<
+  Int32 Function(
+    Pointer<Uint8>,
+    IntPtr,
+    Pointer<Pointer<Uint8>>,
+    Pointer<IntPtr>,
+  )
+>(symbol: 'rc_e2ee_command_execute', assetId: _assetId)
+external int _commandExecute(
+  Pointer<Uint8> input,
+  int inputLength,
+  Pointer<Pointer<Uint8>> output,
+  Pointer<IntPtr> outputLength,
+);
+
+@Native<Void Function(Pointer<Uint8>, IntPtr)>(
+  symbol: 'rc_e2ee_command_free',
+  assetId: _assetId,
+)
+external void _commandFree(Pointer<Uint8> output, int outputLength);
+
 final class RedcodeE2eeCore {
   const RedcodeE2eeCore();
 
@@ -57,6 +78,30 @@ final class RedcodeE2eeCore {
     } finally {
       buffer.asTypedList(state.length).fillRange(0, state.length, 0);
       calloc.free(buffer);
+    }
+  }
+
+  Uint8List executeCommand(List<int> command) {
+    if (command.isEmpty) throw ArgumentError.value(command, 'command');
+    final input = calloc<Uint8>(command.length);
+    final output = calloc<Pointer<Uint8>>();
+    final outputLength = calloc<IntPtr>();
+    try {
+      input.asTypedList(command.length).setAll(0, command);
+      if (_commandExecute(input, command.length, output, outputLength) != 0 ||
+          output.value == nullptr ||
+          outputLength.value <= 0) {
+        throw StateError('E2EE core command failed');
+      }
+      return Uint8List.fromList(output.value.asTypedList(outputLength.value));
+    } finally {
+      input.asTypedList(command.length).fillRange(0, command.length, 0);
+      calloc.free(input);
+      if (output.value != nullptr && outputLength.value > 0) {
+        _commandFree(output.value, outputLength.value);
+      }
+      calloc.free(output);
+      calloc.free(outputLength);
     }
   }
 }

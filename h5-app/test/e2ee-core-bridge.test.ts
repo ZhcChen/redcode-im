@@ -17,6 +17,7 @@ const createCore = (overrides: Partial<E2eeCoreModule> = {}): E2eeCoreModule => 
   protocolVersion: () => 1,
   newProtocolState: () => emptyState.slice(),
   validateProtocolState: (state) => state[0] === 0x52,
+  executeCommand: () => new Uint8Array([82, 67, 67, 82, 0, 1, 0, 0]),
   ...overrides,
 });
 
@@ -40,5 +41,14 @@ describe('E2eeCoreBridge', () => {
     const bridge = new E2eeCoreBridge(createCore({ validateProtocolState: () => false }));
 
     await expect(bridge.newProtocolState()).rejects.toBeInstanceOf(E2eeCoreUnavailableError);
+  });
+
+  it('executes commands only after core initialization', async () => {
+    const core = createCore();
+    const bridge = new E2eeCoreBridge(core);
+
+    await expect(bridge.executeCommand(new Uint8Array([1]))).resolves
+      .toEqual(new Uint8Array([82, 67, 67, 82, 0, 1, 0, 0]));
+    expect(core.initialize).toHaveBeenCalledOnce();
   });
 });

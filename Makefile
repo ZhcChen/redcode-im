@@ -927,7 +927,7 @@ e2ee-core.test.wasm: ## 在 Chrome 中运行 E2EE 核心 WASM 协议测试
 
 e2ee-core.build.h5: ## 生成 H5 使用的 E2EE WASM binding
 	@$(call require_cmd,wasm-pack)
-	@wasm-pack build "$(E2EE_CORE_DIR)" --target web --release --out-dir "../$(H5_APP_DIR)/src/e2ee/core-wasm"
+	@wasm-pack build "$(E2EE_CORE_DIR)" --target web --release --out-dir "$(H5_APP_DIR)/src/e2ee/core-wasm"
 
 e2ee-core.fixture.generate: ## 重新生成 Native 到 WASM 的 E2EE 测试 fixture
 	@$(call require_cmd,$(CARGO))

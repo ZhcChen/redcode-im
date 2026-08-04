@@ -1,6 +1,19 @@
 /* @ts-self-types="./redcode_e2ee_core.d.ts" */
 
 /**
+ * @param {Uint8Array} request
+ * @returns {Uint8Array}
+ */
+export function execute_command(request) {
+    const ptr0 = passArray8ToWasm0(request, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.execute_command(ptr0, len0);
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
+
+/**
  * @returns {Uint8Array}
  */
 export function new_protocol_state() {
@@ -76,6 +89,10 @@ function __wbg_get_imports() {
         },
         __wbg_node_84ea875411254db1: function(arg0) {
             const ret = arg0.node;
+            return ret;
+        },
+        __wbg_now_86c0d4ba3fa605b8: function() {
+            const ret = Date.now();
             return ret;
         },
         __wbg_process_44c7a14e11e9f69e: function(arg0) {

@@ -1,4 +1,5 @@
 import initCore, {
+  execute_command,
   new_protocol_state,
   protocol_version,
   validate_protocol_state,
@@ -18,6 +19,7 @@ export interface E2eeCoreModule {
   protocolVersion(): number;
   newProtocolState(): Uint8Array;
   validateProtocolState(state: Uint8Array): boolean;
+  executeCommand(command: Uint8Array): Uint8Array;
 }
 
 const wasmCore: E2eeCoreModule = {
@@ -27,6 +29,7 @@ const wasmCore: E2eeCoreModule = {
   protocolVersion: protocol_version,
   newProtocolState: new_protocol_state,
   validateProtocolState: validate_protocol_state,
+  executeCommand: execute_command,
 };
 
 export class E2eeCoreBridge {
@@ -51,6 +54,14 @@ export class E2eeCoreBridge {
   async validateProtocolState(state: Uint8Array): Promise<boolean> {
     await this.initialize();
     return this.core.validateProtocolState(state);
+  }
+
+  async executeCommand(command: Uint8Array): Promise<Uint8Array> {
+    if (command.length === 0) {
+      throw new E2eeCoreUnavailableError('E2EE 核心命令不能为空');
+    }
+    await this.initialize();
+    return this.core.executeCommand(command);
   }
 
   private async initializeOnce(): Promise<void> {

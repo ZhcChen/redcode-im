@@ -1,6 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export function execute_command(request: Uint8Array): Uint8Array;
+
 export function new_protocol_state(): Uint8Array;
 
 export function protocol_version(): number;
@@ -11,8 +13,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly execute_command: (a: number, b: number) => [number, number];
     readonly new_protocol_state: () => [number, number];
     readonly protocol_version: () => number;
+    readonly rc_e2ee_command_execute: (a: number, b: number, c: number, d: number) => number;
+    readonly rc_e2ee_command_free: (a: number, b: number) => void;
     readonly rc_e2ee_protocol_version: () => number;
     readonly rc_e2ee_state_new: (a: number, b: number) => number;
     readonly rc_e2ee_state_validate: (a: number, b: number) => number;
@@ -20,8 +25,8 @@ export interface InitOutput {
     readonly __wbindgen_exn_store: (a: number) => void;
     readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 
