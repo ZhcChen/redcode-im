@@ -6,6 +6,7 @@ pub mod account_store;
 pub mod admin_rbac_store;
 pub mod document_store;
 pub mod e2ee_key_store;
+pub mod e2ee_mls_store;
 pub mod emoji_pack_store;
 pub mod file_upload_audit_store;
 pub mod file_upload_multipart_store;
