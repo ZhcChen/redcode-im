@@ -10,7 +10,9 @@
 
 - HTTP（开发默认）：`http://localhost:8010`
 - WebSocket（开发默认）：`ws://localhost:8010/ws`
+- API 版本：2.0.0
 - 认证：除公开接口外，Header 需要携带 `Authorization: Bearer <token>`
+- 第三方接入请先阅读 [developer-guide.md](./developer-guide.md)
 
 ## 响应与错误
 
@@ -42,6 +44,9 @@
 - `POST /auth/sms/send`
 - `GET /auth/me`
 - `POST /auth/password/reset`
+- `GET /auth/devices` / `POST /auth/devices/{device_id}/revoke`
+- 扫码登录：`POST /auth/qr/sessions` / `GET /auth/qr/sessions/{qr_id}` /
+  `POST /auth/qr/sessions/{qr_id}/confirm` / `POST /auth/qr/sessions/{qr_id}/cancel`
 
 ### 认证（管理员）
 
@@ -55,6 +60,8 @@
 - `GET /users/search`
 - `GET /users/{user_id}`
 - `PATCH /users/me` / `DELETE /users/me`
+- `PATCH /users/me` 支持更新 `signature`（个性签名）
+- `GET /users/blocked` / `POST /users/blocked` / `DELETE /users/blocked/{user_id}`
 - `POST /users/me/password`
 - 头像直传：
   - `POST /users/me/avatar/direct-upload`
@@ -86,6 +93,8 @@
 - `POST /rooms/{room_id}/pin` / `DELETE /rooms/{room_id}/pin`
 - `POST /rooms/{room_id}/directory-favorite` / `DELETE /rooms/{room_id}/directory-favorite`
 - `POST /rooms/{room_id}/notification-settings`
+- 群公告：`GET /rooms/{room_id}/announcement` / `PUT /rooms/{room_id}/announcement` /
+  `DELETE /rooms/{room_id}/announcement`
 - 群头像直传：
   - `POST /rooms/{room_id}/avatar/direct-upload`
   - `POST /rooms/{room_id}/avatar/commit`
@@ -97,6 +106,9 @@
 - `DELETE /rooms/{room_id}/messages/{message_id}`
 - `POST /rooms/{room_id}/messages/forward`
 - `POST /rooms/{room_id}/messages/{message_id}/pin` / `DELETE /rooms/{room_id}/messages/{message_id}/pin`
+- 消息收藏：`POST /rooms/{room_id}/messages/{message_id}/favorite` /
+  `DELETE /rooms/{room_id}/messages/{message_id}/favorite` /
+  `GET /messages/favorites`
 - 附件直传：
   - `POST /rooms/{room_id}/messages/attachments/signature`
   - `POST /rooms/{room_id}/messages/attachments/commit`
