@@ -1,0 +1,16 @@
+{
+  "name": "redcode-e2ee-core",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "files": [
+    "redcode_e2ee_core_bg.wasm",
+    "redcode_e2ee_core.js",
+    "redcode_e2ee_core.d.ts"
+  ],
+  "main": "redcode_e2ee_core.js",
+  "types": "redcode_e2ee_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

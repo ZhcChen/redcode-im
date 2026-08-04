@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 8016",
-    "build": "vue-tsc --noEmit && vite build",
+    "e2ee:build": "wasm-pack build ../e2ee-core --target web --release --out-dir ../h5-app/src/e2ee/core-wasm",
+    "build": "bun run e2ee:build && vue-tsc --noEmit && vite build",
     "type-check": "vue-tsc --noEmit",
     "preview": "vite preview --host 0.0.0.0 --port 8016",
     "test": "VITE_USE_MOCK_DATA=true vitest run",
