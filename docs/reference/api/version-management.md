@@ -117,10 +117,93 @@
 }
 ```
 
-## 3. 使用建议
+## 3. 热更新
+
+热更新用于在应用版本内下发补丁包，与完整安装包独立管理。
+
+### 3.1 检查最新热更新（公开）
+
+- **方法**: `GET`
+- **路径**: `/versions/hot-update`
+
+查询参数：`platform`、`channel`、`current_version`、`current_patch_version`。
+
+响应：
+
+```json
+{
+  "has_update": true,
+  "current_patch_version": "1.0.0-patch1",
+  "patch": {
+    "id": "patch-uuid",
+    "platform": "android",
+    "patch_version": "1.0.0-patch2",
+    "download_url": "https://...",
+    "mandatory": false
+  }
+}
+```
+
+### 3.2 生成热更新下载链接（公开）
+
+- **方法**: `GET`
+- **路径**: `/versions/hot-update/download`
+
+### 3.3 上报热更新事件（公开）
+
+- **方法**: `POST`
+- **路径**: `/versions/hot-update/report`（旧客户端兼容路径
+  `/versions/hot-update-events`）
+
+请求体：
+
+```json
+{
+  "platform": "android",
+  "base_version": "1.0.0",
+  "patch_version": "1.0.0-patch1",
+  "event_type": "success",
+  "message": "热更新应用成功"
+}
+```
+
+`event_type` 取值：`success` / `failed` / `rollback`。
+
+### 3.4 Admin 热更新管理
+
+| 操作 | 方法 | 路径 | 说明 |
+| --- | --- | --- | --- |
+| 列表 | `GET` | `/api/admin/hot-updates` | 分页获取全部热更新 |
+| 创建 | `POST` | `/api/admin/hot-updates` | 创建热更新包 |
+| 详情 | `GET` | `/api/admin/hot-updates/{id}` | 获取热更新详情 |
+| 更新 | `PATCH` | `/api/admin/hot-updates/{id}` | 修改热更新信息 |
+| 删除 | `DELETE` | `/api/admin/hot-updates/{id}` | 删除热更新记录 |
+| 激活 | `POST` | `/api/admin/hot-updates/{id}/activate` | 对用户可见 |
+| 停用 | `POST` | `/api/admin/hot-updates/{id}/deactivate` | 停止下发 |
+| 事件列表 | `GET` | `/api/admin/hot-updates/events` | 查看客户端上报事件 |
+
+创建请求体示例：
+
+```json
+{
+  "platform": "android",
+  "app_version_id": "version-uuid",
+  "patch_version": "1.0.0-patch1",
+  "channel": "stable",
+  "download_key": "hot-updates/android/1.0.0-patch1.zip",
+  "mandatory": false,
+  "rollout_percentage": 100
+}
+```
+
+热更新的数据模型见 `models.md` 的 `HotUpdateInfo`、`HotUpdateResponse`、
+`HotUpdateEventReport`。
+
+## 4. 使用建议
 
 1. 建议为测试、预发布、正式分别维护渠道。
 2. `build_number` 在同一平台 + 渠道内必须唯一。
 3. 若提供 `checksum`，客户端应在下载后校验。
 4. 当 `mandatory=true` 时，客户端可决定是否允许跳过升级。
-5. Admin API 仅后台控制台调用，不应暴露给前台用户。
+5. 热更新建议按渠道灰度发布（`rollout_percentage` 从低到高）。
+6. Admin API 仅后台控制台调用，不应暴露给前台用户。
