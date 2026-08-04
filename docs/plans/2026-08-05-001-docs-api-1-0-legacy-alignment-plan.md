@@ -5,7 +5,7 @@ type: docs
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 execution: docs
-status: active
+status: completed
 ---
 
 # docs: API 1.0 遗留文档对齐收尾
