@@ -48,7 +48,7 @@ status: active
 | 语言 / UI | Kotlin + Jetpack Compose + Material 3 | Swift 6 + SwiftUI |
 | 架构 | Single Activity + MVVM/UDF | MVVM + feature modules |
 | 并发 / 网络 | Coroutines + Flow/StateFlow；Retrofit/OkHttp + OkHttp WebSocket | Swift Concurrency（async/await）+ URLSession + URLSessionWebSocketTask |
-| 本地存储 | Room + Preferences DataStore + Android Keystore | SwiftData + Keychain |
+| 本地存储 | Room + Preferences DataStore + Android Keystore | GRDB/SQLite + Keychain |
 | 依赖管理 | Gradle（Kotlin DSL） | Swift Package Manager |
 | 测试 | JUnit + Compose UI Test + Android Lint | XCTest + XCUITest |
 | 共享核心 | `e2ee-core`（Rust/OpenMLS）编译为 `.so`（JNI） | `e2ee-core` 编译为 `.xcframework` |
@@ -69,8 +69,14 @@ status: active
 - **版本号：** `android-app` / `ios-app` 按 **2.0.0** 与 App 2.0 版本面对齐
   （API 文档版本基线已是 2.0.0）。
 - **最低系统：** Android `minSdk 24`（Android 7.0，覆盖约 98% 活跃设备）；
-  iOS `17+`（SwiftData 依赖）。若后续
-  产品要求 iOS 16，则本地存储改用 GRDB/SQLite，作为子计划另行裁决。
+  iOS Deployment Target **15**（Xcode 26 官方支持下限，覆盖 iPhone 6s /
+  SE 第一代 / 7 / 8 / X 及以后，即 2015 年后机型）。
+- **iOS 存储裁决：** 因最低版本降至 iOS 15，本地存储不再使用 SwiftData
+  （iOS 17+ 专属），改用 **GRDB/SQLite + Keychain**；恢复基座后需完成
+  存储层替换（基座已重度使用 SwiftData）。
+- **iPhone 6 明确不支持：** iPhone 6 / 6 Plus 最高只能升到 iOS 12，无法运行
+  iOS 15 应用；支持 iPhone 6 需要 iOS 12，与 SwiftUI / Swift Concurrency /
+  URLSessionWebSocketTask 选型硬冲突，因此不在支持范围。
 - **DI：** Android 采用手动 DI（沿用恢复基座的组装方式），不引入 Hilt/Koin。
 
 ### 决策 5：基座来源
@@ -203,11 +209,39 @@ status: active
 
 - 所属阶段：阶段 0
 - 目标：两模块 README 从“Flutter 并行迁移”更新为“2.0 原生主线”，记录版本
-  2.0.0、JDK 21、minSdk 24 / iOS 17+、手动 DI 与原生验收规则。
+  2.0.0、JDK 21、minSdk 24 / iOS 15+、手动 DI、GRDB/SQLite 与原生验收规则。
 - 涉及文件 / 模块：`android-app/README.md`、`ios-app/README.md`。
 - 前置依赖：单元 0.1。
 - 验证方式：README 无“Flutter 并行开发”表述，无指向 `app/` 的错误命令。
 - 完成标准：README 与决策记录一致。
+
+### 单元 0.4：对齐 Android 构建配置
+
+- 所属阶段：阶段 0
+- 目标：恢复基座后把 `android-app/app/build.gradle.kts` 的 `minSdk` 从 26
+  调整为 **24**；`compileSdk/targetSdk` 维持 36；Gradle 使用本机/CI 的
+  **JDK 21** 运行，`jvmToolchain` / `compileOptions` 字节码 target 维持 17。
+- 涉及文件 / 模块：`android-app/app/build.gradle.kts`。
+- 前置依赖：单元 0.1、0.2。
+- 验证方式：`make android-app.check`（unit + lint + debug APK）本机通过；
+  `minSdk` 生效配置可通过 Gradle 输出确认。
+- 完成标准：Android 侧构建配置与决策记录一致。
+
+### 单元 0.5：iOS 存储层 SwiftData 替换为 GRDB/SQLite
+
+- 所属阶段：阶段 0
+- 目标：基座已重度使用 SwiftData（`App/RedCodeIOSApp.swift`、
+  `Sources/RedCodeStorage` 中多个 `SwiftData*Store`、`RedCodeStorageSchema`
+  与相关测试），iOS 15 无法编译 SwiftData；本单元将存储层替换为
+  **GRDB/SQLite**，并设置 Xcode 工程 Deployment Target 为 **iOS 15**。
+- 涉及文件 / 模块：`ios-app/App/`、`ios-app/Sources/RedCodeStorage/`、
+  `ios-app/Tests/RedCodeStorageTests/`、`ios-app/RedCodeIM.xcodeproj`、
+  `ios-app/docs/`（architecture 等引用同步更新）。
+- 前置依赖：单元 0.1、0.2。
+- 验证方式：`make ios-app.check`（SwiftPM unit tests + Simulator build）在
+  Deployment Target 15 下通过；SwiftUI 新 API（如 NavigationStack）按
+  `@available` 分支处理，编译无 iOS 15 不可用符号。
+- 完成标准：iOS 侧不再引用 SwiftData，iOS 15 可编译、单测通过。
 
 ### 单元 1.1：更新 AGENTS.md
 
@@ -310,8 +344,9 @@ status: active
 
 ## 建议执行顺序
 
-- **先做：** 单元 0.1 -> 0.2 -> 0.3（基座先回来，随时可回滚到
-  `e0bd4bfa^`）。
+- **先做：** 单元 0.1 -> 0.2 -> 0.3 -> 0.4 -> 0.5（基座先回来，随时可回滚到
+  `e0bd4bfa^`；Android 先对齐配置，iOS 先完成 SwiftData -> GRDB 存储替换，
+  两端都能在本机构建后再进入阶段 1）。
 - **再做成：** 单元 1.1 -> 1.2 -> 1.3（先让本地与 CI 不依赖 Flutter，再动文档）。
 - **随后：** 单元 2.1 / 2.2 / 2.3；**单元 3.1 需用户确认后单独执行。**
 - **收尾：** 单元 4.1 -> 4.2；完成 4.2 后进入 `review`。
