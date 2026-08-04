@@ -13,7 +13,7 @@ origin: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
 ## Goal Capsule
 
 - **目标：** 在不自制密码协议、不静默降级明文的前提下，交付 Flutter/H5 的单聊、多设备和群聊 E2EE，并让后台开关、服务端约束、设备撤销和发布回滚形成可验证闭环。
-- **当前裁决：** OpenMLS 0.8.1 协议候选已通过 U1，可进入 U2 契约设计；生产发布仍为 **No-Go**。U2-U9 未全部关闭前，禁止把 `content_audit_mode` 切到 `e2ee`，禁止接入正式消息发送链。
+- **当前裁决：** U1-U3 已完成，可进入 U4 共享核心绑定与安全存储；生产发布仍为 **No-Go**。U4-U9 未全部关闭前，禁止把 `content_audit_mode` 切到 `e2ee`，禁止接入正式消息发送链。
 - **权威顺序：** 运行时与跨端测试 > 当前 API 契约 > 本计划 > `docs/reference/architecture/end-to-end-encryption-design.md`。旧架构文档中的手写 X3DH、Double Ratchet 和 Sender Keys 伪代码不再作为实现依据。
 - **首发范围：** API、Flutter `app/`、H5 `h5-app/` 与 Admin。`ios-app/` 和桌面端在共享核心稳定后接入，但不得阻塞 U1 PoC；未支持的客户端版本在 E2EE 模式下必须被服务端拒绝发送。
 - **停止条件：** 协议库许可证不兼容、iOS/Android/WASM 任一目标无法稳定构建、跨端状态序列化不兼容、成员移除后仍能读取新消息、或服务端/日志/Push 出现明文时立即维持 No-Go。
@@ -152,6 +152,7 @@ flowchart TB
 - **Patterns:** 延续现有 Axum handler、`AppError::MessageRuntimeConflict` 和 serde model；未知协议版本 fail closed。
 - **Test Scenarios:** 有效 envelope 接受；未知版本、空 ciphertext、伪造 sender device、非房间成员、过期 epoch、重复幂等键拒绝；真实 `content_summary` 被拒绝且服务端只生成固定占位；历史明文仍可读取；E2EE 模式普通端点返回 `40902`；plaintext 模式加密端点返回 `40902`。
 - **Verification:** `make api.test` 与 API 文档契约审查。
+- **Progress:** 2026-08-04 已完成。RCML v1 envelope、固定密文占位、设备归属、active epoch、当前 Commit 引用与发送幂等契约已由 API 强制裁决；`persist` 重试不重复持久化、广播或 Push，`relay_only` 使用 10 分钟 Redis 幂等占位且失败路径撤销临时授权。伪造设备、伪造 Commit、过期 epoch、epoch 推进后的原请求重试和重复 relay 广播均有集成测试，`make api.test` 通过。契约见 `docs/reference/api/e2ee.md`。
 
 ### U3. 设备、KeyPackage 与 epoch 数据模型
 
@@ -160,6 +161,7 @@ flowchart TB
 - **Patterns:** 不修改已有 migration；PostgreSQL transaction + `FOR UPDATE SKIP LOCKED`；所有领取和提交操作带幂等键；公开 key 材料设大小上限和速率限制。
 - **Test Scenarios:** 首台设备建立根身份；未获批准的新设备不可发布 KeyPackage；现有设备批准与撤销；根身份不可被普通 token 静默覆盖；KeyPackage 并发只消费一次；撤销后不可领取；成员变更 revision 冲突；控制消息分页、幂等和权限；级联删除不误删其他设备。
 - **Verification:** `make api.test`、migration smoke、并发合同测试。
+- **Progress:** 2026-08-04 已完成。账号根身份、设备批准/撤销、KeyPackage 一次性领取与库存/速率限制、房间 membership revision、严格递增 epoch、Welcome/Commit 控制队列、分页/回执/消费和成员移除后的权限撤销均已落地。成员变化自动进入 `rekey_required`，级联删除与多账号设备隔离已覆盖回归；migration smoke 和 `make api.test` 通过。
 
 ### U4. 共享核心绑定与安全存储
 
