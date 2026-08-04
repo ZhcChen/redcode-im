@@ -13,7 +13,7 @@ origin: docs/plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md
 ## Goal Capsule
 
 - **目标：** 在不自制密码协议、不静默降级明文的前提下，交付 Flutter/H5 的单聊、多设备和群聊 E2EE，并让后台开关、服务端约束、设备撤销和发布回滚形成可验证闭环。
-- **当前裁决：** 生产实现为 **No-Go**；隔离 OpenMLS PoC 为 **Go**。PoC 未满足 U1 门禁前，禁止把 `content_audit_mode` 切到 `e2ee`，禁止接入正式消息发送链。
+- **当前裁决：** OpenMLS 0.8.1 协议候选已通过 U1，可进入 U2 契约设计；生产发布仍为 **No-Go**。U2-U9 未全部关闭前，禁止把 `content_audit_mode` 切到 `e2ee`，禁止接入正式消息发送链。
 - **权威顺序：** 运行时与跨端测试 > 当前 API 契约 > 本计划 > `docs/reference/architecture/end-to-end-encryption-design.md`。旧架构文档中的手写 X3DH、Double Ratchet 和 Sender Keys 伪代码不再作为实现依据。
 - **首发范围：** API、Flutter `app/`、H5 `h5-app/` 与 Admin。`ios-app/` 和桌面端在共享核心稳定后接入，但不得阻塞 U1 PoC；未支持的客户端版本在 E2EE 模式下必须被服务端拒绝发送。
 - **停止条件：** 协议库许可证不兼容、iOS/Android/WASM 任一目标无法稳定构建、跨端状态序列化不兼容、成员移除后仍能读取新消息、或服务端/日志/Push 出现明文时立即维持 No-Go。
@@ -142,7 +142,8 @@ flowchart TB
 - **Patterns:** 使用 versioned binary envelope；测试 fixture 与私钥状态只放测试目录；生产 feature 禁用 `content-debug` 和 `crypto-debug`。
 - **Test Scenarios:** Alice/Bob 创建两设备 group 并双向互解；使用 app-owned storage provider 导出状态并在进程重启后继续解密；重复 application message 不重复展示；乱序 Commit 先失败后补齐恢复；三成员群添加与移除；被移除成员无法解密新 epoch；Native 生成状态由 WASM 继续处理，反向亦然。
 - **Verification:** `cargo test --manifest-path e2ee-core/Cargo.toml`；四目标 compile check；WASM browser vector test；Flutter FFI smoke。
-- **Gate:** 所有场景通过才把生产裁决改为 Go。任一平台只能使用不同协议实现即失败。
+- **Gate:** 所有场景通过才把 OpenMLS 协议候选改为 Go 并进入 U2；这不等于生产发布 Go。任一平台只能使用不同协议实现即失败。
+- **Progress:** 2026-08-04 已完成。OpenMLS 0.8.1 在 host、iOS、Android、WASM 目标构建通过；Native 状态由 Chrome WASM 恢复并推进，推进后的状态再由 Native 恢复并解密后续消息；Flutter 通过 FFI 加载同一核心。双向消息、重启恢复、重复拒绝、乱序 Commit 补齐、三成员增删和移除后新 epoch 拒绝均有自动化测试。证据见 `docs/reviews/2026-08-04-u10-e2ee-u1-openmls-poc.md`。
 
 ### U2. 协议 envelope 与 API contract
 

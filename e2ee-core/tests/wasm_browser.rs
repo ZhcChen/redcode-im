@@ -1,12 +1,23 @@
 #![cfg(target_arch = "wasm32")]
 
+use std::io::Cursor;
+
+use base64::{engine::general_purpose::STANDARD, Engine};
 use openmls::prelude::tls_codec::Deserialize;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_memory_storage::MemoryStorage;
 use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
+use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
+use web_sys::{Request, RequestInit};
+
+#[allow(dead_code)]
+#[path = "../interop/fixture.rs"]
+mod fixture_format;
+
+use fixture_format::CrossRuntimeFixture;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -138,4 +149,60 @@ fn openmls_group_exchanges_an_application_message_in_chrome() {
         panic!("expected application message");
     };
     assert_eq!(application.into_bytes(), b"ciphertext created in Chrome");
+}
+
+#[wasm_bindgen_test]
+async fn wasm_resumes_native_state_and_exports_the_advanced_state() {
+    let fixture =
+        CrossRuntimeFixture::decode(include_bytes!("../interop/fixtures/native_to_wasm.bin"))
+            .expect("decode native fixture");
+    let provider = BrowserProvider {
+        crypto: RustCrypto::default(),
+        storage: MemoryStorage::deserialize(&mut Cursor::new(&fixture.provider_state))
+            .expect("deserialize native provider state"),
+    };
+    let mut group = MlsGroup::load(provider.storage(), &GroupId::from_slice(&fixture.group_id))
+        .expect("load native group in wasm")
+        .expect("native group exists in wasm");
+    let processed = group
+        .process_message(
+            &provider,
+            MlsMessageIn::tls_deserialize_exact(fixture.first_message)
+                .expect("deserialize native application message")
+                .try_into_protocol_message()
+                .expect("native protocol message"),
+        )
+        .expect("process native application message in wasm");
+    let ProcessedMessageContent::ApplicationMessage(application) = processed.into_content() else {
+        panic!("expected native application message");
+    };
+    assert_eq!(
+        application.into_bytes(),
+        b"native message processed by wasm"
+    );
+
+    let mut advanced_state = Vec::new();
+    provider
+        .storage
+        .serialize(&mut advanced_state)
+        .expect("serialize wasm-advanced state");
+    let receiver = option_env!("RC_E2EE_STATE_RECEIVER").expect("state receiver URL");
+    let request_init = RequestInit::new();
+    request_init.set_method("POST");
+    request_init.set_body(&STANDARD.encode(advanced_state).into());
+    let request = Request::new_with_str_and_init(receiver, &request_init)
+        .expect("create state receiver request");
+    request
+        .headers()
+        .set("Content-Type", "text/plain")
+        .expect("set state content type");
+    let response = JsFuture::from(
+        web_sys::window()
+            .expect("browser window")
+            .fetch_with_request(&request),
+    )
+    .await
+    .expect("post wasm-advanced state");
+    let response: web_sys::Response = response.into();
+    assert_eq!(response.status(), 204);
 }

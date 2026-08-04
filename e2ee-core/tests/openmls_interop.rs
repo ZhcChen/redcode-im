@@ -190,6 +190,14 @@ fn two_devices_exchange_messages_and_resume_from_exported_state() {
         b"hello from native"
     );
 
+    let reply = bob_group
+        .create_message(&bob.provider, &bob.signer, b"reply from the second device")
+        .expect("encrypt reply message");
+    assert_eq!(
+        process_application(&alice, &mut alice_group, reply),
+        b"reply from the second device"
+    );
+
     let state = bob.provider.export_state();
     let restored_provider = TestProvider::import_state(&state);
     let mut restored_group = MlsGroup::load(restored_provider.storage(), bob_group.group_id())

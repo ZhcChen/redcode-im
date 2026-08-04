@@ -173,7 +173,7 @@ endef
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
-	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm \
+	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate \
 	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
@@ -902,11 +902,37 @@ e2ee-core.test.flutter: ## 运行 E2EE 核心 Flutter FFI smoke
 
 e2ee-core.test.wasm: ## 在 Chrome 中运行 E2EE 核心 WASM 协议测试
 	@$(call require_cmd,wasm-pack)
-	@if [ -n "$(CHROMEDRIVER)" ]; then \
-		wasm-pack test --chrome --headless --chromedriver "$(CHROMEDRIVER)" "$(E2EE_CORE_DIR)" --test wasm_browser; \
+	@set -eu; \
+	tmp_dir="$$(mktemp -d)"; \
+	receiver_pid=""; \
+	cleanup() { \
+		if [ -n "$$receiver_pid" ]; then kill "$$receiver_pid" 2>/dev/null || true; fi; \
+		rm -rf "$$tmp_dir"; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	$(CARGO) run --quiet --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --example cross_runtime_fixture -- \
+		receive "$$tmp_dir/port" "$$tmp_dir/state" & \
+	receiver_pid="$$!"; \
+	for _ in $$(seq 1 100); do \
+		if [ -s "$$tmp_dir/port" ]; then break; fi; \
+		sleep 0.05; \
+	done; \
+	test -s "$$tmp_dir/port"; \
+	receiver_url="http://127.0.0.1:$$(cat "$$tmp_dir/port")"; \
+	if [ -n "$(CHROMEDRIVER)" ]; then \
+		RC_E2EE_STATE_RECEIVER="$$receiver_url" wasm-pack test --chrome --headless --chromedriver "$(CHROMEDRIVER)" "$(E2EE_CORE_DIR)" --test wasm_browser; \
 	else \
-		wasm-pack test --chrome --headless "$(E2EE_CORE_DIR)" --test wasm_browser; \
-	fi
+		RC_E2EE_STATE_RECEIVER="$$receiver_url" wasm-pack test --chrome --headless "$(E2EE_CORE_DIR)" --test wasm_browser; \
+	fi; \
+	wait "$$receiver_pid"; \
+	receiver_pid=""; \
+	$(CARGO) run --quiet --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --example cross_runtime_fixture -- \
+		verify "$(E2EE_CORE_DIR)/interop/fixtures/native_to_wasm.bin" "$$tmp_dir/state"
+
+e2ee-core.fixture.generate: ## 重新生成 Native 到 WASM 的 E2EE 测试 fixture
+	@$(call require_cmd,$(CARGO))
+	@$(CARGO) run --manifest-path "$(E2EE_CORE_DIR)/Cargo.toml" --example cross_runtime_fixture -- \
+		generate "$(E2EE_CORE_DIR)/interop/fixtures/native_to_wasm.bin"
 
 h5-app.build: ## 构建 h5-app 生产包
 	@$(call require_cmd,$(BUN))
