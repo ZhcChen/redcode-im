@@ -182,7 +182,8 @@ Authorization: Bearer <your-jwt-token>
 #### 15. 撤销设备
 - **接口**: `POST /auth/devices/:device_id/revoke`
 - **权限**: 需要认证
-- **功能**: 撤销指定设备，使其 access/refresh token 失效并断开 WS 会话
+- **功能**: 撤销指定设备：refresh token 立即失效、对应 WS 会话被断开；
+  已签发 access token 在 TTL 内仍有效
 - **Handler**: `auth_device::revoke_device`
 
 ### 扫码登录 API（API 2.0）

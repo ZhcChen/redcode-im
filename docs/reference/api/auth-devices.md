@@ -1,7 +1,7 @@
 # 登录设备管理接口
 
-记录账号的登录设备，支持查看与撤销。撤销设备后，该设备的 access token、
-refresh token 全部失效，并断开其 WebSocket 会话。
+记录账号的登录设备，支持查看与撤销。撤销设备后，该设备的 refresh token
+立即失效、对应 WebSocket 会话被断开；已签发的 access token 在 TTL 内仍有效。
 
 - 版本：API 2.0.0
 - 认证：以下接口均需要 `Authorization: Bearer <token>`
@@ -70,8 +70,11 @@ refresh token 全部失效，并断开其 WebSocket 会话。
 撤销后的效果：
 
 - 该设备的 refresh token 批量失效（按 `auth:refresh:by-device:{device_id}`
-  索引清理），`POST /auth/refresh` 返回 401/404。
-- 该设备的 WebSocket 连接被服务端断开。
+  索引清理），`POST /auth/refresh` 返回 HTTP 401（code 40002）。
+- 该设备当前在线的 WebSocket 连接被服务端主动断开：先推送
+  `{"type": "error", "message": "设备已被撤销，连接即将关闭"}`，随后关闭连接。
+- 已签发的 access token（JWT）为无状态令牌，未做黑名单，在其 24 小时 TTL
+  内仍可继续使用；客户端应在收到撤销提示后主动清理本地会话与登录态。
 - 设备不存在或已撤销返回 `404`。
 
 ## 3. 注销账号的关联清理

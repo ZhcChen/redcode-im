@@ -70,8 +70,8 @@ Content-Type: application/json
 
 - `device_id`：客户端自行生成的稳定 UUID；同一账号多端互不影响。
 - 不传时服务端自动生成，设备管理列表仍会登记一条记录。
-- 管理接口见 `auth-devices.md`：列出设备、撤销设备（撤销后该设备
-  access/refresh 全部失效，并断开其 WS 会话）。
+- 管理接口见 `auth-devices.md`：列出设备、撤销设备（撤销后 refresh token
+  立即失效、对应 WS 会话被断开；已签发 access token 在 TTL 内仍有效）。
 
 ### 2.4 扫码登录（PC 端）
 
@@ -138,9 +138,21 @@ curl -X POST http://localhost:8010/rooms/$ROOM_ID/messages \
 
 ## 5. 限流
 
-- 服务端按来源 IP 对请求限流，`/healthz`、`/metrics`、`/favicon.ico` 除外。
-- 触发时返回 `429 Too Many Requests`；建议客户端做指数退避重试。
-- 具体阈值与窗口由部署方配置，公开实例请以部署方公布为准。
+- 服务端默认按来源 IP 限流：**60 秒窗口内最多 6000 次请求**
+  （`/healthz`、`/readyz`、`/metrics`、`/favicon.ico` 除外）。
+- 超限返回 HTTP 429 与统一错误结构：
+
+```json
+{
+  "code": 42901,
+  "message": "请求过于频繁，请稍后再试",
+  "details": "请求过于频繁，请稍后再试"
+}
+```
+
+- 部署方可通 `RATE_LIMIT_ENABLED`（默认 `true`）、`RATE_LIMIT_WINDOW_SECONDS`
+  （默认 `60`）、`RATE_LIMIT_MAX_REQUESTS`（默认 `6000`）调整；建议客户端
+  收到 429 后做指数退避重试。
 
 ## 6. WebSocket 实时通道
 

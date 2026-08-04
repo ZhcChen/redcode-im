@@ -446,6 +446,10 @@ WebSocket 服务端会向客户端推送以下类型的事件：
   （字段 `qr_id`、`status`、`login_code`，编号 1-3）。
 - 完整流程见 `qr-login.md`。
 
+> 设备被撤销时，服务端会先推送 `error` 事件
+> （`{"type": "error", "message": "设备已被撤销，连接即将关闭"}`），随后关闭
+> 连接；客户端应据此清理本地登录态（见 `auth-devices.md`）。
+
 ---
 
 ## 消息格式
