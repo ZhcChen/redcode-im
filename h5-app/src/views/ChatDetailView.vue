@@ -38,7 +38,12 @@ const send = async () => {
   const content = draft.value.trim();
   if (!content) return;
   draft.value = '';
-  await detailStore.sendText(content);
+  try {
+    await detailStore.sendText(content);
+  } catch {
+    draft.value = content;
+    return;
+  }
   await scrollToBottom();
 };
 

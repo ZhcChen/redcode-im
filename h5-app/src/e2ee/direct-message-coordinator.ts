@@ -105,47 +105,67 @@ export class E2eeDirectMessageCoordinator {
     text: string;
   }): Promise<Record<string, unknown>> {
     return this.exclusive(async () => {
-      const text = input.text.trim();
-      if (!text) throw new E2eeDirectMessageError('加密消息内容不能为空');
-      await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
-      let context = await this.storedContext(input.accountId);
-      const identity = await this.identityApi.fetchRootIdentity(input.peerUserId);
-      await this.trust.observe(input.accountId, identity);
-      await this.trust.requireTrusted(input.accountId, input.peerUserId);
-
-      let epoch = await this.api.getRoomEpoch(input.roomId);
-      if (epoch.activeEpoch === 0) {
-        await this.bootstrapRoom({
-          accountId: input.accountId,
-          roomId: input.roomId,
-          peerUserId: input.peerUserId,
-          profile: context.profile,
-          state: context.state,
-          membershipRevision: epoch.membershipRevision,
-        });
-        context = await this.storedContext(input.accountId);
-        epoch = await this.api.getRoomEpoch(input.roomId);
-      }
-      if (epoch.status !== 'active') throw new E2eeDirectMessageError('房间 E2EE 状态尚未就绪');
-      const controlMessageId = context.profile.lastCommitMessageIds[input.roomId];
-      if (!controlMessageId) throw new E2eeDirectMessageError('房间缺少当前 E2EE Commit 索引');
-
-      const plaintext = new TextEncoder().encode(JSON.stringify({ version: 1, type: 'text', text }));
-      const encrypted = await this.core.encrypt(context.state, input.roomId, plaintext);
-      const encryptedEpoch = safeEpoch(encrypted, 2);
-      if (encryptedEpoch !== epoch.activeEpoch) throw new E2eeDirectMessageError('本地 E2EE epoch 已过期');
-      await this.storage.writePendingOperation(input.accountId, {
-        kind: 'application',
-        roomId: input.roomId,
-        nextState: encrypted.field(0),
-        senderDeviceId: context.profile.deviceId,
-        idempotencyKey: this.newId(),
-        controls: [],
-        ciphertext: encrypted.field(1),
-        epoch: encryptedEpoch,
-        controlMessageId,
-      });
+      await this.prepare(input);
       return (await this.resumePending(input.accountId, true))!;
+    });
+  }
+
+  prepareText(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    peerUserId: string;
+    text: string;
+  }): Promise<void> {
+    return this.exclusive(() => this.prepare(input));
+  }
+
+  private async prepare(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    peerUserId: string;
+    text: string;
+  }): Promise<void> {
+    const text = input.text.trim();
+    if (!text) throw new E2eeDirectMessageError('加密消息内容不能为空');
+    await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
+    let context = await this.storedContext(input.accountId);
+    const identity = await this.identityApi.fetchRootIdentity(input.peerUserId);
+    await this.trust.observe(input.accountId, identity);
+    await this.trust.requireTrusted(input.accountId, input.peerUserId);
+
+    let epoch = await this.api.getRoomEpoch(input.roomId);
+    if (epoch.activeEpoch === 0) {
+      await this.bootstrapRoom({
+        accountId: input.accountId,
+        roomId: input.roomId,
+        peerUserId: input.peerUserId,
+        profile: context.profile,
+        state: context.state,
+        membershipRevision: epoch.membershipRevision,
+      });
+      context = await this.storedContext(input.accountId);
+      epoch = await this.api.getRoomEpoch(input.roomId);
+    }
+    if (epoch.status !== 'active') throw new E2eeDirectMessageError('房间 E2EE 状态尚未就绪');
+    const controlMessageId = context.profile.lastCommitMessageIds[input.roomId];
+    if (!controlMessageId) throw new E2eeDirectMessageError('房间缺少当前 E2EE Commit 索引');
+
+    const plaintext = new TextEncoder().encode(JSON.stringify({ version: 1, type: 'text', text }));
+    const encrypted = await this.core.encrypt(context.state, input.roomId, plaintext);
+    const encryptedEpoch = safeEpoch(encrypted, 2);
+    if (encryptedEpoch !== epoch.activeEpoch) throw new E2eeDirectMessageError('本地 E2EE epoch 已过期');
+    await this.storage.writePendingOperation(input.accountId, {
+      kind: 'application',
+      roomId: input.roomId,
+      nextState: encrypted.field(0),
+      senderDeviceId: context.profile.deviceId,
+      idempotencyKey: this.newId(),
+      controls: [],
+      ciphertext: encrypted.field(1),
+      epoch: encryptedEpoch,
+      controlMessageId,
     });
   }
 

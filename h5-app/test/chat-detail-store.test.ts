@@ -1,9 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appEnv } from '@/config/env';
+import { ApiError } from '@/api/http';
+import { e2eeDirectMessageCoordinator } from '@/e2ee/direct-message-coordinator';
 import { messageAttachmentUploadService } from '@/services/message-attachment-upload-service';
 import { messageService } from '@/services/message-service';
+import { settingsService } from '@/services/settings-service';
 import { resetLocalDatabaseForTests } from '@/storage/local-database';
 import { MemorySqlAdapter } from '@/storage/memory-sql-adapter';
 import { MessageSearchStorage } from '@/storage/message-search-storage';
@@ -40,15 +43,136 @@ const message = (id: string, overrides: Partial<ChatMessage> = {}): ChatMessage 
   ...overrides,
 });
 
+const encryptedResponse = (id: string) => ({
+  message: {
+    id,
+    room_id: 'r1',
+    sender_id: 'u1',
+    sender_username: 'u1@example.com',
+    content: '[加密消息]',
+    encrypted_content: btoa('ciphertext'),
+    encryption_metadata: { protocol: 'mls', version: 1, content_type: 'application', epoch: 1 },
+    message_type: 'text',
+    created_at: '2026-08-04T12:00:00Z',
+  },
+});
+
 describe('chat detail store', () => {
   let adapter: MemorySqlAdapter;
 
   beforeEach(async () => {
+    vi.restoreAllMocks();
     appEnv.useMockData = true;
     adapter = new MemorySqlAdapter();
     await resetLocalDatabaseForTests(adapter);
     setActivePinia(createPinia());
     saveSession();
+  });
+
+  afterEach(() => {
+    appEnv.useMockData = true;
+  });
+
+  it('prepares E2EE text before exposing the optimistic message', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    store.chat = {
+      id: 'r1', roomId: 'r1', name: 'Bear', lastMessage: '', lastMessageTime: 1,
+      unreadCount: 0, type: 'private', isPinned: false, isMuted: false,
+      raw: { friend_user_id: 'u2' },
+    };
+    vi.spyOn(settingsService, 'fetchGeneralSettings').mockResolvedValue({
+      appName: 'RedCode IM',
+      messageRuntime: { serverStorageMode: 'persist', contentAuditMode: 'e2ee' },
+    });
+    const prepare = vi.spyOn(e2eeDirectMessageCoordinator, 'prepareText').mockImplementation(async () => {
+      expect(store.messages).toHaveLength(0);
+    });
+    const retry = vi.spyOn(e2eeDirectMessageCoordinator, 'retryPendingSend').mockImplementation(async () => {
+      expect(store.messages).toHaveLength(1);
+      expect(store.messages[0]?.status).toBe('sending');
+      return encryptedResponse('server-e2ee-1');
+    });
+
+    await store.sendText(' browser secret ');
+
+    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'u1', roomId: 'r1', peerUserId: 'u2', text: 'browser secret',
+    }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(store.messages).toEqual([
+      expect.objectContaining({ id: 'server-e2ee-1', content: 'browser secret', status: 'sent' }),
+    ]);
+  });
+
+  it('refreshes runtime after E2EE conflict without automatic resend', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    store.chat = {
+      id: 'r1', roomId: 'r1', name: 'Bear', lastMessage: '', lastMessageTime: 1,
+      unreadCount: 0, type: 'private', isPinned: false, isMuted: false,
+      raw: { friend_user_id: 'u2' },
+    };
+    const runtime = vi.spyOn(settingsService, 'fetchGeneralSettings').mockResolvedValue({
+      appName: 'RedCode IM',
+      messageRuntime: { serverStorageMode: 'persist', contentAuditMode: 'e2ee' },
+    });
+    vi.spyOn(e2eeDirectMessageCoordinator, 'prepareText').mockResolvedValue();
+    const retry = vi.spyOn(e2eeDirectMessageCoordinator, 'retryPendingSend')
+      .mockRejectedValue(new ApiError('runtime conflict', 409, { code: 40902 }));
+
+    await store.sendText('keep draft');
+
+    expect(runtime).toHaveBeenCalledTimes(2);
+    expect(retry).toHaveBeenCalledOnce();
+    expect(store.messages).toEqual([
+      expect.objectContaining({ content: 'keep draft', status: 'failed' }),
+    ]);
+  });
+
+  it('does not refresh runtime after an unrelated send conflict', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    const runtime = vi.spyOn(settingsService, 'fetchGeneralSettings').mockResolvedValue({
+      appName: 'RedCode IM',
+      messageRuntime: { serverStorageMode: 'persist', contentAuditMode: 'server' },
+    });
+    vi.spyOn(messageService, 'sendTextMessage')
+      .mockRejectedValue(new ApiError('already exists', 409, { code: 40901 }));
+
+    await store.sendText('plain message');
+
+    expect(runtime).toHaveBeenCalledOnce();
+    expect(store.messages).toEqual([
+      expect.objectContaining({ content: 'plain message', status: 'failed' }),
+    ]);
+  });
+
+  it('decrypts a duplicate encrypted websocket message only once', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText').mockResolvedValue({
+      text: 'live browser secret',
+      epoch: 1,
+    });
+    const event = {
+      type: 'message', id: 'ws-e2ee-unique', message_id: 'ws-e2ee-unique', room_id: 'r1',
+      sender_id: 'u2', sender_username: 'bear', content: '[加密消息]', message_type: 'text',
+      timestamp: '2026-08-04T12:00:00Z', encrypted_content: btoa('ciphertext'),
+      encryption_metadata: { protocol: 'mls', version: 1, content_type: 'application', epoch: 1 },
+    };
+
+    await store.handleWebSocketEvent(event);
+    await store.handleWebSocketEvent(event);
+
+    expect(decrypt).toHaveBeenCalledOnce();
+    expect(store.messages).toEqual([
+      expect.objectContaining({ id: 'ws-e2ee-unique', content: 'live browser secret' }),
+    ]);
   });
 
   it('loads cached room messages before mock fallback', async () => {
@@ -73,7 +197,7 @@ describe('chat detail store', () => {
     ]);
 
     await expect(store.loadUntilFound('target-old')).resolves.toBe(true);
-    expect(load).toHaveBeenCalledWith('r1', { limit: 50, beforeId: 'm51' });
+    expect(load).toHaveBeenCalledWith('r1', { limit: 50, beforeId: 'm51' }, 'u1');
     expect(store.messages[0]?.id).toBe('target-old');
   });
 

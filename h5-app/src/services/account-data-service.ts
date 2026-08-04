@@ -1,6 +1,7 @@
 import { attachmentCacheService } from '@/services/attachment-cache';
 import { avatarCacheService } from '@/services/avatar-cache';
 import { emojiCacheService } from '@/services/emoji-cache';
+import { clearEncryptedMessageCache } from '@/services/message-service';
 import { e2eeSecureStateStorage } from '@/e2ee/secure-state-storage';
 import { ChatSummaryStorage } from '@/storage/chat-summary-storage';
 import { ContactStorage } from '@/storage/contact-storage';
@@ -9,6 +10,7 @@ import { MessageStorage } from '@/storage/message-storage';
 
 export const accountDataService = {
   async clearAll(accountId?: string) {
+    clearEncryptedMessageCache(accountId);
     await Promise.all([
       new ChatSummaryStorage().clear(),
       new ContactStorage().clear(),

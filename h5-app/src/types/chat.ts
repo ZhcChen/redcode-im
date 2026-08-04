@@ -53,6 +53,9 @@ export interface ChatMessage {
   quotedMessage?: ChatMessageQuote | null;
   attachments?: MessageAttachment[];
   forwardInfo?: MessageForwardInfo | null;
+  encryptedContent?: string | null;
+  encryptionMetadata?: Record<string, unknown> | null;
+  e2eeDecryptionFailed?: boolean;
   raw?: Record<string, unknown>;
 }
 

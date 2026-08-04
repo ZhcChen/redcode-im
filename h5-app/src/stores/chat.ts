@@ -1,12 +1,12 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { mapMessageAttachments, mapMessageForwardInfo, messageService } from '@/services/message-service';
+import { mapWebSocketMessage, messageService } from '@/services/message-service';
 import { roomService } from '@/services/room-service';
 import { webSocketService, type WebSocketConnectionStatus, type WebSocketServerEvent } from '@/services/websocket-service';
 import { ChatSummaryStorage } from '@/storage/chat-summary-storage';
 import { MessageStorage } from '@/storage/message-storage';
-import type { ChatMessage, ChatSummary, ChatType, MessageType } from '@/types/chat';
+import type { ChatMessage, ChatSummary, ChatType } from '@/types/chat';
 
 import { useAuthStore } from './auth';
 
@@ -187,7 +187,25 @@ export const useChatStore = defineStore('chat', {
     async handleWebSocketEvent(event: WebSocketServerEvent) {
       switch (event.type) {
         case 'message':
-          await this.applyIncomingMessage(messageFromEvent(event, useAuthStore().currentUser?.id ?? ''));
+          {
+            const accountId = useAuthStore().currentUser?.id ?? '';
+            let message = mapWebSocketMessage(event);
+            const cached = await loadCachedMessages(message.roomId);
+            if (cached.some((item) => item.id === message.id)) break;
+            const pending = message.senderId === accountId && message.encryptedContent
+              ? cached.find((item) => item.raw?.e2ee_pending === true)
+              : null;
+            if (pending) {
+              message = { ...message, content: pending.content, status: 'sent' };
+              await persistMessages(
+                message.roomId,
+                cached.filter((item) => item.id !== pending.id),
+              );
+            } else {
+              message = await messageService.resolveEncryptedMessage(message, accountId);
+            }
+            await this.applyIncomingMessage(message);
+          }
           break;
         case 'room_updated':
           await this.applyRoomUpdated(event);
@@ -338,21 +356,6 @@ export const formatChatDisplayTime = (timestamp: number, now = new Date()) => {
   return `${time.getFullYear()}/${pad(time.getMonth() + 1)}/${pad(time.getDate())}`;
 };
 
-const messageFromEvent = (event: WebSocketServerEvent, currentUserId: string): ChatMessage => ({
-  id: String(event.message_id ?? event.id ?? ''),
-  roomId: String(event.room_id ?? ''),
-  senderId: String(event.sender_id ?? ''),
-  senderName: String(event.sender_nickname ?? event.sender_username ?? event.sender_id ?? ''),
-  content: String(event.content ?? ''),
-  type: normalizeMessageType(event.message_type),
-  timestamp: parseTimestamp(event.timestamp),
-  status: event.sender_id === currentUserId ? 'sent' : undefined,
-  isDeleted: Boolean(event.is_deleted ?? false),
-  attachments: mapMessageAttachments(event.parts ?? event.attachments),
-  forwardInfo: mapMessageForwardInfo(event.forward_message ?? event.forward_info),
-  raw: event,
-});
-
 const mergeMessage = (messages: ChatMessage[], message: ChatMessage) => {
   const index = messages.findIndex((item) => item.id === message.id);
   if (index < 0) {
@@ -388,28 +391,11 @@ const buildPreview = (message: ChatMessage) => {
   }
 };
 
-const normalizeMessageType = (value: unknown): MessageType => {
-  const normalized = String(value ?? 'text');
-  if (['text', 'image', 'audio', 'video', 'file', 'system', 'mixed'].includes(normalized)) {
-    return normalized as MessageType;
-  }
-  return 'text';
-};
-
 const normalizeChatType = (value: unknown): ChatType => {
   const normalized = String(value ?? 'private').toLowerCase();
   if (normalized === 'group' || normalized === 'public') return 'group';
   if (normalized === 'favorite') return 'favorite';
   return 'private';
-};
-
-const parseTimestamp = (value: unknown) => {
-  if (typeof value === 'number') return value > 1_000_000_000_000 ? value : value * 1000;
-  if (typeof value === 'string' && value) {
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : Date.now();
-  }
-  return Date.now();
 };
 
 const pad = (value: number) => value.toString().padStart(2, '0');

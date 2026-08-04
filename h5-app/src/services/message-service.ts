@@ -1,4 +1,5 @@
 import { requestJson, withQuery } from '@/api/http';
+import { e2eeDirectMessageCoordinator } from '@/e2ee/direct-message-coordinator';
 import type {
   ChatMessage,
   ChatMessageQuote,
@@ -16,6 +17,22 @@ import type {
 
 import { requireToken } from './session';
 
+const processedEncryptedMessages = new Map<string, Map<string, ChatMessage>>();
+const encryptedMessageResolutions = new Map<string, Promise<ChatMessage>>();
+const MAX_PROCESSED_E2EE_MESSAGES = 2_000;
+
+export const clearEncryptedMessageCache = (accountId?: string) => {
+  if (accountId) {
+    processedEncryptedMessages.delete(accountId);
+    for (const key of encryptedMessageResolutions.keys()) {
+      if (key.startsWith(`${accountId}:`)) encryptedMessageResolutions.delete(key);
+    }
+    return;
+  }
+  processedEncryptedMessages.clear();
+  encryptedMessageResolutions.clear();
+};
+
 export const messageService = {
   async fetchChats(): Promise<ChatSummary[]> {
     const response = await requestJson<Record<string, unknown>[] | { chats?: Record<string, unknown>[] }>(
@@ -31,7 +48,11 @@ export const messageService = {
     await requestJson(`/chats/${roomId}`, { method: 'DELETE' }, requireToken());
   },
 
-  async loadMessages(roomId: string, params: { limit?: number; beforeId?: string; sinceId?: string } = {}): Promise<ChatMessage[]> {
+  async loadMessages(
+    roomId: string,
+    params: { limit?: number; beforeId?: string; sinceId?: string } = {},
+    accountId?: string,
+  ): Promise<ChatMessage[]> {
     const response = await requestJson<Record<string, unknown>[]>(
       withQuery(`/rooms/${roomId}/messages`, {
         limit: params.limit ?? 50,
@@ -41,7 +62,41 @@ export const messageService = {
       {},
       requireToken(),
     );
-    return response.map((row) => mapMessage(row, roomId)).sort((a, b) => a.timestamp - b.timestamp);
+    const messages = response.map((row) => mapMessage(row, roomId)).sort((a, b) => a.timestamp - b.timestamp);
+    if (!accountId) return messages;
+    const resolved: ChatMessage[] = [];
+    for (const message of messages) {
+      resolved.push(await this.resolveEncryptedMessage(message, accountId));
+    }
+    return resolved;
+  },
+
+  async resolveEncryptedMessage(message: ChatMessage, accountId: string): Promise<ChatMessage> {
+    if (!message.encryptedContent && !message.encryptionMetadata) return message;
+    const key = `${accountId}:${message.id}`;
+    const processed = processedEncryptedMessages.get(accountId)?.get(message.id);
+    if (processed) {
+      return {
+        ...message,
+        content: processed.content,
+        status: message.status ?? processed.status,
+        e2eeDecryptionFailed: false,
+      };
+    }
+    const active = encryptedMessageResolutions.get(key);
+    if (active) return active;
+    const resolution = decryptMessage(message, accountId).then((resolved) => {
+      if (!resolved.e2eeDecryptionFailed) rememberProcessedMessage(accountId, resolved);
+      return resolved;
+    }).finally(() => encryptedMessageResolutions.delete(key));
+    encryptedMessageResolutions.set(key, resolution);
+    return resolution;
+  },
+
+  async retryEncryptedMessage(message: ChatMessage, accountId: string): Promise<ChatMessage> {
+    if (!message.encryptedContent) return message;
+    processedEncryptedMessages.get(accountId)?.delete(message.id);
+    return this.resolveEncryptedMessage(message, accountId);
   },
 
   async sendTextMessage(roomId: string, content: string, quotedMessageId?: string): Promise<ChatMessage> {
@@ -191,7 +246,7 @@ export const mapChatSummary = (row: Record<string, unknown>): ChatSummary => {
   };
 };
 
-const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatMessage => ({
+export const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatMessage => ({
   id: String(row.id ?? row.message_id ?? ''),
   roomId: String(row.room_id ?? fallbackRoomId),
   senderId: String(row.sender_id ?? ''),
@@ -207,8 +262,68 @@ const mapMessage = (row: Record<string, unknown>, fallbackRoomId: string): ChatM
   quotedMessage: mapQuotedMessage(row.quoted_message),
   attachments: mapMessageAttachments(row.parts ?? row.attachments),
   forwardInfo: mapMessageForwardInfo(row.forward_message ?? row.forward_info),
+  encryptedContent: typeof row.encrypted_content === 'string' ? row.encrypted_content : null,
+  encryptionMetadata: normalizeObject(row.encryption_metadata),
   raw: row,
 });
+
+export const mapWebSocketMessage = (event: Record<string, unknown>): ChatMessage => mapMessage({
+  ...event,
+  id: event.message_id ?? event.id,
+  created_at: event.timestamp,
+}, String(event.room_id ?? ''));
+
+const decryptMessage = async (message: ChatMessage, accountId: string): Promise<ChatMessage> => {
+  const metadata = message.encryptionMetadata;
+  if (
+    !message.encryptedContent
+    || metadata?.protocol !== 'mls'
+    || metadata.version !== 1
+    || metadata.content_type !== 'application'
+  ) {
+    return markDecryptionFailed(message);
+  }
+  try {
+    const decrypted = await e2eeDirectMessageCoordinator.decryptText({
+      accountId,
+      deviceLabel: 'RedCode H5',
+      roomId: message.roomId,
+      ciphertext: base64ToBytes(message.encryptedContent),
+    });
+    return {
+      ...message,
+      content: decrypted.text,
+      status: message.senderId === accountId ? 'sent' : 'delivered',
+      e2eeDecryptionFailed: false,
+      raw: { ...message.raw, e2ee_epoch: decrypted.epoch },
+    };
+  } catch {
+    return markDecryptionFailed(message);
+  }
+};
+
+const markDecryptionFailed = (message: ChatMessage): ChatMessage => ({
+  ...message,
+  content: '[无法解密的消息]',
+  status: 'failed',
+  e2eeDecryptionFailed: true,
+});
+
+const base64ToBytes = (value: string) => {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+};
+
+const rememberProcessedMessage = (accountId: string, message: ChatMessage) => {
+  const messages = processedEncryptedMessages.get(accountId) ?? new Map<string, ChatMessage>();
+  messages.set(message.id, message);
+  while (messages.size > MAX_PROCESSED_E2EE_MESSAGES) {
+    const oldest = messages.keys().next().value as string | undefined;
+    if (!oldest) break;
+    messages.delete(oldest);
+  }
+  processedEncryptedMessages.set(accountId, messages);
+};
 
 export const mapMessageForwardInfo = (value: unknown): MessageForwardInfo | null => {
   const row = normalizeObject(value);

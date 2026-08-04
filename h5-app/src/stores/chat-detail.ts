@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia';
 
 import { appEnv } from '@/config/env';
-import { mapMessageAttachments, mapMessageForwardInfo, messageService } from '@/services/message-service';
+import { ApiError } from '@/api/http';
+import { e2eeDirectMessageCoordinator } from '@/e2ee/direct-message-coordinator';
+import { mapMessage, mapWebSocketMessage, messageService } from '@/services/message-service';
 import { messageAttachmentUploadService, type BrowserAttachmentType } from '@/services/message-attachment-upload-service';
+import { settingsService } from '@/services/settings-service';
 import { webSocketService, type WebSocketServerEvent } from '@/services/websocket-service';
 import { MessageStorage } from '@/storage/message-storage';
-import type { ChatMessage, ChatMessageQuote, ChatSummary, MessageType, OutgoingMessagePart } from '@/types/chat';
+import type { ChatMessage, ChatMessageQuote, ChatSummary, OutgoingMessagePart } from '@/types/chat';
 
 import { useAuthStore } from './auth';
 import { useChatStore } from './chat';
@@ -56,7 +59,11 @@ export const useChatDetailStore = defineStore('chatDetail', {
           return;
         }
 
-        const remote = await messageService.loadMessages(roomId, { limit: 50 });
+        const remote = await messageService.loadMessages(
+          roomId,
+          { limit: 50 },
+          useAuthStore().currentUser?.id,
+        );
         this.messages = mergeMessages(this.messages, remote);
         await this.persist();
         await this.syncReadState();
@@ -98,7 +105,30 @@ export const useChatDetailStore = defineStore('chatDetail', {
       const text = content.trim();
       if (!text || !this.roomId) return;
       const quote = this.quotedMessage ? toMessageQuote(this.quotedMessage) : null;
-      const pending = createPendingMessage(this.roomId, text, useAuthStore().currentUser?.id ?? '', quote);
+      const accountId = useAuthStore().currentUser?.id ?? '';
+      let e2eePending = false;
+      try {
+        if (!appEnv.useMockData) {
+          const runtime = (await settingsService.fetchGeneralSettings()).messageRuntime;
+          if (runtime.contentAuditMode === 'e2ee') {
+            if (quote) throw new Error('E2EE 引用消息将在后续版本支持');
+            const peerUserId = privatePeerUserId(this.chat);
+            if (!peerUserId) throw new Error('当前会话缺少 E2EE 联系人标识');
+            await e2eeDirectMessageCoordinator.prepareText({
+              accountId,
+              deviceLabel: 'RedCode H5',
+              roomId: this.roomId,
+              peerUserId,
+              text,
+            });
+            e2eePending = true;
+          }
+        }
+      } catch (error) {
+        this.error = error instanceof Error ? error.message : '发送准备失败';
+        throw error;
+      }
+      const pending = createPendingMessage(this.roomId, text, accountId, quote, e2eePending);
       this.quotedMessage = null;
       await this.upsertLocalMessage(pending);
       await this.flushPendingMessage(pending.id, text, quote?.id);
@@ -111,6 +141,15 @@ export const useChatDetailStore = defineStore('chatDetail', {
       this.uploadingAttachment = true;
       attachmentAbortController = new AbortController();
       try {
+        if (!appEnv.useMockData) {
+          const runtime = (await abortable(
+            settingsService.fetchGeneralSettings(),
+            attachmentAbortController.signal,
+          )).messageRuntime;
+          if (runtime.contentAuditMode === 'e2ee') {
+            throw new Error('E2EE 附件将在后续版本支持');
+          }
+        }
         const part = appEnv.useMockData
           ? { type, key: `messages/${this.roomId}/${type}/${file.name}`, name: file.name, mimeType: file.type, size: file.size }
           : await messageAttachmentUploadService.upload(this.roomId, file, type, attachmentAbortController.signal);
@@ -158,12 +197,32 @@ export const useChatDetailStore = defineStore('chatDetail', {
     async resendMessage(messageId: string) {
       const failed = this.messages.find((message) => message.id === messageId && message.status === 'failed');
       if (!failed) return;
+      if (failed.e2eeDecryptionFailed) {
+        const resolved = await messageService.retryEncryptedMessage(
+          failed,
+          useAuthStore().currentUser?.id ?? '',
+        );
+        await this.upsertLocalMessage(resolved);
+        return;
+      }
       await this.flushPendingMessage(failed.id, failed.content, failed.quotedMessage?.id);
     },
 
     async handleWebSocketEvent(event: WebSocketServerEvent) {
       if (event.type === 'message') {
-        const message = messageFromEvent(event);
+        const messageId = String(event.message_id ?? event.id ?? '');
+        if (!messageId || this.messages.some((message) => message.id === messageId)) return;
+        const accountId = useAuthStore().currentUser?.id ?? '';
+        let message = mapWebSocketMessage(event);
+        const pending = message.senderId === accountId && message.encryptedContent
+          ? this.messages.find((item) => item.raw?.e2ee_pending === true)
+          : null;
+        if (pending) {
+          message = { ...message, content: pending.content, status: 'sent' };
+          this.messages = this.messages.filter((item) => item.id !== pending.id);
+        } else {
+          message = await messageService.resolveEncryptedMessage(message, accountId);
+        }
         if (!message.id || message.roomId !== this.roomId) return;
         await this.upsertLocalMessage(message);
         await this.syncReadState();
@@ -198,16 +257,29 @@ export const useChatDetailStore = defineStore('chatDetail', {
       await this.persist();
 
       try {
+        const pending = this.messages.find((message) => message.id === localId);
+        const isE2eePending = pending?.raw?.e2ee_pending === true;
         const sent = appEnv.useMockData
           ? mockSentMessage(this.roomId, content, useAuthStore().currentUser?.id ?? '', quotedMessageId)
-          : await messageService.sendTextMessage(this.roomId, content, quotedMessageId);
+          : isE2eePending
+            ? mapMessage(
+                responseMessage(await e2eeDirectMessageCoordinator.retryPendingSend(
+                  useAuthStore().currentUser?.id ?? '',
+                )),
+                this.roomId,
+              )
+            : await messageService.sendTextMessage(this.roomId, content, quotedMessageId);
+        const visibleSent = isE2eePending ? { ...sent, content } : sent;
         this.messages = mergeMessages(
           this.messages.filter((message) => message.id !== localId),
-          [{ ...sent, status: 'sent' }],
+          [{ ...visibleSent, status: 'sent' }],
         );
         await this.persist();
-        await useChatStore().applyIncomingMessage({ ...sent, status: 'sent' });
+        await useChatStore().applyIncomingMessage({ ...visibleSent, status: 'sent' });
       } catch (error) {
+        if (isMessageRuntimeConflict(error)) {
+          await settingsService.fetchGeneralSettings();
+        }
         this.messages = this.messages.map((message) => (
           message.id === localId ? { ...message, status: 'failed' } : message
         ));
@@ -370,7 +442,11 @@ export const useChatDetailStore = defineStore('chatDetail', {
         const beforeId = this.messages[0]?.id;
         if (!beforeId) return false;
         const previousIds = new Set(this.messages.map((message) => message.id));
-        const older = await messageService.loadMessages(this.roomId, { limit: 50, beforeId });
+        const older = await messageService.loadMessages(
+          this.roomId,
+          { limit: 50, beforeId },
+          useAuthStore().currentUser?.id,
+        );
         if (older.length === 0) return false;
         this.messages = mergeMessages(this.messages, older);
         await this.persist();
@@ -410,6 +486,7 @@ const createPendingMessage = (
   content: string,
   currentUserId: string,
   quotedMessage?: ChatMessageQuote | null,
+  e2eePending = false,
 ): ChatMessage => ({
   id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   roomId,
@@ -420,44 +497,37 @@ const createPendingMessage = (
   timestamp: Date.now(),
   status: 'sending',
   quotedMessage,
+  raw: e2eePending ? { e2ee_pending: true } : undefined,
 });
 
-const messageFromEvent = (event: WebSocketServerEvent): ChatMessage => ({
-  id: String(event.message_id ?? event.id ?? ''),
-  roomId: String(event.room_id ?? ''),
-  senderId: String(event.sender_id ?? ''),
-  senderName: String(event.sender_nickname ?? event.sender_username ?? event.sender_id ?? ''),
-  content: String(event.content ?? ''),
-  type: normalizeMessageType(event.message_type),
-  timestamp: parseTimestamp(event.timestamp),
-  isDeleted: Boolean(event.is_deleted ?? false),
-  isPinned: Boolean(event.is_pinned ?? false),
-  pinnedAt: parseOptionalTimestamp(event.pinned_at),
-  pinnedBy: event.pinned_by == null ? null : String(event.pinned_by),
-  quotedMessage: quotedMessageFromEvent(event.quoted_message),
-  attachments: mapMessageAttachments(event.parts ?? event.attachments),
-  forwardInfo: mapMessageForwardInfo(event.forward_message ?? event.forward_info),
-  raw: event,
-});
-
-
-const quotedMessageFromEvent = (value: unknown): ChatMessageQuote | null => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const row = value as Record<string, unknown>;
-  const id = String(row.id ?? row.message_id ?? '');
-  if (!id) return null;
-  return {
-    id,
-    roomId: String(row.room_id ?? ''),
-    senderId: String(row.sender_id ?? ''),
-    senderName: String(row.sender_nickname ?? row.sender_username ?? row.sender_id ?? ''),
-    content: String(row.content ?? ''),
-    type: normalizeMessageType(row.message_type ?? row.type),
-    timestamp: parseOptionalTimestamp(row.created_at ?? row.timestamp) ?? undefined,
-    isDeleted: Boolean(row.is_deleted ?? false),
-  };
+const privatePeerUserId = (chat: ChatSummary | null) => {
+  if (chat?.type !== 'private') return null;
+  const value = chat.raw?.friend_user_id ?? chat.raw?.friendUserId;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 };
 
+const responseMessage = (response: Record<string, unknown>) => {
+  const message = response.message;
+  if (!message || typeof message !== 'object' || Array.isArray(message)) {
+    throw new Error('E2EE 消息响应格式无效');
+  }
+  return message as Record<string, unknown>;
+};
+
+const isMessageRuntimeConflict = (error: unknown) => {
+  if (!(error instanceof ApiError) || error.status !== 409) return false;
+  if (!error.payload || typeof error.payload !== 'object' || Array.isArray(error.payload)) return false;
+  return Number((error.payload as Record<string, unknown>).code) === 40902;
+};
+
+const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> => {
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    operation.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+};
 const toMessageQuote = (message: ChatMessage): ChatMessageQuote => ({
   id: message.id,
   roomId: message.roomId,
@@ -468,14 +538,6 @@ const toMessageQuote = (message: ChatMessage): ChatMessageQuote => ({
   timestamp: message.timestamp,
   isDeleted: message.isDeleted,
 });
-
-const normalizeMessageType = (value: unknown): MessageType => {
-  const normalized = String(value ?? 'text');
-  if (['text', 'image', 'audio', 'video', 'file', 'system', 'mixed'].includes(normalized)) {
-    return normalized as MessageType;
-  }
-  return 'text';
-};
 
 const parseTimestamp = (value: unknown) => {
   if (typeof value === 'number') return value > 1_000_000_000_000 ? value : value * 1000;

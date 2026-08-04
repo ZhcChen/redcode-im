@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
+import { useChatDetailStore } from '@/stores/chat-detail';
 import ChatDetailView from '@/views/ChatDetailView.vue';
 
 let routeRoomId = 'r1';
@@ -99,6 +100,20 @@ describe('ChatDetailView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('收藏夹');
+  });
+
+  it('restores the draft when E2EE preparation fails before optimistic send', async () => {
+    const detailStore = useChatDetailStore();
+    vi.spyOn(detailStore, 'sendText').mockRejectedValue(new Error('identity changed'));
+    const wrapper = mount(ChatDetailView);
+    await flushPromises();
+    const input = wrapper.get('#message-input');
+    await input.setValue('keep this draft');
+
+    await wrapper.get('form.message-composer').trigger('submit');
+    await flushPromises();
+
+    expect((input.element as HTMLInputElement).value).toBe('keep this draft');
   });
 
   it('restores and highlights a message deep link after mounting', async () => {
