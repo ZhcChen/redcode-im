@@ -43,7 +43,7 @@ fn resolve_device_id(payload_device: Option<&str>) -> String {
 }
 
 /// 登记登录设备并返回设备 ID。
-async fn register_login_device(
+pub(crate) async fn register_login_device(
     state: &AppState,
     user_id: &str,
     device_id: &str,
@@ -99,7 +99,7 @@ pub struct AdminBootstrapInitRequest {
 }
 
 /// 生成刷新令牌并写入 Redis，返回明文刷新令牌
-async fn generate_and_store_refresh_token(
+pub(crate) async fn generate_and_store_refresh_token(
     state: &AppState,
     user_id: &str,
     is_admin: bool,

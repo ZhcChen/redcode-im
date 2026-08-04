@@ -507,3 +507,92 @@ async fn test_device_list_and_revoke_invalidates_refresh_token() {
         String::from_utf8_lossy(&response)
     );
 }
+
+// ==================== U6: 扫码登录 ====================
+
+#[tokio::test]
+async fn test_qr_login_full_flow_and_one_time_code() {
+    let app = spawn_test_app().await;
+    let mobile_user = register_user(&app, "qrmobile").await;
+
+    // PC 创建扫码会话
+    let (status, response) = app.post_json("/auth/qr/sessions", "{}").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let created = body_json(&response);
+    let qr_id = created["qrId"].as_str().unwrap().to_string();
+    assert!(created["expiresAt"].is_string());
+
+    // PC 轮询：pending
+    let (status, response) = app
+        .get_authed(&format!("/auth/qr/sessions/{qr_id}"), "ignored")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["status"], "pending");
+
+    // 手机端确认
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/auth/qr/sessions/{qr_id}/confirm"),
+            &mobile_user.token,
+            r#"{"device_name":"PC Browser","platform":"macos"}"#,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    // PC 轮询拿到一次性 login_code
+    let (status, response) = app
+        .get_authed(&format!("/auth/qr/sessions/{qr_id}"), "ignored")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let polled = body_json(&response);
+    assert_eq!(polled["status"], "confirmed");
+    let login_code = polled["loginCode"].as_str().unwrap().to_string();
+
+    // 第二次轮询：一次性已消费
+    let (status, response) = app
+        .get_authed(&format!("/auth/qr/sessions/{qr_id}"), "ignored")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["status"], "expired");
+
+    // 用 login_code（refresh token）换取 access token
+    let refresh = json!({"refresh_token": login_code}).to_string();
+    let (status, response) = app.post_json("/auth/refresh", &refresh).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    assert!(body_json(&response)["token"].is_string());
+}
+
+#[tokio::test]
+async fn test_qr_login_cancel() {
+    let app = spawn_test_app().await;
+
+    let (status, response) = app.post_json("/auth/qr/sessions", "{}").await;
+    assert_eq!(status, StatusCode::OK);
+    let qr_id = body_json(&response)["qrId"].as_str().unwrap().to_string();
+
+    let (status, _) = app
+        .post_json_authed(&format!("/auth/qr/sessions/{qr_id}/cancel"), "ignored", "{}")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, response) = app
+        .get_authed(&format!("/auth/qr/sessions/{qr_id}"), "ignored")
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["status"], "cancelled");
+}

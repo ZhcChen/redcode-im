@@ -20,6 +20,7 @@ pub mod push;
 pub mod push_logs;
 pub mod push_queue;
 pub mod push_settings;
+pub mod qr_login;
 pub mod report;
 pub mod room;
 pub mod settings;

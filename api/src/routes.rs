@@ -10,7 +10,7 @@ use crate::handlers::{
     feedback, friend, group_announcement, group_management, health, healthz, message,
     message_favorite, message_read, message_search,
     multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
-    upload_policy, user, user_block, version, ws,
+    qr_login, upload_policy, user, user_block, version, ws,
 };
 use crate::AppState;
 
@@ -53,6 +53,15 @@ pub fn create_routes() -> Router<AppState> {
         .route("/api/admin/bootstrap/init", post(auth::bootstrap_admin))
         .route("/auth/admin/login", post(auth::admin_login))
         .route("/auth/admin/refresh", post(auth::admin_refresh_token))
+        .route("/auth/qr/sessions", post(qr_login::create_session))
+        .route(
+            "/auth/qr/sessions/{qr_id}",
+            get(qr_login::get_session),
+        )
+        .route(
+            "/auth/qr/sessions/{qr_id}/cancel",
+            post(qr_login::cancel_session),
+        )
         .route(
             "/settings/privacy-policy",
             get(settings::get_privacy_policy),
@@ -437,6 +446,10 @@ pub fn create_routes() -> Router<AppState> {
         .route(
             "/auth/devices/{device_id}/revoke",
             post(auth_device::revoke_device),
+        )
+        .route(
+            "/auth/qr/sessions/{qr_id}/confirm",
+            post(qr_login::confirm_session),
         )
         .route("/auth/password/reset", post(auth::reset_password_with_sms))
         // E2EE（端到端加密）密钥管理

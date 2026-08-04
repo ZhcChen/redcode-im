@@ -37,6 +37,8 @@ pub struct ConnectionManager {
     connection_rooms: Arc<RwLock<HashMap<String, HashSet<Uuid>>>>,
     // 房间ID -> 订阅用户集合
     room_subscribers: Arc<RwLock<HashMap<Uuid, HashSet<String>>>>,
+    // 扫码登录订阅：qr_id -> conn_id -> 连接信息（允许未认证连接订阅）
+    qr_subscribers: Arc<RwLock<HashMap<Uuid, HashMap<String, ConnectionInfo>>>>,
     // 输入态节流：key = "{conn_id}:{room_id}"
     typing_throttles: Arc<RwLock<HashMap<String, TypingThrottleInfo>>>,
 }
@@ -114,6 +116,7 @@ impl ConnectionManager {
             user_connections: Arc::new(RwLock::new(HashMap::new())),
             connection_rooms: Arc::new(RwLock::new(HashMap::new())),
             room_subscribers: Arc::new(RwLock::new(HashMap::new())),
+            qr_subscribers: Arc::new(RwLock::new(HashMap::new())),
             typing_throttles: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -165,6 +168,12 @@ impl ConnectionManager {
         let mut user_conns = self.user_connections.write().await;
         let mut conn_rooms = self.connection_rooms.write().await;
         let mut room_subs = self.room_subscribers.write().await;
+        let mut qr_subs = self.qr_subscribers.write().await;
+
+        for conns in qr_subs.values_mut() {
+            conns.remove(conn_id);
+        }
+        qr_subs.retain(|_, conns| !conns.is_empty());
 
         // 查找并移除连接；只返回本节点不再有订阅者的房间，供 Redis Hub 取消订阅。
         let mut empty_rooms = Vec::new();
@@ -583,6 +592,70 @@ impl ConnectionManager {
             }
         }
     }
+
+    /// 订阅扫码登录会话（无需认证）。
+    pub async fn subscribe_qr(
+        &self,
+        qr_id: Uuid,
+        conn_id: String,
+        info: ConnectionInfo,
+    ) {
+        let mut qr_subs = self.qr_subscribers.write().await;
+        qr_subs
+            .entry(qr_id)
+            .or_insert_with(HashMap::new)
+            .insert(conn_id, info);
+    }
+
+    /// 向扫码会话订阅连接推送状态（JSON/protobuf 双格式）。
+    pub async fn send_to_qr(&self, qr_id: Uuid, payload: ServerPush) {
+        let qr_subs = self.qr_subscribers.read().await;
+        let Some(conns) = qr_subs.get(&qr_id) else {
+            return;
+        };
+
+        let payload = Arc::new(payload);
+        let mut json_cache: Option<String> = None;
+        let mut proto_cache: Option<Vec<u8>> = None;
+
+        for (conn_id, info) in conns {
+            let send_result = match info.format {
+                ConnectionFormat::Json => {
+                    let text = match &json_cache {
+                        Some(cached) => cached.clone(),
+                        None => {
+                            let encoded = payload.as_ref().to_json_string();
+                            json_cache = Some(encoded);
+                            json_cache.as_ref().unwrap().clone()
+                        }
+                    };
+                    try_send_outbound(
+                        &info.sender,
+                        OutboundFrame::Text(text),
+                        &format!("qr:{qr_id}/conn:{conn_id}"),
+                    )
+                }
+                ConnectionFormat::Protobuf => {
+                    let bytes = match &proto_cache {
+                        Some(cached) => cached.clone(),
+                        None => {
+                            let encoded = payload.as_ref().to_protobuf_bytes();
+                            proto_cache = Some(encoded);
+                            proto_cache.as_ref().unwrap().clone()
+                        }
+                    };
+                    try_send_outbound(
+                        &info.sender,
+                        OutboundFrame::Binary(bytes),
+                        &format!("qr:{qr_id}/conn:{conn_id}"),
+                    )
+                }
+            };
+            if !send_result {
+                tracing::debug!("qr 推送失败 conn={conn_id}");
+            }
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -602,6 +675,9 @@ enum ClientEvent {
         room_id: Uuid,
         #[serde(alias = "isTyping")]
         is_typing: bool,
+    },
+    QrSubscribe {
+        qr_id: Uuid,
     },
 }
 
@@ -626,6 +702,9 @@ impl TryFrom<ws::ClientEvent> for ClientEvent {
                 room_id: Uuid::parse_str(&typing.room_id)
                     .map_err(|_| "invalid room_id".to_string())?,
                 is_typing: typing.is_typing,
+            }),
+            Some(Payload::QrSubscribe(sub)) => Ok(ClientEvent::QrSubscribe {
+                qr_id: Uuid::parse_str(&sub.qr_id).map_err(|_| "invalid qr_id".to_string())?,
             }),
             None => Err("missing payload".to_string()),
         }
@@ -861,6 +940,19 @@ async fn handle_client_event(
     state: &AppState,
 ) -> Result<(), String> {
     match event {
+        ClientEvent::QrSubscribe { qr_id } => {
+            let info = ConnectionInfo {
+                user_id: String::new(),
+                connected_at: chrono::Utc::now(),
+                last_ping: chrono::Utc::now(),
+                format,
+                sender: out_tx.clone(),
+            };
+            connection_manager
+                .subscribe_qr(qr_id, conn_id.to_string(), info)
+                .await;
+            Ok(())
+        }
         ClientEvent::Auth { token } => match auth::verify_token(&token) {
             Ok(claims) => {
                 let user_id = claims.sub.clone();

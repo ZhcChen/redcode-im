@@ -9,6 +9,7 @@ message ClientEvent {
     ClientLeave leave = 3;
     ClientPing ping = 4;
     ClientTyping typing = 5;
+    ClientQrSubscribe qr_subscribe = 6;
   }
 }
 
@@ -29,6 +30,10 @@ message ClientPing {}
 message ClientTyping {
   string room_id = 1;
   bool is_typing = 2;
+}
+
+message ClientQrSubscribe {
+  string qr_id = 1;
 }
 
 message ServerEvent {
@@ -56,6 +61,7 @@ message ServerEvent {
     ServerReactionUpdate reaction_update = 21;
     ServerTypingUpdate typing_update = 22;
     ServerGroupAnnouncementUpdated group_announcement_updated = 23;
+    ServerQrStatusChanged qr_status_changed = 24;
   }
 }
 
@@ -217,6 +223,13 @@ message ServerGroupAnnouncementUpdated {
   string content = 2;
   string updated_by = 3;
   string updated_at = 4;
+}
+
+// 扫码登录状态推送；login_code 仅在 confirmed 时携带且一次性。
+message ServerQrStatusChanged {
+  string qr_id = 1;
+  string status = 2;
+  string login_code = 3;
 }
 
 message ServerRoomUpdated {

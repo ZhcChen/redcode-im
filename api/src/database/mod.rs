@@ -26,6 +26,7 @@ pub mod push_device_store;
 pub mod push_job_store;
 pub mod push_log_store;
 pub mod push_provider_config_store;
+pub mod qr_login_store;
 pub mod report_store;
 pub mod room_store;
 pub mod settings_store;

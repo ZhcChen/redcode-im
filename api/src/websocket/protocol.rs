@@ -153,6 +153,11 @@ pub enum ServerPush {
     TypingUpdate {
         data: crate::redis::models::TypingUpdatePayload,
     },
+    QrStatusChanged {
+        qr_id: Uuid,
+        status: String,
+        login_code: Option<String>,
+    },
     GroupAnnouncementUpdated {
         room_id: Uuid,
         content: Option<String>,
@@ -186,6 +191,7 @@ impl ServerPush {
             ServerPush::FriendProfileUpdated { .. } => "friend_profile_updated",
             ServerPush::ReactionUpdate { .. } => "reaction_update",
             ServerPush::TypingUpdate { .. } => "typing_update",
+            ServerPush::QrStatusChanged { .. } => "qr_status_changed",
             ServerPush::GroupAnnouncementUpdated { .. } => "group_announcement_updated",
         }
     }
@@ -367,6 +373,16 @@ impl ServerPush {
                 "user_id": data.user_id,
                 "is_typing": data.is_typing,
                 "expires_in_ms": data.expires_in_ms,
+            }),
+            ServerPush::QrStatusChanged {
+                qr_id,
+                status,
+                login_code,
+            } => json!({
+                "type": "qr_status_changed",
+                "qr_id": qr_id,
+                "status": status,
+                "login_code": login_code,
             }),
             ServerPush::GroupAnnouncementUpdated {
                 room_id,
@@ -569,6 +585,15 @@ impl ServerPush {
                 user_id: data.user_id.to_string(),
                 is_typing: data.is_typing,
                 expires_in_ms: data.expires_in_ms,
+            }),
+            ServerPush::QrStatusChanged {
+                qr_id,
+                status,
+                login_code,
+            } => Payload::QrStatusChanged(ws::ServerQrStatusChanged {
+                qr_id: qr_id.to_string(),
+                status: status.clone(),
+                login_code: login_code.clone().unwrap_or_default(),
             }),
             ServerPush::GroupAnnouncementUpdated {
                 room_id,
