@@ -252,3 +252,47 @@ fn removed_member_cannot_decrypt_messages_from_the_new_epoch() {
         .process_message(&charlie.provider, as_protocol_message(after_removal),)
         .is_err());
 }
+
+#[test]
+fn out_of_order_commit_recovers_after_the_missing_epoch_is_applied() {
+    let alice = Device::new("alice-device-1");
+    let bob = Device::new("bob-device-1");
+    let charlie = Device::new("charlie-device-1");
+    let dave = Device::new("dave-device-1");
+    let mut alice_group = create_group(&alice, b"redcode-out-of-order-room");
+
+    let (_, bob_welcome) = add_member(&alice, &mut alice_group, &bob);
+    alice_group
+        .merge_pending_commit(&alice.provider)
+        .expect("merge bob add");
+    let mut bob_group = join_group(&bob, bob_welcome);
+
+    let (charlie_commit, _) = add_member(&alice, &mut alice_group, &charlie);
+    alice_group
+        .merge_pending_commit(&alice.provider)
+        .expect("merge charlie add");
+    let (dave_commit, _) = add_member(&alice, &mut alice_group, &dave);
+    let delayed_dave_commit = dave_commit.clone();
+
+    assert!(bob_group
+        .process_message(&bob.provider, as_protocol_message(dave_commit))
+        .is_err());
+
+    merge_commit(&bob, &mut bob_group, charlie_commit);
+    merge_commit(&bob, &mut bob_group, delayed_dave_commit);
+    alice_group
+        .merge_pending_commit(&alice.provider)
+        .expect("merge dave add");
+
+    let recovered_message = alice_group
+        .create_message(
+            &alice.provider,
+            &alice.signer,
+            b"message after commit recovery",
+        )
+        .expect("encrypt after commit recovery");
+    assert_eq!(
+        process_application(&bob, &mut bob_group, recovered_message),
+        b"message after commit recovery"
+    );
+}
