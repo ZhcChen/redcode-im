@@ -34,6 +34,16 @@ pub struct E2eeDeviceRecord {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, FromRow)]
+pub struct E2eeAccountIdentityRecord {
+    pub user_id: Uuid,
+    pub root_public_key: Vec<u8>,
+    pub root_fingerprint: Vec<u8>,
+    pub protocol_version: i16,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NewKeyPackage {
     pub id: Uuid,
@@ -62,6 +72,22 @@ pub struct E2eeMlsStore<'a> {
 impl<'a> E2eeMlsStore<'a> {
     pub fn new(pool: &'a PgPool) -> Self {
         Self { pool }
+    }
+
+    pub async fn get_account_identity(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Option<E2eeAccountIdentityRecord>, AppError> {
+        sqlx::query_as::<_, E2eeAccountIdentityRecord>(
+            "SELECT user_id, root_public_key, root_fingerprint, protocol_version,
+                    created_at, updated_at
+             FROM e2ee_account_identities
+             WHERE user_id = $1",
+        )
+        .bind(user_id)
+        .fetch_optional(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)
     }
 
     pub async fn register_device(

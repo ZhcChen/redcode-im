@@ -16,6 +16,7 @@ use crate::database::e2ee_key_store::{E2eeKeyStore, OneTimePreKeyInsert, SignedP
 use crate::database::e2ee_mls_store::{
     ClaimedKeyPackage, E2eeDeviceRecord, E2eeMlsStore, NewKeyPackage, RegisterDeviceInput,
 };
+use crate::database::friend_store::FriendStore;
 use crate::error::AppError;
 use crate::models::{convert::string_to_uuid, Claims};
 use crate::services::e2ee_envelope::{
@@ -294,6 +295,44 @@ impl From<E2eeDeviceRecord> for MlsDeviceResponse {
             updated_at: value.updated_at,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct MlsAccountIdentityResponse {
+    pub user_id: Uuid,
+    pub root_public_key: String,
+    pub root_fingerprint: String,
+    pub protocol_version: i16,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+pub async fn get_mls_account_identity(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(target_user_id): Path<Uuid>,
+) -> Result<Json<MlsAccountIdentityResponse>, AppError> {
+    let current_user_id = claims_user_id(&claims)?;
+    if current_user_id != target_user_id
+        && !FriendStore::new(state.database.clone())
+            .are_already_friends(current_user_id, target_user_id)
+            .await?
+    {
+        return Err(AppError::NotFound("E2EE 账号根身份不存在".to_string()));
+    }
+
+    let identity = E2eeMlsStore::new(state.database.pool())
+        .get_account_identity(target_user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("E2EE 账号根身份不存在".to_string()))?;
+    Ok(Json(MlsAccountIdentityResponse {
+        user_id: identity.user_id,
+        root_public_key: BASE64_STANDARD.encode(identity.root_public_key),
+        root_fingerprint: BASE64_STANDARD.encode(identity.root_fingerprint),
+        protocol_version: identity.protocol_version,
+        created_at: identity.created_at,
+        updated_at: identity.updated_at,
+    }))
 }
 
 pub async fn register_mls_device(

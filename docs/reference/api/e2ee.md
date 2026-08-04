@@ -32,6 +32,25 @@
 - `GET /e2ee/mls/devices`：查询当前账号全部设备，不返回凭据、根公钥或批准公钥。
 - `DELETE /e2ee/mls/devices/{device_id}`：撤销当前账号设备，并将相关房间标记为需要 rekey。
 
+### 查询账号根身份
+
+`GET /e2ee/mls/identities/{user_id}` 返回账号稳定根身份的公开材料：
+
+```json
+{
+  "user_id": "0198...",
+  "root_public_key": "<base64 1..4096 bytes>",
+  "root_fingerprint": "<base64 16..128 bytes>",
+  "protocol_version": 1,
+  "created_at": "2026-08-04T12:00:00Z",
+  "updated_at": "2026-08-04T12:00:00Z"
+}
+```
+
+只允许查询当前账号自身或已建立好友关系的账号。无权限、目标未初始化 E2EE
+或目标不存在时统一返回 `404`，避免枚举账号身份状态。客户端必须对首次读取执行
+TOFU；后续指纹变化时阻断发送，不得用本响应静默覆盖本地可信记录。
+
 ### 批准新设备
 
 `POST /e2ee/mls/devices/{target_device_id}/approve`

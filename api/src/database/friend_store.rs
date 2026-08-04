@@ -297,7 +297,7 @@ impl FriendStore {
         Ok(friendships)
     }
 
-    async fn are_already_friends(&self, user_a: Uuid, user_b: Uuid) -> Result<bool, AppError> {
+    pub async fn are_already_friends(&self, user_a: Uuid, user_b: Uuid) -> Result<bool, AppError> {
         let (first, second) = sort_user_pair(user_a, user_b);
         let exists: Option<(Uuid,)> = sqlx::query_as(
             "SELECT id FROM friendships WHERE user_a_id = $1 AND user_b_id = $2 LIMIT 1",

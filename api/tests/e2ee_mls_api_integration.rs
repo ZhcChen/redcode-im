@@ -135,6 +135,39 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     .await;
     assert_eq!(bob_device["status"], "active");
 
+    let identity_uri = format!("/e2ee/mls/identities/{}", bob.id);
+    let (status, _) = app.get_authed(&identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (first_user, second_user) = if alice.id < bob.id {
+        (alice.id, bob.id)
+    } else {
+        (bob.id, alice.id)
+    };
+    sqlx::query("INSERT INTO friendships (id, user_a_id, user_b_id) VALUES ($1, $2, $3)")
+        .bind(Uuid::new_v4())
+        .bind(first_user)
+        .bind(second_user)
+        .execute(&app.pool)
+        .await
+        .expect("create friendship");
+    let (status, response) = app.get_authed(&identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    let identity = body_json(&response);
+    assert_eq!(identity["user_id"], bob.id.to_string());
+    assert_eq!(
+        identity["root_public_key"],
+        BASE64_STANDARD.encode([11; 32])
+    );
+    assert_eq!(
+        identity["root_fingerprint"],
+        BASE64_STANDARD.encode([12; 32])
+    );
+    assert_eq!(identity["protocol_version"], 1);
+
+    let self_identity_uri = format!("/e2ee/mls/identities/{}", alice.id);
+    let (status, _) = app.get_authed(&self_identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+
     let package_id = Uuid::new_v4();
     let package_ref = [61; 32];
     let package_body = json!({
