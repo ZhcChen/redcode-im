@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/auth/auth_state.dart';
 import '../../../core/constants/app_config.dart';
+import '../../../core/e2ee/secure_state_storage.dart';
 import '../../../core/network/direct_upload.dart';
 import '../../../core/services/websocket_service.dart';
 import '../../../core/services/message_service.dart';
@@ -22,10 +23,35 @@ import '../models/auth_session.dart';
 import '../models/auth_user.dart';
 
 class AuthRepository {
-  AuthRepository({TokenStorage? storage})
-    : _storage = storage ?? TokenStorage();
+  AuthRepository({
+    TokenStorage? storage,
+    E2eeSecureStateStorage? e2eeStateStorage,
+    Future<void> Function()? clearRuntimeData,
+  }) : _storage = storage ?? TokenStorage(),
+       _e2eeStateStorage = e2eeStateStorage ?? E2eeSecureStateStorage(),
+       _clearRuntimeData = clearRuntimeData;
 
   final TokenStorage _storage;
+  final E2eeSecureStateStorage _e2eeStateStorage;
+  final Future<void> Function()? _clearRuntimeData;
+
+  Future<void> _saveSession(AuthSession session) async {
+    final previous = await _storage.readSession();
+    if (previous != null && previous.user.id != session.user.id) {
+      await _e2eeStateStorage.delete(previous.user.id);
+    }
+    await _storage.saveSession(session);
+  }
+
+  Future<void> _clearSession(AuthSession session) async {
+    await _e2eeStateStorage.delete(session.user.id);
+    await _storage.clear();
+  }
+
+  Future<void> _defaultClearRuntimeData() async {
+    await MessageService.instance.clearAll();
+    FriendStore.instance.clearAll();
+  }
 
   Stream<AuthState> get authStateStream => AuthStateBus.stream;
 
@@ -34,8 +60,7 @@ class AuthRepository {
     try {
       await WebSocketService.instance.disconnect();
     } catch (_) {}
-    await MessageService.instance.clearAll();
-    FriendStore.instance.clearAll();
+    await (_clearRuntimeData?.call() ?? _defaultClearRuntimeData());
     AuthStateBus.emit(AuthState.authenticated);
     unawaited(PushService.instance.registerDevice());
     unawaited(UploadPolicyService.instance.refresh());
@@ -58,7 +83,7 @@ class AuthRepository {
         status: 'active',
       );
       final session = AuthSession(token: 'mock-token', user: user);
-      await _storage.saveSession(session);
+      await _saveSession(session);
       await _bootstrapAfterLogin();
       return session;
     }
@@ -132,7 +157,7 @@ class AuthRepository {
           debugPrint('[Auth] 开始保存 session...');
         }
         try {
-          await _storage.saveSession(session);
+          await _saveSession(session);
           if (kDebugMode) {
             debugPrint('[Auth] Session 保存成功');
           }
@@ -260,7 +285,7 @@ class AuthRepository {
         status: 'active',
       );
       final session = AuthSession(token: 'mock-token', user: user);
-      await _storage.saveSession(session);
+      await _saveSession(session);
       await _bootstrapAfterLogin();
       return session;
     }
@@ -294,7 +319,7 @@ class AuthRepository {
         user: user,
         refreshToken: refreshToken,
       );
-      await _storage.saveSession(session);
+      await _saveSession(session);
       await _bootstrapAfterLogin();
       return session;
     }
@@ -581,7 +606,7 @@ class AuthRepository {
     );
 
     if (response.statusCode == 200) {
-      await _storage.clear();
+      await _clearSession(session);
       AuthStateBus.emit(AuthState.unauthenticated);
       return;
     }
@@ -634,7 +659,7 @@ class AuthRepository {
 
     if (response.statusCode == 401) {
       // 如果 /auth/me 返回 401，且前面刷新也失败，则清理本地会话
-      await _storage.clear();
+      await _clearSession(session);
       AuthStateBus.emit(AuthState.unauthenticated);
       return null;
     }
@@ -643,15 +668,19 @@ class AuthRepository {
   }
 
   Future<void> logout() async {
+    final session = await _storage.readSession();
     try {
       await PushService.instance.unregisterDevice();
       // 断开 WS、清空本地消息/会话与好友状态，避免切换账号出现脏数据
       await WebSocketService.instance.disconnect();
     } catch (_) {}
-    await MessageService.instance.clearAll();
-    FriendStore.instance.clearAll();
+    await (_clearRuntimeData?.call() ?? _defaultClearRuntimeData());
 
-    await _storage.clear();
+    if (session != null) {
+      await _clearSession(session);
+    } else {
+      await _storage.clear();
+    }
     AuthStateBus.emit(AuthState.unauthenticated);
   }
 
@@ -691,7 +720,7 @@ class AuthRepository {
         user: user,
         refreshToken: newRefreshToken,
       );
-      await _storage.saveSession(session);
+      await _saveSession(session);
 
       return user;
     } catch (_) {
