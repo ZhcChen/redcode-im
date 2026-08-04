@@ -85,5 +85,11 @@ pub async fn revoke_device(
             redis::cmd("DEL").arg(&set_key).query_async(&mut conn).await;
     }
 
+    // 断开该设备当前节点的 WebSocket 连接，客户端收到 error 后退出。
+    state
+        .connection_manager
+        .disconnect_device(&user_id.to_string(), &device_id.to_string())
+        .await;
+
     Ok(Json(serde_json::json!({ "success": true })))
 }

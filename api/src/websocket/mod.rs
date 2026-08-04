@@ -18,7 +18,7 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot, RwLock};
+use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot, watch, RwLock};
 use uuid::Uuid;
 
 use crate::{auth, database::room_store::RoomStore, proto::ws, services::geolocation, AppState};
@@ -104,10 +104,13 @@ pub struct ConnectionInfo {
     #[allow(dead_code)]
     pub user_id: String,
     #[allow(dead_code)]
+    pub device_id: Option<String>,
+    #[allow(dead_code)]
     pub connected_at: chrono::DateTime<chrono::Utc>,
     pub last_ping: chrono::DateTime<chrono::Utc>,
     pub format: ConnectionFormat,
     pub sender: mpsc::Sender<OutboundFrame>,
+    shutdown_tx: watch::Sender<()>,
 }
 
 impl ConnectionManager {
@@ -140,14 +143,18 @@ impl ConnectionManager {
         _client_ip: std::net::IpAddr,
         format: ConnectionFormat,
         sender: mpsc::Sender<OutboundFrame>,
+        device_id: Option<String>,
+        shutdown_tx: watch::Sender<()>,
     ) {
         let mut user_conns = self.user_connections.write().await;
         let conn_info = ConnectionInfo {
             user_id: user_id.clone(),
+            device_id,
             connected_at: chrono::Utc::now(),
             last_ping: chrono::Utc::now(),
             format,
             sender,
+            shutdown_tx,
         };
 
         user_conns
@@ -221,6 +228,39 @@ impl ConnectionManager {
 
         info!("连接 {} 已注销，节点空房间: {:?}", conn_id, empty_rooms);
         Some(empty_rooms)
+    }
+
+    /// 撤销设备时断开该设备在当前节点的全部 WebSocket 连接。
+    ///
+    /// 只触发与 `device_id` 匹配的连接退出；连接在收到推送的 error 消息后由
+    /// `handle_socket` 统一清理订阅关系。
+    pub async fn disconnect_device(&self, user_id: &str, device_id: &str) {
+        let conn_ids: Vec<String> = {
+            let user_conns = self.user_connections.read().await;
+            user_conns
+                .get(user_id)
+                .map(|conns| {
+                    conns
+                        .iter()
+                        .filter(|(_, info)| info.device_id.as_deref() == Some(device_id))
+                        .map(|(conn_id, _)| conn_id.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        for conn_id in conn_ids {
+            let shutdown_tx = {
+                let user_conns = self.user_connections.read().await;
+                user_conns
+                    .get(user_id)
+                    .and_then(|conns| conns.get(&conn_id))
+                    .map(|info| info.shutdown_tx.clone())
+            };
+            if let Some(tx) = shutdown_tx {
+                let _ = tx.send(());
+            }
+        }
     }
 
     // 订阅房间
@@ -937,16 +977,19 @@ async fn handle_client_event(
     format: ConnectionFormat,
     connection_manager: Arc<ConnectionManager>,
     out_tx: &mpsc::Sender<OutboundFrame>,
+    shutdown_tx: &watch::Sender<()>,
     state: &AppState,
 ) -> Result<(), String> {
     match event {
         ClientEvent::QrSubscribe { qr_id } => {
             let info = ConnectionInfo {
                 user_id: String::new(),
+                device_id: None,
                 connected_at: chrono::Utc::now(),
                 last_ping: chrono::Utc::now(),
                 format,
                 sender: out_tx.clone(),
+                shutdown_tx: shutdown_tx.clone(),
             };
             connection_manager
                 .subscribe_qr(qr_id, conn_id.to_string(), info)
@@ -963,6 +1006,8 @@ async fn handle_client_event(
                         client_addr.ip(),
                         format,
                         out_tx.clone(),
+                        claims.device_id.clone(),
+                        shutdown_tx.clone(),
                     )
                     .await;
 
@@ -1234,6 +1279,7 @@ pub async fn handle_socket(
 
     let outbound_queue_size = ws_outbound_queue_size_from_env();
     let (out_tx, mut out_rx) = mpsc::channel::<OutboundFrame>(outbound_queue_size);
+    let (shutdown_tx, mut shutdown_rx) = watch::channel(());
 
     let send_task = tokio::spawn(async move {
         while let Some(frame) = out_rx.recv().await {
@@ -1248,52 +1294,14 @@ pub async fn handle_socket(
         }
     });
 
-    while let Some(Ok(msg)) = ws_receiver.next().await {
-        match msg {
-            Message::Text(text) => {
-                info!("WebSocket收到文本消息: {}", text);
-                match serde_json::from_str::<ClientEvent>(&text) {
-                    Ok(event) => {
-                        if let Err(err) = handle_client_event(
-                            event,
-                            &conn_id,
-                            client_addr,
-                            format,
-                            connection_manager.clone(),
-                            &out_tx,
-                            &state,
-                        )
-                        .await
-                        {
-                            try_send_outbound(
-                                &out_tx,
-                                ServerPush::Error {
-                                    message: err.clone(),
-                                }
-                                .encode(format),
-                                &conn_id,
-                            );
-                            error!("处理客户端事件失败: {}", err);
-                        }
-                    }
-                    Err(parse_err) => {
-                        error!("无法解析WebSocket消息: {}，错误: {}", text, parse_err);
-                        let err_text = format!("Parse error: {}", parse_err);
-                        try_send_outbound(
-                            &out_tx,
-                            ServerPush::Error {
-                                message: err_text.clone(),
-                            }
-                            .encode(format),
-                            &conn_id,
-                        );
-                    }
-                }
-            }
-            Message::Binary(data) => {
-                if format == ConnectionFormat::Protobuf {
-                    match ws::ClientEvent::decode(data.as_ref()) {
-                        Ok(pb_event) => match ClientEvent::try_from(pb_event) {
+    loop {
+        tokio::select! {
+            msg = ws_receiver.next() => {
+                let Some(Ok(msg)) = msg else { break; };
+                match msg {
+                    Message::Text(text) => {
+                        info!("WebSocket收到文本消息: {}", text);
+                        match serde_json::from_str::<ClientEvent>(&text) {
                             Ok(event) => {
                                 if let Err(err) = handle_client_event(
                                     event,
@@ -1302,6 +1310,7 @@ pub async fn handle_socket(
                                     format,
                                     connection_manager.clone(),
                                     &out_tx,
+                                    &shutdown_tx,
                                     &state,
                                 )
                                 .await
@@ -1317,55 +1326,110 @@ pub async fn handle_socket(
                                     error!("处理客户端事件失败: {}", err);
                                 }
                             }
-                            Err(err) => {
-                                error!("解析protobuf客户端事件失败: {}", err);
+                            Err(parse_err) => {
+                                error!("无法解析WebSocket消息: {}，错误: {}", text, parse_err);
+                                let err_text = format!("Parse error: {}", parse_err);
                                 try_send_outbound(
                                     &out_tx,
                                     ServerPush::Error {
-                                        message: err.clone(),
+                                        message: err_text.clone(),
                                     }
                                     .encode(format),
                                     &conn_id,
                                 );
                             }
-                        },
-                        Err(decode_err) => {
-                            error!("解码protobuf消息失败: {}", decode_err);
-                            let err_text = format!("protobuf decode error: {}", decode_err);
-                            try_send_outbound(
-                                &out_tx,
-                                ServerPush::Error {
-                                    message: err_text.clone(),
-                                }
-                                .encode(format),
-                                &conn_id,
-                            );
                         }
                     }
-                } else {
-                    let encoded = base64::engine::general_purpose::STANDARD.encode(&data);
-                    let frame = OutboundFrame::Text(
-                        json!({
-                            "type": "binary",
-                            "data": encoded
-                        })
-                        .to_string(),
-                    );
-                    try_send_outbound(&out_tx, frame, &conn_id);
+                    Message::Binary(data) => {
+                        if format == ConnectionFormat::Protobuf {
+                            match ws::ClientEvent::decode(data.as_ref()) {
+                                Ok(pb_event) => match ClientEvent::try_from(pb_event) {
+                                    Ok(event) => {
+                                        if let Err(err) = handle_client_event(
+                                            event,
+                                            &conn_id,
+                                            client_addr,
+                                            format,
+                                            connection_manager.clone(),
+                                            &out_tx,
+                                            &shutdown_tx,
+                                            &state,
+                                        )
+                                        .await
+                                        {
+                                            try_send_outbound(
+                                                &out_tx,
+                                                ServerPush::Error {
+                                                    message: err.clone(),
+                                                }
+                                                .encode(format),
+                                                &conn_id,
+                                            );
+                                            error!("处理客户端事件失败: {}", err);
+                                        }
+                                    }
+                                    Err(err) => {
+                                        error!("解析protobuf客户端事件失败: {}", err);
+                                        try_send_outbound(
+                                            &out_tx,
+                                            ServerPush::Error {
+                                                message: err.clone(),
+                                            }
+                                            .encode(format),
+                                            &conn_id,
+                                        );
+                                    }
+                                },
+                                Err(decode_err) => {
+                                    error!("解码protobuf消息失败: {}", decode_err);
+                                    let err_text = format!("protobuf decode error: {}", decode_err);
+                                    try_send_outbound(
+                                        &out_tx,
+                                        ServerPush::Error {
+                                            message: err_text.clone(),
+                                        }
+                                        .encode(format),
+                                        &conn_id,
+                                    );
+                                }
+                            }
+                        } else {
+                            let encoded = base64::engine::general_purpose::STANDARD.encode(&data);
+                            let frame = OutboundFrame::Text(
+                                json!({
+                                    "type": "binary",
+                                    "data": encoded
+                                })
+                                .to_string(),
+                            );
+                            try_send_outbound(&out_tx, frame, &conn_id);
+                        }
+                    }
+                    Message::Ping(_) => {
+                        connection_manager
+                            .update_ping(&conn_id, client_addr.ip(), &state)
+                            .await;
+                        try_send_outbound(&out_tx, ServerPush::Pong.encode(format), &conn_id);
+                    }
+                    Message::Pong(_) => {
+                        connection_manager
+                            .update_ping(&conn_id, client_addr.ip(), &state)
+                            .await;
+                    }
+                    Message::Close(_) => {
+                        break;
+                    }
                 }
             }
-            Message::Ping(_) => {
-                connection_manager
-                    .update_ping(&conn_id, client_addr.ip(), &state)
-                    .await;
-                try_send_outbound(&out_tx, ServerPush::Pong.encode(format), &conn_id);
-            }
-            Message::Pong(_) => {
-                connection_manager
-                    .update_ping(&conn_id, client_addr.ip(), &state)
-                    .await;
-            }
-            Message::Close(_) => {
+            _ = shutdown_rx.changed() => {
+                try_send_outbound(
+                    &out_tx,
+                    ServerPush::Error {
+                        message: "设备已被撤销，连接即将关闭".to_string(),
+                    }
+                    .encode(format),
+                    &conn_id,
+                );
                 break;
             }
         }
@@ -1515,5 +1579,43 @@ mod tests {
             OutboundFrame::Text("second".to_string()),
             "test"
         ));
+    }
+
+    #[tokio::test]
+    async fn disconnect_device_triggers_only_matching_device_connections() {
+        let manager = Arc::new(ConnectionManager::new());
+        let (tx_a, _rx_a) = mpsc::channel::<OutboundFrame>(8);
+        let (tx_b, _rx_b) = mpsc::channel::<OutboundFrame>(8);
+        let (shutdown_a_tx, shutdown_a_rx) = watch::channel(());
+        let (shutdown_b_tx, shutdown_b_rx) = watch::channel(());
+        let ip = "127.0.0.1".parse().unwrap();
+
+        manager
+            .register_connection(
+                "conn_a".to_string(),
+                "user_1".to_string(),
+                ip,
+                ConnectionFormat::Json,
+                tx_a,
+                Some("device_a".to_string()),
+                shutdown_a_tx,
+            )
+            .await;
+        manager
+            .register_connection(
+                "conn_b".to_string(),
+                "user_1".to_string(),
+                ip,
+                ConnectionFormat::Json,
+                tx_b,
+                Some("device_b".to_string()),
+                shutdown_b_tx,
+            )
+            .await;
+
+        manager.disconnect_device("user_1", "device_a").await;
+
+        assert!(shutdown_a_rx.has_changed().expect("watch 未关闭"));
+        assert!(!shutdown_b_rx.has_changed().expect("watch 未关闭"));
     }
 }
