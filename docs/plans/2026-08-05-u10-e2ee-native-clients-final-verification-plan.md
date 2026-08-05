@@ -10,7 +10,7 @@ execution: code
 status: complete
 current_unit: complete
 completed_at: 2026-08-05
-next_plan: docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md
+next_plan: docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md
 ---
 
 # test: U10 E2EE 原生客户端最终验证与裁决计划
@@ -21,7 +21,7 @@ next_plan: docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md
 主链接入与 Android/iOS/H5 三端 E2EE live 缺失）已关闭。
 
 生产 E2EE 仍为 **No-Go**。后续唯一 active 入口为
-`docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`，只处理 U7
+`docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`，只处理 U7
 剩余三个 P0；不得从本文恢复 N1-N7、A1-A4 或 R1-R4。
 
 ## 2. 已完成范围

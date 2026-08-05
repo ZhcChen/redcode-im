@@ -123,4 +123,4 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
   窗口，演练后回滚 `plaintext`。
 - 后续 Gate 重开条件：剩余 P0 三项全部关闭并出具复核报告。
 - 后续唯一执行入口：
-  `docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`。
+  `docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`。

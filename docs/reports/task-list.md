@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 生产发布收口（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`
+- E2EE 发布就绪主计划（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
@@ -73,7 +73,7 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件、泄漏扫描及最终全量门禁
     已完成，U7 P0-1 已关闭。
   - 当前只剩三个生产 P0：备份恢复/灰度回滚演练、CI 漏洞与许可证门禁、H5

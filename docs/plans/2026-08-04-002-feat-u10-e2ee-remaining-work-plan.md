@@ -8,14 +8,14 @@ product_contract_source: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-pl
 execution: code
 absorbed_from: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 status: superseded
-superseded_by: docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md
+superseded_by: docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md
 ---
 
 # feat: U10 E2EE 剩余工作执行计划
 
 > 本计划保留 U10 服务端契约、完整范围与 Go/No-Go 约束，不再维护执行进度。
 > 当前唯一 active 执行入口为
-> `docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`；只有发现
+> `docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`；只有发现
 > 服务端契约缺口时才回查本文，禁止从本文恢复旧实施顺序。
 
 ## Goal Capsule
