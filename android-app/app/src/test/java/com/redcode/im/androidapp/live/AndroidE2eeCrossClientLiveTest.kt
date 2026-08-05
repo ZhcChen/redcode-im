@@ -6,6 +6,7 @@ import com.redcode.im.androidapp.e2ee.E2eeCommandClient
 import com.redcode.im.androidapp.e2ee.E2eeCommandSessionCore
 import com.redcode.im.androidapp.e2ee.E2eeDeviceLifecycle
 import com.redcode.im.androidapp.e2ee.E2eeDirectMessageCoordinator
+import com.redcode.im.androidapp.e2ee.E2eeDirectMessageException
 import com.redcode.im.androidapp.e2ee.E2eeIncomingMessage
 import com.redcode.im.androidapp.e2ee.E2eeMessageSource
 import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
@@ -29,6 +30,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import kotlin.time.Duration.Companion.seconds
@@ -153,7 +155,63 @@ class AndroidE2eeCrossClientLiveTest {
                 fixture.token,
             )
         assertEquals(fixture.h5Marker, decrypted.text)
-        coordination.publish("android-native-received", mapOf("message_id" to iosMessageId))
+        coordination.publish("android-first-received", mapOf("message_id" to iosMessageId))
+
+        val restarted = client.restartCoordinator()
+        val duplicate =
+            runCatching {
+                restarted.decryptIncoming(
+                    fixture.accountId,
+                    "Android E2EE live",
+                    E2eeIncomingMessage(
+                        iosMessageId,
+                        fixture.roomId,
+                        ciphertext,
+                        source = E2eeMessageSource.WebSocket,
+                    ),
+                    fixture.token,
+                )
+            }.exceptionOrNull()
+        assertTrue(duplicate is E2eeDirectMessageException)
+
+        val tamperedCiphertext = ciphertext.copyOf().also { bytes ->
+            bytes[bytes.lastIndex] = bytes.last().toInt().xor(0x01).toByte()
+        }
+        val corrupted =
+            runCatching {
+                restarted.decryptIncoming(
+                    fixture.accountId,
+                    "Android E2EE live",
+                    E2eeIncomingMessage(
+                        "$iosMessageId-corrupted",
+                        fixture.roomId,
+                        tamperedCiphertext,
+                        source = E2eeMessageSource.History,
+                    ),
+                    fixture.token,
+                )
+            }.exceptionOrNull()
+        assertTrue(corrupted is E2eeDirectMessageException)
+        coordination.publish("android-restart-ready", emptyMap())
+
+        val afterRestartMessageId = coordination.waitFor("ios-after-restart-sent").getValue("message_id")
+        val afterRestartEncrypted =
+            client.chat.loadMessages(fixture.roomId, fixture.token, limit = 50)
+                .first { it.id == afterRestartMessageId }
+        val afterRestartDecrypted =
+            restarted.decryptIncoming(
+                fixture.accountId,
+                "Android E2EE live",
+                E2eeIncomingMessage(
+                    afterRestartMessageId,
+                    fixture.roomId,
+                    Base64.getDecoder().decode(requireNotNull(afterRestartEncrypted.encryptedContent)),
+                    source = E2eeMessageSource.History,
+                ),
+                fixture.token,
+            )
+        assertEquals(fixture.iosRestartMarker, afterRestartDecrypted.text)
+        coordination.publish("android-native-received", mapOf("message_id" to afterRestartMessageId))
     }
 }
 
@@ -175,6 +233,16 @@ private class LiveE2eeClient(fixture: CoordinationFixture) {
     val lifecycle = E2eeDeviceLifecycle(storage, mlsApi, core)
     val coordinator = E2eeDirectMessageCoordinator(storage, lifecycle, mlsApi, E2eeCommandSessionCore(core))
     val chat = HttpChatRemoteDataSource(apiClient)
+
+    fun restartCoordinator(): E2eeDirectMessageCoordinator {
+        val restartedLifecycle = E2eeDeviceLifecycle(storage, mlsApi, core)
+        return E2eeDirectMessageCoordinator(
+            storage,
+            restartedLifecycle,
+            mlsApi,
+            E2eeCommandSessionCore(core),
+        )
+    }
 }
 
 @Serializable
@@ -185,6 +253,7 @@ private data class CoordinationFixture(
     val room_id: String,
     val android_marker: String,
     val h5_marker: String,
+    val ios_restart_marker: String = "",
     val api_base_url: String,
 ) {
     val accountId get() = account_id
@@ -192,6 +261,7 @@ private data class CoordinationFixture(
     val roomId get() = room_id
     val androidMarker get() = android_marker
     val h5Marker get() = h5_marker
+    val iosRestartMarker get() = ios_restart_marker
     val apiBaseUrl get() = api_base_url
 }
 

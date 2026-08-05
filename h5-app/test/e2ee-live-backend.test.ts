@@ -385,6 +385,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     const androidMarker = `u5-android-${crypto.randomUUID()}`;
     const iosMarker = `u5-ios-${crypto.randomUUID()}`;
+    const iosRestartMarker = `u5-ios-restart-${crypto.randomUUID()}`;
     const coordination = await createCoordinationServer({
       token: androidAlice.token,
       account_id: androidAlice.user.id,
@@ -397,6 +398,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       ios_account_id: iosBob.user.id,
       android_account_id: androidAlice.user.id,
       ios_marker: iosMarker,
+      ios_restart_marker: iosRestartMarker,
     });
     onTestFinished(() => coordination.close());
     const ios = spawnIOSClient(
@@ -433,7 +435,8 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     const serialized = JSON.stringify(rawHistory);
     expect(serialized).not.toContain(androidMarker);
     expect(serialized).not.toContain(iosMarker);
-    expect(rawHistory.filter((message) => typeof message.encrypted_content === 'string')).toHaveLength(2);
+    expect(serialized).not.toContain(iosRestartMarker);
+    expect(rawHistory.filter((message) => typeof message.encrypted_content === 'string')).toHaveLength(3);
   }, 90_000);
 
   it('establishes consecutive new private rooms and recovers after key package top-up', async () => {

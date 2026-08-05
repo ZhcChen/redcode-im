@@ -124,8 +124,21 @@ final class IOSE2eeCrossClientLiveTests: XCTestCase {
             token: iosToken
         )
         try await coordination.publish("ios-to-android-sent", payload: ["message_id": iosMessageID])
+        let firstReceived = try await coordination.waitFor("android-first-received")["message_id"].required("message_id")
+        XCTAssertEqual(firstReceived, iosMessageID)
+
+        _ = try await coordination.waitFor("android-restart-ready")
+        let afterRestartMessageID = try await client.coordinator.sendText(
+            accountID: iosAccountID,
+            deviceLabel: "iOS E2EE live",
+            roomID: fixture.roomID,
+            peerUserID: androidAccountID,
+            text: try fixture.iosRestartMarker.required("ios_restart_marker"),
+            token: iosToken
+        )
+        try await coordination.publish("ios-after-restart-sent", payload: ["message_id": afterRestartMessageID])
         let received = try await coordination.waitFor("android-native-received")["message_id"].required("message_id")
-        XCTAssertEqual(received, iosMessageID)
+        XCTAssertEqual(received, afterRestartMessageID)
     }
 
     private func makeClient(fixture: CoordinationFixture) throws -> LiveE2eeClient {
@@ -167,6 +180,7 @@ private struct CoordinationFixture: Decodable, Sendable {
     let iosAccountID: String?
     let androidAccountID: String?
     let androidMarker: String?
+    let iosRestartMarker: String?
 
     enum CodingKeys: String, CodingKey {
         case token
@@ -180,6 +194,7 @@ private struct CoordinationFixture: Decodable, Sendable {
         case iosAccountID = "ios_account_id"
         case androidAccountID = "android_account_id"
         case androidMarker = "android_marker"
+        case iosRestartMarker = "ios_restart_marker"
     }
 }
 
