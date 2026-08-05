@@ -29,9 +29,11 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E2.1`。E1 最终 run `e1full20260806h`
-  已通过 restore full suite、snapshot、DB/Redis/log/RustFS 边界与退出清理；现在
-  对同一候选执行 correctness/security/reliability/testing 四视角独立复核。
+- 当前立即任务：唯一 checkpoint 为 `E1.2`。E1.1 run `e1full20260806h` 已通过
+  restore full suite、snapshot、首轮边界与退出清理，但 E2 首轮四视角复核发现
+  P1 并重新打开 E1。当前先整改完整行摘要、全窗口观测、逐消息/附件实体绑定、
+  bytea 扫描和精确 Redis PUBLISH 证明；重放、提交并推送后再以四个全新上下文
+  重启 E2，旧复核结论不得复用为通过证据。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
   E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
   E6 四视角重审 -> E7 全量与 live 重放` 串行执行。

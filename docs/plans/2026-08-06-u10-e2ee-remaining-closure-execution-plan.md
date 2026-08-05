@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E2
-current_checkpoint: E2.1
+current_unit: E1
+current_checkpoint: E1.2
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E2.1`，在已推送 E1 候选上执行 correctness、security、reliability、testing 四视角独立复核。
+- **唯一恢复点：** `E1.2`，整改 E2 首轮独立复核发现的恢复边界证据缺口；整改、重放、提交并推送后重新进入 E2，旧复核结论不得复用为通过证据。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -73,10 +73,28 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | U4.1 隔离 restore 基础设施 | complete | `31b13d37`、`fe954a77`、`df85231b` |
 | U4.2 恢复窗口切换 | complete | `3f83bdc9`；run `u4restore3f83bdc9` |
 | 进度文档同步 | complete | `1f2f7bb8` |
+| E1.1 首轮 restore 实现与重放 | implemented, review-reopened | `d420aa51`；run `e1full20260806h` |
+| E2 首轮四视角复核 | failed | P0=0；存在去重后 9 项 P1/P2 finding，已退回 E1.2 |
 
-### E1 Closed Evidence
+### Execution Console
 
-E1 已完成实现、定向测试和真实 restore full-suite 重放，涉及：
+本文是 U10 E2EE 剩余工作的唯一状态入口。历史 plan、review 和 task list 不得用
+旧 checkpoint 覆盖本表。
+
+| Unit | Status | Exit / rollback condition |
+| --- | --- | --- |
+| E1.1 首轮 restore 数据边界 | review-reopened | 实现和 live run 已推送，但 E2 finding 未清零，不能视为 closed |
+| E1.2 复核 finding 整改 | in_progress | 9 项 finding 完成定向测试、真实窗口重放、review、commit、push |
+| E2 Restore 独立复核 | blocked_by_E1.2 | 使用 4 个全新独立上下文复核同一新 HEAD，P0=0、P1=0 |
+| E3 H5 production Chrome 审计 | pending | E2 通过后开始 |
+| E4 持久脱敏证据 | pending | E3 通过后开始 |
+| E5 真实 release workflow | pending | E4 通过后开始 |
+| E6 最终四视角重审 | pending | E5 通过后开始 |
+| E7 全量重放与最终裁决 | pending | E6 为 P0=0、P1=0 后开始 |
+
+### E1.1 Verified But Reopened Evidence
+
+E1.1 已完成实现、定向测试和真实 restore full-suite 重放，涉及：
 
 - `scripts/e2ee-restore-live-window.sh`
 - `deploy/im-test-1/e2ee-restore-control.sh`
@@ -96,6 +114,35 @@ ciphertext/marker-free；Push 明确记录 `not-observed-live`。结束后 conta
 owner、artifact、MONITOR、tunnel 和 `18010` 全部清零，旧主保持
 `persist/plaintext`。详细证据见
 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
+
+这些结果证明首轮功能链和清理链可运行，但不关闭 E1。E2 首轮独立复核发现证据
+归属、扫描覆盖与观测时序仍不足，因此 E1 状态为 `review-reopened`。
+
+### E2 First Review Findings
+
+四视角首轮结果：correctness `P0=0/P1=3`、security `P0=0/P1=2`、
+reliability `P0=0/P1=2`、testing `P0=0/P1=3/P2=1`。去重后的整改合同为：
+
+1. snapshot digest 必须覆盖关键表完整持久行，不能遗漏身份、状态、有效期、回执时间或附件租约字段。
+2. Redis MONITOR 与 API log 观测必须覆盖恢复连续性阶段，不得在关键流量之后才启动。
+3. evidence 必须逐条绑定 scenario、room、message、marker 和 attachment object，禁止拼接无关实体。
+4. control envelope 必须扫描原始 `bytea`，不能先 hex 后用 ASCII marker 搜索。
+5. `messages.encrypted_content` 必须按原始 `bytea` 扫描明文 marker。
+6. Redis 必须证明精确 `PUBLISH room:<uuid>`，SUBSCRIBE 或普通 payload 中出现 room id 不得冒充发布证据。
+7. 每个 marker 必须有对应 message/object 的逐实体 proof，并验证 message-room、object-message-room 归属。
+8. 顶层必须校验 boundary report 的 run id，Push 结果只允许合同枚举值。
+9. source isolation 不能只依赖瞬时连接快照；在 E1.2 评估并补充覆盖完整窗口的证据或明确可验证替代门禁。
+
+### E1.2 Work In Progress
+
+当前未提交实现严格限定在以下文件，不视为完成证据：
+
+- `h5-app/test/e2ee-live-backend.test.ts`：evidence 改为逐消息 `message_proofs`，增加 `restore-continuity` scenario。
+- `scripts/e2ee-restore-live-window.sh`：提前启动 MONITOR，合并四个 scenario，增加 boundary run id 与 Push 枚举校验。
+- `deploy/im-test-1/e2ee-restore-snapshot.sql`：关键表改为完整行摘要。
+
+下一闭环必须继续修改 scanner 和对应测试，完成后再执行本地门禁与真实 restore
+窗口。禁止在 E1.2 未提交、未推送或未重放时提前启动第二轮 E2。
 
 ### Key Technical Decisions
 
@@ -128,8 +175,8 @@ flowchart TB
 - **Goal:** 关闭独立恢复实例的数据完整性、真实客户端行为和外围泄漏边界。
 - **Requirements:** R1、R2；覆盖 AE1、AE2。
 - **Files:** 当前 worktree boundary 中的 8 个脚本、SQL 与测试文件；完成后更新 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
-- **Approach:** 先修正 Redis MONITOR 采集时序或过滤逻辑，使每个 evidence room 都有可归属的真实流量；随后使用固定候选镜像 `redcode-im-api:g1-74d1231e` 和 JDK21 重跑同一隔离窗口。scanner 必须验证 DB ciphertext-only、Redis marker-free、API log marker-free、Push 明确结果，以及 RustFS object ciphertext-only 与 SHA-256。
-- **Test Scenarios:** MONITOR ready 但无 room 流量失败；任一 room 缺流量失败；snapshot 漂移失败；scanner 任一边界发现 marker 失败；全套场景成功；任一失败和信号路径资源清零。
+- **Approach:** E1.1 已形成首轮实现；E1.2 按上方 9 项 finding 收紧完整行 snapshot、全窗口观测、逐实体 proof 和原始 bytea 扫描。随后使用固定候选镜像 `redcode-im-api:g1-74d1231e` 和 JDK21 重跑同一隔离窗口。scanner 必须验证 DB ciphertext-only、精确 Redis PUBLISH、API log marker-free、Push 明确枚举结果，以及 RustFS object ciphertext-only、实体归属与 SHA-256。
+- **Test Scenarios:** 四个 scenario 与逐消息 proof；message-room/object-room 错配；重复 ID/room/marker；control envelope 与 encrypted_content marker；仅 SUBSCRIBE/普通 payload 含 room id；MONITOR ready 但无精确 PUBLISH；snapshot 漂移；boundary run id/Push 非法；任一失败和信号路径资源清零。
 - **Verification:** `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live.test e2ee.cross-client.isolated.test`；`cd h5-app && bun run type-check`；真实 full-suite run；远端旧主与临时资源终验。
 - **Exit:** boundary report 完整通过、review 更新、最小 commit 已 push，checkpoint 才能进入 E2。
 
@@ -138,7 +185,7 @@ flowchart TB
 - **Goal:** 由独立上下文确认 E1 没有用测试编排掩盖真实性、权限、可靠性或覆盖缺口。
 - **Requirements:** R1、R2、R6。
 - **Files:** E1 diff、E1 review、`docs/reviews/` 下新增 restore 复核记录。
-- **Approach:** 分别执行 correctness、security、reliability、testing 四视角审查，发现 P0/P1 则回到 E1；不得用当前实现上下文冒充独立审查。
+- **Approach:** 首轮复核已发现 P1 并退回 E1.2。整改闭环推送后，必须新建四个独立上下文分别执行 correctness、security、reliability、testing 审查；旧 reviewer 结论和当前实现上下文不得复用为通过证据。发现 P0/P1 再次回到最早受影响单元。
 - **Test Scenarios:** cleanup 中断、错误 source、伪造 marker、空 evidence、重复帧、损坏 snapshot、敏感值进入报告。
 - **Verification:** 四份结论均为 `P0=0、P1=0`，工作区和远端环境干净。
 
@@ -236,17 +283,17 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E2 |
-| Active checkpoint | E2.1 correctness/security/reliability/testing 独立复核 |
-| Worktree | E1 最小闭环随本进度更新提交；E2 不提前修改 E3 代码 |
+| Active unit | E1 |
+| Active checkpoint | E1.2 首轮 E2 finding 整改 |
+| Worktree | 3 个 E1.2 在制文件；scanner、测试和文档尚待补齐 |
 | Latest full run | `e1full20260806h` |
 | Functional result | `6 passed | 1 skipped` |
-| Snapshot result | candidate/restore digest 一致 |
-| Boundary result | DB/Redis/log/RustFS 通过；Push `not-observed-live` |
+| Snapshot result | 首轮 candidate/restore digest 一致；完整行摘要整改后待重放 |
+| Boundary result | 首轮通过但 E2 复核重新打开；逐实体和全窗口证据待重放 |
 | Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 在同一 E1 候选 commit 上执行 E2 四视角独立复核 |
+| Next action | 完成 boundary scanner 与测试整改，跑本地门禁和新真实窗口，提交推送后重启 E2 |
 
 ### Historical Mapping
 
