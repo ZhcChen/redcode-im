@@ -1,20 +1,38 @@
 import Foundation
 
+public protocol E2eeDeviceApprovalSigning: Sendable {
+    func signDeviceApproval(state: Data, payload: Data) throws -> E2eeCommandResult
+}
+
+extension E2eeCommandClient: E2eeDeviceApprovalSigning {}
+
 public actor E2eeDeviceManager {
     private let storage: any E2eeDeviceStateStorage
     private let api: any E2eeMLSApi
-    private let core: E2eeCommandClient
+    private let signer: any E2eeDeviceApprovalSigning
 
-    public init(storage: any E2eeDeviceStateStorage, api: any E2eeMLSApi, core: E2eeCommandClient = E2eeCommandClient()) {
-        self.storage = storage; self.api = api; self.core = core
+    public init(
+        storage: any E2eeDeviceStateStorage,
+        api: any E2eeMLSApi,
+        signer: any E2eeDeviceApprovalSigning = E2eeCommandClient()
+    ) {
+        self.storage = storage
+        self.api = api
+        self.signer = signer
+    }
+
+    public func listDevices(token: String) async throws -> [E2eeDeviceInfo] {
+        try await api.listDevices(token: token)
     }
 
     public func approveDevice(accountID: String, target: E2eeDeviceInfo, token: String) async throws -> E2eeDeviceInfo {
         guard let profile = try await storage.readProfile(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 设备档案缺失") }
         guard profile.deviceStatus == "active" else { throw E2eeDirectMessageError("待批准或已撤销设备不能批准其他设备") }
-        guard let state = try await storage.readState(accountID: accountID), let fingerprint = Data(base64Encoded: target.credentialFingerprint) else { throw E2eeDirectMessageError("E2EE 设备状态或指纹无效") }
+        guard let state = try await storage.readState(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 设备状态缺失") }
+        guard let fingerprint = Data(base64Encoded: target.credentialFingerprint) else { throw E2eeDirectMessageError("E2EE 设备指纹格式无效") }
+        guard target.protocolVersion == 1, fingerprint.count == 32 else { throw E2eeDirectMessageError("E2EE 设备协议或指纹无效") }
         let payload = try deviceApprovalPayload(userID: accountID, approverDeviceID: profile.deviceId, targetDeviceID: target.id, protocolVersion: target.protocolVersion, credentialFingerprint: fingerprint)
-        let signature = try core.signDeviceApproval(state: state, payload: payload).field(0)
+        let signature = try signer.signDeviceApproval(state: state, payload: payload).field(0)
         return try await api.approveDevice(targetDeviceID: target.id, approverDeviceID: profile.deviceId, signature: signature, token: token)
     }
 

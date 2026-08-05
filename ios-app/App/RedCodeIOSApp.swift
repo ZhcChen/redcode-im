@@ -37,6 +37,7 @@ final class AppDependencies {
     private let outgoingTextRouter: any OutgoingTextMessageRouting
     private let attachmentRouter: any AttachmentMessageRouting
     private let e2eeRoomEventHandler: any E2eeRoomEventHandling
+    private let e2eeDeviceManager: E2eeDeviceManager
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
     private let emojiCache = EmojiFileCache()
@@ -115,6 +116,7 @@ final class AppDependencies {
             lifecycle: e2eeDevices,
             api: e2eeMLSAPI
         )
+        self.e2eeDeviceManager = E2eeDeviceManager(storage: e2eeSecureState, api: e2eeMLSAPI)
         let e2eeRoomEventHandler = E2eeRoomEventCoordinator(
             sessionStatus: self.e2eeSessionLifecycle,
             currentSession: { [weak authController] in authController?.session },
@@ -264,6 +266,20 @@ final class AppDependencies {
             authController: authController,
             api: settingsAPIService,
             configStore: appConfigStore
+        )
+    }
+
+    func makeE2eeDeviceManagementController() -> E2eeDeviceManagementController {
+        E2eeDeviceManagementController(
+            currentSession: { [weak authController] in authController?.session },
+            deviceManager: e2eeDeviceManager,
+            lifecycle: e2eeSessionLifecycle,
+            roomIDs: { [weak chatListController] token in
+                guard let chatListController else { return [] }
+                try await chatListController.refreshChats(token: token)
+                return chatListController.chats.map(\.roomID)
+            },
+            roomEventHandler: e2eeRoomEventHandler
         )
     }
 

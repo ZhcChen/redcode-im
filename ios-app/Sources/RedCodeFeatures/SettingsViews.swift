@@ -1,4 +1,5 @@
 import SwiftUI
+import RedCodeCore
 import RedCodeNetworking
 
 public struct SettingsHomeView: View {
@@ -6,6 +7,7 @@ public struct SettingsHomeView: View {
     @StateObject private var settingsController: SettingsController
     private let makeChatSettingsController: () -> ChatSettingsController
     private let makeEmojiStickerController: () -> EmojiStickerController
+    private let makeE2eeDeviceManagementController: () -> E2eeDeviceManagementController
     private let onLogout: () async -> Void
 
     @State private var showLogoutConfirmation = false
@@ -15,12 +17,14 @@ public struct SettingsHomeView: View {
         settingsController: SettingsController,
         makeChatSettingsController: @escaping () -> ChatSettingsController,
         makeEmojiStickerController: @escaping () -> EmojiStickerController,
+        makeE2eeDeviceManagementController: @escaping () -> E2eeDeviceManagementController,
         onLogout: @escaping () async -> Void = {}
     ) {
         _authController = ObservedObject(wrappedValue: authController)
         _settingsController = StateObject(wrappedValue: settingsController)
         self.makeChatSettingsController = makeChatSettingsController
         self.makeEmojiStickerController = makeEmojiStickerController
+        self.makeE2eeDeviceManagementController = makeE2eeDeviceManagementController
         self.onLogout = onLogout
     }
 
@@ -70,7 +74,10 @@ public struct SettingsHomeView: View {
             }
 
             NavigationLink("账号与安全") {
-                AccountSecuritySettingsView(controller: settingsController)
+                AccountSecuritySettingsView(
+                    controller: settingsController,
+                    e2eeController: makeE2eeDeviceManagementController()
+                )
             }
         } header: {
             Text("当前账号")
@@ -216,6 +223,7 @@ public struct ProfileSettingsView: View {
 
 public struct AccountSecuritySettingsView: View {
     @StateObject private var controller: SettingsController
+    @StateObject private var e2eeController: E2eeDeviceManagementController
     @State private var oldPassword = ""
     @State private var newPassword = ""
     @State private var confirmPassword = ""
@@ -224,9 +232,11 @@ public struct AccountSecuritySettingsView: View {
     @State private var resetNewPassword = ""
     @State private var resetConfirmPassword = ""
     @State private var localError: String?
+    @State private var pendingRevocation: E2eeDeviceInfo?
 
-    public init(controller: SettingsController) {
+    public init(controller: SettingsController, e2eeController: E2eeDeviceManagementController) {
         _controller = StateObject(wrappedValue: controller)
+        _e2eeController = StateObject(wrappedValue: e2eeController)
     }
 
     public var body: some View {
@@ -259,6 +269,8 @@ public struct AccountSecuritySettingsView: View {
             } footer: {
                 Text("该接口需已登录，且账号需等于当前登录账号；本地测试可使用后台通用验证码。")
             }
+
+            e2eeDeviceSection
 
             if let localError {
                 Section {
@@ -308,6 +320,59 @@ public struct AccountSecuritySettingsView: View {
                 resetPhone = controller.user?.username ?? ""
             }
         }
+        .task {
+            await e2eeController.refresh()
+        }
+        .confirmationDialog(
+            "撤销此加密设备？",
+            isPresented: Binding(
+                get: { pendingRevocation != nil },
+                set: { if !$0 { pendingRevocation = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("撤销设备", role: .destructive) {
+                guard let device = pendingRevocation else { return }
+                pendingRevocation = nil
+                Task { await e2eeController.revoke(device) }
+            }
+            Button("取消", role: .cancel) {
+                pendingRevocation = nil
+            }
+        } message: {
+            Text("撤销后该设备不能读取新的加密消息。")
+        }
+    }
+
+    @ViewBuilder
+    private var e2eeDeviceSection: some View {
+        Section("端到端加密设备") {
+            if !e2eeController.isE2eeRuntime {
+                Label("当前未启用端到端加密", systemImage: "lock.open")
+                    .foregroundStyle(.secondary)
+            } else if e2eeController.isLoading && e2eeController.devices.isEmpty {
+                HStack {
+                    ProgressView()
+                    Text("正在加载设备")
+                }
+            } else if e2eeController.devices.isEmpty {
+                Text("暂无加密设备").foregroundStyle(.secondary)
+            } else {
+                ForEach(e2eeController.devices, id: \.id) { device in
+                    E2eeDeviceRow(
+                        device: device,
+                        isCurrent: device.id == e2eeController.currentDeviceID,
+                        isOperating: device.id == e2eeController.operatingDeviceID,
+                        isDisabled: e2eeController.operatingDeviceID != nil,
+                        onApprove: { Task { await e2eeController.approve(device) } },
+                        onRevoke: { pendingRevocation = device }
+                    )
+                }
+            }
+            if let error = e2eeController.errorMessage {
+                Text(error).foregroundStyle(.red)
+            }
+        }
     }
 
     private func submitPasswordChange() {
@@ -354,6 +419,62 @@ public struct AccountSecuritySettingsView: View {
             } catch {
                 localError = error.localizedDescription
             }
+        }
+    }
+}
+
+private struct E2eeDeviceRow: View {
+    let device: E2eeDeviceInfo
+    let isCurrent: Bool
+    let isOperating: Bool
+    let isDisabled: Bool
+    let onApprove: () -> Void
+    let onRevoke: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: deviceIcon)
+                .font(.title3)
+                .frame(width: 28)
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(device.deviceLabel.isEmpty ? "未命名设备" : device.deviceLabel)
+                    if isCurrent {
+                        Text("当前设备")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(statusText)
+                    .font(.caption)
+                    .foregroundStyle(device.status == "revoked" ? .red : .secondary)
+            }
+            Spacer()
+            if isOperating {
+                ProgressView()
+            } else if device.status == "pending_approval" {
+                Button("批准", action: onApprove)
+                    .disabled(isDisabled)
+            } else if device.status == "active" && !isCurrent {
+                Button("撤销", role: .destructive, action: onRevoke)
+                    .disabled(isDisabled)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var deviceIcon: String {
+        let label = device.deviceLabel.lowercased()
+        return label.contains("ipad") ? "ipad" : "iphone"
+    }
+
+    private var statusText: String {
+        switch device.status {
+        case "pending_approval": "等待批准"
+        case "active": "已批准"
+        case "revoked": "已撤销"
+        default: device.status.isEmpty ? "状态未知" : device.status
         }
     }
 }

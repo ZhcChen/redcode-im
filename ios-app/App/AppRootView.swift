@@ -128,6 +128,7 @@ private struct MainTabView: View {
                     settingsController: dependencies.makeSettingsController(),
                     makeChatSettingsController: dependencies.makeChatSettingsController,
                     makeEmojiStickerController: dependencies.makeEmojiStickerController,
+                    makeE2eeDeviceManagementController: dependencies.makeE2eeDeviceManagementController,
                     onLogout: dependencies.logoutAndClearLocalState
                 )
             }
