@@ -25,6 +25,7 @@ function run(
       H5_RELEASE_TEST_MODE: "true",
       H5_RELEASE_API_BASE_URL: api,
       H5_RELEASE_WS_URL: ws,
+      H5_RELEASE_BASE_PATH: "/",
       ...extraEnv,
     },
   });
@@ -107,6 +108,34 @@ await scenario(
     });
     if (result.status !== 0 || !result.stdout.includes("verified 9 headers")) {
       throw new Error(`candidate HTTP headers failed\n${result.stderr}`);
+    }
+  },
+  "pass",
+);
+await scenario(
+  "valid path-prefixed candidate",
+  async (dist) => {
+    await writeFile(
+      resolve(dist, "index.html"),
+      "<!doctype html><script src='/h5-candidate/assets/app.js'></script>\n",
+    );
+    const finalized = run("finalize", dist, {
+      H5_RELEASE_BASE_PATH: "/h5-candidate/",
+    });
+    if (finalized.status !== 0) {
+      throw new Error(`path-prefixed finalize failed\n${finalized.stderr}`);
+    }
+    const result = spawnSync("bun", [httpCheckScript, dist], {
+      cwd: h5,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        H5_RELEASE_ATTESTATION_PATH: `${dist}.attestation.json`,
+        H5_RELEASE_TEST_MODE: "true",
+      },
+    });
+    if (result.status !== 0 || !result.stdout.includes("verified 9 headers")) {
+      throw new Error(`path-prefixed HTTP checks failed\n${result.stderr}`);
     }
   },
   "pass",
@@ -231,6 +260,18 @@ await scenario(
   "built JavaScript does not bind",
 );
 await scenario(
+  "base path differs from built index",
+  async (dist) => {
+    const manifestPath = resolve(dist, "release-manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.base_path = "/h5-candidate/";
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    await refreshAttestation(dist);
+  },
+  "fail",
+  "built index does not bind",
+);
+await scenario(
   "resource and manifest synchronously tampered",
   async (dist) => {
     const assetPath = resolve(dist, "assets/app.js");
@@ -315,6 +356,11 @@ await finalizeFailure(
   "insecure WebSocket",
   { H5_RELEASE_WS_URL: "ws://api.release.invalid/ws" },
   "ws URL must use wss:",
+);
+await finalizeFailure(
+  "invalid release base path",
+  { H5_RELEASE_BASE_PATH: "h5-candidate" },
+  "release base path must be an absolute path ending in /",
 );
 
 const escaped = run("check", "../outside-release");

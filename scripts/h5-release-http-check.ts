@@ -11,6 +11,7 @@ const expected = JSON.parse(
 const manifest = JSON.parse(
   await readFile(resolve(resolved, "release-manifest.json"), "utf8"),
 ) as {
+  base_path: string;
   assets: Array<{ path: string }>;
 };
 const script = manifest.assets.find((asset) => asset.path.endsWith(".js"));
@@ -19,7 +20,11 @@ if (!script)
 
 const server = await serveRelease({ dist: resolved, port: 0 });
 try {
-  for (const path of ["/", `/${script.path}`, "/missing-route"]) {
+  for (const path of [
+    manifest.base_path,
+    `${manifest.base_path}${script.path}`,
+    `${manifest.base_path}missing-route`,
+  ]) {
     const response = await fetch(new URL(path, server.url));
     if (!response.ok)
       throw new Error(
@@ -31,10 +36,22 @@ try {
       }
     }
   }
-  for (const path of ["/release-manifest.json", "/security-headers.json"]) {
+  for (const path of [
+    `${manifest.base_path}release-manifest.json`,
+    `${manifest.base_path}security-headers.json`,
+  ]) {
     const response = await fetch(new URL(path, server.url));
     if (response.status !== 404)
       throw new Error(`[h5-release-http] private artifact exposed: ${path}`);
+  }
+  if (manifest.base_path !== "/") {
+    const sibling = `${manifest.base_path.slice(0, -1)}-outside/`;
+    for (const path of ["/", sibling]) {
+      const response = await fetch(new URL(path, server.url));
+      if (response.status !== 404) {
+        throw new Error(`[h5-release-http] path outside base exposed: ${path}`);
+      }
+    }
   }
   console.log(
     `[h5-release-http] verified ${Object.keys(expected).length} headers on candidate responses`,

@@ -732,11 +732,13 @@ h5-app.release.build: ## 构建并校验可追溯的 h5-app production 候选包
 	@cd "$(H5_APP_DIR)" && \
 		VITE_API_BASE_URL="$(H5_RELEASE_API_BASE_URL)" \
 		VITE_WS_URL="$(H5_RELEASE_WS_URL)" \
+		VITE_BASE_PATH="$(if $(H5_RELEASE_BASE_PATH),$(H5_RELEASE_BASE_PATH),/)" \
 		$(BUN) run build
 	@test -z "$$(git status --short)" || { echo "h5-app release build changed tracked source files" >&2; exit 1; }
 	@cd "$(H5_APP_DIR)" && \
 		H5_RELEASE_API_BASE_URL="$(H5_RELEASE_API_BASE_URL)" \
 		H5_RELEASE_WS_URL="$(H5_RELEASE_WS_URL)" \
+		H5_RELEASE_BASE_PATH="$(if $(H5_RELEASE_BASE_PATH),$(H5_RELEASE_BASE_PATH),/)" \
 		$(BUN) run release:finalize
 	@$(MAKE) h5-app.release.check
 	@cd "$(H5_APP_DIR)" && $(BUN) run release:http-check

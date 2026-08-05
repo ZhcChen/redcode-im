@@ -19,6 +19,7 @@ type Manifest = {
   source_commit: string;
   lockfile: { path: "h5-app/bun.lock"; sha256: string };
   endpoints: { api_base_url: string; ws_url: string };
+  base_path: string;
   security_headers_sha256: string;
   assets: Asset[];
 };
@@ -84,6 +85,13 @@ function secureEndpoint(
     fail(`${kind} URL must not target localhost`);
   }
   return { url: value, origin: url.origin };
+}
+
+function releaseBasePath(raw = "/"): string {
+  if (!/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(raw) || raw.includes("//")) {
+    fail("release base path must be an absolute path ending in /");
+  }
+  return raw;
 }
 
 function resolveDist(distArg: string): string {
@@ -224,6 +232,7 @@ async function finalize(distArg: string): Promise<void> {
   await validateCspCompatibleSource();
   const api = secureEndpoint(process.env.H5_RELEASE_API_BASE_URL, "api");
   const ws = secureEndpoint(process.env.H5_RELEASE_WS_URL, "ws");
+  const basePath = releaseBasePath(process.env.H5_RELEASE_BASE_PATH);
   const headers = await renderHeaders(api.origin, ws.origin);
   const headersBytes = `${JSON.stringify(headers, null, 2)}\n`;
   await writeFile(resolve(dist, headersName), headersBytes);
@@ -241,6 +250,7 @@ async function finalize(distArg: string): Promise<void> {
       sha256: hash(await readFile(defaultLockPath)),
     },
     endpoints: { api_base_url: api.url, ws_url: ws.url },
+    base_path: basePath,
     security_headers_sha256: hash(headersBytes),
     assets,
   };
@@ -300,6 +310,7 @@ async function checkInternal(
   }
   const api = secureEndpoint(manifest.endpoints?.api_base_url, "api");
   const ws = secureEndpoint(manifest.endpoints?.ws_url, "ws");
+  const basePath = releaseBasePath(manifest.base_path);
   const headersBytes = await readFile(resolve(dist, headersName));
   if (
     !sha256Pattern.test(manifest.security_headers_sha256) ||
@@ -327,18 +338,23 @@ async function checkInternal(
   if (JSON.stringify(actual) !== JSON.stringify(manifest.assets))
     fail("release asset inventory or digest mismatch");
   let executableText = "";
+  let indexHtml = "";
   for (const asset of actual) {
     if (asset.path.endsWith(".map"))
       fail(`public source map is forbidden: ${asset.path}`);
     if (/\.(?:html|css|js|mjs)$/.test(asset.path)) {
       const content = await readFile(resolve(dist, asset.path), "utf8");
       if (/\.(?:js|mjs)$/.test(asset.path)) executableText += content;
+      if (asset.path === "index.html") indexHtml = content;
       if (/sourceMappingURL\s*=/.test(content))
         fail(`source map reference is forbidden: ${asset.path}`);
     }
   }
   if (!executableText.includes(api.url) || !executableText.includes(ws.url)) {
     fail("built JavaScript does not bind the manifest API and WebSocket URLs");
+  }
+  if (basePath !== "/" && !indexHtml.includes(`${basePath}assets/`)) {
+    fail("built index does not bind the manifest base path");
   }
   console.log(
     `[h5-release] verified ${actual.length} assets for ${manifest.source_commit}`,

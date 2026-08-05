@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import { check } from "./h5-release-security";
 
-type Manifest = { assets: Array<{ path: string }> };
+type Manifest = { base_path: string; assets: Array<{ path: string }> };
 type ReleaseServerOptions = { dist: string; hostname?: string; port?: number };
 
 const privateArtifacts = new Set([
@@ -53,10 +53,13 @@ async function serveRelease(options: ReleaseServerOptions) {
       }
       let requested: string;
       try {
-        requested = decodeURIComponent(new URL(request.url).pathname).replace(
-          /^\/+/,
-          "",
-        );
+        const pathname = decodeURIComponent(new URL(request.url).pathname);
+        if (!pathname.startsWith(manifest.base_path)) {
+          return new Response(null, { status: 404, headers: securityHeaders });
+        }
+        requested = pathname
+          .slice(manifest.base_path.length)
+          .replace(/^\/+/, "");
       } catch {
         return new Response(null, { status: 400, headers: securityHeaders });
       }
