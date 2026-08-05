@@ -22,7 +22,11 @@ class ConsoleErrorTracker {
   constructor(page: Page) {
     page.on('console', (message) => {
       if (message.type() === 'error') {
-        this.entries.push(`[console] ${message.text()}`);
+        const { url, lineNumber, columnNumber } = message.location();
+        const location = url
+          ? ` (${url}:${lineNumber + 1}:${columnNumber + 1})`
+          : '';
+        this.entries.push(`[console] ${message.text()}${location}`);
         return;
       }
 
@@ -212,7 +216,7 @@ test.describe('admin live backend smoke', () => {
           .locator('.arco-breadcrumb-item')
           .filter({ hasText: '对象存储配置' })
       ).toBeVisible();
-      await expect(page.getByText('S3 兼容对象存储 运行时配置')).toBeVisible();
+      await expect(page.getByText('S3 兼容对象存储运行时配置')).toBeVisible();
       await expect(page.getByText('当前生效配置')).toBeVisible();
       await expect(page.getByText('配置历史')).toBeVisible();
       await expect(
