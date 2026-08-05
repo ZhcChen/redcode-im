@@ -11,7 +11,7 @@
   "modules": [
     {
       "name": "fixture-app",
-      "lockfile": "tests/fixtures/supply-chain/fixture.lock",
+      "lockfile": "tests/fixtures/supply-chain/fixture-complete.lock",
       "lock_format": "cargo",
       "scanner": "osv-lockfile"
     }

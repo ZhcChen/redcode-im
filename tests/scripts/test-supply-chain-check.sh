@@ -44,6 +44,7 @@ run_evaluator_case() {
   local expected="$4"
   local expected_pattern="${5:-}"
   local sbom_name="${6:-sbom-pass.json}"
+  local policy_name="${7:-policy.json}"
   local case_dir="$tmp_dir/evaluator-$case_count"
   local log_file="$case_dir/output.log"
   mkdir -p "$case_dir/reports"
@@ -58,7 +59,7 @@ run_evaluator_case() {
   (
     cd "$root_dir"
     "$real_bun" "$evaluator" \
-      "$fixture_dir/policy.json" \
+      "$fixture_dir/$policy_name" \
       "$fixture_dir/$exception_name" \
       "$case_dir/reports" \
       "$case_dir/sbom" \
@@ -195,6 +196,7 @@ run_evaluator_case "unused exception" report-pass.json exceptions-unused.json fa
 run_evaluator_case "truncated report JSON" report-truncated.json exceptions-empty.json fail "JSON Parse error"
 run_evaluator_case "missing module report" missing exceptions-empty.json fail "ENOENT"
 run_evaluator_case "partial report mismatches SBOM" report-pass.json exceptions-empty.json fail "identities do not match" sbom-partial-mismatch.json
+run_evaluator_case "report and SBOM synchronously truncate lockfile" report-pass.json exceptions-empty.json fail "does not cover the complete lockfile" sbom-pass.json policy-complete-two.json
 
 run_check_case "隔离扫描正常通过" pass pass
 

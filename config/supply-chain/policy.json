@@ -14,32 +14,38 @@
     {
       "name": "api",
       "lockfile": "api/Cargo.lock",
+      "lock_format": "cargo",
       "scanner": "osv-lockfile"
     },
     {
       "name": "e2ee-core",
       "lockfile": "e2ee-core/Cargo.lock",
+      "lock_format": "cargo",
       "scanner": "osv-lockfile"
     },
     {
       "name": "android-app",
       "lockfile": "android-app/app/gradle.lockfile",
+      "lock_format": "gradle",
       "scanner": "osv-lockfile",
       "scope": "releaseRuntimeClasspath"
     },
     {
       "name": "ios-app",
       "lockfile": "ios-app/Package.resolved",
+      "lock_format": "swiftpm",
       "scanner": "swift-osv"
     },
     {
       "name": "h5-app",
       "lockfile": "h5-app/bun.lock",
+      "lock_format": "bun",
       "scanner": "osv-lockfile"
     },
     {
       "name": "admin",
       "lockfile": "admin/pnpm-lock.yaml",
+      "lock_format": "pnpm",
       "scanner": "osv-lockfile"
     }
   ],

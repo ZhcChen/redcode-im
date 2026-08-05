@@ -3,3 +3,7 @@ version = 4
 [[package]]
 name = "fixture-package"
 version = "1.0.0"
+
+[[package]]
+name = "missing-from-scanner"
+version = "2.0.0"
