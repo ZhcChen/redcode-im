@@ -96,6 +96,26 @@ class ContactsAndSettingsRepositoryTest {
         }
 
     @Test
+    fun remoteSettings_refreshesMessageRuntimeFromGeneralEndpoint() =
+        runTest {
+            val transport =
+                RecordingTransport(
+                    HttpResponse(
+                        200,
+                        """{"app_name":"RedCode IM","message_runtime":{"server_storage_mode":"persist","content_audit_mode":"e2ee","updated_at":null,"updated_by":null}}""",
+                    ),
+                )
+            val repository = RemoteSettingsRepository(APIClient(RedCodeEnvironment.localEmulator(), transport))
+
+            val settings = repository.refreshGeneralSettings()
+
+            assertTrue(settings.messageRuntime.isE2ee)
+            assertEquals("persist", settings.messageRuntime.serverStorageMode)
+            assertEquals("http://10.0.2.2:8010/settings/general", transport.lastRequest.url)
+            assertEquals(settings, repository.settings.value)
+        }
+
+    @Test
     fun remoteSettings_supportsPrivacyDocumentAndNotificationState() =
         runTest {
             val transport =

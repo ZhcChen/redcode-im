@@ -29,4 +29,7 @@ interface E2eeBlobDao {
 
     @Query("DELETE FROM e2ee_blobs WHERE accountId = :accountId AND blobKey = :blobKey")
     fun delete(accountId: String, blobKey: String)
+
+    @Query("DELETE FROM e2ee_blobs WHERE accountId = :accountId")
+    fun deleteAll(accountId: String)
 }

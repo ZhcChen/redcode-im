@@ -31,6 +31,14 @@ import com.redcode.im.androidapp.data.rooms.RoomRepository
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
 import com.redcode.im.androidapp.data.settings.RemoteSettingsRepository
 import com.redcode.im.androidapp.data.settings.SettingsRepository
+import com.redcode.im.androidapp.e2ee.E2eeCommandClient
+import com.redcode.im.androidapp.e2ee.E2eeCommandSessionCore
+import com.redcode.im.androidapp.e2ee.E2eeDeviceLifecycle
+import com.redcode.im.androidapp.e2ee.E2eeDeviceManager
+import com.redcode.im.androidapp.e2ee.E2eeDirectMessageCoordinator
+import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
+import com.redcode.im.androidapp.e2ee.E2eeSessionLifecycle
+import com.redcode.im.androidapp.e2ee.HttpE2eeMlsApi
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.persistence.CachedRemoteRoomRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
@@ -56,6 +64,9 @@ class AppContainer(
     private val attachmentFileCache: FileResourceCache? = null,
     private val avatarFileCache: FileResourceCache? = null,
     private val emojiFileCache: FileResourceCache? = null,
+    e2eeSecureStateStore: E2eeSecureStateStore? = null,
+    e2eeDeviceLabel: String = "Android",
+    e2eeSessionLifecycleOverride: E2eeSessionLifecycle? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -157,6 +168,32 @@ class AppContainer(
             null
         },
 ) {
+    private val e2eeGraph =
+        e2eeSecureStateStore?.let { secureState ->
+            val api = HttpE2eeMlsApi(APIClient(environment))
+            val command = E2eeCommandClient()
+            val deviceLifecycle = E2eeDeviceLifecycle(secureState, api, command)
+            E2eeGraph(
+                sessionLifecycle =
+                    e2eeSessionLifecycleOverride
+                        ?: E2eeSessionLifecycle(settingsRepository, deviceLifecycle, secureState, e2eeDeviceLabel),
+                coordinator = E2eeDirectMessageCoordinator(secureState, deviceLifecycle, api, E2eeCommandSessionCore(command)),
+                deviceManager = E2eeDeviceManager(secureState, api, command),
+            )
+        }
+
+    val e2eeSessionLifecycle: E2eeSessionLifecycle? = e2eeSessionLifecycleOverride ?: e2eeGraph?.sessionLifecycle
+    val e2eeDirectMessageCoordinator: E2eeDirectMessageCoordinator? = e2eeGraph?.coordinator
+    val e2eeDeviceManager: E2eeDeviceManager? = e2eeGraph?.deviceManager
+
+    suspend fun prepareE2eeSession(accountId: String, token: String) {
+        e2eeSessionLifecycle?.onAuthenticated(accountId, token)
+    }
+
+    suspend fun refreshE2eeSession() {
+        e2eeSessionLifecycle?.onForeground()
+    }
+
     suspend fun clearLocalSessionState() {
         val errors =
             listOf(
@@ -167,6 +204,7 @@ class AppContainer(
                 suspend { attachmentFileCache?.clear() },
                 suspend { avatarCacheRepository?.clear() },
                 suspend { emojiRepository.clearLocalState() },
+                suspend { e2eeSessionLifecycle?.onLogout() },
             ).mapNotNull { cleanup ->
                 runCatching { cleanup() }.exceptionOrNull()
             }
@@ -174,4 +212,10 @@ class AppContainer(
             throw IllegalStateException("本地会话清理部分失败", errors.first())
         }
     }
+
+    private data class E2eeGraph(
+        val sessionLifecycle: E2eeSessionLifecycle,
+        val coordinator: E2eeDirectMessageCoordinator,
+        val deviceManager: E2eeDeviceManager,
+    )
 }

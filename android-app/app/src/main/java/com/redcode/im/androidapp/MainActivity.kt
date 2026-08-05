@@ -1,5 +1,6 @@
 package com.redcode.im.androidapp
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +11,9 @@ import com.redcode.im.androidapp.data.auth.SerializedAuthSessionStore
 import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.preferences.DataStoreUserPreferenceStore
 import com.redcode.im.androidapp.di.AppContainer
+import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
+import com.redcode.im.androidapp.e2ee.KeystoreE2eeStateCipher
+import com.redcode.im.androidapp.e2ee.RoomE2eeStateBlobStore
 import com.redcode.im.androidapp.persistence.MIGRATION_1_2
 import com.redcode.im.androidapp.persistence.MIGRATION_2_3
 import com.redcode.im.androidapp.persistence.MIGRATION_3_4
@@ -60,6 +64,12 @@ class MainActivity : ComponentActivity() {
                 attachmentFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/attachments")),
                 avatarFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/avatars")),
                 emojiFileCache = FileResourceCache(applicationContext.cacheDir.resolve("redcode-media/emoji")),
+                e2eeSecureStateStore =
+                    E2eeSecureStateStore(
+                        cipher = KeystoreE2eeStateCipher(),
+                        blobs = RoomE2eeStateBlobStore(database.e2eeStateDao(), database.e2eeBlobDao()),
+                    ),
+                e2eeDeviceLabel = "Android ${Build.MODEL}",
                 userPreferenceStore = DataStoreUserPreferenceStore(applicationContext),
             )
         setContent {

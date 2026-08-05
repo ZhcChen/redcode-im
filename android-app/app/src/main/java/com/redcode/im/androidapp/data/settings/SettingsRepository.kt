@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.StateFlow
 interface SettingsRepository {
     val settings: StateFlow<AppSettings>
 
+    suspend fun refreshGeneralSettings(): AppSettings = settings.value
+
     suspend fun setNotificationEnabled(enabled: Boolean)
 
     suspend fun fetchDocument(kind: SettingsDocumentKind): DocumentContent

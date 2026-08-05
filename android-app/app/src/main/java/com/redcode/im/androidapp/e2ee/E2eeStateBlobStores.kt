@@ -58,6 +58,10 @@ class RoomE2eeStateBlobStore(
     override fun deleteBlob(accountId: String, key: String) {
         blobDao.delete(accountId, key)
     }
+
+    override fun deleteAllBlobs(accountId: String) {
+        blobDao.deleteAll(accountId)
+    }
 }
 
 /** JVM 测试用内存 blob 存储。 */
@@ -84,5 +88,9 @@ class InMemoryE2eeStateBlobStore : E2eeStateBlobStore {
 
     override fun deleteBlob(accountId: String, key: String) {
         keyedRecords[accountId]?.remove(key)
+    }
+
+    override fun deleteAllBlobs(accountId: String) {
+        keyedRecords.remove(accountId)
     }
 }

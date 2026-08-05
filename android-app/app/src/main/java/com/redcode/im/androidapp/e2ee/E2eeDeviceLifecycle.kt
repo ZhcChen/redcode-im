@@ -19,7 +19,7 @@ class E2eeDeviceLifecycle(
     private val core: E2eeCommandClient = E2eeCommandClient(),
     private val newDeviceId: () -> String = { UUID.randomUUID().toString() },
     private val nowMillis: () -> Long = System::currentTimeMillis,
-) : E2eeDirectDeviceLifecycle {
+) : E2eeDirectDeviceLifecycle, E2eeAppDeviceLifecycle {
     private val replenishLocks = ConcurrentHashMap<String, Deferred<Int>>()
     private val nextRetryAt = ConcurrentHashMap<String, Long>()
 
@@ -97,7 +97,7 @@ class E2eeDeviceLifecycle(
     }
 
     /** 账号级互斥的低水位补充；失败进入退避窗口，不阻塞已建立房间的消息链。 */
-    suspend fun topUpKeyPackages(accountId: String, token: String): Int {
+    override suspend fun topUpKeyPackages(accountId: String, token: String): Int {
         replenishLocks[accountId]?.let { return it.await() }
         val deferred = CompletableDeferred<Int>()
         val prior = replenishLocks.putIfAbsent(accountId, deferred)

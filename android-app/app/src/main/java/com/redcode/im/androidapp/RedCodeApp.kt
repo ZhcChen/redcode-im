@@ -60,6 +60,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.redcode.im.androidapp.core.model.ChatBackgroundOption
 import com.redcode.im.androidapp.core.model.ChatSummary
 import com.redcode.im.androidapp.core.model.ChatRoomType
@@ -114,6 +117,28 @@ fun RedCodeApp(container: AppContainer) {
     val settingsViewModel = remember { SettingsViewModel(container.settingsRepository) }
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     val documentState by settingsViewModel.document.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val appScope = rememberCoroutineScope()
+
+    LaunchedEffect(authState.session?.user?.id, authState.session?.tokens?.accessToken) {
+        authState.session?.let { session ->
+            runCatching { container.prepareE2eeSession(session.user.id, session.tokens.accessToken) }
+        }
+    }
+    DisposableEffect(lifecycleOwner, container, authState.session?.user?.id) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    authState.session?.let { session ->
+                        appScope.launch {
+                            runCatching { container.refreshE2eeSession() }
+                        }
+                    }
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         if (authState.session == null) {

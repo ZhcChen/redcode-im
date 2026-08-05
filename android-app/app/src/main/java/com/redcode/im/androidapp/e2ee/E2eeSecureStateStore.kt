@@ -50,6 +50,8 @@ interface E2eeStateBlobStore {
     fun loadBlob(accountId: String, key: String): E2eeEncryptedStateBlob?
 
     fun deleteBlob(accountId: String, key: String)
+
+    fun deleteAllBlobs(accountId: String)
 }
 
 /**
@@ -146,7 +148,7 @@ class E2eeSecureStateStore(
         requireAccountId(accountId)
         cipher.deleteKey(accountId)
         blobs.delete(accountId)
-        blobs.deleteBlob(accountId, PROFILE_BLOB_KEY)
+        blobs.deleteAllBlobs(accountId)
     }
 
     private fun requireAccountId(accountId: String) {

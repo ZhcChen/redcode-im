@@ -5,6 +5,8 @@ import com.redcode.im.androidapp.network.APIEndpoint
 import com.redcode.im.androidapp.network.HTTPMethod
 
 object SettingsAPIEndpoint {
+    fun general(): APIEndpoint = APIEndpoint(HTTPMethod.GET, "/settings/general")
+
     fun document(kind: SettingsDocumentKind): APIEndpoint =
         when (kind) {
             SettingsDocumentKind.PrivacyPolicy -> APIEndpoint(HTTPMethod.GET, "/settings/privacy-policy")
