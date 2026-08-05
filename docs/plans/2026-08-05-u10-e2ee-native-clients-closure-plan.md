@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md
 execution: code
 status: active
-current_unit: C2
+current_unit: C3
 last_progress_update: 2026-08-05
 ---
 
@@ -21,8 +21,8 @@ last_progress_update: 2026-08-05
 | 单元 | 状态 | 当前事实或完成证据 |
 | --- | --- | --- |
 | C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
-| C2 Android 消息主链 | 进行中 | text 主链已由 `565d6482` 提交并推送；附件主链已完成本地实现与 237 项 JVM 单测、`lintDebug` 验证，当前等待最终审查、独立提交和推送 |
-| C3 iOS 应用级装配 | 待开始 | 依赖 C2 固定跨平台行为契约 |
+| C2 Android 消息主链 | 已完成 | text 主链 `565d6482`、附件主链 `20672eeb` 已推送；238 项 JVM 单测与 `lintDebug` 通过，密钥材料缺失/篡改 fail closed |
+| C3 iOS 应用级装配 | 进行中 | 已确认独立 E2EE 组件齐备，但 `AppDependencies` 尚未构造账号级 graph，登录恢复、前台和注销尚未驱动 E2EE 生命周期 |
 | C4 iOS 消息主链 | 待开始 | 依赖 C3 |
 | C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
 | C7 全仓回归门禁 | 待开始 | 依赖 C5，且必须先于 C6 完成 |
@@ -30,23 +30,23 @@ last_progress_update: 2026-08-05
 | C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
 
 当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
-当前从 **C2 Android 附件主链的提交前审查** 恢复，不重做原计划 N1-N6、C1
-或 C2 text 主链。
+当前从 **C3 iOS 应用级装配** 恢复，不重做原计划 N1-N6、C1 或 C2。
 
-### C2 Resume Point
+### C3 Resume Point
 
-- **已推送：** `565d6482` 已完成 encrypted DTO、E2EE text 发送、history/WS
-  统一解密、消息 ID 去重、身份变化阻断、失败重试和明文降级防护。
-- **当前未提交：** Android 附件上传前 AES-GCM 加密、AAD 绑定、secure metadata
-  保存 DEK/nonce、下载后内存解密、受控临时缓存、附件入站映射、runtime 中途变化
-  阻断，以及引用和重试降级规则。不得丢弃当前工作区这些改动。
-- **当前验证基线：** JDK 21 下 `testDebugUnitTest lintDebug` 通过，共 237 项 JVM
-  测试；`git diff --check` 通过。提交前必须在当前 diff 上重新执行同一组验证。
-- **下一动作：** 审查 DEK/nonce 不进入 Room、普通 DTO 或日志；验证 runtime
-  变化、retry、key material 缺失/篡改、quote 和 plaintext 回归均 fail closed；只
-  stage 附件闭环文件，提交 `feat(android): 接入 E2EE 附件消息主链` 并立即 push。
-- **C2 完成信号：** 附件提交推送且工作区仅剩已解释改动；随后把 `current_unit`
-  改为 C3，进入 iOS 应用级装配。
+- **已有组件：** `E2eeDeviceLifecycle`、`E2eeSecureStateStore`、
+  `E2eeMLSAPIClient` 和 `E2eeDirectMessageCoordinator` 已实现并有模块单测，不重写。
+- **当前缺口：** `ios-app/App/RedCodeIOSApp.swift` 的 `AppDependencies` 未构造并持有
+  账号级 E2EE graph；`AppRootView` 的登录恢复、认证变化和 `scenePhase` 只驱动
+  普通会话/Push，注销也未清理 E2EE 包装密钥、协议状态和 metadata blob。
+- **实现边界：** 新增可单测的 iOS session lifecycle，严格校验 message runtime；
+  plaintext 不初始化 MLS，E2EE 执行 ensure/top-up，未知配置、待批准、撤销、
+  Keychain/状态异常进入 Blocked，禁止消息层自行降级。
+- **装配入口：** composition root 创建共享 secure store、MLS API、device lifecycle
+  和 session lifecycle；恢复会话/登录、前台、注销分别调用对应入口，账号切换先
+  清理旧账号敏感状态。
+- **C3 完成信号：** lifecycle/composition 测试覆盖 plaintext/E2EE、恢复、重复前台、
+  runtime 冲突、账号切换、注销与存储异常；`swift test` 全绿并独立提交推送。
 
 ### Document Roles
 
