@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
 current_unit: U4
-current_checkpoint: U4.2
+current_checkpoint: U4.3
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 收敛 G4.1 四视角独立复审发现，补齐 G1-G3 的可靠性、真实性和证据耐久性缺口，在无未关闭 P0/P1 后重放全量与 live 门禁并作出最终 Go/No-Go 裁决。
-- **唯一恢复点：** 从 `U4.2` 开始，执行顺序固定为 `U4.2 -> U4.3 -> U4.4 -> U5 -> U6 -> U7 -> U8 -> U9`。
+- **唯一恢复点：** 从 `U4.3` 开始，执行顺序固定为 `U4.3 -> U4.4 -> U5 -> U6 -> U7 -> U8 -> U9`。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；测试环境保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **已完成边界：** N1-N7、U7 P0-1、G1-G3 的既有实现和成功证据不重做；只对 G4.1 重新打开的合同与证据缺口做最小整改。
 - **禁止事项：** 不扩展 E2EE API，不修改已有 migration，不触碰 `im-test-1` 旧主数据库，不把本地模拟、源码推断或短期 artifact 冒充生产候选证据。
@@ -40,7 +40,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 | U1.2 日期门禁 | complete | `10f0f724`；32/32 正负测试、workflow 测试与六端扫描通过 |
 | U2 G3 cleanup | complete | `22a728f9`；17/17 cleanup/recover 场景、H5 release 21/21、shellcheck 通过 |
 | U3 G1 cleanup | complete | `a644fa0f`；25 个 success/failure/signal/recover 场景、硬超时、run lock 与实际状态终验通过 |
-| U4 恢复真实性 | **in progress** | `U4.1` 隔离基础设施已完成；当前唯一 checkpoint 为 `U4.2` 恢复窗口切换闭环 |
+| U4 恢复真实性 | **in progress** | `U4.1-U4.2` 已完成；当前唯一 checkpoint 为 `U4.3` 三端与数据边界 live |
 | U5 H5 Chrome audit | blocked by U4 | production bundle 真实安全存储路径、篡改 fail closed、明文 marker 为零 |
 | U6 持久证据 | blocked by U5 | G1/G3 脱敏证据可在干净 checkout 离线校验 |
 | U7 Release workflow | blocked by U6 | 当前候选 commit 的真实 workflow 成功，且无 tag/release 副作用 |
@@ -54,9 +54,12 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 - **已证明：** restore PostgreSQL/Redis 不暴露宿主端口，restore API 只绑定远端
   `127.0.0.1:18010`；身份 marker、容器连接目标、源 PostgreSQL/Redis 零连接和退出后
   旧主 `persist/plaintext` 均有自动断言。
-- **未提交草稿：** `deploy/im-test-1/e2ee-restore-window-control.sh` 与
-  `h5-app/test/e2ee-live-backend.test.ts` 的 restore switch 场景。两者仅代表当前实现
-  现场，尚未通过控制面 mock、远端 live 和独立复核，不计入完成证据。
+- **已推送 U4.2：** `3f83bdc9` 实现 candidate -> backup -> restore 同端口切换、
+  跨 run owner 锁、命令硬超时、PostgreSQL readiness、H5 同进程恢复场景和统一 cleanup。
+- **真实 U4.2 证据：** run `u4restore3f83bdc9` 在提交 `3f83bdc9` 上证明 H5 使用同一
+  进程和 IndexedDB 协议状态解密恢复前历史密文，并发送、解密恢复后新密文；原始 API
+  history 不含前后 plaintext marker。结束后 candidate/restore container、volume、owner、
+  SSH tunnel 和 `18010` 均清零，旧主保持 `persist/plaintext`。
 - **远端基线：** `im-test-1` 旧主容器保持运行，远端 `18010` 空闲；候选数据必须由
   全新 candidate volume 生成，禁止以旧主 PostgreSQL 作为备份 source。
 
@@ -65,20 +68,20 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 | Checkpoint | Status | Deliverable / Exit gate |
 | --- | --- | --- |
 | U4.1 隔离基础设施 | complete | `31b13d37`、`fe954a77`、`df85231b`；restore Compose、控制面和 isolated live guard 的正负测试通过 |
-| U4.2 恢复窗口切换 | **in progress** | candidate 新数据集 -> 备份 -> 同端口 restore 接管；H5 同一进程/IndexedDB 解密恢复前历史并发送恢复后密文 |
-| U4.3 三端与数据边界 live | pending | Android/iOS/H5、撤销设备、epoch、附件授权、关键表 digest 及 DB/Redis/API log/Push/RustFS marker 扫描通过 |
+| U4.2 恢复窗口切换 | complete | `3f83bdc9`；candidate 新数据集 -> 备份 -> 同端口 restore 接管；run `u4restore3f83bdc9` 证明 H5 恢复前后密文可解密且退出资源清零 |
+| U4.3 三端与数据边界 live | **in progress** | Android/iOS/H5、撤销设备、epoch、附件授权、关键表 digest 及 DB/Redis/API log/Push/RustFS marker 扫描通过 |
 | U4.4 复核与收口 | pending | correctness/security/reliability/testing 独立复核 `P0=0、P1=0`，环境清理断言通过并提交 U4 review |
 
-### U4.2 唯一立即动作
+### U4.3 唯一立即动作
 
-1. 为 restore window control 增加状态型 mock 测试和 Make target，覆盖 prepare、switch、
-   backup/restore failure、幂等 cleanup、candidate/restore 资源清零及旧主 Compose 零写操作。
-2. 新增本机 orchestrator：同步受控部署文件、启动 candidate、建立固定 SSH tunnel、
-   协调 H5 ready/done marker、切换 restore、收集 evidence，并在所有退出路径清理。
-3. 先通过 shell 语法、mock、H5 type-check/default skip 与 `git diff --check`，再运行远端
-   restore switch live；任何失败不得进入 U4.3。
-4. 远端执行前后核对旧主 runtime、旧主容器、candidate/restore container/volume、
-   `18010` 和临时 artifact；禁止覆盖 `.env`，禁止对旧主 Compose 执行 stop/down/update。
+1. 让 isolated live 在 restore API 上以明确 JDK21 实际编排 Android、iOS、H5 三端定向
+   测试，不复用 U4.2 的 H5-only 结论。
+2. 在同一 restore 数据集验证撤销设备不可读新 epoch、群成员变化、attachment grant 与
+   下载授权；失败时保持 fail closed，并由统一 cleanup 删除所有隔离资源。
+3. 对 candidate 备份前与 restore live 后生成关键 E2EE 表计数/digest，证明身份、
+   KeyPackage、epoch、control message/receipt、encrypted message 和 attachment commit 一致。
+4. 接入 restore PostgreSQL/Redis/API log/Push/RustFS 边界扫描，禁止以本机 dev scanner
+   skip 作为关闭证据；结束后再次验证旧主零连接、零写入和 `persist/plaintext`。
 
 ### 执行与恢复规则
 
@@ -281,7 +284,8 @@ flowchart TB
 | U2 | complete | `22a728f9` 增加有限重试、硬超时、显式 recover、状态验证与 17 个 cleanup/recover 场景 |
 | U3 | complete | `a644fa0f`：实际状态驱动 cleanup、持久审批补偿、硬超时、并发锁及 25 个边界场景通过 |
 | U4.1 restore infrastructure | complete | `31b13d37`、`fe954a77`、`df85231b`；隔离栈、控制面与 live 守卫已推送 |
-| Current | active | `U4.2`：candidate 到 restore 的同端口切换与恢复前历史密文证明 |
+| U4.2 restore switch | complete | `3f83bdc9`；run `u4restore3f83bdc9` 证明同一 H5 协议状态可跨恢复读取历史并继续发送 |
+| Current | active | `U4.3`：restore API 上的三端 live、关键数据 digest 与外围边界扫描 |
 
 ### Supersession Map
 
