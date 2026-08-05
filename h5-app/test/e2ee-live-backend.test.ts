@@ -27,12 +27,14 @@ interface LiveSession {
 }
 
 interface LiveEvidenceScenario {
-  name: 'h5-h5' | 'android-h5' | 'ios-h5';
+  name: 'restore-continuity' | 'h5-h5' | 'android-h5' | 'ios-h5';
   room_id: string;
-  message_ids: string[];
-  plaintext_markers: string[];
-  object_key?: string;
-  attachment_marker?: string;
+  message_proofs: Array<{
+    message_id: string;
+    plaintext_marker: string;
+    kind: 'text' | 'attachment';
+    object_key?: string;
+  }>;
 }
 
 const recordEvidence = async (scenario: LiveEvidenceScenario) => {
@@ -163,9 +165,14 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ id: afterMessageId, encrypted_content: expect.any(String) }),
     ]));
     await writeFile(restoreRecoveryEvidencePath, JSON.stringify({
+      name: 'restore-continuity',
       room_id: chat.roomId,
       before_message_id: beforeMessageId,
       after_message_id: afterMessageId,
+      message_proofs: [
+        { message_id: beforeMessageId, plaintext_marker: beforeMarker, kind: 'text' },
+        { message_id: afterMessageId, plaintext_marker: afterMarker, kind: 'text' },
+      ],
       history_decrypted_after_restore: true,
       new_message_decrypted_after_restore: true,
     }, null, 2));
@@ -316,8 +323,10 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     await recordEvidence({
       name: 'h5-h5',
       room_id: chat.roomId,
-      message_ids: [aliceMessageId, bobMessageId],
-      plaintext_markers: [aliceMarker, bobMarker],
+      message_proofs: [
+        { message_id: aliceMessageId, plaintext_marker: aliceMarker, kind: 'text' },
+        { message_id: bobMessageId, plaintext_marker: bobMarker, kind: 'text' },
+      ],
     });
 
     const androidMarker = `u5-android-${crypto.randomUUID()}`;
@@ -438,10 +447,16 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     await recordEvidence({
       name: 'android-h5',
       room_id: crossChat.roomId,
-      message_ids: [androidMessageId, h5MessageId, attachmentMessageId],
-      object_key: attachment.e2eePart.objectKey,
-      plaintext_markers: [androidMarker, h5Marker, attachmentMarker],
-      attachment_marker: attachmentMarker,
+      message_proofs: [
+        { message_id: androidMessageId, plaintext_marker: androidMarker, kind: 'text' },
+        { message_id: h5MessageId, plaintext_marker: h5Marker, kind: 'text' },
+        {
+          message_id: attachmentMessageId,
+          plaintext_marker: attachmentMarker,
+          kind: 'attachment',
+          object_key: attachment.e2eePart.objectKey,
+        },
+      ],
     });
   }, 60_000);
 
@@ -542,8 +557,10 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     await recordEvidence({
       name: 'ios-h5',
       room_id: chat.roomId,
-      message_ids: [iosMessageID, h5MessageID],
-      plaintext_markers: [iosMarker, h5Marker],
+      message_proofs: [
+        { message_id: iosMessageID, plaintext_marker: iosMarker, kind: 'text' },
+        { message_id: h5MessageID, plaintext_marker: h5Marker, kind: 'text' },
+      ],
     });
   }, 60_000);
 

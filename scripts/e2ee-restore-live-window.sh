@@ -21,8 +21,12 @@ done_path="$output_dir/switched"
 recovery_path="$output_dir/recovery.json"
 live_evidence_path="$output_dir/live.json"
 h5_log_path="$output_dir/h5.log"
+source_watch_log="$output_dir/source-isolation.jsonl"
+source_watch_ready="$output_dir/source-isolation.ready"
+source_watch_failed="$output_dir/source-isolation.failed"
 tunnel_pid=""
 h5_pid=""
+source_watch_pid=""
 cleanup_started=0
 
 log() {
@@ -90,6 +94,43 @@ assert_source_plaintext() {
     .message_runtime.content_audit_mode == "plaintext"' <<<"$runtime" >/dev/null
 }
 
+start_source_isolation_watch() {
+  rm -f "$source_watch_log" "$source_watch_ready" "$source_watch_failed"
+  (
+    while :; do
+      identity="$(remote_control verify 2>/dev/null)" || {
+        printf 'verify-command-failed\n' >"$source_watch_failed"
+        exit 1
+      }
+      jq -ce --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+        select(.source_postgres_connections == 0 and .source_redis_connections == 0) |
+        {observed_at: $observed_at, source_postgres_connections, source_redis_connections}
+      ' <<<"$identity" >>"$source_watch_log" || {
+        printf 'source-connection-observed\n' >"$source_watch_failed"
+        exit 1
+      }
+      [[ -e "$source_watch_ready" ]] || printf 'ready\n' >"$source_watch_ready"
+      sleep 1
+    done
+  ) &
+  source_watch_pid=$!
+  for _ in $(seq 1 100); do
+    [[ -s "$source_watch_ready" ]] && return 0
+    kill -0 "$source_watch_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  die "source isolation watcher 未就绪"
+}
+
+stop_source_isolation_watch() {
+  [[ -n "$source_watch_pid" ]] || return 0
+  kill "$source_watch_pid" 2>/dev/null || true
+  wait "$source_watch_pid" 2>/dev/null || true
+  source_watch_pid=""
+  [[ ! -e "$source_watch_failed" && -s "$source_watch_log" ]] ||
+    die "source isolation watcher 发现旧主连接或采集失败"
+}
+
 finish() {
   local exit_code="${1:-$?}" cleanup_failed=0
   [[ "$cleanup_started" == 0 ]] || exit "$exit_code"
@@ -98,6 +139,10 @@ finish() {
   if [[ -n "$h5_pid" ]] && kill -0 "$h5_pid" 2>/dev/null; then
     kill "$h5_pid" 2>/dev/null || true
     wait "$h5_pid" 2>/dev/null || true
+  fi
+  if [[ -n "$source_watch_pid" ]]; then
+    kill "$source_watch_pid" 2>/dev/null || true
+    wait "$source_watch_pid" 2>/dev/null || true
   fi
   if [[ -n "$tunnel_pid" ]]; then
     kill "$tunnel_pid" 2>/dev/null || true
@@ -188,6 +233,10 @@ jq -e --arg run_id "$run_id" \
     .runtime == "persist/e2ee" and .api_url == "http://127.0.0.1:18010"' \
   <<<"$restore_identity" >/dev/null || die "restore identity 验证失败"
 jq -S . <<<"$restore_identity" >"$output_dir/restore-identity.json"
+if [[ "$full_suite" == 1 ]]; then
+  start_source_isolation_watch
+  remote_boundary monitor-start >/dev/null
+fi
 printf 'switched\n' >"$done_path"
 
 set +e
@@ -206,7 +255,6 @@ remote_control verify >/dev/null
 log "恢复前历史密文与恢复后新密文均已由同一 H5 协议状态解密"
 
 if [[ "$full_suite" == 1 ]]; then
-  remote_boundary monitor-start >/dev/null
   H5_APP_API_BASE_URL=http://127.0.0.1:18010 \
   VITE_API_BASE_URL=http://127.0.0.1:18010 \
   VITE_WS_URL=ws://127.0.0.1:18010/ws \
@@ -219,10 +267,25 @@ if [[ "$full_suite" == 1 ]]; then
   jq -e '(.scenarios | type == "array" and length == 3) and
     ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5"])' \
     "$live_evidence_path" >/dev/null || die "三端 live evidence 不完整"
+  jq -s --arg run_id "$run_id" '
+    (.[0] | select(.run_id == $run_id)) as $live |
+    (.[1] | select(.name == "restore-continuity" and
+      .history_decrypted_after_restore == true and
+      .new_message_decrypted_after_restore == true)) as $recovery |
+    {run_id: $run_id, scenarios: ([$recovery] + $live.scenarios)}
+  ' "$live_evidence_path" "$recovery_path" >"$live_evidence_path.tmp" ||
+    die "恢复连续性 evidence 合并失败"
+  mv "$live_evidence_path.tmp" "$live_evidence_path"
+  jq -e '(.scenarios | length == 4) and
+    ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5", "restore-continuity"])' \
+    "$live_evidence_path" >/dev/null || die "恢复与三端 evidence 不完整"
   scp -q "$live_evidence_path" "$remote:$remote_live_evidence"
   remote_boundary scan >"$output_dir/boundary-scan.json"
-  jq -e '.db == "ciphertext-only" and .redis == "marker-free" and
-    .logs == "marker-free" and .rustfs.content == "ciphertext-only"' \
+  jq -e --arg run_id "$run_id" '
+    .run_id == $run_id and .db == "ciphertext-only" and
+    .redis == "marker-free" and .logs == "marker-free" and
+    (.push == "placeholder-verified" or .push == "not-observed-live") and
+    .rustfs.content == "ciphertext-only"' \
     "$output_dir/boundary-scan.json" >/dev/null || die "restore 边界扫描证据无效"
   remote_control verify >/dev/null
   log "restore API 上 Android/iOS/H5 三端 full suite 已通过"
@@ -231,3 +294,7 @@ fi
 remote_control snapshot >"$output_dir/post-live-snapshot.json"
 jq -e '.digest | type == "string" and length == 32' \
   "$output_dir/post-live-snapshot.json" >/dev/null || die "post-live snapshot 无效"
+if [[ "$full_suite" == 1 ]]; then
+  stop_source_isolation_watch
+  log "source PostgreSQL/Redis 在完整 restore live 窗口内持续保持零连接"
+fi

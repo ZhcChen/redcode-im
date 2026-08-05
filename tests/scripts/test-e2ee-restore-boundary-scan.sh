@@ -18,14 +18,39 @@ case "$args" in
     ;;
   *"compose "*" exec -T postgres-restore psql "*)
     sql="$args"
+    [[ "$sql" != *"content, )"* && "$sql" != *"convert_to(content, UTF8)"* ]] || exit 71
     case "$sql" in
       *"messages WHERE id IN"*)
-        for index in 1 2 3 4 5 6 7; do
-          printf '00000000-0000-4000-8000-%012d|11111111-1111-4111-8111-111111111111|[加密消息]|t|{}\n' "$index"
-        done
+        printf '00000000-0000-4000-8000-000000000001|44444444-4444-4444-8444-444444444444|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000002|44444444-4444-4444-8444-444444444444|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000003|11111111-1111-4111-8111-111111111111|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000004|11111111-1111-4111-8111-111111111111|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000005|22222222-2222-4222-8222-222222222222|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000006|22222222-2222-4222-8222-222222222222|[加密消息]|t\n'
+        if [[ "${E2EE_BOUNDARY_TEST_MESSAGE_ROOM_MISMATCH:-0}" == 1 ]]; then
+          printf '00000000-0000-4000-8000-000000000007|11111111-1111-4111-8111-111111111111|[加密消息]|t\n'
+        else
+          printf '00000000-0000-4000-8000-000000000007|22222222-2222-4222-8222-222222222222|[加密消息]|t\n'
+        fi
+        printf '00000000-0000-4000-8000-000000000008|33333333-3333-4333-8333-333333333333|[加密消息]|t\n'
+        printf '00000000-0000-4000-8000-000000000009|33333333-3333-4333-8333-333333333333|[加密消息]|t\n'
         ;;
-      *e2ee_control_messages*) printf '11111111-1111-4111-8111-111111111111|commit|52434352\n' ;;
-      *message_attachment_commits*) printf '22222222-2222-4222-8222-222222222222|messages/22222222-2222-4222-8222-222222222222/files/test.bin|64\n' ;;
+      *"COUNT(*) FROM messages WHERE encrypted_content"*)
+        [[ "${E2EE_BOUNDARY_TEST_ENCRYPTED_MARKER:-0}" == 1 ]] && printf '1\n' || printf '0\n'
+        ;;
+      *"COUNT(*) FROM messages WHERE encryption_metadata"*) printf '0\n' ;;
+      *"COUNT(*) FROM messages WHERE"*) printf '0\n' ;;
+      *"COUNT(*) FROM e2ee_control_messages"*)
+        [[ "${E2EE_BOUNDARY_TEST_CONTROL_MARKER:-0}" == 1 ]] && printf '1\n' || printf '0\n'
+        ;;
+      *"COUNT(*) FROM push_job_queue"*) printf '0\n' ;;
+      *message_attachment_commits*)
+        if [[ "${E2EE_BOUNDARY_TEST_OBJECT_ROOM_MISMATCH:-0}" == 1 ]]; then
+          printf '11111111-1111-4111-8111-111111111111|messages/22222222-2222-4222-8222-222222222222/files/test.bin|64\n'
+        else
+          printf '22222222-2222-4222-8222-222222222222|messages/22222222-2222-4222-8222-222222222222/files/test.bin|64\n'
+        fi
+        ;;
       *push_job_queue*) ;;
       *) printf 'unexpected postgres SQL args: %s\n' "$args" >&2; exit 70 ;;
     esac
@@ -38,10 +63,15 @@ case "$args" in
     printf 'OK\n'
     printf '1.0 [0 api] "PUBLISH" "e2ee-restore-monitor-probe:%s" "probe"\n' "$run_id"
     printf '1.1 [0 api] "PUBLISH" "room:11111111-1111-4111-8111-111111111111" "cipher\000one"\n'
-    [[ "${E2EE_BOUNDARY_TEST_MISSING_ROOM:-0}" == 1 ]] ||
+    [[ "${E2EE_BOUNDARY_TEST_MISSING_PUBLISH:-}" == 2222 ]] ||
       printf '1.2 [0 api] "PUBLISH" "room:22222222-2222-4222-8222-222222222222" "cipher-two"\n'
     printf '1.3 [0 api] "PUBLISH" "room:33333333-3333-4333-8333-333333333333" "cipher-three%s"\n' \
       "${E2EE_BOUNDARY_TEST_MONITOR_MARKER:-}"
+    printf '1.4 [0 api] "PUBLISH" "room:44444444-4444-4444-8444-444444444444" "cipher-four"\n'
+    if [[ "${E2EE_BOUNDARY_TEST_MISSING_PUBLISH:-}" == 2222 ]]; then
+      printf '1.5 [0 api] "SUBSCRIBE" "room:22222222-2222-4222-8222-222222222222"\n'
+      printf '1.6 [0 api] "PUBLISH" "other" "room:22222222-2222-4222-8222-222222222222"\n'
+    fi
     while :; do sleep 1; done
     ;;
   *"exec -e REDISCLI_AUTH="*" redis-cli --no-auth-warning PUBLISH "*)
@@ -84,17 +114,27 @@ write_evidence() {
   jq -n --arg run_id "$run_id" --arg marker_suffix "$marker_suffix" '{
     run_id: $run_id,
     scenarios: [
+      {name: "restore-continuity", room_id: "44444444-4444-4444-8444-444444444444",
+       message_proofs: [
+         {message_id: "00000000-0000-4000-8000-000000000001", plaintext_marker: "u10-restore-before-44444444-4444-4444-8444-444444444444", kind: "text"},
+         {message_id: "00000000-0000-4000-8000-000000000002", plaintext_marker: "u10-restore-after-44444444-4444-4444-8444-444444444444", kind: "text"}
+       ]},
       {name: "h5-h5", room_id: "11111111-1111-4111-8111-111111111111",
-       message_ids: ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"],
-       plaintext_markers: [("u5-alice-11111111-1111-4111-8111-111111111111" + $marker_suffix)]},
+       message_proofs: [
+         {message_id: "00000000-0000-4000-8000-000000000003", plaintext_marker: (("u5-alice-11111111-1111-4111-8111-111111111111") + $marker_suffix), kind: "text"},
+         {message_id: "00000000-0000-4000-8000-000000000004", plaintext_marker: "u5-bob-11111111-1111-4111-8111-111111111111", kind: "text"}
+       ]},
       {name: "android-h5", room_id: "22222222-2222-4222-8222-222222222222",
-       message_ids: ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000004", "00000000-0000-4000-8000-000000000005"],
-       object_key: "messages/22222222-2222-4222-8222-222222222222/files/test.bin",
-       attachment_marker: "u5-attachment-22222222-2222-4222-8222-222222222222",
-       plaintext_markers: ["u5-android-22222222-2222-4222-8222-222222222222"]},
+       message_proofs: [
+         {message_id: "00000000-0000-4000-8000-000000000005", plaintext_marker: "u5-android-22222222-2222-4222-8222-222222222222", kind: "text"},
+         {message_id: "00000000-0000-4000-8000-000000000006", plaintext_marker: "u5-h5-22222222-2222-4222-8222-222222222222", kind: "text"},
+         {message_id: "00000000-0000-4000-8000-000000000007", plaintext_marker: "u5-attachment-22222222-2222-4222-8222-222222222222", kind: "attachment", object_key: "messages/22222222-2222-4222-8222-222222222222/files/test.bin"}
+       ]},
       {name: "ios-h5", room_id: "33333333-3333-4333-8333-333333333333",
-       message_ids: ["00000000-0000-4000-8000-000000000006", "00000000-0000-4000-8000-000000000007"],
-       plaintext_markers: ["u5-ios-33333333-3333-4333-8333-333333333333"]}
+       message_proofs: [
+         {message_id: "00000000-0000-4000-8000-000000000008", plaintext_marker: "u5-ios-33333333-3333-4333-8333-333333333333", kind: "text"},
+         {message_id: "00000000-0000-4000-8000-000000000009", plaintext_marker: "u5-h5-33333333-3333-4333-8333-333333333333", kind: "text"}
+       ]}
     ]
   }' >"$artifact_dir/live.json"
 }
@@ -131,14 +171,14 @@ echo '[e2ee-restore-boundary-test] binary snapshot before stop: pass'
 
 reset_monitor
 write_evidence
-E2EE_BOUNDARY_TEST_MISSING_ROOM=1 run_scan monitor-start
+E2EE_BOUNDARY_TEST_MISSING_PUBLISH=2222 run_scan monitor-start
 set +e
 run_scan scan >"$tmp_dir/missing-room.log" 2>&1
 status=$?
 set -e
 [[ "$status" -ne 0 ]]
-rg -q '缺少 room 流量：22222222-2222-4222-8222-222222222222' "$tmp_dir/missing-room.log"
-echo '[e2ee-restore-boundary-test] missing room: fail closed'
+rg -q '缺少精确 PUBLISH：room:22222222-2222-4222-8222-222222222222' "$tmp_dir/missing-room.log"
+echo '[e2ee-restore-boundary-test] subscribe/payload cannot impersonate publish: fail closed'
 
 reset_monitor
 marker=u5-ios-33333333-3333-4333-8333-333333333333
@@ -162,9 +202,62 @@ run_scan scan >"$tmp_dir/run-id-mismatch.log" 2>&1
 status=$?
 set -e
 [[ "$status" -ne 0 ]]
-rg -q '三端 evidence 结构无效' "$tmp_dir/run-id-mismatch.log"
+rg -q '四场景 evidence 结构无效' "$tmp_dir/run-id-mismatch.log"
 echo '[e2ee-restore-boundary-test] run id mismatch: fail closed'
+
+for fault in message-room object-room control-marker encrypted-marker; do
+  reset_monitor
+  write_evidence
+  run_scan monitor-start
+  env_name=""
+  expected=""
+  case "$fault" in
+    message-room)
+      env_name=E2EE_BOUNDARY_TEST_MESSAGE_ROOM_MISMATCH=1
+      expected='message-room proof 不匹配'
+      ;;
+    object-room)
+      env_name=E2EE_BOUNDARY_TEST_OBJECT_ROOM_MISMATCH=1
+      expected='attachment object-message-room proof 不匹配'
+      ;;
+    control-marker)
+      env_name=E2EE_BOUNDARY_TEST_CONTROL_MARKER=1
+      expected='e2ee_control_messages.envelope 命中 plaintext marker'
+      ;;
+    encrypted-marker)
+      env_name=E2EE_BOUNDARY_TEST_ENCRYPTED_MARKER=1
+      expected='messages.encrypted_content 命中 plaintext marker'
+      ;;
+  esac
+  set +e
+  run_scan scan env "$env_name" >"$tmp_dir/$fault.log" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]]
+  rg -q "$expected" "$tmp_dir/$fault.log"
+  echo "[e2ee-restore-boundary-test] $fault: fail closed"
+done
+
+for duplicate in room message marker; do
+  reset_monitor
+  write_evidence
+  case "$duplicate" in
+    room) jq '.scenarios[3].room_id = .scenarios[2].room_id' "$artifact_dir/live.json" >"$artifact_dir/live.tmp" ;;
+    message) jq '.scenarios[3].message_proofs[0].message_id = .scenarios[2].message_proofs[0].message_id' "$artifact_dir/live.json" >"$artifact_dir/live.tmp" ;;
+    marker) jq '.scenarios[3].message_proofs[0].plaintext_marker = .scenarios[2].message_proofs[0].plaintext_marker' "$artifact_dir/live.json" >"$artifact_dir/live.tmp" ;;
+  esac
+  mv "$artifact_dir/live.tmp" "$artifact_dir/live.json"
+  run_scan monitor-start
+  set +e
+  run_scan scan >"$tmp_dir/duplicate-$duplicate.log" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]]
+  rg -q "$duplicate.*必须全局唯一|scenario room_id 必须全局唯一|plaintext marker 必须全局唯一" \
+    "$tmp_dir/duplicate-$duplicate.log"
+  echo "[e2ee-restore-boundary-test] duplicate $duplicate: fail closed"
+done
 
 reset_monitor
 bash -n "$script"
-echo '[e2ee-restore-boundary-test] 4 个 snapshot/room/marker/run-id 场景全部通过'
+echo '[e2ee-restore-boundary-test] 12 个 proof/归属/bytea/PUBLISH/run-id 场景全部通过'

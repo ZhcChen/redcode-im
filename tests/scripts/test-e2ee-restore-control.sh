@@ -267,5 +267,13 @@ run_control "$missing_state" missing-state cleanup >"$missing_state/output.log" 
    ! -e "$missing_state/api" && ! -e "$missing_state/volume" ]]
 echo "[e2ee-restore-control-test] missing state forced cleanup: pass"
 
+snapshot_file="$root_dir/deploy/im-test-1/e2ee-restore-snapshot.sql"
+for row_alias in identity_row device_row package_row epoch_row message_row receipt_row attachment_row; do
+  rg -q "md5\($row_alias::text\)" "$snapshot_file"
+done
+[[ "$(rg -c 'md5\(message_row::text\)' "$snapshot_file")" == 2 ]]
+! rg -q 'concat_ws\(' "$snapshot_file"
+echo "[e2ee-restore-control-test] snapshot complete-row digest contract: pass"
+
 bash -n "$script"
-echo "[e2ee-restore-control-test] 6 个 restore control 场景全部通过"
+echo "[e2ee-restore-control-test] 6 个 restore control 场景与 snapshot 合同全部通过"

@@ -120,54 +120,109 @@ validate_evidence() {
     die "evidence 必须位于当前 run artifact 目录"
   jq -e --arg run_id "$run_id" '
     (.run_id == $run_id) and
-    (.scenarios | type == "array" and length == 3) and
-    ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5"]) and
+    (.scenarios | type == "array" and length == 4) and
+    ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5", "restore-continuity"]) and
     (all(.scenarios[]; (.room_id | type == "string" and length > 0))) and
-    (all(.scenarios[]; (.message_ids | type == "array" and length > 0))) and
-    (all(.scenarios[]; (.plaintext_markers | type == "array" and length > 0))) and
-    (.scenarios[] | select(.name == "android-h5") |
-      (.object_key | type == "string" and length > 0) and
-      (.attachment_marker | type == "string" and length > 0))
-  ' "$evidence_file" >/dev/null || die "三端 evidence 结构无效"
+    (all(.scenarios[];
+      (.message_proofs | type == "array" and length > 0) and
+      all(.message_proofs[];
+        (.message_id | type == "string" and length > 0) and
+        (.plaintext_marker | type == "string" and length > 0) and
+        (.kind == "text" or .kind == "attachment") and
+        (if .kind == "attachment"
+         then (.object_key | type == "string" and length > 0)
+         else (has("object_key") | not)
+         end)))) and
+    ([.scenarios[].message_proofs[]] | length == 9) and
+    ([.scenarios[].message_proofs[] | select(.kind == "attachment")] | length == 1)
+  ' "$evidence_file" >/dev/null || die "四场景 evidence 结构无效"
 }
 
 scan() {
   local container monitor_bytes monitor_process monitor_channels object_key attachment_marker object_file object_sha256
-  local message_csv room_csv db_rows control_rows attachment_rows push_rows api_logs push_status
-  local room_ids=() message_ids=() markers=()
+  local message_csv db_rows attachment_rows push_rows api_logs push_status marker_predicate
+  local content_predicate encrypted_predicate metadata_predicate envelope_predicate push_predicate
+  local content_expression metadata_expression push_expression
+  local proof_file="$artifact_dir/message-proofs.tsv"
+  local room_ids=() message_ids=() markers=() object_keys=()
   validate_evidence
   [[ "$(cat "$artifact_dir/monitor-ready" 2>/dev/null || true)" == ready ]] ||
     die "Redis MONITOR ready marker 缺失"
-  while IFS= read -r value; do room_ids+=("$value"); done < <(jq -r '.scenarios[].room_id' "$evidence_file")
-  while IFS= read -r value; do message_ids+=("$value"); done < <(jq -r '.scenarios[].message_ids[]' "$evidence_file")
-  while IFS= read -r value; do markers+=("$value"); done < <(jq -r '.scenarios[].plaintext_markers[]' "$evidence_file")
-  object_key="$(jq -r '.scenarios[] | select(.name == "android-h5") | .object_key' "$evidence_file")"
-  attachment_marker="$(jq -r '.scenarios[] | select(.name == "android-h5") | .attachment_marker' "$evidence_file")"
+  jq -r '.scenarios[] as $scenario | $scenario.message_proofs[] |
+    [$scenario.name, $scenario.room_id, .message_id, .plaintext_marker, .kind, (.object_key // "")] | @tsv' \
+    "$evidence_file" >"$proof_file"
+  while IFS=$'\t' read -r _ room_id message_id marker kind proof_object_key; do
+    room_ids+=("$room_id")
+    message_ids+=("$message_id")
+    markers+=("$marker")
+    [[ "$kind" != attachment ]] || object_keys+=("$proof_object_key")
+  done <"$proof_file"
   for value in "${room_ids[@]}" "${message_ids[@]}"; do
     [[ "$value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] ||
       die "evidence UUID 无效"
   done
-  [[ "$object_key" =~ ^messages/[0-9a-f-]+/[A-Za-z0-9._/-]+$ ]] || die "object key 无效"
-  [[ "$attachment_marker" =~ ^u[0-9]+-attachment-[0-9a-f-]+$ ]] || die "attachment marker 无效"
   for marker in "${markers[@]}"; do
     [[ "$marker" =~ ^u[0-9]+-[A-Za-z0-9-]+$ ]] || die "plaintext marker 无效"
   done
+  [[ "$(printf '%s\n' "${room_ids[@]}" | sort -u | wc -l | tr -d ' ')" == 4 ]] ||
+    die "scenario room_id 必须全局唯一"
+  [[ "$(printf '%s\n' "${message_ids[@]}" | sort -u | wc -l | tr -d ' ')" == "${#message_ids[@]}" ]] ||
+    die "message_id 必须全局唯一"
+  [[ "$(printf '%s\n' "${markers[@]}" | sort -u | wc -l | tr -d ' ')" == "${#markers[@]}" ]] ||
+    die "plaintext marker 必须全局唯一"
+  [[ "${#object_keys[@]}" == 1 ]] || die "必须且只能有一个 attachment object"
+  object_key="${object_keys[0]}"
+  attachment_marker="$(awk -F '\t' '$5 == "attachment" { print $4 }' "$proof_file")"
+  [[ "$object_key" =~ ^messages/[0-9a-f-]+/[A-Za-z0-9._/-]+$ ]] || die "object key 无效"
+  [[ "$attachment_marker" =~ ^u[0-9]+-attachment-[0-9a-f-]+$ ]] || die "attachment marker 无效"
 
   message_csv="$(printf "'%s'," "${message_ids[@]}")"; message_csv="${message_csv%,}"
-  room_csv="$(printf "'%s'," "${room_ids[@]}")"; room_csv="${room_csv%,}"
-  db_rows="$(postgres_query "SELECT id, room_id, content, encrypted_content IS NOT NULL,
-    COALESCE(encryption_metadata::text, '') FROM messages WHERE id IN ($message_csv) ORDER BY id")"
+  db_rows="$(postgres_query "SELECT id, room_id, content, encrypted_content IS NOT NULL
+    FROM messages WHERE id IN ($message_csv) ORDER BY id")"
   [[ "$(printf '%s\n' "$db_rows" | sed '/^$/d' | wc -l | tr -d ' ')" == "${#message_ids[@]}" ]] ||
     die "restore DB 未找到全部 evidence messages"
   printf '%s\n' "$db_rows" | awk -F '|' '$3 != "[加密消息]" || $4 != "t" { exit 1 }' ||
     die "restore DB 消息不是密文占位"
+  while IFS=$'\t' read -r scenario room_id message_id _ _ _; do
+    printf '%s\n' "$db_rows" | awk -F '|' -v id="$message_id" -v room="$room_id" \
+      '$1 == id && $2 == room { found=1 } END { exit(found ? 0 : 1) }' ||
+      die "message-room proof 不匹配：$scenario/$message_id"
+  done <"$proof_file"
 
-  control_rows="$(postgres_query "SELECT room_id, content_type, encode(envelope, 'hex')
-    FROM e2ee_control_messages WHERE room_id IN ($room_csv) ORDER BY room_id, created_at")"
-  [[ -n "$control_rows" ]] || die "restore DB 缺少 control messages"
   attachment_rows="$(postgres_query "SELECT room_id, object_key, file_size FROM
     message_attachment_commits WHERE object_key = '$object_key'")"
   [[ -n "$attachment_rows" ]] || die "restore DB 缺少 attachment commit"
+  while IFS=$'\t' read -r scenario room_id message_id _ kind proof_object_key; do
+    [[ "$kind" != attachment ]] || {
+      printf '%s\n' "$attachment_rows" | awk -F '|' -v room="$room_id" -v object="$proof_object_key" \
+        '$1 == room && $2 == object { found=1 } END { exit(found ? 0 : 1) }' ||
+        die "attachment object-message-room proof 不匹配：$scenario/$message_id"
+    }
+  done <"$proof_file"
+
+  marker_predicate="$(printf "position(convert_to('%s', 'UTF8') in %%s) > 0 OR " "${markers[@]}")"
+  marker_predicate="${marker_predicate% OR }"
+  content_expression="convert_to(COALESCE(content, ''), 'UTF8')"
+  metadata_expression="convert_to(encryption_metadata::text, 'UTF8')"
+  push_expression="convert_to(payload::text, 'UTF8')"
+  content_predicate="${marker_predicate//%s/$content_expression}"
+  encrypted_predicate="${marker_predicate//%s/encrypted_content}"
+  metadata_predicate="${marker_predicate//%s/$metadata_expression}"
+  envelope_predicate="${marker_predicate//%s/envelope}"
+  push_predicate="${marker_predicate//%s/$push_expression}"
+  [[ "$(postgres_query "SELECT COUNT(*) FROM messages WHERE ($content_predicate)")" == 0 ]] ||
+    die "messages.content 命中 plaintext marker"
+  [[ "$(postgres_query "SELECT COUNT(*) FROM messages WHERE encrypted_content IS NOT NULL AND
+    ($encrypted_predicate)")" == 0 ]] ||
+    die "messages.encrypted_content 命中 plaintext marker"
+  [[ "$(postgres_query "SELECT COUNT(*) FROM messages WHERE encryption_metadata IS NOT NULL AND
+    ($metadata_predicate)")" == 0 ]] ||
+    die "messages.encryption_metadata 命中 plaintext marker"
+  [[ "$(postgres_query "SELECT COUNT(*) FROM e2ee_control_messages WHERE ($envelope_predicate)")" == 0 ]] ||
+    die "e2ee_control_messages.envelope 命中 plaintext marker"
+  [[ "$(postgres_query "SELECT COUNT(*) FROM push_job_queue WHERE ($push_predicate)")" == 0 ]] ||
+    die "push_job_queue.payload 命中 plaintext marker"
+
   push_rows="$(postgres_query "SELECT payload::text FROM push_job_queue WHERE
     $(printf "payload::text LIKE '%%%s%%' OR " "${message_ids[@]}" | sed 's/ OR $//')")"
   push_status=not-observed-live
@@ -199,16 +254,17 @@ scan() {
   kill -0 "$monitor_process" 2>/dev/null && die "Redis MONITOR 进程未停止"
   monitor_channels="$(sed -nE 's/.*"(PUBLISH|SUBSCRIBE|PSUBSCRIBE)" "([^"]+)".*/\1 \2/p' \
     "$monitor_snapshot" | sort -u)"
-  for room_id in "${room_ids[@]}"; do
-    if ! grep -aFq "room:$room_id" "$monitor_snapshot"; then
+  while IFS= read -r room_id; do
+    if ! sed -nE 's/.*"PUBLISH" "([^"]+)".*/\1/p' "$monitor_snapshot" |
+      grep -Fxq "room:$room_id"; then
       log "Redis MONITOR 已观测 channel：${monitor_channels:-none}"
-      die "Redis MONITOR 缺少 room 流量：$room_id"
+      die "Redis MONITOR 缺少精确 PUBLISH：room:$room_id"
     fi
-  done
+  done < <(printf '%s\n' "${room_ids[@]}" | sort -u)
 
   api_logs="$(compose_restore logs --since "$(cat "$artifact_dir/scan-log-since")" --no-color api-restore)"
   for marker in "${markers[@]}"; do
-    for surface in "$db_rows" "$control_rows" "$attachment_rows" "$push_rows" "$api_logs"; do
+    for surface in "$db_rows" "$attachment_rows" "$push_rows" "$api_logs"; do
       printf '%s' "$surface" | grep -aFq "$marker" && die "边界面命中 plaintext marker"
     done
     grep -aFq "$marker" "$monitor_snapshot" && die "Redis MONITOR 命中 plaintext marker"
