@@ -79,6 +79,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
     const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
     const { mapWebSocketMessage, messageService } = await import('@/services/message-service');
+    const { messageAttachmentUploadService } = await import('@/services/message-attachment-upload-service');
     const { H5WebSocketService } = await import('@/services/websocket-service');
 
     useSession(alice);
@@ -196,6 +197,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     const androidMarker = `u5-android-${crypto.randomUUID()}`;
     const h5Marker = `u5-h5-${crypto.randomUUID()}`;
+    const attachmentMarker = `u5-attachment-${crypto.randomUUID()}`;
     const crossBobSocket = new H5WebSocketService({
       autoReconnect: false,
       factory: (url) => new WebSocket(url) as unknown as globalThis.WebSocket,
@@ -223,6 +225,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       room_id: crossChat.roomId,
       android_marker: androidMarker,
       h5_marker: h5Marker,
+      attachment_marker: attachmentMarker,
       api_base_url: apiBaseUrl,
     });
     onTestFinished(() => coordination.close());
@@ -258,6 +261,35 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     const androidReceived = await coordination.waitFor('android-received');
     expect(requiredString(androidReceived, 'message_id')).toBe(h5MessageId);
 
+    useSession(h5CrossBob);
+    const attachment = await messageAttachmentUploadService.uploadEncrypted(
+      crossChat.roomId,
+      new File([attachmentMarker], 'e2ee-live.txt', { type: 'text/plain' }),
+      'file',
+    );
+    const attachmentResponse = await e2eeDirectMessageCoordinator.sendAttachment({
+      accountId: h5CrossBob.user.id,
+      deviceLabel: 'H5 cross Bob',
+      roomId: crossChat.roomId,
+      peerUserId: androidAlice.user.id,
+      parts: [attachment.e2eePart],
+    });
+    const attachmentMessageId = responseMessageId(attachmentResponse);
+    coordination.publish('h5-attachment-sent', {
+      message_id: attachmentMessageId,
+      object_key: attachment.e2eePart.objectKey,
+    });
+    const attachmentResult = await Promise.race([
+      coordination.waitFor('android-attachment-received').then((payload) => ({ ok: true as const, payload })),
+      coordination.waitFor('android-attachment-failed').then((payload) => ({ ok: false as const, payload })),
+    ]);
+    if (!attachmentResult.ok) {
+      throw new Error(
+        `Android attachment failed: ${requiredString(attachmentResult.payload, 'type')}: ${requiredString(attachmentResult.payload, 'message')}`,
+      );
+    }
+    expect(requiredString(attachmentResult.payload, 'message_id')).toBe(attachmentMessageId);
+
     const exitCode = await android.exitCode;
     expect(exitCode, 'Android 跨端联调进程失败').toBe(0);
     const crossRawHistory = await request<Array<Record<string, unknown>>>(
@@ -268,9 +300,11 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     const crossSerialized = JSON.stringify(crossRawHistory);
     expect(crossSerialized).not.toContain(androidMarker);
     expect(crossSerialized).not.toContain(h5Marker);
+    expect(crossSerialized).not.toContain(attachmentMarker);
     expect(crossRawHistory).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: androidMessageId, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
+      expect.objectContaining({ id: attachmentMessageId, encrypted_content: expect.any(String) }),
     ]));
   }, 60_000);
 

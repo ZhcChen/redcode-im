@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.live
 
 import com.redcode.im.androidapp.core.config.RedCodeEnvironment
 import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
+import com.redcode.im.androidapp.e2ee.E2eeAttachmentCrypto
 import com.redcode.im.androidapp.e2ee.E2eeCommandClient
 import com.redcode.im.androidapp.e2ee.E2eeCommandSessionCore
 import com.redcode.im.androidapp.e2ee.E2eeDeviceLifecycle
@@ -126,6 +127,56 @@ class AndroidE2eeCrossClientLiveTest {
             )
         assertEquals(fixture.h5Marker, decrypted.text)
         coordination.publish("android-received", mapOf("message_id" to h5MessageId))
+
+        val attachmentMessageId = coordination.waitFor("h5-attachment-sent").getValue("message_id")
+        val attachmentEncrypted =
+            chat.loadMessages(fixture.roomId, fixture.token, limit = 50)
+                .first { it.id == attachmentMessageId }
+        val attachmentMessage =
+            coordinator.decryptIncoming(
+                fixture.accountId,
+                "Android E2EE live",
+                E2eeIncomingMessage(
+                    attachmentMessageId,
+                    fixture.roomId,
+                    Base64.getDecoder().decode(requireNotNull(attachmentEncrypted.encryptedContent)),
+                    source = E2eeMessageSource.History,
+                ),
+                fixture.token,
+            )
+        val part = attachmentMessage.attachmentParts.single()
+        val storedCiphertext = try {
+            val downloadUrl = requireNotNull(
+                chat.fetchAttachmentDownloadUrl(fixture.roomId, part.objectKey, fixture.token, 600),
+            )
+            chat.downloadAttachmentBytes(downloadUrl)
+        } catch (error: Exception) {
+            coordination.publish(
+                "android-attachment-failed",
+                mapOf(
+                    "type" to error::class.java.simpleName,
+                    "message" to (error.message ?: "unknown").take(500),
+                ),
+            )
+            throw error
+        }
+        assertFalse(storedCiphertext.toString(Charsets.UTF_8).contains(fixture.attachmentMarker))
+        val attachmentCrypto = E2eeAttachmentCrypto()
+        val aad = attachmentCrypto.attachmentAad(fixture.roomId, part.partKey, part.partPosition, part.objectKey)
+        val plaintext = attachmentCrypto.decrypt(storedCiphertext, aad, part.nonce, part.dek)
+        assertEquals(fixture.attachmentMarker, plaintext.toString(Charsets.UTF_8))
+        val wrongAad = attachmentCrypto.attachmentAad(
+            fixture.roomId,
+            part.partKey,
+            part.partPosition,
+            "${part.objectKey}-tampered",
+        )
+        assertTrue(
+            runCatching {
+                attachmentCrypto.decrypt(storedCiphertext, wrongAad, part.nonce, part.dek)
+            }.exceptionOrNull() is E2eeDirectMessageException,
+        )
+        coordination.publish("android-attachment-received", mapOf("message_id" to attachmentMessageId))
     }
 
     private suspend fun exchangeWithIOS() {
@@ -320,6 +371,7 @@ private data class CoordinationFixture(
     val h5_marker: String,
     val ios_restart_marker: String = "",
     val device_add_marker: String = "",
+    val attachment_marker: String = "",
     val api_base_url: String,
 ) {
     val accountId get() = account_id
@@ -329,6 +381,7 @@ private data class CoordinationFixture(
     val h5Marker get() = h5_marker
     val iosRestartMarker get() = ios_restart_marker
     val deviceAddMarker get() = device_add_marker
+    val attachmentMarker get() = attachment_marker
     val apiBaseUrl get() = api_base_url
 }
 
