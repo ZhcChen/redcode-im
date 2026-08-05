@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
 current_unit: G3
-current_checkpoint: G3.1
+current_checkpoint: G3.2
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
@@ -23,7 +23,7 @@ supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
-- 当前 checkpoint：`G3.1`，固化 H5 production 候选构建与静态发布安全边界。
+- 当前 checkpoint：`G3.2`，验证 H5 浏览器运行时、真实部署响应头与 fail-closed 边界。
 - 当前裁决：生产 E2EE 为 **No-Go**。
 - 运行约束：保持 `content_audit_mode=plaintext`；测试候选环境结束后必须恢复
   `persist/plaintext` 和 `security_review_approved=false`。
@@ -40,6 +40,7 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 | U7 P0-1 客户端主链 | 关闭 | Android/iOS/H5 三端真实互解与全量门禁 |
 | G1 / U7 P0-2 备份恢复与灰度回滚 | 关闭 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
 | G2 / U7 P0-3 六端供应链门禁 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md`；CI run `31032243630` |
+| G3.1 H5 候选构建与静态安全边界 | 完成 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-g3-1.md`；commit `cf05af8a` |
 | API 风险依赖清理 | 完成 | `9e67ff9a`；API unit 188/188 与 integration 通过 |
 | H5 风险依赖清理 | 完成 | `e3201bda`；type-check、262 tests 通过 |
 | Admin 风险依赖与构建更新 | 完成 | `6cbf6e3e`；`pnpm build:check` 通过 |
@@ -118,10 +119,12 @@ SBOM 报告、供应链独立 review、U7 review、任务总账和本文已同�
 
 ### G3 H5 发布安全（当前）
 
-1. `G3.1`（当前）：生成可追溯 production 候选构建，检查严格 CSP、安全响应头、
-   公开 source map、静态资源与 commit/lockfile 绑定；形成可重复的静态检查入口。
-2. `G3.2`：在隔离浏览器会话验证 WebCrypto wrapping key 不可导出，存储、Network、
-   Console 和日志无敏感数据；状态损坏、身份变化、未知 epoch 与解密失败均 fail closed。
+1. `G3.1`（完成）：可追溯 production 候选构建、严格 CSP、安全响应头、公开
+   source map、静态资源与 commit/lockfile 绑定及 GitHub OIDC provenance 已形成
+   可重复门禁，独立复审 P0=0、P1=0。
+2. `G3.2`（当前）：在隔离浏览器会话验证真实部署 TLS/response headers、WebCrypto
+   wrapping key 不可导出，存储、Network、Console 和日志无敏感数据；状态损坏、
+   身份变化、未知 epoch 与解密失败均 fail closed。
 3. `G3.3`：形成 H5 发布安全 review，关闭 U7 P0-4，并进入 `G4.1`。
 
 不得通过加入不受控 `unsafe-inline`、`unsafe-eval` 或 plaintext fallback 通过验收。

@@ -28,9 +28,10 @@
 
 - 当前主线：原生双端 E2EE 客户端专项与供应链门禁已完成 -> 关闭剩余 H5 发布安全 P0
   -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：`G2.2-G2.5` 已完成并关闭 U7 P0-3；唯一 checkpoint 为 `G3.1`，
-  固化 H5 production 候选构建及 CSP、安全响应头、source map 和产物追溯边界。
-- 当前下一阶段：G3.2 浏览器运行时安全验收、G3.3 关闭 U7 P0-4，随后 G4 独立
+- 当前立即任务：`G3.1` 已完成可追溯 H5 production 候选构建、严格 CSP、source map
+  阻断、真实候选 response header 检查与 GitHub OIDC provenance；唯一 checkpoint
+  为 `G3.2` 浏览器运行时和真实部署安全验收。
+- 当前下一阶段：G3.3 形成正式报告并关闭 U7 P0-4，随后 G4 独立
   复审并重新作出 Go/No-Go 裁决。
 - 当前发布阻断项：U7 P0-4、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
@@ -80,6 +81,8 @@
     与资源清理，U7 P0-2 已关闭。
   - G2 六端 SBOM、漏洞与许可证 fail-closed 门禁已通过 main CI 和独立复审，
     U7 P0-3 已关闭。
+  - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
+    source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
   - 当前只剩一个 E2EE 生产 P0：H5 发布前 CSP/依赖锁定/WebCrypto 安全报告；
     最后由 G4 独立复审作出 Go/No-Go 裁决。
   - 未关闭时阻断 2.0 发布。
