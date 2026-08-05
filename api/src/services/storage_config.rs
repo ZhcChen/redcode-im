@@ -472,7 +472,10 @@ impl StorageConfigService {
         if !runtime_has_materializable_credentials(&current) {
             return Ok(());
         }
-        if self.provider_store.get_default_provider().await?.is_some() {
+        let default_provider = self.provider_store.get_any_default_provider().await?;
+        if !should_sync_materialized_provider(
+            default_provider.as_ref().map(|item| item.name.as_str()),
+        ) {
             return Ok(());
         }
         self.sync_default_provider(&current, None).await
@@ -813,6 +816,10 @@ fn runtime_has_materializable_credentials(runtime: &RuntimeConfig) -> bool {
         && !runtime.endpoint.trim().is_empty()
         && !runtime.region.trim().is_empty()
         && !runtime.private_bucket.trim().is_empty()
+}
+
+fn should_sync_materialized_provider(default_name: Option<&str>) -> bool {
+    default_name.is_none_or(|name| name.trim() == DEFAULT_PROVIDER_SYNC_NAME)
 }
 
 trait StorageSecretCipher: Send + Sync {
@@ -1273,6 +1280,16 @@ mod tests {
         let _scheme = TestEnvGuard::set("REDCODE_IM_STORAGE_SCHEME", "http");
 
         assert_eq!(BootstrapConfig::from_env().endpoint, "http://rustfs:9000");
+    }
+
+    #[test]
+    fn bootstrap_sync_only_updates_system_managed_default_provider() {
+        assert!(should_sync_materialized_provider(None));
+        assert!(should_sync_materialized_provider(Some("system-s3-runtime")));
+        assert!(should_sync_materialized_provider(Some(
+            " system-s3-runtime "
+        )));
+        assert!(!should_sync_materialized_provider(Some("admin-custom-s3")));
     }
 
     #[test]
