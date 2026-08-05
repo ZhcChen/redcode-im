@@ -11,6 +11,8 @@ env \
   E2EE_RESTORE_PROJECT_NAME=e2ee-restore-contract \
   E2EE_RESTORE_PASSWORD=restore-password \
   E2EE_RESTORE_REDIS_PASSWORD=restore-redis-password \
+  E2EE_RESTORE_STORAGE_NETWORK=e2ee-restore-contract-storage \
+  E2EE_RESTORE_INGRESS_NETWORK=e2ee-restore-contract-ingress \
   E2EE_DRILL_API_IMAGE=redcode-im-api:contract \
   TZ=Asia/Shanghai \
   RUST_LOG=info \
@@ -44,12 +46,18 @@ jq -e '
   (.services["api-restore"].environment.REDIS_CACHE_URL | contains("@redis-restore:6379/0")) and
   (.services["api-restore"].environment.REDCODE_IM_B2_ENDPOINT == "rustfs:9000") and
   (.services["api-restore"].environment.METRICS_ENABLED == "false") and
-  ([.services["api-restore"].networks | keys[]] | sort == ["im-test-1-network", "restore-internal"]) and
+  ([.services["api-restore"].networks | keys[]] | sort == ["ingress-isolated", "restore-internal", "storage-isolated"]) and
   ([.services["postgres-restore"].networks | keys[]] == ["restore-internal"]) and
   ([.services["redis-restore"].networks | keys[]] == ["restore-internal"]) and
   (.networks["restore-internal"].internal == true) and
-  (.networks["im-test-1-network"].external == true)
+  (.networks["storage-isolated"].external == true) and
+  (.networks["storage-isolated"].name == "e2ee-restore-contract-storage") and
+  (.networks["ingress-isolated"].external == true) and
+  (.networks["ingress-isolated"].name == "e2ee-restore-contract-ingress")
 ' "$config" >/dev/null
+
+rg -q 'docker network create --internal' "$root_dir/deploy/im-test-1/e2ee-restore-control.sh"
+rg -q 'has\("im-test-1-network"\) \| not' "$root_dir/deploy/im-test-1/e2ee-restore-control.sh"
 
 if rg -n '0\.0\.0\.0|5432:|6379:' "$config" >/dev/null; then
   echo "[e2ee-restore-compose-test] restore 栈暴露了非预期监听地址或数据端口" >&2

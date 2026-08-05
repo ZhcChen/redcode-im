@@ -21,12 +21,10 @@ done_path="$output_dir/switched"
 recovery_path="$output_dir/recovery.json"
 live_evidence_path="$output_dir/live.json"
 h5_log_path="$output_dir/h5.log"
-source_watch_log="$output_dir/source-isolation.jsonl"
-source_watch_ready="$output_dir/source-isolation.ready"
-source_watch_failed="$output_dir/source-isolation.failed"
+evidence_key_path="$output_dir/evidence-hmac.key"
+remote_evidence_key="$remote_dir/.e2ee-drill/$run_id/evidence-hmac.key"
 tunnel_pid=""
 h5_pid=""
-source_watch_pid=""
 cleanup_started=0
 
 log() {
@@ -59,10 +57,13 @@ if [[ "$full_suite" == 1 ]]; then
   export JAVA_HOME="$jdk21_home"
 fi
 
-for command in curl jq lsof scp ssh "$make_command"; do require_command "$command"; done
+for command in curl jq lsof od scp ssh "$make_command"; do require_command "$command"; done
 
 mkdir -p "$output_dir"
 rm -f "$ready_path" "$done_path" "$recovery_path" "$live_evidence_path" "$h5_log_path"
+evidence_hmac_key="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+[[ "$evidence_hmac_key" =~ ^[0-9a-f]{64}$ ]] || die "evidence HMAC key 生成失败"
+printf '%s\n' "$evidence_hmac_key" >"$evidence_key_path"
 
 remote_control() {
   local operation="$1" allow=""
@@ -94,43 +95,6 @@ assert_source_plaintext() {
     .message_runtime.content_audit_mode == "plaintext"' <<<"$runtime" >/dev/null
 }
 
-start_source_isolation_watch() {
-  rm -f "$source_watch_log" "$source_watch_ready" "$source_watch_failed"
-  (
-    while :; do
-      identity="$(remote_control verify 2>/dev/null)" || {
-        printf 'verify-command-failed\n' >"$source_watch_failed"
-        exit 1
-      }
-      jq -ce --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-        select(.source_postgres_connections == 0 and .source_redis_connections == 0) |
-        {observed_at: $observed_at, source_postgres_connections, source_redis_connections}
-      ' <<<"$identity" >>"$source_watch_log" || {
-        printf 'source-connection-observed\n' >"$source_watch_failed"
-        exit 1
-      }
-      [[ -e "$source_watch_ready" ]] || printf 'ready\n' >"$source_watch_ready"
-      sleep 1
-    done
-  ) &
-  source_watch_pid=$!
-  for _ in $(seq 1 100); do
-    [[ -s "$source_watch_ready" ]] && return 0
-    kill -0 "$source_watch_pid" 2>/dev/null || break
-    sleep 0.1
-  done
-  die "source isolation watcher 未就绪"
-}
-
-stop_source_isolation_watch() {
-  [[ -n "$source_watch_pid" ]] || return 0
-  kill "$source_watch_pid" 2>/dev/null || true
-  wait "$source_watch_pid" 2>/dev/null || true
-  source_watch_pid=""
-  [[ ! -e "$source_watch_failed" && -s "$source_watch_log" ]] ||
-    die "source isolation watcher 发现旧主连接或采集失败"
-}
-
 finish() {
   local exit_code="${1:-$?}" cleanup_failed=0
   [[ "$cleanup_started" == 0 ]] || exit "$exit_code"
@@ -140,14 +104,11 @@ finish() {
     kill "$h5_pid" 2>/dev/null || true
     wait "$h5_pid" 2>/dev/null || true
   fi
-  if [[ -n "$source_watch_pid" ]]; then
-    kill "$source_watch_pid" 2>/dev/null || true
-    wait "$source_watch_pid" 2>/dev/null || true
-  fi
   if [[ -n "$tunnel_pid" ]]; then
     kill "$tunnel_pid" 2>/dev/null || true
     wait "$tunnel_pid" 2>/dev/null || true
   fi
+  rm -f "$evidence_key_path"
   remote_control cleanup >/dev/null 2>&1 || cleanup_failed=1
   assert_source_plaintext || cleanup_failed=1
   if [[ "$cleanup_failed" != 0 ]]; then
@@ -201,6 +162,7 @@ VITE_API_BASE_URL=http://127.0.0.1:18010 \
 VITE_WS_URL=ws://127.0.0.1:18010/ws \
 E2EE_LIVE_RUN_ID="$run_id" \
 E2EE_LIVE_EVIDENCE_PATH="$live_evidence_path" \
+E2EE_LIVE_EVIDENCE_HMAC_KEY="$evidence_hmac_key" \
 E2EE_RESTORE_SWITCH_ENABLED=1 \
 E2EE_RESTORE_SWITCH_READY_PATH="$ready_path" \
 E2EE_RESTORE_SWITCH_DONE_PATH="$done_path" \
@@ -230,11 +192,11 @@ jq -e --arg run_id "$run_id" \
     .database_marker == ("redcode-e2ee-restore:" + $run_id) and
     .database_host == "postgres-restore" and .redis_host == "redis-restore" and
     .source_postgres_connections == 0 and .source_redis_connections == 0 and
+    .source_network_reachable == false and
     .runtime == "persist/e2ee" and .api_url == "http://127.0.0.1:18010"' \
   <<<"$restore_identity" >/dev/null || die "restore identity 验证失败"
 jq -S . <<<"$restore_identity" >"$output_dir/restore-identity.json"
 if [[ "$full_suite" == 1 ]]; then
-  start_source_isolation_watch
   remote_boundary monitor-start >/dev/null
 fi
 printf 'switched\n' >"$done_path"
@@ -260,6 +222,7 @@ if [[ "$full_suite" == 1 ]]; then
   VITE_WS_URL=ws://127.0.0.1:18010/ws \
   E2EE_LIVE_RUN_ID="$run_id" \
   E2EE_LIVE_EVIDENCE_PATH="$live_evidence_path" \
+  E2EE_LIVE_EVIDENCE_HMAC_KEY="$evidence_hmac_key" \
     "$make_command" -C "$root_dir" h5-app.test.e2ee.live >"$output_dir/full-live.log" 2>&1 || {
       cat "$output_dir/full-live.log" >&2
       die "restore API 三端 full suite 失败"
@@ -280,6 +243,7 @@ if [[ "$full_suite" == 1 ]]; then
     ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5", "restore-continuity"])' \
     "$live_evidence_path" >/dev/null || die "恢复与三端 evidence 不完整"
   scp -q "$live_evidence_path" "$remote:$remote_live_evidence"
+  scp -q "$evidence_key_path" "$remote:$remote_evidence_key"
   remote_boundary scan >"$output_dir/boundary-scan.json"
   jq -e --arg run_id "$run_id" '
     .run_id == $run_id and .db == "ciphertext-only" and
@@ -294,7 +258,3 @@ fi
 remote_control snapshot >"$output_dir/post-live-snapshot.json"
 jq -e '.digest | type == "string" and length == 32' \
   "$output_dir/post-live-snapshot.json" >/dev/null || die "post-live snapshot 无效"
-if [[ "$full_suite" == 1 ]]; then
-  stop_source_isolation_watch
-  log "source PostgreSQL/Redis 在完整 restore live 窗口内持续保持零连接"
-fi

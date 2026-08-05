@@ -13,10 +13,14 @@ artifact_root="${E2EE_RESTORE_ARTIFACT_ROOT:-$script_dir/.e2ee-drill}"
 state_file="$state_root/$run_id/control.env"
 artifact_dir="$artifact_root/$run_id"
 project="e2ee-restore-${run_id//[._]/-}"
+storage_network="$project-storage"
+ingress_network="$project-ingress"
 monitor_log="$artifact_dir/redis-monitor.log"
 monitor_pid="$artifact_dir/redis-monitor.pid"
 monitor_snapshot="$artifact_dir/redis-monitor.snapshot"
 monitor_probe_channel="e2ee-restore-monitor-probe:$run_id"
+monitor_terminal_channel="$monitor_probe_channel:terminal"
+evidence_key_file="$artifact_dir/evidence-hmac.key"
 command_timeout="${E2EE_RESTORE_SCAN_COMMAND_TIMEOUT:-180}"
 restore_password=""
 restore_redis_password=""
@@ -56,7 +60,7 @@ for path in "$env_file" "$compose_file" "$state_root" "$artifact_root"; do
   [[ "$path" == /* && "$path" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "控制路径无效：$path"
 done
 [[ -f "$env_file" && -f "$compose_file" && -f "$state_file" ]] || die "restore scan 状态不完整"
-for command in awk cp docker grep jq sed seq sha256sum sort tr wc; do
+for command in awk cp docker grep jq openssl sed seq sha256sum sort tr wc; do
   command -v "$command" >/dev/null || die "缺少命令：$command"
 done
 
@@ -75,6 +79,8 @@ compose_restore() {
   E2EE_RESTORE_USER=e2ee_restore \
   E2EE_RESTORE_PASSWORD="$restore_password" \
   E2EE_RESTORE_REDIS_PASSWORD="$restore_redis_password" \
+  E2EE_RESTORE_STORAGE_NETWORK="$storage_network" \
+  E2EE_RESTORE_INGRESS_NETWORK="$ingress_network" \
   E2EE_DRILL_API_IMAGE="${E2EE_DRILL_API_IMAGE:?}" \
     run_with_timeout docker compose --env-file "$env_file" -p "$project" -f "$compose_file" "$@"
 }
@@ -128,6 +134,8 @@ validate_evidence() {
       all(.message_proofs[];
         (.message_id | type == "string" and length > 0) and
         (.plaintext_marker | type == "string" and length > 0) and
+        (.ciphertext_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        (.binding_hmac | type == "string" and test("^[0-9a-f]{64}$")) and
         (.kind == "text" or .kind == "attachment") and
         (if .kind == "attachment"
          then (.object_key | type == "string" and length > 0)
@@ -140,22 +148,33 @@ validate_evidence() {
 
 scan() {
   local container monitor_bytes monitor_process monitor_channels object_key attachment_marker object_file object_sha256
-  local message_csv db_rows attachment_rows push_rows api_logs push_status marker_predicate
+  local message_csv db_rows attachment_rows push_rows push_invalid_rows api_logs push_status marker_predicate
   local content_predicate encrypted_predicate metadata_predicate envelope_predicate push_predicate
-  local content_expression metadata_expression push_expression
+  local content_expression metadata_expression push_expression evidence_hmac_key calculated_hmac
   local proof_file="$artifact_dir/message-proofs.tsv"
   local room_ids=() message_ids=() markers=() object_keys=()
   validate_evidence
   [[ "$(cat "$artifact_dir/monitor-ready" 2>/dev/null || true)" == ready ]] ||
     die "Redis MONITOR ready marker 缺失"
   jq -r '.scenarios[] as $scenario | $scenario.message_proofs[] |
-    [$scenario.name, $scenario.room_id, .message_id, .plaintext_marker, .kind, (.object_key // "")] | @tsv' \
+    [$scenario.name, $scenario.room_id, .message_id, .plaintext_marker,
+     .ciphertext_sha256, .kind, (.object_key // "-"), .binding_hmac] | @tsv' \
     "$evidence_file" >"$proof_file"
-  while IFS=$'\t' read -r _ room_id message_id marker kind proof_object_key; do
+  while IFS=$'\t' read -r _ room_id message_id marker _ kind proof_object_key _; do
     room_ids+=("$room_id")
     message_ids+=("$message_id")
     markers+=("$marker")
     [[ "$kind" != attachment ]] || object_keys+=("$proof_object_key")
+  done <"$proof_file"
+  [[ -f "$evidence_key_file" && ! -L "$evidence_key_file" ]] || die "evidence HMAC key 缺失"
+  evidence_hmac_key="$(tr -d '\n' <"$evidence_key_file")"
+  [[ "$evidence_hmac_key" =~ ^[0-9a-f]{64}$ ]] || die "evidence HMAC key 无效"
+  while IFS=$'\t' read -r scenario _ message_id marker ciphertext_sha256 kind proof_object_key binding_hmac; do
+    [[ "$proof_object_key" != - ]] || proof_object_key=""
+    calculated_hmac="$(printf '%s\n%s\n%s\n%s\n%s' \
+      "$message_id" "$marker" "$ciphertext_sha256" "$kind" "$proof_object_key" |
+      openssl dgst -sha256 -mac HMAC -macopt "hexkey:$evidence_hmac_key" | awk '{print $NF}')"
+    [[ "$calculated_hmac" == "$binding_hmac" ]] || die "message proof HMAC 不匹配：$scenario/$message_id"
   done <"$proof_file"
   for value in "${room_ids[@]}" "${message_ids[@]}"; do
     [[ "$value" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] ||
@@ -172,30 +191,36 @@ scan() {
     die "plaintext marker 必须全局唯一"
   [[ "${#object_keys[@]}" == 1 ]] || die "必须且只能有一个 attachment object"
   object_key="${object_keys[0]}"
-  attachment_marker="$(awk -F '\t' '$5 == "attachment" { print $4 }' "$proof_file")"
+  attachment_marker="$(awk -F '\t' '$6 == "attachment" { print $4 }' "$proof_file")"
   [[ "$object_key" =~ ^messages/[0-9a-f-]+/[A-Za-z0-9._/-]+$ ]] || die "object key 无效"
   [[ "$attachment_marker" =~ ^u[0-9]+-attachment-[0-9a-f-]+$ ]] || die "attachment marker 无效"
 
   message_csv="$(printf "'%s'," "${message_ids[@]}")"; message_csv="${message_csv%,}"
-  db_rows="$(postgres_query "SELECT id, room_id, content, encrypted_content IS NOT NULL
+  db_rows="$(postgres_query "SELECT id, room_id, content, encrypted_content IS NOT NULL,
+    encode(sha256(encrypted_content), 'hex')
     FROM messages WHERE id IN ($message_csv) ORDER BY id")"
   [[ "$(printf '%s\n' "$db_rows" | sed '/^$/d' | wc -l | tr -d ' ')" == "${#message_ids[@]}" ]] ||
     die "restore DB 未找到全部 evidence messages"
   printf '%s\n' "$db_rows" | awk -F '|' '$3 != "[加密消息]" || $4 != "t" { exit 1 }' ||
     die "restore DB 消息不是密文占位"
-  while IFS=$'\t' read -r scenario room_id message_id _ _ _; do
+  while IFS=$'\t' read -r scenario room_id message_id _ ciphertext_sha256 _ _ _; do
     printf '%s\n' "$db_rows" | awk -F '|' -v id="$message_id" -v room="$room_id" \
-      '$1 == id && $2 == room { found=1 } END { exit(found ? 0 : 1) }' ||
-      die "message-room proof 不匹配：$scenario/$message_id"
+      -v digest="$ciphertext_sha256" \
+      '$1 == id && $2 == room && $5 == digest { found=1 } END { exit(found ? 0 : 1) }' ||
+      die "message-room-ciphertext proof 不匹配：$scenario/$message_id"
   done <"$proof_file"
 
-  attachment_rows="$(postgres_query "SELECT room_id, object_key, file_size FROM
-    message_attachment_commits WHERE object_key = '$object_key'")"
+  attachment_rows="$(postgres_query "SELECT m.room_id, m.id, c.object_key
+    FROM messages m
+    JOIN message_attachment_commits c ON c.room_id = m.room_id
+    WHERE m.id = '$(awk -F '\t' '$6 == "attachment" { print $3 }' "$proof_file")'
+      AND c.object_key = '$object_key'")"
   [[ -n "$attachment_rows" ]] || die "restore DB 缺少 attachment commit"
-  while IFS=$'\t' read -r scenario room_id message_id _ kind proof_object_key; do
+  while IFS=$'\t' read -r scenario room_id message_id _ _ kind proof_object_key _; do
     [[ "$kind" != attachment ]] || {
-      printf '%s\n' "$attachment_rows" | awk -F '|' -v room="$room_id" -v object="$proof_object_key" \
-        '$1 == room && $2 == object { found=1 } END { exit(found ? 0 : 1) }' ||
+      printf '%s\n' "$attachment_rows" | awk -F '|' -v room="$room_id" -v message="$message_id" \
+        -v object="$proof_object_key" \
+        '$1 == room && $2 == message && $3 == object { found=1 } END { exit(found ? 0 : 1) }' ||
         die "attachment object-message-room proof 不匹配：$scenario/$message_id"
     }
   done <"$proof_file"
@@ -227,7 +252,11 @@ scan() {
     $(printf "payload::text LIKE '%%%s%%' OR " "${message_ids[@]}" | sed 's/ OR $//')")"
   push_status=not-observed-live
   if [[ -n "$push_rows" ]]; then
-    printf '%s' "$push_rows" | grep -Eq '【加密消息】|你收到一条加密消息' || die "Push 未使用 E2EE 占位"
+    push_invalid_rows="$(postgres_query "SELECT COUNT(*) FROM push_job_queue WHERE
+      ($(printf "payload::text LIKE '%%%s%%' OR " "${message_ids[@]}" | sed 's/ OR $//')) AND
+      NOT (COALESCE(payload #>> '{snapshot,content}', '') = '【加密消息】' AND
+           COALESCE(payload #>> '{snapshot,preview}', '') = '你收到一条加密消息')")"
+    [[ "$push_invalid_rows" == 0 ]] || die "Push 存在非 E2EE 占位记录"
     push_status=placeholder-verified
   fi
 
@@ -236,6 +265,17 @@ scan() {
   monitor_process="$(cat "$monitor_pid" 2>/dev/null || true)"
   [[ "$monitor_process" =~ ^[1-9][0-9]*$ && -f "$monitor_log" ]] ||
     die "Redis MONITOR run-scoped 状态损坏"
+  kill -0 "$monitor_process" 2>/dev/null || die "Redis MONITOR 在扫描前已退出"
+  run_with_timeout docker exec -e "REDISCLI_AUTH=$restore_redis_password" "$container" \
+    redis-cli --no-auth-warning PUBLISH "$monitor_terminal_channel" terminal >/dev/null ||
+    die "Redis MONITOR 末端 probe 发送失败"
+  for _ in $(seq 1 50); do
+    grep -aFq "$monitor_terminal_channel" "$monitor_log" && break
+    kill -0 "$monitor_process" 2>/dev/null || die "Redis MONITOR 在末端 probe 前退出"
+    sleep 0.1
+  done
+  grep -aFq "$monitor_terminal_channel" "$monitor_log" ||
+    die "Redis MONITOR 未捕获末端 probe"
   monitor_bytes="$(wc -c <"$monitor_log" | tr -d ' ')"
   if ! grep -aFq "$monitor_probe_channel" "$monitor_log"; then
     monitor_channels="$(sed -nE 's/.*"(PUBLISH|SUBSCRIBE|PSUBSCRIBE)" "([^"]+)".*/\1 \2/p' \
@@ -284,7 +324,7 @@ scan() {
     "$monitor_snapshot" && die "Redis MONITOR 命中敏感字段"
 
   object_file="$artifact_dir/object.bin"
-  run_with_timeout docker run --rm --network im-test-1-network \
+  run_with_timeout docker run --rm --network "$storage_network" \
     -e "RUSTFS_ACCESS_KEY=$RUSTFS_ACCESS_KEY" -e "RUSTFS_SECRET_KEY=$RUSTFS_SECRET_KEY" \
     -e "RUSTFS_BUCKET=$RUSTFS_PRIVATE_BUCKET" -e "RUSTFS_OBJECT_KEY=$object_key" \
     --entrypoint /bin/sh minio/mc:latest -ec \

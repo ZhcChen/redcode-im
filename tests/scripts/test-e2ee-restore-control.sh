@@ -78,6 +78,10 @@ if [[ "${1:-}" == compose ]]; then
       fi
       ;;
     ps)
+      if [[ "$compose_path" == */docker-compose.yml && "$*" == *rustfs* ]]; then
+        printf 'rustfs-id\n'
+        exit 0
+      fi
       quiet=0
       while (($#)); do
         case "$1" in
@@ -105,8 +109,10 @@ case "${1:-}" in
       cat "$state/project"
     elif [[ "$format" == *Config.Env* ]]; then
       printf '%s\n' '["DATABASE_URL=postgres://user:secret@postgres-restore:5432/redcode_e2ee_restore","REDIS_SESSION_URL=redis://:secret@redis-restore:6379/0","REDIS_PUBSUB_URL=redis://:secret@redis-restore:6379/0","REDIS_CACHE_URL=redis://:secret@redis-restore:6379/0"]'
-    elif [[ "$format" == *NetworkSettings.Networks* ]]; then
-      printf '172.29.240.99\n'
+    elif [[ "$format" == *'{{json .NetworkSettings.Networks}}'* ]]; then
+      project="$(cat "$state/project")"
+      printf '{"%s_restore-internal":{},"%s-storage":{},"%s-ingress":{}}\n' \
+        "$project" "$project" "$project"
     else
       exit 70
     fi
@@ -117,6 +123,49 @@ case "${1:-}" in
   volume)
     [[ "$2" == ls ]]
     [[ ! -e "$state/volume" ]] || printf 'remaining-volume\n'
+    ;;
+  network)
+    operation="$2"
+    case "$operation" in
+      create)
+        network="${!#}"
+        network_key="${network##*-}"
+        [[ ! -e "$state/network-$network_key" ]] || exit 1
+        printf '%s\n' "$network" >"$state/network-$network_key"
+        printf '%s\n' "${E2EE_RESTORE_RUN_ID:?}" >"$state/network-$network_key-owner"
+        ;;
+      connect) touch "$state/network-connected" ;;
+      disconnect) rm -f "$state/network-connected" ;;
+      inspect)
+        network="${!#}"
+        network_key="${network##*-}"
+        [[ -e "$state/network-$network_key" ]] || exit 1
+        if [[ " $* " == *" -f "* ]]; then
+          cat "$state/network-$network_key-owner"
+        elif [[ "$network_key" == storage ]]; then
+          if [[ "${E2EE_CONTROL_TEST_STORAGE_EXTRA_MEMBER:-0}" == 1 ]]; then
+            containers='{"api-id":{},"rustfs-id":{},"unexpected-id":{}}'
+          else
+            containers='{"api-id":{},"rustfs-id":{}}'
+          fi
+          printf '[{"Internal":%s,"Labels":{"redcode.e2ee.restore.run_id":"%s"},"Containers":%s}]\n' \
+            "${E2EE_CONTROL_TEST_STORAGE_INTERNAL:-true}" \
+            "${E2EE_CONTROL_TEST_NETWORK_OWNER_OVERRIDE:-$(cat "$state/network-storage-owner")}" \
+            "$containers"
+        else
+          printf '[{"Internal":%s,"Labels":{"redcode.e2ee.restore.run_id":"%s"},"Containers":{"api-id":{}}}]\n' \
+            "${E2EE_CONTROL_TEST_INGRESS_INTERNAL:-false}" \
+            "${E2EE_CONTROL_TEST_NETWORK_OWNER_OVERRIDE:-$(cat "$state/network-ingress-owner")}"
+        fi
+        ;;
+      rm)
+        network="${!#}"
+        network_key="${network##*-}"
+        rm -f "$state/network-$network_key" "$state/network-$network_key-owner"
+        [[ "$network_key" != storage ]] || rm -f "$state/network-connected"
+        ;;
+      *) exit 70 ;;
+    esac
     ;;
   *) exit 70 ;;
 esac
@@ -201,9 +250,32 @@ jq -e '.verified == true and .database_marker == "redcode-e2ee-restore:success"'
 }
 [[ "$(cat "$success_state/pg-ready-count")" -ge 2 ]]
 [[ -f "$success_state/runtime-state/success/control.env" ]]
+[[ -e "$success_state/network-storage" && -e "$success_state/network-ingress" &&
+   -e "$success_state/network-connected" ]]
 run_control "$success_state" success verify >"$success_state/verify.json"
 jq -e '.project == "e2ee-restore-success" and .database_host == "postgres-restore"' \
   "$success_state/verify.json" >/dev/null
+for network_fault in owner storage-internal storage-member ingress-internal; do
+  set +e
+  if [[ "$network_fault" == owner ]]; then
+    E2EE_CONTROL_TEST_NETWORK_OWNER_OVERRIDE=different-run \
+      run_control "$success_state" success verify >"$success_state/$network_fault.log" 2>&1
+  elif [[ "$network_fault" == storage-internal ]]; then
+    E2EE_CONTROL_TEST_STORAGE_INTERNAL=false \
+      run_control "$success_state" success verify >"$success_state/$network_fault.log" 2>&1
+  elif [[ "$network_fault" == storage-member ]]; then
+    E2EE_CONTROL_TEST_STORAGE_EXTRA_MEMBER=1 \
+      run_control "$success_state" success verify >"$success_state/$network_fault.log" 2>&1
+  else
+    E2EE_CONTROL_TEST_INGRESS_INTERNAL=true \
+      run_control "$success_state" success verify >"$success_state/$network_fault.log" 2>&1
+  fi
+  network_status=$?
+  set -e
+  [[ "$network_status" -ne 0 ]]
+  rg -q 'network 隔离/owner/成员合同不匹配' "$success_state/$network_fault.log"
+  echo "[e2ee-restore-control-test] $network_fault mismatch: fail closed"
+done
 run_control "$success_state" success snapshot >"$success_state/snapshot.json"
 jq -e '.digest == "0123456789abcdef0123456789abcdef" and .identities == 2 and .key_packages == 20' \
   "$success_state/snapshot.json" >/dev/null
@@ -212,6 +284,8 @@ run_control "$success_state" success rollback
 run_control "$success_state" success cleanup
 [[ ! -e "$success_state/postgres" && ! -e "$success_state/redis" &&
    ! -e "$success_state/api" && ! -e "$success_state/volume" &&
+   ! -e "$success_state/network-storage" && ! -e "$success_state/network-ingress" &&
+   ! -e "$success_state/network-connected" &&
    ! -e "$success_state/runtime-state/success/control.env" ]]
 echo "[e2ee-restore-control-test] prepare/verify/rollback/cleanup: pass"
 
@@ -224,28 +298,10 @@ failure_status=$?
 set -e
 [[ "$failure_status" -ne 0 ]]
 [[ ! -e "$failure_state/postgres" && ! -e "$failure_state/redis" &&
-   ! -e "$failure_state/api" && ! -e "$failure_state/volume" ]]
+   ! -e "$failure_state/api" && ! -e "$failure_state/volume" &&
+   ! -e "$failure_state/network-storage" && ! -e "$failure_state/network-ingress" &&
+   ! -e "$failure_state/network-connected" ]]
 echo "[e2ee-restore-control-test] API start failure cleanup: pass"
-
-for source_kind in pg redis; do
-  source_state="$(new_state "source-$source_kind-connection")"
-  source_pg=0
-  source_redis=0
-  [[ "$source_kind" != pg ]] || source_pg=1
-  [[ "$source_kind" != redis ]] || source_redis=1
-  set +e
-  E2EE_RESTORE_ALLOW_PREPARE=yes E2EE_RESTORE_DUMP_PATH="$source_state/database.dump" \
-  E2EE_CONTROL_TEST_SOURCE_PG_CONNECTIONS="$source_pg" \
-  E2EE_CONTROL_TEST_SOURCE_REDIS_CONNECTIONS="$source_redis" \
-    run_control "$source_state" "source-$source_kind-connection" prepare \
-      >"$source_state/output.log" 2>&1
-  source_status=$?
-  set -e
-  [[ "$source_status" -ne 0 ]]
-  [[ ! -e "$source_state/postgres" && ! -e "$source_state/redis" &&
-     ! -e "$source_state/api" && ! -e "$source_state/volume" ]]
-  echo "[e2ee-restore-control-test] source $source_kind connection: fail closed"
-done
 
 corrupt_state="$(new_state corrupt-state)"
 mkdir -p "$corrupt_state/runtime-state/corrupt-state"
@@ -267,6 +323,17 @@ run_control "$missing_state" missing-state cleanup >"$missing_state/output.log" 
    ! -e "$missing_state/api" && ! -e "$missing_state/volume" ]]
 echo "[e2ee-restore-control-test] missing state forced cleanup: pass"
 
+unowned_state="$(new_state unowned-network)"
+touch "$unowned_state/network-storage"
+printf 'different-run\n' >"$unowned_state/network-storage-owner"
+set +e
+run_control "$unowned_state" unowned-network cleanup >"$unowned_state/output.log" 2>&1
+unowned_status=$?
+set -e
+[[ "$unowned_status" -ne 0 && -e "$unowned_state/network-storage" ]]
+rg -q '不属于当前 run，拒绝删除' "$unowned_state/output.log"
+echo "[e2ee-restore-control-test] unowned storage network: fail closed"
+
 snapshot_file="$root_dir/deploy/im-test-1/e2ee-restore-snapshot.sql"
 for row_alias in identity_row device_row package_row epoch_row message_row receipt_row attachment_row; do
   rg -q "md5\($row_alias::text\)" "$snapshot_file"
@@ -276,4 +343,4 @@ done
 echo "[e2ee-restore-control-test] snapshot complete-row digest contract: pass"
 
 bash -n "$script"
-echo "[e2ee-restore-control-test] 6 个 restore control 场景与 snapshot 合同全部通过"
+echo "[e2ee-restore-control-test] 9 个 restore control/network 场景与 snapshot 合同全部通过"

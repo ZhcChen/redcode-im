@@ -72,6 +72,8 @@ run_with_timeout() {
 state_dir="$state_root/$run_id"
 state_file="$state_dir/control.env"
 project="e2ee-restore-${run_id//[._]/-}"
+storage_network="$project-storage"
+ingress_network="$project-ingress"
 marker="redcode-e2ee-restore:$run_id"
 restore_database="redcode_e2ee_restore"
 restore_user="e2ee_restore"
@@ -104,12 +106,20 @@ compose_restore() {
   E2EE_RESTORE_USER="$restore_user" \
   E2EE_RESTORE_PASSWORD="$restore_password" \
   E2EE_RESTORE_REDIS_PASSWORD="$restore_redis_password" \
+  E2EE_RESTORE_STORAGE_NETWORK="$storage_network" \
+  E2EE_RESTORE_INGRESS_NETWORK="$ingress_network" \
   E2EE_RESTORE_API_PORT="$api_port" \
     run_with_timeout docker compose --env-file "$env_file" -p "$project" -f "$compose_file" "$@"
 }
 
 compose_source() {
   run_with_timeout docker compose --env-file "$env_file" -f "$source_compose_file" "$@"
+}
+
+network_owned() {
+  local network="$1"
+  [[ "$(run_with_timeout docker network inspect -f \
+    '{{ index .Labels "redcode.e2ee.restore.run_id" }}' "$network" 2>/dev/null || true)" == "$run_id" ]]
 }
 
 restore_psql() {
@@ -153,8 +163,8 @@ wait_for_health() {
 }
 
 verify() {
-  local service container_id api_env database_marker runtime api_source_ip
-  local source_pg_connections source_redis_connections
+  local service container_id api_env api_networks database_marker runtime
+  local storage_container storage_network_json ingress_network_json
   for service in postgres-restore redis-restore api-restore; do
     container_id="$(compose_restore ps -q --status running "$service")"
     [[ -n "$container_id" ]] || die "$service 未运行"
@@ -172,17 +182,28 @@ verify() {
     (all(.[] | select(startswith("DATABASE_URL=")); contains("@postgres:5432/") | not))
   ' <<<"$api_env" >/dev/null || die "restore API 的 DB/Redis 身份不符合隔离合同"
 
-  api_source_ip="$(run_with_timeout docker inspect -f \
-    '{{with index .NetworkSettings.Networks "im-test-1-network"}}{{.IPAddress}}{{end}}' "$container_id")"
-  [[ "$api_source_ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || die "无法读取 restore API 共享网络 IP"
-  source_pg_connections="$(compose_source exec -T postgres psql -X -qAt -v ON_ERROR_STOP=1 \
-    -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-    "SELECT COUNT(*) FROM pg_stat_activity WHERE client_addr = inet '$api_source_ip';")"
-  [[ "$source_pg_connections" == "0" ]] || die "restore API 连接到了源 PostgreSQL"
-  source_redis_connections="$(compose_source exec -T redis redis-cli -a "$REDIS_PASSWORD" \
-    --no-auth-warning CLIENT LIST | awk -v prefix="addr=$api_source_ip:" \
-    'index($0, prefix) { count += 1 } END { print count + 0 }')"
-  [[ "$source_redis_connections" == "0" ]] || die "restore API 连接到了源 Redis"
+  api_networks="$(run_with_timeout docker inspect -f '{{json .NetworkSettings.Networks}}' "$container_id")"
+  jq -e --arg storage "$storage_network" --arg ingress "$ingress_network" \
+    --arg internal "${project}_restore-internal" '
+    ((keys | sort) == ([$ingress, $internal, $storage] | sort)) and
+    has($ingress) and has($storage) and has($internal) and
+    (has("im-test-1-network") | not)
+  ' <<<"$api_networks" >/dev/null || die "restore API 未与旧主网络物理隔离"
+
+  storage_container="$(compose_source ps -q rustfs)"
+  [[ -n "$storage_container" ]] || die "无法定位 RustFS container"
+  storage_network_json="$(run_with_timeout docker network inspect "$storage_network")"
+  jq -e --arg run_id "$run_id" --arg api "$container_id" --arg rustfs "$storage_container" '
+    length == 1 and .[0].Internal == true and
+    .[0].Labels["redcode.e2ee.restore.run_id"] == $run_id and
+    (.[0].Containers | length == 2 and has($api) and has($rustfs))
+  ' <<<"$storage_network_json" >/dev/null || die "storage network 隔离/owner/成员合同不匹配"
+  ingress_network_json="$(run_with_timeout docker network inspect "$ingress_network")"
+  jq -e --arg run_id "$run_id" --arg api "$container_id" '
+    length == 1 and .[0].Internal == false and
+    .[0].Labels["redcode.e2ee.restore.run_id"] == $run_id and
+    (.[0].Containers | length == 1 and has($api))
+  ' <<<"$ingress_network_json" >/dev/null || die "ingress network 隔离/owner/成员合同不匹配"
 
   database_marker="$(restore_psql "SELECT shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = current_database();")"
   [[ "$database_marker" == "$marker" ]] || die "恢复数据库 marker 不匹配"
@@ -200,11 +221,12 @@ verify() {
       api_container_id: $api_container_id, api_url: $api_url,
       database_host: "postgres-restore", redis_host: "redis-restore",
       source_postgres_connections: 0, source_redis_connections: 0,
+      source_network_reachable: false,
       runtime: "persist/e2ee", verified: true}'
 }
 
 cleanup() {
-  local exit_code="${1:-0}" containers volumes state_valid=1
+  local exit_code="${1:-0}" containers volumes storage_container network state_valid=1
   trap - EXIT INT TERM
   if [[ -f "$state_file" ]]; then
     load_deploy_env
@@ -231,6 +253,23 @@ cleanup() {
     restore_redis_password=missing-state-cleanup-placeholder
   fi
   compose_restore down --volumes --remove-orphans >/dev/null || exit_code=1
+  for network in "$storage_network" "$ingress_network"; do
+    if run_with_timeout docker network inspect "$network" >/dev/null 2>&1; then
+      if network_owned "$network"; then
+        if [[ "$network" == "$storage_network" ]]; then
+          storage_container="$(compose_source ps -q rustfs 2>/dev/null || true)"
+          if [[ -n "$storage_container" ]]; then
+            run_with_timeout docker network disconnect -f "$network" "$storage_container" \
+              >/dev/null 2>&1 || true
+          fi
+        fi
+        run_with_timeout docker network rm "$network" >/dev/null || exit_code=1
+      else
+        log "同名 run-scoped network 不属于当前 run，拒绝删除：$network"
+        exit_code=1
+      fi
+    fi
+  done
   containers="$(run_with_timeout docker ps -aq --filter "label=com.docker.compose.project=$project")" || {
     log "无法探测 restore container 残留"
     containers=probe-failed
@@ -239,8 +278,10 @@ cleanup() {
     log "无法探测 restore volume 残留"
     volumes=probe-failed
   }
-  if [[ -n "$containers" || -n "$volumes" ]]; then
-    log "restore project 仍有 container/volume 残留"
+  if [[ -n "$containers" || -n "$volumes" ]] ||
+    run_with_timeout docker network inspect "$storage_network" >/dev/null 2>&1 ||
+    run_with_timeout docker network inspect "$ingress_network" >/dev/null 2>&1; then
+    log "restore project 仍有 container/volume/network 残留"
     exit_code=1
   else
     rm -f "$state_file"
@@ -251,7 +292,7 @@ cleanup() {
 }
 
 prepare() {
-  local dump_path="${E2EE_RESTORE_DUMP_PATH:-}"
+  local dump_path="${E2EE_RESTORE_DUMP_PATH:-}" storage_container
   [[ "${E2EE_RESTORE_ALLOW_PREPARE:-}" == yes ]] || die "prepare 需要 E2EE_RESTORE_ALLOW_PREPARE=yes"
   [[ "$dump_path" == /* && -f "$dump_path" && ! -L "$dump_path" ]] || die "E2EE_RESTORE_DUMP_PATH 必须是现有普通文件的绝对路径"
   [[ ! -e "$state_dir" ]] || die "同一 run_id 已存在恢复状态，请先 cleanup"
@@ -264,6 +305,13 @@ prepare() {
   trap 'cleanup $?' EXIT
   trap 'cleanup 130' INT
   trap 'cleanup 143' TERM
+  storage_container="$(compose_source ps -q rustfs)"
+  [[ -n "$storage_container" ]] || die "无法定位 RustFS container"
+  run_with_timeout docker network create --internal \
+    --label "redcode.e2ee.restore.run_id=$run_id" "$storage_network" >/dev/null
+  run_with_timeout docker network create \
+    --label "redcode.e2ee.restore.run_id=$run_id" "$ingress_network" >/dev/null
+  run_with_timeout docker network connect --alias rustfs "$storage_network" "$storage_container"
   compose_restore config >/dev/null
   compose_restore up -d postgres-restore redis-restore >/dev/null
   wait_for_restore_postgres || die "restore PostgreSQL 未就绪"
@@ -279,7 +327,10 @@ prepare() {
       updated_at = NOW(), updated_by = NULL WHERE id = 1;
   " >/dev/null
   compose_restore up -d api-restore >/dev/null
-  wait_for_health || die "restore API healthz 未就绪"
+  wait_for_health || {
+    compose_restore logs --no-color api-restore >&2 || true
+    die "restore API healthz 未就绪"
+  }
   verify
   trap - EXIT INT TERM
 }

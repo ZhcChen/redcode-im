@@ -1,4 +1,4 @@
-import { webcrypto } from 'node:crypto';
+import { createHash, createHmac, webcrypto } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -20,6 +20,7 @@ const restoreSwitchEnabled = process.env.E2EE_RESTORE_SWITCH_ENABLED === '1';
 const restoreSwitchReadyPath = process.env.E2EE_RESTORE_SWITCH_READY_PATH;
 const restoreSwitchDonePath = process.env.E2EE_RESTORE_SWITCH_DONE_PATH;
 const restoreRecoveryEvidencePath = process.env.E2EE_RESTORE_RECOVERY_EVIDENCE_PATH;
+const evidenceHmacKey = process.env.E2EE_LIVE_EVIDENCE_HMAC_KEY;
 
 interface LiveSession {
   token: string;
@@ -32,10 +33,39 @@ interface LiveEvidenceScenario {
   message_proofs: Array<{
     message_id: string;
     plaintext_marker: string;
+    ciphertext_sha256: string;
+    binding_hmac: string;
     kind: 'text' | 'attachment';
     object_key?: string;
   }>;
 }
+
+const messageProof = (
+  rows: Array<Record<string, unknown>>,
+  messageId: string,
+  plaintextMarker: string,
+  kind: 'text' | 'attachment' = 'text',
+  objectKey?: string,
+): LiveEvidenceScenario['message_proofs'][number] => {
+  const row = rows.find((item) => item.id === messageId);
+  const ciphertext = row?.encrypted_content;
+  if (typeof ciphertext !== 'string' || ciphertext.length === 0) {
+    throw new Error(`missing ciphertext for evidence message ${messageId}`);
+  }
+  if (!evidenceHmacKey || !/^[0-9a-f]{64}$/.test(evidenceHmacKey)) {
+    throw new Error('missing E2EE live evidence HMAC key');
+  }
+  const ciphertextSha256 = createHash('sha256').update(Buffer.from(ciphertext, 'base64')).digest('hex');
+  const binding = [messageId, plaintextMarker, ciphertextSha256, kind, objectKey ?? ''].join('\n');
+  return {
+    message_id: messageId,
+    plaintext_marker: plaintextMarker,
+    ciphertext_sha256: ciphertextSha256,
+    binding_hmac: createHmac('sha256', Buffer.from(evidenceHmacKey, 'hex')).update(binding).digest('hex'),
+    kind,
+    ...(objectKey ? { object_key: objectKey } : {}),
+  };
+};
 
 const recordEvidence = async (scenario: LiveEvidenceScenario) => {
   if (!evidencePath) return;
@@ -170,8 +200,8 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       before_message_id: beforeMessageId,
       after_message_id: afterMessageId,
       message_proofs: [
-        { message_id: beforeMessageId, plaintext_marker: beforeMarker, kind: 'text' },
-        { message_id: afterMessageId, plaintext_marker: afterMarker, kind: 'text' },
+        messageProof(rawHistory, beforeMessageId, beforeMarker),
+        messageProof(rawHistory, afterMessageId, afterMarker),
       ],
       history_decrypted_after_restore: true,
       new_message_decrypted_after_restore: true,
@@ -324,8 +354,8 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       name: 'h5-h5',
       room_id: chat.roomId,
       message_proofs: [
-        { message_id: aliceMessageId, plaintext_marker: aliceMarker, kind: 'text' },
-        { message_id: bobMessageId, plaintext_marker: bobMarker, kind: 'text' },
+        messageProof(rawHistory, aliceMessageId, aliceMarker),
+        messageProof(rawHistory, bobMessageId, bobMarker),
       ],
     });
 
@@ -448,14 +478,15 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       name: 'android-h5',
       room_id: crossChat.roomId,
       message_proofs: [
-        { message_id: androidMessageId, plaintext_marker: androidMarker, kind: 'text' },
-        { message_id: h5MessageId, plaintext_marker: h5Marker, kind: 'text' },
-        {
-          message_id: attachmentMessageId,
-          plaintext_marker: attachmentMarker,
-          kind: 'attachment',
-          object_key: attachment.e2eePart.objectKey,
-        },
+        messageProof(crossRawHistory, androidMessageId, androidMarker),
+        messageProof(crossRawHistory, h5MessageId, h5Marker),
+        messageProof(
+          crossRawHistory,
+          attachmentMessageId,
+          attachmentMarker,
+          'attachment',
+          attachment.e2eePart.objectKey,
+        ),
       ],
     });
   }, 60_000);
@@ -558,8 +589,8 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       name: 'ios-h5',
       room_id: chat.roomId,
       message_proofs: [
-        { message_id: iosMessageID, plaintext_marker: iosMarker, kind: 'text' },
-        { message_id: h5MessageID, plaintext_marker: h5Marker, kind: 'text' },
+        messageProof(rawHistory, iosMessageID, iosMarker),
+        messageProof(rawHistory, h5MessageID, h5Marker),
       ],
     });
   }, 60_000);

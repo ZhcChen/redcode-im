@@ -41,14 +41,9 @@ case "$command" in
     ;;
   *"'verify'"*)
     [[ -e "$state/restore" ]]
-    verify_count="$(cat "$state/verify-count" 2>/dev/null || printf 0)"
-    verify_count=$((verify_count + 1))
-    printf '%s\n' "$verify_count" >"$state/verify-count"
-    source_pg=0
-    if [[ "${E2EE_RESTORE_LIVE_TEST_SOURCE_CONNECTION:-0}" == 1 && "$verify_count" -ge 2 ]]; then
-      source_pg=1
-    fi
-    printf '{"run_id":"restore-live","project":"e2ee-restore-restore-live","database_marker":"redcode-e2ee-restore:restore-live","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","source_postgres_connections":%s,"source_redis_connections":0,"runtime":"persist/e2ee","verified":true}\n' "$source_pg"
+    source_reachable=false
+    [[ "${E2EE_RESTORE_LIVE_TEST_SOURCE_NETWORK:-0}" != 1 ]] || source_reachable=true
+    printf '{"run_id":"restore-live","project":"e2ee-restore-restore-live","database_marker":"redcode-e2ee-restore:restore-live","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","source_postgres_connections":0,"source_redis_connections":0,"source_network_reachable":%s,"runtime":"persist/e2ee","verified":true}\n' "$source_reachable"
     ;;
   *"'snapshot'"*)
     [[ -e "$state/restore" ]]
@@ -112,7 +107,7 @@ case "$*" in
       [[ -e "$state/monitor" ]] || exit 32
     fi
     [[ "${E2EE_RESTORE_LIVE_TEST_FAIL_H5:-0}" != 1 ]] || exit 31
-    printf '{"name":"restore-continuity","room_id":"44444444-4444-4444-8444-444444444444","message_proofs":[{"message_id":"00000000-0000-4000-8000-000000000001","plaintext_marker":"u10-restore-before-proof","kind":"text"},{"message_id":"00000000-0000-4000-8000-000000000002","plaintext_marker":"u10-restore-after-proof","kind":"text"}],"history_decrypted_after_restore":true,"new_message_decrypted_after_restore":true}\n' \
+    printf '{"name":"restore-continuity","room_id":"44444444-4444-4444-8444-444444444444","message_proofs":[{"message_id":"00000000-0000-4000-8000-000000000001","plaintext_marker":"u10-restore-before-proof","ciphertext_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","kind":"text"},{"message_id":"00000000-0000-4000-8000-000000000002","plaintext_marker":"u10-restore-after-proof","ciphertext_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","kind":"text"}],"history_decrypted_after_restore":true,"new_message_decrypted_after_restore":true}\n' \
       >"${E2EE_RESTORE_RECOVERY_EVIDENCE_PATH:?}"
     touch "$state/h5-complete"
     ;;
@@ -193,10 +188,10 @@ E2EE_RESTORE_LIVE_FULL_SUITE=1 E2EE_RESTORE_LIVE_TEST_JAVA_HOME="$tmp_dir/jdk26"
 E2EE_RESTORE_LIVE_FULL_SUITE=1 run_case bad-boundary-run fail \
   E2EE_RESTORE_LIVE_TEST_BAD_BOUNDARY_RUN_ID=1
 E2EE_RESTORE_LIVE_FULL_SUITE=1 run_case bad-push fail E2EE_RESTORE_LIVE_TEST_BAD_PUSH=1
-E2EE_RESTORE_LIVE_FULL_SUITE=1 run_case source-connection fail \
-  E2EE_RESTORE_LIVE_TEST_SOURCE_CONNECTION=1
+E2EE_RESTORE_LIVE_FULL_SUITE=1 run_case source-network fail \
+  E2EE_RESTORE_LIVE_TEST_SOURCE_NETWORK=1
 run_case switch-failure fail E2EE_RESTORE_LIVE_TEST_FAIL_SWITCH=1
 run_case h5-failure fail E2EE_RESTORE_LIVE_TEST_FAIL_H5=1
 
 bash -n "$script"
-echo '[e2ee-restore-live-test] 8 个同步/切换/JDK/boundary/source/cleanup 场景全部通过'
+echo '[e2ee-restore-live-test] 8 个同步/切换/JDK/boundary/network/cleanup 场景全部通过'

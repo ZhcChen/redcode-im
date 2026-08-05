@@ -85,7 +85,8 @@ services:
         condition: service_healthy
     networks:
       - restore-internal
-      - im-test-1-network
+      - storage-isolated
+      - ingress-isolated
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
       interval: 10s
@@ -99,6 +100,9 @@ volumes:
 networks:
   restore-internal:
     internal: true
-  im-test-1-network:
+  storage-isolated:
     external: true
-    name: im-test-1-network
+    name: ${E2EE_RESTORE_STORAGE_NETWORK:?请设置 E2EE_RESTORE_STORAGE_NETWORK}
+  ingress-isolated:
+    external: true
+    name: ${E2EE_RESTORE_INGRESS_NETWORK:?请设置 E2EE_RESTORE_INGRESS_NETWORK}
