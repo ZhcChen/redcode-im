@@ -7,20 +7,26 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code
-status: active
+status: superseded
 current_unit: G3
 current_checkpoint: G3.2
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
+superseded_by: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 ---
 
 # security: U10 E2EE 发布门禁最终执行计划
 
+> [!IMPORTANT]
+> 本计划已于 2026-08-06 停止维护，由
+> `docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md` 接替。本文保留 G2、
+> G3.1 的完成事实与历史设计，不再派发任务或作为会话恢复入口。
+
 ## 1. 执行结论
 
-本文是 U10 E2EE 后续工作的**唯一 active 计划、进度总账和会话恢复点**。历史
-U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
+本文曾是 U10 E2EE 后续工作的 active 计划，现仅保留产品契约、实现过程和验收
+证据，不再派发任务；当前入口见文首 `superseded_by`。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
 - 当前 checkpoint：`G3.2`，验证 H5 浏览器运行时、真实部署响应头与 fail-closed 边界。
@@ -166,7 +172,7 @@ SBOM 报告、供应链独立 review、U7 review、任务总账和本文已同�
 
 ## 8. Definition of Done
 
-- D1. 本文保持唯一 active，任务总账与 `current_checkpoint` 一致。
+- D1. 历史执行期间本文保持唯一 active，任务总账与 `current_checkpoint` 一致。
 - D2. 六端供应链正常和负向门禁在本地与 CI 使用同一入口并通过。
 - D3. U7 P0-3、P0-4 均有独立、可复现的关闭证据。
 - D4. H5 候选产物和浏览器运行时安全边界全部通过，不回退 plaintext。

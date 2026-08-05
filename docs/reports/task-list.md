@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 发布门禁最终计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`
+- E2EE G3-G4 最终收口计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
@@ -28,9 +28,9 @@
 
 - 当前主线：原生双端 E2EE 客户端专项与供应链门禁已完成 -> 关闭剩余 H5 发布安全 P0
   -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：`G3.1` 已完成可追溯 H5 production 候选构建、严格 CSP、source map
-  阻断、真实候选 response header 检查与 GitHub OIDC provenance；唯一 checkpoint
-  为 `G3.2` 浏览器运行时和真实部署安全验收。
+- 当前立即任务：`G3.1` 已完成；唯一 checkpoint 为 `G3.2a`，审查、验证并提交
+  `/h5-candidate/` path-prefix 候选部署支持，随后执行 `G3.2b` 真实 HTTPS 与浏览器
+  安全验收。
 - 当前下一阶段：G3.3 形成正式报告并关闭 U7 P0-4，随后 G4 独立
   复审并重新作出 Go/No-Go 裁决。
 - 当前发布阻断项：U7 P0-4、原生功能迁移总收口、签名/版本/升级/回滚链路。
@@ -74,7 +74,7 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件、泄漏扫描及最终全量门禁
     已完成，U7 P0-1 已关闭。
   - G1 已完成隔离候选三端 live、备份恢复、损坏归档拒绝、active 重建、rollback
@@ -83,8 +83,8 @@
     U7 P0-3 已关闭。
   - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
     source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
-  - 当前只剩一个 E2EE 生产 P0：H5 发布前 CSP/依赖锁定/WebCrypto 安全报告；
-    最后由 G4 独立复审作出 Go/No-Go 裁决。
+  - 当前只剩一个 E2EE 生产 P0：H5 发布前真实部署/WebCrypto 安全报告；执行顺序
+    固定为 `G3.2a -> G3.2b -> G3.3 -> G4.1 -> G4.2 -> G4.3`。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。
