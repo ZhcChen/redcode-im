@@ -369,6 +369,73 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     ]));
   }, 60_000);
 
+  it('exchanges ciphertext bidirectionally across Android/iOS', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const androidAlice = await register('e2eean');
+    const iosBob = await register('e2eeio');
+    const { friendService } = await import('@/services/friend-service');
+    useSession(androidAlice);
+    const friendRequest = await friendService.sendFriendRequest(iosBob.user.id, '');
+    useSession(iosBob);
+    await friendService.respondFriendRequest(friendRequest.id, 'accept');
+    useSession(androidAlice);
+    const chat = await friendService.ensurePrivateChat(iosBob.user.id);
+
+    const androidMarker = `u5-android-${crypto.randomUUID()}`;
+    const iosMarker = `u5-ios-${crypto.randomUUID()}`;
+    const coordination = await createCoordinationServer({
+      token: androidAlice.token,
+      account_id: androidAlice.user.id,
+      peer_user_id: iosBob.user.id,
+      room_id: chat.roomId,
+      android_marker: androidMarker,
+      h5_marker: iosMarker,
+      api_base_url: apiBaseUrl,
+      ios_token: iosBob.token,
+      ios_account_id: iosBob.user.id,
+      android_account_id: androidAlice.user.id,
+      ios_marker: iosMarker,
+    });
+    onTestFinished(() => coordination.close());
+    const ios = spawnIOSClient(
+      coordination.url,
+      coordination.secret,
+      'IOSE2eeCrossClientLiveTests/testExchangesCiphertextBidirectionallyWithAndroid',
+    );
+    const android = spawnAndroidClient(
+      coordination.url,
+      coordination.secret,
+      'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest.exchangesCiphertextBidirectionallyWithIOS',
+    );
+    onTestFinished(() => {
+      ios.kill();
+      android.kill();
+    });
+
+    const [iosReceived, androidReceived, iosExit, androidExit] = await Promise.all([
+      coordination.waitFor('ios-native-received'),
+      coordination.waitFor('android-native-received'),
+      ios.exitCode,
+      android.exitCode,
+    ]);
+    expect(requiredString(iosReceived, 'message_id')).toBeTruthy();
+    expect(requiredString(androidReceived, 'message_id')).toBeTruthy();
+    expect(iosExit, 'iOS 原生互解进程失败').toBe(0);
+    expect(androidExit, 'Android 原生互解进程失败').toBe(0);
+
+    const rawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${chat.roomId}/messages?limit=20`,
+      {},
+      androidAlice.token,
+    );
+    const serialized = JSON.stringify(rawHistory);
+    expect(serialized).not.toContain(androidMarker);
+    expect(serialized).not.toContain(iosMarker);
+    expect(rawHistory.filter((message) => typeof message.encrypted_content === 'string')).toHaveLength(2);
+  }, 90_000);
+
   it('establishes consecutive new private rooms and recovers after key package top-up', async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
@@ -557,12 +624,16 @@ const createCoordinationServer = async (
   };
 };
 
-const spawnAndroidClient = (coordinationUrl: string, secret: string) => {
+const spawnAndroidClient = (
+  coordinationUrl: string,
+  secret: string,
+  testFilter = 'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest.exchangesCiphertextBidirectionallyWithH5',
+) => {
   const child = spawn('./gradlew', [
     'testDebugUnitTest',
     '--rerun-tasks',
     '--tests',
-    'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest',
+    testFilter,
   ], {
     cwd: resolve(process.cwd(), '../android-app'),
     env: {
@@ -591,11 +662,15 @@ const spawnAndroidClient = (coordinationUrl: string, secret: string) => {
   return { exitCode, kill: () => child.kill('SIGTERM') };
 };
 
-const spawnIOSClient = (coordinationUrl: string, secret: string) => {
+const spawnIOSClient = (
+  coordinationUrl: string,
+  secret: string,
+  testFilter = 'IOSE2eeCrossClientLiveTests/testExchangesCiphertextBidirectionallyWithH5',
+) => {
   const child = spawn('swift', [
     'test',
     '--filter',
-    'IOSE2eeCrossClientLiveTests/testExchangesCiphertextBidirectionallyWithH5',
+    testFilter,
   ], {
     cwd: resolve(process.cwd(), '../ios-app'),
     env: {

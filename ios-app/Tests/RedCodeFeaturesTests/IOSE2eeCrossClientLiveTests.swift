@@ -71,6 +71,88 @@ final class IOSE2eeCrossClientLiveTests: XCTestCase {
         XCTAssertEqual(decrypted.text, fixture.h5Marker)
         try await coordination.publish("ios-received", payload: ["message_id": h5MessageID])
     }
+
+    func testExchangesCiphertextBidirectionallyWithAndroid() async throws {
+        guard ProcessInfo.processInfo.environment["RED_CODE_IOS_E2EE_LIVE"] == "1" else {
+            throw XCTSkip("Set RED_CODE_IOS_E2EE_LIVE=1 with coordination settings")
+        }
+
+        let coordination = try CoordinationClient.fromEnvironment()
+        let fixture = try await coordination.fixture()
+        let iosToken = try fixture.iosToken.required("ios_token")
+        let iosAccountID = try fixture.iosAccountID.required("ios_account_id")
+        let androidAccountID = try fixture.androidAccountID.required("android_account_id")
+        let iosMarker = fixture.iosMarker
+        let androidMarker = try fixture.androidMarker.required("android_marker")
+        let client = try makeClient(fixture: fixture)
+
+        let profile = try await client.lifecycle.ensureReady(
+            accountID: iosAccountID,
+            deviceLabel: "iOS E2EE live",
+            token: iosToken
+        )
+        XCTAssertEqual(profile.deviceStatus, "active")
+        try await coordination.publish("ios-native-ready", payload: ["device_id": profile.deviceId])
+
+        let androidMessageID = try await coordination.waitFor("android-to-ios-sent")["message_id"].required("message_id")
+        let encrypted = try await client.chat.loadMessages(
+            roomID: fixture.roomID,
+            token: iosToken,
+            limit: 50
+        ).first { $0.id == androidMessageID }
+        let ciphertext = try XCTUnwrap(encrypted?.encryptedContent).base64Data()
+        let decrypted = try await client.coordinator.decryptIncoming(
+            accountID: iosAccountID,
+            deviceLabel: "iOS E2EE live",
+            input: E2eeIncomingMessage(
+                messageID: androidMessageID,
+                roomID: fixture.roomID,
+                ciphertext: ciphertext,
+                source: .history
+            ),
+            token: iosToken
+        )
+        XCTAssertEqual(decrypted.text, androidMarker)
+        try await coordination.publish("ios-native-received", payload: ["message_id": androidMessageID])
+
+        let iosMessageID = try await client.coordinator.sendText(
+            accountID: iosAccountID,
+            deviceLabel: "iOS E2EE live",
+            roomID: fixture.roomID,
+            peerUserID: androidAccountID,
+            text: iosMarker,
+            token: iosToken
+        )
+        try await coordination.publish("ios-to-android-sent", payload: ["message_id": iosMessageID])
+        let received = try await coordination.waitFor("android-native-received")["message_id"].required("message_id")
+        XCTAssertEqual(received, iosMessageID)
+    }
+
+    private func makeClient(fixture: CoordinationFixture) throws -> LiveE2eeClient {
+        let apiURL = try XCTUnwrap(URL(string: fixture.apiBaseURL))
+        let wsURL = try XCTUnwrap(URL(string: fixture.apiBaseURL.replacingOccurrences(of: "http", with: "ws") + "/ws"))
+        let environment = try RedCodeEnvironment(kind: .test, apiBaseURL: apiURL, webSocketURL: wsURL)
+        let apiClient = APIClient(environment: environment)
+        let mlsAPI = E2eeMLSAPIClient(apiClient: apiClient)
+        let core = E2eeCommandClient()
+        let storage = E2eeSecureStateStore(
+            cipher: CryptoKitE2eeStateCipher(keyStore: InMemoryKeyValueStore()),
+            blobs: InMemoryE2eeStateBlobStore(),
+            validateProtocolState: core.validateProtocolState
+        )
+        let lifecycle = E2eeDeviceLifecycle(storage: storage, mlsApi: mlsAPI, core: core)
+        return LiveE2eeClient(
+            lifecycle: lifecycle,
+            coordinator: E2eeDirectMessageCoordinator(storage: storage, lifecycle: lifecycle, api: mlsAPI, core: core),
+            chat: ChatAPIClient(apiClient: apiClient)
+        )
+    }
+}
+
+private struct LiveE2eeClient {
+    let lifecycle: E2eeDeviceLifecycle
+    let coordinator: E2eeDirectMessageCoordinator
+    let chat: ChatAPIClient
 }
 
 private struct CoordinationFixture: Decodable, Sendable {
@@ -81,6 +163,10 @@ private struct CoordinationFixture: Decodable, Sendable {
     let iosMarker: String
     let h5Marker: String
     let apiBaseURL: String
+    let iosToken: String?
+    let iosAccountID: String?
+    let androidAccountID: String?
+    let androidMarker: String?
 
     enum CodingKeys: String, CodingKey {
         case token
@@ -90,6 +176,10 @@ private struct CoordinationFixture: Decodable, Sendable {
         case iosMarker = "ios_marker"
         case h5Marker = "h5_marker"
         case apiBaseURL = "api_base_url"
+        case iosToken = "ios_token"
+        case iosAccountID = "ios_account_id"
+        case androidAccountID = "android_account_id"
+        case androidMarker = "android_marker"
     }
 }
 

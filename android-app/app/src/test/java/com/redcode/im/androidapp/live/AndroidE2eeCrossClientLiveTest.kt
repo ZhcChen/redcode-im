@@ -44,6 +44,16 @@ class AndroidE2eeCrossClientLiveTest {
             withTimeout(90.seconds) { exchangeWithH5() }
         }
 
+    @Test
+    fun exchangesCiphertextBidirectionallyWithIOS() =
+        runBlocking {
+            assumeTrue(
+                "Set RED_CODE_ANDROID_E2EE_LIVE=1 with coordination settings",
+                System.getenv("RED_CODE_ANDROID_E2EE_LIVE") == "1",
+            )
+            withTimeout(90.seconds) { exchangeWithIOS() }
+        }
+
     private suspend fun exchangeWithH5() {
         val coordination = CoordinationClient.fromEnvironment()
         val fixture = coordination.fixture()
@@ -105,6 +115,66 @@ class AndroidE2eeCrossClientLiveTest {
         assertEquals(fixture.h5Marker, decrypted.text)
         coordination.publish("android-received", mapOf("message_id" to h5MessageId))
     }
+
+    private suspend fun exchangeWithIOS() {
+        val coordination = CoordinationClient.fromEnvironment()
+        val fixture = coordination.fixture()
+        val client = LiveE2eeClient(fixture)
+        val profile = client.lifecycle.ensureReady(fixture.accountId, "Android E2EE live", fixture.token)
+        assertEquals("active", profile.deviceStatus)
+        coordination.waitFor("ios-native-ready")
+
+        val androidMessageId =
+            client.coordinator.sendText(
+                fixture.accountId,
+                "Android E2EE live",
+                fixture.roomId,
+                fixture.peerUserId,
+                fixture.androidMarker,
+                fixture.token,
+            )
+        coordination.publish("android-to-ios-sent", mapOf("message_id" to androidMessageId))
+
+        val iosMessageId = coordination.waitFor("ios-to-android-sent").getValue("message_id")
+        val encrypted =
+            client.chat.loadMessages(fixture.roomId, fixture.token, limit = 50)
+                .first { it.id == iosMessageId }
+        val ciphertext = Base64.getDecoder().decode(requireNotNull(encrypted.encryptedContent))
+        val decrypted =
+            client.coordinator.decryptIncoming(
+                fixture.accountId,
+                "Android E2EE live",
+                E2eeIncomingMessage(
+                    iosMessageId,
+                    fixture.roomId,
+                    ciphertext,
+                    source = E2eeMessageSource.History,
+                ),
+                fixture.token,
+            )
+        assertEquals(fixture.h5Marker, decrypted.text)
+        coordination.publish("android-native-received", mapOf("message_id" to iosMessageId))
+    }
+}
+
+private class LiveE2eeClient(fixture: CoordinationFixture) {
+    private val environment =
+        RedCodeEnvironment(
+            apiBaseUrl = fixture.apiBaseUrl,
+            wsUrl = fixture.apiBaseUrl.replaceFirst("http", "ws") + "/ws",
+        )
+    private val apiClient = APIClient(environment, LiveDiagnosticTransport())
+    private val mlsApi = HttpE2eeMlsApi(apiClient)
+    private val core = E2eeCommandClient()
+    private val storage =
+        E2eeSecureStateStore(
+            InMemoryE2eeStateCipher(),
+            InMemoryE2eeStateBlobStore(),
+            core::validateProtocolState,
+        )
+    val lifecycle = E2eeDeviceLifecycle(storage, mlsApi, core)
+    val coordinator = E2eeDirectMessageCoordinator(storage, lifecycle, mlsApi, E2eeCommandSessionCore(core))
+    val chat = HttpChatRemoteDataSource(apiClient)
 }
 
 @Serializable
