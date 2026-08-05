@@ -83,6 +83,19 @@ last_progress_update: 2026-08-05
   147.0.7727.57 后 3 项通过。`wasm-pack` 自动下载最新 driver 会产生版本漂移。
 - C6 先盘点已有 H5 E2EE live、Android/iOS live tests、夹具和 runtime 恢复脚本，
   再定义最小独立三端入口；不得重复实现客户端 coordinator 或扩展服务端契约。
+- 当前工作区正在把 H5 live 中已下线的 Flutter 跨端进程替换为 Android 正式路径：
+  `h5-app/test/e2ee-live-backend.test.ts` 已改为启动 Android live test，新增
+  `android-app/app/src/test/java/com/redcode/im/androidapp/live/AndroidE2eeCrossClientLiveTest.kt`。
+  这两个文件属于 C6.1/C6.2 的在途改动，不得丢弃、重置或混入其他提交。
+- Android 定向编译当前尚未通过，已确认三个窄阻断：Android JVM 不提供
+  `java.net.http.*`、`runTest` timeout 误用了 `java.time.Duration`、
+  `E2eeCommandClient` 未直接实现 `E2eeDirectSessionCore`。下一步只修复测试适配层：
+  coordination HTTP 改用 `HttpURLConnection`，timeout 改用
+  `kotlin.time.Duration.Companion.seconds`，并增加委托给 `E2eeCommandClient` 的
+  test-local `E2eeDirectSessionCore` adapter；生产代码暂不修改。
+- 下一条验证命令为：
+  `JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home ./android-app/gradlew -p android-app testDebugUnitTest --tests 'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest'`。
+  未设置 live 环境变量时必须编译通过并跳过，不得访问真实后端。
 - 对实际复现的阻断按模块独立修复、验证、提交和 push；未复现的问题不做预防性修改。
 - 开始实现前必须重新运行 `git status --short`；若工作区出现非本任务改动，只协同
   处理相关文件，不纳入本专项提交。
@@ -191,14 +204,32 @@ make e2ee-core.check.targets
 
 **执行步骤**
 
-1. 新增独立、显式的 E2EE live 入口，不接入普通 unit、commit hook 或默认启动链。
-2. 外层驱动负责 runtime 前置检查、受控启用、账号/设备夹具、失败清理和最终恢复
-   `persist/plaintext`；恢复逻辑必须使用 trap/finally。
-3. 覆盖三端两两双向文本、第二会话、重启恢复、离线补拉、重复帧、损坏密文、
-   设备撤销、群成员变化和附件。
-4. 同步抽检 DB、Redis、log、Push 和对象存储 marker；不得出现消息明文、RCST、
-   DEK 或敏感身份材料。
-5. 任一场景失败时保留可诊断证据，但不得把 runtime 留在 E2EE active。
+1. **C6.1 Android live 编译闭环。** 完成 test-local coordination HTTP 和 core
+   adapter，使新增 Android live test 在默认环境下可编译并安全跳过；只运行 Android
+   定向测试，不启用 E2EE runtime。完成后与 C6.2 一并提交，避免提交不可执行夹具。
+2. **C6.2 H5 ↔ Android 最小互解。** 由 H5 创建账号、私聊、WebSocket 和
+   coordination server；Android 使用生产 `HttpE2eeMlsApi`、
+   `E2eeDeviceLifecycle`、`E2eeDirectMessageCoordinator` 发送密文，H5 经 WS/历史
+   解密；H5 发送后 Android 经历史解密。断言原始历史响应不含双方 marker。
+3. **C6.3 H5 ↔ iOS 最小互解。** 复用同一 coordination protocol 新增 iOS live
+   client，必须经过生产 `E2eeMLSAPIClient`、lifecycle 和 direct-message coordinator，
+   不复制协议算法。验证通过后独立提交并 push。
+4. **C6.4 三端场景矩阵。** 在三个不同 device identity 上覆盖三端两两双向文本、
+   第二会话、重启恢复、离线补拉、重复帧、损坏密文、设备撤销、群成员变化和附件；
+   每类场景先证明一个最小端到端路径，再扩展到其余端组合。
+5. **C6.5 runtime 与泄漏边界。** 提供独立、显式的 E2EE live 入口，不接入普通
+   unit、commit hook 或默认启动链。外层驱动负责 runtime 前置检查、受控启用、
+   失败清理，并以 trap/finally 在成功或失败后恢复 `persist/plaintext`。同步抽检
+   DB、Redis、log、Push 和对象存储 marker，不得出现消息明文、RCST、DEK 或敏感
+   身份材料。
+
+**提交边界**
+
+- C6.1 + C6.2：H5 ↔ Android 最小跨端闭环。
+- C6.3：iOS live client 与 H5 ↔ iOS 最小跨端闭环。
+- C6.4 + C6.5：完整场景矩阵、runtime 驱动和泄漏抽检；若文件跨度过大，可按
+  “场景矩阵”和“验收驱动”拆成两个最小提交。
+- 每个边界都必须先完成对应测试、diff 检查、commit 和 push，才进入下一边界。
 
 **完成信号**
 
