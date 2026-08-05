@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
 status: active
-current_unit: C7
+current_unit: C6
 last_progress_update: 2026-08-05
 ---
 
@@ -45,11 +45,11 @@ last_progress_update: 2026-08-05
 | 单元 | 状态 | 结论或下一动作 |
 | --- | --- | --- |
 | C1-C5 | 已完成并推送 | 功能与双端门禁已冻结，不重做 |
-| C7 全仓回归门禁 | 进行中（已定位阻断） | 修复 Desktop 下载目录单测后重跑 `make test.all` |
-| C6 三端 E2EE live | 待开始 | 仅在 C7 全绿后开始 Android、iOS、H5 正式路径互解 |
+| C7 全仓回归门禁 | 已完成并推送 | `make test.all`、`make test.live`、WASM 3 项全绿 |
+| C6 三端 E2EE live | 进行中 | 盘点并补齐 Android、iOS、H5 正式路径互解入口 |
 | C8 证据与重审 | 待开始 | 汇总 live/marker 证据并重审 U7 P0-1 |
 
-当前唯一队列：`C7 -> C6 -> C8`。不得从已 superseded 的 N1-N7 或 C1-C5
+当前唯一队列：`C6 -> C8`。不得从已 superseded 的 N1-N7 或 C1-C5
 计划重新派生任务。
 
 ### 3.2 已完成基线
@@ -67,23 +67,22 @@ last_progress_update: 2026-08-05
 | C5 iOS 群事件 | 已完成 | `380ef019`；群成员 mutation、`group_member_changed`、活跃成员刷新及按房间 single-flight reconcile |
 | C5 iOS 设备入口 | 已完成 | `17c235ec`；设备列表、批准/撤销、严格指纹校验、当前设备阻断及逐房 reconcile |
 | C5 双端门禁 | 已完成 | Android JDK 21 全量通过；iOS 240 项通过、7 项 live 跳过及 Simulator build 通过；core host/四目标检查通过 |
+| C7 全仓回归门禁 | 已完成 | Desktop 修复 `7753f119`、Admin live 修复 `939e416d`；`make test.all`、`make test.live` 全绿；Chrome for Testing 147 + 匹配 ChromeDriver 下 WASM 3 项通过 |
 
 以上内容不得重做；执行中发现回归时按独立修复闭环处理。
 
 ### 3.3 当前恢复点
 
 - 当前分支：`main`，远端基线：`origin/main`。
-- 当前单元：**C7 全仓回归门禁**。
-- C5 已冻结；除非 C7 复现出明确回归，不再修改双端设备、群成员或 epoch 实现。
-- C7 已在 JDK 21 环境下执行 `make test.all`：API unit 184 项与 integration、
-  migration guard、Android、iOS 240 项（7 项 live 跳过）、H5 type-check、Admin
-  route smoke 均通过；命令在 Desktop unit 阶段失败。
-- 当前唯一已复现阻断：`desktop/test/utils/download-settings.test.ts` 的
-  `returns saved download dir when it still exists` 期望 `/Users/test/custom`，实际
-  回退 `/Users/test/Desktop/Chatly`。先单独分析并修复该模块，不放宽断言。
-- 修复后先运行 Desktop 定向测试，再重跑 JDK 21 环境下的 `make test.all`；全绿后
-  依次运行 `make test.live` 和 `make e2ee-core.test.wasm`。不得根据历史 N7 记录
-  预判其他阻断仍然存在。
+- 当前单元：**C6 Android、iOS、H5 三端 E2EE live**。
+- C5/C7 已冻结；除非 C6 复现出明确回归，不再修改既有功能或放宽门禁。
+- `make test.all` 与 `make test.live` 已全绿；后者只证明普通真实后端 smoke，禁止
+  作为三端 E2EE live 证据。
+- `make e2ee-core.test.wasm` 必须向 `CHROMEDRIVER` 传入与实际优先浏览器完全匹配
+  的 driver。本机 ChromeDriver 会优先选择 Chrome for Testing 147；匹配
+  147.0.7727.57 后 3 项通过。`wasm-pack` 自动下载最新 driver 会产生版本漂移。
+- C6 先盘点已有 H5 E2EE live、Android/iOS live tests、夹具和 runtime 恢复脚本，
+  再定义最小独立三端入口；不得重复实现客户端 coordinator 或扩展服务端契约。
 - 对实际复现的阻断按模块独立修复、验证、提交和 push；未复现的问题不做预防性修改。
 - 开始实现前必须重新运行 `git status --short`；若工作区出现非本任务改动，只协同
   处理相关文件，不纳入本专项提交。
@@ -164,7 +163,7 @@ make e2ee-core.check.targets
 
 验证全绿并更新计划后进入 C7。
 
-### C7：全仓回归门禁
+### C7：全仓回归门禁（已完成）
 
 **目标**
 
