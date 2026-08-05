@@ -14,8 +14,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         RoomMemberEntity::class,
         GroupSettingsEntity::class,
         E2eeStateEntity::class,
+        E2eeBlobEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = false,
 )
 abstract class RedCodeDatabase : RoomDatabase() {
@@ -26,6 +27,8 @@ abstract class RedCodeDatabase : RoomDatabase() {
     abstract fun roomDao(): RoomDao
 
     abstract fun e2eeStateDao(): E2eeStateDao
+
+    abstract fun e2eeBlobDao(): E2eeBlobDao
 }
 
 val MIGRATION_1_2 =
@@ -140,6 +143,24 @@ val MIGRATION_6_7 =
                     version INTEGER NOT NULL,
                     nonce BLOB NOT NULL,
                     ciphertext BLOB NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+val MIGRATION_7_8 =
+    object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS e2ee_blobs (
+                    accountId TEXT NOT NULL,
+                    blobKey TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    nonce BLOB NOT NULL,
+                    ciphertext BLOB NOT NULL,
+                    PRIMARY KEY(accountId, blobKey)
                 )
                 """.trimIndent(),
             )

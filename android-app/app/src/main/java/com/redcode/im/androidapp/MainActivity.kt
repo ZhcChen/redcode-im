@@ -16,6 +16,7 @@ import com.redcode.im.androidapp.persistence.MIGRATION_3_4
 import com.redcode.im.androidapp.persistence.MIGRATION_4_5
 import com.redcode.im.androidapp.persistence.MIGRATION_5_6
 import com.redcode.im.androidapp.persistence.MIGRATION_6_7
+import com.redcode.im.androidapp.persistence.MIGRATION_7_8
 import com.redcode.im.androidapp.persistence.RedCodeDatabase
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import com.redcode.im.androidapp.persistence.RoomContactsRepository
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
                     MIGRATION_4_5,
                     MIGRATION_5_6,
                     MIGRATION_6_7,
+                    MIGRATION_7_8,
                 )
                 .build()
         val container =

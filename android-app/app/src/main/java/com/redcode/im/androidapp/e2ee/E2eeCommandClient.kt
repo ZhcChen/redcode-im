@@ -25,6 +25,9 @@ enum class E2eeCommandOperation(val wire: Int) {
 class E2eeCommandException(message: String) : Exception(message)
 
 class E2eeCommandResult(private val fields: List<ByteArray>) {
+    val fieldCount: Int
+        get() = fields.size
+
     fun field(index: Int): ByteArray =
         fields.getOrNull(index) ?: throw E2eeCommandException("E2EE 核心响应字段缺失")
 
@@ -60,11 +63,20 @@ class E2eeCommandClient(
     fun execute(operation: E2eeCommandOperation, fields: List<ByteArray>): E2eeCommandResult =
         decodeResponse(executeRaw(encodeRequest(operation, fields)))
 
-    fun initialize(deviceIdentity: String): E2eeCommandResult =
-        execute(E2eeCommandOperation.Initialize, listOf(deviceIdentity.toByteArray()))
+    fun initialize(deviceIdentity: String, rootPublicKey: ByteArray? = null): E2eeCommandResult {
+        val fields = mutableListOf(deviceIdentity.toByteArray())
+        if (rootPublicKey != null) fields += rootPublicKey
+        return execute(E2eeCommandOperation.Initialize, fields)
+    }
 
     fun createGroup(state: ByteArray, roomId: String): E2eeCommandResult =
         execute(E2eeCommandOperation.CreateGroup, listOf(state, roomId.toByteArray()))
+
+    fun generateKeyPackage(state: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.GenerateKeyPackage, listOf(state))
+
+    fun publicMaterial(state: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.PublicMaterial, listOf(state))
 
     fun encrypt(state: ByteArray, roomId: String, plaintext: ByteArray): E2eeCommandResult =
         execute(E2eeCommandOperation.Encrypt, listOf(state, roomId.toByteArray(), plaintext))

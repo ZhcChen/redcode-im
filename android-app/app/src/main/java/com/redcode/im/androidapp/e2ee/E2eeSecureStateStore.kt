@@ -20,20 +20,36 @@ class E2eeStorageUnavailableException(message: String) : Exception(message)
 
 /** 按账号提供包装密钥的加解密原语；真实实现走 Android Keystore。 */
 interface E2eeStateCipher {
-    fun encrypt(accountId: String, plaintext: ByteArray): E2eeEncryptedStateBlob
+    fun encrypt(
+        accountId: String,
+        plaintext: ByteArray,
+        aad: ByteArray = e2eeStateAssociatedData(accountId),
+    ): E2eeEncryptedStateBlob
 
-    fun decrypt(accountId: String, blob: E2eeEncryptedStateBlob): ByteArray
+    fun decrypt(
+        accountId: String,
+        blob: E2eeEncryptedStateBlob,
+        aad: ByteArray = e2eeStateAssociatedData(accountId),
+    ): ByteArray
 
     fun deleteKey(accountId: String)
 }
 
 /** 密文 blob 的持久化层；真实实现走 Room。 */
 interface E2eeStateBlobStore {
+    /** RCST 状态（固定 key）。 */
     fun save(accountId: String, blob: E2eeEncryptedStateBlob)
 
     fun load(accountId: String): E2eeEncryptedStateBlob?
 
     fun delete(accountId: String)
+
+    /** 附加加密记录（设备档案等，按用途 key 区分）。 */
+    fun saveBlob(accountId: String, key: String, blob: E2eeEncryptedStateBlob)
+
+    fun loadBlob(accountId: String, key: String): E2eeEncryptedStateBlob?
+
+    fun deleteBlob(accountId: String, key: String)
 }
 
 /**
@@ -71,11 +87,48 @@ class E2eeSecureStateStore(
         return state
     }
 
+    fun writeProfile(accountId: String, profile: E2eeDeviceProfile) {
+        requireAccountId(accountId)
+        blobs.saveBlob(
+            accountId,
+            PROFILE_BLOB_KEY,
+            cipher.encrypt(
+                accountId,
+                E2eeDeviceProfile.encode(profile),
+                e2eeProfileAssociatedData(accountId),
+            ),
+        )
+    }
+
+    fun readProfile(accountId: String): E2eeDeviceProfile? {
+        requireAccountId(accountId)
+        val blob = blobs.loadBlob(accountId, PROFILE_BLOB_KEY) ?: return null
+        val bytes =
+            try {
+                cipher.decrypt(accountId, blob, e2eeProfileAssociatedData(accountId))
+            } catch (e: E2eeStateCorruptedException) {
+                throw e
+            } catch (e: Exception) {
+                throw E2eeStateCorruptedException()
+            }
+        return try {
+            E2eeDeviceProfile.decode(bytes)
+        } catch (e: E2eeStateCorruptedException) {
+            throw E2eeStateCorruptedException("E2EE 设备档案已损坏")
+        }
+    }
+
+    fun deleteProfile(accountId: String) {
+        requireAccountId(accountId)
+        blobs.deleteBlob(accountId, PROFILE_BLOB_KEY)
+    }
+
     /** 注销/切换账号时同时清除包装密钥与密文，避免残留可解密材料。 */
     fun delete(accountId: String) {
         requireAccountId(accountId)
         cipher.deleteKey(accountId)
         blobs.delete(accountId)
+        blobs.deleteBlob(accountId, PROFILE_BLOB_KEY)
     }
 
     private fun requireAccountId(accountId: String) {
@@ -83,8 +136,16 @@ class E2eeSecureStateStore(
             throw E2eeStateCorruptedException("E2EE 账号标识不能为空")
         }
     }
+
+    companion object {
+        private const val PROFILE_BLOB_KEY = "device-profile"
+    }
 }
 
 /** 与 H5 secure-state-storage 完全一致的 AAD 构造。 */
 internal fun e2eeStateAssociatedData(accountId: String): ByteArray =
     "redcode-im/e2ee-state/v1\u0000${accountId.trim()}".toByteArray(Charsets.UTF_8)
+
+/** 设备档案记录的 AAD 前缀与 H5 device-profile 存储一致。 */
+internal fun e2eeProfileAssociatedData(accountId: String): ByteArray =
+    "redcode-im/e2ee-device-profile/v1\u0000${accountId.trim()}".toByteArray(Charsets.UTF_8)

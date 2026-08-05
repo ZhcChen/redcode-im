@@ -17,10 +17,14 @@ class KeystoreE2eeStateCipher : E2eeStateCipher {
     private val keyStore =
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
 
-    override fun encrypt(accountId: String, plaintext: ByteArray): E2eeEncryptedStateBlob {
+    override fun encrypt(
+        accountId: String,
+        plaintext: ByteArray,
+        aad: ByteArray,
+    ): E2eeEncryptedStateBlob {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, keyFor(accountId))
-        cipher.updateAAD(e2eeStateAssociatedData(accountId))
+        cipher.updateAAD(aad)
         return E2eeEncryptedStateBlob(
             version = STATE_VERSION,
             nonce = cipher.iv,
@@ -28,7 +32,11 @@ class KeystoreE2eeStateCipher : E2eeStateCipher {
         )
     }
 
-    override fun decrypt(accountId: String, blob: E2eeEncryptedStateBlob): ByteArray {
+    override fun decrypt(
+        accountId: String,
+        blob: E2eeEncryptedStateBlob,
+        aad: ByteArray,
+    ): ByteArray {
         if (blob.version != STATE_VERSION) {
             throw E2eeStateCorruptedException("E2EE 状态版本不匹配")
         }
@@ -39,7 +47,7 @@ class KeystoreE2eeStateCipher : E2eeStateCipher {
                 ?: throw E2eeStateCorruptedException("E2EE 包装密钥缺失")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, blob.nonce))
-        cipher.updateAAD(e2eeStateAssociatedData(accountId))
+        cipher.updateAAD(aad)
         return try {
             cipher.doFinal(blob.ciphertext)
         } catch (e: GeneralSecurityException) {
