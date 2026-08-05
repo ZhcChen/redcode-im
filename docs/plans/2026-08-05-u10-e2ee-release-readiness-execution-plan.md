@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: G1
-current_checkpoint: G1.3a
+current_unit: G2
+current_checkpoint: G2.1
 verdict: no-go
 last_progress_update: 2026-08-05
 ---
@@ -43,12 +43,16 @@ last_progress_update: 2026-08-05
 | U7 P0-1 三端 E2EE 主链 | 关闭 | Android/iOS/H5 live、附件、恢复、撤销、泄漏扫描 |
 | S3 公网 SigV4 预签名 | 完成并推送 | `ff830a4b fix(api): 修复 S3 公网预签名` |
 | live KeyPackage 低水位补充 | 完成并推送 | `adf69ce3 test(e2ee): 补齐 live KeyPackage 库存` |
-| G1 隔离候选栈与演练驱动初稿 | 已实现，待最终演练后提交 | 独立 PostgreSQL/Redis、候选 API、备份恢复驱动 |
+| G1 隔离候选 live、备份恢复与灰度回滚 | 完成 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
 
-生产发布仍有三个 P0 工作域：G1 真实备份恢复与灰度回滚、G2 漏洞与许可证
-门禁、G3 H5 发布安全报告。G4 只负责复核和裁决，不替代前三项。
+生产发布仍有两个 P0 工作域：G2 漏洞与许可证门禁、G3 H5 发布安全报告。
+G4 只负责复核和裁决，不替代前两项。
 
-## 3. 当前唯一恢复点：G1.3a
+## 3. G1 完成记录
+
+G1 已完成并关闭 U7 P0-2。完整证据见
+`docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`；本节只保留执行恢复
+记录，不再派发 G1 任务。
 
 ### 3.1 已验证事实
 
@@ -61,25 +65,30 @@ last_progress_update: 2026-08-05
   `system-s3-runtime` 时才允许启动同步。
 - `api/src/services/storage_config.rs` 已实现上述判断并新增单测；本轮
   `make api.test` 已通过，unit 188/188，全部 integration tests 通过。
-- 候选失败夹具已清理；保留的合规 H5 设备拥有 19 个可用 KeyPackage，附件
-  commit 仍为 0，尚不能作为 G1 通过证据。
+- 初始失败夹具清理后曾保留一台合规 H5 设备与 19 个可用 KeyPackage；随后
+  成功 live 已形成附件 commit 与完整三端数据集，并在取证后全部清理。
+- 最终候选 API commit 为 `74d1231e`，`linux/amd64` 归档 SHA-256 为
+  `c972c20118ce7177ad07bf039d990d75dd28fb0c5ec079e170aad6e00d72ea21`。
+- `g1c-9ee1285f` 三端 live 6/6 通过，DB/Push、Redis、API log、RustFS marker
+  扫描通过；`g1-full7-9ee1285f` 完整演练通过。
+- 演练后候选栈、独立 volume、dump、token、归档和 tunnel 已清理，旧主环境
+  health 正常。
 
-### 3.2 当前工作区归属
+### 3.2 G1 交付物
 
 | 文件 | 归属闭环 | 当前状态 |
 | --- | --- | --- |
-| `api/src/services/storage_config.rs` | G1.3a 系统托管 provider 同步修复 | 已实现、API 测试通过、待提交 |
-| `.gitignore` | G1.5 演练临时产物隔离 | 待演练完成后提交 |
-| `deploy/im-test-1/README.md` | G1.4/G1.5 运维说明 | 待真实演练校正 |
-| `deploy/im-test-1/docker-compose.e2ee-drill.yml` | G1.4 隔离候选栈 | 待真实演练校正 |
-| `deploy/im-test-1/e2ee-backup-rollout-drill.sh` | G1.4 演练驱动 | 待完整演练验证 |
-| `tests/scripts/cleanup-e2ee-live-fixtures.sh` | G1.5 live 夹具一致性清理 | 已修复，待定向验证 |
+| `api/src/services/storage_config.rs` | G1.3a 系统托管 provider 同步修复 | `9ee1285f` 已推送 |
+| `api/src/storage/s3.rs` | G1.5 typed S3 NotFound 兼容 | `74d1231e` 已推送 |
+| `.gitignore` | G1.5 演练临时产物隔离 | `b0681588` 已推送 |
+| `deploy/im-test-1/README.md` | G1.4/G1.5 运维说明 | `b0681588` 已推送 |
+| `deploy/im-test-1/docker-compose.e2ee-drill.yml` | G1.4 隔离候选栈 | `b0681588` 已推送 |
+| `deploy/im-test-1/e2ee-backup-rollout-drill.sh` | G1.4 演练驱动 | `full7`/TERM 通过，`b0681588` 已推送 |
+| `tests/scripts/cleanup-e2ee-live-fixtures.sh` | G1.5 live 夹具一致性清理 | 候选库真实清理通过，`abaf7a5d` 已推送 |
 
-不得把后五个运维/测试文件混入 G1.3a API 修复提交。
+### 3.3 G1 检查点（全部完成）
 
-### 3.3 G1 剩余检查点
-
-#### G1.3a 提交系统托管 provider 同步修复
+#### G1.3a 提交系统托管 provider 同步修复（完成）
 
 1. 对 `storage_config.rs` 执行 `rustfmt --check`、`git diff --check` 并复核 diff。
 2. 只 stage 该文件，提交 `fix(api): 同步系统托管存储配置`，立即 push。
@@ -87,7 +96,7 @@ last_progress_update: 2026-08-05
 完成条件：API 全量测试绿色；inactive/active 的管理员自定义 default 均不会被
 覆盖；系统托管 provider 可幂等同步。
 
-#### G1.3b 重建和部署候选镜像
+#### G1.3b 重建和部署候选镜像（完成）
 
 1. 从 G1.3a 新 commit 构建 `linux/amd64` release 镜像，标签必须绑定 commit。
 2. 导出、上传并加载镜像，只重建 `api-drill`，不触碰旧主栈。
@@ -96,7 +105,7 @@ last_progress_update: 2026-08-05
 完成条件：镜像架构、commit、digest 可追溯；服务端 S3 I/O 与公网 presign
 分别使用正确 endpoint。
 
-#### G1.3c 候选三端 live 数据集
+#### G1.3c 候选三端 live 数据集（完成）
 
 1. 临时批准安全门禁，执行 `prepare -> active`。
 2. 固定 JDK21 运行完整 `make h5-app.test.e2ee.live`，覆盖 Android、iOS、H5
@@ -109,7 +118,7 @@ last_progress_update: 2026-08-05
 完成条件：全部 live 通过、无明文/密钥泄漏、失败路径无 plaintext 降级、候选
 runtime 已恢复。
 
-#### G1.4 完整备份恢复、灰度和回滚演练
+#### G1.4 完整备份恢复、灰度和回滚演练（完成）
 
 1. 对候选数据执行 `preflight`、custom-format backup、独立 PostgreSQL 17 恢复。
 2. 比较源库与恢复库计数、密文摘要、门禁、附件授权和引用完整性。
@@ -121,7 +130,7 @@ runtime 已恢复。
 完成条件：备份恢复一致、损坏备份被拒绝、runtime 原子恢复、候选环境无遗留
 临时恢复容器或 volume。
 
-#### G1.5 证据、提交和清理
+#### G1.5 证据、提交和清理（完成）
 
 1. 定向验证 live 夹具清理脚本，再验证 shell/Compose 配置和文档命令。
 2. 新增 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`，记录镜像
@@ -215,6 +224,5 @@ git diff --cached --check
 
 ## 8. 下一步
 
-只执行 **G1.3a**：提交并 push `api/src/services/storage_config.rs` 的系统托管
-provider 同步修复。完成后把本文 `current_checkpoint` 更新为 `G1.3b`，再构建
-候选镜像；不得提前提交演练脚本或进入 G2。
+执行 **G2.1**：盘点现有 CI、lockfile、SBOM 和扫描入口，冻结漏洞严重度、
+许可证 allow/deny、限时豁免与 fail-closed 契约；不得提前进入 G3。

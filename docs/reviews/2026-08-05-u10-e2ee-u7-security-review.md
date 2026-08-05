@@ -10,9 +10,9 @@ verdict: no-go
 
 ## 结论
 
-**裁决：No-Go。** 原生双端聊天主链接入与 Android/iOS/H5 三端 E2EE live 已
-闭环，P0-1 关闭；但生产备份恢复与灰度回滚未演练、CI 漏洞扫描与许可证批量
-核验未配置、H5 发布前安全检查未形成正式报告。测试环境保持
+**裁决：No-Go。** 原生双端聊天主链接入与 Android/iOS/H5 三端 E2EE live、
+隔离候选备份恢复与灰度回滚已闭环，P0-1/P0-2 关闭；但 CI 漏洞扫描与许可证
+批量核验未配置、H5 发布前安全检查未形成正式报告。测试环境保持
 `persist/plaintext`，仅允许 `prepare` 预检。
 
 ## 威胁模型
@@ -27,7 +27,7 @@ verdict: no-go
 | 被移除成员/撤销设备继续读取 | 成员修订 + epoch 推进 | U3/U4 覆盖 |
 | H5 同源 XSS 攻陷 | 受限威胁模型 + 非导出包装密钥 | R15 限制声明 |
 | 供应链（依赖漏洞/许可证） | SBOM 清单 | U7-C：清单在，扫描未配置 |
-| 备份泄露 / 恢复后不可读 | 备份恢复手册 | U7-D：手册在，未演练 |
+| 备份泄露 / 恢复后不可读 | 备份恢复手册 + 隔离候选演练 | G1 完成 |
 | 测试夹具污染 | Admin 全量清理 + live 定向清理 | U7-E 覆盖并修复缺口 |
 
 ## U1-U7 证据映射
@@ -79,9 +79,10 @@ U7-B 静态扫描补齐。
 
 ## U7-D 备份恢复/灰度回滚结论
 
-手册提供 im-test-1 可重放命令（pg_dump/pg_restore、恢复后密文与门禁验证、
-灰度窗口、rollback 应急序列）。
-**未完成（P0 阻断）**：生产环境真实演练与恢复主机验证。
+手册与 `e2ee-backup-rollout-drill.sh` 已在不接触旧主库的隔离候选栈完成
+custom-format 备份、独立 PostgreSQL 17 恢复、损坏归档拒绝、快照一致性、
+`prepare -> active -> API recreate -> rollback` 与失败清理验证。证据见
+`docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
 
 ## U7-E 夹具清理结论
 
@@ -101,12 +102,14 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
    `r21785933828` 与最终门禁 run `r41785934114` 的 DB/Redis/log/S3 扫描通过，runtime 已恢复
    `persist/plaintext`。证据见
    `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`。
+2. 备份恢复与灰度回滚：隔离候选栈完成真实 RustFS/数据库/live 数据集、独立
+   恢复、损坏归档拒绝、active 重建和 rollback；runtime 恢复 plaintext，临时
+   资源全部清理。
 
 ### P0（阻断生产启用）
 
-1. 生产 pg_dump/pg_restore、灰度窗口与滚动部署未在正式环境演练。
-2. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
-3. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
+1. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
+2. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
    （KTD7 要求，当前依赖 R15 端侧实现与测试证据）。
 
 ### P1（发布后 30 天内跟进）
@@ -121,6 +124,6 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 - 生产：E2EE **No-Go**；`content_audit_mode` 保持 `plaintext`。
 - 测试环境：允许 `prepare` 预检；`active` 需要安全审查显式批准且仅限演练
   窗口，演练后回滚 `plaintext`。
-- 后续 Gate 重开条件：剩余 P0 三项全部关闭并出具复核报告。
+- 后续 Gate 重开条件：剩余 P0 两项全部关闭并出具复核报告。
 - 后续唯一执行入口：
   `docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md`。
