@@ -281,8 +281,11 @@ impl StorageService for S3CompatibleService {
             .send()
             .await
             .map_err(|e| {
+                let is_not_found = e
+                    .as_service_error()
+                    .is_some_and(|service_error| service_error.is_not_found());
                 let message = e.to_string();
-                if is_not_found_error_message(&message) {
+                if is_not_found || is_not_found_error_message(&message) {
                     AppError::NotFound("对象不存在".to_string())
                 } else {
                     error!("获取 S3 对象元数据失败: key={}, error={}", key, message);
