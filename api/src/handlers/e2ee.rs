@@ -651,7 +651,6 @@ pub async fn publish_mls_key_packages(
 }
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct KeyPackageInventoryResponse {
     pub available: i64,
     pub max_available: i64,

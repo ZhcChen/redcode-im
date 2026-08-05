@@ -1000,7 +1000,7 @@ async fn key_package_inventory_supports_low_watermark_replenishment() {
     let (status, response) = app.get_authed(&inventory_uri, &alice.token).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body_json(&response)["available"], 0);
-    assert_eq!(body_json(&response)["maxAvailable"], 500);
+    assert_eq!(body_json(&response)["max_available"], 500);
 
     // 发布 3 个 KeyPackage 后库存可见
     let publish_uri = format!("/e2ee/mls/devices/{alice_second_id}/key-packages");
