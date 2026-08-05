@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "bun": {
+      "version": "1.3.11"
+    },
+    "osv_scanner": {
+      "version": "2.2.4",
+      "image": "ghcr.io/google/osv-scanner",
+      "digest": "sha256:f7ba4be68bac8086b1f88fd598fdca1ca67239c79ad2c2b5c78e03a82e5187c4"
+    }
+  },
+  "modules": [
+    {
+      "name": "api",
+      "lockfile": "api/Cargo.lock",
+      "scanner": "osv-lockfile"
+    },
+    {
+      "name": "e2ee-core",
+      "lockfile": "e2ee-core/Cargo.lock",
+      "scanner": "osv-lockfile"
+    },
+    {
+      "name": "android-app",
+      "lockfile": "android-app/app/gradle.lockfile",
+      "scanner": "osv-lockfile",
+      "scope": "releaseRuntimeClasspath"
+    },
+    {
+      "name": "ios-app",
+      "lockfile": "ios-app/Package.resolved",
+      "scanner": "swift-osv"
+    },
+    {
+      "name": "h5-app",
+      "lockfile": "h5-app/bun.lock",
+      "scanner": "osv-lockfile"
+    },
+    {
+      "name": "admin",
+      "lockfile": "admin/pnpm-lock.yaml",
+      "scanner": "osv-lockfile"
+    }
+  ],
+  "project_components": [
+    {
+      "module": "api",
+      "ecosystem": "crates.io",
+      "name": "redcode-im-api",
+      "version": "2.0.0",
+      "license": "UNLICENSED"
+    },
+    {
+      "module": "e2ee-core",
+      "ecosystem": "crates.io",
+      "name": "redcode-e2ee-core",
+      "version": "0.1.0",
+      "license": "UNLICENSED"
+    }
+  ],
+  "vulnerabilities": {
+    "block_cvss_at_or_above": 4.0,
+    "block_unknown_severity": true
+  },
+  "licenses": {
+    "allow": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "MIT",
+      "MIT-0",
+      "MPL-2.0",
+      "Unicode-3.0",
+      "Unicode-DFS-2016",
+      "Unlicense",
+      "Zlib"
+    ]
+  },
+  "swift_license_evidence": [
+    {
+      "identity": "grdb.swift",
+      "location": "https://github.com/groue/GRDB.swift.git",
+      "version": "7.11.0",
+      "revision": "9ed8c8457e00ff9c7aedb3bf213f20a2cfdf509e",
+      "license": "MIT",
+      "url": "https://raw.githubusercontent.com/groue/GRDB.swift/9ed8c8457e00ff9c7aedb3bf213f20a2cfdf509e/LICENSE",
+      "sha256": "9853f9dce81365fcc1d9b46004633354450164b8d17904e92e80c444545f7e87"
+    }
+  ]
+}

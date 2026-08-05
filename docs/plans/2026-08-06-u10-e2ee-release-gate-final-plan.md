@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
 current_unit: G2
-current_checkpoint: G2.2
+current_checkpoint: G2.3
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
@@ -23,7 +23,7 @@ supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
-- 当前 checkpoint：`G2.2`，完成六端供应链统一门禁并提交、推送。
+- 当前 checkpoint：`G2.3`，固化供应链负向夹具与报告完整性测试。
 - 当前裁决：生产 E2EE 为 **No-Go**。
 - 运行约束：保持 `content_audit_mode=plaintext`；测试候选环境结束后必须恢复
   `persist/plaintext` 和 `security_review_approved=false`。
@@ -49,7 +49,7 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 
 ## 3. 当前工作区快照
 
-`G2.2` 已有未提交实现，后续必须基于这些文件继续，不得重新生成平行方案：
+`G2.2` 已完成以下实现，后续必须基于这些文件继续，不得重新生成平行方案：
 
 - `Makefile`
 - `config/supply-chain/policy.json`
@@ -62,25 +62,19 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 OSV-Scanner 2.2.4，并生成 `.artifacts/supply-chain/` 机器报告。Android 完整 lock
 继续用于可复现构建，供应链扫描使用派生的 release runtime 依赖集合。
 
-最近一次统一门禁只剩一个已修正的 `unused exception`，需要重新运行
-`make supply-chain.check` 确认。该结论在命令通过并提交前只视为进行中证据。
+2026-08-06 已通过统一门禁：API 432、e2ee-core 193、Android 119、iOS 1、
+H5 217、Admin 811 个组件；29 个精确限时例外，0 个阻断项。六份漏洞报告与
+六份 CycloneDX SBOM 完整，敏感 marker 无命中；Admin `pnpm build:check` 通过。
 
 ## 4. 剩余执行队列
 
-### G2.2 六端统一供应链门禁（进行中）
+### G2.2 六端统一供应链门禁（完成）
 
 **目标：** 完成锁定输入、CycloneDX SBOM、漏洞、许可证和限时豁免的统一
 fail-closed 入口。
 
-**立即动作：**
-
-1. 运行 `make supply-chain.check`，确认六端报告完整、blocking findings 为 0，且
-   不存在 unused/expired/wildcard exception。
-2. 运行 `cd admin && pnpm build:check`，确认格式化后的 Admin 仍可构建。
-3. 执行 `git diff --check`，只 stage 本 checkpoint 文件并审查 staged diff。
-4. 以 `feat(security): 建立六端供应链门禁` 提交并立即 push。
-
-**完成条件：** 干净基线可复跑统一门禁；报告不含凭据；实现 commit 已推送。
+**完成证据：** `make supply-chain.check` 与 Admin `pnpm build:check` 通过；六端
+机器报告完整且不含敏感 marker；Admin 旧 `postcss 8.4.49` 已统一到 8.5.25。
 
 ### G2.3 负向夹具与报告完整性
 

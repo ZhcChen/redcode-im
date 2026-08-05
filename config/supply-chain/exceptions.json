@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    { "type": "vulnerability", "module": "api", "ecosystem": "crates.io", "package": "rsa", "version": "0.9.10", "finding": "RUSTSEC-2023-0071", "owner": "ZhcChen", "reason": "jsonwebtoken 的未启用 optional 依赖，当前 aws_lc_rs 后端下 cargo tree 不可达", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "instant", "version": "0.1.13", "finding": "RUSTSEC-2024-0384", "owner": "ZhcChen", "reason": "OpenMLS 0.8.1 的 wasm timer 固定依赖，上游无修复版本，等待稳定版迁移", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-aesgcm", "version": "0.0.7", "finding": "RUSTSEC-2026-0209", "owner": "ZhcChen", "reason": "hpke-rs-libcrux 的未启用 optional 分支，当前 cargo tree 全目标不可达", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-aesgcm", "version": "0.0.7", "finding": "RUSTSEC-2026-0210", "owner": "ZhcChen", "reason": "hpke-rs-libcrux 的未启用 optional 分支，当前 cargo tree 全目标不可达", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-aesgcm", "version": "0.0.7", "finding": "RUSTSEC-2026-0211", "owner": "ZhcChen", "reason": "hpke-rs-libcrux 的未启用 optional 分支，当前 cargo tree 全目标不可达", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-chacha20poly1305", "version": "0.0.7", "finding": "RUSTSEC-2026-0124", "owner": "ZhcChen", "reason": "hpke-rs-libcrux 的未启用 optional 分支，当前 cargo tree 全目标不可达", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-secrets", "version": "0.0.5", "finding": "RUSTSEC-2026-0212", "owner": "ZhcChen", "reason": "OpenMLS 0.8.1 固定 hpke-rs 0.6.1，兼容范围无修复版，等待稳定版迁移", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-sha3", "version": "0.0.8", "finding": "RUSTSEC-2026-0207", "owner": "ZhcChen", "reason": "OpenMLS 0.8.1 固定 hpke-rs 0.6.1，兼容范围无修复版，等待稳定版迁移", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "libcrux-sha3", "version": "0.0.8", "finding": "RUSTSEC-2026-0208", "owner": "ZhcChen", "reason": "OpenMLS 0.8.1 固定 hpke-rs 0.6.1，兼容范围无修复版，等待稳定版迁移", "expires_at": "2026-09-05" },
+    { "type": "vulnerability", "module": "e2ee-core", "ecosystem": "crates.io", "package": "proc-macro-error2", "version": "2.0.1", "finding": "RUSTSEC-2026-0173", "owner": "ZhcChen", "reason": "仅构建期 hax 宏链可达且上游无修复版本，等待 OpenMLS 稳定版迁移", "expires_at": "2026-09-05" },
+
+    { "type": "license", "module": "android-app", "ecosystem": "Maven", "package": "net.java.dev.jna:jna", "version": "5.17.0", "finding": "LGPL-2.1-or-later", "owner": "ZhcChen", "reason": "JNA 为 Apache-2.0 OR LGPL 双许可证，本项目选择 Apache-2.0 分支", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "api", "ecosystem": "crates.io", "package": "webpki-roots", "version": "0.26.11", "finding": "CDLA-Permissive-2.0", "owner": "ZhcChen", "reason": "CDLA-Permissive-2.0 为证书数据宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "api", "ecosystem": "crates.io", "package": "webpki-roots", "version": "1.0.9", "finding": "CDLA-Permissive-2.0", "owner": "ZhcChen", "reason": "CDLA-Permissive-2.0 为证书数据宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "jackspeak", "version": "3.4.3", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "lru-cache", "version": "11.5.1", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "mdn-data", "version": "2.27.1", "finding": "CC0-1.0", "owner": "ZhcChen", "reason": "CC0-1.0 为公共领域数据许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "minipass", "version": "7.1.3", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "package-json-from-dist", "version": "1.0.1", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "path-scurry", "version": "1.11.1", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "h5-app", "ecosystem": "npm", "package": "wa-sqlite", "version": "1.0.0", "finding": "UNKNOWN", "owner": "ZhcChen", "reason": "包内 LICENSE 已核验为 MIT，扫描元数据缺失导致 UNKNOWN", "expires_at": "2026-09-05" },
+
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "@csstools/selector-specificity", "version": "2.2.0", "finding": "CC0-1.0", "owner": "ZhcChen", "reason": "CC0-1.0 仅覆盖 CSS selector specificity 测试数据，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "argparse", "version": "2.0.1", "finding": "Python-2.0", "owner": "ZhcChen", "reason": "Python-2.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "caniuse-lite", "version": "1.0.30001806", "finding": "CC-BY-4.0", "owner": "ZhcChen", "reason": "CC-BY-4.0 仅覆盖浏览器兼容数据，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "mdn-data", "version": "2.0.14", "finding": "CC0-1.0", "owner": "ZhcChen", "reason": "CC0-1.0 为公共领域数据许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "minimatch", "version": "10.2.6", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "sax", "version": "1.6.1", "finding": "BlueOak-1.0.0", "owner": "ZhcChen", "reason": "BlueOak-1.0.0 为宽松许可证，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "spdx-exceptions", "version": "2.5.0", "finding": "CC-BY-3.0", "owner": "ZhcChen", "reason": "CC-BY-3.0 仅覆盖 SPDX 许可证例外数据，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "spdx-license-ids", "version": "3.0.23", "finding": "CC0-1.0", "owner": "ZhcChen", "reason": "CC0-1.0 仅覆盖 SPDX 标识数据，已人工复核", "expires_at": "2026-09-05" },
+    { "type": "license", "module": "admin", "ecosystem": "npm", "package": "svg-tags", "version": "1.0.0", "finding": "UNKNOWN", "owner": "ZhcChen", "reason": "包内 LICENSE 已核验为 MIT，扫描元数据缺失导致 UNKNOWN", "expires_at": "2026-09-05" }
+  ]
+}

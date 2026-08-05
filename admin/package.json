@@ -103,6 +103,11 @@
     "vite-svg-loader": "^3.6.0",
     "vue-tsc": "^2.2.12"
   },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.25"
+    }
+  },
   "engines": {
     "bun": ">=1.0.0"
   }
