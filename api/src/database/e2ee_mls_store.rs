@@ -298,6 +298,21 @@ impl<'a> E2eeMlsStore<'a> {
         .fetch_one(&mut *tx)
         .await
         .map_err(AppError::DatabaseError)?;
+
+        sqlx::query(
+            "UPDATE e2ee_room_epochs AS epoch
+             SET status = 'rekey_required', updated_at = NOW()
+             FROM room_members AS member
+             WHERE member.room_id = epoch.room_id
+               AND member.user_id = $1
+               AND member.deleted_at IS NULL
+               AND epoch.status = 'active'",
+        )
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?;
+
         tx.commit().await.map_err(AppError::DatabaseError)?;
         Ok(device)
     }

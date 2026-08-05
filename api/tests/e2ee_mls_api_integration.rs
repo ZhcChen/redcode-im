@@ -430,6 +430,93 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
 }
 
 #[tokio::test]
+async fn device_approval_marks_active_rooms_rekey_required_and_is_idempotent() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-approve-rekey-alice").await;
+    let bob = register_user(&app, "mls-approve-rekey-bob").await;
+    let room_id = create_room(&app, &alice, &bob).await;
+    let alice_first_id = Uuid::new_v4();
+    let alice_second_id = Uuid::new_v4();
+    let bob_device_id = Uuid::new_v4();
+    let alice_first_key = SigningKey::from_bytes(&[101; 32]);
+    let alice_second_key = SigningKey::from_bytes(&[102; 32]);
+    let bob_key = SigningKey::from_bytes(&[103; 32]);
+
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_first_id, "Alice primary", 101, &alice_first_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &bob,
+        &device_request(bob_device_id, "Bob primary", 103, &bob_key),
+    )
+    .await;
+
+    let epoch_uri = format!("/rooms/{room_id}/e2ee/epoch");
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let revision = body_json(&response)["membership_revision"]
+        .as_i64()
+        .expect("membership revision");
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                1,
+                revision,
+                alice_first_id,
+                "commit",
+                b"initial-commit",
+            ),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    let second = register_device(
+        &app,
+        &alice,
+        &device_request(alice_second_id, "Alice secondary", 102, &alice_second_key),
+    )
+    .await;
+    assert_eq!(second["status"], "pending_approval");
+    let approval_payload =
+        device_approval_payload(alice.id, alice_first_id, alice_second_id, 1, &[102; 32]);
+    let approval_body = json!({
+        "approver_device_id": alice_first_id,
+        "signature": BASE64_STANDARD.encode(alice_first_key.sign(&approval_payload).to_bytes()),
+    })
+    .to_string();
+    let approve_uri = format!("/e2ee/mls/devices/{alice_second_id}/approve");
+    for _ in 0..2 {
+        let (status, response) = app
+            .post_json_authed(&approve_uri, &alice.token, &approval_body)
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(body_json(&response)["status"], "active");
+    }
+
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let epoch = body_json(&response);
+    assert_eq!(epoch["membership_revision"], revision);
+    assert_eq!(epoch["active_epoch"], 1);
+    assert_eq!(epoch["status"], "rekey_required");
+}
+
+#[tokio::test]
 async fn device_revocation_marks_rooms_rekey_required_and_is_idempotent() {
     let app = spawn_test_app().await;
     let alice = register_user(&app, "mls-rekey-alice").await;
