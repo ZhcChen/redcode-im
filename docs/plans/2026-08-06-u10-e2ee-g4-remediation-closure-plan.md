@@ -7,15 +7,21 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
-status: active
+status: superseded
 current_unit: U4
 current_checkpoint: U4.3
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
+superseded_by: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
 ---
 
 # security: U10 E2EE G4 复审整改与最终收口计划
+
+> [!IMPORTANT]
+> 本文保留 G4.1 复审后的完整整改设计与历史进度，不再派发任务。当前唯一 active
+> 计划和恢复入口为
+> `docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`。
 
 ## Goal Capsule
 

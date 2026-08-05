@@ -16,7 +16,8 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE G4 复审整改与最终收口计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`
+- E2EE 剩余收口执行计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`
+- E2EE G4 复审整改完整设计（历史依据）：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
@@ -28,11 +29,12 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：U1-U3 已关闭并推送；唯一 checkpoint 为 `U4.1`，在隔离 restore
-  API 上证明恢复历史密文、三端新消息、撤销设备和附件授权的真实性。
-- 当前下一阶段：严格按 `U4 恢复真实性 -> U5 H5 production
-  Chrome 审计 -> U6 持久证据 -> U7 真实 release workflow -> U8 四视角重审 ->
-  U9 全量与 live 重放` 串行执行。
+- 当前立即任务：唯一 checkpoint 为 `E1.1`。restore full suite 已达到
+  `6 passed | 1 skipped` 且 candidate/restore snapshot 一致，但 Redis MONITOR
+  未捕获 evidence room 流量，E1 尚未关闭；先修复采集并重跑完整真实窗口。
+- 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
+  E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
+  E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -74,7 +76,7 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件和泄漏扫描的历史验收已完成，
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
   - G1 既有隔离候选演练有效，但 G4.1 重新打开恢复实例真实客户端行为、外部
@@ -89,12 +91,14 @@
     production `E2eeSecureStateStorage` Chrome 集成和持久证据缺口；幂等 cleanup
     已由 `22a728f9` 关闭；
     U7 P0-4 暂不维持关闭。
-  - 当前执行顺序固定为 `U4.3 -> U4.4 -> U5 -> U6 -> U7 -> U8 -> U9`；
+  - 当前执行顺序重新编号为 `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，分别映射
+    历史 `U4.3 -> U4.4 -> U5 -> U6 -> U7 -> U8 -> U9`；
     U1（`da3cead2`、`10f0f724`）、U2（`22a728f9`）、U3（`a644fa0f`）以及
     U4.1 隔离基础设施（`31b13d37`、`fe954a77`、`df85231b`）已完成；U4.2
     candidate 到 restore 同端口切换由 `3f83bdc9` 和真实 run `u4restore3f83bdc9`
-    关闭。当前只执行 U4.3 restore API 三端 live、关键数据 digest 与外围边界扫描；
-    U4.4 及后续单元不得提前并行打开。
+    关闭。E1 的两次真实 full run 已通过功能场景与 snapshot 一致性，但 Redis
+    MONITOR evidence room 流量证据仍失败；当前只修复并重跑 E1，E2 及后续单元
+    不得提前并行打开。
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片

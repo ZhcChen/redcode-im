@@ -1,0 +1,253 @@
+---
+title: "security: U10 E2EE 剩余收口执行计划"
+date: 2026-08-06
+type: security
+artifact_contract: ce-unified-plan/v1
+artifact_readiness: implementation-ready
+product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
+product_contract_preservation: "Product Contract unchanged"
+execution: code-and-operations
+status: active
+current_unit: E1
+current_checkpoint: E1.1
+verdict: no-go
+last_progress_update: 2026-08-06
+supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
+---
+
+# security: U10 E2EE 剩余收口执行计划
+
+## Goal Capsule
+
+- **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
+- **唯一恢复点：** `E1.1`，先修复 restore Redis MONITOR 证据采集，再重跑 U4.3 完整 live。
+- **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
+- **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
+- **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
+- **尾部责任：** 每个单元完成实现、验证、review、最小 commit 和 push 后，才推进本文 checkpoint。
+
+---
+
+## Product Contract
+
+### Problem Frame
+
+原生 N1-N7 与首轮 G1-G3 已实现，但 G4.1 独立复审重新打开了恢复实例真实性、H5 production 安全存储、证据耐久性和真实 release workflow 证明。历史计划数量较多且编号重叠，容易把“功能测试通过”“整改代码在制”和“门禁完整关闭”混为一谈。本文只管理尚未关闭的发布门禁，并把历史设计文档降级为参考资料。
+
+### Requirements
+
+- R1. 独立 restore 栈必须证明备份前后关键 E2EE 数据一致，并在 restore API 上完成 Android、iOS、H5、撤销设备、群 epoch 和加密附件 live 验收。
+- R2. DB、Redis、API log、Push 和 RustFS 的边界证据必须来自同一 live run；明文 marker 不得落入持久化边界，缺失观测不得伪装为通过。
+- R3. H5 候选页面必须通过 production `E2eeSecureStateStorage` 真实路径验证，不得使用替代 AES/IndexedDB 实现冒充应用行为。
+- R4. G1/G3 机器证据必须脱敏、可提交、可离线校验，并绑定准确的 subject commit 与摘要。
+- R5. `Build Release Artifacts` 必须在已 push 的候选 commit 上真实运行成功，供应链门禁不能被绕过，且不得创建 tag 或 Release。
+- R6. 整改后的同一 HEAD 必须由 correctness、security、reliability、testing 四个独立上下文复审，`P0=0、P1=0` 才能进入最终重放。
+- R7. 最终全量、live、环境清理和证据核对全部通过后才能重新裁决；任何失败都保持 **No-Go**。
+
+### Scope Boundaries
+
+- **范围内：** 原 G4 整改计划的 U4.3-U9，以及对应脚本、测试、review 和脱敏证据。
+- **已完成且不重做：** 原生 N1-N7、U7 P0-1、U1 手册与日期门禁、U2 G3 cleanup、U3 G1 cleanup、U4.1 隔离基础设施、U4.2 candidate 到 restore 切换。
+- **范围外：** 新 E2EE API、协议扩展、已有 migration 修改、U11 可选功能、U13 多平台正式发布。
+- **环境红线：** 不升级、不停止、不写入 `im-test-1` 旧主数据库；不覆盖远端 `.env`；不对旧主 Compose 执行 `stop`、`down` 或 `update`。
+
+### Acceptance Examples
+
+- AE1. candidate 与 restore snapshot 的计数和 digest 完全一致；任一关键表漂移立即 fail closed。
+- AE2. 三端 live 功能场景通过，但 Redis MONITOR 没有 evidence room 流量时，整个 E1 仍失败且统一 cleanup。
+- AE3. H5 production store 的密文或 AAD 被篡改后，真实应用恢复失败且不降级读取明文。
+- AE4. 从干净 checkout 可离线验证持久证据；篡改任一摘要或缺失必需字段均失败。
+- AE5. 四视角任一复审发现 P0/P1，恢复到 finding 所属最早单元，不进入最终重放。
+
+---
+
+## Planning Contract
+
+### Current Verified Baseline
+
+| 范围 | 状态 | 已推送证据 |
+| --- | --- | --- |
+| U1 恢复手册与日期门禁 | complete | `da3cead2`、`10f0f724` |
+| U2 G3 cleanup | complete | `22a728f9` |
+| U3 G1 cleanup | complete | `a644fa0f` |
+| U4.1 隔离 restore 基础设施 | complete | `31b13d37`、`fe954a77`、`df85231b` |
+| U4.2 恢复窗口切换 | complete | `3f83bdc9`；run `u4restore3f83bdc9` |
+| 进度文档同步 | complete | `1f2f7bb8` |
+
+### Current Worktree Boundary
+
+以下 E1 代码仍在工作区，尚未提交，不得写成已完成：
+
+- `scripts/e2ee-restore-live-window.sh`
+- `deploy/im-test-1/e2ee-restore-control.sh`
+- `deploy/im-test-1/e2ee-restore-window-control.sh`
+- `deploy/im-test-1/e2ee-restore-boundary-scan.sh`
+- `deploy/im-test-1/e2ee-restore-snapshot.sql`
+- `tests/scripts/test-e2ee-restore-control.sh`
+- `tests/scripts/test-e2ee-restore-live-window.sh`
+- `tests/scripts/test-e2ee-restore-window-control.sh`
+
+真实 run `u4full20260806b` 和 `u4full20260806c` 均证明 restore full suite 为 `6 passed | 1 skipped`，candidate/restore snapshot 一致，Android/iOS/H5 两两互解、附件、重启恢复、连续会话、群成员变化和第二设备撤销场景通过。两次 run 均在最终 boundary scanner 失败；最新唯一失败为 Redis MONITOR 未捕获 evidence room 流量。两次失败均完成统一 cleanup，旧主保持 `persist/plaintext`。
+
+### Key Technical Decisions
+
+- KTD1. **新编号只表示剩余执行链。** E1-E7 映射原 U4.3-U9，避免与历史 N/U/G 编号冲突；产品合同不变。
+- KTD2. **功能成功不等于门禁关闭。** 单元只有在行为、边界证据、失败清理、定向测试、review、commit 和 push 全部完成后才关闭。
+- KTD3. **同一 run 形成证据闭环。** snapshot、live、Redis MONITOR、DB/log/Push/RustFS 扫描必须共享 run id 与 evidence rooms，禁止拼接不同运行结果。
+- KTD4. **外部状态优先。** cleanup 和最终验收以远端实际 container、volume、owner、端口、runtime 和连接状态为准，不依赖进程内 flag。
+- KTD5. **独立复审不可内联替代。** E2 与 E6 的四视角复核必须来自独立上下文；当前执行上下文的自审只能作为预审。
+- KTD6. **No-Go 是默认状态。** 只有 E7 全部 DoD 成立后才允许重新讨论 Go；测试成功不自动改变生产裁决。
+
+### Sequence
+
+```mermaid
+flowchart TB
+  E1[E1 Restore live 与边界证据] --> E2[E2 Restore 独立复核]
+  E2 --> E3[E3 H5 production Chrome audit]
+  E3 --> E4[E4 持久脱敏证据]
+  E4 --> E5[E5 真实 release workflow]
+  E5 --> E6[E6 四视角最终重审]
+  E6 -->|P0/P1 为零| E7[E7 全量重放与裁决]
+  E6 -->|存在 P0/P1| RX[回到最早受影响单元]
+```
+
+---
+
+## Implementation Units
+
+### E1. Restore 三端 live 与数据边界（原 U4.3）
+
+- **Goal:** 关闭独立恢复实例的数据完整性、真实客户端行为和外围泄漏边界。
+- **Requirements:** R1、R2；覆盖 AE1、AE2。
+- **Files:** 当前 worktree boundary 中的 8 个脚本、SQL 与测试文件；完成后更新 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
+- **Approach:** 先修正 Redis MONITOR 采集时序或过滤逻辑，使每个 evidence room 都有可归属的真实流量；随后使用固定候选镜像 `redcode-im-api:g1-74d1231e` 和 JDK21 重跑同一隔离窗口。scanner 必须验证 DB ciphertext-only、Redis marker-free、API log marker-free、Push 明确结果，以及 RustFS object ciphertext-only 与 SHA-256。
+- **Test Scenarios:** MONITOR ready 但无 room 流量失败；任一 room 缺流量失败；snapshot 漂移失败；scanner 任一边界发现 marker 失败；全套场景成功；任一失败和信号路径资源清零。
+- **Verification:** `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live.test e2ee.cross-client.isolated.test`；`cd h5-app && bun run type-check`；真实 full-suite run；远端旧主与临时资源终验。
+- **Exit:** boundary report 完整通过、review 更新、最小 commit 已 push，checkpoint 才能进入 E2。
+
+### E2. Restore 整改独立复核（原 U4.4）
+
+- **Goal:** 由独立上下文确认 E1 没有用测试编排掩盖真实性、权限、可靠性或覆盖缺口。
+- **Requirements:** R1、R2、R6。
+- **Files:** E1 diff、E1 review、`docs/reviews/` 下新增 restore 复核记录。
+- **Approach:** 分别执行 correctness、security、reliability、testing 四视角审查，发现 P0/P1 则回到 E1；不得用当前实现上下文冒充独立审查。
+- **Test Scenarios:** cleanup 中断、错误 source、伪造 marker、空 evidence、重复帧、损坏 snapshot、敏感值进入报告。
+- **Verification:** 四份结论均为 `P0=0、P1=0`，工作区和远端环境干净。
+
+### E3. H5 Production 安全存储 Chrome 审计（原 U5）
+
+- **Goal:** 在真实候选页面验证 production `E2eeSecureStateStorage` 和浏览器存储边界。
+- **Requirements:** R3；覆盖 AE3。
+- **Files:** `h5-app/src/e2ee/secure-state-storage.ts`、`h5-app/src/e2ee/direct-message-coordinator.ts`、`h5-app/src/e2ee/session.ts`、`h5-app/scripts/release-browser-audit.ts`、相关 H5/release tests 与 review。
+- **Approach:** 复用隔离 restore 栈和受控 Caddy 窗口，通过真实登录、会话和消息路径触发 production store；不增加 production 审计后门或替代加密实现。
+- **Test Scenarios:** 密文往返、不可导出 wrapping key、AAD/密文篡改 fail closed、IndexedDB/local/session/cache/OPFS marker 为零、Console/Network 无敏感输出、失败清理。
+- **Verification:** `make h5-app.check`、`make h5-app.release.test`、真实 headed Chrome 候选审计、环境终验。
+
+### E4. 持久脱敏证据合同（原 U6）
+
+- **Goal:** 让 G1/G3 结论在新机器和 artifact 过期后仍可验证。
+- **Requirements:** R4；覆盖 AE4。
+- **Files:** `docs/reviews/evidence/u10-e2ee/`、`scripts/e2ee-evidence/`、`tests/scripts/test-e2ee-evidence.ts` 及 G1/G3 review。
+- **Approach:** 原始报告留在 `.artifacts/`；白名单生成可提交 JSON，只保留断言、计数、摘要、工具版本和 commit 身份。
+- **Test Scenarios:** schema 错误、敏感 marker、摘要篡改、subject commit 不可达、证据缺失、干净 checkout 离线验证。
+- **Verification:** 证据测试与敏感信息扫描通过，干净临时 checkout 可复验。
+
+### E5. 真实 Release Workflow 证明（原 U7）
+
+- **Goal:** 证明发布流水线实际依赖供应链门禁且产物绑定候选 commit。
+- **Requirements:** R5；覆盖 AE5 的前置条件。
+- **Files:** `.github/workflows/release-artifacts.yml`、`tests/scripts/test-supply-chain-workflows.ts`、`docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md`；只有真实 run 暴露问题时才修改 workflow。
+- **Approach:** 从干净且已 push、`HEAD == origin/main` 的 commit 手工触发 `publish_release=false`，核对 head SHA、event、job dependencies、artifact identity，以及执行前后 tag/Release 差集。
+- **Test Scenarios:** 供应链门禁成功后下游运行；fixture 中门禁失败阻断下游；无 tag/Release 副作用；产物身份一致。
+- **Verification:** `make supply-chain.workflow.test` 和真实 GitHub Actions run 成功。
+
+### E6. G4 四视角最终重审（原 U8）
+
+- **Goal:** 在同一候选 HEAD 上独立复审全部整改和发布证据。
+- **Requirements:** R6；覆盖 AE5。
+- **Files:** `docs/reviews/` 新增最终 G4 复审记录、本文和 `docs/reports/task-list.md`。
+- **Approach:** correctness、security、reliability、testing 使用独立上下文；finding 按最早所属单元回退，不降级、不合并隐藏。
+- **Test Scenarios:** R1-R5 逐项可追溯；四份结论绑定同一 commit；环境保持 plaintext；任一 P0/P1 阻断 E7。
+- **Verification:** 四视角均为 `P0=0、P1=0`。
+
+### E7. 干净基线重放与最终裁决（原 U9）
+
+- **Goal:** 完成全量、本地 live、远端环境与 CI 终验，形成唯一 Go/No-Go 记录。
+- **Requirements:** R7。
+- **Files:** 最终 G4/U7 review、本文、`docs/reports/task-list.md`。
+- **Approach:** 从干净 checkout 重放全部门禁；任何失败记录唯一 checkpoint 并保持 No-Go，不通过降低门禁换取成功。
+- **Test Scenarios:** 六端供应链、API、core、Android、iOS、H5、`test.all`、`test.live`、临时资源清理和旧主未触碰。
+- **Verification:** 执行下方 Verification Contract；所有证据绑定同一候选 commit。
+
+---
+
+## Verification Contract
+
+| Gate | Command / Evidence | Unit | Pass condition |
+| --- | --- | --- | --- |
+| Restore scripts | `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live.test e2ee.cross-client.isolated.test` | E1 | 正负场景、snapshot、scanner 和 cleanup 全部通过 |
+| Android | 指定 JDK21 执行 `make android-app.test` | E1、E7 | JVM tests 通过，live 使用不同 device identity |
+| iOS | `make ios-app.test` | E1、E7 | Swift tests 通过，live skip 单独解释 |
+| H5 | `make h5-app.check` | E3、E7 | type-check、unit、build 通过 |
+| H5 candidate | `make h5-app.release.test` + headed Chrome audit | E3 | production store、篡改、泄漏和 cleanup 通过 |
+| Evidence | 证据 schema、摘要、敏感扫描、干净 checkout 离线复验 | E4 | 可移交且不含敏感值 |
+| Supply chain | `make supply-chain.check supply-chain.test supply-chain.workflow.test` + 真实 workflow run | E5、E7 | 六端门禁与 CI 依赖通过 |
+| API | `make api.test` | E7 | Compose unit/integration 通过 |
+| Core | `make e2ee-core.check && make e2ee-core.check.targets` | E7 | host 与移动目标构建通过 |
+| Full | 指定 JDK21 执行 `make test.all` | E7 | 自包含全量回归通过 |
+| Live | 指定 JDK21 执行 `make test.live` | E7 | 原生双端、H5、API、Admin live 通过 |
+| Environment | container、volume、owner、端口、Caddy、runtime、审批、连接数核对 | E1-E7 | 临时资源清零，旧主 `persist/plaintext` 且未触碰 |
+| Git | `git diff --check`、`git diff --cached --check`、staged diff、push 后同步检查 | E1-E7 | 最小闭环提交已推送，无混入改动 |
+
+Android 所有 Gradle/JVM 命令固定使用：
+
+```bash
+JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home
+```
+
+---
+
+## Definition of Done
+
+- D1. 本文是唯一 active U10 E2EE 执行计划，旧计划和任务总账只指向本文。
+- D2. E1-E7 严格串行；每个单元均完成实现、验证、独立复核（适用时）、commit 和 push。
+- D3. Restore snapshot、三端 live、撤销/rekey、附件和五类外围边界形成同一 run 的完整证据。
+- D4. H5 production 安全存储在真实 Chrome 候选环境中通过，明文和密钥 marker 为零。
+- D5. G1/G3 脱敏证据可跨机器离线校验并绑定准确 commit。
+- D6. 真实 release workflow 成功，供应链门禁不可绕过，且无 tag/Release 副作用。
+- D7. 最终四视角复审为 `P0=0、P1=0`，全量与 live 从干净基线通过。
+- D8. abandoned/实验代码和临时 artifact 不进入提交；远端临时资源清零。
+- D9. `im-test-1` 旧主始终保持 `persist/plaintext`、审批 false 且数据库未被升级或写入。
+- D10. 只有 D1-D9 全部满足，最终 review 才允许给出生产 E2EE Go；否则保持 **No-Go**。
+
+---
+
+## Appendix
+
+### Resume Snapshot
+
+| Field | Value |
+| --- | --- |
+| Active unit | E1 |
+| Active checkpoint | E1.1 Redis MONITOR evidence room 流量采集 |
+| Worktree | 8 个 E1 文件未提交，详见 Current Worktree Boundary |
+| Latest full run | `u4full20260806c` |
+| Functional result | `6 passed | 1 skipped` |
+| Snapshot result | candidate/restore digest 一致 |
+| Blocking result | Redis MONITOR 缺少 room 流量，boundary scanner fail closed |
+| Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
+| Old primary | `persist/plaintext`，禁止触碰 |
+| Candidate image | `redcode-im-api:g1-74d1231e` |
+| Next action | 修复 MONITOR 证据采集，补测试，重跑 E1 完整真实窗口 |
+
+### Historical Mapping
+
+| New unit | Historical unit | Historical design source |
+| --- | --- | --- |
+| E1 | U4.3 | `docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md` |
+| E2 | U4.4 | 同上 |
+| E3 | U5 | 同上 |
+| E4 | U6 | 同上 |
+| E5 | U7 | 同上 |
+| E6 | U8 | 同上 |
+| E7 | U9 | 同上 |
