@@ -11,7 +11,11 @@ api_image="${E2EE_RESTORE_LIVE_API_IMAGE:-}"
 source_runtime_url="${E2EE_RESTORE_LIVE_SOURCE_RUNTIME_URL:-https://im-test-1.codelib.cc/settings/general}"
 output_dir="${E2EE_RESTORE_LIVE_OUTPUT_DIR:-$root_dir/.artifacts/e2ee-restore-live/$run_id}"
 make_command="${MAKE:-make}"
+full_suite="${E2EE_RESTORE_LIVE_FULL_SUITE:-0}"
+jdk21_home="${E2EE_RESTORE_LIVE_JAVA_HOME:-${JAVA_HOME:-/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home}}"
 window_control="$remote_dir/e2ee-restore-window-control.sh"
+boundary_scan="$remote_dir/e2ee-restore-boundary-scan.sh"
+remote_live_evidence="$remote_dir/.e2ee-drill/$run_id/live.json"
 ready_path="$output_dir/ready.json"
 done_path="$output_dir/switched"
 recovery_path="$output_dir/recovery.json"
@@ -42,6 +46,14 @@ for path in "$remote_dir" "$output_dir"; do
   [[ "$path" == /* && "$path" =~ ^/[A-Za-z0-9._/-]+$ ]] || die "路径必须是安全绝对路径：$path"
 done
 [[ "$source_runtime_url" == https://* ]] || die "旧主 runtime URL 必须使用 HTTPS"
+[[ "$full_suite" == 0 || "$full_suite" == 1 ]] || die "E2EE_RESTORE_LIVE_FULL_SUITE 只能是 0 或 1"
+
+if [[ "$full_suite" == 1 ]]; then
+  [[ -x "$jdk21_home/bin/java" ]] || die "full suite 未找到 JDK21：$jdk21_home"
+  java_major="$($jdk21_home/bin/java -version 2>&1 | sed -nE 's/.*version "([0-9]+).*/\1/p' | head -1)"
+  [[ "$java_major" == 21 ]] || die "full suite 必须使用 JDK21，当前为 ${java_major:-unknown}"
+  export JAVA_HOME="$jdk21_home"
+fi
 
 for command in curl jq lsof scp ssh "$make_command"; do require_command "$command"; done
 
@@ -53,13 +65,22 @@ remote_control() {
   case "$operation" in
     candidate-prepare) allow="E2EE_RESTORE_ALLOW_CANDIDATE=yes" ;;
     switch) allow="E2EE_RESTORE_ALLOW_SWITCH=yes" ;;
-    verify|cleanup) ;;
+    verify|snapshot|cleanup) ;;
     *) die "未知远端操作：$operation" ;;
   esac
   ssh -o BatchMode=yes -o ConnectTimeout=10 \
     -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
     "$remote" \
     "E2EE_RESTORE_RUN_ID='$run_id' E2EE_RESTORE_API_IMAGE='$api_image' $allow '$window_control' '$operation'"
+}
+
+remote_boundary() {
+  local operation="$1"
+  [[ "$operation" == monitor-start || "$operation" == scan ]] || die "未知边界扫描操作：$operation"
+  ssh -o BatchMode=yes -o ConnectTimeout=10 \
+    -o ServerAliveInterval=5 -o ServerAliveCountMax=2 \
+    "$remote" \
+    "E2EE_RESTORE_RUN_ID='$run_id' E2EE_DRILL_API_IMAGE='$api_image' E2EE_RESTORE_EVIDENCE_PATH='$remote_live_evidence' '$boundary_scan' '$operation'"
 }
 
 assert_source_plaintext() {
@@ -101,12 +122,14 @@ deploy_files=(
   "$root_dir/deploy/im-test-1/docker-compose.e2ee-restore.yml"
   "$root_dir/deploy/im-test-1/e2ee-backup-rollout-drill.sh"
   "$root_dir/deploy/im-test-1/e2ee-restore-control.sh"
+  "$root_dir/deploy/im-test-1/e2ee-restore-snapshot.sql"
+  "$root_dir/deploy/im-test-1/e2ee-restore-boundary-scan.sh"
   "$root_dir/deploy/im-test-1/e2ee-restore-window-control.sh"
 )
 for file in "${deploy_files[@]}"; do [[ -f "$file" ]] || die "缺少部署文件：$file"; done
 scp -q "${deploy_files[@]}" "$remote:$remote_dir/"
 ssh -o BatchMode=yes -o ConnectTimeout=10 "$remote" \
-  "chmod +x '$remote_dir/e2ee-backup-rollout-drill.sh' '$remote_dir/e2ee-restore-control.sh' '$window_control'"
+  "chmod +x '$remote_dir/e2ee-backup-rollout-drill.sh' '$remote_dir/e2ee-restore-control.sh' '$boundary_scan' '$window_control'"
 log "已同步隔离恢复控制文件（未同步 .env）"
 
 candidate_identity="$(remote_control candidate-prepare)"
@@ -152,6 +175,10 @@ done
 jq -e '.room_id | type == "string"' "$ready_path" >/dev/null || die "H5 ready marker 损坏"
 
 remote_control switch >"$output_dir/switch.json"
+jq -e '.snapshots_match == true and
+  .candidate_snapshot == .restore_snapshot and
+  (.candidate_snapshot.digest | type == "string" and length == 32)' \
+  "$output_dir/switch.json" >/dev/null || die "candidate/restore snapshot 证据不一致"
 restore_identity="$(remote_control verify)"
 jq -e --arg run_id "$run_id" \
   '.verified == true and .run_id == $run_id and
@@ -177,3 +204,30 @@ jq -e '.history_decrypted_after_restore == true and
   die "恢复前后密文证据缺失"
 remote_control verify >/dev/null
 log "恢复前历史密文与恢复后新密文均已由同一 H5 协议状态解密"
+
+if [[ "$full_suite" == 1 ]]; then
+  remote_boundary monitor-start >/dev/null
+  H5_APP_API_BASE_URL=http://127.0.0.1:18010 \
+  VITE_API_BASE_URL=http://127.0.0.1:18010 \
+  VITE_WS_URL=ws://127.0.0.1:18010/ws \
+  E2EE_LIVE_RUN_ID="$run_id" \
+  E2EE_LIVE_EVIDENCE_PATH="$live_evidence_path" \
+    "$make_command" -C "$root_dir" h5-app.test.e2ee.live >"$output_dir/full-live.log" 2>&1 || {
+      cat "$output_dir/full-live.log" >&2
+      die "restore API 三端 full suite 失败"
+    }
+  jq -e '(.scenarios | type == "array" and length == 3) and
+    ([.scenarios[].name] | sort == ["android-h5", "h5-h5", "ios-h5"])' \
+    "$live_evidence_path" >/dev/null || die "三端 live evidence 不完整"
+  scp -q "$live_evidence_path" "$remote:$remote_live_evidence"
+  remote_boundary scan >"$output_dir/boundary-scan.json"
+  jq -e '.db == "ciphertext-only" and .redis == "marker-free" and
+    .logs == "marker-free" and .rustfs.content == "ciphertext-only"' \
+    "$output_dir/boundary-scan.json" >/dev/null || die "restore 边界扫描证据无效"
+  remote_control verify >/dev/null
+  log "restore API 上 Android/iOS/H5 三端 full suite 已通过"
+fi
+
+remote_control snapshot >"$output_dir/post-live-snapshot.json"
+jq -e '.digest | type == "string" and length == 32' \
+  "$output_dir/post-live-snapshot.json" >/dev/null || die "post-live snapshot 无效"

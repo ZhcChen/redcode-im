@@ -11,10 +11,47 @@ production_verdict: no-go
 
 ## 结论
 
-G1 通过，U7 P0-2 关闭。演练在 `im-test-1` 的独立候选 PostgreSQL/Redis/API
-栈执行，只复用 RustFS 网络和 bucket，未升级、清空或写入旧主库。
+本文首轮 G1 结论曾判定通过并关闭 U7 P0-2；2026-08-06 的 G4.1 独立复审重新
+打开恢复实例真实性和证据完整性。E1（原 U4.3）现已完成整改与真实重放，但
+U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
 
-生产 E2EE 仍为 **No-Go**：G2 供应链门禁与 G3 H5 发布安全报告尚未完成。
+所有演练均在 `im-test-1` 的独立候选 PostgreSQL/Redis/API 栈执行，只复用 RustFS
+网络和 bucket，未升级、清空或写入旧主库。生产 E2EE 仍为 **No-Go**。
+
+## G4 整改 E1 验收（2026-08-06）
+
+最终成功 run `e1full20260806h` 使用候选镜像
+`redcode-im-api:g1-74d1231e`。candidate 新数据集经 custom-format backup 恢复到
+独立 PostgreSQL 17/Redis/API 后，在同一 `127.0.0.1:18010` 窗口完成恢复与三端
+full suite。
+
+| 检查 | 结果 |
+| --- | --- |
+| candidate/restore 关键表 snapshot | 计数与 digest `3016931872133f735d80fb18ad84f937` 完全一致 |
+| H5 同一协议状态跨恢复 | 历史密文可解密，恢复后新密文可发送并解密 |
+| Android/iOS/H5 full suite | `6 passed | 1 skipped` |
+| 三端 evidence | 3 个房间、7 条加密消息、1 个加密附件 |
+| post-live snapshot | identities=18、devices=19、KeyPackages=379、epochs=12、messages=21、attachment commits=1 |
+| DB | evidence messages 全部为 `[加密消息]` 且存在 encrypted content |
+| Redis | 每个 evidence room 均有真实 `PUBLISH`；MONITOR 与持久键无 plaintext marker |
+| API log | plaintext/sensitive marker 为零 |
+| Push | 本轮无 push queue 记录，明确记为 `not-observed-live`，未冒充占位验证 |
+| RustFS | object 为 ciphertext-only，SHA-256 `609496722f7f536fd128ed3120e1b7b2cdd3c0b33505a6d91b4344aee42d143b` |
+| source isolation | source PostgreSQL/Redis 连接均为 0 |
+| 退出清理 | candidate/restore container、volume、owner、artifact、MONITOR、tunnel、18010 全部清零 |
+| 旧主终态 | `persist/plaintext`，审批 false，旧主数据库未触碰 |
+
+Redis MONITOR 初次整改暴露了二进制采集缺陷：停止宿主 `docker exec` 会破坏重定向
+日志，且含 protobuf/NUL 的输出不能安全装入 Bash 变量。最终实现先复制 run-scoped
+不可变二进制快照，再停止采集，room/marker/sensitive 扫描全部直接针对文件执行；
+probe、run id、缺 room 和 plaintext marker 均 fail closed。
+
+定向验证：
+
+- `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-boundary.test e2ee.restore-live.test e2ee.cross-client.isolated.test`：通过。
+- `cd h5-app && bun run type-check`：通过。
+- `git diff --check`：通过。
+- `shellcheck`：本机未安装，本轮未执行。
 
 ## 候选构建
 
@@ -106,4 +143,5 @@ run `g1c-9ee1285f`：H5 驱动的 Android × iOS × H5 完整 live 6/6 通过，
 
 ## 后续门禁
 
-进入 G2 供应链安全门禁。G2、G3 与 G4 独立裁决完成前，不得在生产启用 E2EE。
+进入 E2 restore 整改四视角独立复核。E2-E7 完成并给出最终裁决前，不得在生产
+启用 E2EE。

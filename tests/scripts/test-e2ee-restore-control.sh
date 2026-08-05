@@ -66,6 +66,9 @@ if [[ "${1:-}" == compose ]]; then
         sql="$(cat)"
         case "$sql" in
           *"shobj_description"*) cat "$state/marker" ;;
+          *"component_digests"*)
+            printf '%s\n' '{"identities":2,"devices":2,"key_packages":20,"room_epochs":1,"control_messages":1,"control_receipts":1,"encrypted_messages":1,"attachment_commits":0,"digest":"0123456789abcdef0123456789abcdef"}'
+            ;;
           *"COMMENT ON DATABASE"*)
             printf 'redcode-e2ee-restore:%s\n' "${E2EE_RESTORE_RUN_ID:?}" >"$state/marker"
             printf 'e2ee\n' >"$state/runtime"
@@ -181,6 +184,7 @@ run_control() {
   E2EE_RESTORE_ENV_FILE="$env_file" \
   E2EE_RESTORE_COMPOSE_FILE="$compose_file" \
   E2EE_RESTORE_SOURCE_COMPOSE_FILE="$root_dir/deploy/im-test-1/docker-compose.yml" \
+  E2EE_RESTORE_SNAPSHOT_FILE="$root_dir/deploy/im-test-1/e2ee-restore-snapshot.sql" \
     "$@" "$script" "$operation"
 }
 
@@ -200,6 +204,9 @@ jq -e '.verified == true and .database_marker == "redcode-e2ee-restore:success"'
 run_control "$success_state" success verify >"$success_state/verify.json"
 jq -e '.project == "e2ee-restore-success" and .database_host == "postgres-restore"' \
   "$success_state/verify.json" >/dev/null
+run_control "$success_state" success snapshot >"$success_state/snapshot.json"
+jq -e '.digest == "0123456789abcdef0123456789abcdef" and .identities == 2 and .key_packages == 20' \
+  "$success_state/snapshot.json" >/dev/null
 run_control "$success_state" success rollback
 [[ "$(cat "$success_state/runtime")" == plaintext ]]
 run_control "$success_state" success cleanup

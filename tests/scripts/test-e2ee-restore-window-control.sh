@@ -47,7 +47,9 @@ if [[ "${1:-}" == compose ]]; then
       shift || true
       [[ "$service" == postgres-drill ]] || exit 70
       sql="$(cat)"
-      if [[ "$sql" == *"message_content_audit_mode', 'e2ee'"* ]]; then
+      if [[ "$sql" == *component_digests* ]]; then
+        printf '%s\n' '{"identities":2,"devices":2,"key_packages":20,"room_epochs":1,"control_messages":1,"control_receipts":1,"encrypted_messages":1,"attachment_commits":0,"digest":"0123456789abcdef0123456789abcdef"}'
+      elif [[ "$sql" == *"message_content_audit_mode', 'e2ee'"* ]]; then
         printf 'e2ee\n' >"$state/runtime"
       elif [[ "$sql" == *"message_content_audit_mode', 'plaintext'"* ]]; then
         printf 'plaintext\n' >"$state/runtime"
@@ -106,6 +108,13 @@ case "$operation" in
     printf '{"verified":true}\n'
     ;;
   verify) [[ -e "$state/restore-project" ]] && printf '{"verified":true}\n' ;;
+  snapshot)
+    if [[ "${E2EE_WINDOW_TEST_SNAPSHOT_MISMATCH:-0}" == 1 ]]; then
+      printf '%s\n' '{"identities":2,"devices":2,"key_packages":19,"room_epochs":1,"control_messages":1,"control_receipts":1,"encrypted_messages":1,"attachment_commits":0,"digest":"ffffffffffffffffffffffffffffffff"}'
+    else
+      printf '%s\n' '{"identities":2,"devices":2,"key_packages":20,"room_epochs":1,"control_messages":1,"control_receipts":1,"encrypted_messages":1,"attachment_commits":0,"digest":"0123456789abcdef0123456789abcdef"}'
+    fi
+    ;;
   cleanup) rm -f "$state/restore-project" ;;
   *) exit 70 ;;
 esac
@@ -130,6 +139,7 @@ POSTGRES_USER=redcode
 POSTGRES_DB=redcode_im
 ENV
 touch "$tmp_dir/drill.yml"
+printf 'component_digests\n' >"$tmp_dir/snapshot.sql"
 
 new_state() {
   local name="$1" state="$tmp_dir/$1"
@@ -159,6 +169,7 @@ run_control_as() {
   E2EE_RESTORE_DRILL_COMPOSE_FILE="$tmp_dir/drill.yml" \
   E2EE_RESTORE_CONTROL_PATH="$tmp_dir/restore-control.sh" \
   E2EE_RESTORE_BACKUP_CONTROL_PATH="$tmp_dir/backup-control.sh" \
+  E2EE_RESTORE_SNAPSHOT_FILE="$tmp_dir/snapshot.sql" \
   E2EE_RESTORE_ARTIFACT_ROOT="$state/artifacts" \
     "$@" "$script" "$operation"
 }
@@ -179,6 +190,8 @@ jq -e '.source == "isolated-candidate" and .runtime == "persist/e2ee" and .ready
 [[ -e "$success_state/candidate-api" && "$(cat "$success_state/runtime")" == e2ee ]]
 E2EE_RESTORE_ALLOW_SWITCH=yes run_control "$success_state" switch \
   >"$success_state/switch.json"
+jq -e '.snapshots_match == true and .candidate_snapshot.digest == .restore_snapshot.digest' \
+  "$success_state/switch.json" >/dev/null
 [[ ! -e "$success_state/candidate-api" && -e "$success_state/restore-project" ]]
 [[ "$(cat "$success_state/runtime")" == plaintext ]]
 run_control "$success_state" verify >/dev/null
@@ -240,6 +253,17 @@ set -e
 assert_clean "$timeout_state"
 echo '[e2ee-restore-window-test] command timeout cleanup: pass'
 
+snapshot_state="$(new_state snapshot-mismatch)"
+E2EE_RESTORE_ALLOW_CANDIDATE=yes run_control "$snapshot_state" candidate-prepare >/dev/null
+set +e
+E2EE_RESTORE_ALLOW_SWITCH=yes E2EE_WINDOW_TEST_SNAPSHOT_MISMATCH=1 \
+  run_control "$snapshot_state" switch >"$snapshot_state/output.log" 2>&1
+snapshot_status=$?
+set -e
+[[ "$snapshot_status" -ne 0 ]]
+assert_clean "$snapshot_state"
+echo '[e2ee-restore-window-test] snapshot mismatch cleanup: pass'
+
 if rg -n 'docker-compose\.yml.*(stop|down|up|update)|(stop|down|up|update).*docker-compose\.yml' \
   "$tmp_dir"/*/docker.log >/dev/null; then
   echo '[e2ee-restore-window-test] 失败：检测到旧主 Compose 写操作' >&2
@@ -247,4 +271,4 @@ if rg -n 'docker-compose\.yml.*(stop|down|up|update)|(stop|down|up|update).*dock
 fi
 
 bash -n "$script"
-echo '[e2ee-restore-window-test] 6 类 restore window 场景全部通过'
+echo '[e2ee-restore-window-test] 7 类 restore window 场景全部通过'

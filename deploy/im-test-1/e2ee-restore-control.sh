@@ -6,6 +6,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 compose_file="${E2EE_RESTORE_COMPOSE_FILE:-$script_dir/docker-compose.e2ee-restore.yml}"
 source_compose_file="${E2EE_RESTORE_SOURCE_COMPOSE_FILE:-$script_dir/docker-compose.yml}"
 env_file="${E2EE_RESTORE_ENV_FILE:-$script_dir/.env}"
+snapshot_file="${E2EE_RESTORE_SNAPSHOT_FILE:-$script_dir/e2ee-restore-snapshot.sql}"
 mode="${1:-verify}"
 run_id="${E2EE_RESTORE_RUN_ID:-}"
 state_root="${E2EE_RESTORE_STATE_ROOT:-$script_dir/.e2ee-restore}"
@@ -65,8 +66,8 @@ run_with_timeout() {
   log "E2EE_RESTORE_STATE_ROOT 必须是安全绝对路径"
   exit 64
 }
-[[ -f "$compose_file" && -f "$source_compose_file" && -f "$env_file" ]] ||
-  die "缺少 restore/source Compose 或部署 .env"
+[[ -f "$compose_file" && -f "$source_compose_file" && -f "$env_file" && -f "$snapshot_file" ]] ||
+  die "缺少 restore/source Compose、snapshot SQL 或部署 .env"
 
 state_dir="$state_root/$run_id"
 state_file="$state_dir/control.env"
@@ -116,6 +117,14 @@ restore_psql() {
     psql -X -qAt -v ON_ERROR_STOP=1 -U "$restore_user" -d "$restore_database" <<SQL
 $1
 SQL
+}
+
+snapshot() {
+  local value
+  value="$(restore_psql "$(cat "$snapshot_file")")"
+  jq -e '.digest | type == "string" and length == 32' <<<"$value" >/dev/null ||
+    die "restore snapshot 输出无效"
+  jq -S . <<<"$value"
 }
 
 restore_postgres_ready() {
@@ -284,6 +293,10 @@ case "$mode" in
     load_state
     verify
     ;;
+  snapshot)
+    load_state
+    snapshot
+    ;;
   rollback)
     load_state
     restore_psql "
@@ -296,7 +309,7 @@ case "$mode" in
     ;;
   cleanup) cleanup 0 ;;
   *)
-    log "用法：e2ee-restore-control.sh prepare|verify|rollback|cleanup"
+    log "用法：e2ee-restore-control.sh prepare|verify|snapshot|rollback|cleanup"
     exit 64
     ;;
 esac

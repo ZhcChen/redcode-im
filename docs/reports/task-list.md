@@ -29,9 +29,9 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E1.1`。restore full suite 已达到
-  `6 passed | 1 skipped` 且 candidate/restore snapshot 一致，但 Redis MONITOR
-  未捕获 evidence room 流量，E1 尚未关闭；先修复采集并重跑完整真实窗口。
+- 当前立即任务：唯一 checkpoint 为 `E2.1`。E1 最终 run `e1full20260806h`
+  已通过 restore full suite、snapshot、DB/Redis/log/RustFS 边界与退出清理；现在
+  对同一候选执行 correctness/security/reliability/testing 四视角独立复核。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
   E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
   E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
@@ -96,9 +96,9 @@
     U1（`da3cead2`、`10f0f724`）、U2（`22a728f9`）、U3（`a644fa0f`）以及
     U4.1 隔离基础设施（`31b13d37`、`fe954a77`、`df85231b`）已完成；U4.2
     candidate 到 restore 同端口切换由 `3f83bdc9` 和真实 run `u4restore3f83bdc9`
-    关闭。E1 的两次真实 full run 已通过功能场景与 snapshot 一致性，但 Redis
-    MONITOR evidence room 流量证据仍失败；当前只修复并重跑 E1，E2 及后续单元
-    不得提前并行打开。
+    关闭。E1 由最终 run `e1full20260806h` 关闭：功能场景、snapshot、DB/Redis/
+    API log/RustFS 边界和退出清理均通过，Push 明确记录 `not-observed-live`。
+    当前只执行 E2 四视角独立复核，E3 及后续单元不得提前并行打开。
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片

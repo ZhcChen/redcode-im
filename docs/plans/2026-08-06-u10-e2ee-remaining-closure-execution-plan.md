@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E1
-current_checkpoint: E1.1
+current_unit: E2
+current_checkpoint: E2.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E1.1`，先修复 restore Redis MONITOR 证据采集，再重跑 U4.3 完整 live。
+- **唯一恢复点：** `E2.1`，在已推送 E1 候选上执行 correctness、security、reliability、testing 四视角独立复核。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -74,9 +74,9 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | U4.2 恢复窗口切换 | complete | `3f83bdc9`；run `u4restore3f83bdc9` |
 | 进度文档同步 | complete | `1f2f7bb8` |
 
-### Current Worktree Boundary
+### E1 Closed Evidence
 
-以下 E1 代码仍在工作区，尚未提交，不得写成已完成：
+E1 已完成实现、定向测试和真实 restore full-suite 重放，涉及：
 
 - `scripts/e2ee-restore-live-window.sh`
 - `deploy/im-test-1/e2ee-restore-control.sh`
@@ -86,8 +86,16 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 - `tests/scripts/test-e2ee-restore-control.sh`
 - `tests/scripts/test-e2ee-restore-live-window.sh`
 - `tests/scripts/test-e2ee-restore-window-control.sh`
+- `tests/scripts/test-e2ee-restore-boundary-scan.sh`
+- `Makefile`
 
-真实 run `u4full20260806b` 和 `u4full20260806c` 均证明 restore full suite 为 `6 passed | 1 skipped`，candidate/restore snapshot 一致，Android/iOS/H5 两两互解、附件、重启恢复、连续会话、群成员变化和第二设备撤销场景通过。两次 run 均在最终 boundary scanner 失败；最新唯一失败为 Redis MONITOR 未捕获 evidence room 流量。两次失败均完成统一 cleanup，旧主保持 `persist/plaintext`。
+最终 run `e1full20260806h` 证明 candidate/restore snapshot 完全一致，restore full
+suite 为 `6 passed | 1 skipped`，Android/iOS/H5 两两互解、附件、重启恢复、连续
+会话、群成员变化和第二设备撤销场景通过。DB/Redis/API log/RustFS 均为
+ciphertext/marker-free；Push 明确记录 `not-observed-live`。结束后 container、volume、
+owner、artifact、MONITOR、tunnel 和 `18010` 全部清零，旧主保持
+`persist/plaintext`。详细证据见
+`docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
 
 ### Key Technical Decisions
 
@@ -185,7 +193,7 @@ flowchart TB
 
 | Gate | Command / Evidence | Unit | Pass condition |
 | --- | --- | --- | --- |
-| Restore scripts | `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live.test e2ee.cross-client.isolated.test` | E1 | 正负场景、snapshot、scanner 和 cleanup 全部通过 |
+| Restore scripts | `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-boundary.test e2ee.restore-live.test e2ee.cross-client.isolated.test` | E1 | 正负场景、snapshot、scanner 和 cleanup 全部通过 |
 | Android | 指定 JDK21 执行 `make android-app.test` | E1、E7 | JVM tests 通过，live 使用不同 device identity |
 | iOS | `make ios-app.test` | E1、E7 | Swift tests 通过，live skip 单独解释 |
 | H5 | `make h5-app.check` | E3、E7 | type-check、unit、build 通过 |
@@ -228,17 +236,17 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E1 |
-| Active checkpoint | E1.1 Redis MONITOR evidence room 流量采集 |
-| Worktree | 8 个 E1 文件未提交，详见 Current Worktree Boundary |
-| Latest full run | `u4full20260806c` |
+| Active unit | E2 |
+| Active checkpoint | E2.1 correctness/security/reliability/testing 独立复核 |
+| Worktree | E1 最小闭环随本进度更新提交；E2 不提前修改 E3 代码 |
+| Latest full run | `e1full20260806h` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore digest 一致 |
-| Blocking result | Redis MONITOR 缺少 room 流量，boundary scanner fail closed |
+| Boundary result | DB/Redis/log/RustFS 通过；Push `not-observed-live` |
 | Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 修复 MONITOR 证据采集，补测试，重跑 E1 完整真实窗口 |
+| Next action | 在同一 E1 候选 commit 上执行 E2 四视角独立复核 |
 
 ### Historical Mapping
 
