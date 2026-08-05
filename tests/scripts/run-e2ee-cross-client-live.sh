@@ -79,7 +79,7 @@ SQL
 }
 
 finish() {
-  local exit_code=$?
+  local exit_code="${1:-$?}"
   trap - EXIT INT TERM
   if [[ -n "$redis_monitor_pid" ]]; then
     kill "$redis_monitor_pid" 2>/dev/null || true
@@ -95,7 +95,9 @@ finish() {
   fi
   exit "$exit_code"
 }
-trap finish EXIT INT TERM
+trap 'finish $?' EXIT
+trap 'finish 130' INT
+trap 'finish 143' TERM
 
 docker compose -f "$compose_file" exec -T postgres \
   psql -v ON_ERROR_STOP=1 -U postgres -d redcode_im >/dev/null <<'SQL'
@@ -120,6 +122,18 @@ echo "[e2ee-live] runtime 已临时启用 persist/e2ee，run_id=$run_id"
 docker compose -f "$compose_file" exec -T redis \
   redis-cli -a 123456 --no-auth-warning MONITOR >"$redis_monitor_file" 2>&1 &
 redis_monitor_pid=$!
+for _ in $(seq 1 100); do
+  rg -q '^OK$' "$redis_monitor_file" 2>/dev/null && break
+  kill -0 "$redis_monitor_pid" 2>/dev/null || {
+    echo "[e2ee-live] Redis MONITOR 启动失败" >&2
+    exit 1
+  }
+  sleep 0.05
+done
+rg -q '^OK$' "$redis_monitor_file" || {
+  echo "[e2ee-live] Redis MONITOR 未就绪" >&2
+  exit 1
+}
 
 H5_APP_API_BASE_URL="$api_base_url" \
 VITE_API_BASE_URL="$api_base_url" \

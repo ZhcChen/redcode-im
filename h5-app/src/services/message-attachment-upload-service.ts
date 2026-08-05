@@ -23,7 +23,6 @@ interface DirectUploadResponse {
 }
 
 export type BrowserAttachmentType = 'image' | 'file';
-const AES_GCM_TAG_BYTES = 16;
 
 export const messageAttachmentUploadService = {
   async upload(roomId: string, file: File, type: BrowserAttachmentType, signal?: AbortSignal): Promise<OutgoingMessagePart> {
@@ -54,13 +53,7 @@ export const messageAttachmentUploadService = {
   ): Promise<{ part: OutgoingMessagePart; e2eePart: E2eeAttachmentPart }> {
     if (!roomId) throw new Error('会话不存在');
     validateMessageAttachment(file, type);
-    const descriptor = await requestAttachmentSignature(
-      roomId,
-      file,
-      type,
-      signal,
-      file.size + AES_GCM_TAG_BYTES,
-    );
+    const descriptor = await requestAttachmentSignature(roomId, file, type, signal);
     const key = descriptor.key;
     const partKey = globalThis.crypto.randomUUID();
     const aad = attachmentAad({
@@ -99,7 +92,6 @@ const requestAttachmentSignature = async (
   file: File,
   type: BrowserAttachmentType,
   signal?: AbortSignal,
-  storedSize = file.size,
 ) => {
   const descriptor = await requestJson<DirectUploadResponse>(
     `/rooms/${roomId}/messages/attachments/signature`,
@@ -109,7 +101,7 @@ const requestAttachmentSignature = async (
         part_type: type,
         filename: file.name,
         content_type: file.type || 'application/octet-stream',
-        file_size: storedSize,
+        file_size: file.size,
       }),
       signal,
     },

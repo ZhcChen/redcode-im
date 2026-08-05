@@ -60,7 +60,7 @@ describe('message attachment upload service', () => {
 
     expect(uploaded.part.size).toBe(3);
     expect(uploaded.e2eePart.size).toBe(3);
-    expect(JSON.parse(String(calls[0]?.init?.body)).file_size).toBe(19);
+    expect(JSON.parse(String(calls[0]?.init?.body)).file_size).toBe(3);
     expect((calls[1]?.init?.body as ArrayBuffer).byteLength).toBe(19);
     expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({
       key: 'messages/r1/files/secret.txt',

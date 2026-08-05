@@ -22,6 +22,25 @@ interface LiveSession {
   user: { id: string; username: string };
 }
 
+interface LiveEvidenceScenario {
+  name: 'h5-h5' | 'android-h5' | 'ios-h5';
+  room_id: string;
+  message_ids: string[];
+  plaintext_markers: string[];
+  object_key?: string;
+  attachment_marker?: string;
+}
+
+const recordEvidence = async (scenario: LiveEvidenceScenario) => {
+  if (!evidencePath) return;
+  const current = await readFile(evidencePath, 'utf8')
+    .then((raw) => JSON.parse(raw) as { run_id?: string; scenarios?: LiveEvidenceScenario[] })
+    .catch(() => ({ run_id: runId, scenarios: [] }));
+  const scenarios = (current.scenarios ?? []).filter((item) => item.name !== scenario.name);
+  scenarios.push(scenario);
+  await writeFile(evidencePath, JSON.stringify({ run_id: runId, scenarios }, null, 2));
+};
+
 const request = async <T>(path: string, init: RequestInit = {}, token?: string): Promise<T> => {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -138,6 +157,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       peerUserId: bob.user.id,
       text: aliceMarker,
     });
+    const aliceMessageId = responseMessageId(aliceResponse);
     expect(JSON.stringify(aliceResponse)).not.toContain(aliceMarker);
     const aliceWebSocketEvent = await aliceWebSocketMessage;
     expect(JSON.stringify(aliceWebSocketEvent)).not.toContain(aliceMarker);
@@ -170,6 +190,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       peerUserId: alice.user.id,
       text: bobMarker,
     });
+    const bobMessageId = responseMessageId(bobResponse);
     expect(JSON.stringify(bobResponse)).not.toContain(bobMarker);
     const bobWebSocketEvent = await bobWebSocketMessage;
     expect(JSON.stringify(bobWebSocketEvent)).not.toContain(bobMarker);
@@ -195,6 +216,12 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ encrypted_content: expect.any(String) }),
       expect.objectContaining({ encrypted_content: expect.any(String) }),
     ]));
+    await recordEvidence({
+      name: 'h5-h5',
+      room_id: chat.roomId,
+      message_ids: [aliceMessageId, bobMessageId],
+      plaintext_markers: [aliceMarker, bobMarker],
+    });
 
     const androidMarker = `u5-android-${crypto.randomUUID()}`;
     const h5Marker = `u5-h5-${crypto.randomUUID()}`;
@@ -302,21 +329,23 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     expect(crossSerialized).not.toContain(androidMarker);
     expect(crossSerialized).not.toContain(h5Marker);
     expect(crossSerialized).not.toContain(attachmentMarker);
+    for (const secret of [attachment.e2eePart.dek, attachment.e2eePart.nonce]) {
+      expect(crossSerialized).not.toContain(Buffer.from(secret).toString('base64'));
+      expect(crossSerialized).not.toContain(Buffer.from(secret).toString('hex'));
+    }
     expect(crossRawHistory).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: androidMessageId, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: attachmentMessageId, encrypted_content: expect.any(String) }),
     ]));
-    if (evidencePath) {
-      await writeFile(evidencePath, JSON.stringify({
-        run_id: runId,
-        room_id: crossChat.roomId,
-        message_ids: [androidMessageId, h5MessageId, attachmentMessageId],
-        object_key: attachment.e2eePart.objectKey,
-        plaintext_markers: [androidMarker, h5Marker, attachmentMarker],
-        attachment_marker: attachmentMarker,
-      }, null, 2));
-    }
+    await recordEvidence({
+      name: 'android-h5',
+      room_id: crossChat.roomId,
+      message_ids: [androidMessageId, h5MessageId, attachmentMessageId],
+      object_key: attachment.e2eePart.objectKey,
+      plaintext_markers: [androidMarker, h5Marker, attachmentMarker],
+      attachment_marker: attachmentMarker,
+    });
   }, 60_000);
 
   it('exchanges ciphertext bidirectionally across iOS/H5', async () => {
@@ -412,6 +441,12 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ id: iosMessageID, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: h5MessageID, encrypted_content: expect.any(String) }),
     ]));
+    await recordEvidence({
+      name: 'ios-h5',
+      room_id: chat.roomId,
+      message_ids: [iosMessageID, h5MessageID],
+      plaintext_markers: [iosMarker, h5Marker],
+    });
   }, 60_000);
 
   it('exchanges ciphertext bidirectionally across Android/iOS', async () => {

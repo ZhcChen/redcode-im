@@ -161,6 +161,8 @@ class AndroidE2eeCrossClientLiveTest {
             throw error
         }
         assertFalse(storedCiphertext.toString(Charsets.UTF_8).contains(fixture.attachmentMarker))
+        assertFalse(storedCiphertext.containsSubsequence(part.dek))
+        assertFalse(storedCiphertext.containsSubsequence(part.nonce))
         val attachmentCrypto = E2eeAttachmentCrypto()
         val aad = attachmentCrypto.attachmentAad(fixture.roomId, part.partKey, part.partPosition, part.objectKey)
         val plaintext = attachmentCrypto.decrypt(storedCiphertext, aad, part.nonce, part.dek)
@@ -442,6 +444,13 @@ private class CoordinationClient(
 }
 
 private data class CoordinationResponse(val statusCode: Int, val body: String)
+
+private fun ByteArray.containsSubsequence(needle: ByteArray): Boolean {
+    if (needle.isEmpty() || needle.size > size) return false
+    return indices.take(size - needle.size + 1).any { offset ->
+        needle.indices.all { index -> this[offset + index] == needle[index] }
+    }
+}
 
 private class LiveDiagnosticTransport(
     private val delegate: HttpTransport = JavaNetHttpTransport(),

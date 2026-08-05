@@ -1001,6 +1001,7 @@ tests.compose.config: ## 校验 api 测试栈 docker compose 配置可渲染
 tests.tooling: ## 执行仓库级 tooling 守护测试
 	@$(call require_cmd,$(GO))
 	@cd "$(ROOT_DIR)/tests/go" && $(GO) test ./tooling/
+	@$(MAKE) e2ee.cross-client.recovery.test
 
 tests.mocks.external: ## 执行外部依赖 mock 服务自测（B2/FCM/APNs/IPInfo）
 	@$(call require_cmd,$(GO))

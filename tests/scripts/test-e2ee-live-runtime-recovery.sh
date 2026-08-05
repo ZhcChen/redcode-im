@@ -19,6 +19,7 @@ elif [[ "$args" == *" exec -T postgres psql "* ]]; then
   input="$(cat)"
   if [[ "$input" == *"SET value = 'e2ee'"* ]]; then printf 'e2ee' >"$state_file"; else printf 'plaintext' >"$state_file"; fi
 elif [[ "$args" == *" exec -T redis redis-cli "*" MONITOR"* ]]; then
+  printf 'OK\n'
   while :; do sleep 1; done
 elif [[ "$args" == *" logs "* ]]; then
   :
@@ -93,7 +94,8 @@ const child = spawn(driver, [], {
     throw new Error('driver did not enter e2ee runtime');
   }
   process.kill(-child.pid, `SIG${signal}`);
-  await new Promise((resolve) => child.once('exit', resolve));
+  const result = await new Promise((resolve) => child.once('exit', (code, childSignal) => resolve({ code, signal: childSignal })));
+  if (result.code === 0) throw new Error(`driver should fail after SIG${signal}`);
   closeSync(output);
 })().catch((error) => {
   console.error(error);
