@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { invokeMock } = vi.hoisted(() => ({
-  invokeMock: vi.fn()
+const { invokeMock, cache } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  cache: new Map<string, unknown>()
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: invokeMock
+}))
+
+vi.mock('@/utils/cache', () => ({
+  loadCache: vi.fn(async (key: string) => {
+    if (!cache.has(key)) {
+      return null
+    }
+    return { data: cache.get(key), updatedAt: Date.now() }
+  }),
+  saveCache: vi.fn(async (key: string, value: unknown) => {
+    cache.set(key, value)
+  })
 }))
 
 import {
@@ -16,22 +29,7 @@ import {
 
 describe('download settings', () => {
   beforeEach(() => {
-    const storage = new Map<string, string>()
-    Object.defineProperty(window, 'localStorage', {
-      configurable: true,
-      value: {
-        getItem: (key: string) => storage.get(key) ?? null,
-        setItem: (key: string, value: string) => {
-          storage.set(key, value)
-        },
-        removeItem: (key: string) => {
-          storage.delete(key)
-        },
-        clear: () => {
-          storage.clear()
-        }
-      }
-    })
+    cache.clear()
 
     invokeMock.mockImplementation(async (command: string, args?: Record<string, any>) => {
       if (command === 'get_user_download_dir') {
