@@ -13,8 +13,10 @@ production_verdict: no-go
 
 本文首轮 G1 结论曾判定通过并关闭 U7 P0-2；2026-08-06 的 G4.1 独立复审重新
 打开恢复实例真实性和证据完整性。E1（原 U4.3）经两轮 E2 复核退回后已完成
-E1.3 整改、真实重放、预审、提交与推送，但
-U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
+E1.3 整改、真实重放、预审、提交与推送。随后 E2 已在 subject `aa605931` 上由
+correctness、security、reliability、testing 四个全新独立上下文复核通过，均为
+`P0=0、P1=0、P2=0`；恢复真实性门禁关闭。E3-E7 尚未完成，因此生产 E2EE
+仍为 **No-Go**。
 
 所有演练均在 `im-test-1` 的独立候选 PostgreSQL/Redis/API 栈执行，只复用 RustFS
 网络和 bucket，未升级、清空或写入旧主库。生产 E2EE 仍为 **No-Go**。

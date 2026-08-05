@@ -80,6 +80,19 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.3 第二轮 finding 整改 | complete | `d385c88b`；最终 run `e1fix20260806g`；预审 P0/P1/P2=0 |
 | E2 第三轮四视角复核 | complete | subject `aa605931`；四视角均 P0/P1/P2=0 |
 
+### Status And Resume Rules
+
+- 本文是 U10 E2EE 唯一 `active` 执行计划；其他 U10 E2EE plan 仅用于追溯产品
+  合同、历史设计和已完成证据，不得承载新的 checkpoint。
+- 恢复执行时只读取 frontmatter、Execution Console、当前 Implementation Unit 和
+  Resume Snapshot；历史 finding 仅在回归失败或审计追溯时读取。
+- `current_unit` 与 `current_checkpoint` 是唯一恢复游标。单元完成测试、review、
+  commit、push 且 `HEAD == origin/main` 后，才能更新到下一个 checkpoint。
+- review 文档记录事实，`docs/reports/task-list.md` 只做项目级索引；二者不得反向
+  覆盖本文状态。
+- 当前恢复命令：先执行 `git status --short`，确认无未解释改动，再从 `E3.1`
+  开始；禁止重做 E1/E2。
+
 ### Execution Console
 
 本文是 U10 E2EE 剩余工作的唯一状态入口。历史 plan、review 和 task list 不得用
@@ -338,7 +351,8 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | --- | --- |
 | Active unit | E3 |
 | Active checkpoint | E3.1 production Chrome 审计入口与真实存储路径 |
-| Worktree | E2 四视角复核已通过；仅待本轮 E2 review 文档提交 |
+| Git baseline | `d5115ba5` 已推送，`HEAD == origin/main` |
+| Worktree | E2 review 已提交并推送；开始 E3 前重新检查工作区 |
 | Latest full run | `e1fix20260806g` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore 完整行 digest `2c34ac950bee5a780988321a518d589d` 一致 |

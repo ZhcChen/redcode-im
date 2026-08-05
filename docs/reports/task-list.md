@@ -33,6 +33,8 @@
   `aa605931` 完成 correctness/security/reliability/testing 复核，均为
   `P0=0、P1=0、P2=0`。当前开始 H5 production `E2eeSecureStateStorage` 真实 Chrome
   审计；不得使用替代 AES/IndexedDB 实现或 production 审计后门。
+- U10 状态只由上述唯一执行计划的 frontmatter、Execution Console 和 Resume
+  Snapshot 推进；本总账不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
   E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
   E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
@@ -80,9 +82,9 @@
   - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件和泄漏扫描的历史验收已完成，
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
-  - G1 既有隔离候选演练有效，但 G4.1 重新打开恢复实例真实客户端行为、外部
-    副作用清理与持久证据缺口；外部副作用清理由 `a644fa0f` 关闭，恢复真实性与
-    持久证据仍待 U4/U6，U7 P0-2 暂不维持关闭。
+  - G1 恢复真实性和外部副作用清理已由 E1.3 最终 run `e1fix20260806g` 及 E2
+    四视角独立复核关闭；持久脱敏证据仍由 E4 单独交付。该结论不改变生产
+    E2EE `No-Go`。
   - G2 六端 SBOM、漏洞与许可证门禁有效，但需补严格日历日期校验和真实
     `Build Release Artifacts` workflow 运行证据；严格日期校验已由 `10f0f724`
     关闭，U7 P0-3 仍待真实 workflow 证据。
