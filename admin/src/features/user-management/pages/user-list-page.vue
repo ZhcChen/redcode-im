@@ -86,7 +86,7 @@
   import { ref, reactive, onMounted } from 'vue';
   import dayjs from 'dayjs';
   import useLoading from '@/hooks/loading';
-  import { Message, Modal } from '@arco-design/web-vue';
+  import { Message, Modal, type TableColumnData } from '@arco-design/web-vue';
   import {
     getUserList,
     updateUserStatus,
@@ -108,7 +108,7 @@
     showJumper: true,
   });
 
-  const columns = [
+  const columns: TableColumnData[] = [
     {
       title: '头像',
       dataIndex: 'avatar_url',

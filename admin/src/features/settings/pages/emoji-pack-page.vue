@@ -440,7 +440,7 @@
 
 <script lang="ts" setup>
   import { ref, reactive, computed, onMounted } from 'vue';
-  import { Message } from '@arco-design/web-vue';
+  import { Message, type TableColumnData } from '@arco-design/web-vue';
   import useLoading from '@/hooks/loading';
   import StorageImage from '@/components/storage-image/index.vue';
   import {
@@ -498,7 +498,7 @@
     return packs.value.filter((p) => p.pack_type === 1 && !p.parent_id);
   });
 
-  const packColumns = [
+  const packColumns: TableColumnData[] = [
     {
       title: '图标',
       dataIndex: 'icon_url',
@@ -545,7 +545,7 @@
   const currentSuitePacks = ref<EmojiPack[]>([]);
   const suitePackModalVisible = ref(false);
   const suitePackLoading = ref(false);
-  const suitePackColumns = [
+  const suitePackColumns: TableColumnData[] = [
     {
       title: '图标',
       dataIndex: 'icon_url',
@@ -604,7 +604,7 @@
     image_url: [{ required: true, message: '请输入表情图片URL' }],
   };
 
-  const itemColumns = [
+  const itemColumns: TableColumnData[] = [
     {
       title: '图片',
       dataIndex: 'image_url',

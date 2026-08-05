@@ -78,7 +78,7 @@
   import { getPopularContent } from '@/services/dashboard';
 
   interface PopularRecord {
-    key: number;
+    key: string;
     clickNumber: string;
     title: string;
     increases: number;
@@ -91,7 +91,7 @@
       const data =
         response.data[contentType as keyof typeof response.data] || [];
       const formattedData: PopularRecord[] = data.map((item, index) => ({
-        key: index + 1,
+        key: String(index + 1),
         clickNumber: item.clickNumber,
         title: item.title,
         increases: item.increases,
@@ -102,19 +102,19 @@
       console.warn('获取热门内容失败，使用模拟数据:', error);
       const data: PopularRecord[] = [
         {
-          key: 1,
+          key: '1',
           clickNumber: '1234',
           title: '热门内容1',
           increases: 12,
         },
         {
-          key: 2,
+          key: '2',
           clickNumber: '567',
           title: '热门内容2',
           increases: -5,
         },
         {
-          key: 3,
+          key: '3',
           clickNumber: '890',
           title: '热门内容3',
           increases: 8,

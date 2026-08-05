@@ -148,7 +148,12 @@
 
 <script lang="ts" setup>
   import { ref, reactive, onMounted } from 'vue';
-  import { Message, Modal } from '@arco-design/web-vue';
+  import {
+    Message,
+    Modal,
+    type FieldRule,
+    type TableColumnData,
+  } from '@arco-design/web-vue';
   import { IconPlus } from '@arco-design/web-vue/es/icon';
   import http from '@/services/http';
 
@@ -199,7 +204,7 @@
   const formRef = ref();
 
   // 表单验证规则
-  const rules = {
+  const rules: Record<string, FieldRule[]> = {
     name: [
       { required: true, message: '请输入Token名称' },
       { maxLength: 50, message: 'Token名称不能超过50个字符' },
@@ -220,7 +225,7 @@
   };
 
   // 表格列配置
-  const columns = [
+  const columns: TableColumnData[] = [
     {
       title: 'Token名称',
       dataIndex: 'name',

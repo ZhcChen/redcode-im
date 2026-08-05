@@ -299,7 +299,7 @@
 <script setup lang="ts">
   import dayjs from 'dayjs';
   import { reactive, ref, onMounted } from 'vue';
-  import { Message } from '@arco-design/web-vue';
+  import { Message, type TableColumnData } from '@arco-design/web-vue';
   import {
     listHotUpdateEvents,
     type HotUpdateEventInfo,
@@ -336,7 +336,7 @@
     { value: 'rollback', label: '回滚' },
   ];
 
-  const columns = [
+  const columns: TableColumnData[] = [
     {
       title: '时间',
       dataIndex: 'created_at',

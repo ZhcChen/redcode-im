@@ -1,4 +1,4 @@
-import type { AxiosRequestConfig, AxiosResponse } from 'axios';
+import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { Message, Modal } from '@arco-design/web-vue';
 import { useUserStore } from '@/store';
 import http from '@/services/http';
@@ -17,21 +17,19 @@ export interface HttpResponse<T = unknown> {
 }
 
 http.interceptors.request.use(
-  (config: AxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     const token = getAccessToken();
     if (token) {
-      if (!config.headers) {
-        config.headers = {};
-      }
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.set('Authorization', `Bearer ${token}`);
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
+// Axios types response interceptors as shape-preserving, while this client intentionally unwraps payloads.
 http.interceptors.response.use(
-  (response: AxiosResponse<HttpResponse>) => {
+  ((response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
     const hasCustomCode =
       res &&
@@ -74,7 +72,7 @@ http.interceptors.response.use(
     }
 
     return res;
-  },
+  }) as never,
   async (error) => {
     const message =
       error?.response?.data?.message ||

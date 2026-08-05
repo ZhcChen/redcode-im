@@ -264,8 +264,13 @@
 
 <script setup lang="ts">
   import { computed, reactive, ref, watch } from 'vue';
-  import { Message, type FormInstance } from '@arco-design/web-vue';
-  import dayjs, { type Dayjs } from 'dayjs';
+  import {
+    Message,
+    type FieldRule,
+    type FormInstance,
+    type TableColumnData,
+  } from '@arco-design/web-vue';
+  import dayjs from 'dayjs';
   import {
     listAppVersions,
     createAppVersion,
@@ -337,7 +342,7 @@
   const modalVisible = ref(false);
   const formRef = ref<FormInstance>();
   const editingVersion = ref<AppVersionInfo | null>(null);
-  const releasedAtValue = ref<Dayjs | null>(null);
+  const releasedAtValue = ref<Date>();
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const uploadedFileInfo = ref<string>('');
 
@@ -361,13 +366,13 @@
     file_size: null,
   });
 
-  const formRules = {
+  const formRules: Record<string, FieldRule[]> = {
     version: [{ required: true, message: '请输入版本号' }],
     build_number: [{ required: true, type: 'number', message: '请输入构建号' }],
     channel: [{ required: true, message: '请输入渠道标识' }],
   };
 
-  const columns = [
+  const columns: TableColumnData[] = [
     {
       title: '版本号',
       dataIndex: 'version',
@@ -537,7 +542,7 @@
     formState.mandatory = false;
     formState.is_active = true;
     formState.file_size = null;
-    releasedAtValue.value = null;
+    releasedAtValue.value = undefined;
     uploadedFileInfo.value = '';
     editingVersion.value = null;
   };
@@ -593,8 +598,8 @@
     formState.is_active = record.is_active;
     formState.file_size = record.file_size ?? null;
     releasedAtValue.value = record.released_at
-      ? dayjs(record.released_at)
-      : null;
+      ? new Date(record.released_at)
+      : undefined;
     uploadedFileInfo.value = record.file_size
       ? `${record.version} · ${formatFileSize(record.file_size)}`
       : '';

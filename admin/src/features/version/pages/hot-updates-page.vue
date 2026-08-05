@@ -244,8 +244,12 @@
 
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch } from 'vue';
-  import dayjs, { type Dayjs } from 'dayjs';
-  import { Message, type FormInstance } from '@arco-design/web-vue';
+  import dayjs from 'dayjs';
+  import {
+    Message,
+    type FormInstance,
+    type TableColumnData,
+  } from '@arco-design/web-vue';
   import {
     listHotUpdates,
     createHotUpdate,
@@ -298,14 +302,14 @@
   const fileInputRef = ref<HTMLInputElement | null>(null);
   const formRef = ref<FormInstance>();
   const editingHotUpdate = ref<HotUpdateInfo | null>(null);
-  const releasedAtValue = ref<Dayjs | null>(null);
+  const releasedAtValue = ref<Date>();
   const uploadedFileInfo = ref('');
 
   const versionOptions = ref<{ label: string; value: string }[]>([]);
 
   type HotUpdateFormState = Omit<CreateHotUpdatePayload, 'platform'> & {
     platform: AppPlatform;
-    file_size?: number | null;
+    file_size?: number;
   };
 
   function getDefaultFormState(): HotUpdateFormState {
@@ -316,7 +320,7 @@
       channel: 'stable',
       download_key: '',
       download_url: '',
-      file_size: null,
+      file_size: undefined,
       checksum: '',
       signature: '',
       rollout_percentage: 100,
@@ -351,7 +355,7 @@
     value: channel,
   }));
 
-  const columns = [
+  const columns: TableColumnData[] = [
     { title: '平台', dataIndex: 'platform', slotName: 'platform', width: 120 },
     {
       title: '基线版本',
@@ -491,7 +495,7 @@
     formState.platform = platformFilter.value;
     formState.channel = channelFilter.value || 'stable';
     editingHotUpdate.value = null;
-    releasedAtValue.value = null;
+    releasedAtValue.value = undefined;
     uploadedFileInfo.value = '';
     loadVersionOptions();
     modalVisible.value = true;
@@ -515,7 +519,7 @@
       channel: record.channel,
       download_key: record.download_key,
       download_url: record.download_url || '',
-      file_size: record.file_size ?? null,
+      file_size: record.file_size ?? undefined,
       checksum: record.checksum || '',
       signature: record.signature || '',
       rollout_percentage: record.rollout_percentage,
@@ -523,8 +527,8 @@
       description: record.description || '',
     });
     releasedAtValue.value = record.released_at
-      ? dayjs(record.released_at)
-      : null;
+      ? new Date(record.released_at)
+      : undefined;
     uploadedFileInfo.value = record.file_size
       ? `${record.patch_version} · ${formatFileSize(record.file_size)}`
       : '';

@@ -196,7 +196,7 @@
 
 <script lang="ts" setup>
   import { ref, reactive, onMounted } from 'vue';
-  import { Message, Modal } from '@arco-design/web-vue';
+  import { Message, Modal, type TableColumnData } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
   import useLoading from '@/hooks/loading';
   import {
@@ -233,7 +233,7 @@
     pageSizeOptions: [20, 50, 100, 200, 500],
   });
 
-  const columns = [
+  const columns: TableColumnData[] = [
     { title: '状态', dataIndex: 'status', slotName: 'status', width: 110 },
     { title: '场景', dataIndex: 'scene', width: 140 },
     { title: '媒体', dataIndex: 'mediaKind', width: 110 },

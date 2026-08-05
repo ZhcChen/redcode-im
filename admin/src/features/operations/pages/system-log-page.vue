@@ -139,7 +139,7 @@
 
 <script lang="ts" setup>
   import { ref, reactive, onMounted } from 'vue';
-  import { Message, Modal } from '@arco-design/web-vue';
+  import { Message, Modal, type TableColumnData } from '@arco-design/web-vue';
   import dayjs from 'dayjs';
   import useLoading from '@/hooks/loading';
   import {
@@ -177,7 +177,7 @@
     retentionDays: 7,
   });
 
-  const columns = [
+  const columns: TableColumnData[] = [
     {
       title: '级别',
       dataIndex: 'level',
