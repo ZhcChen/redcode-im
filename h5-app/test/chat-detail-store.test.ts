@@ -98,7 +98,7 @@ describe('chat detail store', () => {
     await store.sendText(' browser secret ');
 
     expect(prepare).toHaveBeenCalledWith(expect.objectContaining({
-      accountId: 'u1', roomId: 'r1', peerUserId: 'u2', text: 'browser secret',
+      accountId: 'u1', roomId: 'r1', text: 'browser secret',
     }));
     expect(retry).toHaveBeenCalledOnce();
     expect(store.messages).toEqual([

@@ -35,6 +35,14 @@ pub struct E2eeDeviceRecord {
 }
 
 #[derive(Debug, Clone, FromRow)]
+pub struct RoomMemberDeviceRecord {
+    pub user_id: Uuid,
+    pub device_id: Option<Uuid>,
+    pub protocol_version: Option<i16>,
+    pub credential_fingerprint: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, FromRow)]
 pub struct E2eeAccountIdentityRecord {
     pub user_id: Uuid,
     pub root_public_key: Vec<u8>,
@@ -410,6 +418,33 @@ impl<'a> E2eeMlsStore<'a> {
              ORDER BY created_at, id",
         )
         .bind(user_id)
+        .fetch_all(self.pool)
+        .await
+        .map_err(AppError::DatabaseError)
+    }
+
+    /// 返回房间当前成员的 active 设备；无 E2EE 设备的成员仍返回空 devices。
+    pub async fn list_room_member_devices(
+        &self,
+        room_id: Uuid,
+        viewer_user_id: Uuid,
+    ) -> Result<Vec<RoomMemberDeviceRecord>, AppError> {
+        sqlx::query_as::<_, RoomMemberDeviceRecord>(
+            "SELECT member.user_id, device.id AS device_id,
+                    device.protocol_version, device.credential_fingerprint
+             FROM room_members AS member
+             LEFT JOIN e2ee_devices AS device
+               ON device.user_id = member.user_id AND device.status = 'active'
+             WHERE member.room_id = $1 AND member.deleted_at IS NULL
+               AND EXISTS (
+                 SELECT 1 FROM room_members AS viewer
+                 WHERE viewer.room_id = $1 AND viewer.user_id = $2
+                   AND viewer.deleted_at IS NULL
+               )
+             ORDER BY member.user_id, device.created_at, device.id",
+        )
+        .bind(room_id)
+        .bind(viewer_user_id)
         .fetch_all(self.pool)
         .await
         .map_err(AppError::DatabaseError)

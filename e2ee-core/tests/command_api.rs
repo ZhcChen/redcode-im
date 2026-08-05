@@ -130,6 +130,53 @@ fn remove_member_command_excludes_the_leaf_and_signs_approvals() {
     assert_eq!(signed[0].len(), 64);
 }
 
+#[test]
+fn list_members_command_round_trips_group_leaf_identities() {
+    let alice = command(1, &[b"alice-device-1"]);
+    let bob = command(1, &[b"bob-device-1"]);
+    let carol = command(1, &[b"carol-device-1"]);
+    let created = command(3, &[&alice[0], b"room-list-members"]);
+    let bob_added = command(4, &[&created[0], b"room-list-members", &bob[1]]);
+    let carol_added = command(4, &[&bob_added[0], b"room-list-members", &carol[1]]);
+
+    let listed = command(12, &[&carol_added[0], b"room-list-members"]);
+    assert_eq!(
+        decode_member_list(&listed[0]),
+        vec![
+            b"alice-device-1".to_vec(),
+            b"bob-device-1".to_vec(),
+            b"carol-device-1".to_vec(),
+        ]
+    );
+
+    let removed = command(
+        10,
+        &[&carol_added[0], b"room-list-members", b"bob-device-1"],
+    );
+    let listed = command(12, &[&removed[0], b"room-list-members"]);
+    assert_eq!(
+        decode_member_list(&listed[0]),
+        vec![b"alice-device-1".to_vec(), b"carol-device-1".to_vec()]
+    );
+
+    assert!(response_fields(&request(12, &[&alice[0], b"room-missing"],)).is_err());
+}
+
+fn decode_member_list(payload: &[u8]) -> Vec<Vec<u8>> {
+    let mut offset = 0;
+    let count = u32::from_be_bytes(payload[offset..offset + 4].try_into().unwrap()) as usize;
+    offset += 4;
+    let mut members = Vec::with_capacity(count);
+    for _ in 0..count {
+        let length = u32::from_be_bytes(payload[offset..offset + 4].try_into().unwrap()) as usize;
+        offset += 4;
+        members.push(payload[offset..offset + length].to_vec());
+        offset += length;
+    }
+    assert_eq!(offset, payload.len());
+    members
+}
+
 fn command(operation: u8, fields: &[&[u8]]) -> Vec<Vec<u8>> {
     response_fields(&request(operation, fields)).expect("command succeeds")
 }

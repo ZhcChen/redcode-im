@@ -7,6 +7,7 @@ use base64::Engine;
 use chrono::{DateTime, Duration, Utc};
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 use crate::database::e2ee_control_store::{
@@ -18,6 +19,7 @@ use crate::database::e2ee_mls_store::{
     MAX_AVAILABLE_KEY_PACKAGES_PER_DEVICE,
 };
 use crate::database::friend_store::FriendStore;
+use crate::database::room_store::RoomStore;
 use crate::error::AppError;
 use crate::models::{convert::string_to_uuid, Claims};
 use crate::services::e2ee_envelope::{
@@ -314,11 +316,14 @@ pub async fn get_mls_account_identity(
     Path(target_user_id): Path<Uuid>,
 ) -> Result<Json<MlsAccountIdentityResponse>, AppError> {
     let current_user_id = claims_user_id(&claims)?;
-    if current_user_id != target_user_id
-        && !FriendStore::new(state.database.clone())
-            .are_already_friends(current_user_id, target_user_id)
-            .await?
-    {
+    let room_store = RoomStore::new(state.database.pool());
+    let is_friend = FriendStore::new(state.database.clone())
+        .are_already_friends(current_user_id, target_user_id)
+        .await?;
+    let shares_room = room_store
+        .share_room_with(current_user_id, target_user_id)
+        .await?;
+    if current_user_id != target_user_id && !is_friend && !shares_room {
         return Err(AppError::NotFound("E2EE 账号根身份不存在".to_string()));
     }
 
@@ -368,6 +373,50 @@ pub async fn list_mls_peer_devices(
         })
         .collect();
     Ok(Json(devices))
+}
+
+#[derive(Debug, Serialize)]
+pub struct RoomMemberDevicesResponse {
+    pub user_id: Uuid,
+    pub devices: Vec<MlsPeerDeviceResponse>,
+}
+
+/// 返回房间当前成员的 active E2EE 设备，供客户端做 MLS leaf 差集收敛。
+pub async fn list_room_member_devices(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(room_id): Path<Uuid>,
+) -> Result<Json<Vec<RoomMemberDevicesResponse>>, AppError> {
+    let viewer_user_id = claims_user_id(&claims)?;
+    let rows = E2eeMlsStore::new(state.database.pool())
+        .list_room_member_devices(room_id, viewer_user_id)
+        .await?;
+    let is_member = RoomStore::new(state.database.pool())
+        .is_user_in_room(room_id, viewer_user_id)
+        .await?;
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "不是当前房间成员，无法查看 E2EE 设备".to_string(),
+        ));
+    }
+    let mut grouped: BTreeMap<Uuid, Vec<MlsPeerDeviceResponse>> = BTreeMap::new();
+    for row in rows {
+        let devices = grouped.entry(row.user_id).or_default();
+        if let Some(device_id) = row.device_id {
+            devices.push(MlsPeerDeviceResponse {
+                id: device_id,
+                protocol_version: row.protocol_version.unwrap_or_default(),
+                credential_fingerprint: BASE64_STANDARD.encode(
+                    row.credential_fingerprint.unwrap_or_default(),
+                ),
+            });
+        }
+    }
+    let result = grouped
+        .into_iter()
+        .map(|(user_id, devices)| RoomMemberDevicesResponse { user_id, devices })
+        .collect();
+    Ok(Json(result))
 }
 
 pub async fn register_mls_device(

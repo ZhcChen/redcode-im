@@ -236,6 +236,9 @@ flowchart TB
 - **Test Scenarios:** 三账号至少四设备群互发；邀请新成员；普通成员退出；管理员移除；并发邀请与移除 revision 冲突；Commit 丢失后补拉；重复/乱序控制消息；旧成员/撤销设备不能解密新消息；新成员不能读取加入前历史。
 - **Verification:** `make api.test`、原生双端/H5 群聊 unit、三账号四设备跨端 live、API/WS/DB epoch 关联抽检。
 - **Dependencies:** U3。
+- **细化执行计划:** `docs/plans/2026-08-05-u10-e2ee-u4-group-chat-plan.md`；
+  **验收记录:** `docs/reviews/2026-08-05-u10-e2ee-u4-group-chat.md`（partial：
+  e2ee-core/API/H5 自动化证据通过；原生双端 E2EE 专项待补齐，生产 No-Go）。
 
 ### U5. 加密附件并关闭外围功能边界
 

@@ -46,6 +46,11 @@ export interface E2eeDeviceInfo {
   createdAt: string;
 }
 
+export interface E2eeRoomMemberDevices {
+  userId: string;
+  devices: E2eePeerDevice[];
+}
+
 export interface E2eeKeyPackageInventory {
   available: number;
   maxAvailable: number;
@@ -192,6 +197,35 @@ export const e2eeMlsApiService = {
         throw new Error('E2EE 设备列表响应格式无效');
       }
       return { id, protocolVersion, credentialFingerprint: fingerprint };
+    });
+  },
+
+  async listRoomMemberDevices(roomId: string): Promise<E2eeRoomMemberDevices[]> {
+    const normalized = roomId.trim();
+    if (!normalized) throw new Error('E2EE 房间标识不能为空');
+    const rows = await requestJson<Record<string, unknown>[]>(
+      `/rooms/${encodeURIComponent(normalized)}/e2ee/members`,
+      {},
+      requireToken(),
+    );
+    return rows.map((row) => {
+      const userId = typeof row.user_id === 'string' ? row.user_id : '';
+      const devices = Array.isArray(row.devices)
+        ? row.devices.map((device) => {
+            const record = device as Record<string, unknown>;
+            const id = typeof record.id === 'string' ? record.id : '';
+            const protocolVersion = Number(record.protocol_version);
+            const fingerprint = typeof record.credential_fingerprint === 'string'
+              ? base64ToBytes(record.credential_fingerprint)
+              : new Uint8Array();
+            if (!id.trim() || protocolVersion !== 1 || fingerprint.length < 16) {
+              throw new Error('E2EE 房间成员设备响应格式无效');
+            }
+            return { id, protocolVersion, credentialFingerprint: fingerprint };
+          })
+        : [];
+      if (!userId.trim()) throw new Error('E2EE 房间成员响应格式无效');
+      return { userId, devices };
     });
   },
 

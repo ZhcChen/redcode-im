@@ -17,6 +17,7 @@ const PUBLIC_MATERIAL: u8 = 8;
 const PROCESS_COMMIT: u8 = 9;
 const REMOVE_MEMBER: u8 = 10;
 const SIGN_DEVICE_APPROVAL: u8 = 11;
+const LIST_MEMBERS: u8 = 12;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub fn execute_command(request: &[u8]) -> Vec<u8> {
@@ -131,6 +132,17 @@ fn execute(request: &[u8]) -> Result<Vec<Vec<u8>>, String> {
             let session = MlsSession::import(&fields[0]).map_err(display)?;
             let signature = session.sign_device_approval(&fields[1]).map_err(display)?;
             Ok(vec![signature])
+        }
+        LIST_MEMBERS => {
+            require_fields(&fields, 2)?;
+            let session = MlsSession::import(&fields[0]).map_err(display)?;
+            let members = session.list_members(&fields[1]).map_err(display)?;
+            let mut payload = (members.len() as u32).to_be_bytes().to_vec();
+            for member in members {
+                payload.extend_from_slice(&(member.len() as u32).to_be_bytes());
+                payload.extend_from_slice(&member);
+            }
+            Ok(vec![payload])
         }
         _ => Err("unsupported E2EE command".to_string()),
     }

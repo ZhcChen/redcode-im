@@ -52,9 +52,10 @@ MLS group，客户端仍按房间执行成员移除并以 `member not found` 跳
 }
 ```
 
-只允许查询当前账号自身或已建立好友关系的账号。无权限、目标未初始化 E2EE
-或目标不存在时统一返回 `404`，避免枚举账号身份状态。客户端必须对首次读取执行
-TOFU；后续指纹变化时阻断发送，不得用本响应静默覆盖本地可信记录。
+只允许查询当前账号自身、已建立好友关系的账号或至少同处一个活跃房间的账号。
+无权限、目标未初始化 E2EE 或目标不存在时统一返回 `404`，避免枚举账号身份状态。
+客户端必须对首次读取执行 TOFU；后续指纹变化时阻断发送，不得用本响应静默覆盖
+本地可信记录。
 
 ### 查询对方设备列表
 
@@ -95,6 +96,31 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 ```
 
 批准者必须是当前账号的 `active` 设备，目标必须是当前账号的 `pending_approval` 设备。服务端使用批准设备注册时的 `approval_public_key` 验证签名；普通登录 token 本身不能完成批准。目标已为 `active` 时重复批准幂等返回当前状态，不误判为冲突。
+
+### 查询房间成员设备
+
+`GET /rooms/{room_id}/e2ee/members` 返回当前房间全部成员的 active E2EE 设备，
+供客户端把 MLS group leaf 集合与服务端成员集合做差集收敛：
+
+```json
+[
+  {
+    "user_id": "0198...",
+    "devices": [{
+      "id": "0198...",
+      "protocol_version": 1,
+      "credential_fingerprint": "<base64>"
+    }]
+  }
+]
+```
+
+- 仅房间当前成员可访问，非成员统一返回 `403`。
+- 无 E2EE 设备的成员仍返回空 `devices` 数组，客户端不得为该房间建立不完整
+  MLS group，应明确失败。
+- 房间成员变化（邀请、退出、移除）由数据库自动推进 `membership_revision` 并把
+  房间置为 `rekey_required`；客户端提交 add/remove 的 Commit（必要时附带
+  Welcome）后房间恢复 `active`。
 
 ## KeyPackage
 

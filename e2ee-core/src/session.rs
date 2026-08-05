@@ -235,6 +235,23 @@ impl MlsSession {
         })
     }
 
+    /// 返回当前群组全部 leaf 的 identity，供客户端与服务端成员集合做差集收敛。
+    pub fn list_members(&self, group_id: &[u8]) -> Result<Vec<Vec<u8>>, MlsSessionError> {
+        let group = self.load_group(group_id)?;
+        let mut members = group
+            .members()
+            .map(|member| {
+                let credential = &member.credential;
+                if credential.credential_type() != CredentialType::Basic {
+                    return Err(MlsSessionError::UnsupportedCredential);
+                }
+                Ok(credential.serialized_content().to_vec())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        members.sort();
+        Ok(members)
+    }
+
     /// 使用设备签名密钥对批准载荷签名，供可信设备批准同账号新设备。
     pub fn sign_device_approval(&self, payload: &[u8]) -> Result<Vec<u8>, MlsSessionError> {
         if payload.is_empty() {
@@ -424,6 +441,8 @@ pub enum MlsSessionError {
     GroupNotFound,
     #[error("MLS group member not found")]
     MemberNotFound,
+    #[error("unsupported MLS credential type")]
+    UnsupportedCredential,
     #[error("empty signature payload")]
     EmptySignaturePayload,
     #[error("unexpected MLS message kind")]

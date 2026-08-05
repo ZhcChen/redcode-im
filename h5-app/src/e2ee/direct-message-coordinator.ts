@@ -12,9 +12,8 @@ import { e2eeIdentityService } from '@/services/e2ee-identity-service';
 import {
   e2eeMlsApiService,
   type E2eeControlMessage,
-  type E2eeDeviceInfo,
-  type E2eePeerDevice,
   type E2eeRoomEpoch,
+  type E2eeRoomMemberDevices,
 } from '@/services/e2ee-mls-api-service';
 
 interface CoordinatorStorage extends E2eeIdentityTrustStore {
@@ -43,12 +42,12 @@ interface SessionCore {
   joinGroup(state: Uint8Array, welcome: Uint8Array): Promise<E2eeCommandResult>;
   processCommit(state: Uint8Array, roomId: string, commit: Uint8Array): Promise<E2eeCommandResult>;
   removeMember(state: Uint8Array, roomId: string, identity: string): Promise<E2eeCommandResult>;
+  listMembers(state: Uint8Array, roomId: string): Promise<E2eeCommandResult>;
 }
 
 interface MlsApi {
   getRoomEpoch(roomId: string): Promise<E2eeRoomEpoch>;
-  listDevices(): Promise<E2eeDeviceInfo[]>;
-  listPeerDevices(userId: string): Promise<E2eePeerDevice[]>;
+  listRoomMemberDevices(roomId: string): Promise<E2eeRoomMemberDevices[]>;
   claimKeyPackage(roomId: string, consumerDeviceId: string, targetDeviceId: string): Promise<{ keyPackage: Uint8Array }>;
   submitControlMessage(input: {
     roomId: string;
@@ -104,7 +103,7 @@ export class E2eeDirectMessageCoordinator {
     accountId: string;
     deviceLabel: string;
     roomId: string;
-    peerUserId: string;
+    peerUserId?: string;
     text: string;
   }): Promise<Record<string, unknown>> {
     return this.exclusive(async () => {
@@ -117,7 +116,7 @@ export class E2eeDirectMessageCoordinator {
     accountId: string;
     deviceLabel: string;
     roomId: string;
-    peerUserId: string;
+    peerUserId?: string;
     text: string;
   }): Promise<void> {
     return this.exclusive(() => this.prepare(input));
@@ -127,23 +126,28 @@ export class E2eeDirectMessageCoordinator {
     accountId: string;
     deviceLabel: string;
     roomId: string;
-    peerUserId: string;
+    peerUserId?: string;
     text: string;
   }): Promise<void> {
     const text = input.text.trim();
     if (!text) throw new E2eeDirectMessageError('加密消息内容不能为空');
     await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
     let context = await this.storedContext(input.accountId);
-    const identity = await this.identityApi.fetchRootIdentity(input.peerUserId);
-    await this.trust.observe(input.accountId, identity);
-    await this.trust.requireTrusted(input.accountId, input.peerUserId);
+    const memberDevices = await this.api.listRoomMemberDevices(input.roomId);
+    const memberUserIds = memberDevices
+      .map((member) => member.userId)
+      .filter((userId) => userId !== input.accountId);
+    for (const userId of memberUserIds) {
+      const identity = await this.identityApi.fetchRootIdentity(userId);
+      await this.trust.observe(input.accountId, identity);
+      await this.trust.requireTrusted(input.accountId, userId);
+    }
 
     let epoch = await this.api.getRoomEpoch(input.roomId);
     if (epoch.activeEpoch === 0) {
       await this.bootstrapRoom({
         accountId: input.accountId,
         roomId: input.roomId,
-        peerUserId: input.peerUserId,
         profile: context.profile,
         state: context.state,
         membershipRevision: epoch.membershipRevision,
@@ -208,7 +212,7 @@ export class E2eeDirectMessageCoordinator {
   private async syncControls(accountId: string, deviceLabel: string, roomId: string) {
     await this.resumePending(accountId);
     await this.lifecycle.ensureReady(accountId, deviceLabel);
-    await this.rekeyIfRequired(accountId, roomId);
+    await this.reconcileGroup(accountId, roomId);
     while (true) {
       const context = await this.storedContext(accountId);
       const messages = await this.api.listControlMessages(
@@ -241,25 +245,40 @@ export class E2eeDirectMessageCoordinator {
   }
 
   /**
-   * 房间进入 rekey_required 时，由本账号任一可信设备生成 Remove Commit 并提交，
-   * 把已撤销设备从 MLS group 中移除。提交冲突时恢复旧状态并重新同步收敛。
+   * 房间进入 rekey_required 时，把本地 group leaf 集合与服务端房间成员设备集合
+   * 做差集收敛：被移除/撤销设备 remove，新设备/新成员 add（commit + welcome）。
+   * 提交冲突时恢复旧状态并通过控制消息重新收敛。
    */
-  private async rekeyIfRequired(accountId: string, roomId: string) {
+  private async reconcileGroup(accountId: string, roomId: string) {
     const epoch = await this.api.getRoomEpoch(roomId);
     if (!epoch || epoch.status !== 'rekey_required') return;
     const context = await this.storedContext(accountId);
-    const devices = await this.api.listDevices();
-    const revoked = devices.filter((device) => device.status === 'revoked');
-    if (!revoked.length) return;
+    const joined = Boolean(context.profile.lastCommitMessageIds[roomId]);
+    if (!joined) return; // 尚未加入房间 group，控制消息同步完成 join 后再收敛
+    const memberDevices = await this.api.listRoomMemberDevices(roomId);
+    const serverSet = new Set<string>();
+    for (const member of memberDevices) {
+      for (const device of member.devices) serverSet.add(`${member.userId}/${device.id}`);
+    }
+    let localMembers: string[];
+    try {
+      localMembers = this.decodeMembers((await this.core.listMembers(context.state, roomId)).field(0));
+    } catch {
+      throw new E2eeDirectMessageError('房间 E2EE group 状态缺失，无法收敛成员变化');
+    }
+    const localSet = new Set(localMembers);
+    const toRemove = localMembers.filter((identity) => !serverSet.has(identity));
+    const toAdd = [...serverSet].filter((identity) => !localSet.has(identity));
+    if (!toRemove.length && !toAdd.length) return;
 
     let state = context.state;
     const controls: E2eePendingOperation['controls'] = [];
-    for (const device of revoked) {
+    for (const identity of toRemove) {
       let removed: E2eeCommandResult;
       try {
-        removed = await this.core.removeMember(state, roomId, `${accountId}/${device.id}`);
+        removed = await this.core.removeMember(state, roomId, identity);
       } catch (error) {
-        // 被撤销设备从未加入该房间时没有 leaf 可移除，跳过并继续处理其他设备。
+        // 服务端状态与本地 group 短暂不一致时没有 leaf 可移除，跳过并继续收敛。
         if (error instanceof Error && /member not found/i.test(error.message)) continue;
         throw error;
       }
@@ -270,6 +289,27 @@ export class E2eeDirectMessageCoordinator {
         membershipRevision: epoch.membershipRevision,
         contentType: 'commit',
         envelope: removed.field(1),
+      });
+    }
+    for (const identity of toAdd) {
+      const deviceId = identity.slice(identity.indexOf('/') + 1);
+      const claimed = await this.api.claimKeyPackage(roomId, context.profile.deviceId, deviceId);
+      const added = await this.core.addMember(state, roomId, claimed.keyPackage);
+      state = added.field(0);
+      const addedEpoch = safeEpoch(added, 3);
+      controls.push({
+        id: this.newId(),
+        epoch: addedEpoch,
+        membershipRevision: epoch.membershipRevision,
+        contentType: 'commit',
+        envelope: added.field(1),
+      }, {
+        id: this.newId(),
+        epoch: addedEpoch,
+        membershipRevision: epoch.membershipRevision,
+        contentType: 'welcome',
+        envelope: added.field(2),
+        recipientDeviceId: deviceId,
       });
     }
     if (!controls.length) return;
@@ -288,13 +328,21 @@ export class E2eeDirectMessageCoordinator {
   private async bootstrapRoom(input: {
     accountId: string;
     roomId: string;
-    peerUserId: string;
     profile: E2eeDeviceProfile;
     state: Uint8Array;
     membershipRevision: number;
   }) {
-    const devices = await this.api.listPeerDevices(input.peerUserId);
-    if (!devices.length) throw new E2eeDirectMessageError('联系人没有可用的 E2EE 设备');
+    const memberDevices = await this.api.listRoomMemberDevices(input.roomId);
+    const missing = memberDevices.filter(
+      (member) => member.userId !== input.accountId && !member.devices.length,
+    );
+    if (missing.length) {
+      throw new E2eeDirectMessageError('房间存在没有可用 E2EE 设备的成员');
+    }
+    const devices = memberDevices
+      .filter((member) => member.userId !== input.accountId)
+      .flatMap((member) => member.devices);
+    if (!devices.length) throw new E2eeDirectMessageError('房间没有其他可用的 E2EE 设备');
     let state = (await this.core.createGroup(input.state, input.roomId)).field(0);
     const controls: E2eePendingOperation['controls'] = [];
     for (const device of devices) {
@@ -475,6 +523,25 @@ export class E2eeDirectMessageCoordinator {
       state = result.field(0);
     }
     return state;
+  }
+
+  private decodeMembers(field: Uint8Array): string[] {
+    if (field.length < 4) throw new E2eeDirectMessageError('E2EE 成员列表格式无效');
+    const view = new DataView(field.buffer, field.byteOffset, field.byteLength);
+    let offset = 0;
+    const count = view.getUint32(offset, false);
+    offset += 4;
+    const members: string[] = [];
+    for (let index = 0; index < count; index += 1) {
+      if (offset + 4 > field.length) throw new E2eeDirectMessageError('E2EE 成员列表已截断');
+      const length = view.getUint32(offset, false);
+      offset += 4;
+      if (offset + length > field.length) throw new E2eeDirectMessageError('E2EE 成员列表已截断');
+      members.push(new TextDecoder().decode(field.subarray(offset, offset + length)));
+      offset += length;
+    }
+    if (offset !== field.length) throw new E2eeDirectMessageError('E2EE 成员列表包含多余数据');
+    return members;
   }
 
   private async storedContext(accountId: string) {

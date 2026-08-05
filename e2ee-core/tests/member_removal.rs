@@ -23,6 +23,14 @@ fn removed_member_is_excluded_while_remaining_members_advance_epoch() {
         .add_member(group_id, &carol.key_package)
         .expect("add carol");
     assert_eq!(carol_added.epoch, 2);
+    assert_eq!(
+        alice_session.list_members(group_id).expect("list members"),
+        vec![
+            b"alice-device-1".to_vec(),
+            b"bob-device-1".to_vec(),
+            b"carol-device-1".to_vec(),
+        ]
+    );
     let (_, carol_epoch) = carol_session
         .join_group(&carol_added.welcome)
         .expect("join carol");
@@ -32,6 +40,10 @@ fn removed_member_is_excluded_while_remaining_members_advance_epoch() {
         .remove_member(group_id, b"bob-device-1")
         .expect("remove bob");
     assert_eq!(removed.epoch, 3);
+    assert_eq!(
+        alice_session.list_members(group_id).expect("list members"),
+        vec![b"alice-device-1".to_vec(), b"carol-device-1".to_vec()]
+    );
     assert_eq!(
         Envelope::decode(&removed.commit).unwrap().kind(),
         EnvelopeKind::Commit

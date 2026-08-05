@@ -496,6 +496,10 @@ pub fn create_routes() -> Router<AppState> {
             post(e2ee::consume_mls_control_message),
         )
         .route(
+            "/rooms/{room_id}/e2ee/members",
+            get(e2ee::list_room_member_devices),
+        )
+        .route(
             "/system/upload-policy",
             get(upload_policy::get_upload_policy_user),
         )

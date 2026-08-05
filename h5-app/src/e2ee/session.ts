@@ -11,7 +11,8 @@ export type E2eeCommandOperation =
   | 'public-material'
   | 'process-commit'
   | 'remove-member'
-  | 'sign-device-approval';
+  | 'sign-device-approval'
+  | 'list-members';
 
 const OPERATION: Record<E2eeCommandOperation, number> = {
   initialize: 1,
@@ -25,6 +26,7 @@ const OPERATION: Record<E2eeCommandOperation, number> = {
   'process-commit': 9,
   'remove-member': 10,
   'sign-device-approval': 11,
+  'list-members': 12,
 };
 
 export class E2eeCommandError extends Error {
@@ -123,6 +125,10 @@ export class E2eeSession {
 
   signDeviceApproval(state: Uint8Array, payload: Uint8Array) {
     return this.execute('sign-device-approval', [state, payload]);
+  }
+
+  listMembers(state: Uint8Array, roomId: string) {
+    return this.execute('list-members', [state, new TextEncoder().encode(roomId)]);
   }
 
   static decodeResponse(response: Uint8Array): E2eeCommandResult {

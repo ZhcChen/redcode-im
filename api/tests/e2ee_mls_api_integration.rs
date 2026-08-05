@@ -77,6 +77,14 @@ async fn register_device(app: &TestApp, user: &TestUser, request: &Value) -> Val
 }
 
 async fn create_room(app: &TestApp, owner: &TestUser, member: &TestUser) -> Uuid {
+    create_room_with_members(app, owner, &[member]).await
+}
+
+async fn create_room_with_members(
+    app: &TestApp,
+    owner: &TestUser,
+    members: &[&TestUser],
+) -> Uuid {
     let (status, response) = app
         .post_json_authed(
             "/rooms",
@@ -85,7 +93,7 @@ async fn create_room(app: &TestApp, owner: &TestUser, member: &TestUser) -> Uuid
                 "name": "MLS API integration",
                 "description": "test",
                 "room_type": "group",
-                "member_ids": [member.id],
+                "member_ids": members.iter().map(|member| member.id).collect::<Vec<_>>(),
             })
             .to_string(),
         )
@@ -130,12 +138,42 @@ fn control_message_body(
     .to_string()
 }
 
+fn welcome_message_body(
+    id: Uuid,
+    epoch: i64,
+    membership_revision: i64,
+    sender_device_id: Uuid,
+    recipient_device_id: Uuid,
+    payload: &[u8],
+) -> String {
+    let mut envelope = b"RCML".to_vec();
+    envelope.extend_from_slice(&1u16.to_be_bytes());
+    envelope.push(3);
+    envelope.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    envelope.extend_from_slice(payload);
+    json!({
+        "id": id,
+        "epoch": epoch,
+        "membership_revision": membership_revision,
+        "sender_device_id": sender_device_id,
+        "recipient_device_id": recipient_device_id,
+        "content_type": "welcome",
+        "envelope": BASE64_STANDARD.encode(envelope),
+        "idempotency_key": Uuid::new_v4(),
+    })
+    .to_string()
+}
+
 #[tokio::test]
 async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     let app = spawn_test_app().await;
     let alice = register_user(&app, "mls-api-alice").await;
     let bob = register_user(&app, "mls-api-bob").await;
-    let room_id = create_room(&app, &alice, &bob).await;
+    let identity_uri = format!("/e2ee/mls/identities/{}", bob.id);
+    let peer_devices_uri = format!("/e2ee/mls/identities/{}/devices", bob.id);
+    // 无好友、无共同房间时身份材料不可枚举。
+    let (status, _) = app.get_authed(&identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
     let alice_first_id = Uuid::new_v4();
     let alice_second_id = Uuid::new_v4();
     let bob_device_id = Uuid::new_v4();
@@ -160,13 +198,13 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     )
     .await;
     assert_eq!(bob_device["status"], "active");
-
-    let identity_uri = format!("/e2ee/mls/identities/{}", bob.id);
-    let peer_devices_uri = format!("/e2ee/mls/identities/{}/devices", bob.id);
-    let (status, _) = app.get_authed(&identity_uri, &alice.token).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    let room_id = create_room(&app, &alice, &bob).await;
+    // 同房间成员（即使不是好友）可查询根身份；对端设备列表仍限好友。
+    let (status, response) = app.get_authed(&identity_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
     let (status, _) = app.get_authed(&peer_devices_uri, &alice.token).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+
     let (first_user, second_user) = if alice.id < bob.id {
         (alice.id, bob.id)
     } else {
@@ -575,6 +613,236 @@ async fn device_revocation_marks_rooms_rekey_required_and_is_idempotent() {
         )
         .await;
     assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn group_chat_member_changes_advance_revision_and_gate_epochs() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-group-alice").await;
+    let bob = register_user(&app, "mls-group-bob").await;
+    let carol = register_user(&app, "mls-group-carol").await;
+    let dave = register_user(&app, "mls-group-dave").await;
+    let alice_device = Uuid::new_v4();
+    let bob_device = Uuid::new_v4();
+    let carol_device = Uuid::new_v4();
+    let dave_device = Uuid::new_v4();
+    let alice_key = SigningKey::from_bytes(&[201; 32]);
+    let bob_key = SigningKey::from_bytes(&[202; 32]);
+    let carol_key = SigningKey::from_bytes(&[203; 32]);
+    let dave_key = SigningKey::from_bytes(&[204; 32]);
+    register_device(
+        &app,
+        &alice,
+        &device_request(alice_device, "Alice Group", 241, &alice_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &bob,
+        &device_request(bob_device, "Bob Group", 242, &bob_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &carol,
+        &device_request(carol_device, "Carol Group", 243, &carol_key),
+    )
+    .await;
+    register_device(
+        &app,
+        &dave,
+        &device_request(dave_device, "Dave Group", 244, &dave_key),
+    )
+    .await;
+
+    let room_id = create_room_with_members(&app, &alice, &[&bob, &carol]).await;
+    let epoch_uri = format!("/rooms/{room_id}/e2ee/epoch");
+    let members_uri = format!("/rooms/{room_id}/e2ee/members");
+
+    // 仅房间成员可查看成员设备集合；非成员统一 403。
+    let (status, response) = app.get_authed(&members_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let members = body_json(&response);
+    assert_eq!(members.as_array().expect("member list").len(), 3);
+    for entry in members.as_array().expect("member list") {
+        assert_eq!(
+            entry["devices"].as_array().expect("devices").len(),
+            1,
+            "每个成员应返回一个 active 设备"
+        );
+    }
+    let (status, _) = app.get_authed(&members_uri, &dave.token).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // 同房间成员（即使不是好友）可查询根身份做信任校验；非成员不可枚举。
+    let alice_identity_uri = format!("/e2ee/mls/identities/{}", alice.id);
+    let (status, _) = app
+        .get_authed(&alice_identity_uri, &bob.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = app
+        .get_authed(&alice_identity_uri, &dave.token)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // A1 提交初始 commit 后房间 active。
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let initial_revision = body_json(&response)["membership_revision"]
+        .as_i64()
+        .expect("initial membership revision");
+    assert!(initial_revision >= 1, "初始 revision 应大于 0");
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                1,
+                initial_revision,
+                alice_device,
+                "commit",
+                b"group-initial-commit",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    assert_eq!(body_json(&response)["active_epoch"], 1);
+    assert_eq!(body_json(&response)["status"], "active");
+
+    // 邀请 D 后 revision 推进并进入 rekey_required。
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/members"),
+            &alice.token,
+            &json!({ "user_ids": [dave.id] }).to_string(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let epoch = body_json(&response);
+    let invited_revision = epoch["membership_revision"].as_i64().expect("revision");
+    assert_eq!(invited_revision, initial_revision + 1);
+    assert_eq!(epoch["active_epoch"], 1);
+    assert_eq!(epoch["status"], "rekey_required");
+
+    // 旧 revision 的 Commit 必须冲突；新 revision 的 Commit 原子推进 epoch。
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                2,
+                initial_revision,
+                alice_device,
+                "commit",
+                b"stale-revision-commit",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                2,
+                invited_revision,
+                alice_device,
+                "commit",
+                b"add-dave-commit",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+
+    // 新成员 Welcome 的 epoch 必须等于已激活的 commit epoch。
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &welcome_message_body(
+                Uuid::new_v4(),
+                2,
+                invited_revision,
+                alice_device,
+                dave_device,
+                b"dave-welcome",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    assert_eq!(body_json(&response)["active_epoch"], 2);
+    assert_eq!(body_json(&response)["status"], "active");
+
+    // D 加入后可拉取自己的控制消息（commit + welcome 的 receipt）。
+    let (status, response) = app
+        .get_authed(
+            &format!(
+                "/rooms/{room_id}/e2ee/control-messages?device_id={dave_device}&after_sequence=0&limit=50"
+            ),
+            &dave.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let controls = body_json(&response);
+    assert_eq!(controls.as_array().expect("controls").len(), 2);
+
+    // D 加入后成员设备集合包含四名成员。
+    let (_, response) = app.get_authed(&members_uri, &alice.token).await;
+    assert_eq!(
+        body_json(&response).as_array().expect("member list").len(),
+        4
+    );
+
+    // C 退出后 revision 再次推进；移除 Commit 后房间恢复 active。
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/leave"),
+            &carol.token,
+            "{}",
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let epoch = body_json(&response);
+    let removed_revision = epoch["membership_revision"].as_i64().expect("revision");
+    assert_eq!(removed_revision, invited_revision + 1);
+    assert_eq!(epoch["status"], "rekey_required");
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                3,
+                removed_revision,
+                alice_device,
+                "commit",
+                b"remove-carol-commit",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    assert_eq!(body_json(&response)["active_epoch"], 3);
+    assert_eq!(body_json(&response)["status"], "active");
+
+    // 被移除成员立即失去控制消息与成员设备视图权限。
+    let (status, _) = app
+        .get_authed(
+            &format!(
+                "/rooms/{room_id}/e2ee/control-messages?device_id={carol_device}&after_sequence=0&limit=50"
+            ),
+            &carol.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = app.get_authed(&members_uri, &carol.token).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
 }
 
 fn package_body(packages: &[(Uuid, Vec<u8>)]) -> String {

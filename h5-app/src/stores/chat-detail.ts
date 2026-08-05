@@ -112,13 +112,10 @@ export const useChatDetailStore = defineStore('chatDetail', {
           const runtime = (await settingsService.fetchGeneralSettings()).messageRuntime;
           if (runtime.contentAuditMode === 'e2ee') {
             if (quote) throw new Error('E2EE 引用消息将在后续版本支持');
-            const peerUserId = privatePeerUserId(this.chat);
-            if (!peerUserId) throw new Error('当前会话缺少 E2EE 联系人标识');
             await e2eeDirectMessageCoordinator.prepareText({
               accountId,
               deviceLabel: 'RedCode H5',
               roomId: this.roomId,
-              peerUserId,
               text,
             });
             e2eePending = true;
@@ -499,12 +496,6 @@ const createPendingMessage = (
   quotedMessage,
   raw: e2eePending ? { e2ee_pending: true } : undefined,
 });
-
-const privatePeerUserId = (chat: ChatSummary | null) => {
-  if (chat?.type !== 'private') return null;
-  const value = chat.raw?.friend_user_id ?? chat.raw?.friendUserId;
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-};
 
 const responseMessage = (response: Record<string, unknown>) => {
   const message = response.message;

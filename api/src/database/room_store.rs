@@ -216,6 +216,30 @@ impl<'a> RoomStore<'a> {
         Ok(exists.is_some())
     }
 
+    /// 两个用户是否同处至少一个活跃房间，用于群聊内 E2EE 身份材料可见性。
+    pub async fn share_room_with(
+        &self,
+        user_id: Uuid,
+        other_user_id: Uuid,
+    ) -> Result<bool, sqlx::Error> {
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            SELECT mine.user_id
+            FROM room_members AS mine
+            JOIN room_members AS theirs ON theirs.room_id = mine.room_id
+            WHERE mine.user_id = $1 AND mine.deleted_at IS NULL
+              AND theirs.user_id = $2 AND theirs.deleted_at IS NULL
+            LIMIT 1
+            "#,
+        )
+        .bind(user_id)
+        .bind(other_user_id)
+        .fetch_optional(self.pool)
+        .await?;
+
+        Ok(exists.is_some())
+    }
+
     #[allow(dead_code)]
     pub async fn list_members(&self, room_id: Uuid) -> Result<Vec<RoomMember>, sqlx::Error> {
         let rows = sqlx::query_as::<_, RoomMember>(
