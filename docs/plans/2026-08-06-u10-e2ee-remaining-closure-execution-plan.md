@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E2
-current_checkpoint: E2.1
+current_unit: E1
+current_checkpoint: E1.3
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E2.1`，基于已推送 E1.2 HEAD 使用四个全新独立上下文执行 correctness、security、reliability、testing 复核；旧复核结论不得复用为通过证据。
+- **唯一恢复点：** `E1.3`，完成第二轮 E2 独立复核 finding 整改、本地门禁、真实 full-suite 重放、证据更新、commit 和 push；在此之前不得重新进入 E2。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -76,6 +76,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.1 首轮 restore 实现与重放 | implemented, review-reopened | `d420aa51`；run `e1full20260806h` |
 | E2 首轮四视角复核 | failed | P0=0；存在去重后 9 项 P1/P2 finding，已退回 E1.2 |
 | E1.2 finding 整改与重放 | complete | `cab9cbd6`；run `e1fix20260806b` |
+| E2 第二轮四视角复核 | failed | `6d3afaac` HEAD；P0=0，去重后 5 项 P1，已退回 E1.3 |
+| E1.3 第二轮 finding 整改 | in_progress | 9 个脚本/测试文件在制，尚未完成本地门禁、真实重放、review、commit 或 push |
 
 ### Execution Console
 
@@ -86,7 +88,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | --- | --- | --- |
 | E1.1 首轮 restore 数据边界 | review-reopened | 实现和 live run 已推送，但 E2 finding 未清零，不能视为 closed |
 | E1.2 复核 finding 整改 | complete | `cab9cbd6`；本地门禁与 run `e1fix20260806b` 通过，已 push |
-| E2 Restore 独立复核 | in_progress | 使用 4 个全新独立上下文复核同一新 HEAD，P0=0、P1=0 |
+| E1.3 第二轮 finding 整改 | in_progress | 完成防拼接、附件归属、Push、MONITOR 与网络级 source isolation 后重跑 E1 全部门禁 |
+| E2 Restore 独立复核 | blocked-by-E1.3 | E1.3 新 HEAD 已验证并 push 后，使用 4 个全新独立上下文复核，要求 P0=0、P1=0 |
 | E3 H5 production Chrome 审计 | pending | E2 通过后开始 |
 | E4 持久脱敏证据 | pending | E3 通过后开始 |
 | E5 真实 release workflow | pending | E4 通过后开始 |
@@ -147,7 +150,38 @@ candidate/restore 完整行 digest 同为 `e9c04e4739ec8d9a961e998b6d2470ad`，f
 suite `6 passed | 1 skipped`，36 次 source isolation 采样均为零连接；DB、Redis、
 API log、RustFS 通过，Push 为 `not-observed-live`。退出后临时 container、volume、
 MONITOR、artifact、state、tunnel 和端口均清零，旧主保持 `persist/plaintext`、审批
-false。E1.2 已关闭，下一步只能执行第二轮 E2。
+false。该 run 是 E1.2 的有效历史基线，但第二轮 E2 已再次发现证明缺口，不能继续
+作为 E1 最终关闭证据。
+
+### E2 Second Review Findings And E1.3 Contract
+
+第二轮 E2 使用四个全新独立上下文复核 `6d3afaac`，四个视角均未通过。P0 为零，
+去重后的 5 项 P1 必须全部在 E1.3 关闭：
+
+1. 附件 proof 必须同时证明 message-room、object-room 和 object-message，不允许同房间内对象与无关消息拼接。
+2. proof 必须把 message id、marker、ciphertext digest、kind 与 object key 绑定到同一不可替换认证值；仅格式合法的 marker 不构成归属证据。
+3. source isolation 必须由完整窗口内不可达的网络拓扑保证，不能以 3-5 秒离散连接采样证明没有短连接。
+4. 所有关联 Push 记录必须逐条满足占位合同，不能因其中一行包含占位文本而让混合结果整体通过。
+5. Redis MONITOR 必须在扫描时仍存活；提前退出时禁止复用旧日志形成通过结果。
+
+另有 1 项 P2 留待 E1.3 评估：candidate 恢复前消息是否需要纳入独立 Redis/API log
+观测窗口。若不纳入，必须在 review 中说明其证据归属和不削弱 R2 的理由。
+
+E1.3 当前在制实现采用以下方向，但在门禁与真实重放完成前均记为
+`implemented-unverified`：
+
+- 逐消息 proof 增加 ciphertext SHA-256 与 run-scoped HMAC，scanner 使用同 run 的 `0600` key 文件验签，并和 PostgreSQL 原始密文摘要精确比对。
+- 附件通过 `messages`、`message_parts`、`message_attachment_commits` 联表验证 room、message 与 object key 的完整归属。
+- Push 改为逐行校验固定 `content` / `preview` 占位；Redis scan 前强制检查 MONITOR 进程存活。
+- source API 不再接入 `im-test-1-network`；每个 run 使用 internal storage network、internal restore network 和独立 ingress bridge。旧主 RustFS 仅临时加入 storage network，cleanup 按 ownership label 回收两个 run-scoped network。
+
+E1.3 固定执行切片：
+
+1. **E1.3a 合同测试同步：** 完成 compose/control fixture 对 storage + ingress 双网络、精确 network keys、ownership 拒删和双网络 cleanup 的覆盖。
+2. **E1.3b 本地门禁：** 运行 restore 六项脚本测试、cross-client isolated test、H5 type-check；修复任何网络验证和 fail-closed 回归。
+3. **E1.3c 真实重放：** 使用固定镜像 `redcode-im-api:g1-74d1231e`、新 run id 与 JDK21 执行 full-suite；不得复用 `e1fix20260806b` 作为新实现证据。
+4. **E1.3d 环境终验：** API network 不含 `im-test-1-network`；storage/ingress/restore network、HMAC key、container、volume、MONITOR、tunnel 和 `18010` 全部清零；旧主仍为 `persist/plaintext`、审批 false。
+5. **E1.3e 文档与交付：** 更新 restore review、本文和任务总账，执行 diff 门禁，形成最小 commit 并 push；只有 `HEAD == origin/main` 后才允许启动全新 E2 reviewer。
 
 ### Key Technical Decisions
 
@@ -179,10 +213,10 @@ flowchart TB
 
 - **Goal:** 关闭独立恢复实例的数据完整性、真实客户端行为和外围泄漏边界。
 - **Requirements:** R1、R2；覆盖 AE1、AE2。
-- **Files:** 当前 worktree boundary 中的 8 个脚本、SQL 与测试文件；完成后更新 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
-- **Approach:** E1.1 已形成首轮实现；E1.2 按上方 9 项 finding 收紧完整行 snapshot、全窗口观测、逐实体 proof 和原始 bytea 扫描。随后使用固定候选镜像 `redcode-im-api:g1-74d1231e` 和 JDK21 重跑同一隔离窗口。scanner 必须验证 DB ciphertext-only、精确 Redis PUBLISH、API log marker-free、Push 明确枚举结果，以及 RustFS object ciphertext-only、实体归属与 SHA-256。
+- **Files:** 当前 worktree 中的 9 个 E1.3 脚本与测试文件；完成后更新 `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md`。
+- **Approach:** E1.1/E1.2 保留为已验证历史基线；E1.3 按第二轮 finding 增加认证绑定、完整附件归属、逐行 Push、MONITOR 活性门禁和网络级 source isolation。随后使用固定候选镜像 `redcode-im-api:g1-74d1231e`、新 run id 与 JDK21 重跑同一隔离窗口。scanner 必须验证 DB ciphertext-only、精确 Redis PUBLISH、API log marker-free、Push 明确枚举结果，以及 RustFS object ciphertext-only、实体归属与 SHA-256。
 - **Test Scenarios:** 四个 scenario 与逐消息 proof；message-room/object-room 错配；重复 ID/room/marker；control envelope 与 encrypted_content marker；仅 SUBSCRIBE/普通 payload 含 room id；MONITOR ready 但无精确 PUBLISH；snapshot 漂移；boundary run id/Push 非法；任一失败和信号路径资源清零。
-- **Verification:** `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live.test e2ee.cross-client.isolated.test`；`cd h5-app && bun run type-check`；真实 full-suite run；远端旧主与临时资源终验。
+- **Verification:** `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-boundary.test e2ee.restore-live.test e2ee.cross-client.isolated.test`；`cd h5-app && bun run type-check`；真实 full-suite run；远端旧主与临时资源终验。
 - **Exit:** boundary report 完整通过、review 更新、最小 commit 已 push，checkpoint 才能进入 E2。
 
 ### E2. Restore 整改独立复核（原 U4.4）
@@ -190,7 +224,7 @@ flowchart TB
 - **Goal:** 由独立上下文确认 E1 没有用测试编排掩盖真实性、权限、可靠性或覆盖缺口。
 - **Requirements:** R1、R2、R6。
 - **Files:** E1 diff、E1 review、`docs/reviews/` 下新增 restore 复核记录。
-- **Approach:** 首轮复核已发现 P1 并退回 E1.2。整改闭环推送后，必须新建四个独立上下文分别执行 correctness、security、reliability、testing 审查；旧 reviewer 结论和当前实现上下文不得复用为通过证据。发现 P0/P1 再次回到最早受影响单元。
+- **Approach:** 首轮复核退回 E1.2，第二轮复核又退回 E1.3。E1.3 闭环推送后，必须再次新建四个独立上下文分别执行 correctness、security、reliability、testing 审查；前两轮 reviewer 结论和当前实现上下文不得复用为通过证据。发现 P0/P1 再次回到最早受影响单元。
 - **Test Scenarios:** cleanup 中断、错误 source、伪造 marker、空 evidence、重复帧、损坏 snapshot、敏感值进入报告。
 - **Verification:** 四份结论均为 `P0=0、P1=0`，工作区和远端环境干净。
 
@@ -288,17 +322,17 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E2 |
-| Active checkpoint | E2.1 四个全新独立上下文复核 |
-| Worktree | E1.2 实现已在 `cab9cbd6` 推送；仅待本进度文档提交 |
+| Active unit | E1 |
+| Active checkpoint | E1.3 第二轮复核 finding 整改 |
+| Worktree | 9 个 E1.3 脚本/测试文件在制；尚未通过最新本地门禁、真实重放、commit 或 push |
 | Latest full run | `e1fix20260806b` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore 完整行 digest `e9c04e4739ec8d9a961e998b6d2470ad` 一致 |
-| Boundary result | 四场景九消息逐实体 proof；DB/Redis/log/RustFS 通过；Push `not-observed-live` |
+| Boundary result | E1.2 历史结果通过，但第二轮 E2 发现 5 项 P1，不能作为当前 E1 关闭证据 |
 | Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 从 `cab9cbd6` 后的同一 HEAD 启动 4 个全新独立 reviewer，P0/P1 非零则回退 E1 |
+| Next action | 先同步双网络测试 fixture，完成 E1.3 本地门禁和新 full-suite run；验证并 push 后再启动 4 个全新 reviewer |
 
 ### Historical Mapping
 

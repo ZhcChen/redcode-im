@@ -29,10 +29,11 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E2.1`。E1.2 已在 `cab9cbd6` 完成并推送；
-  run `e1fix20260806b` 通过完整行 snapshot、四场景九消息逐实体边界、三端 full
-  suite、36 次 source 零连接采样和退出清理。现在以四个全新独立上下文执行
-  correctness/security/reliability/testing 复核，旧复核结论不得复用为通过证据。
+- 当前立即任务：唯一 checkpoint 已由第二轮 E2 复核退回 `E1.3`。E1.2 的 run
+  `e1fix20260806b` 仍是有效历史基线，但第二轮四视角复核在 `6d3afaac` 发现 5 项
+  去重 P1：附件 object-message 归属、proof 防拼接、完整窗口 source isolation、
+  Push 逐行占位、Redis MONITOR 活性。当前先完成整改、本地门禁、新 full-suite
+  重放、环境终验、commit 和 push，不得提前进入 E2 或后续单元。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
   E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
   E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
@@ -97,9 +98,10 @@
     U1（`da3cead2`、`10f0f724`）、U2（`22a728f9`）、U3（`a644fa0f`）以及
     U4.1 隔离基础设施（`31b13d37`、`fe954a77`、`df85231b`）已完成；U4.2
     candidate 到 restore 同端口切换由 `3f83bdc9` 和真实 run `u4restore3f83bdc9`
-    关闭。E1 由最终 run `e1full20260806h` 关闭：功能场景、snapshot、DB/Redis/
-    API log/RustFS 边界和退出清理均通过，Push 明确记录 `not-observed-live`。
-    当前只执行 E2 四视角独立复核，E3 及后续单元不得提前并行打开。
+    关闭。E1.1/E1.2 的功能、snapshot、边界和清理 run 已通过，但第二轮 E2 独立
+    复核再次打开 E1。当前只执行 E1.3：逐实体 HMAC 防拼接、附件完整归属、Push
+    逐行检查、MONITOR 活性和 run-scoped 双网络物理隔离；E2 及后续单元不得提前
+    并行打开。
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
