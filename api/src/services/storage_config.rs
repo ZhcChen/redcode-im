@@ -5,9 +5,11 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use async_trait::async_trait;
-use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::Credentials;
-use aws_sdk_s3::{config::Builder as S3ConfigBuilder, Client as S3Client};
+use aws_sdk_s3::{
+    config::{Builder as S3ConfigBuilder, Region},
+    Client as S3Client,
+};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -1133,7 +1135,8 @@ async fn build_s3_client(
     region: &str,
     endpoint: &str,
 ) -> Result<S3Client, AppError> {
-    let shared_config = aws_config::defaults(BehaviorVersion::latest())
+    let mut builder = S3ConfigBuilder::new()
+        .behavior_version_latest()
         .region(Region::new(region.to_string()))
         .credentials_provider(Credentials::new(
             key_id.trim(),
@@ -1142,12 +1145,7 @@ async fn build_s3_client(
             None,
             "storage-config",
         ))
-        .load()
-        .await;
-
-    let mut builder = S3ConfigBuilder::from(&shared_config)
-        .force_path_style(true)
-        .behavior_version(BehaviorVersion::latest());
+        .force_path_style(true);
     if !endpoint.trim().is_empty() {
         builder = builder.endpoint_url(endpoint.trim());
     }
