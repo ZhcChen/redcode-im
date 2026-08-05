@@ -27,6 +27,50 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 
 ---
 
+## Execution Console
+
+> 本节是后续会话的唯一进度恢复入口。执行状态只在本节和文末
+> `Progress Ledger` 维护；Implementation Units 定义工作合同，不重复记录流水进度。
+
+### 当前状态
+
+| Unit | Status | Closed evidence / Exit gate |
+| --- | --- | --- |
+| U1.1 恢复手册 | complete | `da3cead2`；stdin archive、隔离 PostgreSQL 17、RCML 合同与真实客户端解密判据已修正 |
+| U1.2 日期门禁 | complete | `10f0f724`；32/32 正负测试、workflow 测试与六端扫描通过 |
+| U2 G3 cleanup | complete | `22a728f9`；17/17 cleanup/recover 场景、H5 release 21/21、shellcheck 通过 |
+| U3 G1 cleanup | **in progress** | 当前唯一 checkpoint 为 `U3.1`；完成故障/信号/重复恢复测试和实际状态终验后退出 |
+| U4 恢复真实性 | blocked by U3 | 隔离 restore API 上完成 Android/iOS/H5 真实恢复 live 与关键数据 digest |
+| U5 H5 Chrome audit | blocked by U4 | production bundle 真实安全存储路径、篡改 fail closed、明文 marker 为零 |
+| U6 持久证据 | blocked by U5 | G1/G3 脱敏证据可在干净 checkout 离线校验 |
+| U7 Release workflow | blocked by U6 | 当前候选 commit 的真实 workflow 成功，且无 tag/release 副作用 |
+| U8 四视角重审 | blocked by U7 | correctness/security/reliability/testing 均为 `P0=0、P1=0` |
+| U9 最终重放 | blocked by U8 | 全量、live、环境清理全部通过后才允许最终裁决 |
+
+### U3.1 唯一立即动作
+
+- **修改范围：** `deploy/im-test-1/e2ee-backup-rollout-drill.sh`、新增
+  `tests/scripts/test-e2ee-backup-rollout-drill.sh`、`Makefile` 测试入口。
+- **先写失败测试：** 覆盖 API stop、审批更新、restore volume/container 创建前后
+  的 failure、`INT`、`TERM`，以及 cleanup 自身失败和重复 cleanup。
+- **实现约束：** cleanup 依据 Compose、Docker、数据库的实际状态执行；内存 flag
+  不能作为唯一判断；逐项累计错误且不得用 `|| true` 掩盖失败。
+- **退出断言：** API 恢复到演练前状态，`security_review_approved=false`，restore
+  container/volume 为零，runtime 为 `persist/plaintext`。
+- **本单元验证：** `make e2ee.backup-drill.test`、
+  `bash -n deploy/im-test-1/e2ee-backup-rollout-drill.sh`、`git diff --check`，再执行
+  reliability/security 独立复核；存在 P0/P1 时不得提交关闭 U3。
+
+### 执行与恢复规则
+
+1. 严格按 `U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9` 串行推进，不并行打开后续单元。
+2. 每个单元形成独立最小闭环：实现、定向验证、独立复核、更新本文与任务总账、commit、push。
+3. 新发现若属于已完成单元，回到最早受影响单元并更新 `current_unit/current_checkpoint`；禁止另建平行 active 计划。
+4. 会话恢复时只读取本文、`docs/reports/task-list.md`、当前单元相关源码和最近提交；历史计划仅在核对原始合同时查阅。
+5. 任一失败均保持 **No-Go**；测试环境收尾状态固定为 `persist/plaintext` 和 `security_review_approved=false`。
+
+---
+
 ## Product Contract
 
 ### Problem Frame
