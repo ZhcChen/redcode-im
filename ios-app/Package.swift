@@ -73,7 +73,12 @@ let package = Package(
         ),
         .testTarget(
             name: "RedCodeFeaturesTests",
-            dependencies: ["RedCodeFeatures"]
+            dependencies: [
+                "RedCodeCore",
+                "RedCodeNetworking",
+                "RedCodeStorage",
+                "RedCodeFeatures",
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]

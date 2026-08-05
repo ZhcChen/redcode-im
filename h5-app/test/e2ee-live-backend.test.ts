@@ -274,6 +274,101 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     ]));
   }, 60_000);
 
+  it('exchanges ciphertext bidirectionally across iOS/H5', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const iosAlice = await register('e2eeios');
+    const h5Bob = await register('e2eehi');
+    const { friendService } = await import('@/services/friend-service');
+    const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
+    await initCore({ module_or_path: wasm });
+    const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
+    const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
+    const { mapWebSocketMessage, messageService } = await import('@/services/message-service');
+    const { H5WebSocketService } = await import('@/services/websocket-service');
+
+    useSession(iosAlice);
+    const friendRequest = await friendService.sendFriendRequest(h5Bob.user.id, '');
+    useSession(h5Bob);
+    await friendService.respondFriendRequest(friendRequest.id, 'accept');
+    useSession(iosAlice);
+    const chat = await friendService.ensurePrivateChat(h5Bob.user.id);
+    useSession(h5Bob);
+    await e2eeDeviceLifecycle.ensureReady(h5Bob.user.id, 'H5 iOS cross Bob');
+
+    const socket = new H5WebSocketService({
+      autoReconnect: false,
+      factory: (url) => new WebSocket(url) as unknown as globalThis.WebSocket,
+    });
+    onTestFinished(() => socket.disconnect());
+    const authenticated = waitForStatus(socket, 'authenticated');
+    await socket.connect(h5Bob.token);
+    await authenticated;
+    const joined = waitForEvent(socket, (event) => event.type === 'joined' && event.room_id === chat.roomId);
+    socket.ensureRoomsSubscribed([chat.roomId]);
+    await joined;
+
+    const iosMarker = `u5-ios-${crypto.randomUUID()}`;
+    const h5Marker = `u5-h5-${crypto.randomUUID()}`;
+    const iosWebSocketMessage = waitForEvent(
+      socket,
+      (event) => event.type === 'message' && event.room_id === chat.roomId,
+      30_000,
+    );
+    const coordination = await createCoordinationServer({
+      token: iosAlice.token,
+      account_id: iosAlice.user.id,
+      peer_user_id: h5Bob.user.id,
+      room_id: chat.roomId,
+      ios_marker: iosMarker,
+      h5_marker: h5Marker,
+      api_base_url: apiBaseUrl,
+    });
+    onTestFinished(() => coordination.close());
+    const ios = spawnIOSClient(coordination.url, coordination.secret);
+    onTestFinished(() => {
+      ios.kill();
+    });
+
+    const iosSent = await coordination.waitFor('ios-sent');
+    const iosMessageID = requiredString(iosSent, 'message_id');
+    const iosWebSocketEvent = await iosWebSocketMessage;
+    expect(requiredString(iosWebSocketEvent, 'id')).toBe(iosMessageID);
+    useSession(h5Bob);
+    const iosVisible = await messageService.resolveEncryptedMessage(
+      mapWebSocketMessage(iosWebSocketEvent),
+      h5Bob.user.id,
+    );
+    expect(iosVisible.content).toBe(iosMarker);
+
+    const h5Response = await e2eeDirectMessageCoordinator.sendText({
+      accountId: h5Bob.user.id,
+      deviceLabel: 'H5 iOS cross Bob',
+      roomId: chat.roomId,
+      peerUserId: iosAlice.user.id,
+      text: h5Marker,
+    });
+    const h5MessageID = responseMessageId(h5Response);
+    coordination.publish('h5-ios-sent', { message_id: h5MessageID });
+    const iosReceived = await coordination.waitFor('ios-received');
+    expect(requiredString(iosReceived, 'message_id')).toBe(h5MessageID);
+    expect(await ios.exitCode, 'iOS 跨端联调进程失败').toBe(0);
+
+    const rawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${chat.roomId}/messages?limit=20`,
+      {},
+      iosAlice.token,
+    );
+    const serialized = JSON.stringify(rawHistory);
+    expect(serialized).not.toContain(iosMarker);
+    expect(serialized).not.toContain(h5Marker);
+    expect(rawHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: iosMessageID, encrypted_content: expect.any(String) }),
+      expect.objectContaining({ id: h5MessageID, encrypted_content: expect.any(String) }),
+    ]));
+  }, 60_000);
+
   it('establishes consecutive new private rooms and recovers after key package top-up', async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
@@ -491,6 +586,39 @@ const spawnAndroidClient = (coordinationUrl: string, secret: string) => {
         process.stderr.write(sanitized);
       }
       resolve(code ?? 1);
+    });
+  });
+  return { exitCode, kill: () => child.kill('SIGTERM') };
+};
+
+const spawnIOSClient = (coordinationUrl: string, secret: string) => {
+  const child = spawn('swift', [
+    'test',
+    '--filter',
+    'IOSE2eeCrossClientLiveTests/testExchangesCiphertextBidirectionallyWithH5',
+  ], {
+    cwd: resolve(process.cwd(), '../ios-app'),
+    env: {
+      ...process.env,
+      RED_CODE_IOS_E2EE_LIVE: '1',
+      E2EE_COORDINATION_URL: coordinationUrl,
+      E2EE_COORDINATION_SECRET: secret,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output = `${output}${chunk}`.slice(-8_000); });
+  child.stderr.on('data', (chunk) => { output = `${output}${chunk}`.slice(-8_000); });
+  const exitCode = new Promise<number>((resolveExit, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code !== 0) {
+        const sanitized = output
+          .replaceAll(secret, '[REDACTED]')
+          .replace(/u5-(?:ios|h5)-[0-9a-f-]+/gi, '[REDACTED_MARKER]');
+        process.stderr.write(sanitized);
+      }
+      resolveExit(code ?? 1);
     });
   });
   return { exitCode, kill: () => child.kill('SIGTERM') };
