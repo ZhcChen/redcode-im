@@ -2,6 +2,7 @@
   "name": "redcode-im-h5-app",
   "private": true,
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 8016",
@@ -17,24 +18,28 @@
   },
   "dependencies": {
     "pinia": "^3.0.4",
-    "vue": "^3.5.39",
-    "vue-router": "^4.6.3",
+    "vue": "^3.5.41",
+    "vue-router": "^4.6.4",
     "wa-sqlite": "^1.0.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
-    "@types/node": "^26.1.0",
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",
-    "@vitejs/plugin-vue": "^6.0.7",
-    "@vue/test-utils": "^2.4.6",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "typescript": "~5.9.3",
-    "vite": "^8.1.2",
-    "vitest": "^4.1.9",
-    "vue-tsc": "^3.3.6",
-    "ws": "^8.18.3"
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.9",
+    "ws": "^8.21.2"
+  },
+  "overrides": {
+    "brace-expansion": "2.1.4",
+    "undici": "7.29.0"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
