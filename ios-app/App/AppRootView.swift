@@ -34,7 +34,11 @@ struct AppRootView: View {
             didRestoreSession = true
         }
         .onChange(of: authController.state.isAuthenticated) { isAuthenticated in
-            if !isAuthenticated {
+            if isAuthenticated, let session = authController.session {
+                Task {
+                    try? await dependencies.e2eeSessionLifecycle.onAuthenticated(session: session)
+                }
+            } else {
                 Task {
                     await dependencies.chatRealtimeController.stop()
                 }
@@ -42,6 +46,11 @@ struct AppRootView: View {
         }
         .onChange(of: scenePhase) { nextPhase in
             dependencies.pushController.updateAppActiveState(nextPhase == .active)
+            if nextPhase == .active, authController.state.isAuthenticated {
+                Task {
+                    try? await dependencies.e2eeSessionLifecycle.onForeground()
+                }
+            }
         }
     }
 }

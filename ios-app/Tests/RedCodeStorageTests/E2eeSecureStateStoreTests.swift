@@ -110,6 +110,15 @@ final class E2eeSecureStateStoreTests: XCTestCase {
     func testAccountCleanupRemovesCiphertextAndWrappingKey() async throws {
         let (store, keyStore, blobs) = try makeStore()
         try await store.write(accountID: "account-a", state: try E2eeCommandClient().newProtocolState())
+        try await store.writeProfile(
+            accountID: "account-a",
+            profile: E2eeDeviceProfile(deviceId: "device-a", deviceLabel: "iPhone")
+        )
+        try await store.writeMetadata(
+            accountID: "account-a",
+            key: "direct-message",
+            data: Data("secret metadata".utf8)
+        )
 
         try await store.delete(accountID: "account-a")
 
@@ -117,6 +126,10 @@ final class E2eeSecureStateStoreTests: XCTestCase {
         XCTAssertNil(stateAfterDelete)
         let blobAfterDelete = try await blobs.load(accountID: "account-a")
         XCTAssertNil(blobAfterDelete)
+        let profileAfterDelete = try await blobs.loadBlob(accountID: "account-a", key: "device-profile")
+        XCTAssertNil(profileAfterDelete)
+        let metadataAfterDelete = try await blobs.loadBlob(accountID: "account-a", key: "metadata:direct-message")
+        XCTAssertNil(metadataAfterDelete)
         let storedKey = try await keyStore.string(
             forKey: CryptoKitE2eeStateCipher.keyName("account-a")
         )

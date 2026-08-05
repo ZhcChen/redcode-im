@@ -81,6 +81,7 @@ public protocol E2eeStateBlobStore: Sendable {
     func saveBlob(accountID: String, key: String, record: E2eeEncryptedStateRecord) async throws
     func loadBlob(accountID: String, key: String) async throws -> E2eeEncryptedStateRecord?
     func deleteBlob(accountID: String, key: String) async throws
+    func deleteBlobs(accountID: String) async throws
 }
 
 /// Keychain 保存 256 位对称包装密钥，CryptoKit AES-GCM 加密 RCST 状态。
@@ -232,6 +233,14 @@ public final class GRDBE2eeStateBlobStore: E2eeStateBlobStore {
             )
         }
     }
+
+    public func deleteBlobs(accountID: String) async throws {
+        try await database.dbQueue.write { db in
+            _ = try E2eeEncryptedBlobRecord
+                .filter(Column("accountID") == accountID)
+                .deleteAll(db)
+        }
+    }
 }
 
 /// 测试用内存 blob 存储。
@@ -263,6 +272,10 @@ public actor InMemoryE2eeStateBlobStore: E2eeStateBlobStore {
 
     public func deleteBlob(accountID: String, key: String) async throws {
         blobs[accountID]?.removeValue(forKey: key)
+    }
+
+    public func deleteBlobs(accountID: String) async throws {
+        blobs.removeValue(forKey: accountID)
     }
 }
 
@@ -328,7 +341,7 @@ public actor E2eeSecureStateStore {
     public func delete(accountID: String) async throws {
         try await cipher.deleteKey(accountID: accountID)
         try await blobs.delete(accountID: accountID)
-        try await blobs.deleteBlob(accountID: accountID, key: Self.profileBlobKey)
+        try await blobs.deleteBlobs(accountID: accountID)
     }
 
     public func writeProfile(accountID: String, profile: E2eeDeviceProfile) async throws {

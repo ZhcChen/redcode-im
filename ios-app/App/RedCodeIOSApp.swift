@@ -18,6 +18,7 @@ final class AppDependencies {
     let contactsController: ContactsController
     let addFriendController: AddFriendController
     let pushController: PushController
+    let e2eeSessionLifecycle: E2eeSessionLifecycle
 
     private let environment: RedCodeEnvironment
     private let database: RedCodeDatabase
@@ -88,6 +89,22 @@ final class AppDependencies {
         let resolvedFriendAPIService = friendAPIService ?? FriendAPIClient(environment: environment)
         self.friendAPIService = resolvedFriendAPIService
         self.roomAPIService = roomAPIService ?? RoomAPIClient(environment: environment)
+        let e2eeSecureState = E2eeSecureStateStore(
+            cipher: CryptoKitE2eeStateCipher(keyStore: KeychainKeyValueStore()),
+            blobs: GRDBE2eeStateBlobStore(database: database)
+        )
+        let e2eeDevices = E2eeDeviceLifecycle(
+            storage: e2eeSecureState,
+            mlsApi: E2eeMLSAPIClient(apiClient: APIClient(environment: environment))
+        )
+        self.e2eeSessionLifecycle = E2eeSessionLifecycle(
+            settings: SettingsE2eeRuntimeProvider(settings: self.settingsAPIService),
+            devices: e2eeDevices,
+            secureState: E2eeAccountSecureStateCleaner { accountID in
+                try await e2eeSecureState.delete(accountID: accountID)
+            },
+            deviceLabel: "iPhone"
+        )
         let chatListController = ChatListController(
             api: chatAPIService,
             cacheStore: GRDBChatSummaryCacheStore(database: database)
@@ -224,6 +241,7 @@ final class AppDependencies {
 
     func logoutAndClearLocalState() async {
         await pushController.unregisterCurrentDevice()
+        try? await e2eeSessionLifecycle.onLogout()
         try? await authController.logout()
         await clearLocalStateAfterLogout()
     }
