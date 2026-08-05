@@ -12,6 +12,31 @@ export interface UpdateMessageRuntimeSettingsPayload {
   content_audit_mode: 'plaintext' | 'e2ee';
 }
 
+export interface E2eeRuntimeReadiness {
+  active_devices: number;
+  compliant_devices: number;
+  coverage_percent: number;
+  low_inventory_devices: number;
+  pending_approval_devices: number;
+  blocking_reasons: string[];
+  ready: boolean;
+}
+
+export interface E2eeRuntimeGateResponse {
+  state: 'plaintext' | 'prepare' | 'active';
+  content_audit_mode: 'plaintext' | 'e2ee';
+  readiness_revision: number;
+  readiness_computed_at?: string | null;
+  readiness_expired: boolean;
+  min_client_versions: Record<string, string>;
+  required_coverage_percent: number;
+  key_package_low_watermark: number;
+  security_review_approved: boolean;
+  readiness: E2eeRuntimeReadiness;
+  updated_at: string;
+  updated_by?: string | null;
+}
+
 export interface GeneralSettingsResponse {
   app_name: string;
   message_runtime?: MessageRuntimeSettingsResponse;
@@ -119,6 +144,30 @@ export function updateMessageRuntimeSettings(
   return http.put<MessageRuntimeSettingsResponse>(
     '/api/admin/settings/message-runtime',
     payload
+  );
+}
+
+export function getE2eeRuntimeGate() {
+  return http.get<E2eeRuntimeGateResponse>(
+    '/api/admin/settings/message-runtime/e2ee/gate'
+  );
+}
+
+export function prepareE2eeRuntime() {
+  return http.post<E2eeRuntimeGateResponse>(
+    '/api/admin/settings/message-runtime/e2ee/prepare'
+  );
+}
+
+export function activeE2eeRuntime() {
+  return http.post<E2eeRuntimeGateResponse>(
+    '/api/admin/settings/message-runtime/e2ee/active'
+  );
+}
+
+export function rollbackE2eeRuntime() {
+  return http.post<E2eeRuntimeGateResponse>(
+    '/api/admin/settings/message-runtime/e2ee/rollback'
   );
 }
 

@@ -1,4 +1,5 @@
 pub mod e2ee_envelope;
+pub mod e2ee_runtime_gate;
 pub mod file_upload_audit;
 pub mod file_upload_cleanup;
 pub mod geolocation;

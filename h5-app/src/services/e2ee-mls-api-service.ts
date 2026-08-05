@@ -1,5 +1,6 @@
 import { requestJson, withQuery } from '@/api/http';
 import { E2eeCommandError, type E2eeCommandResult } from '@/e2ee/session';
+import { appVersion } from '@/config/version';
 
 import { requireToken } from './session';
 
@@ -108,6 +109,9 @@ export const e2eeMlsApiService = {
         credential_fingerprint: bytesToBase64(material.credentialFingerprint),
         approval_public_key: bytesToBase64(material.approvalPublicKey),
         protocol_version: 1,
+        client_platform: 'h5',
+        client_version: appVersion,
+        client_build: 'web',
       }),
     }, requireToken()).then((response) => ({
       status: String(response.status ?? ''),

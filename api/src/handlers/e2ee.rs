@@ -267,6 +267,9 @@ pub struct RegisterMlsDeviceRequest {
     pub credential_fingerprint: String,
     pub approval_public_key: String,
     pub protocol_version: i16,
+    pub client_platform: Option<String>,
+    pub client_version: Option<String>,
+    pub client_build: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -406,9 +409,8 @@ pub async fn list_room_member_devices(
             devices.push(MlsPeerDeviceResponse {
                 id: device_id,
                 protocol_version: row.protocol_version.unwrap_or_default(),
-                credential_fingerprint: BASE64_STANDARD.encode(
-                    row.credential_fingerprint.unwrap_or_default(),
-                ),
+                credential_fingerprint: BASE64_STANDARD
+                    .encode(row.credential_fingerprint.unwrap_or_default()),
             });
         }
     }
@@ -450,6 +452,35 @@ pub async fn register_mls_device(
     .map_err(|_| {
         AppError::ValidationError("approval_public_key 不是有效 Ed25519 公钥".to_string())
     })?;
+    let client_platform = req
+        .client_platform
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if let Some(platform) = client_platform.as_deref() {
+        if !["android", "ios", "h5", "desktop"].contains(&platform) {
+            return Err(AppError::ValidationError(
+                "client_platform 仅支持 android / ios / h5 / desktop".to_string(),
+            ));
+        }
+    }
+    let client_version = req
+        .client_version
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(version) = client_version.as_deref() {
+        if version.len() > 64 {
+            return Err(AppError::ValidationError("client_version 过长".to_string()));
+        }
+    }
+    let client_build = req
+        .client_build
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(build) = client_build.as_deref() {
+        if build.len() > 128 {
+            return Err(AppError::ValidationError("client_build 过长".to_string()));
+        }
+    }
 
     let record = E2eeMlsStore::new(state.database.pool())
         .register_device(
@@ -463,6 +494,9 @@ pub async fn register_mls_device(
                 credential_fingerprint,
                 approval_public_key,
                 protocol_version: req.protocol_version,
+                client_platform,
+                client_version,
+                client_build,
             },
         )
         .await?;

@@ -22,6 +22,11 @@ describe('e2eeMlsApiService', () => {
       expect(body.protocol_version).toBe(1);
       expect(body).not.toHaveProperty('state');
       expect(body).not.toHaveProperty('key_package');
+      expect(body).toMatchObject({
+        client_platform: 'h5',
+        client_version: expect.any(String),
+        client_build: 'web',
+      });
       return new Response('{"status":"active"}', { status: 200 });
     });
     vi.stubGlobal('fetch', fetchMock);

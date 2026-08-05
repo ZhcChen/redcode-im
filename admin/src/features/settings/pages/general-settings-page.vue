@@ -394,6 +394,92 @@
               </a-space>
             </a-form-item>
           </a-form>
+
+          <a-divider />
+          <a-alert type="info" :closable="false" style="margin-bottom: 16px">
+            E2EE 启用必须经过「预检 ->
+            启用」门禁：预检返回最低客户端版本、活跃设备 覆盖与 KeyPackage
+            库存；任一条件不满足时不能启用，也不能直接修改上面的
+            加密发送开关绕过门禁。
+          </a-alert>
+          <a-descriptions
+            :title="`E2EE 启用门禁（${e2eeGateStateLabel}）`"
+            :loading="e2eeGateLoading"
+            :column="2"
+            bordered
+          >
+            <a-descriptions-item label="门禁状态">
+              {{ e2eeGate?.state || 'plaintext' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="当前发送模式">
+              {{ e2eeGate?.content_audit_mode || 'plaintext' }}
+            </a-descriptions-item>
+            <a-descriptions-item label="最低客户端版本">
+              {{ formatMinClientVersions(e2eeGate?.min_client_versions) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="readiness revision">
+              {{ e2eeGate?.readiness_revision ?? 0 }}
+            </a-descriptions-item>
+            <a-descriptions-item label="设备覆盖">
+              {{ e2eeGate?.readiness.coverage_percent ?? 0 }}%（达标
+              {{ e2eeGate?.readiness.compliant_devices ?? 0 }}/{{
+                e2eeGate?.readiness.active_devices ?? 0
+              }}，阈值 {{ e2eeGate?.required_coverage_percent ?? 100 }}%）
+            </a-descriptions-item>
+            <a-descriptions-item label="KeyPackage 库存不足设备">
+              {{ e2eeGate?.readiness.low_inventory_devices ?? 0 }}
+            </a-descriptions-item>
+            <a-descriptions-item label="待批准设备">
+              {{ e2eeGate?.readiness.pending_approval_devices ?? 0 }}
+            </a-descriptions-item>
+            <a-descriptions-item label="安全审查">
+              {{ e2eeGate?.security_review_approved ? '已通过' : '未通过' }}
+            </a-descriptions-item>
+          </a-descriptions>
+          <a-alert
+            v-if="e2eeGate && !e2eeGate.readiness.ready"
+            type="warning"
+            :closable="false"
+            style="margin-top: 16px"
+          >
+            阻断原因：
+            <span
+              v-for="(reason, index) in e2eeGate.readiness.blocking_reasons"
+              :key="index"
+            >
+              {{ reason
+              }}{{
+                index < e2eeGate!.readiness.blocking_reasons.length - 1
+                  ? '；'
+                  : ''
+              }}
+            </span>
+          </a-alert>
+          <a-space style="margin-top: 16px">
+            <a-button
+              type="primary"
+              :loading="e2eeGateLoading"
+              @click="runE2eeGateAction('prepare')"
+            >
+              预检
+            </a-button>
+            <a-button
+              type="primary"
+              status="success"
+              :disabled="!canActiveE2ee"
+              :loading="e2eeGateLoading"
+              @click="runE2eeGateAction('active')"
+            >
+              启用
+            </a-button>
+            <a-button
+              :disabled="e2eeGate?.state !== 'active'"
+              :loading="e2eeGateLoading"
+              @click="runE2eeGateAction('rollback')"
+            >
+              回滚到明文
+            </a-button>
+          </a-space>
         </a-tab-pane>
 
         <a-tab-pane key="api-test" title="API测试">
@@ -405,13 +491,17 @@
 </template>
 
 <script lang="ts" setup>
-  import { reactive, onMounted, computed } from 'vue';
+  import { reactive, ref, onMounted, computed } from 'vue';
   import useLoading from '@/hooks/loading';
   import { Message } from '@arco-design/web-vue';
   import {
     getAppName,
     updateAppName,
     getMessageRuntimeSettings,
+    getE2eeRuntimeGate,
+    prepareE2eeRuntime,
+    activeE2eeRuntime,
+    rollbackE2eeRuntime,
     getIpGeolocationEnabled,
     setIpGeolocationEnabled,
     getUserAccountLimit,
@@ -420,6 +510,7 @@
     getUploadPolicy,
     updateUploadPolicy,
   } from '@/services/general-settings';
+  import type { E2eeRuntimeGateResponse } from '@/services/general-settings';
   import ApiTest from '../components/api-test-panel.vue';
 
   const { loading, setLoading } = useLoading(false);
@@ -456,6 +547,9 @@
     updated_at: '',
     updated_by: '',
   });
+
+  const e2eeGate = ref<E2eeRuntimeGateResponse | null>(null);
+  const e2eeGateLoading = ref(false);
 
   const uploadPolicyForm = reactive({
     version: '',
@@ -547,6 +641,68 @@
       Message.error('获取消息运行模式失败');
     }
   };
+
+  const fetchE2eeGate = async () => {
+    try {
+      e2eeGateLoading.value = true;
+      const { data } = await getE2eeRuntimeGate();
+      e2eeGate.value = data;
+    } catch (error) {
+      Message.error('获取 E2EE 启用门禁状态失败');
+    } finally {
+      e2eeGateLoading.value = false;
+    }
+  };
+
+  const runE2eeGateAction = async (
+    action: 'prepare' | 'active' | 'rollback'
+  ) => {
+    try {
+      e2eeGateLoading.value = true;
+      let result;
+      if (action === 'prepare') {
+        result = await prepareE2eeRuntime();
+      } else if (action === 'active') {
+        result = await activeE2eeRuntime();
+      } else {
+        result = await rollbackE2eeRuntime();
+      }
+      e2eeGate.value = result.data;
+      let stateLabel = '回滚';
+      if (result.data?.state === 'active') {
+        stateLabel = '启用';
+      } else if (result.data?.state === 'prepare') {
+        stateLabel = '预检';
+      }
+      Message.success(`E2EE 门禁${stateLabel}成功`);
+      await fetchMessageRuntime();
+    } catch (error: any) {
+      Message.error(error?.response?.data?.message || 'E2EE 门禁操作失败');
+      await fetchE2eeGate();
+    } finally {
+      e2eeGateLoading.value = false;
+    }
+  };
+
+  const e2eeGateStateLabel = computed(() => {
+    if (!e2eeGate.value) return '未知';
+    if (e2eeGate.value.state === 'active') return '已启用';
+    if (e2eeGate.value.state === 'prepare') return '预检中';
+    return '未启用';
+  });
+
+  const formatMinClientVersions = (versions?: Record<string, string>) => {
+    if (!versions || Object.keys(versions).length === 0) return '未配置';
+    return Object.entries(versions)
+      .map(([platform, version]) => `${platform} ${version}`)
+      .join('，');
+  };
+
+  const canActiveE2ee = computed(
+    () =>
+      Boolean(e2eeGate.value?.readiness.ready) &&
+      e2eeGate.value?.state !== 'active'
+  );
 
   const fetchAccountLimit = async () => {
     try {
@@ -738,6 +894,7 @@
   onMounted(() => {
     fetchAppName();
     fetchMessageRuntime();
+    fetchE2eeGate();
     fetchIpGeolocation();
     fetchAccountLimit();
     fetchUploadPolicy();

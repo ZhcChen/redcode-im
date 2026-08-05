@@ -4,7 +4,7 @@ use std::env;
 use uuid::Uuid;
 
 const ADOPT_ENV: &str = "ALLOW_INSECURE_MIGRATION_BASELINE_ADOPT";
-const EXPECTED_MIGRATION_COUNT: i64 = 10;
+const EXPECTED_MIGRATION_COUNT: i64 = 11;
 
 static ENV_LOCK: once_cell::sync::Lazy<tokio::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| tokio::sync::Mutex::new(()));

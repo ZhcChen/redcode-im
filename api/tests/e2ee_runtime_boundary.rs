@@ -72,16 +72,24 @@ async fn create_room(app: &TestApp, owner: &TestUser, member: &TestUser) -> Uuid
     .expect("room UUID")
 }
 
-async fn set_runtime(app: &TestApp, admin_token: &str, payload: &str) {
-    let (status, response) = app
-        .put_json_authed("/api/admin/settings/message-runtime", admin_token, payload)
-        .await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "{}",
-        String::from_utf8_lossy(&response)
-    );
+/// U5 边界测试直接写 runtime，避免依赖 U6 门禁流程；门禁本身由
+/// admin_e2ee_gate_integration 覆盖。
+async fn set_runtime(app: &TestApp, _admin_token: &str, payload: &str) {
+    let parsed: serde_json::Value = serde_json::from_str(payload).expect("runtime payload");
+    let content_audit_mode = parsed["content_audit_mode"]
+        .as_str()
+        .expect("content_audit_mode");
+    sqlx::query(
+        r#"
+        INSERT INTO general_settings (key, value, description)
+        VALUES ('message_content_audit_mode', $1, '消息内容审计模式')
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        "#,
+    )
+    .bind(content_audit_mode)
+    .execute(&app.pool)
+    .await
+    .expect("set content audit mode");
 }
 
 #[tokio::test]
@@ -100,7 +108,12 @@ async fn e2ee_runtime_disables_search_forward_and_push_body() {
             &json!({ "content": "boundary searchable marker" }).to_string(),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&response));
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
     let message_id = body_json(&response)["message"]["id"]
         .as_str()
         .expect("message id")
@@ -110,19 +123,30 @@ async fn e2ee_runtime_disables_search_forward_and_push_body() {
         .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
-        body_json(&response)["results"].as_array().expect("results").len(),
+        body_json(&response)["results"]
+            .as_array()
+            .expect("results")
+            .len(),
         1,
         "明文基线应可搜索到"
     );
 
     // E2EE 模式：搜索返回空、转发被拒绝。
-    set_runtime(&app, &admin_token, r#"{"server_storage_mode":"persist","content_audit_mode":"e2ee"}"#).await;
+    set_runtime(
+        &app,
+        &admin_token,
+        r#"{"server_storage_mode":"persist","content_audit_mode":"e2ee"}"#,
+    )
+    .await;
     let (status, response) = app
         .get_authed("/messages/search?query=boundary", &alice.token)
         .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
-        body_json(&response)["results"].as_array().expect("results").len(),
+        body_json(&response)["results"]
+            .as_array()
+            .expect("results")
+            .len(),
         0,
         "E2EE 模式服务端搜索必须返回空"
     );
@@ -133,12 +157,22 @@ async fn e2ee_runtime_disables_search_forward_and_push_body() {
             &json!({ "original_message_id": message_id }).to_string(),
         )
         .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{}", String::from_utf8_lossy(&response));
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
     assert!(
         String::from_utf8_lossy(&response).contains("不支持转发"),
         "E2EE 模式转发必须明确失败"
     );
 
     // 恢复默认 runtime，避免污染测试栈后续用例。
-    set_runtime(&app, &admin_token, r#"{"server_storage_mode":"persist","content_audit_mode":"plaintext"}"#).await;
+    set_runtime(
+        &app,
+        &admin_token,
+        r#"{"server_storage_mode":"persist","content_audit_mode":"plaintext"}"#,
+    )
+    .await;
 }

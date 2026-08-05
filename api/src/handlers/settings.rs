@@ -3,6 +3,10 @@ use crate::database::settings_store::SettingsStore;
 use crate::error::AppError;
 use crate::models::convert::{api_update_document_to_db, db_document_to_api, string_to_uuid};
 use crate::models::{Claims, DocumentContent, UpdateDocumentRequest};
+use crate::services::e2ee_runtime_gate::{
+    active_e2ee_runtime, get_e2ee_gate_view, prepare_e2ee_runtime, rollback_e2ee_runtime,
+    E2eeRuntimeGateView,
+};
 use crate::services::message_runtime::{
     load_message_runtime_settings, update_message_runtime_settings, MessageContentAuditMode,
     MessageRuntimeSettings, MessageServerStorageMode,
@@ -224,6 +228,11 @@ pub async fn update_message_runtime_settings_admin(
     let editor_id = string_to_uuid(&claims.sub)?;
     let server_storage_mode = MessageServerStorageMode::parse(&payload.server_storage_mode)?;
     let content_audit_mode = MessageContentAuditMode::parse(&payload.content_audit_mode)?;
+    if content_audit_mode == MessageContentAuditMode::E2ee {
+        return Err(AppError::MessageRuntimeConflict(
+            "E2EE 模式只能通过门禁预检（prepare）后启用，禁止直接修改".to_string(),
+        ));
+    }
 
     let store = SettingsStore::new(state.database.clone());
     Ok(Json(MessageRuntimeSettingsResponse::from(
@@ -235,6 +244,38 @@ pub async fn update_message_runtime_settings_admin(
         )
         .await?,
     )))
+}
+
+// ===== E2EE 启用门禁（R12/R13）=====
+
+pub async fn get_e2ee_runtime_gate_admin(
+    State(state): State<AppState>,
+) -> Result<Json<E2eeRuntimeGateView>, AppError> {
+    Ok(Json(get_e2ee_gate_view(&state).await?))
+}
+
+pub async fn prepare_e2ee_runtime_admin(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<E2eeRuntimeGateView>, AppError> {
+    let editor_id = string_to_uuid(&claims.sub)?;
+    Ok(Json(prepare_e2ee_runtime(&state, Some(editor_id)).await?))
+}
+
+pub async fn active_e2ee_runtime_admin(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<E2eeRuntimeGateView>, AppError> {
+    let editor_id = string_to_uuid(&claims.sub)?;
+    Ok(Json(active_e2ee_runtime(&state, Some(editor_id)).await?))
+}
+
+pub async fn rollback_e2ee_runtime_admin(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<E2eeRuntimeGateView>, AppError> {
+    let editor_id = string_to_uuid(&claims.sub)?;
+    Ok(Json(rollback_e2ee_runtime(&state, Some(editor_id)).await?))
 }
 
 // ===== 验证码设置 API（公开，无需 token）=====

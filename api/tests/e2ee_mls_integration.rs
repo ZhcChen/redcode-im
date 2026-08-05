@@ -43,6 +43,9 @@ fn device_input(device_id: Uuid, label: &str, marker: u8) -> RegisterDeviceInput
         credential_fingerprint: vec![marker; 32],
         approval_public_key: vec![marker; 32],
         protocol_version: 1,
+        client_platform: None,
+        client_version: None,
+        client_build: None,
     }
 }
 

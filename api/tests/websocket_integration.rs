@@ -187,24 +187,25 @@ async fn create_room(app: &TestApp, owner: &TestUser, members: &[&TestUser]) -> 
 
 async fn set_message_runtime_modes(
     app: &TestApp,
-    admin_token: &str,
+    _admin_token: &str,
     server_storage_mode: &str,
     content_audit_mode: &str,
 ) {
-    let payload = json!({
-        "server_storage_mode": server_storage_mode,
-        "content_audit_mode": content_audit_mode
-    })
-    .to_string();
-    let (status, body) = app
-        .put_json_authed("/api/admin/settings/message-runtime", admin_token, &payload)
-        .await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "切换 {server_storage_mode}/{content_audit_mode} 消息运行模式: {}",
-        String::from_utf8_lossy(&body)
-    );
+    // 直接写 runtime（含 e2ee）以便聚焦消息链路行为；Admin 门禁由
+    // admin_e2ee_gate_integration 单独覆盖。
+    sqlx::query(
+        r#"
+        INSERT INTO general_settings (key, value, description)
+        VALUES ('message_server_storage_mode', $1, '消息服务器存储模式'),
+               ('message_content_audit_mode', $2, '消息内容审计模式')
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        "#,
+    )
+    .bind(server_storage_mode)
+    .bind(content_audit_mode)
+    .execute(&app.pool)
+    .await
+    .expect("set message runtime modes");
 }
 
 async fn set_message_runtime(app: &TestApp, admin_token: &str, server_storage_mode: &str) {

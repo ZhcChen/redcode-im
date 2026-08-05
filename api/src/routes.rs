@@ -8,9 +8,9 @@ use crate::auth::{admin_only_middleware, auth_middleware};
 use crate::handlers::{
     activity_logs, admin, admin_storage_config, auth, auth_device, chat_history, e2ee, emoji_pack,
     feedback, friend, group_announcement, group_management, health, healthz, message,
-    message_favorite, message_read, message_search,
-    multipart_upload, push, push_logs, push_queue, push_settings, report, room, root, settings,
-    qr_login, upload_policy, user, user_block, version, ws,
+    message_favorite, message_read, message_search, multipart_upload, push, push_logs, push_queue,
+    push_settings, qr_login, report, room, root, settings, upload_policy, user, user_block,
+    version, ws,
 };
 use crate::AppState;
 
@@ -54,10 +54,7 @@ pub fn create_routes() -> Router<AppState> {
         .route("/auth/admin/login", post(auth::admin_login))
         .route("/auth/admin/refresh", post(auth::admin_refresh_token))
         .route("/auth/qr/sessions", post(qr_login::create_session))
-        .route(
-            "/auth/qr/sessions/{qr_id}",
-            get(qr_login::get_session),
-        )
+        .route("/auth/qr/sessions/{qr_id}", get(qr_login::get_session))
         .route(
             "/auth/qr/sessions/{qr_id}/cancel",
             post(qr_login::cancel_session),
@@ -185,6 +182,22 @@ pub fn create_routes() -> Router<AppState> {
             "/api/admin/settings/message-runtime",
             get(settings::get_message_runtime_settings_admin)
                 .put(settings::update_message_runtime_settings_admin),
+        )
+        .route(
+            "/api/admin/settings/message-runtime/e2ee/gate",
+            get(settings::get_e2ee_runtime_gate_admin),
+        )
+        .route(
+            "/api/admin/settings/message-runtime/e2ee/prepare",
+            post(settings::prepare_e2ee_runtime_admin),
+        )
+        .route(
+            "/api/admin/settings/message-runtime/e2ee/active",
+            post(settings::active_e2ee_runtime_admin),
+        )
+        .route(
+            "/api/admin/settings/message-runtime/e2ee/rollback",
+            post(settings::rollback_e2ee_runtime_admin),
         )
         .route(
             "/api/admin/settings/user-account-limit",
@@ -580,10 +593,7 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route("/users/blocked", get(user_block::list_blocked))
         .route("/users/blocked", post(user_block::block_user))
-        .route(
-            "/users/blocked/{user_id}",
-            delete(user_block::unblock_user),
-        )
+        .route("/users/blocked/{user_id}", delete(user_block::unblock_user))
         // friends
         .route(
             "/friends/requests",
@@ -714,13 +724,9 @@ pub fn create_routes() -> Router<AppState> {
         )
         .route(
             "/rooms/{room_id}/messages/{message_id}/favorite",
-            post(message_favorite::favorite_message)
-                .delete(message_favorite::unfavorite_message),
+            post(message_favorite::favorite_message).delete(message_favorite::unfavorite_message),
         )
-        .route(
-            "/messages/favorites",
-            get(message_favorite::list_favorites),
-        )
+        .route("/messages/favorites", get(message_favorite::list_favorites))
         .route(
             "/rooms/{room_id}/unread_count",
             get(message_read::get_unread_count),

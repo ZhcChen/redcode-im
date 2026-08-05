@@ -8,16 +8,17 @@ pub mod document_store;
 pub mod e2ee_control_store;
 pub mod e2ee_key_store;
 pub mod e2ee_mls_store;
+pub mod e2ee_runtime_store;
 pub mod emoji_pack_store;
 pub mod file_upload_audit_store;
 pub mod file_upload_multipart_store;
 pub mod file_upload_store;
 pub mod friend_store;
-pub mod group_management_store;
 pub mod group_announcement_store;
+pub mod group_management_store;
 pub mod member_with_user_info;
-pub mod message_reaction_store;
 pub mod message_favorite_store;
+pub mod message_reaction_store;
 pub mod message_read_store;
 pub mod message_store;
 pub mod models;
@@ -31,9 +32,9 @@ pub mod report_store;
 pub mod room_store;
 pub mod settings_store;
 pub mod storage_provider_store;
-pub mod user_store;
 pub mod user_block_store;
 pub mod user_device_store;
+pub mod user_store;
 
 /// 数据库连接池
 #[derive(Clone)]
@@ -129,6 +130,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/sql/migrations/20260804181000_group_announcements_rebuild.sql"
+        )),
+    ),
+    (
+        "20260805120000_e2ee_runtime_admin_gate.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260805120000_e2ee_runtime_admin_gate.sql"
         )),
     ),
 ];

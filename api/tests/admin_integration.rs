@@ -124,7 +124,7 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
         Some("plaintext")
     );
 
-    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"e2ee"}"#;
+    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"plaintext"}"#;
     let (status, body) = app
         .send(
             "PUT",
@@ -152,7 +152,7 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
     );
     let updated = body_json(&body);
     assert_eq!(updated["server_storage_mode"].as_str(), Some("relay_only"));
-    assert_eq!(updated["content_audit_mode"].as_str(), Some("e2ee"));
+    assert_eq!(updated["content_audit_mode"].as_str(), Some("plaintext"));
     assert!(updated["updated_at"].as_str().is_some());
     assert!(updated["updated_by"].as_str().is_some());
 
@@ -170,7 +170,7 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
     );
     assert_eq!(
         public["message_runtime"]["content_audit_mode"].as_str(),
-        Some("e2ee")
+        Some("plaintext")
     );
 
     let (status, body) = app
@@ -187,7 +187,31 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
         admin_updated["server_storage_mode"].as_str(),
         Some("relay_only")
     );
-    assert_eq!(admin_updated["content_audit_mode"].as_str(), Some("e2ee"));
+    assert_eq!(
+        admin_updated["content_audit_mode"].as_str(),
+        Some("plaintext")
+    );
+
+    // E2EE 只能通过门禁启用，直接修改被拒绝。
+    let direct_e2ee_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"e2ee"}"#;
+    let (status, body) = app
+        .put_json_authed(
+            "/api/admin/settings/message-runtime",
+            &token,
+            direct_e2ee_payload,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::CONFLICT,
+        "direct e2ee switch must be rejected: {}",
+        String::from_utf8_lossy(&body)
+    );
+    assert!(
+        String::from_utf8_lossy(&body).contains("只能通过门禁预检"),
+        "{}",
+        String::from_utf8_lossy(&body)
+    );
 
     let invalid_payload = r#"{"server_storage_mode":"archive","content_audit_mode":"plaintext"}"#;
     let (status, body) = app
@@ -233,7 +257,10 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
         after_invalid["server_storage_mode"].as_str(),
         Some("relay_only")
     );
-    assert_eq!(after_invalid["content_audit_mode"].as_str(), Some("e2ee"));
+    assert_eq!(
+        after_invalid["content_audit_mode"].as_str(),
+        Some("plaintext")
+    );
 
     let (status, body) = app.get("/settings/general").await;
     assert_eq!(
@@ -249,7 +276,7 @@ async fn message_runtime_settings_can_be_updated_and_read_publicly() {
     );
     assert_eq!(
         public_after_invalid["message_runtime"]["content_audit_mode"].as_str(),
-        Some("e2ee")
+        Some("plaintext")
     );
 }
 
@@ -300,7 +327,7 @@ async fn message_runtime_settings_update_rolls_back_on_partial_db_failure() {
     .await
     .expect("install forced failure trigger");
 
-    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"e2ee"}"#;
+    let relay_payload = r#"{"server_storage_mode":"relay_only","content_audit_mode":"plaintext"}"#;
     let (status, body) = app
         .put_json_authed("/api/admin/settings/message-runtime", &token, relay_payload)
         .await;

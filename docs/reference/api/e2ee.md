@@ -177,6 +177,62 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 - `404`：设备或可领取 KeyPackage 不存在；领取接口用此状态隐藏归属差异。
 - `409` / 业务码 `40902`：根身份、设备材料或设备状态发生冲突。
 
+## Admin 启用门禁（plaintext -> prepare -> active）
+
+E2EE 启用必须走受控门禁，Admin 不能直接修改 `content_audit_mode` 绕过预检。
+设备注册时可上报 `client_platform`（android/ios/h5/desktop）、`client_version`、
+`client_build`（均可选，兼容存量客户端）；未上报能力字段的活跃设备在
+readiness 中判为不达标。
+
+### 查询门禁状态
+
+`GET /api/admin/settings/message-runtime/e2ee/gate` 返回门禁状态、最近预检
+revision 与最新 readiness：
+
+```json
+{
+  "state": "plaintext",
+  "content_audit_mode": "plaintext",
+  "readiness_revision": 3,
+  "readiness_computed_at": "2026-08-05T02:00:00Z",
+  "readiness_expired": false,
+  "min_client_versions": {"android": "0.1.0", "ios": "0.1.0", "h5": "0.1.0", "desktop": "0.1.0"},
+  "required_coverage_percent": 100,
+  "key_package_low_watermark": 10,
+  "security_review_approved": true,
+  "readiness": {
+    "active_devices": 12,
+    "compliant_devices": 12,
+    "coverage_percent": 100,
+    "low_inventory_devices": 0,
+    "pending_approval_devices": 0,
+    "blocking_reasons": [],
+    "ready": true
+  }
+}
+```
+
+### 预检
+
+`POST /api/admin/settings/message-runtime/e2ee/prepare` 按服务端维护的最低版本
+规则聚合活跃设备覆盖、每设备 KeyPackage 低水位库存与阻断原因，并把门禁状态置为
+`prepare`、readiness revision +1。阻断原因包括：无活跃设备、设备覆盖不足、库存
+低于低水位、存在待批准设备、安全审查未通过（U7 独立审查前默认 false）。
+
+### 启用
+
+`POST /api/admin/settings/message-runtime/e2ee/active` 必须是 `prepare` 状态，
+并基于最新设备与库存重新计算 readiness；任一阻断存在即返回 `409`。校验通过后
+在同一事务内原子写入门禁 `active` 与 `content_audit_mode=e2ee`。启用后普通明文
+发送接口继续 fail closed，旧客户端无法发送。
+
+### 回滚
+
+`POST /api/admin/settings/message-runtime/e2ee/rollback` 原子切回
+`plaintext`：只影响新发送，历史密文、设备与 KeyPackage 数据保留，支持 E2EE 的
+客户端仍可读取历史密文。原 `PUT /api/admin/settings/message-runtime` 直接提交
+`content_audit_mode=e2ee` 返回 `409`，只能通过门禁启用。
+
 ## 房间 Epoch
 
 `GET /rooms/{room_id}/e2ee/epoch` 返回：

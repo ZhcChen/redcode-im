@@ -16,6 +16,9 @@ pub struct RegisterDeviceInput {
     pub credential_fingerprint: Vec<u8>,
     pub approval_public_key: Vec<u8>,
     pub protocol_version: i16,
+    pub client_platform: Option<String>,
+    pub client_version: Option<String>,
+    pub client_build: Option<String>,
 }
 
 #[derive(Debug, Clone, FromRow)]
@@ -194,9 +197,10 @@ impl<'a> E2eeMlsStore<'a> {
         let device = sqlx::query_as::<_, E2eeDeviceRecord>(
             "INSERT INTO e2ee_devices (
                 id, user_id, device_label, credential, credential_fingerprint,
-                approval_public_key, protocol_version, status, approved_at
+                approval_public_key, protocol_version, status, approved_at,
+                client_platform, client_version, client_build
              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                CASE WHEN $8 = 'active' THEN NOW() ELSE NULL END)
+                CASE WHEN $8 = 'active' THEN NOW() ELSE NULL END, $9, $10, $11)
              RETURNING id, user_id, device_label, protocol_version, credential_fingerprint,
                        approval_public_key, status,
                        approved_by_device_id, approved_at, revoked_at, created_at, updated_at",
@@ -209,6 +213,9 @@ impl<'a> E2eeMlsStore<'a> {
         .bind(input.approval_public_key)
         .bind(input.protocol_version)
         .bind(status)
+        .bind(input.client_platform)
+        .bind(input.client_version)
+        .bind(input.client_build)
         .fetch_one(&mut *tx)
         .await
         .map_err(AppError::DatabaseError)?;
