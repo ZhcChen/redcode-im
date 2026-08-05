@@ -7,10 +7,16 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
 execution: code
 absorbed_from: docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md
 ---
 
 # feat: U10 E2EE 剩余工作执行计划
+
+> 本计划保留 U10 服务端契约、完整范围与 Go/No-Go 约束，不再维护执行进度。
+> 当前唯一 active 执行入口为
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md`；只有发现
+> 服务端契约缺口时才回查本文，禁止从本文恢复旧实施顺序。
 
 ## Goal Capsule
 
@@ -34,11 +40,12 @@ status: active
 
 上游计划已经冻结协议候选、服务端 envelope、设备/epoch 数据模型和客户端安全存储方向。本计划只组织尚未完成的实现与验收，不重新选择协议，不修改已经完成的 U1-U3，也不把当前单房间跨端通过扩大解释为生产可用。
 
-本计划为 U10 唯一活跃执行计划：承接
+本计划曾作为 U10 总执行计划，现作为契约参考保留：承接
 `docs/plans/2026-08-04-001-feat-u10-e2ee-release-gate-plan.md` 的完整契约
 （R1-R17、F1-F5）、Go/No-Go 矩阵与 U1-U3 完成基线；上游计划已标记 superseded
-并保留为历史。同时收口 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md`
-Unit 10（message runtime 全链路降级），见 U6/U7。
+并保留为历史。剩余执行进度、恢复点和顺序统一由最终收口计划维护。同时本文继续
+保留 `docs/plans/2026-04-09-admin-rbac-architecture-refactor-plan.md` Unit 10
+（message runtime 全链路降级）的契约关系，见 U6/U7。
 
 ### Problem Frame
 

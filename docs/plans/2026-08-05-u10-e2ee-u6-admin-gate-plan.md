@@ -6,10 +6,15 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md
 ---
 
 # feat: U10 E2EE U6 Admin prepare/active 门禁执行计划
+
+> 本计划的 Admin/API 实施单元已完成；全仓门禁与最终发布裁决由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md` 的 C7/C8
+> 承接。本文仅保留设计与历史证据，不再作为 active 执行入口。
 
 ## Goal Capsule
 

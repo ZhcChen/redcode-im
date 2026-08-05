@@ -6,10 +6,15 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md
 ---
 
 # feat: U10 E2EE U5 附件加密与外围功能边界执行计划
+
+> 本计划的 H5/API 实施单元已完成；原生双端附件 live 与最终验收由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md` 的 C6/C8
+> 承接。本文仅保留设计与历史证据，不再作为 active 执行入口。
 
 ## Goal Capsule
 

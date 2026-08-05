@@ -32,6 +32,7 @@ last_progress_update: 2026-08-05
 | `2026-08-05-u10-e2ee-native-clients-closure-plan.md` | C1-C4 与早期 C5 设计记录，已 superseded | 否 |
 | `2026-08-05-u10-e2ee-native-clients-plan.md` | N1-N7 原始专项范围，已 superseded | 否 |
 | `2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` | U10 服务端契约与总范围；仅在发现契约缺口时回查 | 否 |
+| U5/U6/U7 三份专项计划 | 附件、Admin 门禁与首轮安全审查历史设计，已 superseded | 否 |
 | `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md` | 已发生的验收事实和后续证据汇总 | 否 |
 | `docs/reviews/2026-08-05-u10-e2ee-u7-security-review.md` | U7 安全裁决和 P0-1 重审 | 否 |
 
@@ -39,7 +40,19 @@ last_progress_update: 2026-08-05
 
 ## 3. 当前进度
 
-### 3.1 已完成基线
+### 3.1 状态看板
+
+| 单元 | 状态 | 结论或下一动作 |
+| --- | --- | --- |
+| C1-C5 | 已完成并推送 | 功能与双端门禁已冻结，不重做 |
+| C7 全仓回归门禁 | 进行中（已定位阻断） | 修复 Desktop 下载目录单测后重跑 `make test.all` |
+| C6 三端 E2EE live | 待开始 | 仅在 C7 全绿后开始 Android、iOS、H5 正式路径互解 |
+| C8 证据与重审 | 待开始 | 汇总 live/marker 证据并重审 U7 P0-1 |
+
+当前唯一队列：`C7 -> C6 -> C8`。不得从已 superseded 的 N1-N7 或 C1-C5
+计划重新派生任务。
+
+### 3.2 已完成基线
 
 | 范围 | 状态 | 提交与验证事实 |
 | --- | --- | --- |
@@ -57,13 +70,20 @@ last_progress_update: 2026-08-05
 
 以上内容不得重做；执行中发现回归时按独立修复闭环处理。
 
-### 3.2 当前恢复点
+### 3.3 当前恢复点
 
 - 当前分支：`main`，远端基线：`origin/main`。
 - 当前单元：**C7 全仓回归门禁**。
 - C5 已冻结；除非 C7 复现出明确回归，不再修改双端设备、群成员或 epoch 实现。
-- C7 第一条命令为 JDK 21 环境下的 `make test.all`，先以当前事实确认阻断，不根据
-  历史 N7 记录预判 Desktop、Admin 或 ChromeDriver 仍然失败。
+- C7 已在 JDK 21 环境下执行 `make test.all`：API unit 184 项与 integration、
+  migration guard、Android、iOS 240 项（7 项 live 跳过）、H5 type-check、Admin
+  route smoke 均通过；命令在 Desktop unit 阶段失败。
+- 当前唯一已复现阻断：`desktop/test/utils/download-settings.test.ts` 的
+  `returns saved download dir when it still exists` 期望 `/Users/test/custom`，实际
+  回退 `/Users/test/Desktop/Chatly`。先单独分析并修复该模块，不放宽断言。
+- 修复后先运行 Desktop 定向测试，再重跑 JDK 21 环境下的 `make test.all`；全绿后
+  依次运行 `make test.live` 和 `make e2ee-core.test.wasm`。不得根据历史 N7 记录
+  预判其他阻断仍然存在。
 - 对实际复现的阻断按模块独立修复、验证、提交和 push；未复现的问题不做预防性修改。
 - 开始实现前必须重新运行 `git status --short`；若工作区出现非本任务改动，只协同
   处理相关文件，不纳入本专项提交。
