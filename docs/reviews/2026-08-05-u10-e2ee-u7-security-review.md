@@ -11,9 +11,9 @@ verdict: no-go
 ## 结论
 
 **裁决：No-Go。** U1-U7 已形成可重放证据链，但以下发布门禁未关闭，生产
-E2EE 不得启用：原生双端 E2EE 专项未完成、生产备份恢复与灰度回滚未演练、
-CI 漏洞扫描与许可证批量核验未配置。测试环境保持 `persist/plaintext`，
-仅允许 `prepare` 预检。
+E2EE 不得启用：原生双端 N1-N6 已实现但聊天主链接入与三端 E2EE live 未
+闭环、生产备份恢复与灰度回滚未演练、CI 漏洞扫描与许可证批量核验未配置。
+测试环境保持 `persist/plaintext`，仅允许 `prepare` 预检。
 
 ## 威胁模型
 
@@ -96,8 +96,10 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 
 ### P0（阻断生产启用）
 
-1. 原生双端（`android-app/` / `ios-app/`）E2EE 接入专项未完成，设备能力
-   上报与跨端互操作未闭环。
+1. 原生双端（`android-app/` / `ios-app/`）N1-N6 已实现并通过平台单测，但
+   聊天发送/历史/WS 主链尚未挂载协调器，Android x iOS x H5 真实 E2EE live
+   未闭环。当前验收证据见
+   `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`。
 2. 生产 pg_dump/pg_restore、灰度窗口与滚动部署未在正式环境演练。
 3. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
 4. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
