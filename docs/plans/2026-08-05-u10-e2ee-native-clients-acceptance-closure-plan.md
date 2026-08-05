@@ -8,7 +8,7 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
-current_unit: A1
+current_unit: A2.3
 last_progress_update: 2026-08-05
 ---
 
@@ -16,192 +16,160 @@ last_progress_update: 2026-08-05
 
 ## 1. 计划定位
 
-本文是 U10 E2EE 原生客户端剩余工作的**唯一执行入口和唯一进度快照**。
-N1-N6、C1-C5、全仓回归门禁以及三端最小互操作均已完成，不再从旧计划派生任务。
+本文是 U10 E2EE 原生客户端剩余工作的**唯一执行入口、唯一进度总账和唯一恢复点**。
+后续不得创建平行收口计划；每个实施单元只有在实现、验证、提交并推送后才更新为
+“已完成”。
 
-当前只执行：
+当前执行链：
 
-`A1 Android <-> iOS 闭环提交 -> A2 场景矩阵 -> A3 泄漏抽检 -> A4 证据重审`
+`A2.3 跨端附件 -> A3 泄漏与恢复抽检 -> A4 证据重审`
 
-生产 E2EE 在本计划完成后仍服从 U7 全部 P0 裁决，当前始终保持 **No-Go**；
-本计划只裁决 U7 P0-1，不得将其完成解释为生产发布批准。
+N1-N6、C1-C5、A1、A2.1 和 A2.2 已完成，不再重复实施。生产 E2EE 始终保持
+**No-Go**；本计划最终只裁决 U7 P0-1，不能替代 U7 其余 P0 的发布裁决。
 
 ## 2. 文档边界
 
 | 文档 | 当前职责 | 是否派发任务 |
 | --- | --- | --- |
-| 本计划 | 当前进度、剩余实施单元、恢复点与 DoD | 是 |
+| 本计划 | 当前进度、恢复点、剩余单元、提交边界与 DoD | 是 |
 | `docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md` | C1-C7 历史实施记录 | 否，已 superseded |
-| `docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md` | N1-N7 原始专项设计 | 否，已 superseded |
-| `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` | U10 产品合同与服务端契约来源 | 仅发现契约缺口时回查 |
+| `docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md` | N1-N7 原始设计 | 否，已 superseded |
+| `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` | U10 产品合同及服务端契约来源 | 仅发现契约缺口时回查 |
 | `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md` | N7 验收事实 | A4 更新 |
 | `docs/reviews/2026-08-05-u10-e2ee-u7-security-review.md` | U7 安全裁决 | A4 只更新 P0-1 |
 
-后续不得再创建平行的 E2EE 原生收口计划；进度和恢复点只更新本文。
+## 3. 当前进度
 
-## 3. 当前事实快照
+### 3.1 已完成并推送
 
-### 3.1 状态看板
-
-| 范围 | 状态 | 证据或下一动作 |
+| 单元 | 状态 | 提交与关键证据 |
 | --- | --- | --- |
-| N1-N6 / C1-C5 原生能力 | 已完成并推送 | FFI、存储、生命周期、消息主链、多设备、群聊、附件均已接入 |
-| 全仓回归门禁 | 已完成并推送 | `make test.all`、`make test.live`、core/WASM 门禁已通过 |
-| H5 <-> Android | 已完成并推送 | `3d8a47d6`，双向互解、WS/历史和 marker 断言通过 |
-| H5 <-> iOS | 已完成并推送 | `3850229e`，正式 iOS coordinator 双向互解通过 |
-| API inventory 契约 | 已修复并推送 | `077b04ad`，统一 `max_available` |
-| 受控 E2EE live 入口 | 已完成并推送 | `0ed7e126`，成功/失败均恢复 `persist/plaintext` |
-| Android <-> iOS | 实现及 live 验证完成，待提交 | A1 只处理当前三个在途测试文件 |
-| 完整场景与泄漏抽检 | 待执行 | A2、A3 |
-| N7 证据与 U7 P0-1 重审 | 待执行 | A4 |
+| N1-N6 / C1-C5 | 已完成 | FFI、安全存储、设备生命周期、消息主链、多设备、群聊、附件及应用装配均已接入 |
+| 三端基础 live | 已完成 | `3d8a47d6`、`3850229e`、`0ed7e126`；H5 与 Android/iOS 正式路径互解，受控入口自动恢复 runtime |
+| A1 原生双端直接互解 | 已完成 | `c4cfb0c6`；Android 与 iOS 使用不同 account/device identity 双向互解，历史无 marker |
+| A2.1 恢复与异常边界 | 已完成 | `88d994cd`；安全状态恢复、离线历史补拉、消息 ID 去重、损坏密文 fail closed |
+| A2.2 设备与群成员 rekey | 已完成 | `5669870f`；设备批准/撤销、成员 add/remove、epoch 推进及旧成员不可读新 epoch |
 
-### 3.2 已验证基线
+### 3.2 当前在途：A2.3 跨端附件
 
-- `make e2ee.cross-client.live`：4 个场景通过，包括 H5/Android、H5/iOS、
-  Android/iOS 双向互解及 H5 连续新会话；退出后 runtime 已恢复
-  `persist/plaintext`。
-- Android：`testDebugUnitTest lintDebug` 通过，固定使用 JDK 21。
-- iOS：`swift test` 242 项通过，9 项 live 在默认环境跳过，0 失败。
-- API：unit 184 项及 integration、migration guard 全部通过。
-- core：host、Android、iOS、WASM 目标门禁已通过。
-- H5：本轮提交前仍须重跑 `make h5-app.check` 和 `make h5-app.test.unit`，
-  以最终工作区输出作为 A1 证据。
+当前工作区的十个修改文件和一个新增 migration 全部属于 A2.3，禁止丢弃、重置或
+混入无关提交：
 
-### 3.3 当前恢复点
+- API：`api/sql/migrations/20260805193000_message_attachment_commits.sql`、
+  `api/src/database/file_upload_store.rs`、`api/src/database/message_store.rs`、
+  `api/src/database/mod.rs`、`api/src/handlers/message.rs`、
+  `api/tests/database_migration_smoke.rs`、`api/tests/websocket_integration.rs`。
+- H5：`h5-app/src/services/message-attachment-upload-service.ts`、
+  `h5-app/test/message-attachment-upload-service.test.ts`、
+  `h5-app/test/e2ee-live-backend.test.ts`。
+- Android：
+  `android-app/app/src/test/java/com/redcode/im/androidapp/live/AndroidE2eeCrossClientLiveTest.kt`。
 
-- 分支：`main`；已推送基线：`0ed7e126`。
-- 当前有三个 A1 在途文件，禁止丢弃、重置或混入无关提交：
-  - `android-app/app/src/test/java/com/redcode/im/androidapp/live/AndroidE2eeCrossClientLiveTest.kt`
-  - `ios-app/Tests/RedCodeFeaturesTests/IOSE2eeCrossClientLiveTests.swift`
-  - `h5-app/test/e2ee-live-backend.test.ts`
-- A1 已通过受控 live，场景步骤为 `ios-native-ready`、
-  `android-to-ios-sent`、`ios-native-received`、`ios-to-android-sent`、
-  `android-native-received`。
-- live tests 在未配置显式环境变量时必须安全跳过，禁止访问真实后端。
-- 每次 live 前确认 runtime 为 `persist/plaintext`；外层入口临时切换并必须在
-  成功、失败、INT、TERM 后恢复 `persist/plaintext`。
+已完成但尚未提交的实现：
+
+1. H5 E2EE 附件签名和 commit 使用 AES-GCM 密文大小，消息展示仍保留明文大小。
+2. API 追加 `message_attachment_commits` 持久授权；下载仅接受当前 room 前缀及已
+   commit 的 object key，GC 引用检查同步纳入该表。
+3. H5 上传密文并通过 MLS payload 传递 DEK/nonce/AAD 元数据；Android 使用正式
+   历史入口取得附件信息、下载密文并在内存解密；错误 object key AAD 必须失败。
+4. API migration manifest 已更新至 12；`make api.test` 已全量通过，包含 unit
+   184/184、migration、E2EE marker 和 WebSocket integration。
+5. `make h5-app.check` 及附件上传定向测试 3/3 已通过；A2.3 最终提交前仍须按
+   第 5 节重跑完整验证。
+
+### 3.3 未开始
+
+| 单元 | 状态 | 依赖 |
+| --- | --- | --- |
+| A3 外围泄漏抽检与失败恢复 | 待开始 | A2.3 三个提交均已推送 |
+| A4 N7 证据与 U7 P0-1 重审 | 待开始 | A3 完成且无未解决 P0/P1 |
 
 ## 4. 剩余实施单元
 
-### A1：冻结 Android <-> iOS 直接互解
+### A2.3：跨端附件闭环
 
 **目标**
 
-将已经通过 live 的原生双端直接互解整理为一个最小、可解释、可推送闭环。
+证明 H5 上传的 E2EE 附件只以密文进入 S3 兼容存储，Android 经正式历史链下载并
+在内存解密，同时服务端能在不解析 MLS payload、不扩展 E2EE API 契约的前提下
+执行 room 级下载授权和对象回收保护。
 
-**实施范围**
+**执行顺序**
 
-1. H5 仅承担账号、好友、私聊和 coordination server 编排，不参与明文转换。
-2. iOS 使用正式安全状态存储、设备生命周期、API client 和 direct coordinator
-   注册设备并发布 ready。
-3. Android 创建 MLS group 并发送密文，iOS 通过正式历史入口解密。
-4. iOS 回发密文，Android 通过正式历史入口解密。
-5. Android 与 iOS 使用不同 account 和 device identity；原始历史不得包含双方
-   marker、RCST、DEK 或明文消息。
-
-**测试场景**
-
-1. Android -> iOS 解密成功，消息 ID 与 marker 只出现一次。
-2. iOS -> Android 解密成功，消息 ID 与 marker 只出现一次。
-3. 未设置 live 环境变量时 Android/iOS 测试编译通过并跳过。
-4. 受控 live 成功后 runtime 恢复 `persist/plaintext`。
-
-**验证**
-
-```bash
-make e2ee.cross-client.live
-JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home \
-  ./android-app/gradlew -p android-app testDebugUnitTest lintDebug
-(cd ios-app && swift test)
-make h5-app.check
-make h5-app.test.unit
-```
-
-只 stage 当前三个在途测试文件，提交建议：
-`test(e2ee): 补齐 Android iOS 直接互解`。提交后立即 push。
-
-### A2：补齐三端行为场景矩阵
-
-**目标**
-
-在最小两两互解基础上验证恢复、乱序和状态变化行为。每类行为先选择最能覆盖
-协议边界的一组正式客户端路径，不机械复制全部端组合；共享核心行为用现有
-unit/fixture 作其余组合证据。
-
-**实施范围与测试场景**
-
-| 场景 | 最小 live 证明 | 必须断言 |
-| --- | --- | --- |
-| 第二个新会话 | 已有 H5 连续会话，补原生一侧恢复 | 新 group/key package 独立，不串用 epoch |
-| 重启恢复 | Android 或 iOS 进程重启后继续收发 | 从安全存储恢复，禁止重新初始化为新 identity |
-| 离线补拉 | 接收端离线后由历史入口补齐 | 顺序正确、消息 ID 去重、无明文回退 |
-| 重复帧 | 同一 WS/历史密文重复进入 | 只渲染一次，不重复推进状态 |
-| 损坏密文 | 篡改 ciphertext 或 metadata | fail closed，不产生占位明文或状态污染 |
-| 设备撤销 | 第二设备批准、加入、撤销后 rekey | 被撤销设备不可读新 epoch |
-| 群成员变化 | add/remove member 与 Commit/Welcome | 新成员不可读加入前历史，移除成员不可读新 epoch |
-| 附件 | 跨端上传、下载和内存解密 | AAD 绑定 room/part/object key，错误绑定 fail closed |
-
-**主要文件**
-
-- `h5-app/test/e2ee-live-backend.test.ts`
-- `android-app/app/src/test/java/com/redcode/im/androidapp/live/AndroidE2eeCrossClientLiveTest.kt`
-- `ios-app/Tests/RedCodeFeaturesTests/IOSE2eeCrossClientLiveTests.swift`
-- 必要时扩展 `tests/scripts/run-e2ee-cross-client-live.sh`
-
-**提交边界**
-
-- A2.1：恢复类场景（新会话、重启、离线、重复帧、损坏密文）。
-- A2.2：成员状态类场景（设备撤销、群成员变化）。
-- A2.3：附件跨端场景。
-
-每个子单元先运行受控 live、对应平台测试和 diff 检查，再独立提交并 push。
-
-### A3：外围泄漏抽检与 runtime 失败恢复
-
-**目标**
-
-证明三端互解成功不以服务端、日志、Push 或对象存储泄漏明文和密钥材料为代价。
-
-**实施范围**
-
-1. 使用唯一 marker 执行文本和附件 live，记录账号、room、message、object key 与
-   runtime 前后状态，不记录 token 或密钥。
-2. 抽检 PostgreSQL 消息/控制消息、Redis cache/pubsub、API 日志、Push mock 和
-   S3 兼容对象存储。
-3. 文本 marker、附件明文、RCST、DEK、nonce、credential 私钥不得出现在非预期
-   服务端位置；对象存储只允许密文对象。
-4. 用故意失败场景验证外层驱动非零退出，并再次确认 runtime 恢复
+1. 重启 API dev 容器以应用新增 migration，确认 `/healthz` 正常且 runtime 为
    `persist/plaintext`。
+2. 运行 `make e2ee.cross-client.live`；要求全部场景通过，附件 plaintext marker
+   不出现在消息历史或对象密文中，错误 AAD fail closed，结束后 runtime 恢复。
+3. 运行 H5、Android 和 API 门禁以及 diff 检查。
+4. 按以下边界提交并在每个 commit 后立即 push：
+
+| 顺序 | 提交闭环 | 文件边界 | 建议提交说明 |
+| --- | --- | --- | --- |
+| 1 | API room 附件持久授权 | migration、API store/handler 及 API tests | `feat(api): 持久化 E2EE 附件下载授权` |
+| 2 | H5 密文大小修复 | upload service 及其 unit test | `fix(h5-app): 对齐 E2EE 附件密文大小` |
+| 3 | H5 -> Android 跨端附件 live | H5 live test、Android live test | `test(e2ee): 覆盖 H5 Android 跨端附件` |
+
+提交 1 与提交 2 都是提交 3 的前置依赖；不得为了制造独立提交而回退已验证行为。
+
+### A3：泄漏抽检与 runtime 恢复
+
+**目标**
+
+证明文本和附件互解不以 DB、Redis、日志、Push 或对象存储泄漏明文及密钥材料为
+代价，并证明成功、故意失败、INT、TERM 后 runtime 均恢复 `persist/plaintext`。
+
+**实施范围**
+
+1. 为文本和附件生成唯一 marker，记录 run ID、room、message、object key 和
+   runtime 前后状态；禁止记录 token、DEK、nonce 或私钥。
+2. 抽检 PostgreSQL 消息/控制消息、Redis cache/pubsub、API 日志、Push mock 和
+   S3 兼容对象；对象存储只允许 ciphertext。
+3. plaintext marker、附件明文、RCST、DEK、nonce 和 credential 私钥不得出现在
+   非预期服务端位置。
+4. 增加可重放的故意失败、INT、TERM 恢复验证；失败必须非零退出且不残留
+   `persist/e2ee`。
+5. 测试实现与验收证据分开提交并逐个 push。
 
 **主要文件**
 
 - `tests/scripts/run-e2ee-cross-client-live.sh`
 - `tests/scripts/scan-e2ee-log-denylist.sh`
-- `api/tests/e2ee_marker_scan_integration.rs`
+- `api/tests/e2ee_marker_scan.rs` 或现有等价 marker 测试
 - `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`
 
-**完成标准**
-
-成功与故意失败路径均可重放；所有抽检位置无非预期敏感材料；runtime 最终为
-`persist/plaintext`。测试代码与证据文档应拆分提交。
-
-### A4：汇总证据并重审 U7 P0-1
+### A4：证据汇总与 U7 P0-1 重审
 
 **目标**
 
-以 A1-A3 和既有门禁的真实结果替换过时验收结论，只裁决原生客户端 P0-1。
+以 A1-A3 和最终门禁的真实结果更新 N7，只裁决原生客户端 P0-1。
 
 **实施范围**
 
-1. 更新 `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`，记录
-   精确命令、场景、identity 边界、runtime 前后状态和 marker 抽检结果。
-2. 更新 `docs/reviews/2026-08-05-u10-e2ee-u7-security-review.md` 的 P0-1 证据，
-   不改写其他 P0 状态。
-3. 对最终 diff 分别执行 correctness、security、testing review；高严重度发现必须
-   修复并重跑相关门禁，不能只写入风险列表。
-4. 复跑全量门禁，确认工作区无未解释改动且所有提交已 push。
+1. 更新 N7 验收记录，写明命令、三端 identity、场景矩阵、runtime 前后状态、
+   marker 与 S3 抽检结果。
+2. 只更新 U7 安全审查中的 P0-1 证据，不改写其他 P0 状态。
+3. 对最终 diff 执行 correctness、security、testing review；所有 P0/P1 必须修复并
+   重跑相关门禁。
+4. 运行最终全量门禁，确认提交均已 push、工作区无未解释改动。
+5. 即使 P0-1 关闭，生产 E2EE 仍标记 **No-Go**，等待 U7 其余 P0 独立关闭。
 
-**最终验证**
+## 5. 验证矩阵
+
+### A2.3 提交前
+
+```bash
+docker compose -f api/docker/dev/docker-compose.yml restart api
+curl -fsS http://127.0.0.1:8010/healthz
+make e2ee.cross-client.live
+make api.test
+make h5-app.check
+make h5-app.test.unit
+JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Home \
+  ./android-app/gradlew -p android-app testDebugUnitTest lintDebug
+git diff --check
+```
+
+### A4 最终门禁
 
 ```bash
 make e2ee.cross-client.live
@@ -210,32 +178,29 @@ make e2ee-core.check.targets
 make test.all
 make test.live
 git diff --check
+git status --short
 ```
 
-只有 A1-A3 全部通过且审查无未解决 P0/P1 时，才可将 U7 P0-1 标记关闭。
-生产 E2EE 仍保持 **No-Go**，直到 U7 其余 P0 另行关闭。
+## 6. 执行约束
 
-## 5. 执行约束
-
-- 不修改已有 migration；新增持久化结构只能追加 migration。
+- 禁止修改已有 migration；新增持久化结构只能追加 migration。
 - 不扩展服务端 E2EE API 契约；发现缺口先回产品合同评估。
-- E2EE 错误、身份变化、状态损坏和未知 epoch 一律 fail closed，不回退 plaintext。
-- 双端往返必须使用不同 device identity；禁止用单设备自解密作为证据。
+- E2EE 错误、身份变化、状态损坏及未知 epoch 一律 fail closed，不回退 plaintext。
+- 双端往返必须使用不同 device identity；禁止单设备自解密。
 - Android 固定 JDK 21；JNA 空指针使用 `Pointer(0)`。
 - iOS GRDB async 上下文使用 `try await dbQueue.read/write`。
 - live 入口不得接入默认测试、commit hook、CI 或普通启动链。
-- 每个提交前运行 `git status --short`、`git diff --check`、
-  `git diff --cached --check` 并审查 staged diff；只 stage 当前闭环文件。
-- Conventional Commits 使用简体中文说明；每个闭环提交后立即 push。
+- 每个提交前检查 status、unstaged/staged diff 及 `git diff --check`；只 stage 当前
+  闭环文件，使用简体中文 Conventional Commits，commit 后立即 push。
 
-## 6. Definition of Done
+## 7. Definition of Done
 
-- D1. Android、iOS、H5 三端两两双向文本均经过正式客户端路径互解。
-- D2. 新会话、重启恢复、离线补拉、重复帧和损坏密文均有可重放证据。
-- D3. 第二设备撤销和群成员变化正确推进 epoch，失去权限的设备/成员不可读新内容。
-- D4. 跨端附件使用随机 DEK/nonce 和绑定 AAD，错误绑定与损坏密文 fail closed。
+- D1. Android、iOS、H5 三端两两双向文本均经正式客户端路径互解。
+- D2. 新会话、重启恢复、离线补拉、重复帧和损坏密文具有可重放证据。
+- D3. 设备撤销和群成员变化正确推进 epoch，失权设备/成员不可读新内容。
+- D4. 跨端附件使用随机 DEK/nonce 和绑定 AAD，错误绑定及损坏密文 fail closed。
 - D5. DB、Redis、log、Push 和 S3 抽检不存在非预期明文或密钥材料。
-- D6. live 成功、失败和信号中断后 runtime 均恢复 `persist/plaintext`。
-- D7. core、Android、iOS、H5、`make test.all` 和 `make test.live` 门禁全绿。
-- D8. N7 验收与 U7 P0-1 重审材料和真实结果一致，独立审查无未解决 P0/P1。
-- D9. 所有相关提交均已推送，工作区无未解释改动；生产状态仍为 **No-Go**。
+- D6. live 成功、失败、INT 和 TERM 后 runtime 均恢复 `persist/plaintext`。
+- D7. core、API、Android、iOS、H5、`make test.all` 和 `make test.live` 全绿。
+- D8. N7 与 U7 P0-1 证据同真实结果一致，独立审查无未解决 P0/P1。
+- D9. 所有提交均已推送，工作区无未解释改动；生产 E2EE 仍为 **No-Go**。
