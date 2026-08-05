@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
 status: active
-current_unit: C5-iOS
+current_unit: C7
 last_progress_update: 2026-08-05
 ---
 
@@ -16,12 +16,11 @@ last_progress_update: 2026-08-05
 ## 1. 计划定位
 
 本文是原生客户端 E2EE 剩余工作的**唯一执行入口和唯一进度快照**。从提交
-`d50a9f84` 继续，只处理尚未完成的 iOS C5、全仓门禁、三端 live 和重审，不重做
-N1-N6、C1-C4 或 Android C5。
+`17c235ec` 继续，只处理全仓门禁、三端 live 和重审，不重做 N1-N6 或 C1-C5。
 
 固定执行顺序：
 
-`C5-iOS -> C5-Gate -> C7 -> C6 -> C8`
+`C5-iOS（已完成） -> C5-Gate（已完成） -> C7 -> C6 -> C8`
 
 生产 E2EE 在 C8 完成后仍须服从 U7 其他 P0 裁决，当前始终保持 **No-Go**。
 
@@ -52,24 +51,26 @@ N1-N6、C1-C4 或 Android C5。
 | C5 API 批准设备 rekey | 已完成 | `b27a5cea`；API 184 项通过，新增批准幂等集成测试 |
 | C5 Android 群事件 | 已完成 | `27e62fdd`；群成员 mutation 与 `group_member_changed` 统一 reconcile |
 | C5 Android 设备入口 | 已完成 | `d50a9f84`；批准/撤销入口、当前设备阻断和其他设备撤销后 reconcile；248 项通过、4 项跳过，`lintDebug` 通过 |
+| C5 iOS 群事件 | 已完成 | `380ef019`；群成员 mutation、`group_member_changed`、活跃成员刷新及按房间 single-flight reconcile |
+| C5 iOS 设备入口 | 已完成 | `17c235ec`；设备列表、批准/撤销、严格指纹校验、当前设备阻断及逐房 reconcile |
+| C5 双端门禁 | 已完成 | Android JDK 21 全量通过；iOS 240 项通过、7 项 live 跳过及 Simulator build 通过；core host/四目标检查通过 |
 
 以上内容不得重做；执行中发现回归时按独立修复闭环处理。
 
 ### 3.2 当前恢复点
 
 - 当前分支：`main`，远端基线：`origin/main`。
-- 当前单元：**C5-iOS**。
-- iOS 已有 `E2eeDeviceManager`、`E2eeDeviceLifecycle`、
-  `E2eeDirectMessageCoordinator`，但尚未完整接入应用容器和产品入口。
-- `GroupManagementController` 的 create/add/remove 成功路径尚未触发 E2EE reconcile。
-- `ChatRealtimeController` 尚未消费 `group_member_changed`。
-- `AccountSecuritySettingsView` 尚无 E2EE 设备列表、批准和撤销入口。
+- 当前单元：**C7 全仓回归门禁**。
+- C5 已冻结；除非 C7 复现出明确回归，不再修改双端设备、群成员或 epoch 实现。
+- C7 第一条命令为 JDK 21 环境下的 `make test.all`，先以当前事实确认阻断，不根据
+  历史 N7 记录预判 Desktop、Admin 或 ChromeDriver 仍然失败。
+- 对实际复现的阻断按模块独立修复、验证、提交和 push；未复现的问题不做预防性修改。
 - 开始实现前必须重新运行 `git status --short`；若工作区出现非本任务改动，只协同
   处理相关文件，不纳入本专项提交。
 
 ## 4. 剩余实施单元
 
-### C5-iOS：设备、群成员与 epoch 事件闭环
+### C5-iOS：设备、群成员与 epoch 事件闭环（已完成）
 
 **目标**
 
@@ -117,7 +118,7 @@ N1-N6、C1-C4 或 Android C5。
 iOS 群成员和设备事件均进入正式应用路径，全部测试与 Simulator build 通过，相关
 提交已推送；随后更新本文 `current_unit` 为 `C5-Gate`。
 
-### C5-Gate：双端设备与群聊闭环门禁
+### C5-Gate：双端设备与群聊闭环门禁（已完成）
 
 **目标**
 
