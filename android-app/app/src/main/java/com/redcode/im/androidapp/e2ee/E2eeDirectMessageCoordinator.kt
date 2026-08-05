@@ -79,6 +79,10 @@ interface E2eeDirectDeviceLifecycle {
     suspend fun ensureReady(accountId: String, deviceLabel: String, token: String): E2eeDeviceProfile
 }
 
+fun interface E2eeGroupReconciling {
+    suspend fun reconcileGroup(accountId: String, roomId: String, token: String)
+}
+
 class E2eeCommandSessionCore(private val command: E2eeCommandClient = E2eeCommandClient()) : E2eeDirectSessionCore {
     override fun createGroup(state: ByteArray, roomId: String) = command.createGroup(state, roomId)
     override fun addMember(state: ByteArray, roomId: String, keyPackage: ByteArray) = command.addMember(state, roomId, keyPackage)
@@ -128,7 +132,7 @@ class E2eeDirectMessageCoordinator(
     private val api: E2eeMlsApi,
     private val core: E2eeDirectSessionCore = E2eeCommandSessionCore(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : E2eeIncomingDecryptor, E2eeTextSender, E2eeAttachmentCoordinator {
+) : E2eeIncomingDecryptor, E2eeTextSender, E2eeAttachmentCoordinator, E2eeGroupReconciling {
     private val mutex = Mutex()
 
     override suspend fun sendText(accountId: String, deviceLabel: String, roomId: String, peerUserId: String?, text: String, token: String): String = mutex.withLock {
@@ -330,7 +334,7 @@ class E2eeDirectMessageCoordinator(
         return state
     }
 
-    suspend fun reconcileGroup(accountId: String, roomId: String, token: String) = mutex.withLock {
+    override suspend fun reconcileGroup(accountId: String, roomId: String, token: String) = mutex.withLock {
         val profile = storage.readProfile(accountId) ?: throw E2eeDirectMessageException("E2EE 设备档案缺失")
         reconcileGroup(accountId, roomId, profile, token)
     }

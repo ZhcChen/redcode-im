@@ -16,6 +16,8 @@ import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.e2ee.E2eeMessageSource
 import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
+import com.redcode.im.androidapp.e2ee.E2eeRoomEventHandling
+import com.redcode.im.androidapp.e2ee.PlaintextE2eeRoomEventHandler
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import java.time.Instant
 import kotlinx.serialization.json.JsonElement
@@ -33,6 +35,8 @@ class RealtimeEventProcessor(
     private val contactsRepository: ContactsRepository,
     private val currentUserIdProvider: () -> String?,
     incomingResolver: IncomingChatMessageResolver? = null,
+    private val roomEvents: E2eeRoomEventHandling = PlaintextE2eeRoomEventHandler,
+    private val refreshRoomMembers: suspend (String) -> Unit = {},
 ) {
     private val incomingResolver = incomingResolver ?: PlaintextIncomingMessageResolver
     var lastError: String? = null
@@ -47,12 +51,19 @@ class RealtimeEventProcessor(
                 "pin_update" -> applyPinUpdate(event.payload)
                 "reaction_update" -> applyReactionUpdate(event.payload)
                 "room_created", "room_updated" -> chatCache.refreshChats()
+                "group_member_changed" -> applyGroupMemberChanged(event.payload)
                 "room_history_cleared", "group_dissolved" -> removeRoom(event.payload)
                 "friend_request_update" -> contactsRepository.refreshFriendRequests()
             }
         }.onFailure { error ->
             lastError = error.message ?: "WebSocket 事件处理失败"
         }
+    }
+
+    private suspend fun applyGroupMemberChanged(payload: JsonObject) {
+        val roomId = payload.string("room_id") ?: return
+        refreshRoomMembers(roomId)
+        roomEvents.reconcile(roomId)
     }
 
     private suspend fun applyMessage(payload: JsonObject) {

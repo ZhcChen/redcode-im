@@ -6,6 +6,7 @@ import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
 import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.E2eeRoomEventHandling
 import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -176,6 +177,27 @@ class RealtimeEventProcessorTest {
         }
 
     @Test
+    fun groupMemberChangedRefreshesMembersAndReconcilesE2ee() =
+        runTest {
+            val rooms = mutableListOf<String>()
+            val refreshed = mutableListOf<String>()
+            val processor = processor(
+                cache = FakeChatCache(),
+                roomEvents = E2eeRoomEventHandling { roomId -> rooms += roomId },
+                refreshRoomMembers = { roomId -> refreshed += roomId },
+            )
+
+            processor.handle(
+                event(
+                    """{"type":"group_member_changed","room_id":"room-1","member_id":"user-b","action":"removed"}""",
+                ),
+            )
+
+            assertEquals(listOf("room-1"), refreshed)
+            assertEquals(listOf("room-1"), rooms)
+        }
+
+    @Test
     fun repositoryFailures_areCapturedWithoutThrowing() =
         runTest {
             val processor = processor(FakeChatCache(shouldFail = true))
@@ -189,12 +211,16 @@ class RealtimeEventProcessorTest {
         cache: FakeChatCache,
         contacts: FakeContactsRepository = FakeContactsRepository(),
         incomingResolver: IncomingChatMessageResolver? = null,
+        roomEvents: E2eeRoomEventHandling? = null,
+        refreshRoomMembers: suspend (String) -> Unit = {},
     ): RealtimeEventProcessor =
         RealtimeEventProcessor(
             chatCache = cache,
             contactsRepository = contacts,
             currentUserIdProvider = { "user-me" },
             incomingResolver = incomingResolver,
+            roomEvents = roomEvents ?: E2eeRoomEventHandling {},
+            refreshRoomMembers = refreshRoomMembers,
         )
 
     private fun event(raw: String): WebSocketServerEvent {

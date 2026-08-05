@@ -26,6 +26,7 @@ import com.redcode.im.androidapp.data.preferences.InMemoryUserPreferenceStore
 import com.redcode.im.androidapp.data.preferences.UserPreferenceStore
 import com.redcode.im.androidapp.data.rooms.HttpRoomRemoteDataSource
 import com.redcode.im.androidapp.data.rooms.InMemoryRoomRepository
+import com.redcode.im.androidapp.data.rooms.E2eeAwareRoomRepository
 import com.redcode.im.androidapp.data.rooms.RemoteRoomRepository
 import com.redcode.im.androidapp.data.rooms.RoomRepository
 import com.redcode.im.androidapp.data.settings.InMemorySettingsRepository
@@ -41,6 +42,9 @@ import com.redcode.im.androidapp.e2ee.E2eeAttachmentMessageRouter
 import com.redcode.im.androidapp.e2ee.E2eeOutgoingTextRouter
 import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
 import com.redcode.im.androidapp.e2ee.E2eeSessionLifecycle
+import com.redcode.im.androidapp.e2ee.E2eeRoomEventCoordinator
+import com.redcode.im.androidapp.e2ee.E2eeRoomEventHandling
+import com.redcode.im.androidapp.e2ee.PlaintextE2eeRoomEventHandler
 import com.redcode.im.androidapp.e2ee.HttpE2eeMlsApi
 import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
@@ -102,21 +106,7 @@ class AppContainer(
         } else {
             InMemoryContactsRepository()
         },
-    val roomRepository: RoomRepository =
-        if (useRemoteRooms && localRoomRepository != null) {
-            CachedRemoteRoomRepository(
-                remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
-                session = authRepository.session,
-                localRepository = localRoomRepository,
-            )
-        } else if (useRemoteRooms) {
-            RemoteRoomRepository(
-                remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
-                session = authRepository.session,
-            )
-        } else {
-            InMemoryRoomRepository()
-        },
+    roomRepositoryOverride: RoomRepository? = null,
     val settingsRepository: SettingsRepository =
         if (useRemoteSettings) {
             RemoteSettingsRepository(APIClient(environment))
@@ -191,6 +181,36 @@ class AppContainer(
             )
         } ?: PlaintextAttachmentMessageRouter
 
+    private val e2eeRoomEvents: E2eeRoomEventHandling =
+        e2eeGraph?.let { graph ->
+            E2eeRoomEventCoordinator(
+                session = authRepository.session,
+                status = graph.sessionLifecycle.status,
+                coordinator = graph.coordinator,
+            )
+        } ?: PlaintextE2eeRoomEventHandler
+
+    private val baseRoomRepository: RoomRepository =
+        roomRepositoryOverride
+            ?: if (useRemoteRooms && localRoomRepository != null) {
+                CachedRemoteRoomRepository(
+                    remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
+                    session = authRepository.session,
+                    localRepository = localRoomRepository,
+                )
+            } else if (useRemoteRooms) {
+                RemoteRoomRepository(
+                    remoteDataSource = HttpRoomRemoteDataSource(APIClient(environment)),
+                    session = authRepository.session,
+                )
+            } else {
+                InMemoryRoomRepository()
+            }
+
+    val roomRepository: RoomRepository =
+        e2eeGraph?.let { E2eeAwareRoomRepository(baseRoomRepository, e2eeRoomEvents) }
+            ?: baseRoomRepository
+
     val chatRepository: ChatRepository =
         chatRepositoryOverride
             ?: if (useRemoteChat && localChatRepository != null) {
@@ -227,6 +247,8 @@ class AppContainer(
                 contactsRepository = contactsRepository,
                 currentUserIdProvider = { authRepository.session.value?.user?.id },
                 incomingResolver = incomingMessageResolver,
+                roomEvents = e2eeRoomEvents,
+                refreshRoomMembers = { roomId -> roomRepository.refreshMembers(roomId) },
             )
         } else {
             null
