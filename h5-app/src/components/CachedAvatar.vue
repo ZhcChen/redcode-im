@@ -18,9 +18,10 @@ const props = withDefaults(defineProps<{
 
 const entry = ref<CachedBlobEntry | null>(null);
 const failed = ref(false);
+const supportedSizes = new Set([34, 38, 42, 44, 46, 48, 72, 84, 92]);
 
 const initial = computed(() => (props.label || 'R').trim().slice(0, 1).toUpperCase() || 'R');
-const sizePx = computed(() => `${props.size}px`);
+const sizeClass = computed(() => `cached-avatar--${supportedSizes.has(props.size) ? props.size : 42}`);
 
 const load = async () => {
   avatarCacheService.revoke(entry.value);
@@ -50,7 +51,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <span class="cached-avatar" :style="{ width: sizePx, height: sizePx }" :title="label || undefined">
+  <span class="cached-avatar" :class="sizeClass" :title="label || undefined">
     <img v-if="entry && !failed" :src="entry.objectUrl" :alt="label || 'avatar'" @error="failed = true" />
     <span v-else>{{ initial }}</span>
   </span>
@@ -72,5 +73,50 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.cached-avatar--34 {
+  width: 34px;
+  height: 34px;
+}
+
+.cached-avatar--38 {
+  width: 38px;
+  height: 38px;
+}
+
+.cached-avatar--42 {
+  width: 42px;
+  height: 42px;
+}
+
+.cached-avatar--44 {
+  width: 44px;
+  height: 44px;
+}
+
+.cached-avatar--46 {
+  width: 46px;
+  height: 46px;
+}
+
+.cached-avatar--48 {
+  width: 48px;
+  height: 48px;
+}
+
+.cached-avatar--72 {
+  width: 72px;
+  height: 72px;
+}
+
+.cached-avatar--84 {
+  width: 84px;
+  height: 84px;
+}
+
+.cached-avatar--92 {
+  width: 92px;
+  height: 92px;
 }
 </style>

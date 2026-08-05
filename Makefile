@@ -131,7 +131,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate e2ee.cross-client.live e2ee.cross-client.recovery.test \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.release.build h5-app.release.check h5-app.release.test h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -719,6 +719,35 @@ e2ee.cross-client.recovery.test: ## 验证 E2EE live 失败及信号中断后的
 h5-app.build: ## 构建 h5-app 生产包
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) run build
+
+h5-app.release.build: ## 构建并校验可追溯的 h5-app production 候选包（需 HTTPS API/WSS URL）
+	@$(call require_cmd,$(BUN))
+	@test -n "$(H5_RELEASE_API_BASE_URL)" || { echo "H5_RELEASE_API_BASE_URL is required" >&2; exit 1; }
+	@test -n "$(H5_RELEASE_WS_URL)" || { echo "H5_RELEASE_WS_URL is required" >&2; exit 1; }
+	@if [ -n "$$(git status --short)" ]; then \
+		echo "h5-app release build requires a clean worktree" >&2; \
+		exit 1; \
+	fi
+	@rm -rf "$(H5_APP_DIR)/dist"
+	@cd "$(H5_APP_DIR)" && \
+		VITE_API_BASE_URL="$(H5_RELEASE_API_BASE_URL)" \
+		VITE_WS_URL="$(H5_RELEASE_WS_URL)" \
+		$(BUN) run build
+	@test -z "$$(git status --short)" || { echo "h5-app release build changed tracked source files" >&2; exit 1; }
+	@cd "$(H5_APP_DIR)" && \
+		H5_RELEASE_API_BASE_URL="$(H5_RELEASE_API_BASE_URL)" \
+		H5_RELEASE_WS_URL="$(H5_RELEASE_WS_URL)" \
+		$(BUN) run release:finalize
+	@$(MAKE) h5-app.release.check
+	@cd "$(H5_APP_DIR)" && $(BUN) run release:http-check
+
+h5-app.release.check: ## 校验 h5-app 候选包的 CSP、headers、source map 与来源绑定
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) run release:check
+
+h5-app.release.test: ## 执行 h5-app release 安全门禁正负测试
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && $(BUN) run release:test
 
 h5-app.check: ## 执行 h5-app 类型检查
 	@$(call require_cmd,$(BUN))

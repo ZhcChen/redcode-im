@@ -1,0 +1,11 @@
+{
+  "cache-control": "no-store",
+  "content-security-policy": "default-src 'none'; base-uri 'self'; connect-src {{CONNECT_SRC}}; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; worker-src 'self' blob:",
+  "cross-origin-opener-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+  "permissions-policy": "camera=(self), display-capture=(self), geolocation=(), microphone=(self)",
+  "referrer-policy": "no-referrer",
+  "strict-transport-security": "max-age=63072000; includeSubDomains",
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "DENY"
+}

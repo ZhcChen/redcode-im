@@ -243,6 +243,64 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
+  h5-app-build:
+    name: Build and attest H5 candidate
+    needs:
+      - validate-release-inputs
+      - supply-chain-check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      H5_RELEASE_API_BASE_URL: ${{ vars.H5_RELEASE_API_BASE_URL }}
+      H5_RELEASE_WS_URL: ${{ vars.H5_RELEASE_WS_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install pinned wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+
+      - name: Install H5 dependencies
+        working-directory: h5-app
+        run: bun install --frozen-lockfile
+
+      - name: Build and verify H5 candidate
+        run: |
+          set -euo pipefail
+          make h5-app.release.build \
+            H5_RELEASE_API_BASE_URL="$H5_RELEASE_API_BASE_URL" \
+            H5_RELEASE_WS_URL="$H5_RELEASE_WS_URL"
+
+      - name: Package H5 candidate
+        run: |
+          set -euo pipefail
+          OUT=".artifacts/h5-release"
+          ARCHIVE="$OUT/redcode-im-h5-${GITHUB_SHA}.tar.gz"
+          tar -C h5-app -czf "$ARCHIVE" dist
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          test -f "$OUT/${GITHUB_SHA}.json"
+
+      - name: Attest H5 candidate provenance
+        uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
+        with:
+          subject-path: .artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz
+
+      - name: Upload H5 candidate
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: h5-app-release
+          path: .artifacts/h5-release/*
+          if-no-files-found: error
+          include-hidden-files: true
+
   desktop-check:
     if: false # 暂时停用 desktop release 检查，仅保留定义便于后续恢复
     name: Desktop check
@@ -453,6 +511,7 @@ jobs:
       - supply-chain-check
       - android-app-check
       - api-build
+      - h5-app-build
       # - desktop-build
     runs-on: ubuntu-latest
     permissions:
@@ -476,6 +535,12 @@ jobs:
           path: .artifacts/downloaded
           merge-multiple: true
 
+      - name: Download H5 artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: h5-app-release
+          path: .artifacts/downloaded
+
       - name: Export release tag
         env:
           RESOLVED_RELEASE_TAG: ${{ needs.validate-release-inputs.outputs.release_tag }}
@@ -486,6 +551,17 @@ jobs:
             exit 1
           fi
           echo "RELEASE_TAG=$RESOLVED_RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Verify release tag source commit
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
+            TAG_COMMIT="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
+              echo "Release tag ${RELEASE_TAG} points to ${TAG_COMMIT}, expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+          fi
 
       - name: Flatten release assets
         run: |
@@ -532,6 +608,7 @@ jobs:
               ${PRERELEASE_FLAG}
           else
             gh release create "${RELEASE_TAG}" .artifacts/publish-assets/* \
+              --target "${GITHUB_SHA}" \
               --title "RedCode IM ${RELEASE_TAG}" \
               --notes-file .artifacts/release-notes.md \
               ${PRERELEASE_FLAG}

@@ -83,6 +83,27 @@ make h5-app.test.e2e
 - 搜索用户、发送好友申请、接受后联系人状态可见
 - 个人资料页用户头像上传
 
+## Production 候选构建
+
+候选构建要求工作区干净，并显式提供 HTTPS API 与 WSS WebSocket 地址：
+
+```bash
+make h5-app.release.build \
+  H5_RELEASE_API_BASE_URL=https://im.example.com \
+  H5_RELEASE_WS_URL=wss://im.example.com/ws
+```
+
+该入口会生成 `dist/release-manifest.json` 与 `dist/security-headers.json`，校验完整
+endpoint、source commit、`bun.lock`、全部资源 SHA-256、严格 CSP、公开 source map
+和真实候选 HTTP response headers。外置摘要保存在
+`.artifacts/h5-release/<commit>.json`，不进入 deployable `dist`。
+
+GitHub `Build Release Artifacts` workflow 还要求仓库变量
+`H5_RELEASE_API_BASE_URL` / `H5_RELEASE_WS_URL`，并使用 GitHub OIDC artifact
+attestation 对最终 H5 tarball 签发 provenance；`publish-release` 不接受未通过该 job
+的候选包。真实 CDN/Caddy/TLS 的响应头与浏览器 CSP 验收属于发布环境检查，不能由
+本地 hardened server 代替。
+
 ## 当前范围
 
 - 普通账号密码登录

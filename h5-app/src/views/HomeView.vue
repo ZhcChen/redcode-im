@@ -25,7 +25,11 @@ const chatStore = useChatStore();
 const contactsStore = useContactsStore();
 const settingsStore = useSettingsStore();
 const shellStore = useAppShellStore();
-const chatMenu = ref<{ roomId: string; x: number; y: number; confirmingDelete: boolean } | null>(null);
+const chatMenu = ref<{
+  roomId: string;
+  positionClasses: string[];
+  confirmingDelete: boolean;
+} | null>(null);
 let longPressTimer: number | null = null;
 let suppressNextChatClick = false;
 
@@ -86,13 +90,20 @@ const closeChatMenu = () => {
   chatMenu.value = null;
 };
 
+const menuPositionClasses = (clientX: number, clientY: number) => {
+  const xRatio = clientX / Math.max(window.innerWidth, 1);
+  const yRatio = clientY / Math.max(window.innerHeight, 1);
+  const x = xRatio < 0.2 ? 'start' : xRatio < 0.5 ? 'middle-start' : xRatio < 0.8 ? 'middle-end' : 'end';
+  const y = yRatio < 0.3 ? 'start' : yRatio < 0.7 ? 'middle' : 'end';
+  return [`chat-context-menu--x-${x}`, `chat-context-menu--y-${y}`];
+};
+
 const openChatMenu = (roomId: string, clientX: number, clientY: number) => {
   const chat = chatStore.chats.find((item) => item.roomId === roomId);
   if (!chat || chat.type === 'favorite') return;
   chatMenu.value = {
     roomId,
-    x: Math.min(Math.max(clientX, 12), window.innerWidth - 172),
-    y: Math.min(Math.max(clientY, 12), window.innerHeight - 150),
+    positionClasses: menuPositionClasses(clientX, clientY),
     confirmingDelete: false,
   };
 };
@@ -274,8 +285,8 @@ onBeforeUnmount(() => {
         <div
           v-if="chatMenu"
           class="chat-context-menu"
+          :class="chatMenu.positionClasses"
           role="menu"
-          :style="{ left: `${chatMenu.x}px`, top: `${chatMenu.y}px` }"
           @click.stop
         >
           <template v-if="!chatMenu.confirmingDelete">
@@ -628,6 +639,31 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--rc-surface);
   box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+}
+
+.chat-context-menu--x-start {
+  left: 12px;
+}
+.chat-context-menu--x-middle-start {
+  left: 33%;
+  margin-left: -80px;
+}
+.chat-context-menu--x-middle-end {
+  left: 67%;
+  margin-left: -80px;
+}
+.chat-context-menu--x-end {
+  right: 12px;
+}
+.chat-context-menu--y-start {
+  top: 12px;
+}
+.chat-context-menu--y-middle {
+  top: 50%;
+  margin-top: -50px;
+}
+.chat-context-menu--y-end {
+  bottom: 12px;
 }
 
 .chat-context-menu button {

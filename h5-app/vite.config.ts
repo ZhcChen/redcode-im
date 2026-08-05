@@ -5,6 +5,9 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [vue()],
+  build: {
+    sourcemap: false,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
