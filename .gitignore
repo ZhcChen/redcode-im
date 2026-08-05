@@ -45,3 +45,5 @@ NUL
 .cache/
 .playwright-mcp/
 .artifacts/
+# E2EE 部署演练的本地/远端临时归档与脱敏报告
+deploy/im-test-1/.e2ee-drill/

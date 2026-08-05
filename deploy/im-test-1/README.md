@@ -25,6 +25,8 @@
 - `load-api-image.sh`：从 GitHub Release 产物加载并重打 API Docker 镜像标签
 - `load-admin-image.sh`：加载并重打 Admin Docker 镜像标签
 - `load-rustfs-image.sh`：加载并重打 RustFS Docker 镜像标签
+- `e2ee-backup-rollout-drill.sh`：E2EE 备份恢复、独立实例校验与灰度回滚演练
+- `docker-compose.e2ee-drill.yml`：不接触主库的 E2EE 候选演练栈
 
 ## 前置条件
 
@@ -220,6 +222,64 @@ docker save rustfs/rustfs:1.0.0-beta.11 | gzip -c > rustfs-rustfs-1.0.0-beta.11.
    docker compose up -d --force-recreate api
    docker compose up -d --force-recreate admin
    ```
+
+## E2EE 备份恢复与灰度演练
+
+正式演练优先使用独立候选栈，而不是直接升级或清空现有测试主库。候选栈使用独立
+PostgreSQL/Redis volume 和本机 `127.0.0.1:18010` API 端口，只复用现有 RustFS
+容器网络：
+
+```bash
+E2EE_DRILL_API_IMAGE='redcode-im-api:<commit>' \
+  docker compose --env-file .env -f docker-compose.e2ee-drill.yml up -d --wait
+```
+
+运行驱动时指定候选服务名：
+
+```bash
+export E2EE_DRILL_COMPOSE_FILE="$PWD/docker-compose.e2ee-drill.yml"
+export E2EE_DRILL_POSTGRES_SERVICE=postgres-drill
+export E2EE_DRILL_API_SERVICE=api-drill
+export E2EE_DRILL_API_BASE_URL=http://127.0.0.1:18010
+```
+
+先执行只读 preflight；部署版本过旧、关键表缺失、runtime 非
+`persist/plaintext` 或数据引用异常时会 fail closed：
+
+```bash
+./e2ee-backup-rollout-drill.sh preflight
+```
+
+备份恢复会短暂停止 API 写入，将 custom-format dump 恢复到临时独立
+PostgreSQL 17 容器，比较源库/恢复库的计数、密文摘要、门禁和引用完整性，并验证
+损坏归档会被拒绝：
+
+```bash
+E2EE_DRILL_ALLOW_API_STOP=yes \
+  ./e2ee-backup-rollout-drill.sh backup-restore
+```
+
+完整演练还会通过 Admin API 执行 `prepare -> active`，在 active 状态重建 API
+容器，再执行 `rollback`。该模式必须同时提供临时 Admin token 和两项显式确认：
+
+```bash
+E2EE_DRILL_ALLOW_API_STOP=yes \
+E2EE_DRILL_ALLOW_ACTIVE=yes \
+E2EE_DRILL_ADMIN_TOKEN='<temporary-token>' \
+  ./e2ee-backup-rollout-drill.sh full
+```
+
+脚本默认删除数据库 dump 和临时恢复卷，只保留 `.e2ee-drill/<run-id>/report.json`；
+报告不包含 token、密码、私钥、DEK、nonce 或消息正文。只有在受控环境需要人工
+复核归档时才设置 `E2EE_DRILL_KEEP_ARTIFACTS=yes`。无论成功、失败或收到信号，
+脚本都会尝试恢复 runtime、门禁审批值、API 和临时容器。
+
+演练证据导出后销毁候选栈及其独立数据卷：
+
+```bash
+E2EE_DRILL_API_IMAGE='redcode-im-api:<commit>' \
+  docker compose --env-file .env -f docker-compose.e2ee-drill.yml down -v
+```
 
 ## 说明
 

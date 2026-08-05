@@ -1,0 +1,94 @@
+name: im-test-1-e2ee-drill
+
+services:
+  postgres-drill:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_drill_data:/var/lib/postgresql/data
+    networks:
+      - im-test-1-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis-drill:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --port
+      - "6379"
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --appendonly
+      - "no"
+      - --save
+      - ""
+    networks:
+      - im-test-1-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api-drill:
+    image: ${E2EE_DRILL_API_IMAGE:?请设置 E2EE_DRILL_API_IMAGE}
+    pull_policy: never
+    ports:
+      - "127.0.0.1:${E2EE_DRILL_API_PORT:-18010}:8010"
+    environment:
+      PORT: "8010"
+      TZ: ${TZ}
+      RUST_LOG: ${RUST_LOG}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-drill:5432/${POSTGRES_DB}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS}
+      DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS}
+      DATABASE_ACQUIRE_TIMEOUT_SECONDS: ${DATABASE_ACQUIRE_TIMEOUT_SECONDS}
+      REDIS_SESSION_URL: redis://:${REDIS_PASSWORD}@redis-drill:6379/0
+      REDIS_PUBSUB_URL: redis://:${REDIS_PASSWORD}@redis-drill:6379/0
+      REDIS_CACHE_URL: redis://:${REDIS_PASSWORD}@redis-drill:6379/0
+      REDCODE_IM_STORAGE_SCHEME: http
+      REDCODE_IM_B2_ENDPOINT: ${RUSTFS_INTERNAL_ENDPOINT:-rustfs:9000}
+      REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: https://${API_PUBLIC_HOST}
+      REDCODE_IM_B2_REGION: ${RUSTFS_REGION}
+      REDCODE_IM_B2_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      REDCODE_IM_B2_APPLICATION_KEY: ${RUSTFS_SECRET_KEY}
+      REDCODE_IM_B2_PRIVATE_BUCKET: ${RUSTFS_PRIVATE_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BUCKET: ${RUSTFS_PUBLIC_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BASE_URL: https://${API_PUBLIC_HOST}/${RUSTFS_PUBLIC_BUCKET}
+      JWT_SECRET: ${JWT_SECRET}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE}
+      METRICS_ENABLED: ${METRICS_ENABLED}
+      METRICS_CHANNEL_CAPACITY: ${METRICS_CHANNEL_CAPACITY}
+      METRICS_FLUSH_BATCH_SIZE: ${METRICS_FLUSH_BATCH_SIZE}
+      METRICS_FLUSH_INTERVAL_SECONDS: ${METRICS_FLUSH_INTERVAL_SECONDS}
+      METRICS_SAMPLE_RATE: ${METRICS_SAMPLE_RATE}
+    depends_on:
+      postgres-drill:
+        condition: service_healthy
+      redis-drill:
+        condition: service_healthy
+    networks:
+      - im-test-1-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres_drill_data:
+
+networks:
+  im-test-1-network:
+    external: true
+    name: im-test-1-network
