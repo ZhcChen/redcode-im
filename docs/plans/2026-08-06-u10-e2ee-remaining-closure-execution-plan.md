@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E1
-current_checkpoint: E1.3
+current_unit: E2
+current_checkpoint: E2.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E1.3`，完成第二轮 E2 独立复核 finding 整改、本地门禁、真实 full-suite 重放、证据更新、commit 和 push；在此之前不得重新进入 E2。
+- **唯一恢复点：** `E2.1`，基于已推送 E1.3 HEAD `d385c88b` 启动四个全新独立上下文执行 correctness、security、reliability、testing 复核；E1.3 预审上下文不得复用。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -77,7 +77,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E2 首轮四视角复核 | failed | P0=0；存在去重后 9 项 P1/P2 finding，已退回 E1.2 |
 | E1.2 finding 整改与重放 | complete | `cab9cbd6`；run `e1fix20260806b` |
 | E2 第二轮四视角复核 | failed | `6d3afaac` HEAD；P0=0，去重后 5 项 P1，已退回 E1.3 |
-| E1.3 第二轮 finding 整改 | in_progress | 9 个脚本/测试文件在制，尚未完成本地门禁、真实重放、review、commit 或 push |
+| E1.3 第二轮 finding 整改 | complete | `d385c88b`；最终 run `e1fix20260806g`；预审 P0/P1/P2=0 |
 
 ### Execution Console
 
@@ -88,8 +88,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | --- | --- | --- |
 | E1.1 首轮 restore 数据边界 | review-reopened | 实现和 live run 已推送，但 E2 finding 未清零，不能视为 closed |
 | E1.2 复核 finding 整改 | complete | `cab9cbd6`；本地门禁与 run `e1fix20260806b` 通过，已 push |
-| E1.3 第二轮 finding 整改 | in_progress | 完成防拼接、附件归属、Push、MONITOR 与网络级 source isolation 后重跑 E1 全部门禁 |
-| E2 Restore 独立复核 | blocked-by-E1.3 | E1.3 新 HEAD 已验证并 push 后，使用 4 个全新独立上下文复核，要求 P0=0、P1=0 |
+| E1.3 第二轮 finding 整改 | complete | `d385c88b` 已验证并 push；run `e1fix20260806g` 与环境终验通过 |
+| E2 Restore 独立复核 | in_progress | 使用 4 个全新独立上下文复核 `d385c88b` 后同一文档 HEAD，要求 P0=0、P1=0 |
 | E3 H5 production Chrome 审计 | pending | E2 通过后开始 |
 | E4 持久脱敏证据 | pending | E3 通过后开始 |
 | E5 真实 release workflow | pending | E4 通过后开始 |
@@ -167,11 +167,10 @@ false。该 run 是 E1.2 的有效历史基线，但第二轮 E2 已再次发现
 另有 1 项 P2 留待 E1.3 评估：candidate 恢复前消息是否需要纳入独立 Redis/API log
 观测窗口。若不纳入，必须在 review 中说明其证据归属和不削弱 R2 的理由。
 
-E1.3 当前在制实现采用以下方向，但在门禁与真实重放完成前均记为
-`implemented-unverified`：
+E1.3 已按以下方向完成实现、验证、预审、commit 和 push：
 
 - 逐消息 proof 增加 ciphertext SHA-256 与 run-scoped HMAC，scanner 使用同 run 的 `0600` key 文件验签，并和 PostgreSQL 原始密文摘要精确比对。
-- 附件通过 `messages`、`message_parts`、`message_attachment_commits` 联表验证 room、message 与 object key 的完整归属。
+- 附件由可信 H5 `sendAttachment` runtime 产生 message/object/ciphertext tuple，临时 HMAC 防止合并与传输阶段替换；scanner 分别验证 DB message/ciphertext/room 和 commit/object/room。`SendEncryptedMessagePayload` 只持久化占位 text part，object key 位于 MLS 密文内，不虚构 `message_parts` 关联或扩展服务端契约。
 - Push 改为逐行校验固定 `content` / `preview` 占位；Redis scan 前强制检查 MONITOR 进程存活。
 - source API 不再接入 `im-test-1-network`；每个 run 使用 internal storage network、internal restore network 和独立 ingress bridge。旧主 RustFS 仅临时加入 storage network，cleanup 按 ownership label 回收两个 run-scoped network。
 
@@ -182,6 +181,20 @@ E1.3 固定执行切片：
 3. **E1.3c 真实重放：** 使用固定镜像 `redcode-im-api:g1-74d1231e`、新 run id 与 JDK21 执行 full-suite；不得复用 `e1fix20260806b` 作为新实现证据。
 4. **E1.3d 环境终验：** API network 不含 `im-test-1-network`；storage/ingress/restore network、HMAC key、container、volume、MONITOR、tunnel 和 `18010` 全部清零；旧主仍为 `persist/plaintext`、审批 false。
 5. **E1.3e 文档与交付：** 更新 restore review、本文和任务总账，执行 diff 门禁，形成最小 commit 并 push；只有 `HEAD == origin/main` 后才允许启动全新 E2 reviewer。
+
+E1.3 最终证据：
+
+- 实现提交 `d385c88b` 已推送；两位独立预审复核为 `P0=0、P1=0、P2=0`，但不计入 E2。
+- 本地 restore 六项目标、H5 type-check、Bash syntax 与 diff check 通过；control 9 个网络/cleanup 场景、boundary 22 个 proof/Push/MONITOR 场景通过。
+- 最终真实 run `e1fix20260806g`：candidate/restore digest 均为 `2c34ac950bee5a780988321a518d589d`，full suite `6 passed | 1 skipped`，post-live digest `7ddaf28817c8a97e7648a08e8a4d6e26`。
+- DB/Redis/API log/RustFS 均通过；Push 为 `not-observed-live`；RustFS SHA-256 为 `98a5247b56dcf90bcc8acbb9f491f82a2974aa570e8d0e305813d37c1846d206`。
+- run-scoped container、volume、network、state、HMAC key、MONITOR、tunnel 与 `18010` 全部清零；旧主保持 `persist/plaintext` 且未升级、停止或写入。
+
+第二轮 P2 的处置边界：candidate 恢复前消息以持久密文进入同 run candidate
+snapshot，并在 restore snapshot、恢复后 history 解密和 restore DB marker 扫描中再次
+验证。Redis MONITOR 与 API log 窗口从 restore API 启动后覆盖恢复连续性后半段和
+full suite，不声称倒推覆盖已停止 candidate 的瞬时流量。R2 的同 run 持久边界与
+restore 运行边界均有直接证据，因此不扩展为第二套 candidate MONITOR。
 
 ### Key Technical Decisions
 
@@ -322,17 +335,17 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E1 |
-| Active checkpoint | E1.3 第二轮复核 finding 整改 |
-| Worktree | 9 个 E1.3 脚本/测试文件在制；尚未通过最新本地门禁、真实重放、commit 或 push |
-| Latest full run | `e1fix20260806b` |
+| Active unit | E2 |
+| Active checkpoint | E2.1 四个全新独立上下文复核 |
+| Worktree | E1.3 实现已在 `d385c88b` 推送；仅待本轮证据文档提交 |
+| Latest full run | `e1fix20260806g` |
 | Functional result | `6 passed | 1 skipped` |
-| Snapshot result | candidate/restore 完整行 digest `e9c04e4739ec8d9a961e998b6d2470ad` 一致 |
-| Boundary result | E1.2 历史结果通过，但第二轮 E2 发现 5 项 P1，不能作为当前 E1 关闭证据 |
-| Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
+| Snapshot result | candidate/restore 完整行 digest `2c34ac950bee5a780988321a518d589d` 一致 |
+| Boundary result | DB/Redis/log/RustFS 通过；Push `not-observed-live`；proof/Push/MONITOR 22 个合同场景通过 |
+| Cleanup result | candidate、restore、container、volume、network、state、HMAC key、MONITOR、tunnel、18010 已清零 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 先同步双网络测试 fixture，完成 E1.3 本地门禁和新 full-suite run；验证并 push 后再启动 4 个全新 reviewer |
+| Next action | 基于同一已推送 HEAD 启动 correctness/security/reliability/testing 四个全新 reviewer；任一 P0/P1 回退最早受影响单元 |
 
 ### Historical Mapping
 

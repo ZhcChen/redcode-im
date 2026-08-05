@@ -12,8 +12,8 @@ production_verdict: no-go
 ## 结论
 
 本文首轮 G1 结论曾判定通过并关闭 U7 P0-2；2026-08-06 的 G4.1 独立复审重新
-打开恢复实例真实性和证据完整性。E1（原 U4.3）经 E2 首轮复核退回后已完成
-第二轮整改与真实重放，但
+打开恢复实例真实性和证据完整性。E1（原 U4.3）经两轮 E2 复核退回后已完成
+E1.3 整改、真实重放、预审、提交与推送，但
 U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
 
 所有演练均在 `im-test-1` 的独立候选 PostgreSQL/Redis/API 栈执行，只复用 RustFS
@@ -21,26 +21,26 @@ U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
 
 ## G4 整改 E1 验收（2026-08-06）
 
-E1.2 最终成功 run `e1fix20260806b` 使用候选镜像
+E1.3 最终成功 run `e1fix20260806g` 使用候选镜像
 `redcode-im-api:g1-74d1231e`。candidate 新数据集经 custom-format backup 恢复到
 独立 PostgreSQL 17/Redis/API 后，在同一 `127.0.0.1:18010` 窗口完成恢复与三端
 full suite。
 
 | 检查 | 结果 |
 | --- | --- |
-| candidate/restore 关键表 snapshot | 完整行计数与 digest `e9c04e4739ec8d9a961e998b6d2470ad` 完全一致 |
+| candidate/restore 关键表 snapshot | 完整行计数与 digest `2c34ac950bee5a780988321a518d589d` 完全一致 |
 | H5 同一协议状态跨恢复 | 历史密文可解密，恢复后新密文可发送并解密 |
 | Android/iOS/H5 full suite | `6 passed | 1 skipped` |
 | evidence | 恢复连续性 + 三端共 4 个房间、9 条加密消息、1 个加密附件；逐条绑定 room/message/marker/object |
 | post-live snapshot | identities=18、devices=19、KeyPackages=379、epochs=12、messages=21、attachment commits=1 |
-| DB | message-room、attachment object-message-room 归属一致；`content`、原始 `encrypted_content`、metadata、原始 control envelope 与 Push payload 全局 marker 为零 |
-| Redis | 每个 evidence room 均有精确 `PUBLISH room:<uuid>`；SUBSCRIBE/payload 不计入；MONITOR 与持久键无 plaintext marker |
+| DB | message-room-ciphertext 与 attachment commit/object-room 归属一致；可信 H5 runtime 的临时 HMAC 绑定 message/object/ciphertext；所有持久面 marker 为零 |
+| Redis | 每个 evidence room 均有精确 `PUBLISH room:<uuid>`；SUBSCRIBE/payload 不计入；启动与末端 probe 均被捕获，MONITOR 与持久键无 plaintext marker |
 | API log | plaintext/sensitive marker 为零 |
 | Push | 本轮无 push queue 记录，明确记为 `not-observed-live`，未冒充占位验证 |
-| RustFS | object 为 ciphertext-only，SHA-256 `6d0438c280a6a411c60c92482d842a4d5c90d733595a6e320fa2e3258f7d0621` |
-| source isolation | 完整 restore live 窗口内 36 次采样，source PostgreSQL/Redis 连接始终为 0 |
-| 退出清理 | candidate/restore container、volume、owner、artifact、MONITOR、tunnel、18010 全部清零 |
-| 旧主终态 | `persist/plaintext`，审批 false，旧主数据库未触碰 |
+| RustFS | object 为 ciphertext-only，SHA-256 `98a5247b56dcf90bcc8acbb9f491f82a2974aa570e8d0e305813d37c1846d206` |
+| source isolation | restore API 精确接入 restore-internal、run-scoped internal storage 与独立 ingress；不接入 `im-test-1-network`；owner/Internal/成员均运行时校验 |
+| 退出清理 | candidate/restore container、volume、network、state、HMAC key、MONITOR、tunnel、18010 全部清零 |
+| 旧主终态 | `persist/plaintext`；旧主未升级、停止或写入，因保持旧 schema 不存在候选审批表，无法进入 active |
 
 Redis MONITOR 初次整改暴露了二进制采集缺陷：停止宿主 `docker exec` 会破坏重定向
 日志，且含 protobuf/NUL 的输出不能安全装入 Bash 变量。最终实现先复制 run-scoped
@@ -54,11 +54,33 @@ isolation watcher，并补齐归属错配、重复 proof、非法 run id/Push �
 负例。首次真实重放 `e1fix20260806a` 在 SQL expression 引号缺失处 fail closed，
 cleanup 与旧主终验通过；修正后使用全新 run id 完成 `e1fix20260806b`。
 
+E2 第二轮复核又发现附件 proof 可拼接、marker 可替换、离散 source 采样、Push
+混合行和 MONITOR 旧日志问题。E1.3 提交 `d385c88b` 改为：
+
+- 每 run 随机 HMAC key 绑定 message id、marker、ciphertext SHA-256、kind 与 object key；key 仅以 `0600` 临时文件在 H5/scanner 间传递并在 cleanup 删除。
+- restore API 不再连接旧主网络；storage network 为 run-scoped internal 且仅含 API/RustFS，ingress 仅含 API，owner/Internal/成员集合均 fail closed 校验。
+- Push 使用 `COALESCE` 逐行验证占位，缺字段、JSON null 与混合正文均拒绝。
+- Redis MONITOR 在扫描前检查 PID，并发送/捕获末端 probe 后才复制不可变快照。
+
+真实 run `e1fix20260806e` 因错误假设 E2EE 消息会把 object key 写入
+`message_parts` 而 fail closed；协议核对确认 `/messages/encrypted` 使用
+`deny_unknown_fields` 且只持久化占位 text part，object key 位于 MLS 密文内。
+修正为可信 H5 runtime tuple + HMAC 与两个服务端可见归属面的组合证明后，run
+`e1fix20260806f` 通过。补齐 Push null、末端 MONITOR probe 和网络属性/成员校验后，
+使用全新 run `e1fix20260806g` 完成当前提交的最终重放。
+
+第二轮复核的 P2（candidate 恢复前消息未处于 restore MONITOR/API log 窗口）按
+证据边界关闭：该消息以密文进入 candidate snapshot，并在 restore snapshot、恢复后
+history 解密和 restore DB marker 扫描中复验；restore MONITOR/API log 从 restore API
+启动后覆盖恢复连续性后半段及 full suite。本文不把 restore 窗口表述为对已停止
+candidate 瞬时流量的追溯，也不为此扩展第二套运行合同。
+
 定向验证：
 
 - `make e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-boundary.test e2ee.restore-live.test e2ee.cross-client.isolated.test`：通过。
 - `cd h5-app && bun run type-check`：通过。
-- `git diff --check`：通过。
+- `bash -n`、`git diff --check`：通过。
+- E1.3 control 9 个网络/cleanup 场景、boundary 22 个 proof/归属/Push/MONITOR 场景：通过。
 - `shellcheck`：本机未安装，本轮未执行。
 
 ## 候选构建
@@ -151,5 +173,5 @@ run `g1c-9ee1285f`：H5 驱动的 Android × iOS × H5 完整 live 6/6 通过，
 
 ## 后续门禁
 
-进入 E2 restore 整改四视角独立复核。E2-E7 完成并给出最终裁决前，不得在生产
+进入 E2 restore 整改四视角全新独立复核。E2-E7 完成并给出最终裁决前，不得在生产
 启用 E2EE。
