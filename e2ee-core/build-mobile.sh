@@ -46,8 +46,15 @@ build_ios() {
   cargo build --manifest-path "$CORE/Cargo.toml" --release --target aarch64-apple-ios
   cargo build --manifest-path "$CORE/Cargo.toml" --release --target aarch64-apple-ios-sim
   cargo build --manifest-path "$CORE/Cargo.toml" --release --target x86_64-apple-ios
+  local simulator="$CORE/target/ios-simulator-universal/release"
+  mkdir -p "$simulator"
+  lipo -create \
+    "$CORE/target/aarch64-apple-ios-sim/release/libredcode_e2ee_core.a" \
+    "$CORE/target/x86_64-apple-ios/release/libredcode_e2ee_core.a" \
+    -output "$simulator/libredcode_e2ee_core.a"
   echo "iOS 产物:"
   ls -lh "$CORE"/target/{aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios}/release/libredcode_e2ee_core.a
+  lipo -info "$simulator/libredcode_e2ee_core.a"
 }
 
 case "$target" in
