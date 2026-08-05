@@ -21,6 +21,7 @@
     "block_cvss_at_or_above": 4.0,
     "block_unknown_severity": true
   },
+  "exceptions": { "max_validity_days": 90 },
   "licenses": { "allow": ["MIT"] },
   "swift_license_evidence": []
 }

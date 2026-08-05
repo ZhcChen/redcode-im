@@ -55,12 +55,20 @@ run_evaluator_case() {
   if [[ "$sbom_name" != "missing" ]]; then
     cp "$fixture_dir/$sbom_name" "$case_dir/sbom/fixture-app.cdx.json"
   fi
+  local exception_path="$exception_name"
+  if [[ "$exception_path" != /* ]]; then
+    exception_path="$fixture_dir/$exception_path"
+  fi
+  local policy_path="$policy_name"
+  if [[ "$policy_path" != /* ]]; then
+    policy_path="$fixture_dir/$policy_path"
+  fi
   set +e
   (
     cd "$root_dir"
     "$real_bun" "$evaluator" \
-      "$fixture_dir/$policy_name" \
-      "$fixture_dir/$exception_name" \
+      "$policy_path" \
+      "$exception_path" \
       "$case_dir/reports" \
       "$case_dir/sbom" \
       "$root_dir" \
@@ -74,6 +82,14 @@ run_evaluator_case() {
     jq -e '.verdict == "pass" and (.blocking_findings | length == 0)' \
       "$case_dir/summary.json" >/dev/null
   fi
+}
+
+make_exception_fixture() {
+  local output_path="$1"
+  local expires_at="$2"
+  jq --arg expires_at "$expires_at" \
+    '.exceptions[0].expires_at = $expires_at' \
+    "$fixture_dir/exceptions-expired.json" >"$output_path"
 }
 
 cat >"$tmp_dir/bin/docker" <<'SH'
@@ -190,9 +206,54 @@ run_evaluator_case "known high/critical vulnerability" report-high.json exceptio
 run_evaluator_case "unknown severity vulnerability" report-unknown-severity.json exceptions-empty.json fail "blocked by 1 finding"
 run_evaluator_case "reject license" report-reject-license.json exceptions-empty.json fail "blocked by 1 finding"
 run_evaluator_case "expired exception" report-high.json exceptions-expired.json fail "expired or has an invalid"
+invalid_month="$tmp_dir/exceptions-invalid-month.json"
+invalid_day="$tmp_dir/exceptions-invalid-day.json"
+far_future="$tmp_dir/exceptions-far-future.json"
+valid_tomorrow="$tmp_dir/exceptions-valid-tomorrow.json"
+make_exception_fixture "$invalid_month" "2027-13-01"
+make_exception_fixture "$invalid_day" "2027-02-31"
+make_exception_fixture "$far_future" "9999-12-31"
+tomorrow="$($real_bun -e 'console.log(new Date(Date.now() + 86400000).toISOString().slice(0, 10))')"
+make_exception_fixture "$valid_tomorrow" "$tomorrow"
+run_evaluator_case "invalid exception month" report-high.json "$invalid_month" fail "invalid expires_at"
+run_evaluator_case "invalid exception calendar day" report-high.json "$invalid_day" fail "invalid expires_at"
+run_evaluator_case "exception exceeds policy duration" report-high.json "$far_future" fail "exceeds the policy maximum"
+run_evaluator_case "valid near-term exception" report-high.json "$valid_tomorrow" pass
+"$real_bun" -e '
+  import { validateExceptionExpiry } from "./scripts/supply-chain/expiry.ts";
+  validateExceptionExpiry("2028-02-29", "2028-02-01", 90);
+  validateExceptionExpiry("2028-05-01", "2028-02-01", 90);
+  for (const value of ["2027-02-29", "2028-02-30", "2028-13-01", "2028-2-01", "2028-05-02"]) {
+    try {
+      validateExceptionExpiry(value, "2028-02-01", 90);
+      throw new Error(`${value} should fail`);
+    } catch (error) {
+      if (String(error).includes("should fail")) throw error;
+    }
+  }
+'
+case_count=$((case_count + 1))
+echo "[supply-chain-test] strict UTC calendar and leap day: pass"
 run_evaluator_case "missing exception owner" report-high.json exceptions-missing-owner.json fail "missing or unknown fields"
 run_evaluator_case "wildcard exception" report-high.json exceptions-wildcard.json fail "must be exact"
-run_evaluator_case "unused exception" report-pass.json exceptions-unused.json fail "unused exceptions are forbidden"
+valid_unused="$tmp_dir/exceptions-unused-valid-date.json"
+jq --arg expires_at "$tomorrow" '.exceptions[0].expires_at = $expires_at' \
+  "$fixture_dir/exceptions-unused.json" >"$valid_unused"
+run_evaluator_case "unused exception" report-pass.json "$valid_unused" fail "unused exceptions are forbidden"
+policy_without_expiry="$tmp_dir/policy-without-expiry.json"
+jq 'del(.exceptions)' "$fixture_dir/policy.json" >"$policy_without_expiry"
+run_evaluator_case "missing exception validity policy" report-pass.json exceptions-empty.json fail \
+  "max_validity_days must be a safe integer between 1 and 90" sbom-pass.json "$policy_without_expiry"
+for invalid_max in 91 90.5 9007199254740992; do
+  invalid_policy="$tmp_dir/policy-invalid-max-${invalid_max}.json"
+  jq --argjson invalid_max "$invalid_max" \
+    '.exceptions.max_validity_days = $invalid_max' \
+    "$fixture_dir/policy.json" >"$invalid_policy"
+  run_evaluator_case "invalid exception policy maximum $invalid_max" \
+    report-pass.json exceptions-empty.json fail \
+    "max_validity_days must be a safe integer between 1 and 90" \
+    sbom-pass.json "$invalid_policy"
+done
 run_evaluator_case "truncated report JSON" report-truncated.json exceptions-empty.json fail "JSON Parse error"
 run_evaluator_case "missing module report" missing exceptions-empty.json fail "ENOENT"
 run_evaluator_case "partial report mismatches SBOM" report-pass.json exceptions-empty.json fail "identities do not match" sbom-partial-mismatch.json

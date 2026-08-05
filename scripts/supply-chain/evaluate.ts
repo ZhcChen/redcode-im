@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import {
+  validateExceptionExpiry,
+  validateMaxValidityDays,
+} from "./expiry";
 
 type Exception = {
   type: "vulnerability" | "license";
@@ -44,6 +48,8 @@ if (policy.schema_version !== 1 || exceptionDocument.schema_version !== 1) {
 }
 const exceptions = exceptionDocument.exceptions as Exception[];
 if (!Array.isArray(exceptions)) throw new Error("exceptions must be an array");
+const maxExceptionValidityDays = policy.exceptions?.max_validity_days;
+validateMaxValidityDays(maxExceptionValidityDays);
 
 const today = new Date().toISOString().slice(0, 10);
 const exactToken = /^[^*?\s][^*?]*$/;
@@ -67,10 +73,11 @@ for (const [index, item] of exceptions.entries()) {
     if (!exactToken.test(item[field]))
       throw new Error(`exception ${index} field ${field} must be exact`);
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(item.expires_at) || item.expires_at < today) {
-    throw new Error(
-      `exception ${index} is expired or has an invalid expires_at`
-    );
+  try {
+    validateExceptionExpiry(item.expires_at, today, maxExceptionValidityDays);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`exception ${index} ${message}`);
   }
 }
 
