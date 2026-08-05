@@ -116,6 +116,12 @@ public final class RedCodeDatabase: @unchecked Sendable {
                 table.column("valueJSON", .text).notNull()
                 table.column("updatedAt", .datetime).notNull()
             }
+            try db.create(table: E2eeEncryptedStateRecord.databaseTableName) { table in
+                table.column("accountID", .text).primaryKey()
+                table.column("version", .integer).notNull()
+                table.column("nonce", .blob).notNull()
+                table.column("ciphertext", .blob).notNull()
+            }
         }
         return migrator
     }

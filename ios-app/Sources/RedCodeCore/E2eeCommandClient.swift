@@ -41,10 +41,12 @@ struct E2eeCommandResult {
 }
 
 /// e2ee-core C ABI 的 Swift 封装：RCCQ/RCCR 命令编解码 + 状态工具。
-struct E2eeCommandClient {
-    static let protocolVersion = rc_e2ee_protocol_version()
+public struct E2eeCommandClient {
+    public static let protocolVersion = rc_e2ee_protocol_version()
 
-    func newProtocolState() throws -> Data {
+    public init() {}
+
+    public func newProtocolState() throws -> Data {
         let capacity = Int(rc_e2ee_state_new(nil, 0))
         var state = Data(count: capacity)
         let written = state.withUnsafeMutableBytes { buffer in
@@ -56,7 +58,7 @@ struct E2eeCommandClient {
         return state
     }
 
-    func validateProtocolState(_ state: Data) -> Bool {
+    public func validateProtocolState(_ state: Data) -> Bool {
         state.withUnsafeBytes { buffer in
             rc_e2ee_state_validate(buffer.bindMemory(to: UInt8.self).baseAddress, state.count) == 1
         }
