@@ -6,12 +6,16 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md
 execution: code
-status: active
-current_unit: C5
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md
 last_progress_update: 2026-08-05
 ---
 
 # feat: U10 E2EE 原生客户端主链与验收收口计划
+
+> 本计划已由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-final-closure-plan.md`
+> 替代。本文仅保留 C1-C4 的历史设计和实施依据，不再作为任务恢复或进度更新入口。
 
 ## Current Progress
 
