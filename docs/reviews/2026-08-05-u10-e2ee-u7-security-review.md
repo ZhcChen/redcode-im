@@ -10,10 +10,9 @@ verdict: no-go
 
 ## 结论
 
-**裁决：No-Go。** 原生双端聊天主链接入与 Android/iOS/H5 三端 E2EE live、
-隔离候选备份恢复与灰度回滚、六端供应链门禁均已闭环，P0-1/P0-2/P0-3 关闭；
-H5 发布前安全检查尚未形成正式报告。测试环境保持
-`persist/plaintext`，仅允许 `prepare` 预检。
+**裁决：No-Go。** P0-1 原生双端与三端 live、P0-2 备份灰度回滚、P0-3 六端
+供应链门禁和 P0-4 H5 真实发布安全均已关闭。当前等待 G4 独立总复审、干净基线
+全量/live 重放和最终裁决；测试环境保持 `persist/plaintext`。
 
 ## 威胁模型
 
@@ -45,6 +44,7 @@ H5 发布前安全检查尚未形成正式报告。测试环境保持
 | U7-C SBOM/许可证/漏洞 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md` | 完成并独立复审 |
 | U7-D 备份恢复/灰度回滚 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` | 完成并演练 |
 | U7-E 夹具清理核对 | `admin.rs cleanup_all_app_data` + `tests/scripts/cleanup-e2ee-live-fixtures.sh` | 完成（修复缺口） |
+| U7-F H5 发布安全 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md` | 完成并独立复审 |
 
 ## U7-A 全链 marker 扫描结论
 
@@ -108,11 +108,13 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
    资源全部清理。
 3. 六端供应链门禁：lockfile、漏洞报告与 SBOM identity 完整一致，PR/main/release
    统一 fail closed，23 个正负夹具与 main CI 通过，独立复审 P0=0、P1=0。
+4. H5 发布安全：真实 Caddy/HTTPS 候选、全部公开资源摘要与 9 项响应头、私有
+   artifact 404、严格 CSP、Chrome WebCrypto、全浏览器存储 marker、fail-closed
+   组合证据和失败清理均通过；四视角复审 P0=0、P1=0、P2=0。
 
 ### P0（阻断生产启用）
 
-1. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
-   （KTD7 要求，当前依赖 R15 端侧实现与测试证据）。
+无未关闭 P0。生产仍由 G4 最终裁决保持 No-Go。
 
 ### 已关闭 P1
 
@@ -129,6 +131,6 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 - 生产：E2EE **No-Go**；`content_audit_mode` 保持 `plaintext`。
 - 测试环境：允许 `prepare` 预检；`active` 需要安全审查显式批准且仅限演练
   窗口，演练后回滚 `plaintext`。
-- 后续 Gate 重开条件：剩余 H5 发布安全 P0 关闭，并完成 G4 独立复审与全量重放。
+- 后续 Gate 重开条件：完成 G4 独立复审与全量/live 重放，并满足环境清理要求。
 - 后续唯一执行入口：
-  `docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`。
+  `docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md`。

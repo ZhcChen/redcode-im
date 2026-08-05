@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: G3
-current_checkpoint: G3.2a
+current_unit: G4
+current_checkpoint: G4.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
@@ -22,8 +22,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
 本文是 U10 E2EE 剩余工作的**唯一 active 计划、进度总账和会话恢复入口**。
 此前计划仅保留产品契约、实现过程与验收证据，不再派发任务。
 
-- 唯一剩余链路：`G3.2a -> G3.2b -> G3.3 -> G4.1 -> G4.2 -> G4.3`。
-- 当前 checkpoint：`G3.2a`，完成并提交 H5 path-prefix 候选部署支持。
+- 唯一剩余链路：`G4.1 -> G4.2 -> G4.3`。
+- 当前 checkpoint：`G4.1`，独立复审 G1-G3 并确认无未关闭 P0/P1。
 - 当前裁决：生产 E2EE 保持 **No-Go**。
 - 当前运行边界：保持 `content_audit_mode=plaintext`、`persist/plaintext` 和
   `security_review_approved=false`。
@@ -41,90 +41,44 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
 | G1 / U7 P0-2 备份、灰度与回滚 | 关闭 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
 | G2 / U7 P0-3 六端供应链门禁 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md` |
 | G3.1 H5 静态发布安全门禁 | 完成 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-g3-1.md` |
+| G3.2-G3.3 / U7 P0-4 H5 真实发布安全 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md` |
 
 G3.1 实现 commit 为 `cf05af8a`，文档 commit 为 `4a06f61b`。H5 type-check、
 262 项 unit、release 正负场景、严格 CSP、11 个资源摘要和 9 个实际响应头均已
 通过；独立复审为 P0=0、P1=0。
 
-## 3. 当前工作区恢复点
+## 3. 当前恢复点
 
-`G3.2a` 已存在未提交实现，继续执行时必须保留并在当前源码基础上审查：
+G3 已完成并推送，禁止重复部署或重做实现。最终候选 commit 为 `a22b65e2`，
+manifest SHA-256 为
+`393d9efdac67e206728cea79cb33929848d6ef5e776b5faeb054e89aaa70c8a2`；
+21 个 release 场景、262 项 unit、真实 Chrome/Caddy 审计和四视角复审均通过。
 
-- `Makefile`
-- `h5-app/vite.config.ts`
-- `scripts/h5-release-security.ts`
-- `scripts/h5-release-server.ts`
-- `scripts/h5-release-http-check.ts`
-- `tests/scripts/test-h5-release-security.ts`
+候选 Caddy route、远端目录、backup、临时配置与浏览器 context 已清理，公开
+runtime 为 `persist/plaintext`。后续从 `G4.1` 恢复，不再打开 G3 候选窗口，除非
+G4 发现可定位到 G3 的阻断性回归。
 
-该改动为真实测试域名的 `/h5-candidate/` path-prefix 部署增加
-`VITE_BASE_PATH` / `H5_RELEASE_BASE_PATH` 绑定，并把 `base_path` 纳入 manifest、
-资源路径、SPA fallback、私有文件阻断和负向测试。已知本地结果：
+## 4. 已关闭 G3
 
-- `make h5-app.release.test`：18 个场景通过。
-- `make h5-app.check`：通过。
-- `/h5-candidate/` production build、finalize、HTTP check：通过。
-- 候选绑定 commit：`4a06f61b48dd4a4e55ebfac4effb7a2008fa5912`。
+### G3.2a Path-prefix 候选支持（完成）
 
-上述结果必须在提交前重新核验；计划文档提交不得夹带这些实现文件。
+`da11a6c2` 完成 path-prefix 构建、manifest、server 和负向门禁；`fb88ee9b`
+修复 Vue Router base。独立复审发现的点路径段、双向 base 绑定与静态资源 404
+缺口由 `87f6c5e5` 关闭，21 个 release 场景通过。
 
-## 4. 剩余执行队列
+### G3.2b 真实 HTTPS 与浏览器安全验收（完成）
 
-### G3.2a Path-prefix 候选支持
+`87f6c5e5` 建立受控 Caddy 候选窗口、远端逐文件摘要、真实 Chrome audit 与失败
+自动清理；`a22b65e2` 扩展为全部公开资源/deep-link/404 的 9 项响应头、bytes、
+SHA-256 和全 IndexedDB store 扫描。最终候选、故意失败恢复和 SSH 中断恢复均
+通过，环境已恢复 `persist/plaintext`。
 
-**输入：** 第 3 节列出的未提交实现。
+### G3.3 关闭 U7 P0-4（完成）
 
-**执行：** 审查 base path 的规范化、路径越界、SPA fallback、私有 artifact、根路径
-404 与 manifest/构建产物绑定；修复发现的问题，不扩大到通用部署框架。
+正式证据见 `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md`。
+四视角复审 P0=0、P1=0、P2=0，U7 P0-4 已关闭。
 
-**验收：**
-
-```bash
-make h5-app.release.test
-make h5-app.check
-H5_RELEASE_BASE_PATH=/h5-candidate/ make h5-app.release.build
-git diff --check
-```
-
-**提交边界：** 仅提交 path-prefix 实现与测试，使用独立 Conventional Commit 并
-立即 push。完成后更新 `current_checkpoint` 为 `G3.2b`。
-
-### G3.2b 真实 HTTPS 与浏览器安全验收
-
-**候选地址：** `https://im-test-admin-1.codelib.cc/h5-candidate/`。
-
-**部署：**
-
-1. 通过 `ssh im-test-1` 备份 `/etc/caddy/Caddyfile`。
-2. 上传已验证的 `h5-app/dist` 到临时目录 `/srv/redcode-h5-candidate`。
-3. 仅在 Admin host 增加 `handle_path /h5-candidate/*`，响应头必须与候选
-   `security-headers.json` 一致；先执行 `caddy validate`，再 reload。
-4. 不替换 Admin 根路径、不新增域名或证书、不修改 API runtime gate。
-
-**验收：**
-
-- 真实 HTTPS/TLS、HTML、JS、SPA fallback 和 9 个响应头符合候选 manifest。
-- `release-manifest.json`、`security-headers.json` 等私有 artifact 返回 404。
-- 隔离浏览器 Console 无 CSP violation，Network/Console/log 无敏感 marker。
-- IndexedDB wrapping key 为 AES-GCM 256 且 `extractable=false`。
-- IndexedDB、OPFS、Cache Storage 不出现 plaintext marker。
-- 状态损坏、身份变化、未知 epoch、解密失败均 fail closed，不回退 plaintext。
-
-生产候选只证明真实部署、CSP、Network 和 Console；WebCrypto 与 fail-closed 可组合
-现有真实实现的浏览器测试及单测证据，但禁止用 dev source dynamic import 冒充
-production bundle 行为。
-
-**强制清理：** 恢复原 Caddyfile并 reload，删除远端临时候选目录和本地隔离浏览器
-profile；复核 Admin 根路径正常、候选路径不可访问、runtime 仍为
-`persist/plaintext`。任一清理失败均停在 G3.2b。
-
-### G3.3 关闭 U7 P0-4
-
-新增 `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md`，记录候选
-commit、资源摘要、部署窗口、实际响应头、浏览器证据、fail-closed 结果和清理
-证据。同步 U7 review、任务总账和本文；只有独立复核无 P0/P1 时关闭 P0-4。
-
-**提交边界：** 验收报告与状态文档独立 commit 并 push，然后进入 `G4.1`。
+## 5. 剩余执行队列
 
 ### G4.1 独立复审
 
@@ -157,7 +111,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 清理及 CI 状态。只有所有 DoD 均满足才可裁决 Go，否则明确保持 No-Go 并留下唯一
 下一 checkpoint。最终文档使用独立 commit 并立即 push。
 
-## 5. 停止与降级规则
+## 6. 停止与降级规则
 
 - G3 任一静态、部署、浏览器或 fail-closed 验收失败：停在对应 checkpoint。
 - 需要扩展服务端契约：返回产品契约计划评估，不在本计划直接修改 API。
@@ -167,7 +121,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 - 测试候选窗口结束后必须恢复 `persist/plaintext` 和
   `security_review_approved=false`，无例外。
 
-## 6. Definition of Done
+## 7. Definition of Done
 
 - D1. 本文是唯一 active U10 计划，任务总账与 `current_checkpoint` 一致。
 - D2. G3.2a path-prefix 候选支持已测试、独立提交并 push。
@@ -178,7 +132,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 - D7. runtime 保持 `persist/plaintext`，`im-test-1` 旧主数据库未触碰。
 - D8. 所有 checkpoint 均按最小闭环提交并 push；仅 D1-D7 全部满足才允许 Go。
 
-## 7. 文档边界
+## 8. 文档边界
 
 | 文档 | 状态 | 用途 |
 | --- | --- | --- |
