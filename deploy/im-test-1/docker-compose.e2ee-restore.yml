@@ -1,0 +1,104 @@
+name: ${E2EE_RESTORE_PROJECT_NAME:?请设置 E2EE_RESTORE_PROJECT_NAME}
+
+services:
+  postgres-restore:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${E2EE_RESTORE_DATABASE:-redcode_e2ee_restore}
+      POSTGRES_USER: ${E2EE_RESTORE_USER:-e2ee_restore}
+      POSTGRES_PASSWORD: ${E2EE_RESTORE_PASSWORD:?请设置 E2EE_RESTORE_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_restore_data:/var/lib/postgresql/data
+    networks:
+      - restore-internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis-restore:
+    image: redis:7-alpine
+    command:
+      - redis-server
+      - --port
+      - "6379"
+      - --requirepass
+      - ${E2EE_RESTORE_REDIS_PASSWORD:?请设置 E2EE_RESTORE_REDIS_PASSWORD}
+      - --appendonly
+      - "no"
+      - --save
+      - ""
+    networks:
+      - restore-internal
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - -a
+        - ${E2EE_RESTORE_REDIS_PASSWORD}
+        - ping
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api-restore:
+    image: ${E2EE_DRILL_API_IMAGE:?请设置 E2EE_DRILL_API_IMAGE}
+    pull_policy: never
+    ports:
+      - "127.0.0.1:${E2EE_RESTORE_API_PORT:-18010}:8010"
+    environment:
+      PORT: "8010"
+      TZ: ${TZ}
+      RUST_LOG: ${RUST_LOG}
+      DATABASE_URL: postgres://${E2EE_RESTORE_USER:-e2ee_restore}:${E2EE_RESTORE_PASSWORD}@postgres-restore:5432/${E2EE_RESTORE_DATABASE:-redcode_e2ee_restore}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS}
+      DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS}
+      DATABASE_ACQUIRE_TIMEOUT_SECONDS: ${DATABASE_ACQUIRE_TIMEOUT_SECONDS}
+      REDIS_SESSION_URL: redis://:${E2EE_RESTORE_REDIS_PASSWORD}@redis-restore:6379/0
+      REDIS_PUBSUB_URL: redis://:${E2EE_RESTORE_REDIS_PASSWORD}@redis-restore:6379/0
+      REDIS_CACHE_URL: redis://:${E2EE_RESTORE_REDIS_PASSWORD}@redis-restore:6379/0
+      REDCODE_IM_STORAGE_SCHEME: http
+      REDCODE_IM_B2_ENDPOINT: ${RUSTFS_INTERNAL_ENDPOINT:-rustfs:9000}
+      REDCODE_IM_B2_PRESIGN_PUBLIC_ENDPOINT: https://${API_PUBLIC_HOST}
+      REDCODE_IM_B2_REGION: ${RUSTFS_REGION}
+      REDCODE_IM_B2_KEY_ID: ${RUSTFS_ACCESS_KEY}
+      REDCODE_IM_B2_APPLICATION_KEY: ${RUSTFS_SECRET_KEY}
+      REDCODE_IM_B2_PRIVATE_BUCKET: ${RUSTFS_PRIVATE_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BUCKET: ${RUSTFS_PUBLIC_BUCKET}
+      REDCODE_IM_B2_PUBLIC_BASE_URL: https://${API_PUBLIC_HOST}/${RUSTFS_PUBLIC_BUCKET}
+      JWT_SECRET: ${JWT_SECRET}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+      WS_OUTBOUND_QUEUE_SIZE: ${WS_OUTBOUND_QUEUE_SIZE}
+      METRICS_ENABLED: "false"
+      METRICS_CHANNEL_CAPACITY: ${METRICS_CHANNEL_CAPACITY}
+      METRICS_FLUSH_BATCH_SIZE: ${METRICS_FLUSH_BATCH_SIZE}
+      METRICS_FLUSH_INTERVAL_SECONDS: ${METRICS_FLUSH_INTERVAL_SECONDS}
+      METRICS_SAMPLE_RATE: ${METRICS_SAMPLE_RATE}
+    depends_on:
+      postgres-restore:
+        condition: service_healthy
+      redis-restore:
+        condition: service_healthy
+    networks:
+      - restore-internal
+      - im-test-1-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8010/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  postgres_restore_data:
+
+networks:
+  restore-internal:
+    internal: true
+  im-test-1-network:
+    external: true
+    name: im-test-1-network
