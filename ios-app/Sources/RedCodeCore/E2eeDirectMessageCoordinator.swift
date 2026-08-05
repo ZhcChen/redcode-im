@@ -26,6 +26,8 @@ public protocol E2eeDirectSessionCore: Sendable {
     func encrypt(state: Data, roomID: String, plaintext: Data) throws -> E2eeCommandResult
     func decrypt(state: Data, roomID: String, ciphertext: Data) throws -> E2eeCommandResult
     func processCommit(state: Data, roomID: String, commit: Data) throws -> E2eeCommandResult
+    func removeMember(state: Data, roomID: String, identity: String) throws -> E2eeCommandResult
+    func listMembers(state: Data, roomID: String) throws -> E2eeCommandResult
 }
 
 extension E2eeCommandClient: E2eeDirectSessionCore {}
@@ -63,6 +65,7 @@ public actor E2eeDirectMessageCoordinator {
         try requireActive(profile)
         try await verifyIdentity(accountID: accountID, peerUserID: peerUserID, token: token)
         try await syncControls(accountID: accountID, roomID: roomID, profile: profile, token: token)
+        try await reconcileGroup(accountID: accountID, roomID: roomID, profile: profile, token: token)
         guard var state = try await storage.readState(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 协议状态缺失") }
         var epoch = try await api.getRoomEpoch(roomID: roomID, token: token)
         if epoch.activeEpoch == 0 {
@@ -155,6 +158,54 @@ public actor E2eeDirectMessageCoordinator {
         var profile = profile; profile.lastCommitMessageIds[roomID] = lastCommitID
         try await storage.writeProfile(accountID: accountID, profile: profile)
         return state
+    }
+
+    public func reconcileGroup(accountID: String, roomID: String, token: String) async throws {
+        guard let profile = try await storage.readProfile(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 设备档案缺失") }
+        try await reconcileGroup(accountID: accountID, roomID: roomID, profile: profile, token: token)
+    }
+
+    private func reconcileGroup(accountID: String, roomID: String, profile: E2eeDeviceProfile, token: String) async throws {
+        let roomEpoch = try await api.getRoomEpoch(roomID: roomID, token: token)
+        guard roomEpoch.status == "rekey_required", profile.lastCommitMessageIds[roomID] != nil else { return }
+        guard var state = try await storage.readState(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 协议状态缺失") }
+        let serverMembers = Set(try await api.listRoomMemberDevices(roomID: roomID, token: token).flatMap { member in member.devices.map { "\(member.userID)/\($0.id)" } })
+        let localMembers = try decodeMembers(core.listMembers(state: state, roomID: roomID).field(0))
+        var lastCommitID: String?
+        for identity in localMembers.subtracting(serverMembers) {
+            let removed = try core.removeMember(state: state, roomID: roomID, identity: identity)
+            state = try removed.field(0); lastCommitID = newID()
+            try await api.submitControlMessage(E2eeOutgoingControlMessage(roomID: roomID, messageID: lastCommitID!, epoch: try removed.epoch(2), membershipRevision: roomEpoch.membershipRevision, senderDeviceID: profile.deviceId, contentType: "commit", envelope: try removed.field(1)), token: token)
+        }
+        for identity in serverMembers.subtracting(localMembers) {
+            let deviceID = String(identity.split(separator: "/", maxSplits: 1)[1])
+            let claimed = try await api.claimKeyPackage(roomID: roomID, consumerDeviceID: profile.deviceId, targetDeviceID: deviceID, token: token)
+            let added = try core.addMember(state: state, roomID: roomID, keyPackage: claimed.keyPackage)
+            state = try added.field(0); let epoch = try added.epoch(3); lastCommitID = newID()
+            try await api.submitControlMessage(E2eeOutgoingControlMessage(roomID: roomID, messageID: lastCommitID!, epoch: epoch, membershipRevision: roomEpoch.membershipRevision, senderDeviceID: profile.deviceId, contentType: "commit", envelope: try added.field(1)), token: token)
+            try await api.submitControlMessage(E2eeOutgoingControlMessage(roomID: roomID, messageID: newID(), epoch: epoch, membershipRevision: roomEpoch.membershipRevision, senderDeviceID: profile.deviceId, contentType: "welcome", envelope: try added.field(2), recipientDeviceID: deviceID), token: token)
+        }
+        if let lastCommitID {
+            try await storage.writeState(accountID: accountID, state: state)
+            var profile = profile; profile.lastCommitMessageIds[roomID] = lastCommitID
+            try await storage.writeProfile(accountID: accountID, profile: profile)
+        }
+    }
+
+    private func decodeMembers(_ data: Data) throws -> Set<String> {
+        var offset = 0
+        func readUInt32() throws -> Int {
+            guard offset + 4 <= data.count else { throw E2eeDirectMessageError("E2EE 成员列表已截断") }
+            let value = data[offset..<offset + 4].withUnsafeBytes { Int($0.loadUnaligned(as: UInt32.self).bigEndian) }
+            offset += 4; return value
+        }
+        let count = try readUInt32(); var members = Set<String>()
+        for _ in 0..<count {
+            let length = try readUInt32(); guard offset + length <= data.count, let value = String(data: data[offset..<offset + length], encoding: .utf8) else { throw E2eeDirectMessageError("E2EE 成员列表已截断") }
+            members.insert(value); offset += length
+        }
+        guard offset == data.count else { throw E2eeDirectMessageError("E2EE 成员列表包含多余数据") }
+        return members
     }
 
     private func syncControls(accountID: String, roomID: String, profile: E2eeDeviceProfile, token: String) async throws {

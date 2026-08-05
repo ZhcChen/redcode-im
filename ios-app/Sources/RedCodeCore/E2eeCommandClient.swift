@@ -126,6 +126,18 @@ public struct E2eeCommandClient: Sendable {
         try execute(operation: .processCommit, fields: [state, Data(roomID.utf8), commit])
     }
 
+    public func removeMember(state: Data, roomID: String, identity: String) throws -> E2eeCommandResult {
+        try execute(operation: .removeMember, fields: [state, Data(roomID.utf8), Data(identity.utf8)])
+    }
+
+    public func listMembers(state: Data, roomID: String) throws -> E2eeCommandResult {
+        try execute(operation: .listMembers, fields: [state, Data(roomID.utf8)])
+    }
+
+    public func signDeviceApproval(state: Data, payload: Data) throws -> E2eeCommandResult {
+        try execute(operation: .signDeviceApproval, fields: [state, payload])
+    }
+
     /// 直接执行一段 RCCQ 原始命令（测试与高级调用点使用）。
     func executeRaw(_ request: Data) throws -> Data {
         var output: UnsafeMutablePointer<UInt8>?

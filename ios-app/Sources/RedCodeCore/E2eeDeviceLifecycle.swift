@@ -144,6 +144,8 @@ public protocol E2eeMLSApi: Sendable {
     func listControlMessages(roomID: String, deviceID: String, afterSequence: UInt64, token: String) async throws -> [E2eeControlMessage]
     func consumeControlMessage(roomID: String, messageID: String, deviceID: String, token: String) async throws
     func sendEncryptedMessage(_ message: E2eeEncryptedMessageRequest, token: String) async throws -> String
+    func approveDevice(targetDeviceID: String, approverDeviceID: String, signature: Data, token: String) async throws -> E2eeDeviceInfo
+    func revokeDevice(deviceID: String, token: String) async throws -> E2eeDeviceInfo
 }
 
 public extension E2eeMLSApi {
@@ -155,6 +157,8 @@ public extension E2eeMLSApi {
     func listControlMessages(roomID: String, deviceID: String, afterSequence: UInt64, token: String) async throws -> [E2eeControlMessage] { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
     func consumeControlMessage(roomID: String, messageID: String, deviceID: String, token: String) async throws { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
     func sendEncryptedMessage(_ message: E2eeEncryptedMessageRequest, token: String) async throws -> String { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func approveDevice(targetDeviceID: String, approverDeviceID: String, signature: Data, token: String) async throws -> E2eeDeviceInfo { throw E2eeCommandError(message: "N5 E2EE API 未实现") }
+    func revokeDevice(deviceID: String, token: String) async throws -> E2eeDeviceInfo { throw E2eeCommandError(message: "N5 E2EE API 未实现") }
 }
 
 /// 设备注册与 KeyPackage 低水位补充（对齐 H5 E2eeDeviceLifecycle）。

@@ -85,6 +85,17 @@ final class E2eeDirectMessageCoordinatorTests: XCTestCase {
         XCTAssertEqual(resumedKey, firstKey)
         XCTAssertEqual(resumedState, Data([2]))
     }
+
+    func testRekeyRemovesRevokedDeviceAndAddsNewDevice() async throws {
+        let fixture = await Fixture.make()
+        await fixture.api.configureRekey()
+        fixture.core.members = ["account-a/device-a", "account-b/device-revoked"]
+        try await fixture.coordinator.reconcileGroup(accountID: "account-a", roomID: "room-1", token: "token")
+        XCTAssertEqual(fixture.core.removedMembers, ["account-b/device-revoked"])
+        let controls = await fixture.api.submittedControls
+        XCTAssertEqual(controls.map(\.contentType), ["commit", "commit", "welcome"])
+        XCTAssertEqual(controls.last?.recipientDeviceID, "device-new")
+    }
 }
 
 private struct Fixture {
@@ -120,14 +131,23 @@ private actor FakeDirectLifecycle: E2eeDirectDeviceLifecycle {
 
 private actor FakeDirectAPI: E2eeMLSApi {
     var fingerprint = Data(repeating: 1, count: 32); var failSend = false; var sendCalls = 0; var lastIdempotencyKey: String?
+    var epoch = E2eeRoomEpoch(membershipRevision: 1, activeEpoch: 1, status: "active")
+    var members: [E2eeRoomMemberDevices] = []; var submittedControls: [E2eeOutgoingControlMessage] = []
     func setFingerprint(_ value: Data) { fingerprint = value }; func setFailSend(_ value: Bool) { failSend = value }
+    func configureRekey() {
+        epoch = E2eeRoomEpoch(membershipRevision: 2, activeEpoch: 1, status: "rekey_required")
+        members = [E2eeRoomMemberDevices(userID: "account-a", devices: [E2eePeerDevice(id: "device-a", protocolVersion: 1, credentialFingerprint: Data(repeating: 1, count: 32))]), E2eeRoomMemberDevices(userID: "account-b", devices: [E2eePeerDevice(id: "device-new", protocolVersion: 1, credentialFingerprint: Data(repeating: 1, count: 32))])]
+    }
     func fetchRootIdentity(userID: String, token: String) -> Data? { nil }
     func registerDevice(deviceID: String, deviceLabel: String, material: E2eeRegistrationMaterial, token: String) -> String { "active" }
     func publishKeyPackages(deviceID: String, keyPackages: [Data], token: String) -> Int { keyPackages.count }
     func fetchKeyPackageInventory(deviceID: String, token: String) -> E2eeKeyPackageInventory { E2eeKeyPackageInventory(available: 20, maxAvailable: 100) }
     func listDevices(token: String) -> [E2eeDeviceInfo] { [E2eeDeviceInfo(id: "device-a", status: "active")] }
     func fetchIdentity(userID: String, token: String) -> E2eeRootIdentity { E2eeRootIdentity(userID: userID, publicKey: Data(repeating: 2, count: 32), fingerprint: fingerprint, protocolVersion: 1) }
-    func getRoomEpoch(roomID: String, token: String) -> E2eeRoomEpoch { E2eeRoomEpoch(membershipRevision: 1, activeEpoch: 1, status: "active") }
+    func getRoomEpoch(roomID: String, token: String) -> E2eeRoomEpoch { epoch }
+    func listRoomMemberDevices(roomID: String, token: String) -> [E2eeRoomMemberDevices] { members }
+    func claimKeyPackage(roomID: String, consumerDeviceID: String, targetDeviceID: String, token: String) -> E2eeClaimedKeyPackage { E2eeClaimedKeyPackage(id: "kp", deviceID: targetDeviceID, keyPackage: Data([7])) }
+    func submitControlMessage(_ message: E2eeOutgoingControlMessage, token: String) { submittedControls.append(message) }
     func listControlMessages(roomID: String, deviceID: String, afterSequence: UInt64, token: String) -> [E2eeControlMessage] { [] }
     func sendEncryptedMessage(_ message: E2eeEncryptedMessageRequest, token: String) throws -> String {
         sendCalls += 1; lastIdempotencyKey = message.idempotencyKey
@@ -137,7 +157,7 @@ private actor FakeDirectAPI: E2eeMLSApi {
 }
 
 private final class FakeDirectCore: E2eeDirectSessionCore, @unchecked Sendable {
-    var decryptCalls = 0; var failDecrypt = false
+    var decryptCalls = 0; var failDecrypt = false; var members = Set<String>(); var removedMembers: [String] = []
     func createGroup(state: Data, roomID: String) -> E2eeCommandResult { result(Data([2])) }
     func addMember(state: Data, roomID: String, keyPackage: Data) -> E2eeCommandResult { result(Data([3]), Data([4]), Data([5]), epoch(1)) }
     func joinGroup(state: Data, welcome: Data) -> E2eeCommandResult { result(Data([3]), epoch(1)) }
@@ -147,6 +167,12 @@ private final class FakeDirectCore: E2eeDirectSessionCore, @unchecked Sendable {
         return result(Data([2]), Data("{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}".utf8), epoch(1))
     }
     func processCommit(state: Data, roomID: String, commit: Data) -> E2eeCommandResult { result(Data([2]), epoch(1)) }
+    func removeMember(state: Data, roomID: String, identity: String) -> E2eeCommandResult { removedMembers.append(identity); return result(Data([2]), Data([6]), epoch(2)) }
+    func listMembers(state: Data, roomID: String) -> E2eeCommandResult {
+        var output = Data(); var count = UInt32(members.count).bigEndian; withUnsafeBytes(of: &count) { output.append(contentsOf: $0) }
+        for member in members { let bytes = Data(member.utf8); var length = UInt32(bytes.count).bigEndian; withUnsafeBytes(of: &length) { output.append(contentsOf: $0) }; output.append(bytes) }
+        return result(output)
+    }
     private func result(_ fields: Data...) -> E2eeCommandResult { E2eeCommandResult(fields: fields) }
     private func epoch(_ value: UInt64) -> Data { withUnsafeBytes(of: value.bigEndian) { Data($0) } }
 }

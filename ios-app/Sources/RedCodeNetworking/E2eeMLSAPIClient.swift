@@ -174,6 +174,19 @@ public struct E2eeMLSAPIClient: E2eeMLSApi {
         return response.message.id
     }
 
+    public func approveDevice(targetDeviceID: String, approverDeviceID: String, signature: Data, token: String) async throws -> E2eeDeviceInfo {
+        let row: DeviceRow = try await apiClient.post(
+            APIEndpoint(method: .post, path: "/e2ee/mls/devices/\(targetDeviceID)/approve"),
+            body: ApproveDeviceRequest(approverDeviceID: approverDeviceID, signature: signature.base64EncodedString()), bearerToken: token
+        )
+        return E2eeDeviceInfo(id: row.id, deviceLabel: row.deviceLabel, protocolVersion: row.protocolVersion, credentialFingerprint: row.credentialFingerprint, status: row.status)
+    }
+
+    public func revokeDevice(deviceID: String, token: String) async throws -> E2eeDeviceInfo {
+        let row: DeviceRow = try await apiClient.delete(APIEndpoint(method: .delete, path: "/e2ee/mls/devices/\(deviceID)"), bearerToken: token)
+        return E2eeDeviceInfo(id: row.id, deviceLabel: row.deviceLabel, protocolVersion: row.protocolVersion, credentialFingerprint: row.credentialFingerprint, status: row.status)
+    }
+
     private func base64(_ data: Data) -> String {
         data.base64EncodedString()
     }
@@ -293,3 +306,4 @@ private struct EncryptionMetadataRequest: Encodable, Sendable { let protocolName
 private struct SendEncryptedRequest: Encodable, Sendable { let encryptedContent: String; let encryptionMetadata: EncryptionMetadataRequest; let idempotencyKey: String; init(_ value: E2eeEncryptedMessageRequest) { encryptedContent = value.ciphertext.base64EncodedString(); encryptionMetadata = EncryptionMetadataRequest(epoch: value.epoch, senderDeviceID: value.senderDeviceID, controlMessageID: value.controlMessageID); idempotencyKey = value.idempotencyKey }; enum CodingKeys: String, CodingKey { case encryptedContent = "encrypted_content"; case encryptionMetadata = "encryption_metadata"; case idempotencyKey = "idempotency_key" } }
 private struct SentMessageResponse: Decodable, Sendable { let id: String }
 private struct SendEncryptedResponse: Decodable, Sendable { let message: SentMessageResponse }
+private struct ApproveDeviceRequest: Encodable, Sendable { let approverDeviceID: String; let signature: String; enum CodingKeys: String, CodingKey { case approverDeviceID = "approver_device_id"; case signature } }
