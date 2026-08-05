@@ -60,9 +60,13 @@ pub struct BootstrapConfig {
 impl BootstrapConfig {
     pub fn from_env() -> Self {
         let region = env_with_legacy("REDCODE_IM_S3_REGION", "REDCODE_IM_B2_REGION");
+        let endpoint = apply_legacy_storage_scheme(env_with_legacy(
+            "REDCODE_IM_S3_ENDPOINT",
+            "REDCODE_IM_B2_ENDPOINT",
+        ));
         Self {
             provider: PROVIDER_S3_COMPATIBLE.to_string(),
-            endpoint: env_with_legacy("REDCODE_IM_S3_ENDPOINT", "REDCODE_IM_B2_ENDPOINT"),
+            endpoint,
             region,
             key_id: env_with_legacy("REDCODE_IM_S3_ACCESS_KEY", "REDCODE_IM_B2_KEY_ID"),
             application_key: env_with_legacy(
@@ -95,6 +99,22 @@ impl BootstrapConfig {
             last_applied_at: None,
             updated_at: None,
         }
+    }
+}
+
+fn apply_legacy_storage_scheme(endpoint: String) -> String {
+    let endpoint = endpoint.trim().trim_end_matches('/');
+    if endpoint.is_empty() || endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+        return endpoint.to_string();
+    }
+    let scheme = std::env::var("REDCODE_IM_STORAGE_SCHEME")
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    if matches!(scheme.as_str(), "http" | "https") {
+        format!("{scheme}://{endpoint}")
+    } else {
+        endpoint.to_string()
     }
 }
 
@@ -1243,6 +1263,16 @@ mod tests {
             normalize_s3_endpoint(Some("rustfs:9000")),
             "https://rustfs:9000"
         );
+    }
+
+    #[test]
+    fn bootstrap_applies_legacy_storage_scheme_to_bare_endpoint() {
+        let _lock = env_lock().lock().unwrap();
+        let _primary = TestEnvGuard::remove("REDCODE_IM_S3_ENDPOINT");
+        let _legacy = TestEnvGuard::set("REDCODE_IM_B2_ENDPOINT", "rustfs:9000");
+        let _scheme = TestEnvGuard::set("REDCODE_IM_STORAGE_SCHEME", "http");
+
+        assert_eq!(BootstrapConfig::from_env().endpoint, "http://rustfs:9000");
     }
 
     #[test]

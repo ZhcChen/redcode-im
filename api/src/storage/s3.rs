@@ -47,22 +47,10 @@ fn presign_public_endpoint() -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn rewrite_presigned_url_for_client(raw_url: String) -> String {
-    let Some(public_endpoint) = presign_public_endpoint() else {
-        return raw_url;
-    };
-
-    let Ok(mut original) = reqwest::Url::parse(&raw_url) else {
-        return raw_url;
-    };
-    let Ok(public) = reqwest::Url::parse(&public_endpoint) else {
-        return raw_url;
-    };
-
-    let _ = original.set_scheme(public.scheme());
-    let _ = original.set_host(public.host_str());
-    let _ = original.set_port(public.port());
-    original.to_string()
+fn resolve_presign_endpoint(internal_endpoint: &str, public_endpoint: Option<&str>) -> String {
+    public_endpoint
+        .map(sanitize_endpoint)
+        .unwrap_or_else(|| sanitize_endpoint(internal_endpoint))
 }
 
 fn normalize_region(region: &str) -> String {
@@ -121,6 +109,7 @@ pub struct S3CompatibleService {
     endpoint: String,
     bucket_name: String,
     client: Client,
+    presign_client: Client,
 }
 
 impl S3CompatibleService {
@@ -131,11 +120,14 @@ impl S3CompatibleService {
         endpoint: String,
         bucket_name: String,
     ) -> Result<Self, AppError> {
+        let public_endpoint = presign_public_endpoint();
+        let presign_endpoint = resolve_presign_endpoint(&endpoint, public_endpoint.as_deref());
         Ok(Self {
             region: normalize_region(&region),
             endpoint: sanitize_endpoint(&endpoint),
             bucket_name,
             client: build_client(&secret_id, &secret_key, &region, &endpoint)?,
+            presign_client: build_client(&secret_id, &secret_key, &region, &presign_endpoint)?,
         })
     }
 
@@ -145,11 +137,14 @@ impl S3CompatibleService {
         region: String,
         endpoint: String,
     ) -> Result<Self, AppError> {
+        let public_endpoint = presign_public_endpoint();
+        let presign_endpoint = resolve_presign_endpoint(&endpoint, public_endpoint.as_deref());
         Ok(Self {
             region: normalize_region(&region),
             endpoint: sanitize_endpoint(&endpoint),
             bucket_name: String::new(),
             client: build_client(&secret_id, &secret_key, &region, &endpoint)?,
+            presign_client: build_client(&secret_id, &secret_key, &region, &presign_endpoint)?,
         })
     }
 
@@ -373,7 +368,7 @@ impl StorageService for S3CompatibleService {
     ) -> Result<DirectUploadSignature, AppError> {
         let bucket_name = self.require_bucket_name()?;
         let mut request = self
-            .client
+            .presign_client
             .put_object()
             .bucket(bucket_name)
             .key(normalize_object_key(key));
@@ -390,7 +385,7 @@ impl StorageService for S3CompatibleService {
             .map_err(|e| AppError::InternalError(format!("生成 S3 上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
-            url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
+            url: presigned.uri().to_string(),
             method: presigned.method().to_string(),
             headers: map_presigned_headers(presigned.headers()),
             key: key.to_string(),
@@ -448,7 +443,7 @@ impl StorageService for S3CompatibleService {
 
         let bucket_name = self.require_bucket_name()?;
         let presigned = self
-            .client
+            .presign_client
             .upload_part()
             .bucket(bucket_name)
             .key(normalize_object_key(key))
@@ -459,7 +454,7 @@ impl StorageService for S3CompatibleService {
             .map_err(|e| AppError::InternalError(format!("生成 S3 分片上传签名失败: {}", e)))?;
 
         Ok(DirectUploadSignature {
-            url: rewrite_presigned_url_for_client(presigned.uri().to_string()),
+            url: presigned.uri().to_string(),
             method: presigned.method().to_string(),
             headers: map_presigned_headers(presigned.headers()),
             key: key.to_string(),
@@ -548,7 +543,7 @@ impl StorageService for S3CompatibleService {
     ) -> Result<String, AppError> {
         let bucket_name = self.require_bucket_name()?;
         let presigned = self
-            .client
+            .presign_client
             .get_object()
             .bucket(bucket_name)
             .key(normalize_object_key(key))
@@ -556,9 +551,7 @@ impl StorageService for S3CompatibleService {
             .await
             .map_err(|e| AppError::InternalError(format!("生成 S3 下载链接失败: {}", e)))?;
 
-        Ok(rewrite_presigned_url_for_client(
-            presigned.uri().to_string(),
-        ))
+        Ok(presigned.uri().to_string())
     }
 }
 
@@ -588,4 +581,30 @@ fn build_client(
     }
 
     Ok(Client::from_conf(builder.build()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_presign_endpoint, sanitize_endpoint};
+
+    #[test]
+    fn endpoint_normalization_preserves_explicit_http() {
+        assert_eq!(
+            sanitize_endpoint("http://rustfs:9000/"),
+            "http://rustfs:9000"
+        );
+        assert_eq!(sanitize_endpoint("rustfs:9000"), "https://rustfs:9000");
+    }
+
+    #[test]
+    fn public_endpoint_is_used_before_presigning() {
+        assert_eq!(
+            resolve_presign_endpoint("http://rustfs:9000", Some("https://im-test-1.codelib.cc/"),),
+            "https://im-test-1.codelib.cc"
+        );
+        assert_eq!(
+            resolve_presign_endpoint("http://rustfs:9000", None),
+            "http://rustfs:9000"
+        );
+    }
 }
