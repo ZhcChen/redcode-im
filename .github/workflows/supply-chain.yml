@@ -1,7 +1,7 @@
 name: Supply Chain Gate
 
 on:
-  pull_request:
+  pull_request_target:
   push:
     branches:
       - main
@@ -11,11 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: supply-chain-${{ github.workflow }}-${{ github.ref }}
+  group: supply-chain-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
   BUN_VERSION: "1.3.11"
+  SOURCE_SHA: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name || github.repository }}
 
 jobs:
   supply-chain-check:
@@ -23,36 +25,55 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - name: Checkout trusted gate
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          path: .supply-chain-gate
+
+      - name: Checkout untrusted source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.SOURCE_SHA }}
+          path: .supply-chain-source
+          persist-credentials: false
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Verify fail-closed fixtures
-        run: make supply-chain.test
+        run: make -C .supply-chain-gate supply-chain.test
 
       - name: Scan six locked dependency sets
-        run: make supply-chain.check
+        env:
+          SUPPLY_CHAIN_SOURCE_ROOT: ${{ github.workspace }}/.supply-chain-source
+          SUPPLY_CHAIN_OUTPUT_DIR: ${{ github.workspace }}/.artifacts/supply-chain
+        run: .supply-chain-gate/scripts/supply-chain/check.sh
 
       - name: Validate machine reports
         run: |
           set -euo pipefail
           jq -e '
             .verdict == "pass" and
+            .commit == $commit and
             (.modules | length == 6) and
             (.blocking_findings | length == 0)
-          ' .artifacts/supply-chain/summary.json >/dev/null
+          ' --arg commit "$SOURCE_SHA" .artifacts/supply-chain/summary.json >/dev/null
+          jq -e '
+            .commit == $commit and
+            .summary.commit == $commit and
+            .summary.verdict == "pass"
+          ' --arg commit "$SOURCE_SHA" .artifacts/supply-chain/index.json >/dev/null
           test "$(find .artifacts/supply-chain/reports -type f -name "*.json" | wc -l)" -eq 6
           test "$(find .artifacts/supply-chain/sbom -type f -name "*.cdx.json" | wc -l)" -eq 6
 
       - name: Upload supply-chain evidence
-        if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: supply-chain-${{ github.sha }}
+          name: supply-chain-${{ env.SOURCE_SHA }}
           path: .artifacts/supply-chain/
           if-no-files-found: error
           include-hidden-files: true

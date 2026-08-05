@@ -43,11 +43,16 @@ run_evaluator_case() {
   local exception_name="$3"
   local expected="$4"
   local expected_pattern="${5:-}"
+  local sbom_name="${6:-sbom-pass.json}"
   local case_dir="$tmp_dir/evaluator-$case_count"
   local log_file="$case_dir/output.log"
   mkdir -p "$case_dir/reports"
   if [[ "$report_name" != "missing" ]]; then
     cp "$fixture_dir/$report_name" "$case_dir/reports/fixture-app.json"
+  fi
+  mkdir -p "$case_dir/sbom"
+  if [[ "$sbom_name" != "missing" ]]; then
+    cp "$fixture_dir/$sbom_name" "$case_dir/sbom/fixture-app.cdx.json"
   fi
   set +e
   (
@@ -56,6 +61,8 @@ run_evaluator_case() {
       "$fixture_dir/policy.json" \
       "$fixture_dir/$exception_name" \
       "$case_dir/reports" \
+      "$case_dir/sbom" \
+      "$root_dir" \
       "$case_dir/summary.json" \
       fixture-commit
   ) >"$log_file" 2>&1
@@ -118,13 +125,22 @@ if [[ "$format" == "json" ]]; then
     truncated-json) printf '{' >"$reports_dir/fixture-app.json" ;;
     missing-report) : ;;
     marker-leak) cp "$SUPPLY_CHAIN_FIXTURE_DIR/report-marker.json" "$reports_dir/fixture-app.json" ;;
+    scanner-finding)
+      cp "$SUPPLY_CHAIN_FIXTURE_DIR/report-high.json" "$reports_dir/fixture-app.json"
+      exit 1
+      ;;
     *) cp "$SUPPLY_CHAIN_FIXTURE_DIR/report-pass.json" "$reports_dir/fixture-app.json" ;;
   esac
   exit 0
 fi
 if [[ "$format" == "cyclonedx-1-5" ]]; then
   [[ -n "$sbom_dir" ]] || exit 72
-  cp "$SUPPLY_CHAIN_FIXTURE_DIR/sbom-pass.json" "$sbom_dir/fixture-app.cdx.json"
+  case "$mode" in
+    missing-sbom) : ;;
+    invalid-sbom) cp "$SUPPLY_CHAIN_FIXTURE_DIR/sbom-invalid-spec.json" "$sbom_dir/fixture-app.cdx.json" ;;
+    empty-sbom) cp "$SUPPLY_CHAIN_FIXTURE_DIR/sbom-empty.json" "$sbom_dir/fixture-app.cdx.json" ;;
+    *) cp "$SUPPLY_CHAIN_FIXTURE_DIR/sbom-pass.json" "$sbom_dir/fixture-app.cdx.json" ;;
+  esac
   exit 0
 fi
 
@@ -138,6 +154,7 @@ run_check_case() {
   local mode="$2"
   local expected="$3"
   local expected_pattern="${4:-}"
+  local source_root="${5:-$root_dir}"
   local case_dir="$tmp_dir/check-$case_count"
   local log_file="$case_dir/output.log"
   mkdir -p "$case_dir"
@@ -145,6 +162,7 @@ run_check_case() {
   PATH="$tmp_dir/bin:$PATH" \
   SUPPLY_CHAIN_FAKE_DOCKER_MODE="$mode" \
   SUPPLY_CHAIN_FIXTURE_DIR="$fixture_dir" \
+  SUPPLY_CHAIN_SOURCE_ROOT="$source_root" \
   SUPPLY_CHAIN_POLICY="$fixture_dir/policy.json" \
   SUPPLY_CHAIN_EXCEPTIONS="$fixture_dir/exceptions-empty.json" \
   SUPPLY_CHAIN_OUTPUT_DIR="$case_dir/artifacts" \
@@ -153,8 +171,11 @@ run_check_case() {
   set -e
   assert_status "$expected" "$label" "$log_file" "$status" "$expected_pattern"
   if [[ "$expected" == "pass" ]]; then
-    jq -e '
+    local source_commit
+    source_commit="$(git -C "$source_root" rev-parse HEAD)"
+    jq -e --arg commit "$source_commit" '
       .verdict == "pass" and
+      .commit == $commit and
       (.modules | length == 1) and
       (.blocking_findings | length == 0)
     ' "$case_dir/artifacts/summary.json" >/dev/null
@@ -173,12 +194,28 @@ run_evaluator_case "wildcard exception" report-high.json exceptions-wildcard.jso
 run_evaluator_case "unused exception" report-pass.json exceptions-unused.json fail "unused exceptions are forbidden"
 run_evaluator_case "truncated report JSON" report-truncated.json exceptions-empty.json fail "JSON Parse error"
 run_evaluator_case "missing module report" missing exceptions-empty.json fail "ENOENT"
+run_evaluator_case "partial report mismatches SBOM" report-pass.json exceptions-empty.json fail "identities do not match" sbom-partial-mismatch.json
 
 run_check_case "隔离扫描正常通过" pass pass
+
+untrusted_source="$tmp_dir/untrusted-source"
+mkdir -p "$untrusted_source/tests/fixtures/supply-chain"
+cp "$fixture_dir/fixture.lock" "$untrusted_source/tests/fixtures/supply-chain/fixture.lock"
+git -C "$untrusted_source" init -q
+git -C "$untrusted_source" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  add tests/fixtures/supply-chain/fixture.lock
+git -C "$untrusted_source" -c user.name=Fixture -c user.email=fixture@example.invalid \
+  commit -q -m fixture
+run_check_case "trusted gate scans separate source checkout" pass pass "" "$untrusted_source"
+
 run_check_case "scanner unavailable" scanner-unavailable fail "scanner image download unavailable"
 run_check_case "vulnerability DB/download failure" database-failure fail "OSV-Scanner failed"
 run_check_case "scanner truncated JSON" truncated-json fail "parse error"
 run_check_case "scanner missing report" missing-report fail "No such file or directory"
 run_check_case "sensitive marker leakage" marker-leak fail "sensitive marker leaked"
+run_check_case "scanner exit 1 with valid finding" scanner-finding fail "blocked by 1 finding"
+run_check_case "scanner missing SBOM" missing-sbom fail
+run_check_case "scanner invalid SBOM version" invalid-sbom fail
+run_check_case "scanner empty SBOM" empty-sbom fail
 
 echo "[supply-chain-test] $case_count 个正负场景全部通过"

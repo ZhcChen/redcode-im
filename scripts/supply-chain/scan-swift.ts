@@ -130,7 +130,7 @@ await writeFile(
 const components = packages.map(({ pin, version, evidence }) => ({
   type: "library",
   "bom-ref": `pkg:swift/${pin.location.replace(/^https:\/\//, "").replace(/\.git$/, "")}/${pin.identity}@${version}`,
-  name: pin.identity,
+  name: pin.location,
   version,
   purl: `pkg:swift/${pin.location.replace(/^https:\/\//, "").replace(/\.git$/, "")}/${pin.identity}@${version}`,
   licenses: [{ license: { id: evidence.license } }],

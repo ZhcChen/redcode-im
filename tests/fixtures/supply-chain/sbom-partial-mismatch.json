@@ -11,6 +11,12 @@
       "name": "fixture-package",
       "version": "1.0.0",
       "purl": "pkg:npm/fixture-package@1.0.0"
+    },
+    {
+      "type": "library",
+      "name": "missing-from-report",
+      "version": "2.0.0",
+      "purl": "pkg:npm/missing-from-report@2.0.0"
     }
   ]
 }

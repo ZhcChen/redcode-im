@@ -1,10 +1,7 @@
 {
   "bomFormat": "CycloneDX",
-  "specVersion": "1.5",
+  "specVersion": "1.4",
   "version": 1,
-  "metadata": {
-    "properties": [{ "name": "redcode:commit", "value": "fixture-commit" }]
-  },
   "components": [
     {
       "type": "library",

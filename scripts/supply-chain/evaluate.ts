@@ -14,9 +14,20 @@ type Exception = {
   expires_at: string;
 };
 
-const [policyPath, exceptionsPath, reportsDir, outputPath, commit] = process.argv.slice(2);
-if (!policyPath || !exceptionsPath || !reportsDir || !outputPath || !commit) {
-  throw new Error("usage: evaluate.ts <policy> <exceptions> <reports-dir> <summary> <commit>");
+const [policyPath, exceptionsPath, reportsDir, sbomDir, sourceRoot, outputPath, commit] =
+  process.argv.slice(2);
+if (
+  !policyPath ||
+  !exceptionsPath ||
+  !reportsDir ||
+  !sbomDir ||
+  !sourceRoot ||
+  !outputPath ||
+  !commit
+) {
+  throw new Error(
+    "usage: evaluate.ts <policy> <exceptions> <reports-dir> <sbom-dir> <source-root> <summary> <commit>",
+  );
 }
 
 const policy = JSON.parse(await readFile(policyPath, "utf8"));
@@ -81,13 +92,49 @@ for (const module of policy.modules) {
   const report = JSON.parse(raw);
   const packages = (report.results ?? []).flatMap((result: any) => result.packages ?? []);
   if (packages.length === 0) throw new Error(`${module.name} report contains no packages`);
-  let vulnerabilityCount = 0;
-  let licenseViolationCount = 0;
-  for (const entry of packages) {
+  const packageIdentities = packages.map((entry: any) => {
     const pkg = entry.package;
     if (!pkg?.ecosystem || !pkg?.name || !pkg?.version) {
       throw new Error(`${module.name} report contains an incomplete package identity`);
     }
+    return `${pkg.name}@${pkg.version}`;
+  });
+  if (new Set(packageIdentities).size !== packageIdentities.length) {
+    throw new Error(`${module.name} report contains duplicate package identities`);
+  }
+
+  const sbom = JSON.parse(await readFile(join(sbomDir, `${module.name}.cdx.json`), "utf8"));
+  if (sbom.bomFormat !== "CycloneDX" || sbom.specVersion !== "1.5") {
+    throw new Error(`${module.name} SBOM has an invalid CycloneDX schema`);
+  }
+  if (!Array.isArray(sbom.components) || sbom.components.length === 0) {
+    throw new Error(`${module.name} SBOM contains no components`);
+  }
+  const sbomIdentities = sbom.components.map((component: any) => {
+    if (!component?.name || !component?.version || !component?.purl) {
+      throw new Error(`${module.name} SBOM contains an incomplete component identity`);
+    }
+    return `${component.name}@${component.version}`;
+  });
+  if (new Set(sbomIdentities).size !== sbomIdentities.length) {
+    throw new Error(`${module.name} SBOM contains duplicate component identities`);
+  }
+  const reportSet = [...packageIdentities].sort();
+  const sbomSet = [...sbomIdentities].sort();
+  if (JSON.stringify(reportSet) !== JSON.stringify(sbomSet)) {
+    throw new Error(`${module.name} report and SBOM package identities do not match`);
+  }
+  const sbomCommit = sbom.metadata?.properties?.find(
+    (property: any) => property.name === "redcode:commit",
+  )?.value;
+  if (sbomCommit !== commit) {
+    throw new Error(`${module.name} SBOM is not bound to commit ${commit}`);
+  }
+
+  let vulnerabilityCount = 0;
+  let licenseViolationCount = 0;
+  for (const entry of packages) {
+    const pkg = entry.package;
     for (const group of entry.groups ?? []) {
       const finding = String(group.ids?.[0] ?? "");
       if (!finding) throw new Error(`${module.name} vulnerability has no stable id`);
@@ -127,8 +174,11 @@ for (const module of policy.modules) {
     module: module.name,
     lockfile: module.lockfile,
     scope: module.scope ?? "all",
-    lockfile_sha256: createHash("sha256").update(await readFile(module.lockfile)).digest("hex"),
+    lockfile_sha256: createHash("sha256")
+      .update(await readFile(join(sourceRoot, module.lockfile)))
+      .digest("hex"),
     packages: packages.length,
+    sbom_components: sbom.components.length,
     blocking_vulnerabilities_seen: vulnerabilityCount,
     license_violations_seen: licenseViolationCount,
   });
