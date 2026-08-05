@@ -126,7 +126,7 @@ if [ "$(ANDROID_APP_API_BASE_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ] || [ "$
 fi
 endef
 
-.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review supply-chain.check supply-chain.test \
+.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review supply-chain.check supply-chain.test supply-chain.workflow.test \
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
@@ -1003,6 +1003,7 @@ tests.tooling: ## 执行仓库级 tooling 守护测试
 	@cd "$(ROOT_DIR)/tests/go" && $(GO) test ./tooling/
 	@$(MAKE) e2ee.cross-client.recovery.test
 	@$(MAKE) supply-chain.test
+	@$(MAKE) supply-chain.workflow.test
 
 tests.mocks.external: ## 执行外部依赖 mock 服务自测（B2/FCM/APNs/IPInfo）
 	@$(call require_cmd,$(GO))
@@ -1017,6 +1018,9 @@ supply-chain.check: ## 生成六端 SBOM 并执行漏洞、许可证和豁免门
 
 supply-chain.test: ## 验证供应链门禁正负夹具与 fail-closed 行为
 	@"$(ROOT_DIR)/tests/scripts/test-supply-chain-check.sh"
+
+supply-chain.workflow.test: ## 校验供应链 CI 与 release 阻断依赖图
+	@$(BUN) "$(ROOT_DIR)/tests/scripts/test-supply-chain-workflows.ts"
 
 tests.all: test.all ## 运行仓库全量本地测试入口（别名）
 

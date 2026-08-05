@@ -64,9 +64,52 @@ jobs:
 
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
+  supply-chain-check:
+    name: Supply-chain release gate
+    needs: validate-release-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Verify fail-closed fixtures
+        run: make supply-chain.test
+
+      - name: Scan six locked dependency sets
+        run: make supply-chain.check
+
+      - name: Validate machine reports
+        run: |
+          set -euo pipefail
+          jq -e '
+            .verdict == "pass" and
+            (.modules | length == 6) and
+            (.blocking_findings | length == 0)
+          ' .artifacts/supply-chain/summary.json >/dev/null
+          test "$(find .artifacts/supply-chain/reports -type f -name "*.json" | wc -l)" -eq 6
+          test "$(find .artifacts/supply-chain/sbom -type f -name "*.cdx.json" | wc -l)" -eq 6
+
+      - name: Upload supply-chain evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: supply-chain-release-${{ github.sha }}
+          path: .artifacts/supply-chain/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
+
   android-app-check:
     name: Build Android app (Kotlin/Compose)
-    needs: validate-release-inputs
+    needs:
+      - validate-release-inputs
+      - supply-chain-check
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -104,7 +147,9 @@ jobs:
   ios-app-check:
     if: false # macOS runner 构建资源与签名配置暂未就绪，仅保留定义便于后续恢复
     name: Build iOS app (Swift/SwiftUI)
-    needs: validate-release-inputs
+    needs:
+      - validate-release-inputs
+      - supply-chain-check
     runs-on: macos-latest
     defaults:
       run:
@@ -121,7 +166,9 @@ jobs:
 
   api-check:
     name: API test
-    needs: validate-release-inputs
+    needs:
+      - validate-release-inputs
+      - supply-chain-check
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -132,7 +179,9 @@ jobs:
 
   api-build:
     name: Build API ${{ matrix.arch }}
-    needs: api-check
+    needs:
+      - api-check
+      - supply-chain-check
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -396,6 +445,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
     needs:
       - validate-release-inputs
+      - supply-chain-check
       - android-app-check
       - api-build
       # - desktop-build

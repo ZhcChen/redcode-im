@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
 current_unit: G2
-current_checkpoint: G2.4
+current_checkpoint: G2.5
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
@@ -23,7 +23,7 @@ supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
-- 当前 checkpoint：`G2.4`，接入 CI 与 release 阻断。
+- 当前 checkpoint：`G2.5`，形成供应链审查证据并关闭 U7 P0-3。
 - 当前裁决：生产 E2EE 为 **No-Go**。
 - 运行约束：保持 `content_audit_mode=plaintext`；测试候选环境结束后必须恢复
   `persist/plaintext` 和 `security_review_approved=false`。
@@ -90,7 +90,7 @@ expired exception、missing owner、wildcard、unused exception、scanner unavai
 **完成证据：** `make supply-chain.test` 的 16 个隔离场景全部通过；fixture 不依赖
 真实网络、不调用 Docker daemon、不改写真实 lockfile，并已接入 `tests.tooling`。
 
-### G2.4 CI 与 release 阻断
+### G2.4 CI 与 release 阻断（完成）
 
 **目标：** PR 与 release workflow 调用同一个 `make supply-chain.check`，上传机器
 报告，并让失败阻断 API、Android 和最终发布 job。
@@ -98,8 +98,9 @@ expired exception、missing owner、wildcard、unused exception、scanner unavai
 **文件：** `.github/workflows/supply-chain.yml`、
 `.github/workflows/release-artifacts.yml`、必要的 `Makefile` 调整。
 
-**完成条件：** workflow 语法通过；工具版本固定；报告缺失即失败；正常和负向
-CI 证据可复现；独立 CI commit 已推送。
+**完成证据：** PR/main 独立 workflow 与 release 内置阻断 job 均调用统一 Make
+入口；Android、API build 与 publish 显式依赖供应链 job；机器报告缺失即失败。
+结构化依赖图测试与 Actionlint 1.7.7 通过。
 
 ### G2.5 关闭 U7 P0-3
 
