@@ -20,6 +20,9 @@ import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.DirectUploadSignature
 import com.redcode.im.androidapp.data.chat.MessageAttachmentCommitResponse
 import com.redcode.im.androidapp.data.chat.MessageAttachmentSignatureResponse
+import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
+import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
 import com.redcode.im.androidapp.data.contacts.BackendFriendInfo
 import com.redcode.im.androidapp.data.contacts.BackendFriendRequest
 import com.redcode.im.androidapp.data.contacts.BackendUser
@@ -247,6 +250,25 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun cachedRemoteChatRepositoryDecryptsBeforeWritingRoomCache() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val resolver = CachedRecordingIncomingResolver()
+            val repository =
+                CachedRemoteChatRepository(
+                    FakeChatRemoteDataSource(),
+                    MutableStateFlow(session()),
+                    local,
+                    incomingResolver = resolver,
+                )
+
+            repository.refreshMessages("room-1")
+
+            assertEquals("decrypted before cache", local.messages("room-1").first().single().text)
+            assertEquals(listOf(E2eeMessageSource.History), resolver.sources)
+        }
+
+    @Test
     fun cachedRemoteChatRepository_marksFailedAndResendsFromRoomCache() =
         runTest {
             val local = RoomChatRepository(FakeChatDao())
@@ -262,6 +284,28 @@ class RoomRepositoryTest {
             assertEquals(MessageStatus.Failed, failed.status)
             assertEquals("m2", resent?.id)
             assertEquals(listOf("m2"), repository.messages("room-1").first().map { it.id })
+        }
+
+    @Test
+    fun cachedRemoteChatRepositoryUsesEncryptedTextRouterWithoutPlaintextSend() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val outgoing = CachedRecordingOutgoingRouter()
+            val repository =
+                CachedRemoteChatRepository(
+                    remote,
+                    MutableStateFlow(session()),
+                    local,
+                    outgoingRouter = outgoing,
+                )
+
+            val sent = repository.sendText("room-1", "user-me", "Me", " secret ")
+
+            assertEquals("m-encrypted", sent.id)
+            assertEquals(listOf("room-1:null:secret:false"), outgoing.calls)
+            assertEquals(0, remote.plaintextSendCalls)
+            assertEquals("secret", local.messages("room-1").first().single().text)
         }
 
     @Test
@@ -395,6 +439,28 @@ class RoomRepositoryTest {
             user = AuthUser(id = "user-me", accountName = "me", displayName = "Me"),
             tokens = TokenPair(accessToken = "access-token", refreshToken = "refresh-token"),
         )
+}
+
+private class CachedRecordingIncomingResolver : IncomingChatMessageResolver {
+    val sources = mutableListOf<E2eeMessageSource>()
+
+    override suspend fun resolve(
+        message: BackendChatMessage,
+        source: E2eeMessageSource,
+        cachedMessage: ChatMessage?,
+    ): ChatMessage {
+        sources += source
+        return message.toDomain().copy(text = "decrypted before cache")
+    }
+}
+
+private class CachedRecordingOutgoingRouter : OutgoingTextMessageRouter {
+    val calls = mutableListOf<String>()
+
+    override suspend fun send(roomId: String, peerUserId: String?, text: String, retry: Boolean): String? {
+        calls += "$roomId:$peerUserId:$text:$retry"
+        return "m-encrypted"
+    }
 }
 
 private class FakeChatDao : ChatDao {
@@ -595,6 +661,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     var lastRichContent: String? = null
     var lastRichParts: List<MessagePart> = emptyList()
     var uploadedBytes: ByteArray? = null
+    var plaintextSendCalls = 0
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -635,6 +702,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
         token: String,
         quotedMessageId: String?,
     ): BackendChatMessage {
+        plaintextSendCalls += 1
         tokens += token
         lastQuotedMessageId = quotedMessageId
         if (failNextSend) {

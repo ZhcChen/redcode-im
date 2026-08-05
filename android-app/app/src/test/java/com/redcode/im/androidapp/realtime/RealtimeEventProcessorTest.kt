@@ -4,6 +4,9 @@ import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.Contact
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
+import com.redcode.im.androidapp.data.chat.BackendChatMessage
+import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -91,6 +94,41 @@ class RealtimeEventProcessorTest {
         }
 
     @Test
+    fun encryptedMessageEventUsesSharedWebSocketResolverBeforeCaching() =
+        runTest {
+            val cache = FakeChatCache()
+            val resolver = RecordingIncomingResolver()
+            val processor = processor(cache, incomingResolver = resolver)
+
+            processor.handle(
+                event(
+                    """
+                    {
+                      "type":"message",
+                      "message_id":"m-secret",
+                      "room_id":"room-1",
+                      "sender_id":"user-a",
+                      "encrypted_content":"CQ==",
+                      "encryption_metadata":{
+                        "protocol":"mls",
+                        "version":1,
+                        "epoch":1,
+                        "sender_device_id":"device-a",
+                        "content_type":"application",
+                        "control_message_id":"commit-1"
+                      },
+                      "timestamp":"2026-08-05T00:00:00Z"
+                    }
+                    """.trimIndent(),
+                ),
+            )
+
+            assertEquals("decrypted websocket", cache.messages.single().text)
+            assertEquals(listOf(E2eeMessageSource.WebSocket), resolver.sources)
+            assertEquals("CQ==", resolver.messages.single().encryptedContent)
+        }
+
+    @Test
     fun messageReadUpdateRoomAndFriendEvents_callExpectedRepositories() =
         runTest {
             val cache = FakeChatCache()
@@ -150,16 +188,33 @@ class RealtimeEventProcessorTest {
     private fun processor(
         cache: FakeChatCache,
         contacts: FakeContactsRepository = FakeContactsRepository(),
+        incomingResolver: IncomingChatMessageResolver? = null,
     ): RealtimeEventProcessor =
         RealtimeEventProcessor(
             chatCache = cache,
             contactsRepository = contacts,
             currentUserIdProvider = { "user-me" },
+            incomingResolver = incomingResolver,
         )
 
     private fun event(raw: String): WebSocketServerEvent {
         val payload = json.parseToJsonElement(raw) as JsonObject
         return WebSocketServerEvent(type = payload["type"]!!.jsonPrimitive.content, payload = payload)
+    }
+}
+
+private class RecordingIncomingResolver : IncomingChatMessageResolver {
+    val messages = mutableListOf<BackendChatMessage>()
+    val sources = mutableListOf<E2eeMessageSource>()
+
+    override suspend fun resolve(
+        message: BackendChatMessage,
+        source: E2eeMessageSource,
+        cachedMessage: ChatMessage?,
+    ): ChatMessage {
+        messages += message
+        sources += source
+        return message.toDomain().copy(text = "decrypted websocket")
     }
 }
 

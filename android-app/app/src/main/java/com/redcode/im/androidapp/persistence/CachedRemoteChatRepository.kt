@@ -15,6 +15,11 @@ import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.data.chat.ChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.ChatRepository
 import com.redcode.im.androidapp.data.chat.toWireName
+import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
+import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
+import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.PlaintextOutgoingTextMessageRouter
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -26,7 +31,11 @@ class CachedRemoteChatRepository(
     private val session: StateFlow<AuthSession?>,
     private val localRepository: RoomChatRepository,
     private val attachmentFileCache: FileResourceCache? = null,
+    incomingResolver: IncomingChatMessageResolver? = null,
+    outgoingRouter: OutgoingTextMessageRouter? = null,
 ) : ChatRepository {
+    private val incomingResolver = incomingResolver ?: PlaintextIncomingMessageResolver
+    private val outgoingRouter = outgoingRouter ?: PlaintextOutgoingTextMessageRouter
     override val chats: Flow<List<ChatSummary>> = localRepository.chats
 
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
@@ -42,10 +51,17 @@ class CachedRemoteChatRepository(
     }
 
     override suspend fun refreshMessages(roomId: String, limit: Int) {
+        val currentMessages = localRepository.messages(roomId).first()
         val messages =
             remoteDataSource
                 .loadMessages(roomId = roomId, token = requireToken(), limit = limit)
-                .map { it.toDomain() }
+                .map { incoming ->
+                    incomingResolver.resolve(
+                        incoming,
+                        E2eeMessageSource.History,
+                        currentMessages.firstOrNull { it.id == incoming.id },
+                    )
+                }
                 .sortedBy { it.createdAt }
         localRepository.replaceMessages(roomId, messages)
     }
@@ -60,7 +76,13 @@ class CachedRemoteChatRepository(
         val older =
             remoteDataSource
                 .loadMessages(roomId = roomId, token = requireToken(), limit = limit, beforeId = beforeId)
-                .map { it.toDomain() }
+                .map { incoming ->
+                    incomingResolver.resolve(
+                        incoming,
+                        E2eeMessageSource.History,
+                        currentMessages.firstOrNull { it.id == incoming.id },
+                    )
+                }
                 .filterNot { it.id in existingIds }
         if (older.isEmpty()) return false
         older.sortedBy { it.createdAt }.forEach { localRepository.upsertMessage(it) }
@@ -89,7 +111,7 @@ class CachedRemoteChatRepository(
                 quotedMessage = quotedMessage,
             )
         localRepository.applyIncomingMessage(pending, currentUserId = senderId)
-        return sendPending(pending, quotedMessageId = quotedMessageId)
+        return sendPending(pending, quotedMessageId = quotedMessageId, retry = false)
     }
 
     override suspend fun sendAttachmentReference(
@@ -117,7 +139,7 @@ class CachedRemoteChatRepository(
                 parts = normalizedParts,
             )
         localRepository.applyIncomingMessage(pending, currentUserId = senderId)
-        return sendPending(pending, quotedMessageId = quotedMessageId)
+        return sendPending(pending, quotedMessageId = quotedMessageId, retry = false)
     }
 
     override suspend fun fetchAttachmentDownloadUrl(roomId: String, key: String, expiresInSeconds: Int): String? =
@@ -202,7 +224,11 @@ class CachedRemoteChatRepository(
     override suspend fun resendMessage(messageId: String): ChatMessage? {
         val failed = localRepository.findMessage(messageId)?.takeIf { it.status == MessageStatus.Failed } ?: return null
         localRepository.updateMessageStatus(messageId = failed.id, status = MessageStatus.Pending)
-        return sendPending(failed.copy(status = MessageStatus.Pending, createdAt = Instant.now()), quotedMessageId = failed.quotedMessage?.id)
+        return sendPending(
+            failed.copy(status = MessageStatus.Pending, createdAt = Instant.now()),
+            quotedMessageId = failed.quotedMessage?.id,
+            retry = true,
+        )
     }
 
     override suspend fun markRead(roomId: String) {
@@ -232,10 +258,11 @@ class CachedRemoteChatRepository(
     }
 
     override suspend fun setMessagePinned(roomId: String, messageId: String, pinned: Boolean): ChatMessage? {
+        val cached = localRepository.findMessage(messageId)
         val updated =
             remoteDataSource
                 .pinMessage(roomId = roomId, messageId = messageId, pinned = pinned, token = requireToken())
-                ?.toDomain()
+                ?.let { incoming -> incomingResolver.resolve(incoming, E2eeMessageSource.History, cached) }
         if (updated != null) {
             localRepository.upsertMessage(updated)
         } else {
@@ -264,11 +291,20 @@ class CachedRemoteChatRepository(
         localRepository.clear()
     }
 
-    private suspend fun sendPending(pending: ChatMessage, quotedMessageId: String?): ChatMessage {
+    private suspend fun sendPending(pending: ChatMessage, quotedMessageId: String?, retry: Boolean): ChatMessage {
         return runCatching {
             if (pending.parts.isEmpty()) {
-                remoteDataSource
-                    .sendTextMessage(roomId = pending.roomId, content = pending.text, token = requireToken(), quotedMessageId = quotedMessageId)
+                val peerUserId = localRepository.chats.first().firstOrNull { it.roomId == pending.roomId }?.friendUserId
+                val encryptedId = outgoingRouter.send(pending.roomId, peerUserId, pending.text, retry)
+                if (encryptedId != null) {
+                    pending.copy(id = encryptedId, status = MessageStatus.Sent).also {
+                        incomingResolver.rememberResolved(it)
+                    }
+                } else {
+                    remoteDataSource
+                        .sendTextMessage(roomId = pending.roomId, content = pending.text, token = requireToken(), quotedMessageId = quotedMessageId)
+                        .toDomain()
+                }
             } else {
                 remoteDataSource
                     .sendRichMessage(
@@ -277,9 +313,8 @@ class CachedRemoteChatRepository(
                         parts = pending.parts.filterNot { it.type == MessagePartType.Text },
                         token = requireToken(),
                         quotedMessageId = quotedMessageId,
-                    )
+                    ).toDomain()
             }
-                .toDomain()
                 .withAttachmentLocalPathsFrom(pending)
         }.fold(
             onSuccess = { sent ->

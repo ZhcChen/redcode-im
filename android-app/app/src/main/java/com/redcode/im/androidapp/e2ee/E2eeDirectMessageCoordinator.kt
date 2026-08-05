@@ -22,6 +22,30 @@ data class E2eeIncomingMessage(
 
 data class E2eeDecryptedMessage(val messageId: String, val roomId: String, val text: String, val epoch: Long, val encrypted: Boolean)
 
+interface E2eeIncomingDecryptor {
+    suspend fun decryptIncoming(
+        accountId: String,
+        deviceLabel: String,
+        input: E2eeIncomingMessage,
+        token: String,
+    ): E2eeDecryptedMessage
+}
+
+interface E2eeTextSender {
+    suspend fun sendText(
+        accountId: String,
+        deviceLabel: String,
+        roomId: String,
+        peerUserId: String?,
+        text: String,
+        token: String,
+    ): String
+
+    suspend fun retryPendingSend(accountId: String, token: String): String
+
+    suspend fun hasPendingSend(accountId: String): Boolean
+}
+
 interface E2eeDirectSessionCore {
     fun createGroup(state: ByteArray, roomId: String): E2eeCommandResult
     fun addMember(state: ByteArray, roomId: String, keyPackage: ByteArray): E2eeCommandResult
@@ -72,15 +96,21 @@ class E2eeDirectMessageCoordinator(
     private val api: E2eeMlsApi,
     private val core: E2eeDirectSessionCore = E2eeCommandSessionCore(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) {
+) : E2eeIncomingDecryptor, E2eeTextSender {
     private val mutex = Mutex()
 
-    suspend fun sendText(accountId: String, deviceLabel: String, roomId: String, peerUserId: String, text: String, token: String): String = mutex.withLock {
+    override suspend fun sendText(accountId: String, deviceLabel: String, roomId: String, peerUserId: String?, text: String, token: String): String = mutex.withLock {
         val normalized = text.trim()
         if (normalized.isEmpty()) throw E2eeDirectMessageException("加密消息内容不能为空")
         val profile = lifecycle.ensureReady(accountId, deviceLabel, token)
         requireActive(profile)
-        verifyIdentity(accountId, peerUserId, token)
+        val peerUserIds =
+            peerUserId?.let(::listOf)
+                ?: api.listRoomMemberDevices(roomId, token)
+                    .map { it.userId }
+                    .filterNot { it == accountId }
+                    .distinct()
+        peerUserIds.forEach { verifyIdentity(accountId, it, token) }
         syncControls(accountId, roomId, profile, token)
         reconcileGroup(accountId, roomId, profile, token)
         var state = storage.read(accountId) ?: throw E2eeDirectMessageException("E2EE 协议状态缺失")
@@ -112,11 +142,15 @@ class E2eeDirectMessageCoordinator(
         resumePendingSend(accountId, token)
     }
 
-    suspend fun retryPendingSend(accountId: String, token: String): String = mutex.withLock {
+    override suspend fun retryPendingSend(accountId: String, token: String): String = mutex.withLock {
         resumePendingSend(accountId, token)
     }
 
-    suspend fun decryptIncoming(accountId: String, deviceLabel: String, input: E2eeIncomingMessage, token: String): E2eeDecryptedMessage = mutex.withLock {
+    override suspend fun hasPendingSend(accountId: String): Boolean = mutex.withLock {
+        readMetadata(accountId).pendingApplication != null
+    }
+
+    override suspend fun decryptIncoming(accountId: String, deviceLabel: String, input: E2eeIncomingMessage, token: String): E2eeDecryptedMessage = mutex.withLock {
         if (input.messageId.isBlank() || input.roomId.isBlank()) throw E2eeDirectMessageException("E2EE 消息标识无效")
         val metadata = readMetadata(accountId)
         if (metadata.processedMessageIds[input.roomId].orEmpty().contains(input.messageId)) {

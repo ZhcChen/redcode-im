@@ -83,6 +83,7 @@ class E2eeDirectMessageCoordinatorTest {
 
         assertTrue(failure is E2eeDirectMessageException)
         assertTrue(storage.read("account-a")!!.contentEquals(byteArrayOf(1)))
+        assertFalse(coordinator.hasPendingSend("account-a"))
         core.failDecrypt = false
         assertEquals(
             "secret",
@@ -109,6 +110,19 @@ class E2eeDirectMessageCoordinatorTest {
     }
 
     @Test
+    fun missingPeerHintStillVerifiesRoomMemberIdentity() = runTest {
+        api.roomMembers =
+            listOf(
+                E2eeRoomMemberDevices("account-a", listOf(E2eePeerDevice("device-a", 1, ByteArray(32)))),
+                E2eeRoomMemberDevices("account-b", listOf(E2eePeerDevice("device-b", 1, ByteArray(32)))),
+            )
+
+        coordinator.sendText("account-a", "Android", "room-1", null, "secret", "token")
+
+        assertEquals(listOf("account-b"), api.fetchedIdentityUserIds)
+    }
+
+    @Test
     fun failedSendCanResumeAfterCoordinatorRestartWithSameIdempotencyKey() = runTest {
         api.failSend = true
         val failure = runCatching {
@@ -117,6 +131,7 @@ class E2eeDirectMessageCoordinatorTest {
         assertTrue(failure is IllegalStateException)
         val firstKey = api.lastIdempotencyKey
         assertTrue(storage.read("account-a")!!.contentEquals(byteArrayOf(1)))
+        assertTrue(coordinator.hasPendingSend("account-a"))
 
         api.failSend = false
         val restarted = E2eeDirectMessageCoordinator(
@@ -130,6 +145,7 @@ class E2eeDirectMessageCoordinatorTest {
         assertEquals("server-message", restarted.retryPendingSend("account-a", "token"))
         assertEquals(firstKey, api.lastIdempotencyKey)
         assertTrue(storage.read("account-a")!!.contentEquals(byteArrayOf(2)))
+        assertFalse(restarted.hasPendingSend("account-a"))
     }
 
     @Test
@@ -190,12 +206,16 @@ class E2eeDirectMessageCoordinatorTest {
         var roomMembers = emptyList<E2eeRoomMemberDevices>()
         val claimedDevices = mutableListOf<String>()
         val submittedControls = mutableListOf<E2eeOutgoingControlMessage>()
+        val fetchedIdentityUserIds = mutableListOf<String>()
         override suspend fun fetchRootIdentity(userId: String, token: String) = ByteArray(32)
         override suspend fun registerDevice(deviceId: String, deviceLabel: String, material: E2eeRegistrationMaterial, token: String) = "active"
         override suspend fun publishKeyPackages(deviceId: String, keyPackages: List<ByteArray>, token: String) = keyPackages.size
         override suspend fun fetchKeyPackageInventory(deviceId: String, token: String) = E2eeKeyPackageInventory(20, 100)
         override suspend fun listDevices(token: String) = listOf(E2eeDeviceInfo("device-a", status = "active"))
-        override suspend fun fetchIdentity(userId: String, token: String) = E2eeRootIdentity(userId, ByteArray(32), identityFingerprint, 1)
+        override suspend fun fetchIdentity(userId: String, token: String): E2eeRootIdentity {
+            fetchedIdentityUserIds += userId
+            return E2eeRootIdentity(userId, ByteArray(32), identityFingerprint, 1)
+        }
         override suspend fun getRoomEpoch(roomId: String, token: String) = epoch
         override suspend fun listRoomMemberDevices(roomId: String, token: String) = roomMembers
         override suspend fun claimKeyPackage(roomId: String, consumerDeviceId: String, targetDeviceId: String, token: String): E2eeClaimedKeyPackage {

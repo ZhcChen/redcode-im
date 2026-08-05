@@ -102,6 +102,10 @@ data class BackendChatMessage(
     @SerialName("sender_nickname")
     val senderNickname: String? = null,
     val content: String = "",
+    @SerialName("encrypted_content")
+    val encryptedContent: String? = null,
+    @SerialName("encryption_metadata")
+    val encryptionMetadata: ChatEncryptionMetadata? = null,
     @SerialName("message_type")
     val messageType: String? = null,
     val status: String? = null,
@@ -136,6 +140,19 @@ data class BackendChatMessage(
             parts = parts.map { it.toDomain() },
         )
 }
+
+@Serializable
+data class ChatEncryptionMetadata(
+    val protocol: String,
+    val version: Int,
+    val epoch: Long,
+    @SerialName("sender_device_id")
+    val senderDeviceId: String,
+    @SerialName("content_type")
+    val contentType: String,
+    @SerialName("control_message_id")
+    val controlMessageId: String? = null,
+)
 
 @Serializable
 data class BackendMessageAttachment(

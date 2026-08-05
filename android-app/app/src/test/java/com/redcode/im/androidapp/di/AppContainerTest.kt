@@ -22,7 +22,7 @@ class AppContainerTest {
             val container =
                 AppContainer(
                     environment = RedCodeEnvironment.localEmulator(),
-                    chatRepository = FailingClearChatRepository(),
+                    chatRepositoryOverride = FailingClearChatRepository(),
                     emojiRepository = emojiRepository,
                 )
 

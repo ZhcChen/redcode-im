@@ -7,7 +7,15 @@ import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.MessageStatus
 import com.redcode.im.androidapp.data.chat.ChatRepository
+import com.redcode.im.androidapp.data.chat.BackendChatMessage
+import com.redcode.im.androidapp.data.chat.BackendMessageAttachment
+import com.redcode.im.androidapp.data.chat.BackendMessagePart
+import com.redcode.im.androidapp.data.chat.BackendQuotedMessage
+import com.redcode.im.androidapp.data.chat.ChatEncryptionMetadata
 import com.redcode.im.androidapp.data.contacts.ContactsRepository
+import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
+import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
 import com.redcode.im.androidapp.persistence.RoomChatRepository
 import java.time.Instant
 import kotlinx.serialization.json.JsonElement
@@ -24,7 +32,9 @@ class RealtimeEventProcessor(
     private val chatCache: RealtimeChatCache,
     private val contactsRepository: ContactsRepository,
     private val currentUserIdProvider: () -> String?,
+    incomingResolver: IncomingChatMessageResolver? = null,
 ) {
+    private val incomingResolver = incomingResolver ?: PlaintextIncomingMessageResolver
     var lastError: String? = null
         private set
 
@@ -46,7 +56,8 @@ class RealtimeEventProcessor(
     }
 
     private suspend fun applyMessage(payload: JsonObject) {
-        val message = payload.toChatMessage() ?: return
+        val backend = payload.toBackendChatMessage() ?: return
+        val message = incomingResolver.resolve(backend, E2eeMessageSource.WebSocket)
         chatCache.applyIncomingMessage(message, currentUserIdProvider())
     }
 
@@ -98,6 +109,71 @@ class RealtimeEventProcessor(
         val roomId = payload.string("room_id") ?: return
         chatCache.removeRoom(roomId)
     }
+}
+
+private fun JsonObject.toBackendChatMessage(): BackendChatMessage? {
+    val domain = toChatMessage() ?: return null
+    val metadata =
+        jsonObject("encryption_metadata")?.let { value ->
+            ChatEncryptionMetadata(
+                protocol = value.string("protocol").orEmpty(),
+                version = value.long("version")?.toInt() ?: 0,
+                epoch = value.long("epoch") ?: 0,
+                senderDeviceId = value.string("sender_device_id").orEmpty(),
+                contentType = value.string("content_type").orEmpty(),
+                controlMessageId = value.string("control_message_id"),
+            )
+        }
+    return BackendChatMessage(
+        id = domain.id,
+        roomId = domain.roomId,
+        senderId = domain.senderId,
+        senderUsername = string("sender_username"),
+        senderNickname = string("sender_nickname"),
+        content = string("content").orEmpty(),
+        encryptedContent = string("encrypted_content"),
+        encryptionMetadata = metadata,
+        messageType = string("message_type"),
+        status = "sent",
+        createdAt = string("timestamp") ?: string("created_at"),
+        isDeleted = domain.isDeleted,
+        isPinned = domain.isPinned,
+        pinnedAt = string("pinned_at"),
+        pinnedBy = domain.pinnedBy,
+        quotedMessage =
+            domain.quotedMessage?.let { quote ->
+                BackendQuotedMessage(
+                    id = quote.id,
+                    roomId = quote.roomId,
+                    senderId = quote.senderId,
+                    senderNickname = quote.senderName,
+                    content = quote.text,
+                    createdAt = quote.createdAt?.toString(),
+                    isDeleted = quote.isDeleted,
+                )
+            },
+        parts =
+            domain.parts.map { part ->
+                BackendMessagePart(
+                    position = part.position,
+                    partType = part.type.toWireName(),
+                    text = part.text,
+                    attachment =
+                        part.attachment?.let { attachment ->
+                            BackendMessageAttachment(
+                                key = attachment.key,
+                                name = attachment.name,
+                                mime = attachment.mime,
+                                size = attachment.size,
+                                width = attachment.width,
+                                height = attachment.height,
+                                durationMs = attachment.durationMs,
+                                thumbnailKey = attachment.thumbnailKey,
+                            )
+                        },
+                )
+            },
+    )
 }
 
 interface RealtimeChatCache {
@@ -265,6 +341,15 @@ private fun String?.toPartType(): MessagePartType =
         "audio", "voice" -> MessagePartType.Audio
         "file" -> MessagePartType.File
         else -> MessagePartType.Text
+    }
+
+private fun MessagePartType.toWireName(): String =
+    when (this) {
+        MessagePartType.Text -> "text"
+        MessagePartType.Image -> "image"
+        MessagePartType.Video -> "video"
+        MessagePartType.Audio -> "audio"
+        MessagePartType.File -> "file"
     }
 
 private fun JsonPrimitive.isStringNull(): Boolean = contentOrNull == null || contentOrNull == "null"

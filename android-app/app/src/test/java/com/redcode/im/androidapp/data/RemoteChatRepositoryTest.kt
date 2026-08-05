@@ -4,6 +4,7 @@ import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.ChatRoomType
+import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.MessageAttachment
 import com.redcode.im.androidapp.core.model.MessagePart
 import com.redcode.im.androidapp.core.model.MessagePartType
@@ -12,6 +13,10 @@ import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.ChatAPIEndpoint
 import com.redcode.im.androidapp.data.chat.HttpChatRemoteDataSource
 import com.redcode.im.androidapp.data.chat.RemoteChatRepository
+import com.redcode.im.androidapp.data.chat.BackendChatMessage
+import com.redcode.im.androidapp.e2ee.E2eeMessageSource
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
+import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
 import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.network.HTTPMethod
@@ -163,6 +168,43 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun refreshMessagesUsesSharedHistoryResolverBeforePublishingState() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """
+                        [{
+                          "id":"m-secret",
+                          "room_id":"room-1",
+                          "sender_id":"user-a",
+                          "content":"",
+                          "encrypted_content":"CQ==",
+                          "encryption_metadata":{
+                            "protocol":"mls",
+                            "version":1,
+                            "epoch":1,
+                            "sender_device_id":"device-a",
+                            "content_type":"application",
+                            "control_message_id":"commit-1"
+                          },
+                          "created_at":"2026-08-05T00:00:00Z"
+                        }]
+                        """.trimIndent(),
+                    ),
+                )
+            val resolver = RecordingIncomingResolver("decrypted history")
+            val repository = repository(transport, incomingResolver = resolver)
+
+            repository.refreshMessages("room-1")
+
+            assertEquals("decrypted history", repository.messages("room-1").first().single().text)
+            assertEquals(listOf(E2eeMessageSource.History), resolver.sources)
+            assertEquals("CQ==", resolver.messages.single().encryptedContent)
+        }
+
+    @Test
     fun sendText_withQuotedMessagePassesQuotedMessageId() =
         runTest {
             val transport =
@@ -213,6 +255,50 @@ class RemoteChatRepositoryTest {
 
             assertEquals("m-1", sent.quotedMessage?.id)
             assertEquals("""{"content":"reply","quoted_message_id":"m-1"}""", transport.requests[1].body)
+        }
+
+    @Test
+    fun e2eeSendUsesCoordinatorIdAndNeverCallsPlaintextMessageApi() =
+        runTest {
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """[{"room_id":"room-1","room_type":"direct","friend_user_id":"user-b"}]""",
+                    ),
+                    HttpResponse(200, "[]"),
+                )
+            val outgoing = RecordingOutgoingRouter(messageId = "m-encrypted")
+            val incoming = RecordingIncomingResolver("unused")
+            val repository = repository(transport, incomingResolver = incoming, outgoingRouter = outgoing)
+            repository.refreshChats()
+
+            val sent = repository.sendText("room-1", "user-me", "Me", " secret ")
+
+            assertEquals("m-encrypted", sent.id)
+            assertEquals(MessageStatus.Sent, sent.status)
+            assertEquals(listOf("room-1:user-b:secret:false"), outgoing.calls)
+            assertEquals(listOf("m-encrypted"), incoming.remembered.map { it.id })
+            assertEquals(2, transport.requests.size)
+            assertTrue(transport.requests.none { it.url.endsWith("/rooms/room-1/messages") && it.method == HTTPMethod.POST })
+        }
+
+    @Test
+    fun e2eeSendFailureKeepsFailedMessageAndRetryUsesPersistedPending() =
+        runTest {
+            val transport = QueueTransport(HttpResponse(200, "[]"))
+            val outgoing = RecordingOutgoingRouter(messageId = "m-retried", failFirst = true)
+            val repository = repository(transport, outgoingRouter = outgoing)
+
+            val failure = runCatching { repository.sendText("room-1", "user-me", "Me", "secret") }.exceptionOrNull()
+            val failed = repository.messages("room-1").first().single()
+            val resent = repository.resendMessage(failed.id)
+
+            assertEquals("encrypted send failed", failure?.message)
+            assertEquals(MessageStatus.Failed, failed.status)
+            assertEquals("m-retried", resent?.id)
+            assertEquals(listOf("room-1:null:secret:false", "room-1:null:secret:true"), outgoing.calls)
+            assertTrue(transport.requests.none { it.method == HTTPMethod.POST })
         }
 
     @Test
@@ -837,11 +923,15 @@ class RemoteChatRepositoryTest {
     private fun repository(
         transport: QueueTransport,
         attachmentFileCache: FileResourceCache? = null,
+        incomingResolver: IncomingChatMessageResolver? = null,
+        outgoingRouter: OutgoingTextMessageRouter? = null,
     ): RemoteChatRepository =
         RemoteChatRepository(
             remoteDataSource = HttpChatRemoteDataSource(APIClient(RedCodeEnvironment.localEmulator(), transport)),
             session = MutableStateFlow(session()),
             attachmentFileCache = attachmentFileCache,
+            incomingResolver = incomingResolver,
+            outgoingRouter = outgoingRouter,
         )
 
     private fun session(): AuthSession =
@@ -859,6 +949,39 @@ class RemoteChatRepositoryTest {
         override suspend fun execute(request: HttpRequest): HttpResponse {
             requests += request
             return responses.removeFirst()
+        }
+    }
+
+    private class RecordingIncomingResolver(private val resolvedText: String) : IncomingChatMessageResolver {
+        val messages = mutableListOf<BackendChatMessage>()
+        val sources = mutableListOf<E2eeMessageSource>()
+        val remembered = mutableListOf<ChatMessage>()
+
+        override suspend fun resolve(
+            message: BackendChatMessage,
+            source: E2eeMessageSource,
+            cachedMessage: ChatMessage?,
+        ): ChatMessage {
+            messages += message
+            sources += source
+            return message.toDomain().copy(text = resolvedText)
+        }
+
+        override suspend fun rememberResolved(message: ChatMessage) {
+            remembered += message
+        }
+    }
+
+    private class RecordingOutgoingRouter(
+        private val messageId: String,
+        private val failFirst: Boolean = false,
+    ) : OutgoingTextMessageRouter {
+        val calls = mutableListOf<String>()
+
+        override suspend fun send(roomId: String, peerUserId: String?, text: String, retry: Boolean): String? {
+            calls += "$roomId:$peerUserId:$text:$retry"
+            if (failFirst && !retry) error("encrypted send failed")
+            return messageId
         }
     }
 }

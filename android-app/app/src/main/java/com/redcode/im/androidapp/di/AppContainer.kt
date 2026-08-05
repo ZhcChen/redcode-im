@@ -36,9 +36,15 @@ import com.redcode.im.androidapp.e2ee.E2eeCommandSessionCore
 import com.redcode.im.androidapp.e2ee.E2eeDeviceLifecycle
 import com.redcode.im.androidapp.e2ee.E2eeDeviceManager
 import com.redcode.im.androidapp.e2ee.E2eeDirectMessageCoordinator
+import com.redcode.im.androidapp.e2ee.E2eeIncomingMessageResolver
+import com.redcode.im.androidapp.e2ee.E2eeOutgoingTextRouter
 import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
 import com.redcode.im.androidapp.e2ee.E2eeSessionLifecycle
 import com.redcode.im.androidapp.e2ee.HttpE2eeMlsApi
+import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
+import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
+import com.redcode.im.androidapp.e2ee.PlaintextOutgoingTextMessageRouter
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.persistence.CachedRemoteRoomRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
@@ -67,6 +73,7 @@ class AppContainer(
     e2eeSecureStateStore: E2eeSecureStateStore? = null,
     e2eeDeviceLabel: String = "Android",
     e2eeSessionLifecycleOverride: E2eeSessionLifecycle? = null,
+    chatRepositoryOverride: ChatRepository? = null,
     val userPreferenceStore: UserPreferenceStore = InMemoryUserPreferenceStore(),
     val authRepository: AuthRepository =
         if (useRemoteAuth) {
@@ -76,23 +83,6 @@ class AppContainer(
             )
         } else {
             InMemoryAuthRepository()
-        },
-    val chatRepository: ChatRepository =
-        if (useRemoteChat && localChatRepository != null) {
-            CachedRemoteChatRepository(
-                remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
-                session = authRepository.session,
-                localRepository = localChatRepository,
-                attachmentFileCache = attachmentFileCache,
-            )
-        } else if (useRemoteChat) {
-            RemoteChatRepository(
-                remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
-                session = authRepository.session,
-                attachmentFileCache = attachmentFileCache,
-            )
-        } else {
-            InMemoryChatRepository()
         },
     val contactsRepository: ContactsRepository =
         if (useRemoteContacts && localContactsRepository != null) {
@@ -153,20 +143,6 @@ class AppContainer(
         } else {
             null
         },
-    val realtimeEventProcessor: RealtimeEventProcessor? =
-        if (useRemoteChat && localChatRepository != null) {
-            RealtimeEventProcessor(
-                chatCache =
-                    RoomRealtimeChatCache(
-                        chatRepository = chatRepository,
-                        localRepository = localChatRepository,
-                    ),
-                contactsRepository = contactsRepository,
-                currentUserIdProvider = { authRepository.session.value?.user?.id },
-            )
-        } else {
-            null
-        },
 ) {
     private val e2eeGraph =
         e2eeSecureStateStore?.let { secureState ->
@@ -180,6 +156,65 @@ class AppContainer(
                 coordinator = E2eeDirectMessageCoordinator(secureState, deviceLifecycle, api, E2eeCommandSessionCore(command)),
                 deviceManager = E2eeDeviceManager(secureState, api, command),
             )
+        }
+
+    private val incomingMessageResolver: IncomingChatMessageResolver =
+        e2eeGraph?.let { graph ->
+            E2eeIncomingMessageResolver(
+                session = authRepository.session,
+                e2eeStatus = graph.sessionLifecycle.status,
+                decryptor = graph.coordinator,
+                deviceLabel = e2eeDeviceLabel,
+            )
+        } ?: PlaintextIncomingMessageResolver
+
+    private val outgoingTextRouter: OutgoingTextMessageRouter =
+        e2eeGraph?.let { graph ->
+            E2eeOutgoingTextRouter(
+                session = authRepository.session,
+                e2eeStatus = graph.sessionLifecycle.status,
+                sender = graph.coordinator,
+                deviceLabel = e2eeDeviceLabel,
+            )
+        } ?: PlaintextOutgoingTextMessageRouter
+
+    val chatRepository: ChatRepository =
+        chatRepositoryOverride
+            ?: if (useRemoteChat && localChatRepository != null) {
+                CachedRemoteChatRepository(
+                    remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
+                    session = authRepository.session,
+                    localRepository = localChatRepository,
+                    attachmentFileCache = attachmentFileCache,
+                    incomingResolver = incomingMessageResolver,
+                    outgoingRouter = outgoingTextRouter,
+                )
+            } else if (useRemoteChat) {
+                RemoteChatRepository(
+                    remoteDataSource = HttpChatRemoteDataSource(APIClient(environment)),
+                    session = authRepository.session,
+                    attachmentFileCache = attachmentFileCache,
+                    incomingResolver = incomingMessageResolver,
+                    outgoingRouter = outgoingTextRouter,
+                )
+            } else {
+                InMemoryChatRepository()
+            }
+
+    val realtimeEventProcessor: RealtimeEventProcessor? =
+        if (useRemoteChat && localChatRepository != null) {
+            RealtimeEventProcessor(
+                chatCache =
+                    RoomRealtimeChatCache(
+                        chatRepository = chatRepository,
+                        localRepository = localChatRepository,
+                    ),
+                contactsRepository = contactsRepository,
+                currentUserIdProvider = { authRepository.session.value?.user?.id },
+                incomingResolver = incomingMessageResolver,
+            )
+        } else {
+            null
         }
 
     val e2eeSessionLifecycle: E2eeSessionLifecycle? = e2eeSessionLifecycleOverride ?: e2eeGraph?.sessionLifecycle
