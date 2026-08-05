@@ -32,13 +32,14 @@ interface MlsApi {
     deviceId: string,
     deviceLabel: string,
     material: E2eeDeviceRegistrationMaterial,
-  ): Promise<unknown>;
+  ): Promise<{ status: string }>;
   publishKeyPackage(deviceId: string, keyPackage: Uint8Array): Promise<unknown>;
   publishKeyPackages(deviceId: string, keyPackages: Uint8Array[]): Promise<unknown>;
   fetchKeyPackageInventory(deviceId: string): Promise<{
     available: number;
     maxAvailable: number;
   }>;
+  listDevices(): Promise<Array<{ id: string; status: string }>>;
 }
 
 export class E2eeDeviceNotReadyError extends Error {
@@ -105,17 +106,44 @@ export class E2eeDeviceLifecycle {
     let readyProfile = profile;
 
     if (!readyProfile.registered) {
-      await this.mlsApi.registerDevice(readyProfile.deviceId, readyProfile.deviceLabel, material);
-      readyProfile = { ...readyProfile, registered: true };
+      const registered = await this.mlsApi.registerDevice(
+        readyProfile.deviceId,
+        readyProfile.deviceLabel,
+        material,
+      );
+      const status = String(registered.status ?? '');
+      if (status === 'pending_approval') {
+        // 非首设备保持 pending，服务端拒绝发布 KeyPackage，等待可信设备批准。
+        readyProfile = {
+          ...readyProfile,
+          registered: true,
+          keyPackagePublished: false,
+          deviceStatus: 'pending_approval',
+        };
+        await this.storage.writeDeviceProfile(accountId, readyProfile);
+        return { profile: readyProfile, state };
+      }
+      readyProfile = { ...readyProfile, registered: true, deviceStatus: 'active' };
       await this.storage.writeDeviceProfile(accountId, readyProfile);
     }
 
-    if (!readyProfile.keyPackagePublished) {
+    if (readyProfile.deviceStatus === 'pending_approval') {
+      // 已批准设备恢复能力：服务端状态变为 active 后继续发布 KeyPackage。
+      const devices = await this.mlsApi.listDevices();
+      const current = devices.find((device) => device.id === readyProfile.deviceId);
+      if (current?.status !== 'active') {
+        return { profile: readyProfile, state };
+      }
+      readyProfile = { ...readyProfile, deviceStatus: 'active' };
+      await this.storage.writeDeviceProfile(accountId, readyProfile);
+    }
+
+    if (readyProfile.deviceStatus !== 'pending_approval' && !readyProfile.keyPackagePublished) {
       const generated = await this.core.generateKeyPackage(state);
       state = generated.field(0);
       await this.storage.write(accountId, state);
       await this.mlsApi.publishKeyPackage(readyProfile.deviceId, generated.field(1));
-      readyProfile = { ...readyProfile, keyPackagePublished: true };
+      readyProfile = { ...readyProfile, keyPackagePublished: true, deviceStatus: 'active' };
       await this.storage.writeDeviceProfile(accountId, readyProfile);
     }
 
@@ -138,7 +166,10 @@ export class E2eeDeviceLifecycle {
 
   private async doTopUp(accountId: string): Promise<{ replenished: number }> {
     const profile = await this.storage.readDeviceProfile(accountId);
-    if (!profile?.registered || !profile.keyPackagePublished) {
+    if (!profile?.registered || profile.deviceStatus === 'pending_approval' || !profile.keyPackagePublished) {
+      if (profile?.deviceStatus === 'pending_approval') {
+        throw new E2eeDeviceNotReadyError('E2EE 设备待批准，批准后才能补充 KeyPackage');
+      }
       throw new E2eeDeviceNotReadyError('E2EE 设备未完成初始化，无法补充 KeyPackage');
     }
     const retryAt = this.nextRetryAt.get(accountId);

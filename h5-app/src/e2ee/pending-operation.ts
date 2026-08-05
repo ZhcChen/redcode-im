@@ -1,6 +1,6 @@
 const PENDING_OPERATION_VERSION = 1;
 
-export type E2eePendingOperationKind = 'bootstrap' | 'application' | 'inbound';
+export type E2eePendingOperationKind = 'bootstrap' | 'application' | 'inbound' | 'rekey';
 
 export interface E2eePendingControl {
   id: string;
@@ -22,6 +22,7 @@ export interface E2eePendingOperation {
   ciphertext?: Uint8Array;
   epoch?: number;
   controlMessageId?: string;
+  previousState?: Uint8Array;
 }
 
 export const encodePendingOperation = (operation: E2eePendingOperation) => new TextEncoder().encode(JSON.stringify({
@@ -43,12 +44,13 @@ export const encodePendingOperation = (operation: E2eePendingOperation) => new T
   ciphertext: operation.ciphertext ? bytesToBase64(operation.ciphertext) : null,
   epoch: operation.epoch ?? null,
   control_message_id: operation.controlMessageId ?? null,
+  previous_state: operation.previousState ? bytesToBase64(operation.previousState) : null,
 }));
 
 export const decodePendingOperation = (value: Uint8Array): E2eePendingOperation => {
   const data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(value)) as Record<string, unknown>;
   if (data.version !== PENDING_OPERATION_VERSION
-    || (data.kind !== 'bootstrap' && data.kind !== 'application' && data.kind !== 'inbound')
+    || (data.kind !== 'bootstrap' && data.kind !== 'application' && data.kind !== 'inbound' && data.kind !== 'rekey')
     || typeof data.room_id !== 'string' || !data.room_id.trim()
     || typeof data.next_state !== 'string'
     || typeof data.sender_device_id !== 'string' || !data.sender_device_id.trim()
@@ -56,7 +58,8 @@ export const decodePendingOperation = (value: Uint8Array): E2eePendingOperation 
     || !Array.isArray(data.controls)
     || (data.ciphertext != null && typeof data.ciphertext !== 'string')
     || (data.epoch != null && !Number.isSafeInteger(data.epoch))
-    || (data.control_message_id != null && typeof data.control_message_id !== 'string')) {
+    || (data.control_message_id != null && typeof data.control_message_id !== 'string')
+    || (data.previous_state != null && typeof data.previous_state !== 'string')) {
     throw new Error('E2EE 待处理操作格式无效');
   }
   const controls = data.controls.map(parseControl);
@@ -70,6 +73,7 @@ export const decodePendingOperation = (value: Uint8Array): E2eePendingOperation 
     ciphertext: data.ciphertext == null ? undefined : base64ToBytes(data.ciphertext),
     epoch: data.epoch == null ? undefined : Number(data.epoch),
     controlMessageId: data.control_message_id == null ? undefined : String(data.control_message_id),
+    previousState: data.previous_state == null ? undefined : base64ToBytes(data.previous_state),
   };
   validateShape(operation);
   return operation;
@@ -100,6 +104,7 @@ const parseControl = (value: unknown): E2eePendingControl => {
 const validateShape = (operation: E2eePendingOperation) => {
   if (!operation.nextState.length
     || (operation.kind === 'bootstrap' && (!operation.controls.length || operation.ciphertext || operation.epoch != null))
+    || (operation.kind === 'rekey' && (!operation.controls.length || operation.ciphertext || operation.epoch != null || !operation.previousState?.length))
     || (operation.kind === 'application' && (operation.controls.length || !operation.ciphertext?.length || operation.epoch == null || !operation.controlMessageId))
     || (operation.kind === 'inbound' && (!operation.controls.length || operation.controls.some((item) => item.sequenceNo == null) || operation.ciphertext || operation.epoch != null || operation.controlMessageId))) {
     throw new Error('E2EE 待处理操作字段组合无效');

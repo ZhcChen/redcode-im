@@ -5,6 +5,7 @@ import { E2eeDirectMessageCoordinator } from '@/e2ee/direct-message-coordinator'
 import type { E2eeIdentityTrustRecord } from '@/e2ee/identity-trust';
 import type { E2eePendingOperation } from '@/e2ee/pending-operation';
 import { E2eeCommandResult } from '@/e2ee/session';
+import type { E2eeDeviceInfo } from '@/services/e2ee-mls-api-service';
 
 describe('E2eeDirectMessageCoordinator', () => {
   it('replays interrupted bootstrap before encrypting without plaintext API fields', async () => {
@@ -35,6 +36,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       decrypt: vi.fn(),
       joinGroup: vi.fn(),
       processCommit: vi.fn(),
+      removeMember: vi.fn(),
     };
     let activeEpoch = 0;
     let failWelcomeOnce = true;
@@ -65,6 +67,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       }) => ({ message: { id: 'server-message' } })),
       listControlMessages: vi.fn(async () => []),
       consumeControlMessage: vi.fn(async () => {}),
+      listDevices: vi.fn(async () => []),
     };
     const ids = ['commit-a', 'welcome-a', 'bootstrap-a', 'message-a'];
     const coordinator = new E2eeDirectMessageCoordinator(
@@ -147,6 +150,7 @@ describe('E2eeDirectMessageCoordinator', () => {
           throw new Error('temporary');
         }
       }),
+      listDevices: vi.fn(async () => []),
     };
     const core = {
       createGroup: vi.fn(),
@@ -163,6 +167,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       processCommit: vi.fn(async () => new E2eeCommandResult([
         new Uint8Array([3]), epochBytes(2),
       ])),
+      removeMember: vi.fn(),
     };
     const coordinator = new E2eeDirectMessageCoordinator(
       storage,
@@ -225,6 +230,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       sendEncryptedMessage: vi.fn(),
       listControlMessages: vi.fn(async () => []),
       consumeControlMessage: vi.fn(),
+      listDevices: vi.fn(async () => []),
     };
     const coordinator = new E2eeDirectMessageCoordinator(
       storage,
@@ -243,6 +249,7 @@ describe('E2eeDirectMessageCoordinator', () => {
         decrypt: vi.fn(),
         joinGroup: vi.fn(),
         processCommit: vi.fn(),
+        removeMember: vi.fn(),
       },
     );
 
@@ -283,6 +290,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       sendEncryptedMessage: vi.fn(),
       listControlMessages: vi.fn(async () => []),
       consumeControlMessage: vi.fn(),
+      listDevices: vi.fn(async () => []),
     };
     const coordinator = new E2eeDirectMessageCoordinator(
       storage,
@@ -301,6 +309,7 @@ describe('E2eeDirectMessageCoordinator', () => {
         decrypt: vi.fn(),
         joinGroup: vi.fn(),
         processCommit: vi.fn(),
+        removeMember: vi.fn(),
       },
     );
 
@@ -347,6 +356,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       sendEncryptedMessage: vi.fn(),
       listControlMessages: vi.fn(async () => []),
       consumeControlMessage: vi.fn(),
+      listDevices: vi.fn(async () => []),
     };
     const coordinator = new E2eeDirectMessageCoordinator(
       storage,
@@ -365,6 +375,7 @@ describe('E2eeDirectMessageCoordinator', () => {
         decrypt: vi.fn(),
         joinGroup: vi.fn(),
         processCommit: vi.fn(),
+        removeMember: vi.fn(),
       },
     );
 
@@ -405,6 +416,7 @@ describe('E2eeDirectMessageCoordinator', () => {
       sendEncryptedMessage: vi.fn(),
       listControlMessages: vi.fn(async () => []),
       consumeControlMessage: vi.fn(),
+      listDevices: vi.fn(async () => []),
     };
     const coordinator = new E2eeDirectMessageCoordinator(
       storage,
@@ -427,6 +439,7 @@ describe('E2eeDirectMessageCoordinator', () => {
         decrypt: vi.fn(),
         joinGroup: vi.fn(),
         processCommit: vi.fn(),
+        removeMember: vi.fn(),
       },
     );
 
@@ -441,7 +454,222 @@ describe('E2eeDirectMessageCoordinator', () => {
     expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
     expect(storage.pending).toBeNull();
   });
+
+  it('rekeys the room by removing revoked devices and submitting the commit', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: { 'room-a': 'commit-1' },
+    };
+    const submitted: Array<{ contentType: string; epoch: number; messageId: string }> = [];
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 2,
+        activeEpoch: 1,
+        status: 'rekey_required',
+      })),
+      listDevices: vi.fn(async () => deviceInfo([
+        { id: 'device-a', status: 'active' },
+        { id: 'device-revoked', status: 'revoked' },
+      ])),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(async (input: { contentType: string; epoch: number; messageId: string }) => {
+        submitted.push(input);
+        return {};
+      }),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      { fetchRootIdentity: vi.fn(async (userId: string) => ({
+        userId,
+        publicKey: new Uint8Array(32).fill(3),
+        fingerprint: new Uint8Array(32).fill(4),
+        protocolVersion: 1,
+      })) },
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+        removeMember: vi.fn(async () => new E2eeCommandResult([
+          new Uint8Array([5]),
+          new Uint8Array([20]),
+          epochBytes(2),
+        ])),
+      },
+    );
+
+    await coordinator.syncControlMessages({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+    });
+
+    expect(coreRemoveMember(coordinator)).toHaveBeenCalledWith(
+      expect.any(Uint8Array),
+      'room-a',
+      'account-a/device-revoked',
+    );
+    expect(submitted).toEqual([expect.objectContaining({
+      contentType: 'commit',
+      epoch: 2,
+      membershipRevision: 2,
+    })]);
+    expect(storage.pending).toBeNull();
+    expect(storage.profile?.lastCommitMessageIds['room-a']).toBe(submitted[0]?.messageId);
+  });
+
+  it('restores the previous state when another device wins the rekey race', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: { 'room-a': 'commit-1' },
+    };
+    let epochStatus: 'rekey_required' | 'active' = 'rekey_required';
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 2,
+        activeEpoch: epochStatus === 'rekey_required' ? 1 : 2,
+        status: epochStatus,
+      })),
+      listDevices: vi.fn(async () => deviceInfo([
+        { id: 'device-a', status: 'active' },
+        { id: 'device-revoked', status: 'revoked' },
+      ])),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(async () => {
+        epochStatus = 'active';
+        throw new Error('Commit epoch 必须为 2');
+      }),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      {} as never,
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+        removeMember: vi.fn(async () => new E2eeCommandResult([
+          new Uint8Array([5]),
+          new Uint8Array([20]),
+          epochBytes(2),
+        ])),
+      },
+    );
+
+    // 其他设备已推进 epoch：本地恢复旧状态并通过控制消息收敛，不保留未同步状态。
+    await coordinator.syncControlMessages({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+    });
+
+    expect(Array.from(storage.state ?? [])).toEqual([1]);
+    expect(storage.pending).toBeNull();
+    expect(api.submitControlMessage).toHaveBeenCalledOnce();
+  });
+
+  it('skips revoked devices that never joined the room during rekey', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: { 'room-a': 'commit-1' },
+    };
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 2,
+        activeEpoch: 1,
+        status: 'rekey_required',
+      })),
+      listDevices: vi.fn(async () => deviceInfo([
+        { id: 'device-a', status: 'active' },
+        { id: 'device-other-room', status: 'revoked' },
+      ])),
+      listPeerDevices: vi.fn(),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      {} as never,
+      api,
+      {
+        createGroup: vi.fn(),
+        addMember: vi.fn(),
+        encrypt: vi.fn(),
+        decrypt: vi.fn(),
+        joinGroup: vi.fn(),
+        processCommit: vi.fn(),
+        removeMember: vi.fn(async () => {
+          throw new Error('MLS group member not found');
+        }),
+      },
+    );
+
+    await coordinator.syncControlMessages({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+    });
+
+    expect(api.submitControlMessage).not.toHaveBeenCalled();
+    expect(storage.pending).toBeNull();
+  });
 });
+
+const coreRemoveMember = (coordinator: unknown) => (
+  (coordinator as { core: { removeMember: ReturnType<typeof vi.fn> } }).core.removeMember
+);
+
+const deviceInfo = (devices: Array<{ id: string; status: 'active' | 'revoked' }>): E2eeDeviceInfo[] => (
+  devices.map((device) => ({
+    id: device.id,
+    deviceLabel: 'Browser',
+    protocolVersion: 1,
+    credentialFingerprint: 'x',
+    status: device.status,
+    approvedByDeviceId: null,
+    approvedAt: null,
+    revokedAt: device.status === 'revoked' ? '2026-08-04T00:00:00.000Z' : null,
+    createdAt: '2026-08-04T00:00:00.000Z',
+  }))
+);
 
 class MemoryStorage {
   state: Uint8Array | null = null;

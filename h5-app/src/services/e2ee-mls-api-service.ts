@@ -34,9 +34,26 @@ export interface E2eePeerDevice {
   credentialFingerprint: Uint8Array;
 }
 
+export interface E2eeDeviceInfo {
+  id: string;
+  deviceLabel: string;
+  protocolVersion: number;
+  credentialFingerprint: string;
+  status: 'active' | 'pending_approval' | 'revoked';
+  approvedByDeviceId: string | null;
+  approvedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
 export interface E2eeKeyPackageInventory {
   available: number;
   maxAvailable: number;
+}
+
+export interface E2eeDeviceApprovalSignature {
+  approverDeviceId: string;
+  signature: string;
 }
 
 export const registrationMaterialFromCommand = (
@@ -87,7 +104,9 @@ export const e2eeMlsApiService = {
         approval_public_key: bytesToBase64(material.approvalPublicKey),
         protocol_version: 1,
       }),
-    }, requireToken());
+    }, requireToken()).then((response) => ({
+      status: String(response.status ?? ''),
+    }));
   },
 
   async publishKeyPackage(
@@ -174,6 +193,42 @@ export const e2eeMlsApiService = {
       }
       return { id, protocolVersion, credentialFingerprint: fingerprint };
     });
+  },
+
+  async listDevices(): Promise<E2eeDeviceInfo[]> {
+    const rows = await requestJson<Record<string, unknown>[]>(
+      '/e2ee/mls/devices',
+      {},
+      requireToken(),
+    );
+    return rows.map((row) => mapDeviceInfo(row));
+  },
+
+  async approveDevice(
+    targetDeviceId: string,
+    input: E2eeDeviceApprovalSignature,
+  ): Promise<E2eeDeviceInfo> {
+    const response = await requestJson<Record<string, unknown>>(
+      `/e2ee/mls/devices/${encodeURIComponent(targetDeviceId)}/approve`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          approver_device_id: input.approverDeviceId,
+          signature: input.signature,
+        }),
+      },
+      requireToken(),
+    );
+    return mapDeviceInfo(response);
+  },
+
+  async revokeDevice(deviceId: string): Promise<E2eeDeviceInfo> {
+    const response = await requestJson<Record<string, unknown>>(
+      `/e2ee/mls/devices/${encodeURIComponent(deviceId)}`,
+      { method: 'DELETE' },
+      requireToken(),
+    );
+    return mapDeviceInfo(response);
   },
 
   async claimKeyPackage(roomId: string, consumerDeviceId: string, targetDeviceId: string) {
@@ -282,6 +337,25 @@ export const e2eeMlsApiService = {
       }),
     }, requireToken());
   },
+};
+
+const mapDeviceInfo = (row: Record<string, unknown>): E2eeDeviceInfo => {
+  const id = typeof row.id === 'string' ? row.id : '';
+  const status = String(row.status ?? '');
+  if (!id.trim() || !['active', 'pending_approval', 'revoked'].includes(status)) {
+    throw new Error('E2EE 设备响应格式无效');
+  }
+  return {
+    id,
+    deviceLabel: String(row.device_label ?? ''),
+    protocolVersion: Number(row.protocol_version),
+    credentialFingerprint: String(row.credential_fingerprint ?? ''),
+    status: status as E2eeDeviceInfo['status'],
+    approvedByDeviceId: row.approved_by_device_id == null ? null : String(row.approved_by_device_id),
+    approvedAt: row.approved_at == null ? null : String(row.approved_at),
+    revokedAt: row.revoked_at == null ? null : String(row.revoked_at),
+    createdAt: String(row.created_at ?? ''),
+  };
 };
 
 const bytesToBase64 = (value: Uint8Array) => {

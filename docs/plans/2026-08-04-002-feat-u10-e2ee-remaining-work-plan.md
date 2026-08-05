@@ -224,6 +224,8 @@ flowchart TB
 - **Test Scenarios:** A/B 各两设备；未批准设备不能发布/领取/解密；批准后四设备收到新消息；同账号设备重启恢复；撤销 A2 后 A1/B1/B2 继续互发，A2 无法解密；批准/撤销重复请求幂等；设备离线后补拉 Commit；身份安全码展示一致。
 - **Verification:** `make api.test`、原生双端/H5 unit、至少四客户端自动化联调、设备管理 UI 验收、撤销后 marker 密文不可解证明。
 - **Dependencies:** U2。
+- **验收记录:** `docs/reviews/2026-08-05-u10-e2ee-u3-multi-device.md`（partial：
+  e2ee-core/API/H5 自动化证据通过；原生双端 E2EE 专项待补齐，生产 No-Go）。
 
 ### U4. 实现三成员群聊与成员变化 rekey
 

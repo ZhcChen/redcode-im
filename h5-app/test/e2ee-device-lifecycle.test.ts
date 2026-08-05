@@ -39,7 +39,7 @@ describe('E2eeDeviceLifecycle', () => {
     };
     let publishCalls = 0;
     const mlsApi = {
-      registerDevice: vi.fn(async () => ({})),
+      registerDevice: vi.fn(async () => ({ status: 'active' })),
       publishKeyPackage: vi.fn(async () => {
         publishCalls += 1;
         if (publishCalls === 1) throw new Error('temporary');
@@ -47,6 +47,7 @@ describe('E2eeDeviceLifecycle', () => {
       }),
       publishKeyPackages: vi.fn(async () => ({ inserted: 0 })),
       fetchKeyPackageInventory: vi.fn(async () => ({ available: 40, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => []),
     };
     const lifecycle = new E2eeDeviceLifecycle(
       storage,
@@ -109,12 +110,13 @@ describe('E2eeDeviceLifecycle', () => {
       }),
     };
     const mlsApi = {
-      registerDevice: vi.fn(async () => ({})),
+      registerDevice: vi.fn(async () => ({ status: 'active' })),
       publishKeyPackage: vi.fn(async () => ({})),
       publishKeyPackages: vi.fn(async (_deviceId: string, keyPackages: Uint8Array[]) => ({
         inserted: keyPackages.length,
       })),
       fetchKeyPackageInventory: vi.fn(async () => ({ available: 3, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => []),
     };
     const lifecycle = new E2eeDeviceLifecycle(
       storage,
@@ -145,10 +147,11 @@ describe('E2eeDeviceLifecycle', () => {
     };
     storage.state = new Uint8Array([1]);
     const mlsApi = {
-      registerDevice: vi.fn(async () => ({})),
+      registerDevice: vi.fn(async () => ({ status: 'active' })),
       publishKeyPackage: vi.fn(async () => ({})),
       publishKeyPackages: vi.fn(async () => ({ inserted: 0 })),
       fetchKeyPackageInventory: vi.fn(async () => ({ available: 30, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => []),
     };
     const lifecycle = new E2eeDeviceLifecycle(
       storage,
@@ -173,13 +176,14 @@ describe('E2eeDeviceLifecycle', () => {
     };
     storage.state = new Uint8Array([1]);
     const mlsApi = {
-      registerDevice: vi.fn(async () => ({})),
+      registerDevice: vi.fn(async () => ({ status: 'active' })),
       publishKeyPackage: vi.fn(async () => ({})),
       publishKeyPackages: vi.fn<(deviceId: string, keyPackages: Uint8Array[]) =>
         Promise<{ inserted: number }>>(async () => {
         throw new Error('network offline');
       }),
       fetchKeyPackageInventory: vi.fn(async () => ({ available: 1, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => []),
     };
     const lifecycle = new E2eeDeviceLifecycle(
       storage,
@@ -204,6 +208,100 @@ describe('E2eeDeviceLifecycle', () => {
     mlsApi.publishKeyPackages.mockResolvedValue({ inserted: 20 });
     expect(await lifecycle.topUpKeyPackages('account-a')).toEqual({ replenished: 20 });
     vi.useRealTimers();
+  });
+
+  it('keeps a second device pending until a trusted device approves it', async () => {
+    const storage = new MemoryDeviceStorage();
+    const publicFields = [
+      new Uint8Array(32).fill(2),
+      new Uint8Array(32).fill(3),
+      new Uint8Array([4]),
+      new Uint8Array(32).fill(5),
+      new Uint8Array(32).fill(6),
+    ];
+    const core = {
+      initializeWithRoot: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([1]),
+        new Uint8Array([9]),
+        ...publicFields,
+      ])),
+      publicMaterial: vi.fn(async (state: Uint8Array) => new E2eeCommandResult([
+        state,
+        ...publicFields,
+      ])),
+      generateKeyPackage: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([2]),
+        new Uint8Array([8]),
+      ])),
+    };
+    const mlsApi = {
+      registerDevice: vi.fn(async () => ({ status: 'pending_approval' })),
+      publishKeyPackage: vi.fn(async () => ({})),
+      publishKeyPackages: vi.fn(async () => ({ inserted: 0 })),
+      fetchKeyPackageInventory: vi.fn(async () => ({ available: 3, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => []),
+    };
+    const lifecycle = new E2eeDeviceLifecycle(
+      storage,
+      core,
+      { fetchRootIdentity: vi.fn(async () => ({ publicKey: new Uint8Array(32).fill(7) })) },
+      mlsApi,
+      () => '018f5be3-3277-7d45-a6f3-bd2ebc89f321',
+    );
+
+    const ready = await lifecycle.ensureReady('account-a', 'Browser');
+
+    expect(ready.profile.deviceStatus).toBe('pending_approval');
+    expect(ready.profile.keyPackagePublished).toBe(false);
+    expect(mlsApi.publishKeyPackage).not.toHaveBeenCalled();
+    await expect(lifecycle.topUpKeyPackages('account-a')).rejects.toThrow('待批准');
+  });
+
+  it('publishes key packages after the pending device is approved', async () => {
+    const storage = new MemoryDeviceStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: false,
+      deviceStatus: 'pending_approval',
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    };
+    const mlsApi = {
+      registerDevice: vi.fn(async () => ({ status: 'active' })),
+      publishKeyPackage: vi.fn(async () => ({})),
+      publishKeyPackages: vi.fn(async () => ({ inserted: 0 })),
+      fetchKeyPackageInventory: vi.fn(async () => ({ available: 3, maxAvailable: 500 })),
+      listDevices: vi.fn(async () => [{ id: 'device-a', status: 'active' }]),
+    };
+    const lifecycle = new E2eeDeviceLifecycle(
+      storage,
+      {
+        publicMaterial: vi.fn(async (state: Uint8Array) => new E2eeCommandResult([
+          state,
+          new Uint8Array(32).fill(2),
+          new Uint8Array(32).fill(3),
+          new Uint8Array([4]),
+          new Uint8Array(32).fill(5),
+          new Uint8Array(32).fill(6),
+        ])),
+        generateKeyPackage: vi.fn(async () => new E2eeCommandResult([
+          new Uint8Array([2]),
+          new Uint8Array([8]),
+        ])),
+      } as never,
+      {} as never,
+      mlsApi,
+    );
+
+    const ready = await lifecycle.ensureReady('account-a', 'ignored');
+
+    expect(ready.profile.deviceStatus).toBe('active');
+    expect(ready.profile.keyPackagePublished).toBe(true);
+    expect(mlsApi.listDevices).toHaveBeenCalledOnce();
+    expect(mlsApi.publishKeyPackage).toHaveBeenCalledOnce();
   });
 });
 

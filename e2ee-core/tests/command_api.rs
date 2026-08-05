@@ -102,6 +102,34 @@ fn existing_member_processes_later_commit_before_decrypting() {
     assert_eq!(decrypted[1], b"epoch two");
 }
 
+#[test]
+fn remove_member_command_excludes_the_leaf_and_signs_approvals() {
+    let alice = command(1, &[b"alice-device-1"]);
+    let bob = command(1, &[b"bob-device-1"]);
+    let created = command(3, &[&alice[0], b"room-remove-command"]);
+    let bob_added = command(4, &[&created[0], b"room-remove-command", &bob[1]]);
+
+    let removed = command(
+        10,
+        &[&bob_added[0], b"room-remove-command", b"bob-device-1"],
+    );
+    assert_eq!(
+        u64::from_be_bytes(removed[2].clone().try_into().unwrap()),
+        2
+    );
+    assert!(response_fields(&request(
+        10,
+        &[&removed[0], b"room-remove-command", b"missing-device"],
+    ))
+    .is_err());
+
+    let signed = command(
+        11,
+        &[&alice[0], b"redcode-im/e2ee/device-approval/v1\0fixture"],
+    );
+    assert_eq!(signed[0].len(), 64);
+}
+
 fn command(operation: u8, fields: &[&[u8]]) -> Vec<Vec<u8>> {
     response_fields(&request(operation, fields)).expect("command succeeds")
 }

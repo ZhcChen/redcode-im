@@ -32,6 +32,11 @@
 - `GET /e2ee/mls/devices`：查询当前账号全部设备，不返回凭据、根公钥或批准公钥。
 - `DELETE /e2ee/mls/devices/{device_id}`：撤销当前账号设备，并将相关房间标记为需要 rekey。
 
+撤销会把该用户参与的全部房间置为 `rekey_required`（即使设备从未加入某个房间的
+MLS group，客户端仍按房间执行成员移除并以 `member not found` 跳过）。已撤销
+设备不能发布/领取 KeyPackage、拉取或提交控制消息；重复撤销幂等返回当前
+`revoked` 状态，不重复推进房间 rekey。待批准设备无需撤销，返回 `409` 冲突。
+
 ### 查询账号根身份
 
 `GET /e2ee/mls/identities/{user_id}` 返回账号稳定根身份的公开材料：
@@ -89,7 +94,7 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 || target credential_fingerprint raw bytes
 ```
 
-批准者必须是当前账号的 `active` 设备，目标必须是当前账号的 `pending_approval` 设备。服务端使用批准设备注册时的 `approval_public_key` 验证签名；普通登录 token 本身不能完成批准。
+批准者必须是当前账号的 `active` 设备，目标必须是当前账号的 `pending_approval` 设备。服务端使用批准设备注册时的 `approval_public_key` 验证签名；普通登录 token 本身不能完成批准。目标已为 `active` 时重复批准幂等返回当前状态，不误判为冲突。
 
 ## KeyPackage
 

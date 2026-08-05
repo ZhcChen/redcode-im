@@ -104,6 +104,32 @@ async fn create_room(app: &TestApp, owner: &TestUser, member: &TestUser) -> Uuid
     .expect("room UUID")
 }
 
+fn control_message_body(
+    id: Uuid,
+    epoch: i64,
+    membership_revision: i64,
+    sender_device_id: Uuid,
+    content_type: &str,
+    payload: &[u8],
+) -> String {
+    let mut envelope = b"RCML".to_vec();
+    envelope.extend_from_slice(&1u16.to_be_bytes());
+    envelope.push(if content_type == "welcome" { 3 } else { 2 });
+    envelope.extend_from_slice(&(payload.len() as u32).to_be_bytes());
+    envelope.extend_from_slice(payload);
+    json!({
+        "id": id,
+        "epoch": epoch,
+        "membership_revision": membership_revision,
+        "sender_device_id": sender_device_id,
+        "recipient_device_id": null,
+        "content_type": content_type,
+        "envelope": BASE64_STANDARD.encode(envelope),
+        "idempotency_key": Uuid::new_v4(),
+    })
+    .to_string()
+}
+
 #[tokio::test]
 async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     let app = spawn_test_app().await;
@@ -363,6 +389,192 @@ async fn mls_device_approval_and_key_package_api_are_fail_closed() {
     .await
     .expect("query Bob device");
     assert!(bob_device_survives);
+}
+
+#[tokio::test]
+async fn device_revocation_marks_rooms_rekey_required_and_is_idempotent() {
+    let app = spawn_test_app().await;
+    let alice = register_user(&app, "mls-rekey-alice").await;
+    let bob = register_user(&app, "mls-rekey-bob").await;
+    let room_id = create_room(&app, &alice, &bob).await;
+    let alice_first_id = Uuid::new_v4();
+    let alice_second_id = Uuid::new_v4();
+    let bob_device_id = Uuid::new_v4();
+    let alice_first_key = SigningKey::from_bytes(&[121; 32]);
+    let alice_second_key = SigningKey::from_bytes(&[122; 32]);
+    let bob_key = SigningKey::from_bytes(&[131; 32]);
+
+    let first = register_device(
+        &app,
+        &alice,
+        &device_request(alice_first_id, "Alice iPhone", 141, &alice_first_key),
+    )
+    .await;
+    assert_eq!(first["status"], "active");
+    let second = register_device(
+        &app,
+        &alice,
+        &device_request(alice_second_id, "Alice Web", 142, &alice_second_key),
+    )
+    .await;
+    assert_eq!(second["status"], "pending_approval");
+    register_device(
+        &app,
+        &bob,
+        &device_request(bob_device_id, "Bob Android", 151, &bob_key),
+    )
+    .await;
+
+    // 批准第二设备，重复批准幂等。
+    let approval_payload =
+        device_approval_payload(alice.id, alice_first_id, alice_second_id, 1, &[142; 32]);
+    let signature = alice_first_key.sign(&approval_payload);
+    let approve_uri = format!("/e2ee/mls/devices/{alice_second_id}/approve");
+    let approve_body = json!({
+        "approver_device_id": alice_first_id,
+        "signature": BASE64_STANDARD.encode(signature.to_bytes()),
+    })
+    .to_string();
+    for _ in 0..2 {
+        let (status, response) = app
+            .post_json_authed(&approve_uri, &alice.token, &approve_body)
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(body_json(&response)["status"], "active");
+    }
+
+    // 房间激活：A1 提交首个 commit（epoch 1），revision 以服务端为准。
+    let epoch_uri = format!("/rooms/{room_id}/e2ee/epoch");
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let initial_revision = body_json(&response)["membership_revision"]
+        .as_i64()
+        .expect("membership revision");
+    let initial_commit_id = Uuid::new_v4();
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                initial_commit_id,
+                1,
+                initial_revision,
+                alice_first_id,
+                "commit",
+                b"initial-commit",
+            ),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let (status, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body_json(&response)["active_epoch"], 1);
+    assert_eq!(body_json(&response)["status"], "active");
+
+    // 撤销 A2 后房间进入 rekey_required，active epoch 保持不变。
+    let revoke_uri = format!("/e2ee/mls/devices/{alice_second_id}");
+    for _ in 0..2 {
+        let (status, response) = app
+            .send(
+                "DELETE",
+                &revoke_uri,
+                Some(&alice.token),
+                Body::empty(),
+                false,
+            )
+            .await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "{}",
+            String::from_utf8_lossy(&response)
+        );
+        assert_eq!(body_json(&response)["status"], "revoked");
+    }
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let epoch = body_json(&response);
+    assert_eq!(epoch["active_epoch"], 1);
+    assert_eq!(epoch["status"], "rekey_required");
+
+    // 已撤销设备不能拉取或提交控制消息。
+    let (status, _) = app
+        .get_authed(
+            &format!(
+                "/rooms/{room_id}/e2ee/control-messages?device_id={alice_second_id}&after_sequence=0&limit=50"
+            ),
+            &alice.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                2,
+                initial_revision,
+                alice_second_id,
+                "commit",
+                b"forbidden-commit",
+            ),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    // 可信设备提交 rekey commit（epoch 2）后房间恢复 active。
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &control_message_body(
+                Uuid::new_v4(),
+                2,
+                initial_revision,
+                alice_first_id,
+                "commit",
+                b"rekey-commit",
+            ),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let (_, response) = app.get_authed(&epoch_uri, &alice.token).await;
+    let epoch = body_json(&response);
+    assert_eq!(epoch["active_epoch"], 2);
+    assert_eq!(epoch["status"], "active");
+
+    // 待批准设备撤销返回明确冲突，而不是静默进入 revoked。
+    let pending_id = Uuid::new_v4();
+    register_device(
+        &app,
+        &alice,
+        &device_request(pending_id, "Alice Pending", 143, &alice_second_key),
+    )
+    .await;
+    let (status, _) = app
+        .send(
+            "DELETE",
+            &format!("/e2ee/mls/devices/{pending_id}"),
+            Some(&alice.token),
+            Body::empty(),
+            false,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
 }
 
 fn package_body(packages: &[(Uuid, Vec<u8>)]) -> String {

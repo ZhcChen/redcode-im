@@ -14,6 +14,10 @@ import { chatSettingsService } from '@/services/chat-settings-service';
 import { accountDataService } from '@/services/account-data-service';
 import DeactivateAccountView from '@/views/settings/DeactivateAccountView.vue';
 import VersionStatusView from '@/views/settings/VersionStatusView.vue';
+import AccountSecurityView from '@/views/settings/AccountSecurityView.vue';
+import { e2eeDeviceManager } from '@/e2ee/device-manager';
+import { e2eeSecureStateStorage } from '@/e2ee/secure-state-storage';
+import type { E2eeDeviceInfo } from '@/services/e2ee-mls-api-service';
 
 const routeName = vi.hoisted(() => ({ value: 'privacy-policy' }));
 
@@ -77,6 +81,56 @@ describe('settings views', () => {
     const feedback = mount(FeedbackView);
     expect(feedback.text()).toContain('告诉我们你的想法');
     expect(feedback.find('textarea').exists()).toBe(true);
+  });
+
+  it('renders E2EE devices and approves a pending device', async () => {
+    const devices: E2eeDeviceInfo[] = [
+      {
+        id: 'device-a',
+        deviceLabel: '当前浏览器',
+        protocolVersion: 1,
+        credentialFingerprint: btoa(String.fromCharCode(...new Uint8Array(32).fill(1))),
+        status: 'active',
+        approvedByDeviceId: null,
+        approvedAt: null,
+        revokedAt: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+      },
+      {
+        id: 'device-b',
+        deviceLabel: '新浏览器',
+        protocolVersion: 1,
+        credentialFingerprint: btoa(String.fromCharCode(...new Uint8Array(32).fill(2))),
+        status: 'pending_approval',
+        approvedByDeviceId: null,
+        approvedAt: null,
+        revokedAt: null,
+        createdAt: '2026-08-04T00:00:00.000Z',
+      },
+    ];
+    vi.spyOn(e2eeSecureStateStorage, 'readDeviceProfile').mockResolvedValue({
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: {},
+    });
+    vi.spyOn(e2eeDeviceManager, 'listDevices').mockResolvedValue(devices);
+    const approve = vi.spyOn(e2eeDeviceManager, 'approveDevice').mockResolvedValue({
+      ...devices[1]!,
+      status: 'active',
+    });
+
+    const wrapper = mount(AccountSecurityView);
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('E2EE 设备');
+    expect(wrapper.text()).toContain('当前设备');
+    expect(wrapper.text()).toContain('新浏览器');
+    await wrapper.findAll('button').find((button) => button.text() === '批准')!.trigger('click');
+    await flushPromises();
+    expect(approve).toHaveBeenCalledWith('u1', devices[1]);
   });
 
   it('renders mine profile and the independent settings overview', () => {

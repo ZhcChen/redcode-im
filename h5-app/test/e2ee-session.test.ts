@@ -40,6 +40,33 @@ describe('E2eeSession', () => {
     expect(() => E2eeSession.decodeResponse(new Uint8Array([82, 67, 67, 82])))
       .toThrow(E2eeCommandError);
   });
+
+  it('encodes remove-member and sign-device-approval operations', async () => {
+    const operations: number[] = [];
+    const session = new E2eeSession({
+      async executeCommand(command) {
+        operations.push(command[6]);
+        if (command[6] === 10) {
+          return response(0, [new Uint8Array([1]), new Uint8Array([2]), new Uint8Array(8).fill(0)]);
+        }
+        return response(0, [new Uint8Array(64).fill(9)]);
+      },
+    });
+
+    const removed = await session.removeMember(
+      new Uint8Array([0]),
+      'room-1',
+      'account-a/device-b',
+    );
+    const signed = await session.signDeviceApproval(
+      new Uint8Array([0]),
+      new TextEncoder().encode('payload'),
+    );
+
+    expect(operations).toEqual([10, 11]);
+    expect(removed.field(1)).toEqual(new Uint8Array([2]));
+    expect(signed.field(0).length).toBe(64);
+  });
 });
 
 const response = (status: number, fields: Uint8Array[]) => {

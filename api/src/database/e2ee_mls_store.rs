@@ -247,6 +247,22 @@ impl<'a> E2eeMlsStore<'a> {
         .await
         .map_err(AppError::DatabaseError)?
         .ok_or_else(|| AppError::NotFound("待批准设备不存在".to_string()))?;
+        if target_status == "active" {
+            // 重复批准幂等返回当前状态，避免客户端重试被误判为冲突。
+            let device = sqlx::query_as::<_, E2eeDeviceRecord>(
+                "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                        approval_public_key, status, approved_by_device_id, approved_at,
+                        revoked_at, created_at, updated_at
+                 FROM e2ee_devices WHERE id = $1 AND user_id = $2",
+            )
+            .bind(target_device_id)
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(AppError::DatabaseError)?;
+            tx.commit().await.map_err(AppError::DatabaseError)?;
+            return Ok(device);
+        }
         if target_status != "pending_approval" {
             return Err(AppError::MessageRuntimeConflict(
                 "目标设备不处于待批准状态".to_string(),
@@ -277,10 +293,42 @@ impl<'a> E2eeMlsStore<'a> {
         device_id: Uuid,
     ) -> Result<E2eeDeviceRecord, AppError> {
         let mut tx = self.pool.begin().await.map_err(AppError::DatabaseError)?;
+        let current_status = sqlx::query_scalar::<_, String>(
+            "SELECT status FROM e2ee_devices
+             WHERE id = $1 AND user_id = $2
+             FOR UPDATE",
+        )
+        .bind(device_id)
+        .bind(user_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(AppError::DatabaseError)?
+        .ok_or_else(|| AppError::NotFound("可撤销设备不存在".to_string()))?;
+        if current_status == "revoked" {
+            // 重复撤销幂等返回当前状态，不重复推进房间 rekey。
+            let device = sqlx::query_as::<_, E2eeDeviceRecord>(
+                "SELECT id, user_id, device_label, protocol_version, credential_fingerprint,
+                        approval_public_key, status, approved_by_device_id, approved_at,
+                        revoked_at, created_at, updated_at
+                 FROM e2ee_devices WHERE id = $1 AND user_id = $2",
+            )
+            .bind(device_id)
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(AppError::DatabaseError)?;
+            tx.commit().await.map_err(AppError::DatabaseError)?;
+            return Ok(device);
+        }
+        if current_status == "pending_approval" {
+            return Err(AppError::MessageRuntimeConflict(
+                "待批准设备无需撤销".to_string(),
+            ));
+        }
         let device = sqlx::query_as::<_, E2eeDeviceRecord>(
             "UPDATE e2ee_devices
              SET status = 'revoked', revoked_at = COALESCE(revoked_at, NOW()), updated_at = NOW()
-             WHERE id = $1 AND user_id = $2 AND status <> 'revoked'
+             WHERE id = $1 AND user_id = $2
              RETURNING id, user_id, device_label, protocol_version, credential_fingerprint,
                        approval_public_key, status,
                        approved_by_device_id, approved_at, revoked_at, created_at, updated_at",

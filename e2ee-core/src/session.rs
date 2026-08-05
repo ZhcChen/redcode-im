@@ -1,6 +1,7 @@
 use openmls::prelude::tls_codec::{Deserialize, Serialize};
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
+use openmls_traits::signatures::Signer;
 use openmls_traits::OpenMlsProvider;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -39,6 +40,13 @@ pub struct MlsApplication {
 pub struct MlsMemberAdd {
     pub commit: Vec<u8>,
     pub welcome: Vec<u8>,
+    pub epoch: u64,
+    pub state: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MlsMemberRemove {
+    pub commit: Vec<u8>,
     pub epoch: u64,
     pub state: Vec<u8>,
 }
@@ -193,6 +201,49 @@ impl MlsSession {
             epoch,
             state: self.export_state()?,
         })
+    }
+
+    /// 从群组中移除指定设备 identity 对应的成员，并生成本地已合并的 Commit。
+    ///
+    /// 被移除成员不需要 Welcome；房间其余设备通过 process_commit 收敛到新 epoch。
+    pub fn remove_member(
+        &mut self,
+        group_id: &[u8],
+        identity: &[u8],
+    ) -> Result<MlsMemberRemove, MlsSessionError> {
+        if identity.is_empty() {
+            return Err(MlsSessionError::InvalidIdentity);
+        }
+        let (_, signer) = self.identity_and_signer()?;
+        let mut group = self.load_group(group_id)?;
+        let credential: Credential = BasicCredential::new(identity.to_vec()).into();
+        let leaf_index = group
+            .member_leaf_index(&credential)
+            .ok_or(MlsSessionError::MemberNotFound)?;
+        let (commit, _, _) = group
+            .remove_members(&self.provider, &signer, &[leaf_index])
+            .map_err(operation("remove member"))?;
+        group
+            .merge_pending_commit(&self.provider)
+            .map_err(operation("merge remove commit"))?;
+        let epoch = group.epoch().as_u64();
+        let commit = encode_message(EnvelopeKind::Commit, commit)?;
+        Ok(MlsMemberRemove {
+            commit,
+            epoch,
+            state: self.export_state()?,
+        })
+    }
+
+    /// 使用设备签名密钥对批准载荷签名，供可信设备批准同账号新设备。
+    pub fn sign_device_approval(&self, payload: &[u8]) -> Result<Vec<u8>, MlsSessionError> {
+        if payload.is_empty() {
+            return Err(MlsSessionError::EmptySignaturePayload);
+        }
+        let (_, signer) = self.identity_and_signer()?;
+        signer
+            .sign(payload)
+            .map_err(|error| MlsSessionError::Operation(format!("sign device approval: {error:?}")))
     }
 
     pub fn join_group(&mut self, welcome: &[u8]) -> Result<(Vec<u8>, u64), MlsSessionError> {
@@ -371,6 +422,10 @@ pub enum MlsSessionError {
     GroupAlreadyExists,
     #[error("MLS group does not exist")]
     GroupNotFound,
+    #[error("MLS group member not found")]
+    MemberNotFound,
+    #[error("empty signature payload")]
+    EmptySignaturePayload,
     #[error("unexpected MLS message kind")]
     UnexpectedMessage,
     #[error("MLS session storage lock is poisoned")]

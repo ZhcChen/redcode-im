@@ -6,7 +6,8 @@ use openmls_traits::OpenMlsProvider;
 
 mod session;
 pub use session::{
-    MlsApplication, MlsBootstrap, MlsMemberAdd, MlsPublicMaterial, MlsSession, MlsSessionError,
+    MlsApplication, MlsBootstrap, MlsMemberAdd, MlsMemberRemove, MlsPublicMaterial, MlsSession,
+    MlsSessionError,
 };
 
 mod command;

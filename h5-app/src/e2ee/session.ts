@@ -9,7 +9,9 @@ export type E2eeCommandOperation =
   | 'encrypt'
   | 'decrypt'
   | 'public-material'
-  | 'process-commit';
+  | 'process-commit'
+  | 'remove-member'
+  | 'sign-device-approval';
 
 const OPERATION: Record<E2eeCommandOperation, number> = {
   initialize: 1,
@@ -21,6 +23,8 @@ const OPERATION: Record<E2eeCommandOperation, number> = {
   decrypt: 7,
   'public-material': 8,
   'process-commit': 9,
+  'remove-member': 10,
+  'sign-device-approval': 11,
 };
 
 export class E2eeCommandError extends Error {
@@ -107,6 +111,18 @@ export class E2eeSession {
 
   processCommit(state: Uint8Array, roomId: string, commit: Uint8Array) {
     return this.execute('process-commit', [state, new TextEncoder().encode(roomId), commit]);
+  }
+
+  removeMember(state: Uint8Array, roomId: string, identity: string) {
+    return this.execute('remove-member', [
+      state,
+      new TextEncoder().encode(roomId),
+      new TextEncoder().encode(identity),
+    ]);
+  }
+
+  signDeviceApproval(state: Uint8Array, payload: Uint8Array) {
+    return this.execute('sign-device-approval', [state, payload]);
   }
 
   static decodeResponse(response: Uint8Array): E2eeCommandResult {

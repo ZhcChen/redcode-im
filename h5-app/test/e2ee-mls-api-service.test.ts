@@ -182,4 +182,55 @@ describe('e2eeMlsApiService', () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain('after_sequence=6');
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/control-a/consume');
   });
+
+  it('lists, approves and revokes devices with status validation', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/approve')) {
+        return new Response(JSON.stringify(deviceRow('device-b', 'active')), { status: 200 });
+      }
+      if (method === 'DELETE') {
+        return new Response(JSON.stringify(deviceRow('device-b', 'revoked')), { status: 200 });
+      }
+      return new Response(JSON.stringify([
+        deviceRow('device-a', 'active'),
+        deviceRow('device-b', 'pending_approval'),
+      ]), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const devices = await e2eeMlsApiService.listDevices();
+    const approved = await e2eeMlsApiService.approveDevice('device-b', {
+      approverDeviceId: 'device-a',
+      signature: btoa(String.fromCharCode(...new Uint8Array(64))),
+    });
+    const revoked = await e2eeMlsApiService.revokeDevice('device-b');
+
+    expect(devices.map((device) => device.status)).toEqual(['active', 'pending_approval']);
+    expect(approved.status).toBe('active');
+    expect(revoked.status).toBe('revoked');
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('/device-b/approve');
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain('/e2ee/mls/devices/device-b');
+  });
+
+  it('fails closed on malformed device status', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
+      { id: 'device-a', status: 'weird' },
+    ]), { status: 200 })));
+
+    await expect(e2eeMlsApiService.listDevices()).rejects.toThrow('设备响应格式无效');
+  });
+});
+
+const deviceRow = (id: string, status: string) => ({
+  id,
+  device_label: 'Browser',
+  protocol_version: 1,
+  credential_fingerprint: btoa(String.fromCharCode(...new Uint8Array(32).fill(7))),
+  status,
+  approved_by_device_id: null,
+  approved_at: null,
+  revoked_at: null,
+  created_at: '2026-08-04T00:00:00.000Z',
 });

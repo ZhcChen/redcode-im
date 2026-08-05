@@ -12,6 +12,7 @@ import { e2eeIdentityService } from '@/services/e2ee-identity-service';
 import {
   e2eeMlsApiService,
   type E2eeControlMessage,
+  type E2eeDeviceInfo,
   type E2eePeerDevice,
   type E2eeRoomEpoch,
 } from '@/services/e2ee-mls-api-service';
@@ -41,10 +42,12 @@ interface SessionCore {
   decrypt(state: Uint8Array, roomId: string, ciphertext: Uint8Array): Promise<E2eeCommandResult>;
   joinGroup(state: Uint8Array, welcome: Uint8Array): Promise<E2eeCommandResult>;
   processCommit(state: Uint8Array, roomId: string, commit: Uint8Array): Promise<E2eeCommandResult>;
+  removeMember(state: Uint8Array, roomId: string, identity: string): Promise<E2eeCommandResult>;
 }
 
 interface MlsApi {
   getRoomEpoch(roomId: string): Promise<E2eeRoomEpoch>;
+  listDevices(): Promise<E2eeDeviceInfo[]>;
   listPeerDevices(userId: string): Promise<E2eePeerDevice[]>;
   claimKeyPackage(roomId: string, consumerDeviceId: string, targetDeviceId: string): Promise<{ keyPackage: Uint8Array }>;
   submitControlMessage(input: {
@@ -205,6 +208,7 @@ export class E2eeDirectMessageCoordinator {
   private async syncControls(accountId: string, deviceLabel: string, roomId: string) {
     await this.resumePending(accountId);
     await this.lifecycle.ensureReady(accountId, deviceLabel);
+    await this.rekeyIfRequired(accountId, roomId);
     while (true) {
       const context = await this.storedContext(accountId);
       const messages = await this.api.listControlMessages(
@@ -234,6 +238,51 @@ export class E2eeDirectMessageCoordinator {
       await this.resumePending(accountId);
       if (messages.length < 100) return;
     }
+  }
+
+  /**
+   * 房间进入 rekey_required 时，由本账号任一可信设备生成 Remove Commit 并提交，
+   * 把已撤销设备从 MLS group 中移除。提交冲突时恢复旧状态并重新同步收敛。
+   */
+  private async rekeyIfRequired(accountId: string, roomId: string) {
+    const epoch = await this.api.getRoomEpoch(roomId);
+    if (!epoch || epoch.status !== 'rekey_required') return;
+    const context = await this.storedContext(accountId);
+    const devices = await this.api.listDevices();
+    const revoked = devices.filter((device) => device.status === 'revoked');
+    if (!revoked.length) return;
+
+    let state = context.state;
+    const controls: E2eePendingOperation['controls'] = [];
+    for (const device of revoked) {
+      let removed: E2eeCommandResult;
+      try {
+        removed = await this.core.removeMember(state, roomId, `${accountId}/${device.id}`);
+      } catch (error) {
+        // 被撤销设备从未加入该房间时没有 leaf 可移除，跳过并继续处理其他设备。
+        if (error instanceof Error && /member not found/i.test(error.message)) continue;
+        throw error;
+      }
+      state = removed.field(0);
+      controls.push({
+        id: this.newId(),
+        epoch: safeEpoch(removed, 2),
+        membershipRevision: epoch.membershipRevision,
+        contentType: 'commit',
+        envelope: removed.field(1),
+      });
+    }
+    if (!controls.length) return;
+    await this.storage.writePendingOperation(accountId, {
+      kind: 'rekey',
+      roomId,
+      nextState: state,
+      senderDeviceId: context.profile.deviceId,
+      idempotencyKey: this.newId(),
+      controls,
+      previousState: context.state,
+    });
+    await this.resumePending(accountId);
   }
 
   private async bootstrapRoom(input: {
@@ -305,6 +354,47 @@ export class E2eeDirectMessageCoordinator {
       await this.storage.writeDeviceProfile(accountId, {
         ...profile,
         lastCommitMessageIds: { ...profile.lastCommitMessageIds, [operation.roomId]: lastCommitId },
+      });
+      await this.storage.deletePendingOperation(accountId);
+      return null;
+    }
+    if (operation.kind === 'rekey') {
+      const profile = await this.requiredProfile(accountId);
+      const targetEpoch = operation.controls.at(-1)!.epoch;
+      try {
+        for (const control of operation.controls) {
+          await this.api.submitControlMessage({
+            roomId: operation.roomId,
+            messageId: control.id,
+            epoch: control.epoch,
+            membershipRevision: control.membershipRevision,
+            senderDeviceId: operation.senderDeviceId,
+            contentType: control.contentType,
+            envelope: control.envelope,
+            recipientDeviceId: control.recipientDeviceId,
+            idempotencyKey: control.id,
+          });
+        }
+      } catch (error) {
+        // 其他可信设备可能已提交同一 rekey；恢复旧状态并通过控制消息收敛，
+        // 避免本地保留未同步的随机 epoch 状态。
+        const latest = await this.api.getRoomEpoch(operation.roomId);
+        if (latest && latest.activeEpoch >= targetEpoch) {
+          await this.storage.write(accountId, operation.previousState!);
+          await this.storage.deletePendingOperation(accountId);
+          await this.syncControls(accountId, profile.deviceLabel, operation.roomId);
+          return null;
+        }
+        throw error;
+      }
+      await this.storage.write(accountId, operation.nextState);
+      const lastCommitId = operation.controls.filter((item) => item.contentType === 'commit').at(-1)!.id;
+      await this.storage.writeDeviceProfile(accountId, {
+        ...profile,
+        lastCommitMessageIds: {
+          ...profile.lastCommitMessageIds,
+          [operation.roomId]: lastCommitId,
+        },
       });
       await this.storage.deletePendingOperation(accountId);
       return null;

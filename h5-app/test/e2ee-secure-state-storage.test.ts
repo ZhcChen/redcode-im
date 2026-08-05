@@ -134,6 +134,7 @@ describe('E2eeSecureStateStorage', () => {
       deviceLabel: 'Browser',
       registered: true,
       keyPackagePublished: true,
+      deviceStatus: 'active',
       lastControlSequences: { 'room-a': 7 },
       lastCommitMessageIds: { 'room-a': 'control-a' },
     };

@@ -458,6 +458,10 @@ pub async fn approve_mls_device(
         ));
     }
     let target = store.get_device(user_id, target_device_id).await?;
+    if target.status == "active" {
+        // 重复批准幂等返回当前状态，客户端重试不被误判为冲突。
+        return Ok(Json(target.into()));
+    }
     if target.status != "pending_approval" {
         return Err(AppError::MessageRuntimeConflict(
             "目标设备不处于待批准状态".to_string(),
