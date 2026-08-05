@@ -132,6 +132,7 @@ make e2ee-core.test              # 共享协议核心 host 测试（OpenMLS 状�
 make e2ee-core.check.targets     # iOS / Android / WASM 四目标构建
 make h5-app.test.unit            # 已含 E2EE 安全存储与身份信任单元测试
 make h5-app.test.e2ee.live       # 双账号 E2EE 真实后端联调（需服务端显式启用 E2EE）
+make e2ee.cross-client.live      # 受控切换本机 dev runtime，执行 Android/iOS/H5 联调并自动恢复
 make h5-app.test.e2e             # 浏览器 smoke（含 WASM 核心初始化/损坏状态校验）
 ```
 
@@ -141,6 +142,9 @@ make h5-app.test.e2e             # 浏览器 smoke（含 WASM 核心初始化/�
 - `h5-app.test.e2ee.live` 前必须确认 runtime 为显式测试配置；无论成功或失败，
   结束后读取 `/settings/general` 证明已恢复 `persist/plaintext`。不得把 runtime
   自动切换嵌入普通 unit、build、commit hook 或默认 CI 链。
+- `e2ee.cross-client.live` 是本机 Compose dev 的独立显式入口，只接受
+  `http://127.0.0.1:8010`，要求 JDK 21，并通过退出 trap 在成功、失败或信号中断后
+  恢复和验证 `persist/plaintext`；它不接入 `test.all`、commit hook 或默认 CI。
 - 原生双端（`android-app/` / `ios-app/`）E2EE 协议接入尚未落地，原生 E2EE 验收
   由原生 E2EE 专项补齐；当前原生测试不含 E2EE 协议用例。
 
