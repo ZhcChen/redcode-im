@@ -468,3 +468,183 @@ async fn e2ee_gate_rejects_low_key_package_inventory() {
             .unwrap_or("")
             .contains("KeyPackage 库存低于低水位")));
 }
+
+#[tokio::test]
+async fn admin_data_cleanup_removes_e2ee_user_fixtures_but_keeps_gate() {
+    let app = spawn_test_app().await;
+    let admin_token = bootstrap_admin_token(&app).await;
+    let alice = register_user(&app, "cleanup-alice").await;
+    let bob = register_user(&app, "cleanup-bob").await;
+
+    // 创建房间并注册设备/KeyPackage，提交一条 commit 控制消息。
+    let (status, response) = app
+        .post_json_authed(
+            "/rooms",
+            &alice.token,
+            &json!({
+                "name": "Cleanup E2EE room",
+                "description": "test",
+                "room_type": "group",
+                "member_ids": [bob.id],
+            })
+            .to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let room_id = body_json(&response)["room"]["id"]
+        .as_str()
+        .expect("room id")
+        .to_string();
+
+    let device_id = Uuid::new_v4();
+    register_device(
+        &app,
+        &alice,
+        &device_request(
+            device_id,
+            "Cleanup H5",
+            41,
+            &SigningKey::from_bytes(&[27; 32]),
+            "h5",
+            "0.1.0",
+        ),
+    )
+    .await;
+    publish_inventory(&app, &alice, device_id, 4).await;
+
+    let (status, response) = app
+        .get_authed(&format!("/rooms/{room_id}/e2ee/epoch"), &alice.token)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let revision = body_json(&response)["membership_revision"]
+        .as_i64()
+        .expect("membership revision");
+    let control_id = Uuid::new_v4();
+    let mut envelope = b"RCML".to_vec();
+    envelope.extend_from_slice(&1_u16.to_be_bytes());
+    envelope.push(2);
+    envelope.extend_from_slice(&48_u32.to_be_bytes());
+    envelope.extend_from_slice(&vec![0x55; 48]);
+    let commit = json!({
+        "id": control_id,
+        "epoch": 1,
+        "membership_revision": revision,
+        "sender_device_id": device_id,
+        "recipient_device_id": null,
+        "content_type": "commit",
+        "envelope": BASE64_STANDARD.encode(envelope),
+        "idempotency_key": Uuid::new_v4(),
+    });
+    let (status, response) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/e2ee/control-messages"),
+            &alice.token,
+            &commit.to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+
+    // 旧版 X3DH 表无外键，手工插入夹具验证 cleanup 显式清理。
+    sqlx::query(
+        "INSERT INTO e2ee_identity_keys (user_id, device_id, public_key) VALUES ($1, $2, $3)",
+    )
+    .bind(alice.id)
+    .bind(device_id.to_string())
+    .bind(vec![0x71u8; 32])
+    .execute(&app.pool)
+    .await
+    .expect("insert legacy identity key");
+    sqlx::query(
+        "INSERT INTO e2ee_signed_pre_keys (user_id, device_id, key_id, public_key, signature, expires_at)
+         VALUES ($1, $2, 1, $3, $4, NOW() + interval '1 hour')",
+    )
+    .bind(alice.id)
+    .bind(device_id.to_string())
+    .bind(vec![0x72u8; 32])
+    .bind(vec![0x73u8; 64])
+    .execute(&app.pool)
+    .await
+    .expect("insert legacy signed pre key");
+    sqlx::query(
+        "INSERT INTO e2ee_one_time_pre_keys (user_id, device_id, key_id, public_key)
+         VALUES ($1, $2, 1, $3)",
+    )
+    .bind(alice.id)
+    .bind(device_id.to_string())
+    .bind(vec![0x74u8; 32])
+    .execute(&app.pool)
+    .await
+    .expect("insert legacy one-time pre key");
+
+    // 执行 Admin 全量清理。
+    let (status, response) = app
+        .post_json_authed("/admin/data/cleanup/all", &admin_token, "{}")
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "{}",
+        String::from_utf8_lossy(&response)
+    );
+    let result = body_json(&response);
+    assert_eq!(result["success"], true, "{result}");
+    let cleaned = result["cleaned_tables"]
+        .as_array()
+        .expect("cleaned tables")
+        .iter()
+        .map(|value| value.as_str().unwrap_or(""))
+        .collect::<Vec<_>>();
+    for table in [
+        "e2ee_control_receipts",
+        "e2ee_control_messages",
+        "e2ee_key_packages",
+        "e2ee_devices",
+        "e2ee_account_identities",
+        "e2ee_room_epochs",
+        "e2ee_identity_keys",
+        "e2ee_signed_pre_keys",
+        "e2ee_one_time_pre_keys",
+    ] {
+        assert!(cleaned.contains(&table), "缺少清理表 {table}: {result}");
+    }
+
+    for table in [
+        "e2ee_control_receipts",
+        "e2ee_control_messages",
+        "e2ee_key_packages",
+        "e2ee_devices",
+        "e2ee_account_identities",
+        "e2ee_room_epochs",
+        "e2ee_identity_keys",
+        "e2ee_signed_pre_keys",
+        "e2ee_one_time_pre_keys",
+        "messages",
+        "message_parts",
+        "rooms",
+        "room_members",
+        "users",
+    ] {
+        let count: i64 = sqlx::query_scalar(format!("SELECT COUNT(*) FROM {table}").as_str())
+            .fetch_one(&app.pool)
+            .await
+            .expect("count cleaned table");
+        assert_eq!(count, 0, "{table} 清理后应无残留");
+    }
+
+    // 门禁单行表属于部署配置，清理用户数据后保留。
+    let gate_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM e2ee_runtime_gate")
+        .fetch_one(&app.pool)
+        .await
+        .expect("count gate rows");
+    assert_eq!(gate_count, 1, "e2ee_runtime_gate 应保留单行配置");
+}

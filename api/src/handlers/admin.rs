@@ -4481,6 +4481,18 @@ pub async fn cleanup_all_app_data(
         "room_pins",
         // 消息表（清除自引用字段后删除）
         "messages",
+        // E2EE 用户数据（先删引用设备的控制消息，再删 KeyPackage/设备/身份；
+        // e2ee_control_messages.sender_device_id 为 RESTRICT，必须先于设备删除）
+        "e2ee_control_receipts",
+        "e2ee_control_messages",
+        "e2ee_key_packages",
+        "e2ee_devices",
+        "e2ee_account_identities",
+        "e2ee_room_epochs",
+        // 旧版 X3DH 预密钥表无外键，删除 users 不会级联，必须显式清理
+        "e2ee_identity_keys",
+        "e2ee_signed_pre_keys",
+        "e2ee_one_time_pre_keys",
         // 用户关系相关表
         "user_friend_remarks",
         "friend_requests",
@@ -4502,6 +4514,8 @@ pub async fn cleanup_all_app_data(
     // 7. admin_users, admin_login_history, admin_operation_logs - 管理员相关（管理后台数据）
     // 8. app_versions - 应用版本管理（系统版本数据）
     // 9. permissions, roles, role_permissions - 权限管理（系统权限配置）
+    // 10. e2ee_runtime_gate - E2EE 门禁单行表（部署配置，含安全审查批准状态，
+    //     与 general_settings 同属系统配置，清理用户数据时保留）
 
     let mut cleaned_tables = Vec::new();
     let mut last_error = None;
