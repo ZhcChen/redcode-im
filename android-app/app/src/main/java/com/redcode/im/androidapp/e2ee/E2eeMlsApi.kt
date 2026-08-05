@@ -260,8 +260,11 @@ class HttpE2eeMlsApi(
             E2eeSendEncryptedRequest(
                 encode(message.ciphertext),
                 E2eeEncryptionMetadata(
+                    protocol = "mls",
+                    version = 1,
                     epoch = message.epoch,
                     senderDeviceId = message.senderDeviceId,
+                    contentType = "application",
                     controlMessageId = message.controlMessageId,
                 ),
                 message.idempotencyKey,
@@ -344,7 +347,7 @@ private data class E2eeRootIdentityResponse(
 @Serializable private data class E2eeSubmitControlRequest(val id: String, val epoch: Long, @SerialName("membership_revision") val membershipRevision: Long, @SerialName("sender_device_id") val senderDeviceId: String, @SerialName("recipient_device_id") val recipientDeviceId: String?, @SerialName("content_type") val contentType: String, val envelope: String, @SerialName("idempotency_key") val idempotencyKey: String)
 @Serializable private data class E2eeControlMessageResponse(val id: String, val epoch: Long, @SerialName("membership_revision") val membershipRevision: Long, @SerialName("content_type") val contentType: String, val envelope: String, @SerialName("sequence_no") val sequenceNo: Long)
 @Serializable private data class E2eeConsumeControlRequest(@SerialName("device_id") val deviceId: String)
-@Serializable private data class E2eeEncryptionMetadata(val protocol: String = "mls", val version: Int = 1, val epoch: Long, @SerialName("sender_device_id") val senderDeviceId: String, @SerialName("content_type") val contentType: String = "application", @SerialName("control_message_id") val controlMessageId: String)
+@Serializable private data class E2eeEncryptionMetadata(val protocol: String, val version: Int, val epoch: Long, @SerialName("sender_device_id") val senderDeviceId: String, @SerialName("content_type") val contentType: String, @SerialName("control_message_id") val controlMessageId: String)
 @Serializable private data class E2eeSendEncryptedRequest(@SerialName("encrypted_content") val encryptedContent: String, @SerialName("encryption_metadata") val encryptionMetadata: E2eeEncryptionMetadata, @SerialName("idempotency_key") val idempotencyKey: String)
 @Serializable private data class E2eeSentMessage(val id: String)
 @Serializable private data class E2eeSendEncryptedResponse(val message: E2eeSentMessage)

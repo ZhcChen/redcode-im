@@ -38,8 +38,9 @@ const request = async <T>(path: string, init: RequestInit = {}, token?: string):
 };
 
 const register = async (prefix: string): Promise<LiveSession> => {
-  const suffix = `${Date.now()}${Math.random().toString(16).slice(2, 8)}`;
-  const username = `${prefix}${runId}${suffix}`.slice(0, 20);
+  const suffix = `${Date.now().toString(36).slice(-6)}${Math.random().toString(16).slice(2, 6)}`;
+  const runFragment = runId.slice(0, Math.max(0, 20 - prefix.length - suffix.length));
+  const username = `${prefix}${runFragment}${suffix}`;
   const password = `E2ee-${suffix}`;
   await request('/auth/register', {
     method: 'POST',
@@ -56,7 +57,7 @@ const useSession = (session: LiveSession) => {
 };
 
 describe.skipIf(!enabled)('H5 E2EE live backend', () => {
-  it('exchanges ciphertext bidirectionally in a private room and across Flutter/H5', async () => {
+  it('exchanges ciphertext bidirectionally in a private room and across Android/H5', async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
 
@@ -70,7 +71,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     const alice = await register('e2eea');
     const bob = await register('e2eeb');
-    const flutterAlice = await register('e2eef');
+    const androidAlice = await register('e2eeand');
     const h5CrossBob = await register('e2eeh');
     const { friendService } = await import('@/services/friend-service');
     const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
@@ -88,11 +89,11 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     useSession(alice);
     const chat = await friendService.ensurePrivateChat(bob.user.id);
     expect(chat.roomType).toBe('private');
-    useSession(flutterAlice);
+    useSession(androidAlice);
     const crossFriendRequest = await friendService.sendFriendRequest(h5CrossBob.user.id, '');
     useSession(h5CrossBob);
     await friendService.respondFriendRequest(crossFriendRequest.id, 'accept');
-    useSession(flutterAlice);
+    useSession(androidAlice);
     const crossChat = await friendService.ensurePrivateChat(h5CrossBob.user.id);
     expect(crossChat.roomType).toBe('private');
 
@@ -193,7 +194,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ encrypted_content: expect.any(String) }),
     ]));
 
-    const flutterMarker = `u5-flutter-${crypto.randomUUID()}`;
+    const androidMarker = `u5-android-${crypto.randomUUID()}`;
     const h5Marker = `u5-h5-${crypto.randomUUID()}`;
     const crossBobSocket = new H5WebSocketService({
       autoReconnect: false,
@@ -210,65 +211,65 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     );
     crossBobSocket.ensureRoomsSubscribed([crossChat.roomId]);
     await crossJoined;
-    const flutterWebSocketMessage = waitForEvent(
+    const androidWebSocketMessage = waitForEvent(
       crossBobSocket,
       (event) => event.type === 'message' && event.room_id === crossChat.roomId,
       30_000,
     );
     const coordination = await createCoordinationServer({
-      token: flutterAlice.token,
-      account_id: flutterAlice.user.id,
-      username: flutterAlice.user.username,
+      token: androidAlice.token,
+      account_id: androidAlice.user.id,
       peer_user_id: h5CrossBob.user.id,
       room_id: crossChat.roomId,
-      flutter_marker: flutterMarker,
+      android_marker: androidMarker,
       h5_marker: h5Marker,
+      api_base_url: apiBaseUrl,
     });
     onTestFinished(() => coordination.close());
-    const flutter = spawnFlutterClient(coordination.url, coordination.secret);
+    const android = spawnAndroidClient(coordination.url, coordination.secret);
     onTestFinished(() => {
-      flutter.kill();
+      android.kill();
     });
 
-    const flutterSent = await coordination.waitFor('flutter-sent');
-    const flutterMessageId = requiredString(flutterSent, 'message_id');
-    const flutterWebSocketEvent = await flutterWebSocketMessage;
-    expect(requiredString(flutterWebSocketEvent, 'id')).toBe(flutterMessageId);
+    const androidSent = await coordination.waitFor('android-sent');
+    const androidMessageId = requiredString(androidSent, 'message_id');
+    const androidWebSocketEvent = await androidWebSocketMessage;
+    expect(requiredString(androidWebSocketEvent, 'id')).toBe(androidMessageId);
     useSession(h5CrossBob);
-    const flutterVisibleFromWebSocket = await messageService.resolveEncryptedMessage(
-      mapWebSocketMessage(flutterWebSocketEvent),
+    const androidVisibleFromWebSocket = await messageService.resolveEncryptedMessage(
+      mapWebSocketMessage(androidWebSocketEvent),
       h5CrossBob.user.id,
     );
-    expect(flutterVisibleFromWebSocket.content).toBe(flutterMarker);
-    const flutterHistory = await messageService.loadMessages(crossChat.roomId, { limit: 20 }, h5CrossBob.user.id);
-    expect(flutterHistory.some((message) => (
-      message.id === flutterMessageId && message.content === flutterMarker
+    expect(androidVisibleFromWebSocket.content).toBe(androidMarker);
+    const androidHistory = await messageService.loadMessages(crossChat.roomId, { limit: 20 }, h5CrossBob.user.id);
+    expect(androidHistory.some((message) => (
+      message.id === androidMessageId && message.content === androidMarker
     ))).toBe(true);
 
     const h5Response = await e2eeDirectMessageCoordinator.sendText({
       accountId: h5CrossBob.user.id,
       deviceLabel: 'H5 cross Bob',
       roomId: crossChat.roomId,
-      peerUserId: flutterAlice.user.id,
+      peerUserId: androidAlice.user.id,
       text: h5Marker,
     });
     const h5MessageId = responseMessageId(h5Response);
     coordination.publish('h5-sent', { message_id: h5MessageId });
-    const flutterReceived = await coordination.waitFor('flutter-received');
-    expect(requiredString(flutterReceived, 'message_id')).toBe(h5MessageId);
+    const androidReceived = await coordination.waitFor('android-received');
+    expect(requiredString(androidReceived, 'message_id')).toBe(h5MessageId);
 
-    const exitCode = await flutter.exitCode;
-    expect(exitCode, 'Flutter 跨端联调进程失败').toBe(0);
+    const exitCode = await android.exitCode;
+    expect(exitCode, 'Android 跨端联调进程失败').toBe(0);
     const crossRawHistory = await request<Array<Record<string, unknown>>>(
       `/rooms/${crossChat.roomId}/messages?limit=20`,
       {},
-      flutterAlice.token,
+      androidAlice.token,
     );
     const crossSerialized = JSON.stringify(crossRawHistory);
-    expect(crossSerialized).not.toContain(flutterMarker);
+    expect(crossSerialized).not.toContain(androidMarker);
     expect(crossSerialized).not.toContain(h5Marker);
     expect(crossRawHistory).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: flutterMessageId, encrypted_content: expect.any(String) }),
+      expect.objectContaining({ id: androidMessageId, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
     ]));
   }, 60_000);
@@ -461,16 +462,17 @@ const createCoordinationServer = async (
   };
 };
 
-const spawnFlutterClient = (coordinationUrl: string, secret: string) => {
-  const child = spawn('flutter', [
-    'test',
-    'test/e2ee_cross_client_live_test.dart',
-    '--dart-define=ENABLE_E2EE_CROSS_CLIENT_LIVE=true',
-    `--dart-define=API_BASE_URL=${apiBaseUrl}`,
+const spawnAndroidClient = (coordinationUrl: string, secret: string) => {
+  const child = spawn('./gradlew', [
+    'testDebugUnitTest',
+    '--rerun-tasks',
+    '--tests',
+    'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest',
   ], {
-    cwd: resolve(process.cwd(), '../app'),
+    cwd: resolve(process.cwd(), '../android-app'),
     env: {
       ...process.env,
+      RED_CODE_ANDROID_E2EE_LIVE: '1',
       E2EE_COORDINATION_URL: coordinationUrl,
       E2EE_COORDINATION_SECRET: secret,
     },
@@ -485,7 +487,7 @@ const spawnFlutterClient = (coordinationUrl: string, secret: string) => {
       if (code !== 0) {
         const sanitized = output
           .replaceAll(secret, '[REDACTED]')
-          .replace(/u5-(?:flutter|h5)-[0-9a-f-]+/gi, '[REDACTED_MARKER]');
+          .replace(/u5-(?:android|h5)-[0-9a-f-]+/gi, '[REDACTED_MARKER]');
         process.stderr.write(sanitized);
       }
       resolve(code ?? 1);
