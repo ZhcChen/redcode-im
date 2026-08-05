@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: U3
-current_checkpoint: U3.1
+current_unit: U4
+current_checkpoint: U4.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 收敛 G4.1 四视角独立复审发现，补齐 G1-G3 的可靠性、真实性和证据耐久性缺口，在无未关闭 P0/P1 后重放全量与 live 门禁并作出最终 Go/No-Go 裁决。
-- **唯一恢复点：** 从 `U3.1` 开始，执行顺序固定为 `U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9`。
+- **唯一恢复点：** 从 `U4.1` 开始，执行顺序固定为 `U4 -> U5 -> U6 -> U7 -> U8 -> U9`。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；测试环境保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **已完成边界：** N1-N7、U7 P0-1、G1-G3 的既有实现和成功证据不重做；只对 G4.1 重新打开的合同与证据缺口做最小整改。
 - **禁止事项：** 不扩展 E2EE API，不修改已有 migration，不触碰 `im-test-1` 旧主数据库，不把本地模拟、源码推断或短期 artifact 冒充生产候选证据。
@@ -39,31 +39,30 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 | U1.1 恢复手册 | complete | `da3cead2`；stdin archive、隔离 PostgreSQL 17、RCML 合同与真实客户端解密判据已修正 |
 | U1.2 日期门禁 | complete | `10f0f724`；32/32 正负测试、workflow 测试与六端扫描通过 |
 | U2 G3 cleanup | complete | `22a728f9`；17/17 cleanup/recover 场景、H5 release 21/21、shellcheck 通过 |
-| U3 G1 cleanup | **in progress** | 当前唯一 checkpoint 为 `U3.1`；完成故障/信号/重复恢复测试和实际状态终验后退出 |
-| U4 恢复真实性 | blocked by U3 | 隔离 restore API 上完成 Android/iOS/H5 真实恢复 live 与关键数据 digest |
+| U3 G1 cleanup | complete | `a644fa0f`；25 个 success/failure/signal/recover 场景、硬超时、run lock 与实际状态终验通过 |
+| U4 恢复真实性 | **in progress** | 当前唯一 checkpoint 为 `U4.1`；隔离 restore API 上完成 Android/iOS/H5 真实恢复 live 与关键数据 digest |
 | U5 H5 Chrome audit | blocked by U4 | production bundle 真实安全存储路径、篡改 fail closed、明文 marker 为零 |
 | U6 持久证据 | blocked by U5 | G1/G3 脱敏证据可在干净 checkout 离线校验 |
 | U7 Release workflow | blocked by U6 | 当前候选 commit 的真实 workflow 成功，且无 tag/release 副作用 |
 | U8 四视角重审 | blocked by U7 | correctness/security/reliability/testing 均为 `P0=0、P1=0` |
 | U9 最终重放 | blocked by U8 | 全量、live、环境清理全部通过后才允许最终裁决 |
 
-### U3.1 唯一立即动作
+### U4.1 唯一立即动作
 
-- **修改范围：** `deploy/im-test-1/e2ee-backup-rollout-drill.sh`、新增
-  `tests/scripts/test-e2ee-backup-rollout-drill.sh`、`Makefile` 测试入口。
-- **先写失败测试：** 覆盖 API stop、审批更新、restore volume/container 创建前后
-  的 failure、`INT`、`TERM`，以及 cleanup 自身失败和重复 cleanup。
-- **实现约束：** cleanup 依据 Compose、Docker、数据库的实际状态执行；内存 flag
-  不能作为唯一判断；逐项累计错误且不得用 `|| true` 掩盖失败。
-- **退出断言：** API 恢复到演练前状态，`security_review_approved=false`，restore
-  container/volume 为零，runtime 为 `persist/plaintext`。
-- **本单元验证：** `make e2ee.backup-drill.test`、
-  `bash -n deploy/im-test-1/e2ee-backup-rollout-drill.sh`、`git diff --check`，再执行
-  reliability/security 独立复核；存在 P0/P1 时不得提交关闭 U3。
+- **先冻结恢复边界：** 设计独立 restore Compose project、数据库 marker、候选 API
+  `127.0.0.1:18010` 与 SSH tunnel，不连接旧主 PostgreSQL/Redis。
+- **统一 live 入口：** 扩展 `run-e2ee-cross-client-live.sh`，仅在 restore marker、
+  container inspect 和数据库身份一致时允许隔离 URL，并实际编排 Android、iOS、H5。
+- **真实性场景：** 恢复前历史密文、恢复后新消息三端互解、撤销设备不可读新
+  epoch、attachment grant/下载授权，以及关键 E2EE 表 digest 一致。
+- **退出断言：** restore API/PostgreSQL/Redis、SSH tunnel 和临时资源全部删除；源库
+  连接计数与数据版本不变；主 runtime 仍为 `persist/plaintext`。
+- **本单元验证：** 隔离 G1 full drill、三端定向 live、恢复前后 digest、U3 cleanup
+  回归及独立 correctness/security/reliability/testing 复核。
 
 ### 执行与恢复规则
 
-1. 严格按 `U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9` 串行推进，不并行打开后续单元。
+1. 严格按 `U4 -> U5 -> U6 -> U7 -> U8 -> U9` 串行推进，不并行打开后续单元。
 2. 每个单元形成独立最小闭环：实现、定向验证、独立复核、更新本文与任务总账、commit、push。
 3. 新发现若属于已完成单元，回到最早受影响单元并更新 `current_unit/current_checkpoint`；禁止另建平行 active 计划。
 4. 会话恢复时只读取本文、`docs/reports/task-list.md`、当前单元相关源码和最近提交；历史计划仅在核对原始合同时查阅。
@@ -260,7 +259,8 @@ flowchart TB
 | G4.1 | failed | 四视角均存在 P1，当前不可进入原 G4.2 |
 | U1 | complete | `da3cead2` 修复恢复手册；`10f0f724` 严格限制豁免日期；32 个正负场景、workflow 与六端扫描通过 |
 | U2 | complete | `22a728f9` 增加有限重试、硬超时、显式 recover、状态验证与 17 个 cleanup/recover 场景 |
-| Current | active | `U3.1`：G1 外部副作用恢复 |
+| U3 | complete | `a644fa0f`：实际状态驱动 cleanup、持久审批补偿、硬超时、并发锁及 25 个边界场景通过 |
+| Current | active | `U4.1`：G1 隔离恢复实例真实性与完整性 |
 
 ### Supersession Map
 
