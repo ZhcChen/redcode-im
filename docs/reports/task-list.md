@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE G3-G4 最终收口计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md`
+- E2EE G4 复审整改与最终收口计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
@@ -26,12 +26,12 @@
 
 ## 当前结论
 
-- 当前主线：原生双端 E2EE 客户端专项与供应链门禁已完成 -> 关闭剩余 H5 发布安全 P0
-  -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：G3 已完成，U7 P0-4 已关闭；唯一 checkpoint 为 `G4.1`，独立
-  复审 G1-G3 并确认无未关闭 P0/P1。
-- 当前下一阶段：G4.2 从干净基线重放全量与 live 门禁，G4.3 作出唯一
-  Go/No-Go 裁决。
+- 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
+  -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
+- 当前立即任务：G4.1 四视角复审发现 P1，G1-G3 的部分关闭结论已重新打开；唯一
+  checkpoint 为新计划 `U1.1`，先修复正式恢复手册与供应链日期门禁。
+- 当前下一阶段：按 `U1 -> U7` 关闭恢复真实性、两类 cleanup、H5 production
+  Chrome 审计、持久证据和真实 release workflow，再执行 `U8 -> U9`。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -73,18 +73,20 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md`。
-    N1-N7、应用主链、三端互解、恢复/rekey、跨端附件、泄漏扫描及最终全量门禁
-    已完成，U7 P0-1 已关闭。
-  - G1 已完成隔离候选三端 live、备份恢复、损坏归档拒绝、active 重建、rollback
-    与资源清理，U7 P0-2 已关闭。
-  - G2 六端 SBOM、漏洞与许可证 fail-closed 门禁已通过 main CI 和独立复审，
-    U7 P0-3 已关闭。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`。
+    N1-N7、应用主链、三端互解、恢复/rekey、跨端附件和泄漏扫描的历史验收已完成，
+    U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
+  - G1 既有隔离候选演练有效，但 G4.1 重新打开恢复实例真实客户端行为、外部
+    副作用清理与持久证据缺口；U7 P0-2 暂不维持关闭。
+  - G2 六端 SBOM、漏洞与许可证门禁有效，但需补严格日历日期校验和真实
+    `Build Release Artifacts` workflow 运行证据；U7 P0-3 暂按部分关闭管理。
   - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
     source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
-  - G3.2/G3.3 已完成真实 Caddy/Chrome/WebCrypto/存储审计与失败清理，四视角
-    复审无 P0/P1/P2，U7 P0-4 已关闭。
-  - 当前执行顺序固定为 `G4.1 -> G4.2 -> G4.3`；G4 最终裁决前仍保持 No-Go。
+  - G3.2/G3.3 的真实 Caddy/响应头/WebCrypto 能力证据有效，但 G4.1 重新打开
+    production `E2eeSecureStateStorage` Chrome 集成、幂等 cleanup 和持久证据缺口；
+    U7 P0-4 暂不维持关闭。
+  - 当前执行顺序固定为 `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9`；
+    四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。

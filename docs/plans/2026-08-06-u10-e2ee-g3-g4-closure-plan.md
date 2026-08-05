@@ -7,30 +7,34 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
-status: active
+status: superseded
 current_unit: G4
 current_checkpoint: G4.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
+superseded_by: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ---
 
 # security: U10 E2EE G3-G4 最终收口执行计划
 
+> G4.1 四视角独立复审发现未关闭 P1，G1-G3 的部分关闭结论已重新打开。
+> 后续唯一执行入口为 `docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`，不要再从本文派发任务。
+
 ## 1. 唯一执行结论
 
-本文是 U10 E2EE 剩余工作的**唯一 active 计划、进度总账和会话恢复入口**。
-此前计划仅保留产品契约、实现过程与验收证据，不再派发任务。
+本文已停止派发任务，仅保留 G3 完成事实与首次 G4.1 复审前的历史恢复点。
+当前唯一 active 计划、进度总账和会话恢复入口见 `docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`。
 
-- 唯一剩余链路：`G4.1 -> G4.2 -> G4.3`。
-- 当前 checkpoint：`G4.1`，独立复审 G1-G3 并确认无未关闭 P0/P1。
+- 本文原定链路：`G4.1 -> G4.2 -> G4.3`，已被 G4.1 复审整改链替代。
+- 历史 checkpoint：`G4.1`；该轮复审发现 P1，未进入 G4.2。
 - 当前裁决：生产 E2EE 保持 **No-Go**。
 - 当前运行边界：保持 `content_audit_mode=plaintext`、`persist/plaintext` 和
   `security_review_approved=false`。
 - 禁止扩展 E2EE API、修改已有 migration、触碰 `im-test-1` 旧主数据库，或把
   dev server 结果冒充真实候选部署证据。
 
-## 2. 已完成事实
+## 2. 首次 G4.1 前的完成事实
 
 以下范围已经完成并推送，后续只在 G4 从干净基线重放门禁，禁止重做实现：
 
@@ -38,10 +42,10 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
 | --- | --- | --- |
 | N1-N7 原生双端接入与三端 E2EE live | 完成 | `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md` |
 | U7 P0-1 客户端主链 | 关闭 | 三端互解、附件、恢复、rekey、撤销与泄漏检查 |
-| G1 / U7 P0-2 备份、灰度与回滚 | 关闭 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
-| G2 / U7 P0-3 六端供应链门禁 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md` |
+| G1 / U7 P0-2 备份、灰度与回滚 | 当时关闭，G4.1 后 reopened | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
+| G2 / U7 P0-3 六端供应链门禁 | 当时关闭，G4.1 后 reopened-partial | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md` |
 | G3.1 H5 静态发布安全门禁 | 完成 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-g3-1.md` |
-| G3.2-G3.3 / U7 P0-4 H5 真实发布安全 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md` |
+| G3.2-G3.3 / U7 P0-4 H5 真实发布安全 | 当时关闭，G4.1 后 reopened | `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md` |
 
 G3.1 实现 commit 为 `cf05af8a`，文档 commit 为 `4a06f61b`。H5 type-check、
 262 项 unit、release 正负场景、严格 CSP、11 个资源摘要和 9 个实际响应头均已
@@ -76,9 +80,9 @@ SHA-256 和全 IndexedDB store 扫描。最终候选、故意失败恢复和 SSH
 ### G3.3 关闭 U7 P0-4（完成）
 
 正式证据见 `docs/reviews/2026-08-06-u10-e2ee-h5-release-security-review.md`。
-四视角复审 P0=0、P1=0、P2=0，U7 P0-4 已关闭。
+G3 阶段四视角复审曾得出 P0=0、P1=0、P2=0 并关闭 U7 P0-4；首次 G4.1 总复审已重新打开该结论。
 
-## 5. 剩余执行队列
+## 5. 原定剩余执行队列（已停止）
 
 ### G4.1 独立复审
 
@@ -123,10 +127,10 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 ## 7. Definition of Done
 
-- D1. 本文是唯一 active U10 计划，任务总账与 `current_checkpoint` 一致。
+- D1. 历史目标：本文曾作为唯一 active U10 计划；现已由整改计划替代。
 - D2. G3.2a path-prefix 候选支持已测试、独立提交并 push。
 - D3. G3.2b 真实 HTTPS、响应头、浏览器存储和 fail-closed 验收全部通过且已清理。
-- D4. U7 P0-4 有独立可复现报告并关闭。
+- D4. 历史目标：U7 P0-4 曾按 G3 报告关闭；首次 G4.1 后已 reopened。
 - D5. G4 独立复审无未解决 P0/P1。
 - D6. 干净基线全量与 live 门禁通过，临时资源和凭据已清理。
 - D7. runtime 保持 `persist/plaintext`，`im-test-1` 旧主数据库未触碰。
@@ -139,4 +143,4 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | `2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` | superseded | 产品契约与 API 边界 |
 | `2026-08-05-u10-e2ee-native-clients-plan.md` 及收口计划 | complete/superseded | N1-N7 与原生验收历史 |
 | `2026-08-06-u10-e2ee-release-gate-final-plan.md` | superseded | G2、G3.1 完成事实与设计历史 |
-| 本文 | active | 唯一剩余任务派发、进度与恢复入口 |
+| 本文 | superseded | G3 完成与首次 G4.1 前的历史记录 |
