@@ -56,6 +56,16 @@ class AndroidE2eeCrossClientLiveTest {
             withTimeout(90.seconds) { exchangeWithIOS() }
         }
 
+    @Test
+    fun joinsAndLosesAccessAsSecondDevice() =
+        runBlocking {
+            assumeTrue(
+                "Set RED_CODE_ANDROID_E2EE_LIVE=1 with coordination settings",
+                System.getenv("RED_CODE_ANDROID_E2EE_LIVE") == "1",
+            )
+            withTimeout(90.seconds) { exchangeAsSecondDevice() }
+        }
+
     private suspend fun exchangeWithH5() {
         val coordination = CoordinationClient.fromEnvironment()
         val fixture = coordination.fixture()
@@ -213,6 +223,61 @@ class AndroidE2eeCrossClientLiveTest {
         assertEquals(fixture.iosRestartMarker, afterRestartDecrypted.text)
         coordination.publish("android-native-received", mapOf("message_id" to afterRestartMessageId))
     }
+
+    private suspend fun exchangeAsSecondDevice() {
+        val coordination = CoordinationClient.fromEnvironment()
+        val fixture = coordination.fixture()
+        val client = LiveE2eeClient(fixture)
+        val pending = client.lifecycle.ensureReady(fixture.accountId, "Android second E2EE device", fixture.token)
+        assertEquals("pending_approval", pending.deviceStatus)
+        coordination.publish("android-device-pending", mapOf("device_id" to pending.deviceId))
+
+        coordination.waitFor("android-device-approved")
+        val active = client.lifecycle.ensureReady(fixture.accountId, "Android second E2EE device", fixture.token)
+        assertEquals("active", active.deviceStatus)
+        assertTrue(active.keyPackagePublished)
+        coordination.publish("android-device-active", mapOf("device_id" to active.deviceId))
+
+        val addedMessageId = coordination.waitFor("h5-after-device-add-sent").getValue("message_id")
+        val addedEncrypted =
+            client.chat.loadMessages(fixture.roomId, fixture.token, limit = 50)
+                .first { it.id == addedMessageId }
+        val added =
+            client.coordinator.decryptIncoming(
+                fixture.accountId,
+                "Android second E2EE device",
+                E2eeIncomingMessage(
+                    addedMessageId,
+                    fixture.roomId,
+                    Base64.getDecoder().decode(requireNotNull(addedEncrypted.encryptedContent)),
+                    source = E2eeMessageSource.History,
+                ),
+                fixture.token,
+            )
+        assertEquals(fixture.deviceAddMarker, added.text)
+        coordination.publish("android-device-received", mapOf("message_id" to addedMessageId))
+
+        val revokedMessageId = coordination.waitFor("h5-after-device-revoke-sent").getValue("message_id")
+        val revokedEncrypted =
+            client.chat.loadMessages(fixture.roomId, fixture.token, limit = 50)
+                .first { it.id == revokedMessageId }
+        val revoked =
+            runCatching {
+                client.coordinator.decryptIncoming(
+                    fixture.accountId,
+                    "Android second E2EE device",
+                    E2eeIncomingMessage(
+                        revokedMessageId,
+                        fixture.roomId,
+                        Base64.getDecoder().decode(requireNotNull(revokedEncrypted.encryptedContent)),
+                        source = E2eeMessageSource.History,
+                    ),
+                    fixture.token,
+                )
+            }.exceptionOrNull()
+        assertTrue("撤销设备不得解密新 epoch 消息", revoked != null)
+        coordination.publish("android-device-revoked-blocked", mapOf("message_id" to revokedMessageId))
+    }
 }
 
 private class LiveE2eeClient(fixture: CoordinationFixture) {
@@ -254,6 +319,7 @@ private data class CoordinationFixture(
     val android_marker: String,
     val h5_marker: String,
     val ios_restart_marker: String = "",
+    val device_add_marker: String = "",
     val api_base_url: String,
 ) {
     val accountId get() = account_id
@@ -262,6 +328,7 @@ private data class CoordinationFixture(
     val androidMarker get() = android_marker
     val h5Marker get() = h5_marker
     val iosRestartMarker get() = ios_restart_marker
+    val deviceAddMarker get() = device_add_marker
     val apiBaseUrl get() = api_base_url
 }
 

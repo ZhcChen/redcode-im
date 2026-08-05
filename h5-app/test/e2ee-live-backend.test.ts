@@ -551,6 +551,248 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     expect(serialized).not.toContain(secondMarker);
     expect(serialized).not.toContain(thirdMarker);
   }, 90_000);
+
+  it('advances epochs when a group member joins and leaves', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const alice = await register('e2eega');
+    const bob = await register('e2eegb');
+    const carol = await register('e2eegc');
+    const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
+    await initCore({ module_or_path: wasm });
+    const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
+    const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
+    const { friendService } = await import('@/services/friend-service');
+    const { messageService } = await import('@/services/message-service');
+    const { roomService } = await import('@/services/room-service');
+
+    const befriend = async (left: LiveSession, right: LiveSession) => {
+      useSession(left);
+      const pending = await friendService.sendFriendRequest(right.user.id, '');
+      useSession(right);
+      await friendService.respondFriendRequest(pending.id, 'accept');
+    };
+    await befriend(alice, bob);
+    await befriend(alice, carol);
+
+    useSession(alice);
+    await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 group Alice');
+    useSession(bob);
+    await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 group Bob');
+    useSession(carol);
+    await e2eeDeviceLifecycle.ensureReady(carol.user.id, 'H5 group Carol');
+
+    useSession(alice);
+    const group = await roomService.createGroup({
+      name: `E2EE live ${runId}`,
+      memberIds: [bob.user.id],
+    });
+    const beforeJoinMarker = `u5-group-before-${crypto.randomUUID()}`;
+    await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 group Alice',
+      roomId: group.id,
+      peerUserId: bob.user.id,
+      text: beforeJoinMarker,
+    });
+    const initialEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${group.id}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    expect(initialEpoch.active_epoch).toBeGreaterThan(0);
+
+    useSession(bob);
+    const bobInitial = await messageService.loadMessages(group.id, { limit: 20 }, bob.user.id);
+    expect(bobInitial.some((message) => message.content === beforeJoinMarker)).toBe(true);
+
+    useSession(alice);
+    await roomService.addMembers(group.id, [carol.user.id]);
+    const afterJoinMarker = `u5-group-joined-${crypto.randomUUID()}`;
+    await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 group Alice',
+      roomId: group.id,
+      text: afterJoinMarker,
+    });
+    const joinedEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${group.id}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    expect(joinedEpoch.active_epoch).toBeGreaterThan(initialEpoch.active_epoch);
+
+    useSession(carol);
+    const carolHistory = await messageService.loadMessages(group.id, { limit: 20 }, carol.user.id);
+    expect(carolHistory.find((message) => message.content === afterJoinMarker)).toBeTruthy();
+    expect(carolHistory.find((message) => message.content === beforeJoinMarker)).toBeUndefined();
+    expect(carolHistory.some((message) => message.e2eeDecryptionFailed)).toBe(true);
+
+    useSession(alice);
+    await roomService.removeMember(group.id, carol.user.id);
+    const afterRemoveMarker = `u5-group-removed-${crypto.randomUUID()}`;
+    const afterRemoveResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 group Alice',
+      roomId: group.id,
+      text: afterRemoveMarker,
+    });
+    const removedMessageID = responseMessageId(afterRemoveResponse);
+    const removedEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${group.id}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    expect(removedEpoch.active_epoch).toBeGreaterThan(joinedEpoch.active_epoch);
+
+    useSession(bob);
+    const bobFinal = await messageService.loadMessages(group.id, { limit: 20 }, bob.user.id);
+    expect(bobFinal.some((message) => message.content === afterRemoveMarker)).toBe(true);
+
+    const ownerHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${group.id}/messages?limit=20`,
+      {},
+      alice.token,
+    );
+    const removedCiphertext = requiredString(
+      ownerHistory.find((message) => message.id === removedMessageID) ?? {},
+      'encrypted_content',
+    );
+    useSession(carol);
+    await expect(e2eeDirectMessageCoordinator.decryptPayload({
+      accountId: carol.user.id,
+      deviceLabel: 'H5 group Carol',
+      roomId: group.id,
+      ciphertext: Uint8Array.from(atob(removedCiphertext), (char) => char.charCodeAt(0)),
+    })).rejects.toThrow();
+
+    const serialized = JSON.stringify(ownerHistory);
+    expect(serialized).not.toContain(beforeJoinMarker);
+    expect(serialized).not.toContain(afterJoinMarker);
+    expect(serialized).not.toContain(afterRemoveMarker);
+  }, 90_000);
+
+  it('rekeys when a second device is approved and revoked', async () => {
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const alice = await register('e2eeda');
+    const bob = await register('e2eedb');
+    const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
+    await initCore({ module_or_path: wasm });
+    const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
+    const { e2eeDeviceManager } = await import('@/e2ee/device-manager');
+    const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
+    const { friendService } = await import('@/services/friend-service');
+    const { messageService } = await import('@/services/message-service');
+
+    useSession(alice);
+    const pendingFriend = await friendService.sendFriendRequest(bob.user.id, '');
+    useSession(bob);
+    await friendService.respondFriendRequest(pendingFriend.id, 'accept');
+    useSession(alice);
+    const chat = await friendService.ensurePrivateChat(bob.user.id);
+    await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 primary device');
+    useSession(bob);
+    await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 device peer');
+
+    const bootstrapMarker = `u5-device-bootstrap-${crypto.randomUUID()}`;
+    useSession(alice);
+    await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 primary device',
+      roomId: chat.roomId,
+      peerUserId: bob.user.id,
+      text: bootstrapMarker,
+    });
+    useSession(bob);
+    const bobHistory = await messageService.loadMessages(chat.roomId, { limit: 20 }, bob.user.id);
+    expect(bobHistory.some((message) => message.content === bootstrapMarker)).toBe(true);
+
+    const addMarker = `u5-device-added-${crypto.randomUUID()}`;
+    const revokeMarker = `u5-device-revoked-${crypto.randomUUID()}`;
+    const coordination = await createCoordinationServer({
+      token: alice.token,
+      account_id: alice.user.id,
+      peer_user_id: bob.user.id,
+      room_id: chat.roomId,
+      android_marker: addMarker,
+      h5_marker: revokeMarker,
+      device_add_marker: addMarker,
+      api_base_url: apiBaseUrl,
+    });
+    onTestFinished(() => coordination.close());
+    const android = spawnAndroidClient(
+      coordination.url,
+      coordination.secret,
+      'com.redcode.im.androidapp.live.AndroidE2eeCrossClientLiveTest.joinsAndLosesAccessAsSecondDevice',
+    );
+    onTestFinished(() => {
+      android.kill();
+    });
+
+    const pending = await coordination.waitFor('android-device-pending');
+    const androidDeviceID = requiredString(pending, 'device_id');
+    useSession(alice);
+    const target = (await e2eeDeviceManager.listDevices()).find((device) => device.id === androidDeviceID);
+    expect(target?.status).toBe('pending_approval');
+    await e2eeDeviceManager.approveDevice(alice.user.id, target!);
+    coordination.publish('android-device-approved', { device_id: androidDeviceID });
+    const active = await coordination.waitFor('android-device-active');
+    expect(requiredString(active, 'device_id')).toBe(androidDeviceID);
+
+    const beforeAddEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${chat.roomId}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    const addResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 primary device',
+      roomId: chat.roomId,
+      peerUserId: bob.user.id,
+      text: addMarker,
+    });
+    const addMessageID = responseMessageId(addResponse);
+    coordination.publish('h5-after-device-add-sent', { message_id: addMessageID });
+    expect(requiredString(await coordination.waitFor('android-device-received'), 'message_id')).toBe(addMessageID);
+    const afterAddEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${chat.roomId}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    expect(afterAddEpoch.active_epoch).toBeGreaterThan(beforeAddEpoch.active_epoch);
+
+    await e2eeDeviceManager.revokeDevice(androidDeviceID);
+    const revokeResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 primary device',
+      roomId: chat.roomId,
+      peerUserId: bob.user.id,
+      text: revokeMarker,
+    });
+    const revokeMessageID = responseMessageId(revokeResponse);
+    coordination.publish('h5-after-device-revoke-sent', { message_id: revokeMessageID });
+    expect(requiredString(await coordination.waitFor('android-device-revoked-blocked'), 'message_id')).toBe(revokeMessageID);
+    expect(await android.exitCode, 'Android 第二设备联调进程失败').toBe(0);
+    const afterRevokeEpoch = await request<{ active_epoch: number }>(
+      `/rooms/${chat.roomId}/e2ee/epoch`,
+      {},
+      alice.token,
+    );
+    expect(afterRevokeEpoch.active_epoch).toBeGreaterThan(afterAddEpoch.active_epoch);
+
+    const rawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${chat.roomId}/messages?limit=20`,
+      {},
+      alice.token,
+    );
+    const serialized = JSON.stringify(rawHistory);
+    expect(serialized).not.toContain(bootstrapMarker);
+    expect(serialized).not.toContain(addMarker);
+    expect(serialized).not.toContain(revokeMarker);
+  }, 90_000);
 });
 
 interface CoordinationServer {
