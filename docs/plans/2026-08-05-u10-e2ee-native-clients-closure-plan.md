@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md
 execution: code
 status: active
-current_unit: C4
+current_unit: C5
 last_progress_update: 2026-08-05
 ---
 
@@ -23,40 +23,41 @@ last_progress_update: 2026-08-05
 | C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
 | C2 Android 消息主链 | 已完成 | text 主链 `565d6482`、附件主链 `20672eeb` 已推送；238 项 JVM 单测与 `lintDebug` 通过，密钥材料缺失/篡改 fail closed |
 | C3 iOS 应用级装配 | 已完成 | `881d662e`、`4a1ed113`；账号级 graph、runtime 路由、登录/前台/注销、全量敏感 blob 清理和 Simulator 链接已接入；191 项测试及 App build 通过 |
-| C4 iOS 消息主链 | 进行中 | 文本主链 `a5d42f6f` 已推送；附件上传/下载、外围边界及测试已在工作区完成，218 项测试通过，等待审查、独立提交与推送 |
-| C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
+| C4 iOS 消息主链 | 已完成 | 文本 `a5d42f6f`、附件 `4fc971b4` 已推送；223 项测试通过、7 项 live 跳过，Simulator App build 通过 |
+| C5 设备/群/epoch 事件 | 进行中 | 已确认双端 manager/reconcile 算法未接产品入口，`group_member_changed` 事件尚未消费 |
 | C7 全仓回归门禁 | 待开始 | 依赖 C5，且必须先于 C6 完成 |
 | C6 三端 E2EE live | 待开始 | 依赖 C5、C7 |
 | C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
 
 当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
-当前从 **C4 iOS 附件消息主链审查与收口** 恢复，不重做原计划 N1-N6、C1-C3
-或已提交的 iOS 文本主链。生产 E2EE 在 C8 裁决前始终保持 `No-Go`。
+当前从 **C5 双端设备、群成员与 epoch 事件闭环** 恢复，不重做原计划 N1-N6
+或 C1-C4。生产 E2EE 在 C8 裁决前始终保持 `No-Go`。
 
-### C4 Resume Point
+### C5 Resume Point
 
-- **已提交边界：** `a5d42f6f` 已完成 encrypted DTO 映射、history/WS 统一严格
-  resolver、消息 ID 去重、E2EE text send/retry、本机发送结果记忆、身份与损坏
-  密文 fail closed；引用消息在 E2EE runtime 下阻断。
-- **当前未提交边界：** 工作区只保留 iOS 附件与外围边界改动，包含 attachment
-  payload、安全 metadata、上传前 AES-GCM、下载后内存解密、密钥材料索引、E2EE
-  本地搜索、Push 占位和引用降级；不得与 C5 混合提交。
-- **当前验证事实：** iOS 定向 42 项测试通过，`make ios-app.test` 为 218 项通过、
-  7 项 live 跳过，Simulator App build 与 `git diff --check` 通过；这些结果在提交前
-  仍需结合最终 diff 复核。
-- **提交前审查：** 明确 attachment key material 的最近 512 条淘汰语义；锁定
-  Ready 状态下 key material 缺失即使存在缓存也必须失败；覆盖签名等待期间 runtime
-  变化不上传；覆盖 pending 存在/缺失的附件 retry 行为。
-- **C4 完成信号：** 审查问题关闭，最终 `make ios-app.test`、Simulator App build、
-  `git diff --check` 与 staged diff 检查全绿，以独立 `feat(ios): 接入 E2EE 附件消息主链`
-  提交并推送；随后更新本快照并把 `current_unit` 切换到 C5。
+- **已有算法：** Android/iOS `E2eeDeviceManager` 已能签名批准和撤销设备；双端
+  direct-message coordinator 已能根据服务端成员设备列表执行 add/remove member、
+  Commit/Welcome、control message 消费和 epoch 缺口检查。
+- **产品入口缺口：** 当前没有客户端 controller/ViewModel 调用设备 manager；群成员
+  add/remove 成功后只刷新普通成员列表，没有触发 E2EE reconcile。
+- **实时入口缺口：** API 已广播 `group_member_changed`，Android
+  `RealtimeEventProcessor` 与 iOS `ChatRealtimeController` 均未消费该事件，也未补拉
+  control messages/epoch 或刷新成员数据。
+- **实现顺序：** 先建立平台内可注入的设备/群 E2EE 事件协调边界；再接设备批准、
+  撤销和群成员 mutation 成功回调；最后接 WebSocket 幂等 reconcile 与成员刷新。
+- **安全边界：** plaintext runtime 不执行 MLS mutation；E2EE runtime 下 reconcile
+  失败必须暴露错误且不伪造成功状态；撤销当前设备后立即阻断发送/解密，重复或
+  乱序事件不得重复推进 epoch。
+- **C5 完成信号：** 双端覆盖第二设备批准/撤销、成员加入/退出/移除、重复/乱序
+  `group_member_changed`、Commit/Welcome 和 epoch 缺口；`make android-app.test`、
+  `make ios-app.test` 及双端构建全绿，按平台独立提交并推送。
 
 ### Remaining Execution Gates
 
 | 顺序 | 进入条件 | 完成后允许进入 |
 | --- | --- | --- |
-| C4 iOS 附件收口 | 当前工作区附件实现完成，先审查再提交 | C5 |
-| C5 设备/群/epoch | C2、C4 均已提交推送 | C7 |
+| C4 iOS 附件收口 | `4fc971b4` 已提交推送 | C5 |
+| C5 设备/群/epoch | 当前单元；C2、C4 均已提交推送 | C7 |
 | C7 全仓回归门禁 | C5 双端事件闭环完成 | C6 |
 | C6 三端 E2EE live | C5、C7 全绿，测试 runtime 可受控恢复 | C8 |
 | C8 证据与重审 | C6 live 证据完整且可重放 | 仅裁决 P0-1；生产仍受其余 P0 约束 |
