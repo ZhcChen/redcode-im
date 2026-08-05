@@ -132,9 +132,28 @@ class E2eeDirectMessageCoordinatorTest {
         assertTrue(storage.read("account-a")!!.contentEquals(byteArrayOf(2)))
     }
 
+    @Test
+    fun rekeyRemovesRevokedDeviceAndAddsNewDeviceWithWelcome() = runTest {
+        api.epoch = E2eeRoomEpoch(2, 1, "rekey_required")
+        api.roomMembers = listOf(
+            E2eeRoomMemberDevices("account-a", listOf(E2eePeerDevice("device-a", 1, ByteArray(32)))),
+            E2eeRoomMemberDevices("account-b", listOf(E2eePeerDevice("device-new", 1, ByteArray(32)))),
+        )
+        core.members = setOf("account-a/device-a", "account-b/device-revoked")
+
+        coordinator.reconcileGroup("account-a", "room-1", "token")
+
+        assertEquals(listOf("account-b/device-revoked"), core.removedMembers)
+        assertEquals(listOf("device-new"), api.claimedDevices)
+        assertEquals(listOf("commit", "commit", "welcome"), api.submittedControls.map { it.contentType })
+        assertEquals("device-new", api.submittedControls.last().recipientDeviceId)
+    }
+
     private class FakeCore : E2eeDirectSessionCore {
         var decryptCalls = 0
         var failDecrypt = false
+        var members = emptySet<String>()
+        val removedMembers = mutableListOf<String>()
         override fun createGroup(state: ByteArray, roomId: String) = result(byteArrayOf(2))
         override fun addMember(state: ByteArray, roomId: String, keyPackage: ByteArray) = result(byteArrayOf(3), byteArrayOf(4), byteArrayOf(5), epoch(1))
         override fun joinGroup(state: ByteArray, welcome: ByteArray) = result(byteArrayOf(3), epoch(1))
@@ -145,8 +164,19 @@ class E2eeDirectMessageCoordinatorTest {
             return result(byteArrayOf(2), "{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}".toByteArray(), epoch(1))
         }
         override fun processCommit(state: ByteArray, roomId: String, commit: ByteArray) = result(byteArrayOf(2), epoch(1))
+        override fun removeMember(state: ByteArray, roomId: String, identity: String): E2eeCommandResult {
+            removedMembers += identity
+            return result(byteArrayOf(2), byteArrayOf(6), epoch(2))
+        }
+        override fun listMembers(state: ByteArray, roomId: String) = result(encodeMembers(members))
         private fun result(vararg fields: ByteArray) = E2eeCommandResult(fields.toList())
         private fun epoch(value: Long) = ByteArray(8) { index -> (value ushr ((7 - index) * 8)).toByte() }
+        private fun encodeMembers(values: Set<String>): ByteArray {
+            val fields = values.map { it.toByteArray() }
+            val output = java.nio.ByteBuffer.allocate(4 + fields.sumOf { 4 + it.size }).putInt(fields.size)
+            fields.forEach { output.putInt(it.size).put(it) }
+            return output.array()
+        }
     }
 
     private class FakeApi : E2eeMlsApi {
@@ -156,13 +186,23 @@ class E2eeDirectMessageCoordinatorTest {
         var lastCiphertext: ByteArray? = null
         var lastIdempotencyKey: String? = null
         var failSend = false
+        var epoch = E2eeRoomEpoch(1, 1, "active")
+        var roomMembers = emptyList<E2eeRoomMemberDevices>()
+        val claimedDevices = mutableListOf<String>()
+        val submittedControls = mutableListOf<E2eeOutgoingControlMessage>()
         override suspend fun fetchRootIdentity(userId: String, token: String) = ByteArray(32)
         override suspend fun registerDevice(deviceId: String, deviceLabel: String, material: E2eeRegistrationMaterial, token: String) = "active"
         override suspend fun publishKeyPackages(deviceId: String, keyPackages: List<ByteArray>, token: String) = keyPackages.size
         override suspend fun fetchKeyPackageInventory(deviceId: String, token: String) = E2eeKeyPackageInventory(20, 100)
         override suspend fun listDevices(token: String) = listOf(E2eeDeviceInfo("device-a", status = "active"))
         override suspend fun fetchIdentity(userId: String, token: String) = E2eeRootIdentity(userId, ByteArray(32), identityFingerprint, 1)
-        override suspend fun getRoomEpoch(roomId: String, token: String) = E2eeRoomEpoch(1, 1, "active")
+        override suspend fun getRoomEpoch(roomId: String, token: String) = epoch
+        override suspend fun listRoomMemberDevices(roomId: String, token: String) = roomMembers
+        override suspend fun claimKeyPackage(roomId: String, consumerDeviceId: String, targetDeviceId: String, token: String): E2eeClaimedKeyPackage {
+            claimedDevices += targetDeviceId
+            return E2eeClaimedKeyPackage("kp", targetDeviceId, byteArrayOf(7))
+        }
+        override suspend fun submitControlMessage(message: E2eeOutgoingControlMessage, token: String) { submittedControls += message }
         override suspend fun listControlMessages(roomId: String, deviceId: String, afterSequence: Long, token: String) = emptyList<E2eeControlMessage>()
         override suspend fun sendEncryptedMessage(message: E2eeEncryptedMessageRequest, token: String): String {
             sendCalls++

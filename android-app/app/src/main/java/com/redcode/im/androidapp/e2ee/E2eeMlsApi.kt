@@ -115,6 +115,12 @@ interface E2eeMlsApi {
 
     suspend fun sendEncryptedMessage(message: E2eeEncryptedMessageRequest, token: String): String =
         throw UnsupportedOperationException("N4 E2EE API 未实现")
+
+    suspend fun approveDevice(targetDeviceId: String, approverDeviceId: String, signature: ByteArray, token: String): E2eeDeviceInfo =
+        throw UnsupportedOperationException("N5 E2EE API 未实现")
+
+    suspend fun revokeDevice(deviceId: String, token: String): E2eeDeviceInfo =
+        throw UnsupportedOperationException("N5 E2EE API 未实现")
 }
 
 class HttpE2eeMlsApi(
@@ -265,6 +271,15 @@ class HttpE2eeMlsApi(
         return response.message.id
     }
 
+    override suspend fun approveDevice(targetDeviceId: String, approverDeviceId: String, signature: ByteArray, token: String): E2eeDeviceInfo =
+        apiClient.post(
+            E2eeMlsEndpoint.approveDevice(targetDeviceId),
+            E2eeApproveDeviceRequest(approverDeviceId, encode(signature)), bearerToken = token,
+        )
+
+    override suspend fun revokeDevice(deviceId: String, token: String): E2eeDeviceInfo =
+        apiClient.send(E2eeMlsEndpoint.revokeDevice(deviceId), bearerToken = token)
+
     private fun encode(bytes: ByteArray): String =
         Base64.getEncoder().encodeToString(bytes)
 
@@ -306,6 +321,8 @@ object E2eeMlsEndpoint {
     )
     fun consumeControl(roomId: String, messageId: String) = APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/e2ee/control-messages/$messageId/consume")
     fun encryptedMessages(roomId: String) = APIEndpoint(HTTPMethod.POST, "/rooms/$roomId/messages/encrypted")
+    fun approveDevice(deviceId: String) = APIEndpoint(HTTPMethod.POST, "/e2ee/mls/devices/$deviceId/approve")
+    fun revokeDevice(deviceId: String) = APIEndpoint(HTTPMethod.DELETE, "/e2ee/mls/devices/$deviceId")
 
     private fun urlEncode(value: String): String =
         java.net.URLEncoder.encode(value, Charsets.UTF_8.name()).replace("+", "%20")
@@ -331,6 +348,7 @@ private data class E2eeRootIdentityResponse(
 @Serializable private data class E2eeSendEncryptedRequest(@SerialName("encrypted_content") val encryptedContent: String, @SerialName("encryption_metadata") val encryptionMetadata: E2eeEncryptionMetadata, @SerialName("idempotency_key") val idempotencyKey: String)
 @Serializable private data class E2eeSentMessage(val id: String)
 @Serializable private data class E2eeSendEncryptedResponse(val message: E2eeSentMessage)
+@Serializable private data class E2eeApproveDeviceRequest(@SerialName("approver_device_id") val approverDeviceId: String, val signature: String)
 
 @Serializable
 private data class E2eeRegisterDeviceRequest(

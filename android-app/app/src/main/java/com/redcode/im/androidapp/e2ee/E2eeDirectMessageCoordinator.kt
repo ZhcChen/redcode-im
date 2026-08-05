@@ -29,6 +29,8 @@ interface E2eeDirectSessionCore {
     fun encrypt(state: ByteArray, roomId: String, plaintext: ByteArray): E2eeCommandResult
     fun decrypt(state: ByteArray, roomId: String, ciphertext: ByteArray): E2eeCommandResult
     fun processCommit(state: ByteArray, roomId: String, commit: ByteArray): E2eeCommandResult
+    fun removeMember(state: ByteArray, roomId: String, identity: String): E2eeCommandResult
+    fun listMembers(state: ByteArray, roomId: String): E2eeCommandResult
 }
 
 interface E2eeDirectDeviceLifecycle {
@@ -42,6 +44,8 @@ class E2eeCommandSessionCore(private val command: E2eeCommandClient = E2eeComman
     override fun encrypt(state: ByteArray, roomId: String, plaintext: ByteArray) = command.encrypt(state, roomId, plaintext)
     override fun decrypt(state: ByteArray, roomId: String, ciphertext: ByteArray) = command.decrypt(state, roomId, ciphertext)
     override fun processCommit(state: ByteArray, roomId: String, commit: ByteArray) = command.processCommit(state, roomId, commit)
+    override fun removeMember(state: ByteArray, roomId: String, identity: String) = command.removeMember(state, roomId, identity)
+    override fun listMembers(state: ByteArray, roomId: String) = command.listMembers(state, roomId)
 }
 
 @Serializable
@@ -78,6 +82,7 @@ class E2eeDirectMessageCoordinator(
         requireActive(profile)
         verifyIdentity(accountId, peerUserId, token)
         syncControls(accountId, roomId, profile, token)
+        reconcileGroup(accountId, roomId, profile, token)
         var state = storage.read(accountId) ?: throw E2eeDirectMessageException("E2EE 协议状态缺失")
         var epoch = api.getRoomEpoch(roomId, token)
         if (epoch.activeEpoch == 0L) {
@@ -194,6 +199,64 @@ class E2eeDirectMessageCoordinator(
         storage.write(accountId, state)
         storage.writeProfile(accountId, profile.copy(lastCommitMessageIds = profile.lastCommitMessageIds + (roomId to lastCommitId!!)))
         return state
+    }
+
+    suspend fun reconcileGroup(accountId: String, roomId: String, token: String) = mutex.withLock {
+        val profile = storage.readProfile(accountId) ?: throw E2eeDirectMessageException("E2EE 设备档案缺失")
+        reconcileGroup(accountId, roomId, profile, token)
+    }
+
+    private suspend fun reconcileGroup(accountId: String, roomId: String, profile: E2eeDeviceProfile, token: String) {
+        val roomEpoch = api.getRoomEpoch(roomId, token)
+        if (roomEpoch.status != "rekey_required" || !profile.lastCommitMessageIds.containsKey(roomId)) return
+        var state = storage.read(accountId) ?: throw E2eeDirectMessageException("E2EE 协议状态缺失")
+        val serverMembers = api.listRoomMemberDevices(roomId, token)
+            .flatMap { member -> member.devices.map { "${member.userId}/${it.id}" } }.toSet()
+        val localMembers = decodeMembers(core.listMembers(state, roomId).field(0))
+        var lastCommitId: String? = null
+        for (identity in localMembers.filterNot { it in serverMembers }) {
+            val removed = core.removeMember(state, roomId, identity)
+            state = removed.field(0)
+            lastCommitId = newId()
+            api.submitControlMessage(
+                E2eeOutgoingControlMessage(roomId, lastCommitId, removed.epoch(2), roomEpoch.membershipRevision, profile.deviceId, "commit", removed.field(1)), token,
+            )
+        }
+        for (identity in serverMembers.filterNot { it in localMembers }) {
+            val deviceId = identity.substringAfter('/')
+            val claimed = api.claimKeyPackage(roomId, profile.deviceId, deviceId, token)
+            val added = core.addMember(state, roomId, claimed.keyPackage)
+            state = added.field(0)
+            val epoch = added.epoch(3)
+            lastCommitId = newId()
+            api.submitControlMessage(E2eeOutgoingControlMessage(roomId, lastCommitId, epoch, roomEpoch.membershipRevision, profile.deviceId, "commit", added.field(1)), token)
+            api.submitControlMessage(E2eeOutgoingControlMessage(roomId, newId(), epoch, roomEpoch.membershipRevision, profile.deviceId, "welcome", added.field(2), deviceId), token)
+        }
+        if (lastCommitId != null) {
+            storage.write(accountId, state)
+            storage.writeProfile(accountId, profile.copy(lastCommitMessageIds = profile.lastCommitMessageIds + (roomId to lastCommitId)))
+        }
+    }
+
+    private fun decodeMembers(bytes: ByteArray): Set<String> {
+        if (bytes.size < 4) throw E2eeDirectMessageException("E2EE 成员列表格式无效")
+        var offset = 0
+        fun readInt(): Int {
+            if (offset + 4 > bytes.size) throw E2eeDirectMessageException("E2EE 成员列表已截断")
+            val value = ((bytes[offset].toInt() and 0xff) shl 24) or ((bytes[offset + 1].toInt() and 0xff) shl 16) or ((bytes[offset + 2].toInt() and 0xff) shl 8) or (bytes[offset + 3].toInt() and 0xff)
+            offset += 4
+            return value
+        }
+        val members = buildSet {
+            repeat(readInt()) {
+                val length = readInt()
+                if (length < 0 || offset + length > bytes.size) throw E2eeDirectMessageException("E2EE 成员列表已截断")
+                add(bytes.copyOfRange(offset, offset + length).toString(Charsets.UTF_8))
+                offset += length
+            }
+        }
+        if (offset != bytes.size) throw E2eeDirectMessageException("E2EE 成员列表包含多余数据")
+        return members
     }
 
     private suspend fun syncControls(accountId: String, roomId: String, profile: E2eeDeviceProfile, token: String) {

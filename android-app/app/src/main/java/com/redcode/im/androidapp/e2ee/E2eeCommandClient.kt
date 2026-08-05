@@ -93,6 +93,15 @@ class E2eeCommandClient(
     fun processCommit(state: ByteArray, roomId: String, commit: ByteArray): E2eeCommandResult =
         execute(E2eeCommandOperation.ProcessCommit, listOf(state, roomId.toByteArray(), commit))
 
+    fun removeMember(state: ByteArray, roomId: String, identity: String): E2eeCommandResult =
+        execute(E2eeCommandOperation.RemoveMember, listOf(state, roomId.toByteArray(), identity.toByteArray()))
+
+    fun listMembers(state: ByteArray, roomId: String): E2eeCommandResult =
+        execute(E2eeCommandOperation.ListMembers, listOf(state, roomId.toByteArray()))
+
+    fun signDeviceApproval(state: ByteArray, payload: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.SignDeviceApproval, listOf(state, payload))
+
     /** 直接执行一段 RCCQ 原始命令（测试与高级调用点使用）。 */
     fun executeRaw(request: ByteArray): ByteArray {
         val input = request.toPointer()
