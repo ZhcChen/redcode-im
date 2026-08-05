@@ -9,6 +9,10 @@ plugins {
     jacoco
 }
 
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 android {
     namespace = "com.redcode.im.androidapp"
     compileSdk = 36
