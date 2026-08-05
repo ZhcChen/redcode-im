@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md
 execution: code
 status: active
-current_unit: C3
+current_unit: C4
 last_progress_update: 2026-08-05
 ---
 
@@ -22,31 +22,31 @@ last_progress_update: 2026-08-05
 | --- | --- | --- |
 | C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
 | C2 Android 消息主链 | 已完成 | text 主链 `565d6482`、附件主链 `20672eeb` 已推送；238 项 JVM 单测与 `lintDebug` 通过，密钥材料缺失/篡改 fail closed |
-| C3 iOS 应用级装配 | 进行中 | 已确认独立 E2EE 组件齐备，但 `AppDependencies` 尚未构造账号级 graph，登录恢复、前台和注销尚未驱动 E2EE 生命周期 |
-| C4 iOS 消息主链 | 待开始 | 依赖 C3 |
+| C3 iOS 应用级装配 | 已完成 | `881d662e`、`4a1ed113`；账号级 graph、runtime 路由、登录/前台/注销、全量敏感 blob 清理和 Simulator 链接已接入；191 项测试及 App build 通过 |
+| C4 iOS 消息主链 | 进行中 | 从 ChatDetail/Realtime/ChatAPI/GRDB 边界盘点发送、历史、WS 与附件接入点 |
 | C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
 | C7 全仓回归门禁 | 待开始 | 依赖 C5，且必须先于 C6 完成 |
 | C6 三端 E2EE live | 待开始 | 依赖 C5、C7 |
 | C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
 
 当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
-当前从 **C3 iOS 应用级装配** 恢复，不重做原计划 N1-N6、C1 或 C2。
+当前从 **C4 iOS 消息主链** 恢复，不重做原计划 N1-N6 或 C1-C3。
 
-### C3 Resume Point
+### C4 Resume Point
 
-- **已有组件：** `E2eeDeviceLifecycle`、`E2eeSecureStateStore`、
-  `E2eeMLSAPIClient` 和 `E2eeDirectMessageCoordinator` 已实现并有模块单测，不重写。
-- **当前缺口：** `ios-app/App/RedCodeIOSApp.swift` 的 `AppDependencies` 未构造并持有
-  账号级 E2EE graph；`AppRootView` 的登录恢复、认证变化和 `scenePhase` 只驱动
-  普通会话/Push，注销也未清理 E2EE 包装密钥、协议状态和 metadata blob。
-- **实现边界：** 新增可单测的 iOS session lifecycle，严格校验 message runtime；
-  plaintext 不初始化 MLS，E2EE 执行 ensure/top-up，未知配置、待批准、撤销、
-  Keychain/状态异常进入 Blocked，禁止消息层自行降级。
-- **装配入口：** composition root 创建共享 secure store、MLS API、device lifecycle
-  和 session lifecycle；恢复会话/登录、前台、注销分别调用对应入口，账号切换先
-  清理旧账号敏感状态。
-- **C3 完成信号：** lifecycle/composition 测试覆盖 plaintext/E2EE、恢复、重复前台、
-  runtime 冲突、账号切换、注销与存储异常；`swift test` 全绿并独立提交推送。
+- **复用资产：** C3 的共享 `E2eeSessionLifecycle`、secure store、device lifecycle
+  与 MLS API 必须继续由 composition root 持有；C4 不创建页面级协议状态实例。
+- **首轮盘点：** 发送入口位于 `ChatDetailController`，历史写入 GRDB 也由该 controller
+  完成；WebSocket 入站由 `ChatRealtimeController` 独立写缓存，当前两条路径没有共享
+  E2EE resolver，`ChatAPIClient` 也尚未映射 encrypted envelope。
+- **实现顺序：** 先扩展 DTO 和统一入站 resolver，再接 text encrypted send 与
+  retry/fail-closed，最后接附件上传前加密、下载后解密和搜索/引用/转发降级。
+- **安全边界：** 只有成功解密的展示模型可写 GRDB；RCML、RCST、DEK/nonce 不得
+  进入普通 cache 或日志；runtime 中途变化、身份异常、损坏密文和 key material
+  缺失均不得回退 plaintext API。
+- **C4 完成信号：** 与 C2 对齐的第二会话、重启、离线历史、WS/历史去重、混排、
+  损坏密文、身份变化、附件篡改/retry/quote 场景通过；`make ios-app.test` 和 App
+  Simulator build 全绿并独立提交推送。
 
 ### Document Roles
 
