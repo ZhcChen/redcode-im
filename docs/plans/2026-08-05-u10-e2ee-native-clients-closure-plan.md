@@ -6,9 +6,45 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md
 execution: code
+status: active
+current_unit: C2
+last_progress_update: 2026-08-05
 ---
 
 # feat: U10 E2EE 原生客户端主链与验收收口计划
+
+## Current Progress
+
+> 本节是本专项唯一进度快照。实施范围和验收标准以本计划后续章节为准；每完成
+> 一个单元，在提交并推送后同步更新本节，不再新建平行计划或进度文档。
+
+| 单元 | 状态 | 当前事实或完成证据 |
+| --- | --- | --- |
+| C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
+| C2 Android 消息主链 | 进行中 | 已完成发送、历史、WebSocket、DTO 与 coordinator 缺口分析；下一步实现 text 发送和统一入站解密，再接附件边界 |
+| C3 iOS 应用级装配 | 待开始 | 依赖 C2 固定跨平台行为契约 |
+| C4 iOS 消息主链 | 待开始 | 依赖 C3 |
+| C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
+| C7 全仓回归门禁 | 待开始 | 依赖 C5，且必须先于 C6 完成 |
+| C6 三端 E2EE live | 待开始 | 依赖 C5、C7 |
+| C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
+
+当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
+当前从 **C2 Android 消息主链** 恢复，不重做原计划 N1-N6，也不重做 C1。
+
+### C2 Resume Point
+
+- 先扩展 `BackendChatMessage` 的 `encrypted_content` 与
+  `encryption_metadata` 映射，契约对齐 API/H5，禁止新增服务端字段。
+- 建立 history/WS 共用的入站解密入口：校验 MLS metadata、Base64 解码、调用
+  coordinator、按服务端消息 ID 去重；损坏密文、未知配置和身份变化 fail closed。
+- E2EE text 发送只走 encrypted API；发送失败保留 pending/草稿，不得回退普通
+  明文接口。`persist/plaintext` 读取旧 E2EE 历史时允许懒加载解密能力，blocked
+  状态仍拒绝解密。
+- text 主链形成独立可验证提交后，再接附件上传前加密、下载后解密、缓存/搜索/
+  转发边界，避免把 C2 堆成不可审查的大提交。
+- Android 验收固定使用 JDK 21，先运行 repository/realtime/coordinator 定向测试，
+  再运行 `testDebugUnitTest lintDebug`；提交前执行两次 diff check，提交后立即 push。
 
 ## Goal Capsule
 
