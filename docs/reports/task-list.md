@@ -16,8 +16,9 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 原生客户端最终验证与裁决（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
-- E2EE 发布门禁（U10 总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
+- E2EE 生产发布收口（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`
+- E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
+- E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
 - 测试入口：`docs/reference/testing/README.md`
 - Flutter `app/` 已于 2026-08-04 废弃，目录已随阶段 3 删除（git 历史可追溯）；
@@ -25,14 +26,13 @@
 
 ## 当前结论
 
-- 当前主线：原生双端（`android-app` / `ios-app`）重建 -> 文档对齐 -> 原生功能迁移
-  （含 E2EE 接入、`ws.proto` 生成）-> E2EE 发布门禁 -> 多平台发布。
-- 当前立即任务：按 E2EE 最终验证计划 R1 关闭独立审查发现，包括附件 grant
-  lease、H5 文件大小边界、三场景 evidence、Redis 正向流量和 runtime signal
-  恢复；当前相关改动尚未提交，不得丢弃。
-- 当前下一阶段：R2 重新执行 H5-H5、Android-H5、iOS-H5 live 与外围泄漏抽检，
-  R3 更新 N7/U7 P0-1 裁决，R4 执行全量门禁；不得返回 N1-N6 或 A2.3 重做。
-- 当前发布阻断项：原生功能迁移、E2EE、签名/版本/升级/回滚链路。
+- 当前主线：原生双端 E2EE 客户端专项已完成 -> 关闭 E2EE 生产发布剩余三个 P0
+  -> 原生功能迁移总收口 -> 多平台发布。
+- 当前立即任务：按 E2EE 生产发布收口计划 G1 执行隔离环境备份恢复、灰度窗口、
+  滚动部署和回滚演练。
+- 当前下一阶段：G2 配置 CI 漏洞/许可证门禁，G3 形成 H5 CSP/依赖锁定/
+  WebCrypto 发布安全报告，G4 独立复审并重新作出 Go/No-Go 裁决。
+- 当前发布阻断项：U7 剩余三个 P0、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
   作为原生功能迁移的输入。
@@ -73,9 +73,11 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`。
-    N1-N6、应用主链、三端文本、恢复/rekey、跨端附件及首轮泄漏门禁已完成；
-    当前只剩审查修复、三场景复验、N7/U7 P0-1 裁决和最终全量门禁。
+  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`。
+    N1-N7、应用主链、三端互解、恢复/rekey、跨端附件、泄漏扫描及最终全量门禁
+    已完成，U7 P0-1 已关闭。
+  - 当前只剩三个生产 P0：备份恢复/灰度回滚演练、CI 漏洞与许可证门禁、H5
+    发布前 CSP/依赖锁定/WebCrypto 安全报告。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。

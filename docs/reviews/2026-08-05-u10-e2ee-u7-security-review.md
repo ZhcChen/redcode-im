@@ -10,10 +10,10 @@ verdict: no-go
 
 ## 结论
 
-**裁决：No-Go。** U1-U7 已形成可重放证据链，但以下发布门禁未关闭，生产
-E2EE 不得启用：原生双端 N1-N6 已实现但聊天主链接入与三端 E2EE live 未
-闭环、生产备份恢复与灰度回滚未演练、CI 漏洞扫描与许可证批量核验未配置。
-测试环境保持 `persist/plaintext`，仅允许 `prepare` 预检。
+**裁决：No-Go。** 原生双端聊天主链接入与 Android/iOS/H5 三端 E2EE live 已
+闭环，P0-1 关闭；但生产备份恢复与灰度回滚未演练、CI 漏洞扫描与许可证批量
+核验未配置、H5 发布前安全检查未形成正式报告。测试环境保持
+`persist/plaintext`，仅允许 `prepare` 预检。
 
 ## 威胁模型
 
@@ -66,7 +66,7 @@ U7-B 静态扫描补齐。
 ## U7-B 日志 denylist 结论
 
 `scripts/scan-e2ee-log-denylist.sh` 扫描 API Rust 与 H5/Admin TS/Vue 的日志
-输出调用（419 条），当前敏感字段命中 0，退出码 0。脚本支持白名单收敛，
+输出调用（420 条），当前敏感字段命中 0，退出码 0。脚本支持白名单收敛，
 结果可重放；建议后续把“扫描到命中即阻断”接入 pre-commit/CI。
 
 ## U7-C SBOM 结论
@@ -94,15 +94,19 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 
 ## 未覆盖项与 P0/P1 判定
 
+### 已关闭 P0
+
+1. 原生双端聊天主链与三端 E2EE live：Android/iOS/H5 正式路径已覆盖双向文本、
+   附件、恢复、离线补拉、重复帧、损坏密文、设备撤销和 epoch 推进；验收 run
+   `r21785933828` 与最终门禁 run `r41785934114` 的 DB/Redis/log/S3 扫描通过，runtime 已恢复
+   `persist/plaintext`。证据见
+   `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`。
+
 ### P0（阻断生产启用）
 
-1. 原生双端（`android-app/` / `ios-app/`）N1-N6 已实现并通过平台单测，但
-   聊天发送/历史/WS 主链尚未挂载协调器，Android x iOS x H5 真实 E2EE live
-   未闭环。当前验收证据见
-   `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md`。
-2. 生产 pg_dump/pg_restore、灰度窗口与滚动部署未在正式环境演练。
-3. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
-4. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
+1. 生产 pg_dump/pg_restore、灰度窗口与滚动部署未在正式环境演练。
+2. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
+3. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
    （KTD7 要求，当前依赖 R15 端侧实现与测试证据）。
 
 ### P1（发布后 30 天内跟进）
@@ -117,4 +121,6 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 - 生产：E2EE **No-Go**；`content_audit_mode` 保持 `plaintext`。
 - 测试环境：允许 `prepare` 预检；`active` 需要安全审查显式批准且仅限演练
   窗口，演练后回滚 `plaintext`。
-- 后续 Gate 重开条件：P0 四项全部关闭并出具复核报告。
+- 后续 Gate 重开条件：剩余 P0 三项全部关闭并出具复核报告。
+- 后续唯一执行入口：
+  `docs/plans/2026-08-05-u10-e2ee-production-release-closure-plan.md`。
