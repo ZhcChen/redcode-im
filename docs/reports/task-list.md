@@ -29,10 +29,10 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E2.1`。E1.3 已由 `d385c88b` 和最终 run
-  `e1fix20260806g` 完成：proof HMAC、防拼接附件归属、物理 source isolation、Push
-  逐行占位、MONITOR 末端 probe、本地门禁、真实 full-suite 与环境清理均通过。
-  现在只能使用四个全新独立上下文复核同一已推送 HEAD；E1.3 预审不得复用。
+- 当前立即任务：唯一 checkpoint 为 `E3.1`。E2 四个全新独立上下文已在 subject
+  `aa605931` 完成 correctness/security/reliability/testing 复核，均为
+  `P0=0、P1=0、P2=0`。当前开始 H5 production `E2eeSecureStateStorage` 真实 Chrome
+  审计；不得使用替代 AES/IndexedDB 实现或 production 审计后门。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
   E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
   E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
@@ -99,8 +99,8 @@
     candidate 到 restore 同端口切换由 `3f83bdc9` 和真实 run `u4restore3f83bdc9`
     关闭。E1.1/E1.2 的功能、snapshot、边界和清理 run 已通过，但第二轮 E2 独立
     复核再次打开 E1。E1.3 已由 `d385c88b` 和 run `e1fix20260806g` 关闭，预审
-    P0/P1/P2 均为零。当前只执行 E2 四视角全新独立复核；E3 及后续单元不得提前
-    并行打开。
+    P0/P1/P2 均为零。E2 四视角全新独立复核已通过；当前只执行 E3 H5 production
+    Chrome 审计，E4 及后续单元不得提前并行打开。
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片

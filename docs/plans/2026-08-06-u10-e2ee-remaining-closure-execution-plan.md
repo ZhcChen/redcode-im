@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E2
-current_checkpoint: E2.1
+current_unit: E3
+current_checkpoint: E3.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E2.1`，基于已推送 E1.3 HEAD `d385c88b` 启动四个全新独立上下文执行 correctness、security、reliability、testing 复核；E1.3 预审上下文不得复用。
+- **唯一恢复点：** `E3.1`，在真实候选页面建立 production `E2eeSecureStateStorage` Chrome 审计入口与失败清理；不得使用替代加密/存储实现。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -78,6 +78,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.2 finding 整改与重放 | complete | `cab9cbd6`；run `e1fix20260806b` |
 | E2 第二轮四视角复核 | failed | `6d3afaac` HEAD；P0=0，去重后 5 项 P1，已退回 E1.3 |
 | E1.3 第二轮 finding 整改 | complete | `d385c88b`；最终 run `e1fix20260806g`；预审 P0/P1/P2=0 |
+| E2 第三轮四视角复核 | complete | subject `aa605931`；四视角均 P0/P1/P2=0 |
 
 ### Execution Console
 
@@ -89,8 +90,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.1 首轮 restore 数据边界 | review-reopened | 实现和 live run 已推送，但 E2 finding 未清零，不能视为 closed |
 | E1.2 复核 finding 整改 | complete | `cab9cbd6`；本地门禁与 run `e1fix20260806b` 通过，已 push |
 | E1.3 第二轮 finding 整改 | complete | `d385c88b` 已验证并 push；run `e1fix20260806g` 与环境终验通过 |
-| E2 Restore 独立复核 | in_progress | 使用 4 个全新独立上下文复核 `d385c88b` 后同一文档 HEAD，要求 P0=0、P1=0 |
-| E3 H5 production Chrome 审计 | pending | E2 通过后开始 |
+| E2 Restore 独立复核 | complete | subject `aa605931`；correctness/security/reliability/testing 均 P0/P1/P2=0 |
+| E3 H5 production Chrome 审计 | in_progress | 使用真实候选页面与 production store 验证密文、不可导出 key、篡改、泄漏和 cleanup |
 | E4 持久脱敏证据 | pending | E3 通过后开始 |
 | E5 真实 release workflow | pending | E4 通过后开始 |
 | E6 最终四视角重审 | pending | E5 通过后开始 |
@@ -335,9 +336,9 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E2 |
-| Active checkpoint | E2.1 四个全新独立上下文复核 |
-| Worktree | E1.3 实现已在 `d385c88b` 推送；仅待本轮证据文档提交 |
+| Active unit | E3 |
+| Active checkpoint | E3.1 production Chrome 审计入口与真实存储路径 |
+| Worktree | E2 四视角复核已通过；仅待本轮 E2 review 文档提交 |
 | Latest full run | `e1fix20260806g` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore 完整行 digest `2c34ac950bee5a780988321a518d589d` 一致 |
@@ -345,7 +346,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Cleanup result | candidate、restore、container、volume、network、state、HMAC key、MONITOR、tunnel、18010 已清零 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 基于同一已推送 HEAD 启动 correctness/security/reliability/testing 四个全新 reviewer；任一 P0/P1 回退最早受影响单元 |
+| Next action | 核对现有 release browser audit 与 production store 入口，补齐真实 Chrome 审计及定向测试 |
 
 ### Historical Mapping
 
