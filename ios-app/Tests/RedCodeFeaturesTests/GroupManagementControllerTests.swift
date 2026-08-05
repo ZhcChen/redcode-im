@@ -121,6 +121,43 @@ final class GroupManagementControllerTests: XCTestCase {
         XCTAssertEqual(controller.rules.map(\.id), ["rule-1"])
         XCTAssertEqual(controller.joinRequests.map(\.status), [.approved])
     }
+
+    func testMemberMutationsReconcileE2eeRoomAfterSuccessfulCalls() async throws {
+        let cache = GRDBGroupCacheStore(database: try RedCodeDatabase.makeDatabase(inMemory: true))
+        let api = MockRoomAPIService()
+        let handler = RecordingRoomEventHandler()
+        let controller = GroupManagementController(api: api, cacheStore: cache, roomEventHandler: handler)
+
+        _ = try await controller.createGroup(
+            name: "Team",
+            description: nil,
+            memberIDs: ["user-2"],
+            token: "access-token"
+        )
+        _ = try await controller.addMembers(
+            roomID: "room-1",
+            userIDs: ["user-3"],
+            token: "access-token",
+            currentUserID: "user-1"
+        )
+        try await controller.removeMember(
+            roomID: "room-1",
+            userID: "user-3",
+            token: "access-token",
+            currentUserID: "user-1"
+        )
+
+        XCTAssertEqual(handler.roomIDs, ["created-room", "room-1", "room-1"])
+    }
+}
+
+@MainActor
+private final class RecordingRoomEventHandler: E2eeRoomEventHandling {
+    private(set) var roomIDs: [String] = []
+
+    func reconcile(roomID: String) async throws {
+        roomIDs.append(roomID)
+    }
 }
 
 private enum RoomAPICall: Equatable, Sendable {

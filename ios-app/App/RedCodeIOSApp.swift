@@ -36,6 +36,7 @@ final class AppDependencies {
     private let incomingMessageResolver: any IncomingChatMessageResolving
     private let outgoingTextRouter: any OutgoingTextMessageRouting
     private let attachmentRouter: any AttachmentMessageRouting
+    private let e2eeRoomEventHandler: any E2eeRoomEventHandling
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
     private let emojiCache = EmojiFileCache()
@@ -114,6 +115,12 @@ final class AppDependencies {
             lifecycle: e2eeDevices,
             api: e2eeMLSAPI
         )
+        let e2eeRoomEventHandler = E2eeRoomEventCoordinator(
+            sessionStatus: self.e2eeSessionLifecycle,
+            currentSession: { [weak authController] in authController?.session },
+            coordinator: directMessageCoordinator
+        )
+        self.e2eeRoomEventHandler = e2eeRoomEventHandler
         let incomingMessageResolver = E2eeIncomingMessageResolver(
             sessionStatus: self.e2eeSessionLifecycle,
             decryptor: directMessageCoordinator,
@@ -154,7 +161,8 @@ final class AppDependencies {
             listController: chatListController,
             messageCacheStore: messageCacheStore,
             localNotificationService: pushController,
-            incomingResolver: incomingMessageResolver
+            incomingResolver: incomingMessageResolver,
+            roomEventHandler: e2eeRoomEventHandler
         )
     }
 
@@ -220,7 +228,8 @@ final class AppDependencies {
     func makeGroupManagementController() -> GroupManagementController {
         GroupManagementController(
             api: roomAPIService,
-            cacheStore: GRDBGroupCacheStore(database: database)
+            cacheStore: GRDBGroupCacheStore(database: database),
+            roomEventHandler: e2eeRoomEventHandler
         )
     }
 

@@ -169,7 +169,11 @@ public struct GroupSettingsView: View {
             }
         }
         .task {
+            realtimeController.attachGroupController(controller, roomID: chat.roomID)
             await load()
+        }
+        .onDisappear {
+            realtimeController.detachGroupController(controller)
         }
         .refreshable {
             await load()

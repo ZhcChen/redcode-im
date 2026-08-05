@@ -223,6 +223,93 @@ final class ChatRealtimeControllerTests: XCTestCase {
         let calls = await detailAPI.recordedCalls()
         XCTAssertTrue(calls.contains(.fetchReactions(roomID: "r1", messageID: "m1", token: "access-token")))
     }
+
+    func testGroupMemberChangedReconcilesAndRefreshesActiveGroup() async throws {
+        let container = try RedCodeDatabase.makeDatabase(inMemory: true)
+        let listController = ChatListController(
+            api: RealtimeMockChatAPIService(),
+            cacheStore: GRDBChatSummaryCacheStore(database: container)
+        )
+        let webSocket = MockChatWebSocketService()
+        let handler = RealtimeRoomEventHandler()
+        let group = RealtimeGroupMemberRefresher()
+        let realtimeController = ChatRealtimeController(
+            webSocket: webSocket,
+            listController: listController,
+            messageCacheStore: GRDBMessageCacheStore(database: container),
+            roomEventHandler: handler
+        )
+
+        await realtimeController.start(token: "access-token", currentUserID: "u1")
+        realtimeController.attachGroupController(group, roomID: "r1")
+        await webSocket.emit(WebSocketServerEvent(
+            type: "group_member_changed",
+            fields: [
+                "room_id": .string("r1"),
+                "member_id": .string("u2"),
+                "change_type": .string("added"),
+            ]
+        ))
+
+        try await waitUntil {
+            handler.roomIDs == ["r1"] && group.calls == ["r1:access-token:u1"]
+        }
+    }
+
+    func testGroupMemberChangedStillRefreshesMembersWhenE2eeReconcileFails() async throws {
+        let container = try RedCodeDatabase.makeDatabase(inMemory: true)
+        let listController = ChatListController(
+            api: RealtimeMockChatAPIService(),
+            cacheStore: GRDBChatSummaryCacheStore(database: container)
+        )
+        let webSocket = MockChatWebSocketService()
+        let handler = RealtimeRoomEventHandler(error: RealtimeGroupEventError.blocked)
+        let group = RealtimeGroupMemberRefresher()
+        let realtimeController = ChatRealtimeController(
+            webSocket: webSocket,
+            listController: listController,
+            messageCacheStore: GRDBMessageCacheStore(database: container),
+            roomEventHandler: handler
+        )
+
+        await realtimeController.start(token: "access-token", currentUserID: "u1")
+        realtimeController.attachGroupController(group, roomID: "r1")
+        await webSocket.emit(WebSocketServerEvent(
+            type: "group_member_changed",
+            fields: ["room_id": .string("r1")]
+        ))
+
+        try await waitUntil {
+            group.calls == ["r1:access-token:u1"] && realtimeController.errorMessage == "E2EE blocked"
+        }
+    }
+}
+
+private enum RealtimeGroupEventError: LocalizedError {
+    case blocked
+    var errorDescription: String? { "E2EE blocked" }
+}
+
+@MainActor
+private final class RealtimeRoomEventHandler: E2eeRoomEventHandling {
+    private(set) var roomIDs: [String] = []
+    private let error: Error?
+
+    init(error: Error? = nil) { self.error = error }
+
+    func reconcile(roomID: String) async throws {
+        roomIDs.append(roomID)
+        if let error { throw error }
+    }
+}
+
+@MainActor
+private final class RealtimeGroupMemberRefresher: GroupMemberRefreshing {
+    private(set) var calls: [String] = []
+
+    func refreshMembers(roomID: String, token: String, currentUserID: String?) async throws {
+        calls.append("\(roomID):\(token):\(currentUserID ?? "")")
+    }
 }
 
 @MainActor

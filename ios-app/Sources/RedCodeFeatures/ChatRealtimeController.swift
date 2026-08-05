@@ -10,6 +10,13 @@ public protocol ChatWebSocketService: Sendable {
     func snapshot() async -> WebSocketClientSnapshot
 }
 
+@MainActor
+public protocol GroupMemberRefreshing: AnyObject {
+    func refreshMembers(roomID: String, token: String, currentUserID: String?) async throws
+}
+
+extension GroupManagementController: GroupMemberRefreshing {}
+
 extension WebSocketClient: ChatWebSocketService {
     public func eventStream() async -> AsyncStream<WebSocketServerEvent> {
         events()
@@ -26,25 +33,30 @@ public final class ChatRealtimeController {
     private let messageCacheStore: any MessageCacheStore
     private let localNotificationService: (any ChatLocalNotificationService)?
     private let incomingResolver: any IncomingChatMessageResolving
+    private let roomEventHandler: any E2eeRoomEventHandling
 
     private var eventTask: Task<Void, Never>?
     private var token: String?
     private var currentUserID: String?
     private weak var activeDetailController: ChatDetailController?
+    private weak var activeGroupController: (any GroupMemberRefreshing)?
     private var activeRoomID = ""
+    private var activeGroupRoomID = ""
 
     public init(
         webSocket: any ChatWebSocketService,
         listController: ChatListController,
         messageCacheStore: any MessageCacheStore,
         localNotificationService: (any ChatLocalNotificationService)? = nil,
-        incomingResolver: (any IncomingChatMessageResolving)? = nil
+        incomingResolver: (any IncomingChatMessageResolving)? = nil,
+        roomEventHandler: (any E2eeRoomEventHandling)? = nil
     ) {
         self.webSocket = webSocket
         self.listController = listController
         self.messageCacheStore = messageCacheStore
         self.localNotificationService = localNotificationService
         self.incomingResolver = incomingResolver ?? PlaintextIncomingMessageResolver()
+        self.roomEventHandler = roomEventHandler ?? PlaintextE2eeRoomEventHandler.shared
     }
 
     deinit {
@@ -71,7 +83,9 @@ public final class ChatRealtimeController {
         token = nil
         currentUserID = nil
         activeDetailController = nil
+        activeGroupController = nil
         activeRoomID = ""
+        activeGroupRoomID = ""
         await webSocket.disconnect()
         connectionStatus = .disconnected
         errorMessage = nil
@@ -95,6 +109,18 @@ public final class ChatRealtimeController {
         if activeDetailController === controller {
             activeDetailController = nil
             activeRoomID = ""
+        }
+    }
+
+    public func attachGroupController(_ controller: any GroupMemberRefreshing, roomID: String) {
+        activeGroupController = controller
+        activeGroupRoomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public func detachGroupController(_ controller: any GroupMemberRefreshing) {
+        if activeGroupController === controller {
+            activeGroupController = nil
+            activeGroupRoomID = ""
         }
     }
 
@@ -128,6 +154,8 @@ public final class ChatRealtimeController {
             await handleReactionUpdateEvent(event)
         case "room_created":
             await refreshChatsFromServer()
+        case "group_member_changed":
+            await handleGroupMemberChangedEvent(event)
         case "room_history_cleared", "group_dissolved":
             handleRoomRemovedEvent(event)
         case "error":
@@ -268,6 +296,37 @@ public final class ChatRealtimeController {
         }
         Task {
             await syncRooms(listController.chats.map(\.roomID), pruneMissing: true)
+        }
+    }
+
+    private func handleGroupMemberChangedEvent(_ event: WebSocketServerEvent) async {
+        let roomID = event.stringValue(for: "room_id")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !roomID.isEmpty else {
+            errorMessage = "群成员事件缺少房间标识"
+            return
+        }
+        var handlingError: Error?
+        do {
+            try await roomEventHandler.reconcile(roomID: roomID)
+        } catch {
+            handlingError = error
+        }
+        if activeGroupRoomID == roomID,
+           let activeGroupController,
+           let token,
+           let currentUserID {
+            do {
+                try await activeGroupController.refreshMembers(
+                    roomID: roomID,
+                    token: token,
+                    currentUserID: currentUserID
+                )
+            } catch {
+                handlingError = handlingError ?? error
+            }
+        }
+        if let handlingError {
+            errorMessage = handlingError.localizedDescription
         }
     }
 

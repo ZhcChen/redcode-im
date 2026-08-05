@@ -63,13 +63,16 @@ public final class GroupManagementController: ObservableObject {
 
     private let api: any RoomAPIService
     private let cacheStore: any GroupCacheStore
+    private let roomEventHandler: any E2eeRoomEventHandling
 
     public init(
         api: any RoomAPIService,
-        cacheStore: any GroupCacheStore
+        cacheStore: any GroupCacheStore,
+        roomEventHandler: (any E2eeRoomEventHandling)? = nil
     ) {
         self.api = api
         self.cacheStore = cacheStore
+        self.roomEventHandler = roomEventHandler ?? PlaintextE2eeRoomEventHandler.shared
     }
 
     public func loadCachedGroups() throws {
@@ -104,6 +107,7 @@ public final class GroupManagementController: ObservableObject {
             currentGroup = group
             groups = ([group] + groups.filter { $0.roomID != group.roomID }).sortedForGroups()
             try cacheStore.upsert(group.cacheDraft)
+            try await roomEventHandler.reconcile(roomID: group.roomID)
             return group.chatSummary
         }
     }
@@ -162,6 +166,7 @@ public final class GroupManagementController: ObservableObject {
         try await runSavingOperation {
             let result = try await api.addMembers(roomID: roomID, userIDs: userIDs, token: token)
             try await refreshMembers(roomID: roomID, token: token, currentUserID: currentUserID)
+            try await roomEventHandler.reconcile(roomID: roomID)
             return result
         }
     }
@@ -171,6 +176,7 @@ public final class GroupManagementController: ObservableObject {
             try await api.removeMember(roomID: roomID, userID: userID, token: token)
             members = members.filter { $0.userID != userID }
             try await refreshMembers(roomID: roomID, token: token, currentUserID: currentUserID)
+            try await roomEventHandler.reconcile(roomID: roomID)
         }
     }
 
