@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "bun": { "version": "1.3.11" },
+    "osv_scanner": {
+      "version": "2.2.4",
+      "image": "fixture/osv-scanner",
+      "digest": "sha256:fixture"
+    }
+  },
+  "modules": [
+    {
+      "name": "fixture-app",
+      "lockfile": "tests/fixtures/supply-chain/fixture.lock",
+      "scanner": "osv-lockfile"
+    }
+  ],
+  "project_components": [],
+  "vulnerabilities": {
+    "block_cvss_at_or_above": 4.0,
+    "block_unknown_severity": true
+  },
+  "licenses": { "allow": ["MIT"] },
+  "swift_license_evidence": []
+}

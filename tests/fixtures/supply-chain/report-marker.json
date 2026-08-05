@@ -1,0 +1,14 @@
+{
+  "fixture_marker": "REDCODE_SUPPLY_CHAIN_SECRET_MARKER",
+  "results": [
+    {
+      "packages": [
+        {
+          "package": { "ecosystem": "npm", "name": "fixture-package", "version": "1.0.0" },
+          "groups": [],
+          "license_violations": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "results": [
+    {
+      "packages": [
+        {
+          "package": { "ecosystem": "npm", "name": "fixture-package", "version": "1.0.0" },
+          "groups": [{ "ids": ["GHSA-fixture-unknown"], "max_severity": "" }],
+          "license_violations": []
+        }
+      ]
+    }
+  ]
+}

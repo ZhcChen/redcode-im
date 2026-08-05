@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
 current_unit: G2
-current_checkpoint: G2.3
+current_checkpoint: G2.4
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
@@ -23,7 +23,7 @@ supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
-- 当前 checkpoint：`G2.3`，固化供应链负向夹具与报告完整性测试。
+- 当前 checkpoint：`G2.4`，接入 CI 与 release 阻断。
 - 当前裁决：生产 E2EE 为 **No-Go**。
 - 运行约束：保持 `content_audit_mode=plaintext`；测试候选环境结束后必须恢复
   `persist/plaintext` 和 `security_review_approved=false`。
@@ -76,7 +76,7 @@ fail-closed 入口。
 **完成证据：** `make supply-chain.check` 与 Admin `pnpm build:check` 通过；六端
 机器报告完整且不含敏感 marker；Admin 旧 `postcss 8.4.49` 已统一到 8.5.25。
 
-### G2.3 负向夹具与报告完整性
+### G2.3 负向夹具与报告完整性（完成）
 
 **目标：** 证明门禁会阻断，而不只是生成报告。
 
@@ -87,8 +87,8 @@ fail-closed 入口。
 expired exception、missing owner、wildcard、unused exception、scanner unavailable、
 数据库/下载失败、截断 JSON、缺失模块/报告、敏感 marker 泄漏。
 
-**完成条件：** fixture 不依赖真实网络且不改写真实 lockfile；正负场景稳定；独立
-测试 commit 已推送。
+**完成证据：** `make supply-chain.test` 的 16 个隔离场景全部通过；fixture 不依赖
+真实网络、不调用 Docker daemon、不改写真实 lockfile，并已接入 `tests.tooling`。
 
 ### G2.4 CI 与 release 阻断
 

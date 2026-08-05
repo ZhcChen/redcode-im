@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-POLICY="$ROOT_DIR/config/supply-chain/policy.json"
-EXCEPTIONS="$ROOT_DIR/config/supply-chain/exceptions.json"
+POLICY="${SUPPLY_CHAIN_POLICY:-$ROOT_DIR/config/supply-chain/policy.json}"
+EXCEPTIONS="${SUPPLY_CHAIN_EXCEPTIONS:-$ROOT_DIR/config/supply-chain/exceptions.json}"
 OUTPUT_DIR="${SUPPLY_CHAIN_OUTPUT_DIR:-$ROOT_DIR/.artifacts/supply-chain}"
 REPORTS_DIR="$OUTPUT_DIR/reports"
 SBOM_DIR="$OUTPUT_DIR/sbom"

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    {
+      "type": "vulnerability",
+      "module": "fixture-app",
+      "ecosystem": "npm",
+      "package": "fixture-package",
+      "version": "1.0.0",
+      "finding": "GHSA-fixture-high",
+      "reason": "Fixture exception",
+      "expires_at": "2099-01-01"
+    }
+  ]
+}
