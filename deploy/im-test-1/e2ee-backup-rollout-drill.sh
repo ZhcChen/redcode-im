@@ -16,26 +16,35 @@ run_id="${E2EE_DRILL_RUN_ID:-g1-$(date -u +%Y%m%dT%H%M%SZ)}"
 }
 artifact_dir="${E2EE_DRILL_ARTIFACT_DIR:-$script_dir/.e2ee-drill/$run_id}"
 report_path="${E2EE_DRILL_REPORT_PATH:-$artifact_dir/report.json}"
+recovery_state_path="${E2EE_DRILL_RECOVERY_STATE_PATH:-$artifact_dir/recovery-state}"
+lock_dir="${E2EE_DRILL_LOCK_DIR:-${artifact_dir}.lock}"
 restore_container="e2ee-g1-restore-${run_id//[^a-zA-Z0-9_.-]/-}"
 restore_volume="${restore_container}-data"
 restore_database="redcode_e2ee_restore"
 restore_user="e2ee_restore"
 restore_password=""
-api_stopped=0
-restore_started=0
-gate_approval_changed=0
 original_security_review_approved=""
 dump_path=""
 corrupt_path=""
+cleanup_hard_timeout="${E2EE_DRILL_CLEANUP_HARD_TIMEOUT:-45}"
+curl_connect_timeout="${E2EE_DRILL_CURL_CONNECT_TIMEOUT:-5}"
+curl_max_time="${E2EE_DRILL_CURL_MAX_TIME:-15}"
+for timeout_value in "$cleanup_hard_timeout" "$curl_connect_timeout" "$curl_max_time"; do
+  [[ "$timeout_value" =~ ^[1-9][0-9]*$ ]] && ((timeout_value <= 300)) || {
+    printf '[e2ee-g1] 失败：超时参数必须是 1..300 的整数\n' >&2
+    exit 64
+  }
+done
 
 usage() {
   cat <<'EOF'
-用法：e2ee-backup-rollout-drill.sh [preflight|backup-restore|full]
+用法：e2ee-backup-rollout-drill.sh [preflight|backup-restore|full|recover]
 
 模式：
   preflight       只读检查当前部署、migration、关键表和 runtime（默认）
   backup-restore  停止 API 写入，备份并恢复到临时独立 PostgreSQL 实例
   full            完成 backup-restore 后，通过 Admin API 演练 prepare/active/recreate/rollback
+  recover         按实际状态恢复 API、审批、runtime 并删除当前 run_id 的临时资源
 
 写操作确认变量：
   E2EE_DRILL_ALLOW_API_STOP=yes   允许 backup-restore/full 短暂停止 API
@@ -61,6 +70,54 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "缺少命令：$1"
 }
 
+acquire_run_lock() {
+  local owner_pid=""
+  mkdir -p "$(dirname "$lock_dir")"
+  if mkdir "$lock_dir" 2>/dev/null; then
+    printf '%s\n' "$$" >"$lock_dir/pid"
+    return
+  fi
+  [[ -f "$lock_dir/pid" ]] && owner_pid="$(cat "$lock_dir/pid" 2>/dev/null || true)"
+  if [[ "$owner_pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$owner_pid" 2>/dev/null; then
+    log "同一 run_id 的演练正在运行，pid=$owner_pid"
+    return 1
+  fi
+  rm -f "$lock_dir/pid" || return 1
+  rmdir "$lock_dir" || return 1
+  mkdir "$lock_dir" || return 1
+  printf '%s\n' "$$" >"$lock_dir/pid"
+  log "已接管崩溃进程遗留的 run_id 锁"
+}
+
+release_run_lock() {
+  rm -f "$lock_dir/pid" || return 1
+  rmdir "$lock_dir" || return 1
+}
+
+run_with_timeout() {
+  local seconds="$1" command_pid started_at status
+  shift
+  "$@" <&0 &
+  command_pid=$!
+  started_at=$SECONDS
+  while kill -0 "$command_pid" 2>/dev/null; do
+    if ((SECONDS - started_at >= seconds)); then
+      kill -TERM "$command_pid" 2>/dev/null || true
+      sleep 1
+      kill -KILL "$command_pid" 2>/dev/null || true
+      wait "$command_pid" 2>/dev/null || true
+      return 124
+    fi
+    sleep 0.05
+  done
+  if wait "$command_pid"; then
+    status=0
+  else
+    status=$?
+  fi
+  return "$status"
+}
+
 compose() {
   docker compose -f "$compose_file" "$@"
 }
@@ -82,7 +139,8 @@ SQL
 
 wait_for_api_health() {
   for _ in $(seq 1 90); do
-    if [[ "$(curl -fsS "$api_base_url/healthz" 2>/dev/null || true)" == "ok" ]]; then
+    if [[ "$(curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" \
+      "$api_base_url/healthz" 2>/dev/null || true)" == "ok" ]]; then
       return 0
     fi
     sleep 1
@@ -178,7 +236,8 @@ SQL
 }
 
 runtime_json() {
-  curl -fsS "$api_base_url/settings/general" |
+  curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" \
+    "$api_base_url/settings/general" |
     jq -c '{server_storage_mode: .message_runtime.server_storage_mode,
       content_audit_mode: .message_runtime.content_audit_mode}'
 }
@@ -196,15 +255,26 @@ admin_gate_request() {
   local method="$1"
   local path="$2"
   curl -fsS -X "$method" \
+    --connect-timeout "$curl_connect_timeout" \
+    --max-time "$curl_max_time" \
     -H "Authorization: Bearer ${E2EE_DRILL_ADMIN_TOKEN:?}" \
     -H 'Content-Type: application/json' \
     "$api_base_url$path"
 }
 
+cleanup_source_psql() {
+  run_with_timeout "$cleanup_hard_timeout" \
+    docker compose -f "$compose_file" exec -T "$postgres_service" sh -ec \
+      'psql -X -qAt -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<SQL
+$1
+SQL
+}
+
 restore_gate_approval() {
-  if [[ "$gate_approval_changed" != "1" ]]; then
+  if [[ ! -f "$recovery_state_path" ]]; then
     return 0
   fi
+  original_security_review_approved="$(sed -n 's/^security_review_approved=//p' "$recovery_state_path")"
   local approved_sql
   case "$original_security_review_approved" in
     t) approved_sql=TRUE ;;
@@ -214,48 +284,141 @@ restore_gate_approval() {
       return 1
       ;;
   esac
-  if ! source_psql "UPDATE e2ee_runtime_gate SET security_review_approved = ${approved_sql} WHERE id = 1;" >/dev/null; then
+  if ! cleanup_source_psql "UPDATE e2ee_runtime_gate SET security_review_approved = ${approved_sql} WHERE id = 1;" >/dev/null; then
     return 1
   fi
-  gate_approval_changed=0
   log "已恢复 security_review_approved=${original_security_review_approved}"
 }
 
 rollback_runtime() {
-  if [[ -z "${E2EE_DRILL_ADMIN_TOKEN:-}" ]]; then
-    return 0
+  if assert_plaintext_runtime >/dev/null 2>&1; then
+    return
   fi
+  [[ -n "${E2EE_DRILL_ADMIN_TOKEN:-}" ]] || return 1
   admin_gate_request POST '/api/admin/settings/message-runtime/e2ee/rollback' >/dev/null || return 1
   assert_plaintext_runtime
 }
 
-cleanup() {
-  local exit_code="${1:-$?}"
-  trap - EXIT INT TERM
-  if [[ "$api_stopped" == "1" ]]; then
-    if compose start "$api_service" >/dev/null && wait_for_api_health; then
-      api_stopped=0
-    else
-      log "API 恢复启动失败"
-      exit_code=1
+api_service_running() {
+  local container_id
+  container_id="$(run_with_timeout "$cleanup_hard_timeout" \
+    docker compose -f "$compose_file" ps -q --status running "$api_service")" || return 2
+  [[ -n "$container_id" ]]
+}
+
+restore_container_exists() {
+  run_with_timeout "$cleanup_hard_timeout" \
+    docker container inspect "$restore_container" >/dev/null 2>&1
+}
+
+restore_volume_exists() {
+  run_with_timeout "$cleanup_hard_timeout" \
+    docker volume inspect "$restore_volume" >/dev/null 2>&1
+}
+
+ensure_api_running() {
+  if ! api_service_running; then
+    run_with_timeout "$cleanup_hard_timeout" \
+      docker compose -f "$compose_file" start "$api_service" >/dev/null || return 1
+  fi
+  wait_for_api_health
+}
+
+remove_restore_resources() {
+  local failed=0 probe_status
+  if restore_container_exists; then
+    run_with_timeout "$cleanup_hard_timeout" docker rm -f "$restore_container" >/dev/null || failed=1
+  else
+    probe_status=$?
+    [[ "$probe_status" == "1" ]] || failed=1
+  fi
+  if restore_volume_exists; then
+    run_with_timeout "$cleanup_hard_timeout" docker volume rm "$restore_volume" >/dev/null || failed=1
+  else
+    probe_status=$?
+    [[ "$probe_status" == "1" ]] || failed=1
+  fi
+  [[ "$failed" == "0" ]]
+}
+
+assert_cleanup_state() {
+  local failed=0 expected_approval current_approval probe_status
+  if ! api_service_running || ! wait_for_api_health; then
+    log "API 未恢复到运行且健康状态"
+    failed=1
+  fi
+  if restore_container_exists; then
+    log "临时恢复容器仍然存在：$restore_container"
+    failed=1
+  else
+    probe_status=$?
+    if [[ "$probe_status" != "1" ]]; then
+      log "无法确认临时恢复容器状态"
+      failed=1
     fi
   fi
-  if [[ "$restore_started" == "1" ]]; then
-    docker rm -f "$restore_container" >/dev/null 2>&1 || true
-    docker volume rm "$restore_volume" >/dev/null 2>&1 || true
-    restore_started=0
+  if restore_volume_exists; then
+    log "临时恢复 volume 仍然存在：$restore_volume"
+    failed=1
+  else
+    probe_status=$?
+    if [[ "$probe_status" != "1" ]]; then
+      log "无法确认临时恢复 volume 状态"
+      failed=1
+    fi
+  fi
+  if ! assert_plaintext_runtime; then
+    log "runtime 未恢复为 persist/plaintext"
+    failed=1
+  fi
+  if [[ -f "$recovery_state_path" ]]; then
+    expected_approval="$(sed -n 's/^security_review_approved=//p' "$recovery_state_path")"
+    current_approval="$(cleanup_source_psql "SELECT security_review_approved FROM e2ee_runtime_gate WHERE id = 1;" 2>/dev/null)" || current_approval=""
+    if [[ -z "$expected_approval" || "$current_approval" != "$expected_approval" ]]; then
+      log "security_review_approved 未恢复到原值"
+      failed=1
+    fi
+  fi
+  [[ "$failed" == "0" ]]
+}
+
+cleanup() {
+  local exit_code="${1:-$?}"
+  local cleanup_failed=0
+  trap - EXIT
+  trap '' INT TERM
+  if ! ensure_api_running; then
+    log "API 恢复启动失败"
+    cleanup_failed=1
+  fi
+  if ! rollback_runtime; then
+    log "runtime API 回滚失败"
+    cleanup_failed=1
+  fi
+  if ! restore_gate_approval; then
+    log "security_review_approved 恢复失败"
+    cleanup_failed=1
+  fi
+  if ! remove_restore_resources; then
+    log "临时恢复容器或 volume 删除失败"
+    cleanup_failed=1
   fi
   if [[ "${E2EE_DRILL_KEEP_ARTIFACTS:-}" != "yes" ]]; then
     [[ -z "$dump_path" ]] || rm -f "$dump_path"
     [[ -z "$corrupt_path" ]] || rm -f "$corrupt_path"
   fi
-  if ! rollback_runtime; then
-    log "runtime API 回滚失败"
+  if ! assert_cleanup_state; then
+    cleanup_failed=1
+  fi
+  if [[ "$cleanup_failed" == "0" ]]; then
+    rm -f "$recovery_state_path"
+    log "恢复终验通过：API、审批、runtime 与临时资源均已复原"
+  elif [[ "$exit_code" == "0" ]]; then
     exit_code=1
   fi
-  if ! restore_gate_approval; then
-    log "security_review_approved 恢复失败"
-    exit_code=1
+  if ! release_run_lock; then
+    log "run_id 锁释放失败：$lock_dir"
+    [[ "$exit_code" != "0" ]] || exit_code=1
   fi
   if [[ "$exit_code" != "0" ]]; then
     log "演练中断，退出码=$exit_code"
@@ -274,7 +437,8 @@ preflight() {
   running_services="$(compose ps --status running "$postgres_service" "$api_service")"
   grep -q "$postgres_service" <<<"$running_services" || die "$postgres_service 未运行"
   grep -q "$api_service" <<<"$running_services" || die "$api_service 未运行"
-  health="$(curl -fsS "$api_base_url/healthz")"
+  health="$(curl -fsS --connect-timeout "$curl_connect_timeout" --max-time "$curl_max_time" \
+    "$api_base_url/healthz")"
   [[ "$health" == "ok" ]] || die "API healthz 未就绪"
   assert_plaintext_runtime
 
@@ -317,7 +481,6 @@ run_backup_restore() {
   local started_at finished_at duration_seconds backup_sha source_snapshot restored_snapshot
 
   compose stop "$api_service" >/dev/null
-  api_stopped=1
   started_at="$(date +%s)"
   source_snapshot="$(source_psql "$(snapshot_sql)")"
   compose exec -T "$postgres_service" sh -ec \
@@ -342,7 +505,6 @@ run_backup_restore() {
     -e "POSTGRES_PASSWORD=$restore_password" \
     -v "$restore_volume:/var/lib/postgresql/data" \
     postgres:17-alpine >/dev/null || die "临时恢复容器启动失败"
-  restore_started=1
   log "临时恢复容器已启动"
   for _ in $(seq 1 60); do
     if docker exec "$restore_container" pg_isready -h 127.0.0.1 \
@@ -368,13 +530,9 @@ run_backup_restore() {
   duration_seconds="$((finished_at - started_at))"
   backup_sha="$(sha256sum "$dump_path" | awk '{print $1}')"
 
-  docker rm -f "$restore_container" >/dev/null
-  docker volume rm "$restore_volume" >/dev/null
-  restore_started=0
+  remove_restore_resources || die "临时恢复容器或 volume 删除失败"
   log "临时恢复容器与 volume 已删除"
-  compose start "$api_service" >/dev/null
-  api_stopped=0
-  wait_for_api_health || die "API 恢复启动后 healthz 未就绪"
+  ensure_api_running || die "API 恢复启动后 healthz 未就绪"
   assert_plaintext_runtime
   log "API 已恢复且 runtime 为 persist/plaintext"
 
@@ -402,8 +560,10 @@ run_rollout() {
   original_security_review_approved="$(source_psql "SELECT security_review_approved FROM e2ee_runtime_gate WHERE id = 1;")"
   [[ "$original_security_review_approved" == "t" || "$original_security_review_approved" == "f" ]] ||
     die "无法读取 security_review_approved"
+  mkdir -p "$(dirname "$recovery_state_path")"
+  printf 'security_review_approved=%s\n' "$original_security_review_approved" >"${recovery_state_path}.tmp"
+  mv "${recovery_state_path}.tmp" "$recovery_state_path"
   source_psql "UPDATE e2ee_runtime_gate SET security_review_approved = TRUE WHERE id = 1;" >/dev/null
-  gate_approval_changed=1
 
   local prepare active after_recreate rollback started_at finished_at
   started_at="$(date +%s)"
@@ -445,16 +605,21 @@ case "$mode" in
     usage
     exit 0
     ;;
-  preflight|backup-restore|full) ;;
+  preflight|backup-restore|full|recover) ;;
   *)
     usage >&2
     exit 64
     ;;
 esac
 
+acquire_run_lock || exit 73
 trap 'cleanup $?' EXIT
 trap 'cleanup 130' INT
 trap 'cleanup 143' TERM
+
+if [[ "$mode" == "recover" ]]; then
+  cleanup 0
+fi
 
 mkdir -p "$(dirname "$report_path")"
 preflight_report="$(preflight)"
@@ -476,5 +641,9 @@ jq -n \
     backup_restore: $backup_restore, rollout: $rollout}' >"$report_path"
 
 log "演练完成，脱敏报告：$report_path"
-trap - EXIT INT TERM
-exit 0
+if [[ "$mode" == "preflight" ]]; then
+  trap - EXIT INT TERM
+  release_run_lock || exit 1
+  exit 0
+fi
+cleanup 0
