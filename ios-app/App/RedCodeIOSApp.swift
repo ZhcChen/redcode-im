@@ -35,6 +35,7 @@ final class AppDependencies {
     private let appConfigStore: GRDBAppConfigStore
     private let incomingMessageResolver: any IncomingChatMessageResolving
     private let outgoingTextRouter: any OutgoingTextMessageRouting
+    private let attachmentRouter: any AttachmentMessageRouting
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
     private let emojiCache = EmojiFileCache()
@@ -124,6 +125,11 @@ final class AppDependencies {
             sender: directMessageCoordinator,
             deviceLabel: "iPhone"
         )
+        self.attachmentRouter = E2eeAttachmentMessageRouter(
+            sessionStatus: self.e2eeSessionLifecycle,
+            coordinator: directMessageCoordinator,
+            deviceLabel: "iPhone"
+        )
         let chatListController = ChatListController(
             api: chatAPIService,
             cacheStore: GRDBChatSummaryCacheStore(database: database)
@@ -186,7 +192,8 @@ final class AppDependencies {
             mediaAPI: mediaAPIService,
             attachmentCache: attachmentCache,
             incomingResolver: incomingMessageResolver,
-            outgoingTextRouter: outgoingTextRouter
+            outgoingTextRouter: outgoingTextRouter,
+            attachmentRouter: attachmentRouter
         )
     }
 
@@ -218,7 +225,15 @@ final class AppDependencies {
     }
 
     func makeMessageSearchController() -> MessageSearchController {
-        MessageSearchController(localSearchStore: messageSearchStore, remoteAPI: chatAPIService)
+        MessageSearchController(
+            localSearchStore: messageSearchStore,
+            remoteAPI: chatAPIService,
+            canUseRemoteSearch: { [weak e2eeSessionLifecycle] in
+                guard let e2eeSessionLifecycle else { return false }
+                if case .plaintext = e2eeSessionLifecycle.status { return true }
+                return false
+            }
+        )
     }
 
     func makeEmojiStickerController() -> EmojiStickerController {

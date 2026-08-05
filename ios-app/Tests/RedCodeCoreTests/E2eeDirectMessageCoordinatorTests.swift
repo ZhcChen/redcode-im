@@ -4,6 +4,166 @@ import XCTest
 @testable import RedCodeCore
 
 final class E2eeDirectMessageCoordinatorTests: XCTestCase {
+    func testAttachmentSendIndexesKeyMaterialByServerMessageIDAcrossRestart() async throws {
+        let fixture = await Fixture.make()
+        let part = attachmentPart()
+
+        let messageID = try await fixture.coordinator.sendAttachment(
+            accountID: "account-a",
+            deviceLabel: "iOS",
+            roomID: "room-1",
+            peerUserID: "account-b",
+            parts: [part],
+            text: "caption",
+            token: "token"
+        )
+
+        XCTAssertEqual(messageID, "server-message")
+        let payload = try XCTUnwrap(fixture.core.lastEncryptedPlaintext)
+        let payloadJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: payload) as? [String: Any])
+        XCTAssertEqual(payloadJSON["type"] as? String, "attachment")
+        XCTAssertEqual(payloadJSON["text"] as? String, "caption")
+        let storedParts = try XCTUnwrap(payloadJSON["parts"] as? [[String: Any]])
+        XCTAssertEqual(storedParts.first?["objectKey"] as? String, part.objectKey)
+        XCTAssertEqual(storedParts.first?["nonce"] as? String, part.nonce.base64EncodedString())
+
+        let restarted = E2eeDirectMessageCoordinator(
+            storage: fixture.storage,
+            lifecycle: fixture.lifecycle,
+            api: fixture.api,
+            core: fixture.core
+        )
+        let restored = try await restarted.findAttachmentPart(
+            accountID: "account-a",
+            messageID: messageID,
+            objectKey: part.objectKey
+        )
+        XCTAssertEqual(restored, part)
+    }
+
+    func testAttachmentPayloadDecryptsAndIndexesParts() async throws {
+        let fixture = await Fixture.make()
+        let part = attachmentPart()
+        fixture.core.decryptPayload = try JSONSerialization.data(withJSONObject: [
+            "version": 1,
+            "type": "attachment",
+            "text": "caption",
+            "parts": [[
+                "partKey": part.partKey,
+                "objectKey": part.objectKey,
+                "name": part.name,
+                "mimeType": part.mimeType,
+                "size": part.size,
+                "partPosition": part.partPosition,
+                "nonce": part.nonce.base64EncodedString(),
+                "dek": part.dek.base64EncodedString(),
+            ]],
+        ])
+
+        let decrypted = try await fixture.coordinator.decryptIncoming(
+            accountID: "account-a",
+            deviceLabel: "iOS",
+            input: E2eeIncomingMessage(
+                messageID: "attachment-message",
+                roomID: "room-1",
+                ciphertext: Data([9]),
+                source: .history
+            ),
+            token: "token"
+        )
+
+        XCTAssertEqual(decrypted.text, "caption")
+        XCTAssertEqual(decrypted.attachmentParts, [part])
+        let indexed = try await fixture.coordinator.findAttachmentPart(
+            accountID: "account-a",
+            messageID: "attachment-message",
+            objectKey: part.objectKey
+        )
+        XCTAssertEqual(indexed, part)
+    }
+
+    func testAttachmentKeyMaterialEvictsOldestInsertionInsteadOfLexicalMessageID() async throws {
+        let fixture = await Fixture.make()
+        let part = attachmentPart()
+        fixture.core.decryptPayload = try attachmentPayload(part)
+
+        _ = try await fixture.coordinator.decryptIncoming(
+            accountID: "account-a",
+            deviceLabel: "iOS",
+            input: E2eeIncomingMessage(
+                messageID: "z-oldest",
+                roomID: "room-1",
+                ciphertext: Data([9]),
+                source: .history
+            ),
+            token: "token"
+        )
+        for index in 0 ..< 512 {
+            _ = try await fixture.coordinator.decryptIncoming(
+                accountID: "account-a",
+                deviceLabel: "iOS",
+                input: E2eeIncomingMessage(
+                    messageID: String(format: "a-%03d", index),
+                    roomID: "room-1",
+                    ciphertext: Data([9]),
+                    source: .history
+                ),
+                token: "token"
+            )
+        }
+
+        let evicted = try await fixture.coordinator.findAttachmentPart(
+            accountID: "account-a",
+            messageID: "z-oldest",
+            objectKey: part.objectKey
+        )
+        let retained = try await fixture.coordinator.findAttachmentPart(
+            accountID: "account-a",
+            messageID: "a-000",
+            objectKey: part.objectKey
+        )
+        XCTAssertNil(evicted)
+        XCTAssertEqual(retained, part)
+    }
+
+    func testDamagedAttachmentKeyMaterialFailsBeforeStateWrite() async throws {
+        let fixture = await Fixture.make()
+        let part = attachmentPart()
+        fixture.core.decryptPayload = try JSONSerialization.data(withJSONObject: [
+            "version": 1,
+            "type": "attachment",
+            "parts": [[
+                "partKey": part.partKey,
+                "objectKey": part.objectKey,
+                "name": part.name,
+                "mimeType": part.mimeType,
+                "size": part.size,
+                "partPosition": part.partPosition,
+                "nonce": "%%%",
+                "dek": part.dek.base64EncodedString(),
+            ]],
+        ])
+
+        do {
+            _ = try await fixture.coordinator.decryptIncoming(
+                accountID: "account-a",
+                deviceLabel: "iOS",
+                input: E2eeIncomingMessage(
+                    messageID: "damaged-attachment",
+                    roomID: "room-1",
+                    ciphertext: Data([9]),
+                    source: .webSocket
+                ),
+                token: "token"
+            )
+            XCTFail("损坏附件密钥材料必须失败")
+        } catch let error as E2eeDirectMessageError {
+            XCTAssertTrue(error.message.contains("密钥材料") || error.message.contains("密钥参数"))
+        }
+        let state = await fixture.storage.readState(accountID: "account-a")
+        XCTAssertEqual(state, Data([1]))
+    }
+
     func testWebSocketAndHistoryShareEntryAndRejectDuplicate() async throws {
         let fixture = await Fixture.make()
         let encrypted = try await fixture.coordinator.decryptIncoming(
@@ -96,6 +256,36 @@ final class E2eeDirectMessageCoordinatorTests: XCTestCase {
         XCTAssertEqual(controls.map(\.contentType), ["commit", "commit", "welcome"])
         XCTAssertEqual(controls.last?.recipientDeviceID, "device-new")
     }
+
+    private func attachmentPart() -> E2eeAttachmentPart {
+        E2eeAttachmentPart(
+            partKey: "11111111-1111-1111-1111-111111111111",
+            objectKey: "messages/room-1/file.bin",
+            name: "file.bin",
+            mimeType: "application/octet-stream",
+            size: 12,
+            partPosition: 0,
+            nonce: Data(repeating: 2, count: 12),
+            dek: Data(repeating: 3, count: 32)
+        )
+    }
+
+    private func attachmentPayload(_ part: E2eeAttachmentPart) throws -> Data {
+        try JSONSerialization.data(withJSONObject: [
+            "version": 1,
+            "type": "attachment",
+            "parts": [[
+                "partKey": part.partKey,
+                "objectKey": part.objectKey,
+                "name": part.name,
+                "mimeType": part.mimeType,
+                "size": part.size,
+                "partPosition": part.partPosition,
+                "nonce": part.nonce.base64EncodedString(),
+                "dek": part.dek.base64EncodedString(),
+            ]],
+        ])
+    }
 }
 
 private struct Fixture {
@@ -158,13 +348,18 @@ private actor FakeDirectAPI: E2eeMLSApi {
 
 private final class FakeDirectCore: E2eeDirectSessionCore, @unchecked Sendable {
     var decryptCalls = 0; var failDecrypt = false; var members = Set<String>(); var removedMembers: [String] = []
+    var lastEncryptedPlaintext: Data?
+    var decryptPayload = Data("{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}".utf8)
     func createGroup(state: Data, roomID: String) -> E2eeCommandResult { result(Data([2])) }
     func addMember(state: Data, roomID: String, keyPackage: Data) -> E2eeCommandResult { result(Data([3]), Data([4]), Data([5]), epoch(1)) }
     func joinGroup(state: Data, welcome: Data) -> E2eeCommandResult { result(Data([3]), epoch(1)) }
-    func encrypt(state: Data, roomID: String, plaintext: Data) -> E2eeCommandResult { result(Data([2]), Data([99, 100]), epoch(1)) }
+    func encrypt(state: Data, roomID: String, plaintext: Data) -> E2eeCommandResult {
+        lastEncryptedPlaintext = plaintext
+        return result(Data([2]), Data([99, 100]), epoch(1))
+    }
     func decrypt(state: Data, roomID: String, ciphertext: Data) throws -> E2eeCommandResult {
         decryptCalls += 1; if failDecrypt { throw E2eeDirectMessageError("bad") }
-        return result(Data([2]), Data("{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}".utf8), epoch(1))
+        return result(Data([2]), decryptPayload, epoch(1))
     }
     func processCommit(state: Data, roomID: String, commit: Data) -> E2eeCommandResult { result(Data([2]), epoch(1)) }
     func removeMember(state: Data, roomID: String, identity: String) -> E2eeCommandResult { removedMembers.append(identity); return result(Data([2]), Data([6]), epoch(2)) }

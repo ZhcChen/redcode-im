@@ -107,6 +107,44 @@ final class ChatExtensionControllerTests: XCTestCase {
         ])
     }
 
+    func testMessageSearchControllerUsesLocalIndexOnlyWhenRemoteSearchIsDisabled() async throws {
+        let localStore = MockMessageSearchStore(
+            searchResponses: [
+                LocalMessageSearchResponse(
+                    results: [
+                        LocalMessageSearchResult(
+                            id: "decrypted-local",
+                            roomID: "r1",
+                            roomName: "General",
+                            senderID: "u1",
+                            senderName: "Alice",
+                            content: "decrypted redcode",
+                            messageType: "text",
+                            timestamp: Date(timeIntervalSince1970: 100),
+                            relevanceScore: 1,
+                            matchedText: "decrypted redcode"
+                        ),
+                    ],
+                    stats: LocalMessageSearchStats(totalResults: 1, searchTimeMilliseconds: 1, query: "redcode"),
+                    hasMore: false
+                ),
+            ]
+        )
+        let remoteAPI = MockSearchChatAPIService(searchResponses: [])
+        let controller = MessageSearchController(
+            localSearchStore: localStore,
+            remoteAPI: remoteAPI,
+            canUseRemoteSearch: { false }
+        )
+
+        await controller.search(query: "redcode", token: "access-token")
+
+        XCTAssertEqual(controller.results.map(\.id), ["decrypted-local"])
+        XCTAssertEqual(controller.results.map(\.source), ["本地"])
+        let calls = await remoteAPI.recordedSearchCalls()
+        XCTAssertEqual(calls, [])
+    }
+
     func testChatSettingsControllerPersistsBackgroundAndClearsCachesAndHistory() async throws {
         let key = "redcode-ios-chat-settings-tests-\(UUID().uuidString)"
         defer {

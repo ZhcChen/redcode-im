@@ -155,14 +155,20 @@ public final class MessageSearchController: ObservableObject {
 
     private let localSearchStore: any MessageSearchStore
     private let remoteAPI: (any ChatAPIService)?
+    private let canUseRemoteSearch: @MainActor () -> Bool
     private var localOffset = 0
     private var remoteOffset = 0
     private var hasMoreLocal = false
     private var hasMoreRemote = false
 
-    public init(localSearchStore: any MessageSearchStore, remoteAPI: (any ChatAPIService)? = nil) {
+    public init(
+        localSearchStore: any MessageSearchStore,
+        remoteAPI: (any ChatAPIService)? = nil,
+        canUseRemoteSearch: @escaping @MainActor () -> Bool = { true }
+    ) {
         self.localSearchStore = localSearchStore
         self.remoteAPI = remoteAPI
+        self.canUseRemoteSearch = canUseRemoteSearch
     }
 
     public func rebuildIndex(chats: [ChatSummary]) {
@@ -210,7 +216,7 @@ public final class MessageSearchController: ObservableObject {
             hasMoreLocal = local.hasMore
             hasMoreRemote = false
 
-            if let token, remoteAPI != nil {
+            if let token, remoteAPI != nil, canUseRemoteSearch() {
                 try await appendRemote(query: query, roomID: roomID, messageType: messageType, token: token, offset: 0)
             }
             hasMore = hasMoreLocal || hasMoreRemote
@@ -242,7 +248,7 @@ public final class MessageSearchController: ObservableObject {
                 merge(local.results.map(MessageSearchDisplayResult.local))
                 localOffset += local.results.count
                 hasMoreLocal = local.hasMore
-            } else if let token, let remoteAPI, hasMoreRemote {
+            } else if let token, let remoteAPI, hasMoreRemote, canUseRemoteSearch() {
                 _ = remoteAPI
                 try await appendRemote(query: query, roomID: roomID, messageType: messageType, token: token, offset: remoteOffset)
             }

@@ -193,6 +193,9 @@ public final class PushController: ChatLocalNotificationService, ObservableObjec
     }
 
     private static func previewText(for message: ChatMessage) -> String {
+        if message.encryptionMetadata != nil {
+            return E2eePeripheralPolicy.pushPlaceholder
+        }
         let content = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         if !content.isEmpty {
             return content

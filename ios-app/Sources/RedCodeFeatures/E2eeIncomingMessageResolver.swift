@@ -147,7 +147,19 @@ public final class E2eeIncomingMessageResolver: IncomingChatMessageResolving {
             throw E2eeIncomingMessageResolverError("E2EE 解密结果与消息不匹配")
         }
 
-        let resolved = message.replacingDecryptedContent(decrypted.text, parts: [])
+        let parts = decrypted.attachmentParts.map { part in
+            ChatMessagePart(
+                position: Int(part.partPosition),
+                partType: messageType(for: part.mimeType),
+                attachment: ChatMessageAttachment(
+                    key: part.objectKey,
+                    name: part.name,
+                    mimeType: part.mimeType,
+                    size: part.size
+                )
+            )
+        }
+        let resolved = message.replacingDecryptedContent(decrypted.text, parts: parts)
         rememberResolved(resolved, accountID: accountID)
         return resolved
     }
@@ -186,6 +198,13 @@ public final class E2eeIncomingMessageResolver: IncomingChatMessageResolving {
     private func isReusableResolvedMessage(_ message: ChatMessage) -> Bool {
         !message.content.isEmpty || !message.parts.isEmpty
     }
+
+    private func messageType(for mimeType: String) -> ChatMessageType {
+        if mimeType.hasPrefix("image/") { return .image }
+        if mimeType.hasPrefix("video/") { return .video }
+        if mimeType.hasPrefix("audio/") { return .audio }
+        return .file
+    }
 }
 
 private extension ChatMessage {
@@ -196,6 +215,8 @@ private extension ChatMessage {
             senderID: senderID,
             senderName: senderName,
             content: content,
+            encryptedContent: encryptedContent,
+            encryptionMetadata: encryptionMetadata,
             messageType: messageType,
             status: status,
             timestamp: timestamp,

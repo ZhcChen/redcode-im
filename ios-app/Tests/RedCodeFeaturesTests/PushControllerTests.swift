@@ -144,6 +144,41 @@ final class PushControllerTests: XCTestCase {
         XCTAssertEqual(localNotifications.scheduled.first?.payload.messageID, "incoming")
     }
 
+    func testEncryptedLocalNotificationUsesFixedPlaceholder() async throws {
+        let localNotifications = MockLocalNotificationScheduler()
+        let controller = PushController(
+            authController: try await makeAuthController(authenticated: true),
+            api: MockPushAPIService(),
+            identityStore: MockPushDeviceIdentityStore(),
+            localNotifications: localNotifications
+        )
+        controller.updateAppActiveState(false)
+        let encrypted = ChatMessage(
+            id: "encrypted",
+            roomID: "room-1",
+            senderID: "user-2",
+            senderName: "Alice",
+            content: "decrypted secret",
+            encryptedContent: "Y2lwaGVydGV4dA==",
+            encryptionMetadata: ChatEncryptionMetadata(
+                protocolName: "mls",
+                version: 1,
+                epoch: 7,
+                senderDeviceID: "device-2",
+                contentType: "application"
+            ),
+            timestamp: Date(timeIntervalSince1970: 1_000)
+        )
+
+        await controller.maybeShowChatMessage(
+            encrypted,
+            chat: ChatSummary(roomID: "room-1", displayName: "Alice", roomType: .privateChat)
+        )
+
+        XCTAssertEqual(localNotifications.scheduled.first?.body, E2eePeripheralPolicy.pushPlaceholder)
+        XCTAssertFalse(localNotifications.scheduled.first?.body.contains("secret") == true)
+    }
+
     func testNotificationPayloadCreatesAndConsumesNavigationDestination() async throws {
         let controller = PushController(
             authController: try await makeAuthController(authenticated: true),

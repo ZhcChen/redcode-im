@@ -312,7 +312,197 @@ final class ChatDetailControllerTests: XCTestCase {
         XCTAssertEqual(mediaCalls, [
             .request(roomID: "r1", partType: .image, fileName: "image.png"),
             .upload(contentType: "image/png", byteCount: 11),
-            .commit(roomID: "r1", key: "messages/r1/images_20260704/abc.png"),
+            .commit(roomID: "r1", key: "messages/r1/images_20260704/abc.png", byteCount: 11),
+        ])
+    }
+
+    func testEncryptedAttachmentUploadsCiphertextAndBypassesRichMessageAPI() async throws {
+        let cache = GRDBMessageCacheStore(database: try RedCodeDatabase.makeDatabase(inMemory: true))
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-e2ee-media-\(UUID().uuidString).png")
+        let plaintext = Data("image-bytes".utf8)
+        try plaintext.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let preparedFile = try MediaUploadPreparer.prepareFile(
+            at: tempURL,
+            kind: .image,
+            fileName: "image.png",
+            contentType: "image/png"
+        )
+        let media = MockMediaAPIService()
+        let attachmentRouter = ChatAttachmentRouterStub(
+            encryptedData: Data("opaque-ciphertext-and-tag".utf8),
+            sendResult: "encrypted-media-id"
+        )
+        let resolver = ChatIncomingResolverStub()
+        let api = MockChatDetailAPIService()
+        let controller = ChatDetailController(
+            api: api,
+            messageCacheStore: cache,
+            mediaAPI: media,
+            attachmentCache: AttachmentFileCache(rootURL: FileManager.default.temporaryDirectory),
+            incomingResolver: resolver,
+            attachmentRouter: attachmentRouter
+        )
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+
+        let sent = try await controller.sendPreparedMedia(
+            files: [preparedFile],
+            token: "access-token",
+            currentUserID: "u1",
+            currentUserName: "Me"
+        )
+
+        XCTAssertEqual(sent?.id, "encrypted-media-id")
+        XCTAssertEqual(sent?.attachments.first?.key, "messages/r1/images_20260704/abc.png")
+        XCTAssertEqual(resolver.rememberedMessages.map(\.id), ["encrypted-media-id"])
+        let uploaded = await media.uploadedData()
+        XCTAssertEqual(uploaded, Data("opaque-ciphertext-and-tag".utf8))
+        XCTAssertNotEqual(uploaded, plaintext)
+        let committed = await media.committedMetadata()
+        XCTAssertEqual(committed?.fileSize, Int64(uploaded?.count ?? 0))
+        XCTAssertEqual(committed?.hashValue, uploaded.map(MediaUploadPreparer.sha256Hex(data:)))
+        let requested = await media.requestedMetadata()
+        XCTAssertNil(requested?.hashValue)
+        XCTAssertNil(requested?.hashAlgorithm)
+        let apiCalls = await api.calls
+        XCTAssertFalse(apiCalls.contains { call in
+            if case .sendRich = call { return true }
+            return false
+        })
+    }
+
+    func testEncryptedAttachmentDownloadCachesOnlyDecryptedBytes() async throws {
+        let cache = GRDBMessageCacheStore(database: try RedCodeDatabase.makeDatabase(inMemory: true))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-e2ee-download-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let ciphertext = Data("ciphertext".utf8)
+        let plaintext = Data("decrypted-file".utf8)
+        let media = MockMediaAPIService(downloadData: ciphertext)
+        let attachmentRouter = ChatAttachmentRouterStub(decryptedData: plaintext)
+        let controller = ChatDetailController(
+            api: MockChatDetailAPIService(),
+            messageCacheStore: cache,
+            mediaAPI: media,
+            attachmentCache: AttachmentFileCache(rootURL: root),
+            attachmentRouter: attachmentRouter
+        )
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+        let attachment = ChatMessageAttachment(
+            key: "messages/r1/file.enc",
+            name: "file.txt",
+            mimeType: "text/plain",
+            size: Int64(plaintext.count)
+        )
+
+        let fileURL = try await controller.resolveAttachmentFile(
+            messageID: "m1",
+            attachment: attachment,
+            token: "access-token"
+        )
+
+        let resolvedURL = try XCTUnwrap(fileURL)
+        XCTAssertEqual(try Data(contentsOf: resolvedURL), plaintext)
+        XCTAssertEqual(attachmentRouter.decryptedCiphertexts, [ciphertext])
+    }
+
+    func testEncryptedAttachmentChecksKeyMaterialBeforeReturningCachedFile() async throws {
+        let cache = GRDBMessageCacheStore(database: try RedCodeDatabase.makeDatabase(inMemory: true))
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-e2ee-cached-download-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let attachmentCache = AttachmentFileCache(rootURL: root)
+        let objectKey = "messages/r1/file.enc"
+        _ = try await attachmentCache.save(
+            objectKey: objectKey,
+            data: Data("cached-plaintext".utf8),
+            suggestedExtension: "txt",
+            mimeType: "text/plain"
+        )
+        let attachmentRouter = ChatAttachmentRouterStub(missingEncryptedMaterial: true)
+        let controller = ChatDetailController(
+            api: MockChatDetailAPIService(),
+            messageCacheStore: cache,
+            mediaAPI: MockMediaAPIService(),
+            attachmentCache: attachmentCache,
+            attachmentRouter: attachmentRouter
+        )
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+
+        do {
+            _ = try await controller.resolveAttachmentFile(
+                messageID: "m1",
+                attachment: ChatMessageAttachment(
+                    key: objectKey,
+                    name: "file.txt",
+                    mimeType: "text/plain",
+                    size: 16
+                ),
+                token: "access-token"
+            )
+            XCTFail("Ready 下密钥材料缺失时不得返回缓存文件")
+        } catch let error as E2eeDirectMessageError {
+            XCTAssertEqual(error.message, "E2EE 附件密钥材料缺失")
+        }
+    }
+
+    func testEncryptedAttachmentRuntimeChangeAfterSigningDoesNotUpload() async throws {
+        let cache = GRDBMessageCacheStore(database: try RedCodeDatabase.makeDatabase(inMemory: true))
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ios-e2ee-runtime-change-\(UUID().uuidString).png")
+        try Data("image-bytes".utf8).write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        let preparedFile = try MediaUploadPreparer.prepareFile(
+            at: tempURL,
+            kind: .image,
+            fileName: "image.png",
+            contentType: "image/png"
+        )
+        let media = MockMediaAPIService()
+        let attachmentRouter = ChatAttachmentRouterStub(encryptionRequiredResults: [true, false])
+        let controller = ChatDetailController(
+            api: MockChatDetailAPIService(),
+            messageCacheStore: cache,
+            mediaAPI: media,
+            attachmentRouter: attachmentRouter
+        )
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+
+        do {
+            _ = try await controller.sendPreparedMedia(
+                files: [preparedFile],
+                token: "access-token",
+                currentUserID: "u1",
+                currentUserName: "Me"
+            )
+            XCTFail("签名等待期间 runtime 变化必须阻断上传")
+        } catch let error as E2eeOutgoingMessageError {
+            XCTAssertTrue(error.message.contains("runtime 已变化"))
+        }
+        let mediaCalls = await media.recordedCalls()
+        XCTAssertEqual(mediaCalls, [
+            .request(roomID: "r1", partType: .image, fileName: "image.png"),
         ])
     }
 }
@@ -369,6 +559,96 @@ private final class ChatOutgoingRouterStub: OutgoingTextMessageRouting {
     ) async throws -> String? {
         calls.append(ChatOutgoingRouterCall(roomID: roomID, peerUserID: peerUserID, retry: retry))
         return result
+    }
+}
+
+@MainActor
+private final class ChatAttachmentRouterStub: AttachmentMessageRouting {
+    let encryptedData: Data?
+    let sendResult: String?
+    let decryptedData: Data?
+    let missingEncryptedMaterial: Bool
+    private var encryptionRequiredResults: [Bool]
+    private(set) var decryptedCiphertexts: [Data] = []
+
+    init(
+        encryptedData: Data? = nil,
+        sendResult: String? = nil,
+        decryptedData: Data? = nil,
+        missingEncryptedMaterial: Bool = false,
+        encryptionRequiredResults: [Bool] = []
+    ) {
+        self.encryptedData = encryptedData
+        self.sendResult = sendResult
+        self.decryptedData = decryptedData
+        self.missingEncryptedMaterial = missingEncryptedMaterial
+        self.encryptionRequiredResults = encryptionRequiredResults
+    }
+
+    func encryptionRequired(accountID: String) throws -> Bool {
+        if !encryptionRequiredResults.isEmpty {
+            return encryptionRequiredResults.removeFirst()
+        }
+        return encryptedData != nil
+    }
+
+    func prepareUpload(
+        roomID: String,
+        objectKey: String,
+        name: String,
+        mimeType: String,
+        size: Int64,
+        partPosition: UInt32,
+        plaintext: Data,
+        accountID: String
+    ) throws -> E2eePreparedAttachment? {
+        guard let encryptedData else { return nil }
+        return E2eePreparedAttachment(
+            ciphertext: encryptedData,
+            part: E2eeAttachmentPart(
+                partKey: "11111111-1111-1111-1111-111111111111",
+                objectKey: objectKey,
+                name: name,
+                mimeType: mimeType,
+                size: size,
+                partPosition: partPosition,
+                nonce: Data(repeating: 2, count: 12),
+                dek: Data(repeating: 3, count: 32)
+            )
+        )
+    }
+
+    func send(
+        roomID: String,
+        peerUserID: String?,
+        parts: [E2eeAttachmentPart],
+        text: String?,
+        retry: Bool,
+        quotedMessageID: String?,
+        accountID: String,
+        token: String
+    ) async throws -> String? { sendResult }
+
+    func decryptDownload(
+        roomID: String,
+        messageID: String,
+        objectKey: String,
+        ciphertext: Data,
+        accountID: String
+    ) async throws -> Data? {
+        decryptedCiphertexts.append(ciphertext)
+        return decryptedData
+    }
+
+    func downloadIsEncrypted(
+        messageID: String,
+        objectKey: String,
+        accountID: String
+    ) async throws -> Bool {
+        if missingEncryptedMaterial {
+            throw E2eeDirectMessageError("E2EE 附件密钥材料缺失")
+        }
+        return decryptedData != nil
     }
 }
 
@@ -511,15 +791,27 @@ private actor MockChatDetailAPIService: ChatAPIService {
 private enum MediaCall: Equatable, Sendable {
     case request(roomID: String, partType: MediaPartType, fileName: String)
     case upload(contentType: String?, byteCount: Int)
-    case commit(roomID: String, key: String)
+    case commit(roomID: String, key: String, byteCount: Int64)
 }
 
 private actor MockMediaAPIService: MediaAPIService {
     private(set) var calls: [MediaCall] = []
+    private var lastUploadedData: Data?
+    private var lastCommittedMetadata: MediaUploadMetadata?
+    private var lastRequestedMetadata: MediaUploadMetadata?
+    private let downloadData: Data
+
+    init(downloadData: Data = Data()) {
+        self.downloadData = downloadData
+    }
 
     func recordedCalls() -> [MediaCall] {
         calls
     }
+
+    func uploadedData() -> Data? { lastUploadedData }
+    func committedMetadata() -> MediaUploadMetadata? { lastCommittedMetadata }
+    func requestedMetadata() -> MediaUploadMetadata? { lastRequestedMetadata }
 
     func requestUserAvatarUpload(metadata: MediaUploadMetadata, token: String) async throws -> DirectUploadDescriptor {
         DirectUploadDescriptor(key: "avatars/u1.png", signature: nil)
@@ -551,6 +843,7 @@ private actor MockMediaAPIService: MediaAPIService {
         metadata: MediaUploadMetadata,
         token: String
     ) async throws -> DirectUploadDescriptor {
+        lastRequestedMetadata = metadata
         calls.append(.request(roomID: roomID, partType: partType, fileName: metadata.fileName))
         return DirectUploadDescriptor(
             key: "messages/r1/images_20260704/abc.png",
@@ -569,7 +862,8 @@ private actor MockMediaAPIService: MediaAPIService {
         metadata: MediaUploadMetadata,
         token: String
     ) async throws {
-        calls.append(.commit(roomID: roomID, key: key))
+        lastCommittedMetadata = metadata
+        calls.append(.commit(roomID: roomID, key: key, byteCount: metadata.fileSize))
     }
 
     func messageAttachmentDownloadURL(
@@ -582,10 +876,11 @@ private actor MockMediaAPIService: MediaAPIService {
     }
 
     func upload(data: Data, using signature: DirectUploadSignature, defaultContentType: String?) async throws {
+        lastUploadedData = data
         calls.append(.upload(contentType: defaultContentType, byteCount: data.count))
     }
 
     func download(from url: URL) async throws -> Data {
-        Data()
+        downloadData
     }
 }

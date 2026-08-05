@@ -15,15 +15,48 @@ public struct E2eeIncomingMessage: Sendable {
     }
 }
 
+public struct E2eeAttachmentPart: Equatable, Sendable {
+    public let partKey: String
+    public let objectKey: String
+    public let name: String
+    public let mimeType: String
+    public let size: Int64
+    public let partPosition: UInt32
+    public let nonce: Data
+    public let dek: Data
+
+    public init(
+        partKey: String,
+        objectKey: String,
+        name: String,
+        mimeType: String,
+        size: Int64,
+        partPosition: UInt32,
+        nonce: Data,
+        dek: Data
+    ) {
+        self.partKey = partKey
+        self.objectKey = objectKey
+        self.name = name
+        self.mimeType = mimeType
+        self.size = size
+        self.partPosition = partPosition
+        self.nonce = nonce
+        self.dek = dek
+    }
+}
+
 public struct E2eeDecryptedMessage: Equatable, Sendable {
     public let messageID: String; public let roomID: String; public let text: String; public let epoch: UInt64; public let encrypted: Bool
+    public let attachmentParts: [E2eeAttachmentPart]
 
-    public init(messageID: String, roomID: String, text: String, epoch: UInt64, encrypted: Bool) {
+    public init(messageID: String, roomID: String, text: String, epoch: UInt64, encrypted: Bool, attachmentParts: [E2eeAttachmentPart] = []) {
         self.messageID = messageID
         self.roomID = roomID
         self.text = text
         self.epoch = epoch
         self.encrypted = encrypted
+        self.attachmentParts = attachmentParts
     }
 }
 
@@ -44,15 +77,32 @@ private struct DirectMessageMetadata: Codable, Sendable {
     var trustedIdentityFingerprints: [String: String] = [:]
     var processedMessageIDs: [String: [String]] = [:]
     var pendingApplication: PendingApplication?
+    var attachmentPartsByMessageID: [String: [StoredAttachmentPart]]?
+    var attachmentMessageIDs: [String]?
 }
 
 private struct PendingApplication: Codable, Sendable {
     let roomID: String; let senderDeviceID: String; let epoch: UInt64
     let ciphertext: String; let nextState: String; let idempotencyKey: String; let controlMessageID: String
+    let attachmentParts: [StoredAttachmentPart]?
 }
 
-private struct TextPayload: Codable, Sendable {
-    let version: Int; let type: String; let text: String
+private struct StoredAttachmentPart: Codable, Sendable {
+    let partKey: String
+    let objectKey: String
+    let name: String
+    let mimeType: String
+    let size: Int64
+    let partPosition: UInt32
+    let nonce: String
+    let dek: String
+}
+
+private struct ApplicationPayload: Codable, Sendable {
+    let version: Int
+    let type: String
+    let text: String?
+    let parts: [StoredAttachmentPart]?
 }
 
 public actor E2eeDirectMessageCoordinator {
@@ -69,9 +119,67 @@ public actor E2eeDirectMessageCoordinator {
     public func sendText(accountID: String, deviceLabel: String, roomID: String, peerUserID: String, text: String, token: String) async throws -> String {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw E2eeDirectMessageError("加密消息内容不能为空") }
+        return try await prepareAndSend(
+            accountID: accountID,
+            deviceLabel: deviceLabel,
+            roomID: roomID,
+            peerUserID: peerUserID,
+            payload: ApplicationPayload(version: 1, type: "text", text: text, parts: nil),
+            attachmentParts: [],
+            token: token
+        )
+    }
+
+    public func sendAttachment(
+        accountID: String,
+        deviceLabel: String,
+        roomID: String,
+        peerUserID: String?,
+        parts: [E2eeAttachmentPart],
+        text: String?,
+        token: String
+    ) async throws -> String {
+        guard !parts.isEmpty else { throw E2eeDirectMessageError("E2EE 附件列表不能为空") }
+        try parts.forEach(requireValidAttachmentPart)
+        let stored = parts.map(StoredAttachmentPart.init)
+        let text = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try await prepareAndSend(
+            accountID: accountID,
+            deviceLabel: deviceLabel,
+            roomID: roomID,
+            peerUserID: peerUserID,
+            payload: ApplicationPayload(
+                version: 1,
+                type: "attachment",
+                text: text?.isEmpty == false ? text : nil,
+                parts: stored
+            ),
+            attachmentParts: stored,
+            token: token
+        )
+    }
+
+    private func prepareAndSend(
+        accountID: String,
+        deviceLabel: String,
+        roomID: String,
+        peerUserID: String?,
+        payload: ApplicationPayload,
+        attachmentParts: [StoredAttachmentPart],
+        token: String
+    ) async throws -> String {
         let profile = try await lifecycle.ensureReady(accountID: accountID, deviceLabel: deviceLabel, token: token)
         try requireActive(profile)
-        try await verifyIdentity(accountID: accountID, peerUserID: peerUserID, token: token)
+        let peerUserIDs = if let peerUserID {
+            [peerUserID]
+        } else {
+            try await api.listRoomMemberDevices(roomID: roomID, token: token)
+                .map(\.userID)
+                .filter { $0 != accountID }
+        }
+        for peerUserID in Set(peerUserIDs) {
+            try await verifyIdentity(accountID: accountID, peerUserID: peerUserID, token: token)
+        }
         try await syncControls(accountID: accountID, roomID: roomID, profile: profile, token: token)
         try await reconcileGroup(accountID: accountID, roomID: roomID, profile: profile, token: token)
         guard var state = try await storage.readState(accountID: accountID) else { throw E2eeDirectMessageError("E2EE 协议状态缺失") }
@@ -82,7 +190,7 @@ public actor E2eeDirectMessageCoordinator {
         }
         guard epoch.status == "active" else { throw E2eeDirectMessageError("房间 E2EE 状态尚未就绪") }
         guard let latestProfile = try await storage.readProfile(accountID: accountID), let commitID = latestProfile.lastCommitMessageIds[roomID] else { throw E2eeDirectMessageError("房间缺少当前 E2EE Commit 索引") }
-        let plaintext = try JSONEncoder().encode(TextPayload(version: 1, type: "text", text: text))
+        let plaintext = try JSONEncoder().encode(payload)
         let encrypted = try core.encrypt(state: state, roomID: roomID, plaintext: plaintext)
         let encryptedEpoch = try encrypted.epoch(2)
         guard encryptedEpoch == epoch.activeEpoch else { throw E2eeDirectMessageError("本地 E2EE epoch 已过期") }
@@ -91,7 +199,8 @@ public actor E2eeDirectMessageCoordinator {
         metadata.pendingApplication = PendingApplication(
             roomID: roomID, senderDeviceID: profile.deviceId, epoch: encryptedEpoch,
             ciphertext: try encrypted.field(1).base64EncodedString(), nextState: try encrypted.field(0).base64EncodedString(),
-            idempotencyKey: newID(), controlMessageID: commitID
+            idempotencyKey: newID(), controlMessageID: commitID,
+            attachmentParts: attachmentParts.isEmpty ? nil : attachmentParts
         )
         try await writeMetadata(accountID, metadata)
         return try await resumePending(accountID: accountID, token: token)
@@ -123,11 +232,36 @@ public actor E2eeDirectMessageCoordinator {
         let decrypted: E2eeCommandResult
         do { decrypted = try core.decrypt(state: state, roomID: input.roomID, ciphertext: ciphertext) }
         catch { throw E2eeDirectMessageError("E2EE 消息解密失败") }
-        guard let payload = try? JSONDecoder().decode(TextPayload.self, from: decrypted.field(1)), payload.version == 1, payload.type == "text", !payload.text.isEmpty else { throw E2eeDirectMessageError("E2EE 消息负载格式无效") }
+        guard let payload = try? JSONDecoder().decode(ApplicationPayload.self, from: decrypted.field(1)),
+              payload.version == 1,
+              ["text", "attachment"].contains(payload.type) else {
+            throw E2eeDirectMessageError("E2EE 消息负载格式无效")
+        }
+        let attachmentParts: [E2eeAttachmentPart]
+        if payload.type == "attachment" {
+            guard let storedParts = payload.parts, !storedParts.isEmpty else {
+                throw E2eeDirectMessageError("E2EE 附件负载为空")
+            }
+            attachmentParts = try storedParts.map(E2eeAttachmentPart.init)
+            try attachmentParts.forEach(requireValidAttachmentPart)
+            metadata = rememberAttachmentParts(storedParts, messageID: input.messageID, metadata: metadata)
+        } else {
+            guard let text = payload.text, !text.isEmpty, payload.parts?.isEmpty != false else {
+                throw E2eeDirectMessageError("E2EE 消息负载格式无效")
+            }
+            attachmentParts = []
+        }
         try await storage.writeState(accountID: accountID, state: decrypted.field(0))
         remember(input.messageID, roomID: input.roomID, metadata: &metadata)
         try await writeMetadata(accountID, metadata)
-        return E2eeDecryptedMessage(messageID: input.messageID, roomID: input.roomID, text: payload.text, epoch: try decrypted.epoch(2), encrypted: true)
+        return E2eeDecryptedMessage(
+            messageID: input.messageID,
+            roomID: input.roomID,
+            text: payload.text ?? "[加密附件]",
+            epoch: try decrypted.epoch(2),
+            encrypted: true,
+            attachmentParts: attachmentParts
+        )
     }
 
     private func verifyIdentity(accountID: String, peerUserID: String, token: String) async throws {
@@ -148,8 +282,21 @@ public actor E2eeDirectMessageCoordinator {
         let id = try await api.sendEncryptedMessage(E2eeEncryptedMessageRequest(roomID: pending.roomID, senderDeviceID: pending.senderDeviceID, epoch: pending.epoch, ciphertext: ciphertext, idempotencyKey: pending.idempotencyKey, controlMessageID: pending.controlMessageID), token: token)
         try await storage.writeState(accountID: accountID, state: nextState)
         metadata.pendingApplication = nil
+        if let parts = pending.attachmentParts, !parts.isEmpty {
+            metadata = rememberAttachmentParts(parts, messageID: id, metadata: metadata)
+        }
         try await writeMetadata(accountID, metadata)
         return id
+    }
+
+    public func findAttachmentPart(accountID: String, messageID: String, objectKey: String) async throws -> E2eeAttachmentPart? {
+        guard let stored = try await readMetadata(accountID).attachmentPartsByMessageID?[messageID]?
+            .first(where: { $0.objectKey == objectKey }) else {
+            return nil
+        }
+        let part = try E2eeAttachmentPart(stored)
+        try requireValidAttachmentPart(part)
+        return part
     }
 
     private func bootstrap(accountID: String, roomID: String, profile: E2eeDeviceProfile, state initial: Data, revision: UInt64, token: String) async throws -> Data {
@@ -253,5 +400,68 @@ public actor E2eeDirectMessageCoordinator {
     }
     private func writeMetadata(_ accountID: String, _ metadata: DirectMessageMetadata) async throws { try await storage.writeMetadata(accountID: accountID, key: Self.metadataKey, data: JSONEncoder().encode(metadata)) }
     private func remember(_ messageID: String, roomID: String, metadata: inout DirectMessageMetadata) { metadata.processedMessageIDs[roomID] = Array(((metadata.processedMessageIDs[roomID] ?? []) + [messageID]).suffix(512)) }
+    private func rememberAttachmentParts(_ parts: [StoredAttachmentPart], messageID: String, metadata: DirectMessageMetadata) -> DirectMessageMetadata {
+        var metadata = metadata
+        var indexed = metadata.attachmentPartsByMessageID ?? [:]
+        var messageIDs = metadata.attachmentMessageIDs ?? indexed.keys.sorted()
+        indexed[messageID] = parts
+        messageIDs.removeAll { $0 == messageID }
+        messageIDs.append(messageID)
+        if messageIDs.count > 512 {
+            let removed = messageIDs.prefix(messageIDs.count - 512)
+            for removedMessageID in removed {
+                indexed.removeValue(forKey: removedMessageID)
+            }
+            messageIDs.removeFirst(messageIDs.count - 512)
+        }
+        metadata.attachmentPartsByMessageID = indexed
+        metadata.attachmentMessageIDs = messageIDs
+        return metadata
+    }
+    private func requireValidAttachmentPart(_ part: E2eeAttachmentPart) throws {
+        guard UUID(uuidString: part.partKey) != nil,
+              !part.objectKey.isEmpty,
+              !part.name.isEmpty,
+              !part.mimeType.isEmpty,
+              part.size >= 0,
+              part.nonce.count == 12,
+              part.dek.count == 32 else {
+            throw E2eeDirectMessageError("E2EE 附件密钥参数不完整")
+        }
+    }
     private static let metadataKey = "direct-message"
+}
+
+private extension StoredAttachmentPart {
+    init(_ part: E2eeAttachmentPart) {
+        self.init(
+            partKey: part.partKey,
+            objectKey: part.objectKey,
+            name: part.name,
+            mimeType: part.mimeType,
+            size: part.size,
+            partPosition: part.partPosition,
+            nonce: part.nonce.base64EncodedString(),
+            dek: part.dek.base64EncodedString()
+        )
+    }
+}
+
+private extension E2eeAttachmentPart {
+    init(_ stored: StoredAttachmentPart) throws {
+        guard let nonce = Data(base64Encoded: stored.nonce),
+              let dek = Data(base64Encoded: stored.dek) else {
+            throw E2eeDirectMessageError("E2EE 附件密钥材料已损坏")
+        }
+        self.init(
+            partKey: stored.partKey,
+            objectKey: stored.objectKey,
+            name: stored.name,
+            mimeType: stored.mimeType,
+            size: stored.size,
+            partPosition: stored.partPosition,
+            nonce: nonce,
+            dek: dek
+        )
+    }
 }

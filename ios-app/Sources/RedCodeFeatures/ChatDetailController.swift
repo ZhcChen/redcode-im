@@ -23,6 +23,7 @@ public final class ChatDetailController: ObservableObject {
     private let attachmentCache: AttachmentFileCache?
     private let incomingResolver: any IncomingChatMessageResolving
     private let outgoingTextRouter: any OutgoingTextMessageRouting
+    private let attachmentRouter: any AttachmentMessageRouting
     private var currentUserID = ""
     private var peerUserID: String?
 
@@ -32,7 +33,8 @@ public final class ChatDetailController: ObservableObject {
         mediaAPI: (any MediaAPIService)? = nil,
         attachmentCache: AttachmentFileCache? = nil,
         incomingResolver: (any IncomingChatMessageResolving)? = nil,
-        outgoingTextRouter: (any OutgoingTextMessageRouting)? = nil
+        outgoingTextRouter: (any OutgoingTextMessageRouting)? = nil,
+        attachmentRouter: (any AttachmentMessageRouting)? = nil
     ) {
         self.api = api
         self.mediaAPI = mediaAPI
@@ -40,6 +42,7 @@ public final class ChatDetailController: ObservableObject {
         self.attachmentCache = attachmentCache
         self.incomingResolver = incomingResolver ?? PlaintextIncomingMessageResolver()
         self.outgoingTextRouter = outgoingTextRouter ?? PlaintextOutgoingTextRouter()
+        self.attachmentRouter = attachmentRouter ?? PlaintextAttachmentMessageRouter()
     }
 
     public func enterRoom(
@@ -191,11 +194,33 @@ public final class ChatDetailController: ObservableObject {
         try persist()
 
         do {
-            let uploaded = try await upload(files: files, token: token, mediaAPI: mediaAPI)
+            let uploadBatch = try await upload(files: files, token: token, mediaAPI: mediaAPI)
+            let uploadedPending = pending.replacingParts(uploadBatch.uploaded.chatParts)
+            messages = messages.map { $0.id == localID ? uploadedPending : $0 }
+            try persist()
+            if let encryptedMessageID = try await attachmentRouter.send(
+                roomID: roomID,
+                peerUserID: peerUserID,
+                parts: uploadBatch.encryptedParts,
+                text: caption,
+                retry: false,
+                quotedMessageID: quote?.id,
+                accountID: self.currentUserID,
+                token: token
+            ) {
+                let sent = uploadedPending.replacingID(encryptedMessageID, status: .sent)
+                incomingResolver.rememberResolved(sent, accountID: self.currentUserID)
+                messages = ChatDetailController.mergeMessages(current: messages, incoming: [sent])
+                try persist()
+                return sent
+            }
+            guard uploadBatch.encryptedParts.isEmpty else {
+                throw E2eeOutgoingMessageError("E2EE 附件上传期间 runtime 已变化")
+            }
             let sent = try await api.sendRichMessage(
                 roomID: roomID,
                 content: caption,
-                parts: uploaded.outgoingParts(caption: nil),
+                parts: uploadBatch.uploaded.outgoingParts(caption: nil),
                 quotedMessageID: quote?.id,
                 token: token
             )
@@ -219,6 +244,22 @@ public final class ChatDetailController: ObservableObject {
             return nil
         }
         if !failed.attachments.isEmpty {
+            if let encryptedMessageID = try await attachmentRouter.send(
+                roomID: roomID,
+                peerUserID: peerUserID,
+                parts: [],
+                text: failed.content.nilIfEmpty,
+                retry: true,
+                quotedMessageID: failed.quotedMessage?.id,
+                accountID: currentUserID,
+                token: token
+            ) {
+                let sent = failed.replacingID(encryptedMessageID, status: .sent)
+                incomingResolver.rememberResolved(sent, accountID: currentUserID)
+                messages = ChatDetailController.mergeMessages(current: messages, incoming: [sent])
+                try persist()
+                return sent
+            }
             let sent = try await api.sendRichMessage(
                 roomID: roomID,
                 content: failed.content.nilIfEmpty,
@@ -388,6 +429,53 @@ public final class ChatDetailController: ObservableObject {
         try applyReactionSummaries(messageID: messageID, reactions: summaries)
     }
 
+    public func resolveAttachmentFile(
+        messageID: String,
+        attachment: ChatMessageAttachment,
+        token: String
+    ) async throws -> URL? {
+        guard let mediaAPI, let attachmentCache else { return nil }
+        let isEncrypted = try await attachmentRouter.downloadIsEncrypted(
+            messageID: messageID,
+            objectKey: attachment.key,
+            accountID: currentUserID
+        )
+        if let cached = try await attachmentCache.resolve(objectKey: attachment.key) {
+            return cached.fileURL
+        }
+        guard let downloadURL = try await mediaAPI.messageAttachmentDownloadURL(
+            roomID: roomID,
+            key: attachment.key,
+            token: token,
+            expiresInSeconds: 600
+        ) else {
+            return nil
+        }
+        let downloaded = try await mediaAPI.download(from: downloadURL)
+        let data: Data
+        if isEncrypted {
+            guard let decrypted = try await attachmentRouter.decryptDownload(
+                roomID: roomID,
+                messageID: messageID,
+                objectKey: attachment.key,
+                ciphertext: downloaded,
+                accountID: currentUserID
+            ) else {
+                throw E2eeDirectMessageError("E2EE 附件解密结果缺失")
+            }
+            data = decrypted
+        } else {
+            data = downloaded
+        }
+        let cached = try await attachmentCache.save(
+            objectKey: attachment.key,
+            data: data,
+            suggestedExtension: URL(fileURLWithPath: attachment.key).pathExtension,
+            mimeType: attachment.mimeType
+        )
+        return cached.fileURL
+    }
+
     private func flushPendingMessage(
         localID: String,
         content: String,
@@ -448,24 +536,61 @@ public final class ChatDetailController: ObservableObject {
         files: [PreparedUploadFile],
         token: String,
         mediaAPI: any MediaAPIService
-    ) async throws -> [UploadedMediaFile] {
+    ) async throws -> AttachmentUploadBatch {
         var uploaded: [UploadedMediaFile] = []
-        for file in files {
+        var encryptedParts: [E2eeAttachmentPart] = []
+        let initialEncryptionRequired = try attachmentRouter.encryptionRequired(accountID: currentUserID)
+        for (index, file) in files.enumerated() {
             let metadata = file.uploadMetadata
+            let signingMetadata = initialEncryptionRequired
+                ? MediaUploadMetadata(
+                    fileName: file.fileName,
+                    contentType: file.contentType,
+                    fileSize: file.size,
+                    hashValue: nil,
+                    hashAlgorithm: nil
+                )
+                : metadata
             let descriptor = try await mediaAPI.requestMessageAttachmentUpload(
                 roomID: roomID,
                 partType: file.mediaPartType,
-                metadata: metadata,
+                metadata: signingMetadata,
                 token: token
             )
-            if let signature = descriptor.signature {
-                let data = try Data(contentsOf: file.localURL)
-                try await mediaAPI.upload(data: data, using: signature, defaultContentType: file.contentType)
+            guard try attachmentRouter.encryptionRequired(accountID: currentUserID) == initialEncryptionRequired else {
+                throw E2eeOutgoingMessageError("E2EE 附件上传期间 runtime 已变化")
             }
+            let plaintext = try Data(contentsOf: file.localURL)
+            let prepared = try attachmentRouter.prepareUpload(
+                roomID: roomID,
+                objectKey: descriptor.key,
+                name: file.fileName,
+                mimeType: file.contentType,
+                size: file.size,
+                partPosition: UInt32(index),
+                plaintext: plaintext,
+                accountID: currentUserID
+            )
+            let uploadData = prepared?.ciphertext ?? plaintext
+            if prepared != nil, descriptor.signature == nil {
+                throw E2eeDirectMessageError("E2EE 附件上传签名缺失")
+            }
+            if let signature = descriptor.signature {
+                try await mediaAPI.upload(data: uploadData, using: signature, defaultContentType: file.contentType)
+            }
+            let commitMetadata = prepared == nil
+                ? metadata
+                : MediaUploadMetadata(
+                    fileName: file.fileName,
+                    contentType: file.contentType,
+                    fileSize: Int64(uploadData.count),
+                    hashValue: MediaUploadPreparer.sha256Hex(data: uploadData),
+                    hashAlgorithm: MediaUploadPreparer.sha256HashAlgorithm
+                )
             try await mediaAPI.commitMessageAttachmentUpload(
                 roomID: roomID,
                 key: descriptor.key,
-                metadata: metadata,
+                metadata: commitMetadata,
                 token: token
             )
             if let attachmentCache {
@@ -477,8 +602,11 @@ public final class ChatDetailController: ObservableObject {
                 )
             }
             uploaded.append(UploadedMediaFile(file: file, objectKey: descriptor.key))
+            if let prepared {
+                encryptedParts.append(prepared.part)
+            }
         }
-        return uploaded
+        return AttachmentUploadBatch(uploaded: uploaded, encryptedParts: encryptedParts)
     }
 
     private func syncReadState(token: String, currentUserID: String?) async throws {
@@ -536,6 +664,27 @@ extension ChatMessage {
             quotedMessage: quotedMessage,
             parts: parts,
             attachments: attachments,
+            reactions: reactions
+        )
+    }
+
+    func replacingParts(_ parts: [ChatMessagePart]) -> ChatMessage {
+        ChatMessage(
+            id: id,
+            roomID: roomID,
+            senderID: senderID,
+            senderName: senderName,
+            content: content,
+            messageType: messageType,
+            status: status,
+            timestamp: timestamp,
+            isDeleted: isDeleted,
+            isPinned: isPinned,
+            pinnedAt: pinnedAt,
+            pinnedBy: pinnedBy,
+            quotedMessage: quotedMessage,
+            parts: parts,
+            attachments: parts.compactMap(\.attachment),
             reactions: reactions
         )
     }
@@ -801,6 +950,11 @@ private struct UploadedMediaFile: Sendable {
     let objectKey: String
 }
 
+private struct AttachmentUploadBatch: Sendable {
+    let uploaded: [UploadedMediaFile]
+    let encryptedParts: [E2eeAttachmentPart]
+}
+
 private extension PreparedUploadFile {
     var uploadMetadata: MediaUploadMetadata {
         MediaUploadMetadata(
@@ -840,6 +994,24 @@ private extension PreparedUploadFile {
 }
 
 private extension Array where Element == UploadedMediaFile {
+    var chatParts: [ChatMessagePart] {
+        enumerated().map { index, item in
+            ChatMessagePart(
+                position: index,
+                partType: item.file.chatMessageType,
+                attachment: ChatMessageAttachment(
+                    key: item.objectKey,
+                    name: item.file.fileName,
+                    mimeType: item.file.contentType,
+                    size: item.file.size,
+                    width: item.file.width,
+                    height: item.file.height,
+                    durationMilliseconds: item.file.durationMilliseconds
+                )
+            )
+        }
+    }
+
     func outgoingParts(caption: String?) -> [OutgoingMessagePart] {
         var parts: [OutgoingMessagePart] = []
         if let caption = caption?.nilIfEmpty {

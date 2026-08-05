@@ -507,6 +507,14 @@ struct ChatDetailView: View {
                                 token: authController.session?.token,
                                 mediaAPI: mediaAPI,
                                 attachmentCache: attachmentCache,
+                                resolveAttachment: { attachment in
+                                    guard let token = authController.session?.token else { return nil }
+                                    return try await controller.resolveAttachmentFile(
+                                        messageID: message.id,
+                                        attachment: attachment,
+                                        token: token
+                                    )
+                                },
                                 onReactionTap: { reactionKey in
                                     toggleReaction(message, reactionKey: reactionKey)
                                 }
@@ -959,6 +967,7 @@ private struct MessageBubble: View {
     let token: String?
     let mediaAPI: (any MediaAPIService)?
     let attachmentCache: AttachmentFileCache?
+    let resolveAttachment: ((ChatMessageAttachment) async throws -> URL?)?
     let onReactionTap: ((String) -> Void)?
 
     var body: some View {
@@ -1000,6 +1009,7 @@ private struct MessageBubble: View {
                                     token: token,
                                     mediaAPI: mediaAPI,
                                     attachmentCache: attachmentCache,
+                                    resolveAttachment: resolveAttachment,
                                     isSelf: isSelf
                                 )
                             }
@@ -1316,6 +1326,7 @@ private struct AttachmentContentView: View {
     let token: String?
     let mediaAPI: (any MediaAPIService)?
     let attachmentCache: AttachmentFileCache?
+    let resolveAttachment: ((ChatMessageAttachment) async throws -> URL?)?
     let isSelf: Bool
 
     @State private var cachedFileURL: URL?
@@ -1408,6 +1419,13 @@ private struct AttachmentContentView: View {
         errorMessage = nil
         defer { isLoading = false }
         do {
+            if let resolveAttachment {
+                if let resolved = try await resolveAttachment(attachment) {
+                    cachedFileURL = resolved
+                    playIfNeeded(url: resolved, playAudioWhenReady: playAudioWhenReady)
+                }
+                return
+            }
             if let cached = try await attachmentCache.resolve(objectKey: attachment.key) {
                 cachedFileURL = cached.fileURL
                 playIfNeeded(url: cached.fileURL, playAudioWhenReady: playAudioWhenReady)

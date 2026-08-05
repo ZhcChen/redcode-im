@@ -43,8 +43,8 @@ final class E2eeIncomingMessageResolverTests: XCTestCase {
         )
 
         XCTAssertEqual(resolved.content, "secret")
-        XCTAssertNil(resolved.encryptedContent)
-        XCTAssertNil(resolved.encryptionMetadata)
+        XCTAssertEqual(resolved.encryptedContent, "Y2lwaGVydGV4dA==")
+        XCTAssertEqual(resolved.encryptionMetadata?.protocolName, "mls")
         let calls = await decryptor.callCount()
         XCTAssertEqual(calls, 1)
     }
@@ -90,6 +90,42 @@ final class E2eeIncomingMessageResolverTests: XCTestCase {
         XCTAssertEqual(resolved.content, "recovered")
         let calls = await decryptor.callCount()
         XCTAssertEqual(calls, 1)
+    }
+
+    func testAttachmentPayloadMapsDisplayPartsWithoutKeyMaterial() async throws {
+        let part = E2eeAttachmentPart(
+            partKey: "11111111-1111-1111-1111-111111111111",
+            objectKey: "messages/r1/image.enc",
+            name: "image.png",
+            mimeType: "image/png",
+            size: 128,
+            partPosition: 0,
+            nonce: Data(repeating: 2, count: 12),
+            dek: Data(repeating: 3, count: 32)
+        )
+        let decryptor = IncomingDecryptorStub(
+            result: E2eeDecryptedMessage(
+                messageID: "m1",
+                roomID: "r1",
+                text: "[加密附件]",
+                epoch: 7,
+                encrypted: true,
+                attachmentParts: [part]
+            )
+        )
+        let resolver = makeResolver(decryptor: decryptor)
+
+        let resolved = try await resolver.resolve(
+            makeEncryptedMessage(),
+            source: .history,
+            accountID: "u1",
+            token: "token"
+        )
+
+        XCTAssertEqual(resolved.parts.count, 1)
+        XCTAssertEqual(resolved.parts.first?.partType, .image)
+        XCTAssertEqual(resolved.parts.first?.attachment?.key, part.objectKey)
+        XCTAssertEqual(resolved.parts.first?.attachment?.size, part.size)
     }
 
     func testIncompleteEnvelopeAndInvalidMetadataFailClosed() async {
