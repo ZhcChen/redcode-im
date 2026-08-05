@@ -17,21 +17,27 @@ enum E2eeCommandOperation: UInt8 {
     case listMembers = 12
 }
 
-struct E2eeCommandError: Error, Equatable {
-    let message: String
+public struct E2eeCommandError: Error, Equatable {
+    public let message: String
+
+    public init(message: String) {
+        self.message = message
+    }
 }
 
-struct E2eeCommandResult {
-    let fields: [Data]
+public struct E2eeCommandResult {
+    public let fields: [Data]
 
-    func field(_ index: Int) throws -> Data {
+    public var fieldCount: Int { fields.count }
+
+    public func field(_ index: Int) throws -> Data {
         guard fields.indices.contains(index) else {
             throw E2eeCommandError(message: "E2EE 核心响应字段缺失")
         }
         return fields[index]
     }
 
-    func epoch(_ index: Int) throws -> UInt64 {
+    public func epoch(_ index: Int) throws -> UInt64 {
         let bytes = try field(index)
         guard bytes.count == 8 else {
             throw E2eeCommandError(message: "E2EE 核心 epoch 格式无效")
@@ -80,12 +86,24 @@ public struct E2eeCommandClient {
         return try Self.decodeResponse(response)
     }
 
-    func initialize(deviceIdentity: String) throws -> E2eeCommandResult {
-        try execute(operation: .initialize, fields: [Data(deviceIdentity.utf8)])
+    func initialize(deviceIdentity: String, rootPublicKey: Data? = nil) throws -> E2eeCommandResult {
+        var fields = [Data(deviceIdentity.utf8)]
+        if let rootPublicKey {
+            fields.append(rootPublicKey)
+        }
+        return try execute(operation: .initialize, fields: fields)
     }
 
     func createGroup(state: Data, roomID: String) throws -> E2eeCommandResult {
         try execute(operation: .createGroup, fields: [state, Data(roomID.utf8)])
+    }
+
+    func generateKeyPackage(state: Data) throws -> E2eeCommandResult {
+        try execute(operation: .generateKeyPackage, fields: [state])
+    }
+
+    func publicMaterial(state: Data) throws -> E2eeCommandResult {
+        try execute(operation: .publicMaterial, fields: [state])
     }
 
     func encrypt(state: Data, roomID: String, plaintext: Data) throws -> E2eeCommandResult {

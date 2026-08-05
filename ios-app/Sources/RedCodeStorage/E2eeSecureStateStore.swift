@@ -28,10 +28,42 @@ public struct E2eeEncryptedStateRecord: Codable, Equatable, Sendable, FetchableR
     }
 }
 
+/// 附加密文记录（设备档案等），(accountID, blobKey) 复合主键。
+public struct E2eeEncryptedBlobRecord: Codable, Equatable, Sendable, FetchableRecord, PersistableRecord {
+    public static let databaseTableName = "redCodeE2eeBlobRecord"
+
+    public var accountID: String
+    public var blobKey: String
+    public var version: Int
+    public var nonce: Data
+    public var ciphertext: Data
+
+    public init(accountID: String, blobKey: String, version: Int, nonce: Data, ciphertext: Data) {
+        self.accountID = accountID
+        self.blobKey = blobKey
+        self.version = version
+        self.nonce = nonce
+        self.ciphertext = ciphertext
+    }
+}
+
+/// 与 H5 secure-state-storage 一致的 AAD 前缀构造。
+public enum E2eeSecureStateAAD {
+    public static func state(_ accountID: String) -> Data {
+        Data("redcode-im/e2ee-state/v1\u{0}".utf8) +
+            Data(accountID.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+    }
+
+    public static func profile(_ accountID: String) -> Data {
+        Data("redcode-im/e2ee-device-profile/v1\u{0}".utf8) +
+            Data(accountID.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+    }
+}
+
 /// 按账号提供包装密钥的加解密原语。
 public protocol E2eeStateCipher: Sendable {
-    func encrypt(accountID: String, plaintext: Data) async throws -> E2eeEncryptedStateRecord
-    func decrypt(accountID: String, record: E2eeEncryptedStateRecord) async throws -> Data
+    func encrypt(accountID: String, plaintext: Data, aad: Data) async throws -> E2eeEncryptedStateRecord
+    func decrypt(accountID: String, record: E2eeEncryptedStateRecord, aad: Data) async throws -> Data
     func deleteKey(accountID: String) async throws
 }
 
@@ -40,6 +72,9 @@ public protocol E2eeStateBlobStore: Sendable {
     func save(_ record: E2eeEncryptedStateRecord) async throws
     func load(accountID: String) async throws -> E2eeEncryptedStateRecord?
     func delete(accountID: String) async throws
+    func saveBlob(accountID: String, key: String, record: E2eeEncryptedStateRecord) async throws
+    func loadBlob(accountID: String, key: String) async throws -> E2eeEncryptedStateRecord?
+    func deleteBlob(accountID: String, key: String) async throws
 }
 
 /// Keychain 保存 256 位对称包装密钥，CryptoKit AES-GCM 加密 RCST 状态。
@@ -52,14 +87,14 @@ public actor CryptoKitE2eeStateCipher: E2eeStateCipher {
         self.keyStore = keyStore
     }
 
-    public func encrypt(accountID: String, plaintext: Data) async throws -> E2eeEncryptedStateRecord {
+    public func encrypt(accountID: String, plaintext: Data, aad: Data) async throws -> E2eeEncryptedStateRecord {
         let key = try await key(for: accountID)
         let nonce = try randomNonce()
         let sealed = try AES.GCM.seal(
             plaintext,
             using: key,
             nonce: nonce,
-            authenticating: Self.associatedData(accountID)
+            authenticating: aad
         )
         guard let combined = sealed.combined else {
             throw E2eeSecureStateError.unavailable("AES-GCM 密文组合失败")
@@ -72,7 +107,7 @@ public actor CryptoKitE2eeStateCipher: E2eeStateCipher {
         )
     }
 
-    public func decrypt(accountID: String, record: E2eeEncryptedStateRecord) async throws -> Data {
+    public func decrypt(accountID: String, record: E2eeEncryptedStateRecord, aad: Data) async throws -> Data {
         guard record.version == Self.stateVersion else {
             throw E2eeSecureStateError.corrupted("E2EE 状态版本不匹配")
         }
@@ -85,7 +120,7 @@ public actor CryptoKitE2eeStateCipher: E2eeStateCipher {
         let key = SymmetricKey(data: keyData)
         do {
             let sealed = try AES.GCM.SealedBox(combined: record.ciphertext)
-            return try AES.GCM.open(sealed, using: key, authenticating: Self.associatedData(accountID))
+            return try AES.GCM.open(sealed, using: key, authenticating: aad)
         } catch {
             throw E2eeSecureStateError.corrupted("E2EE 状态密文校验失败")
         }
@@ -123,11 +158,6 @@ public actor CryptoKitE2eeStateCipher: E2eeStateCipher {
         return try AES.GCM.Nonce(data: nonceBytes)
     }
 
-    private static func associatedData(_ accountID: String) -> Data {
-        Data("redcode-im/e2ee-state/v1\u{0}".utf8) +
-            Data(accountID.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
-    }
-
     private static let stateVersion = 1
 }
 
@@ -157,11 +187,51 @@ public final class GRDBE2eeStateBlobStore: E2eeStateBlobStore {
             _ = try E2eeEncryptedStateRecord.deleteOne(db, key: accountID)
         }
     }
+
+    public func saveBlob(accountID: String, key: String, record: E2eeEncryptedStateRecord) async throws {
+        try await database.dbQueue.write { db in
+            let blob = E2eeEncryptedBlobRecord(
+                accountID: record.accountID,
+                blobKey: key,
+                version: record.version,
+                nonce: record.nonce,
+                ciphertext: record.ciphertext
+            )
+            try blob.upsert(db)
+        }
+    }
+
+    public func loadBlob(accountID: String, key: String) async throws -> E2eeEncryptedStateRecord? {
+        try await database.dbQueue.read { db in
+            guard let blob = try E2eeEncryptedBlobRecord.fetchOne(
+                db,
+                key: ["accountID": accountID, "blobKey": key]
+            ) else {
+                return nil
+            }
+            return E2eeEncryptedStateRecord(
+                accountID: blob.accountID,
+                version: blob.version,
+                nonce: blob.nonce,
+                ciphertext: blob.ciphertext
+            )
+        }
+    }
+
+    public func deleteBlob(accountID: String, key: String) async throws {
+        try await database.dbQueue.write { db in
+            _ = try E2eeEncryptedBlobRecord.deleteOne(
+                db,
+                key: ["accountID": accountID, "blobKey": key]
+            )
+        }
+    }
 }
 
 /// 测试用内存 blob 存储。
 public actor InMemoryE2eeStateBlobStore: E2eeStateBlobStore {
     private var records: [String: E2eeEncryptedStateRecord] = [:]
+    private var blobs: [String: [String: E2eeEncryptedStateRecord]] = [:]
 
     public init() {}
 
@@ -175,6 +245,18 @@ public actor InMemoryE2eeStateBlobStore: E2eeStateBlobStore {
 
     public func delete(accountID: String) async throws {
         records.removeValue(forKey: accountID)
+    }
+
+    public func saveBlob(accountID: String, key: String, record: E2eeEncryptedStateRecord) async throws {
+        blobs[accountID, default: [:]][key] = record
+    }
+
+    public func loadBlob(accountID: String, key: String) async throws -> E2eeEncryptedStateRecord? {
+        blobs[accountID]?[key]
+    }
+
+    public func deleteBlob(accountID: String, key: String) async throws {
+        blobs[accountID]?.removeValue(forKey: key)
     }
 }
 
@@ -204,7 +286,11 @@ public actor E2eeSecureStateStore {
         guard validateProtocolState(state) else {
             throw E2eeSecureStateError.corrupted("拒绝保存无效的 E2EE 协议状态")
         }
-        let record = try await cipher.encrypt(accountID: accountID, plaintext: state)
+        let record = try await cipher.encrypt(
+            accountID: accountID,
+            plaintext: state,
+            aad: E2eeSecureStateAAD.state(accountID)
+        )
         try await blobs.save(record)
     }
 
@@ -217,7 +303,11 @@ public actor E2eeSecureStateStore {
         }
         let state: Data
         do {
-            state = try await cipher.decrypt(accountID: accountID, record: record)
+            state = try await cipher.decrypt(
+                accountID: accountID,
+                record: record,
+                aad: E2eeSecureStateAAD.state(accountID)
+            )
         } catch let error as E2eeSecureStateError {
             throw error
         } catch {
@@ -232,5 +322,65 @@ public actor E2eeSecureStateStore {
     public func delete(accountID: String) async throws {
         try await cipher.deleteKey(accountID: accountID)
         try await blobs.delete(accountID: accountID)
+        try await blobs.deleteBlob(accountID: accountID, key: Self.profileBlobKey)
+    }
+
+    public func writeProfile(accountID: String, profile: E2eeDeviceProfile) async throws {
+        guard !accountID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw E2eeSecureStateError.corrupted("E2EE 账号标识不能为空")
+        }
+        guard profile.validate() else {
+            throw E2eeSecureStateError.corrupted("E2EE 设备档案格式无效")
+        }
+        let data = try JSONEncoder().encode(profile)
+        let record = try await cipher.encrypt(
+            accountID: accountID,
+            plaintext: data,
+            aad: E2eeSecureStateAAD.profile(accountID)
+        )
+        try await blobs.saveBlob(accountID: accountID, key: Self.profileBlobKey, record: record)
+    }
+
+    public func readProfile(accountID: String) async throws -> E2eeDeviceProfile? {
+        guard !accountID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw E2eeSecureStateError.corrupted("E2EE 账号标识不能为空")
+        }
+        guard let record = try await blobs.loadBlob(accountID: accountID, key: Self.profileBlobKey) else {
+            return nil
+        }
+        let data: Data
+        do {
+            data = try await cipher.decrypt(
+                accountID: accountID,
+                record: record,
+                aad: E2eeSecureStateAAD.profile(accountID)
+            )
+        } catch let error as E2eeSecureStateError {
+            throw error
+        } catch {
+            throw E2eeSecureStateError.corrupted("E2EE 设备档案解密失败")
+        }
+        guard let profile = try? JSONDecoder().decode(E2eeDeviceProfile.self, from: data),
+              profile.validate()
+        else {
+            throw E2eeSecureStateError.corrupted("E2EE 设备档案已损坏")
+        }
+        return profile
+    }
+
+    public func deleteProfile(accountID: String) async throws {
+        try await blobs.deleteBlob(accountID: accountID, key: Self.profileBlobKey)
+    }
+
+    private static let profileBlobKey = "device-profile"
+}
+
+extension E2eeSecureStateStore: E2eeDeviceStateStorage {
+    public func readState(accountID: String) async throws -> Data? {
+        try await read(accountID: accountID)
+    }
+
+    public func writeState(accountID: String, state: Data) async throws {
+        try await write(accountID: accountID, state: state)
     }
 }

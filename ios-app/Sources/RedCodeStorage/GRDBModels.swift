@@ -123,6 +123,16 @@ public final class RedCodeDatabase: @unchecked Sendable {
                 table.column("ciphertext", .blob).notNull()
             }
         }
+        migrator.registerMigration("v2-e2ee-blobs") { db in
+            try db.create(table: E2eeEncryptedBlobRecord.databaseTableName) { table in
+                table.column("accountID", .text).notNull()
+                table.column("blobKey", .text).notNull()
+                table.column("version", .integer).notNull()
+                table.column("nonce", .blob).notNull()
+                table.column("ciphertext", .blob).notNull()
+                table.primaryKey(["accountID", "blobKey"])
+            }
+        }
         return migrator
     }
 
