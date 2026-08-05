@@ -39,6 +39,7 @@ try {
   for (const path of [
     `${manifest.base_path}release-manifest.json`,
     `${manifest.base_path}security-headers.json`,
+    `${manifest.base_path}assets/missing.js`,
   ]) {
     const response = await fetch(new URL(path, server.url));
     if (response.status !== 404)

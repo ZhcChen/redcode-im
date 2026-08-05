@@ -1,0 +1,43 @@
+im-test-1.codelib.cc {
+    encode gzip zstd
+
+    # 如果你修改了 .env 里的 bucket 名，请同步更新这里的路径前缀。
+    @rustfs path /redcode-im-private /redcode-im-private/* /redcode-im-public /redcode-im-public/*
+    handle @rustfs {
+        reverse_proxy 172.29.240.12:9000
+    }
+
+    handle {
+        reverse_proxy 127.0.0.1:8010
+    }
+}
+
+im-test-admin-1.codelib.cc {
+    encode gzip zstd
+
+    route {
+        header /h5-candidate/* {
+            Cache-Control "no-store"
+            Content-Security-Policy "default-src 'none'; base-uri 'self'; connect-src 'self' https://im-test-1.codelib.cc wss://im-test-1.codelib.cc; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; worker-src 'self' blob:"
+            Cross-Origin-Opener-Policy "same-origin"
+            Cross-Origin-Resource-Policy "same-origin"
+            Permissions-Policy "camera=(self), display-capture=(self), geolocation=(), microphone=(self)"
+            Referrer-Policy "no-referrer"
+            Strict-Transport-Security "max-age=63072000; includeSubDomains"
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+        }
+        @candidatePrivate path /h5-candidate/release-manifest.json /h5-candidate/security-headers.json
+        respond @candidatePrivate 404
+        handle_path /h5-candidate/assets/* {
+            root * /srv/redcode-h5-candidate/assets
+            file_server
+        }
+        handle_path /h5-candidate/* {
+            root * /srv/redcode-h5-candidate
+            try_files {path} /index.html
+            file_server
+        }
+        reverse_proxy 172.29.240.13:80
+    }
+}

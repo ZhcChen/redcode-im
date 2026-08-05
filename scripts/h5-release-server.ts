@@ -66,6 +66,12 @@ async function serveRelease(options: ReleaseServerOptions) {
       if (privateArtifacts.has(requested)) {
         return new Response(null, { status: 404, headers: securityHeaders });
       }
+      if (
+        !allowed.has(requested) &&
+        (requested.startsWith("assets/") || /\.[A-Za-z0-9]+$/.test(requested))
+      ) {
+        return new Response(null, { status: 404, headers: securityHeaders });
+      }
       const asset = allowed.has(requested) ? requested : "index.html";
       if (!allowed.has(asset))
         return new Response(null, { status: 404, headers: securityHeaders });

@@ -272,6 +272,27 @@ await scenario(
   "built index does not bind",
 );
 await scenario(
+  "prefixed index differs from root manifest",
+  async (dist) => {
+    await writeFile(
+      resolve(dist, "index.html"),
+      "<!doctype html><script src='/h5-candidate/assets/app.js'></script>\n",
+    );
+    const finalized = run("finalize", dist);
+    if (
+      finalized.status === 0 ||
+      !finalized.stderr.includes("built index does not bind")
+    ) {
+      throw new Error(
+        `prefixed index with root manifest did not fail closed\n${finalized.stderr}`,
+      );
+    }
+    await refreshAttestation(dist);
+  },
+  "fail",
+  "built index does not bind",
+);
+await scenario(
   "resource and manifest synchronously tampered",
   async (dist) => {
     const assetPath = resolve(dist, "assets/app.js");
@@ -360,6 +381,11 @@ await finalizeFailure(
 await finalizeFailure(
   "invalid release base path",
   { H5_RELEASE_BASE_PATH: "h5-candidate" },
+  "release base path must be an absolute path ending in /",
+);
+await finalizeFailure(
+  "dot segment release base path",
+  { H5_RELEASE_BASE_PATH: "/h5-candidate/../" },
   "release base path must be an absolute path ending in /",
 );
 

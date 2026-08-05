@@ -88,7 +88,12 @@ function secureEndpoint(
 }
 
 function releaseBasePath(raw = "/"): string {
-  if (!/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(raw) || raw.includes("//")) {
+  const segments = raw.split("/").filter(Boolean);
+  if (
+    !/^\/(?:[A-Za-z0-9._~-]+\/)*$/.test(raw) ||
+    raw.includes("//") ||
+    segments.some((segment) => segment === "." || segment === "..")
+  ) {
     fail("release base path must be an absolute path ending in /");
   }
   return raw;
@@ -353,8 +358,16 @@ async function checkInternal(
   if (!executableText.includes(api.url) || !executableText.includes(ws.url)) {
     fail("built JavaScript does not bind the manifest API and WebSocket URLs");
   }
-  if (basePath !== "/" && !indexHtml.includes(`${basePath}assets/`)) {
-    fail("built index does not bind the manifest base path");
+  const entryReferences = [...indexHtml.matchAll(/(?:src|href)=["'](\/[^"'?#]+)["']/g)]
+    .map((match) => match[1]);
+  if (
+    entryReferences.length === 0 ||
+    entryReferences.some((reference) => {
+      if (!reference.startsWith(basePath)) return true;
+      return !actual.some((asset) => asset.path === reference.slice(basePath.length));
+    })
+  ) {
+    fail("built index does not bind the manifest base path and assets");
   }
   console.log(
     `[h5-release] verified ${actual.length} assets for ${manifest.source_commit}`,

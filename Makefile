@@ -751,6 +751,9 @@ h5-app.release.test: ## 执行 h5-app release 安全门禁正负测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) run release:test
 
+h5-app.release.candidate.audit: ## 在 im-test-1 临时候选窗口执行真实 Chrome 审计并自动清理
+	@"$(ROOT_DIR)/scripts/h5-release-candidate-window.sh"
+
 h5-app.check: ## 执行 h5-app 类型检查
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) run type-check
