@@ -39,6 +39,11 @@ final class IOSE2eeCrossClientLiveTests: XCTestCase {
             token: fixture.token
         )
         XCTAssertEqual(profile.deviceStatus, "active")
+        let replenished = try await lifecycle.topUpKeyPackages(
+            accountID: fixture.accountID,
+            token: fixture.token
+        )
+        XCTAssertGreaterThan(replenished, 0)
 
         let iosMessageID = try await coordinator.sendText(
             accountID: fixture.accountID,
@@ -92,6 +97,11 @@ final class IOSE2eeCrossClientLiveTests: XCTestCase {
             token: iosToken
         )
         XCTAssertEqual(profile.deviceStatus, "active")
+        let replenished = try await client.lifecycle.topUpKeyPackages(
+            accountID: iosAccountID,
+            token: iosToken
+        )
+        XCTAssertGreaterThan(replenished, 0)
         try await coordination.publish("ios-native-ready", payload: ["device_id": profile.deviceId])
 
         let androidMessageID = try await coordination.waitFor("android-to-ios-sent")["message_id"].required("message_id")

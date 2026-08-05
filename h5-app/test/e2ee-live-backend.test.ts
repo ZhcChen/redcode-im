@@ -120,10 +120,13 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     useSession(alice);
     await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 live Alice');
+    await e2eeDeviceLifecycle.topUpKeyPackages(alice.user.id);
     useSession(bob);
     await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 live Bob');
+    await e2eeDeviceLifecycle.topUpKeyPackages(bob.user.id);
     useSession(h5CrossBob);
     await e2eeDeviceLifecycle.ensureReady(h5CrossBob.user.id, 'H5 cross Bob');
+    await e2eeDeviceLifecycle.topUpKeyPackages(h5CrossBob.user.id);
     const aliceSocket = createSocket(H5WebSocketService);
     const bobSocket = new H5WebSocketService({
       autoReconnect: false,
@@ -370,6 +373,7 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     const chat = await friendService.ensurePrivateChat(h5Bob.user.id);
     useSession(h5Bob);
     await e2eeDeviceLifecycle.ensureReady(h5Bob.user.id, 'H5 iOS cross Bob');
+    await e2eeDeviceLifecycle.topUpKeyPackages(h5Bob.user.id);
 
     const socket = new H5WebSocketService({
       autoReconnect: false,
@@ -555,8 +559,10 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     useSession(alice);
     await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 live Alice');
+    await e2eeDeviceLifecycle.topUpKeyPackages(alice.user.id);
     useSession(carol);
     await e2eeDeviceLifecycle.ensureReady(carol.user.id, 'H5 live Carol');
+    await e2eeDeviceLifecycle.topUpKeyPackages(carol.user.id);
     useSession(dave);
     await e2eeDeviceLifecycle.ensureReady(dave.user.id, 'H5 live Dave');
 
@@ -658,10 +664,13 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
 
     useSession(alice);
     await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 group Alice');
+    await e2eeDeviceLifecycle.topUpKeyPackages(alice.user.id);
     useSession(bob);
     await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 group Bob');
+    await e2eeDeviceLifecycle.topUpKeyPackages(bob.user.id);
     useSession(carol);
     await e2eeDeviceLifecycle.ensureReady(carol.user.id, 'H5 group Carol');
+    await e2eeDeviceLifecycle.topUpKeyPackages(carol.user.id);
 
     useSession(alice);
     const group = await roomService.createGroup({
@@ -774,8 +783,10 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
     useSession(alice);
     const chat = await friendService.ensurePrivateChat(bob.user.id);
     await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 primary device');
+    await e2eeDeviceLifecycle.topUpKeyPackages(alice.user.id);
     useSession(bob);
     await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 device peer');
+    await e2eeDeviceLifecycle.topUpKeyPackages(bob.user.id);
 
     const bootstrapMarker = `u5-device-bootstrap-${crypto.randomUUID()}`;
     useSession(alice);

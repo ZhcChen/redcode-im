@@ -96,6 +96,7 @@ class AndroidE2eeCrossClientLiveTest {
 
         val profile = lifecycle.ensureReady(fixture.accountId, "Android E2EE live", fixture.token)
         assertEquals("active", profile.deviceStatus)
+        assertTrue(lifecycle.topUpKeyPackages(fixture.accountId, fixture.token) > 0)
 
         val androidMessageId =
             coordinator.sendText(
@@ -187,6 +188,7 @@ class AndroidE2eeCrossClientLiveTest {
         val client = LiveE2eeClient(fixture)
         val profile = client.lifecycle.ensureReady(fixture.accountId, "Android E2EE live", fixture.token)
         assertEquals("active", profile.deviceStatus)
+        assertTrue(client.lifecycle.topUpKeyPackages(fixture.accountId, fixture.token) > 0)
         coordination.waitFor("ios-native-ready")
 
         val androidMessageId =
