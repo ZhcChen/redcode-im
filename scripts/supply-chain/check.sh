@@ -9,7 +9,7 @@ REPORTS_DIR="$OUTPUT_DIR/reports"
 SBOM_DIR="$OUTPUT_DIR/sbom"
 INPUTS_DIR="$OUTPUT_DIR/inputs"
 
-for command in bun docker jq rg; do
+for command in bun docker jq grep; do
   command -v "$command" >/dev/null 2>&1 || { echo "missing required tool: $command" >&2; exit 1; }
 done
 
@@ -97,7 +97,7 @@ while IFS=$'\t' read -r module lockfile scanner scope; do
 done < <(jq -r '.modules[] | [.name, .lockfile, .scanner, (.scope // "all")] | @tsv' "$POLICY")
 
 for marker in REDCODE_SUPPLY_CHAIN_SECRET_MARKER PRIVATE_KEY_PLACEHOLDER PASSWORD_PLACEHOLDER; do
-  if rg -F "$marker" "$REPORTS_DIR" "$SBOM_DIR" >/dev/null 2>&1; then
+  if grep -R -F -q -- "$marker" "$REPORTS_DIR" "$SBOM_DIR"; then
     echo "sensitive marker leaked into supply-chain report" >&2
     exit 1
   fi

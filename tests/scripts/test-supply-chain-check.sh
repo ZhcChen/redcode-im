@@ -29,7 +29,7 @@ assert_status() {
     cat "$log_file" >&2
     exit 1
   fi
-  if [[ -n "$expected_pattern" ]] && ! rg -q "$expected_pattern" "$log_file"; then
+  if [[ -n "$expected_pattern" ]] && ! grep -E -q -- "$expected_pattern" "$log_file"; then
     echo "[supply-chain-test] $label 未命中预期错误：$expected_pattern" >&2
     cat "$log_file" >&2
     exit 1
