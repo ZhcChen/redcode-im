@@ -21,7 +21,7 @@ last_progress_update: 2026-08-05
 | 单元 | 状态 | 当前事实或完成证据 |
 | --- | --- | --- |
 | C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
-| C2 Android 消息主链 | 进行中 | 已完成发送、历史、WebSocket、DTO 与 coordinator 缺口分析；下一步实现 text 发送和统一入站解密，再接附件边界 |
+| C2 Android 消息主链 | 进行中 | text 主链已由 `565d6482` 提交并推送；附件主链已完成本地实现与 237 项 JVM 单测、`lintDebug` 验证，当前等待最终审查、独立提交和推送 |
 | C3 iOS 应用级装配 | 待开始 | 依赖 C2 固定跨平台行为契约 |
 | C4 iOS 消息主链 | 待开始 | 依赖 C3 |
 | C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
@@ -30,21 +30,38 @@ last_progress_update: 2026-08-05
 | C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
 
 当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
-当前从 **C2 Android 消息主链** 恢复，不重做原计划 N1-N6，也不重做 C1。
+当前从 **C2 Android 附件主链的提交前审查** 恢复，不重做原计划 N1-N6、C1
+或 C2 text 主链。
 
 ### C2 Resume Point
 
-- 先扩展 `BackendChatMessage` 的 `encrypted_content` 与
-  `encryption_metadata` 映射，契约对齐 API/H5，禁止新增服务端字段。
-- 建立 history/WS 共用的入站解密入口：校验 MLS metadata、Base64 解码、调用
-  coordinator、按服务端消息 ID 去重；损坏密文、未知配置和身份变化 fail closed。
-- E2EE text 发送只走 encrypted API；发送失败保留 pending/草稿，不得回退普通
-  明文接口。`persist/plaintext` 读取旧 E2EE 历史时允许懒加载解密能力，blocked
-  状态仍拒绝解密。
-- text 主链形成独立可验证提交后，再接附件上传前加密、下载后解密、缓存/搜索/
-  转发边界，避免把 C2 堆成不可审查的大提交。
-- Android 验收固定使用 JDK 21，先运行 repository/realtime/coordinator 定向测试，
-  再运行 `testDebugUnitTest lintDebug`；提交前执行两次 diff check，提交后立即 push。
+- **已推送：** `565d6482` 已完成 encrypted DTO、E2EE text 发送、history/WS
+  统一解密、消息 ID 去重、身份变化阻断、失败重试和明文降级防护。
+- **当前未提交：** Android 附件上传前 AES-GCM 加密、AAD 绑定、secure metadata
+  保存 DEK/nonce、下载后内存解密、受控临时缓存、附件入站映射、runtime 中途变化
+  阻断，以及引用和重试降级规则。不得丢弃当前工作区这些改动。
+- **当前验证基线：** JDK 21 下 `testDebugUnitTest lintDebug` 通过，共 237 项 JVM
+  测试；`git diff --check` 通过。提交前必须在当前 diff 上重新执行同一组验证。
+- **下一动作：** 审查 DEK/nonce 不进入 Room、普通 DTO 或日志；验证 runtime
+  变化、retry、key material 缺失/篡改、quote 和 plaintext 回归均 fail closed；只
+  stage 附件闭环文件，提交 `feat(android): 接入 E2EE 附件消息主链` 并立即 push。
+- **C2 完成信号：** 附件提交推送且工作区仅剩已解释改动；随后把 `current_unit`
+  改为 C3，进入 iOS 应用级装配。
+
+### Document Roles
+
+为避免 N/C 编号和验收文档互相覆盖，本专项只按以下职责读取文档：
+
+| 文档 | 当前职责 | 是否可作为执行入口 |
+| --- | --- | --- |
+| 本计划 | C1-C8 唯一执行顺序、当前进度、验收与恢复点 | 是 |
+| `docs/plans/2026-08-05-u10-e2ee-native-clients-plan.md` | N1-N7 历史专项范围与 D1-D7 原始定义，状态为 `superseded` | 否 |
+| `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` | U10 服务端契约和总范围；仅在发现契约缺口时回查 | 否 |
+| `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md` | 已执行验收事实与证据，不承载后续任务排序 | 否 |
+| `docs/reviews/2026-08-05-u10-e2ee-u7-security-review.md` | 安全裁决与 P0-1 重审目标 | 否 |
+
+状态只在代码完成、验证通过、提交并推送后从“进行中”改为“已完成”。本地实现或
+单测通过但尚未提交时仍标记“进行中”，并在 Resume Point 明确工作区边界。
 
 ## Goal Capsule
 
