@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E1
-current_checkpoint: E1.2
+current_unit: E2
+current_checkpoint: E2.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E1.2`，整改 E2 首轮独立复核发现的恢复边界证据缺口；整改、重放、提交并推送后重新进入 E2，旧复核结论不得复用为通过证据。
+- **唯一恢复点：** `E2.1`，基于已推送 E1.2 HEAD 使用四个全新独立上下文执行 correctness、security、reliability、testing 复核；旧复核结论不得复用为通过证据。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -75,6 +75,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | 进度文档同步 | complete | `1f2f7bb8` |
 | E1.1 首轮 restore 实现与重放 | implemented, review-reopened | `d420aa51`；run `e1full20260806h` |
 | E2 首轮四视角复核 | failed | P0=0；存在去重后 9 项 P1/P2 finding，已退回 E1.2 |
+| E1.2 finding 整改与重放 | complete | `cab9cbd6`；run `e1fix20260806b` |
 
 ### Execution Console
 
@@ -84,8 +85,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | Unit | Status | Exit / rollback condition |
 | --- | --- | --- |
 | E1.1 首轮 restore 数据边界 | review-reopened | 实现和 live run 已推送，但 E2 finding 未清零，不能视为 closed |
-| E1.2 复核 finding 整改 | in_progress | 9 项 finding 完成定向测试、真实窗口重放、review、commit、push |
-| E2 Restore 独立复核 | blocked_by_E1.2 | 使用 4 个全新独立上下文复核同一新 HEAD，P0=0、P1=0 |
+| E1.2 复核 finding 整改 | complete | `cab9cbd6`；本地门禁与 run `e1fix20260806b` 通过，已 push |
+| E2 Restore 独立复核 | in_progress | 使用 4 个全新独立上下文复核同一新 HEAD，P0=0、P1=0 |
 | E3 H5 production Chrome 审计 | pending | E2 通过后开始 |
 | E4 持久脱敏证据 | pending | E3 通过后开始 |
 | E5 真实 release workflow | pending | E4 通过后开始 |
@@ -133,16 +134,20 @@ reliability `P0=0/P1=2`、testing `P0=0/P1=3/P2=1`。去重后的整改合同为
 8. 顶层必须校验 boundary report 的 run id，Push 结果只允许合同枚举值。
 9. source isolation 不能只依赖瞬时连接快照；在 E1.2 评估并补充覆盖完整窗口的证据或明确可验证替代门禁。
 
-### E1.2 Work In Progress
+### E1.2 Closure Evidence
 
-当前未提交实现严格限定在以下文件，不视为完成证据：
+整改提交 `cab9cbd6` 已推送，完成：
 
 - `h5-app/test/e2ee-live-backend.test.ts`：evidence 改为逐消息 `message_proofs`，增加 `restore-continuity` scenario。
 - `scripts/e2ee-restore-live-window.sh`：提前启动 MONITOR，合并四个 scenario，增加 boundary run id 与 Push 枚举校验。
 - `deploy/im-test-1/e2ee-restore-snapshot.sql`：关键表改为完整行摘要。
 
-下一闭环必须继续修改 scanner 和对应测试，完成后再执行本地门禁与真实 restore
-窗口。禁止在 E1.2 未提交、未推送或未重放时提前启动第二轮 E2。
+本地 restore 六项门禁与 H5 type-check 通过。真实 run `e1fix20260806b` 的
+candidate/restore 完整行 digest 同为 `e9c04e4739ec8d9a961e998b6d2470ad`，full
+suite `6 passed | 1 skipped`，36 次 source isolation 采样均为零连接；DB、Redis、
+API log、RustFS 通过，Push 为 `not-observed-live`。退出后临时 container、volume、
+MONITOR、artifact、state、tunnel 和端口均清零，旧主保持 `persist/plaintext`、审批
+false。E1.2 已关闭，下一步只能执行第二轮 E2。
 
 ### Key Technical Decisions
 
@@ -283,17 +288,17 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E1 |
-| Active checkpoint | E1.2 首轮 E2 finding 整改 |
-| Worktree | 3 个 E1.2 在制文件；scanner、测试和文档尚待补齐 |
-| Latest full run | `e1full20260806h` |
+| Active unit | E2 |
+| Active checkpoint | E2.1 四个全新独立上下文复核 |
+| Worktree | E1.2 实现已在 `cab9cbd6` 推送；仅待本进度文档提交 |
+| Latest full run | `e1fix20260806b` |
 | Functional result | `6 passed | 1 skipped` |
-| Snapshot result | 首轮 candidate/restore digest 一致；完整行摘要整改后待重放 |
-| Boundary result | 首轮通过但 E2 复核重新打开；逐实体和全窗口证据待重放 |
+| Snapshot result | candidate/restore 完整行 digest `e9c04e4739ec8d9a961e998b6d2470ad` 一致 |
+| Boundary result | 四场景九消息逐实体 proof；DB/Redis/log/RustFS 通过；Push `not-observed-live` |
 | Cleanup result | candidate、restore、volume、owner、tunnel 已清理 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 完成 boundary scanner 与测试整改，跑本地门禁和新真实窗口，提交推送后重启 E2 |
+| Next action | 从 `cab9cbd6` 后的同一 HEAD 启动 4 个全新独立 reviewer，P0/P1 非零则回退 E1 |
 
 ### Historical Mapping
 

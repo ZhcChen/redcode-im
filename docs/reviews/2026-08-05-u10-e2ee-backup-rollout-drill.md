@@ -12,7 +12,8 @@ production_verdict: no-go
 ## 结论
 
 本文首轮 G1 结论曾判定通过并关闭 U7 P0-2；2026-08-06 的 G4.1 独立复审重新
-打开恢复实例真实性和证据完整性。E1（原 U4.3）现已完成整改与真实重放，但
+打开恢复实例真实性和证据完整性。E1（原 U4.3）经 E2 首轮复核退回后已完成
+第二轮整改与真实重放，但
 U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
 
 所有演练均在 `im-test-1` 的独立候选 PostgreSQL/Redis/API 栈执行，只复用 RustFS
@@ -20,24 +21,24 @@ U7 P0-2 仍等待 E2 四视角独立复核，不在本文提前重新关闭。
 
 ## G4 整改 E1 验收（2026-08-06）
 
-最终成功 run `e1full20260806h` 使用候选镜像
+E1.2 最终成功 run `e1fix20260806b` 使用候选镜像
 `redcode-im-api:g1-74d1231e`。candidate 新数据集经 custom-format backup 恢复到
 独立 PostgreSQL 17/Redis/API 后，在同一 `127.0.0.1:18010` 窗口完成恢复与三端
 full suite。
 
 | 检查 | 结果 |
 | --- | --- |
-| candidate/restore 关键表 snapshot | 计数与 digest `3016931872133f735d80fb18ad84f937` 完全一致 |
+| candidate/restore 关键表 snapshot | 完整行计数与 digest `e9c04e4739ec8d9a961e998b6d2470ad` 完全一致 |
 | H5 同一协议状态跨恢复 | 历史密文可解密，恢复后新密文可发送并解密 |
 | Android/iOS/H5 full suite | `6 passed | 1 skipped` |
-| 三端 evidence | 3 个房间、7 条加密消息、1 个加密附件 |
+| evidence | 恢复连续性 + 三端共 4 个房间、9 条加密消息、1 个加密附件；逐条绑定 room/message/marker/object |
 | post-live snapshot | identities=18、devices=19、KeyPackages=379、epochs=12、messages=21、attachment commits=1 |
-| DB | evidence messages 全部为 `[加密消息]` 且存在 encrypted content |
-| Redis | 每个 evidence room 均有真实 `PUBLISH`；MONITOR 与持久键无 plaintext marker |
+| DB | message-room、attachment object-message-room 归属一致；`content`、原始 `encrypted_content`、metadata、原始 control envelope 与 Push payload 全局 marker 为零 |
+| Redis | 每个 evidence room 均有精确 `PUBLISH room:<uuid>`；SUBSCRIBE/payload 不计入；MONITOR 与持久键无 plaintext marker |
 | API log | plaintext/sensitive marker 为零 |
 | Push | 本轮无 push queue 记录，明确记为 `not-observed-live`，未冒充占位验证 |
-| RustFS | object 为 ciphertext-only，SHA-256 `609496722f7f536fd128ed3120e1b7b2cdd3c0b33505a6d91b4344aee42d143b` |
-| source isolation | source PostgreSQL/Redis 连接均为 0 |
+| RustFS | object 为 ciphertext-only，SHA-256 `6d0438c280a6a411c60c92482d842a4d5c90d733595a6e320fa2e3258f7d0621` |
+| source isolation | 完整 restore live 窗口内 36 次采样，source PostgreSQL/Redis 连接始终为 0 |
 | 退出清理 | candidate/restore container、volume、owner、artifact、MONITOR、tunnel、18010 全部清零 |
 | 旧主终态 | `persist/plaintext`，审批 false，旧主数据库未触碰 |
 
@@ -45,6 +46,13 @@ Redis MONITOR 初次整改暴露了二进制采集缺陷：停止宿主 `docker 
 日志，且含 protobuf/NUL 的输出不能安全装入 Bash 变量。最终实现先复制 run-scoped
 不可变二进制快照，再停止采集，room/marker/sensitive 扫描全部直接针对文件执行；
 probe、run id、缺 room 和 plaintext marker 均 fail closed。
+
+E2 首轮四视角复核发现 snapshot 字段遗漏、观测启动过晚、证据可拼接、bytea
+扫描失效、Redis 子串假阳性和顶层报告校验不足。实现提交 `cab9cbd6` 统一改为
+完整行 digest、四场景九消息 proof、原始 bytea 全局扫描、精确 PUBLISH、持续 source
+isolation watcher，并补齐归属错配、重复 proof、非法 run id/Push 和窗口中途连接等
+负例。首次真实重放 `e1fix20260806a` 在 SQL expression 引号缺失处 fail closed，
+cleanup 与旧主终验通过；修正后使用全新 run id 完成 `e1fix20260806b`。
 
 定向验证：
 
