@@ -130,8 +130,8 @@ endef
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
-	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate e2ee.cross-client.live e2ee.cross-client.recovery.test e2ee.cross-client.isolated.test e2ee.backup-drill.test e2ee.restore-compose.test e2ee.restore-control.test \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.release.build h5-app.release.check h5-app.release.test h5-app.release.candidate.test h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
+	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate e2ee.cross-client.live e2ee.cross-client.recovery.test e2ee.cross-client.isolated.test e2ee.backup-drill.test e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-live e2ee.restore-live.test \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.release.build h5-app.release.check h5-app.release.test h5-app.release.candidate.test h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2ee.restore-live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -728,6 +728,15 @@ e2ee.restore-compose.test: ## 验证 E2EE 独立恢复 API/PG/Redis 的网络与
 e2ee.restore-control.test: ## 验证 E2EE restore prepare/verify/rollback/cleanup 状态机
 	@"$(ROOT_DIR)/tests/scripts/test-e2ee-restore-control.sh"
 
+e2ee.restore-window.test: ## 验证 candidate 到 restore 同端口切换与幂等 cleanup
+	@"$(ROOT_DIR)/tests/scripts/test-e2ee-restore-window-control.sh"
+
+e2ee.restore-live: ## 执行隔离 candidate -> restore 的 H5 历史密文 live（需指定 API image）
+	@"$(ROOT_DIR)/scripts/e2ee-restore-live-window.sh"
+
+e2ee.restore-live.test: ## 验证 restore live 同步、marker 协调与失败 cleanup
+	@"$(ROOT_DIR)/tests/scripts/test-e2ee-restore-live-window.sh"
+
 h5-app.build: ## 构建 h5-app 生产包
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) run build
@@ -786,6 +795,11 @@ h5-app.test.live: ## 执行 h5-app 真实后端普通账号注册/登录 smoke�
 h5-app.test.e2ee.live: ## 执行 h5-app 双账号 E2EE 真实后端联调（要求服务端已显式启用 E2EE）
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && H5_APP_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_API_BASE_URL="$(H5_APP_API_BASE_URL)" VITE_WS_URL="$(H5_APP_WS_URL)" $(BUN) run test:e2ee:live
+
+h5-app.test.e2ee.restore-live: ## 定向执行 H5 candidate -> restore 历史密文恢复场景
+	@$(call require_cmd,$(BUN))
+	@cd "$(H5_APP_DIR)" && H5_APP_E2EE_LIVE_ENABLED=true $(BUN) run vitest run \
+		test/e2ee-live-backend.test.ts -t 'decrypts history and continues sending after isolated restore switch'
 
 h5-app.test.e2e: ## 执行 h5-app 浏览器 E2E smoke（需 api dev 就绪；默认 Chrome channel）
 	@$(call require_cmd,$(BUN))

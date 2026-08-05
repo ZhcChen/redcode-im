@@ -118,6 +118,20 @@ $1
 SQL
 }
 
+restore_postgres_ready() {
+  compose_restore exec -T postgres-restore \
+    pg_isready -U "$restore_user" -d "$restore_database" >/dev/null 2>&1
+}
+
+wait_for_restore_postgres() {
+  local attempt
+  for attempt in $(seq 1 90); do
+    restore_postgres_ready && return
+    sleep 1
+  done
+  return 1
+}
+
 wait_for_health() {
   local attempt
   for attempt in $(seq 1 90); do
@@ -194,7 +208,7 @@ cleanup() {
       state_valid=0
       exit_code=1
     fi
-    if [[ "$state_valid" == "1" ]] && ! restore_psql "
+    if [[ "$state_valid" == "1" ]] && restore_postgres_ready && ! restore_psql "
         UPDATE general_settings SET value = 'plaintext', updated_at = NOW(), updated_by = NULL
         WHERE key = 'message_content_audit_mode';
         UPDATE e2ee_runtime_gate SET state = 'plaintext', security_review_approved = FALSE,
@@ -243,6 +257,7 @@ prepare() {
   trap 'cleanup 143' TERM
   compose_restore config >/dev/null
   compose_restore up -d postgres-restore redis-restore >/dev/null
+  wait_for_restore_postgres || die "restore PostgreSQL 未就绪"
   compose_restore exec -T postgres-restore pg_restore \
     -U "$restore_user" -d "$restore_database" --no-owner --no-privileges <"$dump_path"
   restore_psql "

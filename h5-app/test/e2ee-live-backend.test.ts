@@ -16,6 +16,10 @@ const sessionStorageKey = 'redcode-h5-session';
 // tests/scripts/cleanup-e2ee-live-fixtures.sh 定向清理。
 const runId = (process.env.E2EE_LIVE_RUN_ID || 'manual').replace(/[^a-zA-Z0-9_-]/g, '');
 const evidencePath = process.env.E2EE_LIVE_EVIDENCE_PATH;
+const restoreSwitchEnabled = process.env.E2EE_RESTORE_SWITCH_ENABLED === '1';
+const restoreSwitchReadyPath = process.env.E2EE_RESTORE_SWITCH_READY_PATH;
+const restoreSwitchDonePath = process.env.E2EE_RESTORE_SWITCH_DONE_PATH;
+const restoreRecoveryEvidencePath = process.env.E2EE_RESTORE_RECOVERY_EVIDENCE_PATH;
 
 interface LiveSession {
   token: string;
@@ -77,6 +81,96 @@ const useSession = (session: LiveSession) => {
 };
 
 describe.skipIf(!enabled)('H5 E2EE live backend', () => {
+  it.skipIf(!restoreSwitchEnabled)('decrypts history and continues sending after isolated restore switch', async () => {
+    if (!restoreSwitchReadyPath || !restoreSwitchDonePath || !restoreRecoveryEvidencePath) {
+      throw new Error('restore switch paths are required');
+    }
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    vi.stubGlobal('crypto', webcrypto as unknown as Crypto);
+
+    const alice = await register('e2eera');
+    const bob = await register('e2eerb');
+    const { friendService } = await import('@/services/friend-service');
+    const wasm = await readFile(resolve(process.cwd(), 'src/e2ee/core-wasm/redcode_e2ee_core_bg.wasm'));
+    await initCore({ module_or_path: wasm });
+    const { e2eeDeviceLifecycle } = await import('@/e2ee/device-lifecycle');
+    const { e2eeDirectMessageCoordinator } = await import('@/e2ee/direct-message-coordinator');
+    const { messageService } = await import('@/services/message-service');
+
+    useSession(alice);
+    const pending = await friendService.sendFriendRequest(bob.user.id, '');
+    useSession(bob);
+    await friendService.respondFriendRequest(pending.id, 'accept');
+    useSession(alice);
+    const chat = await friendService.ensurePrivateChat(bob.user.id);
+    await e2eeDeviceLifecycle.ensureReady(alice.user.id, 'H5 restore Alice');
+    await e2eeDeviceLifecycle.topUpKeyPackages(alice.user.id);
+    useSession(bob);
+    await e2eeDeviceLifecycle.ensureReady(bob.user.id, 'H5 restore Bob');
+    await e2eeDeviceLifecycle.topUpKeyPackages(bob.user.id);
+
+    const beforeMarker = `u10-restore-before-${crypto.randomUUID()}`;
+    useSession(alice);
+    const beforeResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 restore Alice',
+      roomId: chat.roomId,
+      peerUserId: bob.user.id,
+      text: beforeMarker,
+    });
+    const beforeMessageId = responseMessageId(beforeResponse);
+    expect(JSON.stringify(beforeResponse)).not.toContain(beforeMarker);
+    useSession(bob);
+    const beforeHistory = await messageService.loadMessages(chat.roomId, { limit: 20 }, bob.user.id);
+    expect(beforeHistory.some((message) => message.id === beforeMessageId && message.content === beforeMarker)).toBe(true);
+
+    await writeFile(restoreSwitchReadyPath, JSON.stringify({
+      room_id: chat.roomId,
+      message_id: beforeMessageId,
+    }));
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      const switched = await readFile(restoreSwitchDonePath, 'utf8').then(() => true).catch(() => false);
+      if (switched) break;
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+    }
+    await expect(readFile(restoreSwitchDonePath, 'utf8')).resolves.toBeTruthy();
+
+    useSession(bob);
+    const restoredHistory = await messageService.loadMessages(chat.roomId, { limit: 20 }, bob.user.id);
+    expect(restoredHistory.some((message) => message.id === beforeMessageId && message.content === beforeMarker)).toBe(true);
+
+    const afterMarker = `u10-restore-after-${crypto.randomUUID()}`;
+    useSession(alice);
+    const afterResponse = await e2eeDirectMessageCoordinator.sendText({
+      accountId: alice.user.id,
+      deviceLabel: 'H5 restore Alice',
+      roomId: chat.roomId,
+      peerUserId: bob.user.id,
+      text: afterMarker,
+    });
+    const afterMessageId = responseMessageId(afterResponse);
+    useSession(bob);
+    const afterHistory = await messageService.loadMessages(chat.roomId, { limit: 20 }, bob.user.id);
+    expect(afterHistory.some((message) => message.id === afterMessageId && message.content === afterMarker)).toBe(true);
+    const rawHistory = await request<Array<Record<string, unknown>>>(
+      `/rooms/${chat.roomId}/messages?limit=20`, {}, bob.token,
+    );
+    expect(JSON.stringify(rawHistory)).not.toContain(beforeMarker);
+    expect(JSON.stringify(rawHistory)).not.toContain(afterMarker);
+    expect(rawHistory).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: beforeMessageId, encrypted_content: expect.any(String) }),
+      expect.objectContaining({ id: afterMessageId, encrypted_content: expect.any(String) }),
+    ]));
+    await writeFile(restoreRecoveryEvidencePath, JSON.stringify({
+      room_id: chat.roomId,
+      before_message_id: beforeMessageId,
+      after_message_id: afterMessageId,
+      history_decrypted_after_restore: true,
+      new_message_decrypted_after_restore: true,
+    }, null, 2));
+  }, 180_000);
+
   it('exchanges ciphertext bidirectionally in a private room and across Android/H5', async () => {
     vi.stubGlobal('indexedDB', new IDBFactory());
     vi.stubGlobal('crypto', webcrypto as unknown as Crypto);

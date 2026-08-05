@@ -54,7 +54,13 @@ if [[ "${1:-}" == compose ]]; then
         exit 0
       fi
       [[ "$service" == postgres-restore ]]
-      if [[ "$*" == *pg_restore* ]]; then
+      if [[ "$*" == *pg_isready* ]]; then
+        count=0
+        [[ ! -f "$state/pg-ready-count" ]] || count="$(cat "$state/pg-ready-count")"
+        count=$((count + 1))
+        printf '%s\n' "$count" >"$state/pg-ready-count"
+        [[ "$count" -ge "${E2EE_CONTROL_TEST_PG_READY_AFTER:-1}" ]]
+      elif [[ "$*" == *pg_restore* ]]; then
         cat >/dev/null
       elif [[ "$*" == *psql* ]]; then
         sql="$(cat)"
@@ -180,10 +186,16 @@ run_control() {
 
 success_state="$(new_state success)"
 E2EE_RESTORE_ALLOW_PREPARE=yes E2EE_RESTORE_DUMP_PATH="$success_state/database.dump" \
+E2EE_CONTROL_TEST_PG_READY_AFTER=2 \
   run_control "$success_state" success prepare >"$success_state/prepare.json"
 jq -e '.verified == true and .database_marker == "redcode-e2ee-restore:success"' \
   "$success_state/prepare.json" >/dev/null
 [[ "$(cat "$success_state/runtime")" == e2ee ]]
+[[ -f "$success_state/pg-ready-count" ]] || {
+  echo '[e2ee-restore-control-test] prepare 未等待 PostgreSQL ready' >&2
+  exit 1
+}
+[[ "$(cat "$success_state/pg-ready-count")" -ge 2 ]]
 [[ -f "$success_state/runtime-state/success/control.env" ]]
 run_control "$success_state" success verify >"$success_state/verify.json"
 jq -e '.project == "e2ee-restore-success" and .database_host == "postgres-restore"' \
