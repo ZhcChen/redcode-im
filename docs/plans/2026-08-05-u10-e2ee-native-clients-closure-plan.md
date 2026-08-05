@@ -23,30 +23,46 @@ last_progress_update: 2026-08-05
 | C1 Android 应用级装配 | 已完成 | `30940f4e`；登录/前台/注销生命周期、runtime 路由、账号隔离与敏感状态清理已接入；Android `testDebugUnitTest lintDebug` 通过 |
 | C2 Android 消息主链 | 已完成 | text 主链 `565d6482`、附件主链 `20672eeb` 已推送；238 项 JVM 单测与 `lintDebug` 通过，密钥材料缺失/篡改 fail closed |
 | C3 iOS 应用级装配 | 已完成 | `881d662e`、`4a1ed113`；账号级 graph、runtime 路由、登录/前台/注销、全量敏感 blob 清理和 Simulator 链接已接入；191 项测试及 App build 通过 |
-| C4 iOS 消息主链 | 进行中 | 从 ChatDetail/Realtime/ChatAPI/GRDB 边界盘点发送、历史、WS 与附件接入点 |
+| C4 iOS 消息主链 | 进行中 | 文本主链 `a5d42f6f` 已推送；附件上传/下载、外围边界及测试已在工作区完成，218 项测试通过，等待审查、独立提交与推送 |
 | C5 设备/群/epoch 事件 | 待开始 | 依赖 C2、C4 |
 | C7 全仓回归门禁 | 待开始 | 依赖 C5，且必须先于 C6 完成 |
 | C6 三端 E2EE live | 待开始 | 依赖 C5、C7 |
 | C8 证据汇总与重审 | 待开始 | 依赖 C6、C7 |
 
 当前执行顺序保持为：`C1 -> C2 -> C3 -> C4 -> C5 -> C7 -> C6 -> C8`。
-当前从 **C4 iOS 消息主链** 恢复，不重做原计划 N1-N6 或 C1-C3。
+当前从 **C4 iOS 附件消息主链审查与收口** 恢复，不重做原计划 N1-N6、C1-C3
+或已提交的 iOS 文本主链。生产 E2EE 在 C8 裁决前始终保持 `No-Go`。
 
 ### C4 Resume Point
 
-- **复用资产：** C3 的共享 `E2eeSessionLifecycle`、secure store、device lifecycle
-  与 MLS API 必须继续由 composition root 持有；C4 不创建页面级协议状态实例。
-- **首轮盘点：** 发送入口位于 `ChatDetailController`，历史写入 GRDB 也由该 controller
-  完成；WebSocket 入站由 `ChatRealtimeController` 独立写缓存，当前两条路径没有共享
-  E2EE resolver，`ChatAPIClient` 也尚未映射 encrypted envelope。
-- **实现顺序：** 先扩展 DTO 和统一入站 resolver，再接 text encrypted send 与
-  retry/fail-closed，最后接附件上传前加密、下载后解密和搜索/引用/转发降级。
-- **安全边界：** 只有成功解密的展示模型可写 GRDB；RCML、RCST、DEK/nonce 不得
-  进入普通 cache 或日志；runtime 中途变化、身份异常、损坏密文和 key material
-  缺失均不得回退 plaintext API。
-- **C4 完成信号：** 与 C2 对齐的第二会话、重启、离线历史、WS/历史去重、混排、
-  损坏密文、身份变化、附件篡改/retry/quote 场景通过；`make ios-app.test` 和 App
-  Simulator build 全绿并独立提交推送。
+- **已提交边界：** `a5d42f6f` 已完成 encrypted DTO 映射、history/WS 统一严格
+  resolver、消息 ID 去重、E2EE text send/retry、本机发送结果记忆、身份与损坏
+  密文 fail closed；引用消息在 E2EE runtime 下阻断。
+- **当前未提交边界：** 工作区只保留 iOS 附件与外围边界改动，包含 attachment
+  payload、安全 metadata、上传前 AES-GCM、下载后内存解密、密钥材料索引、E2EE
+  本地搜索、Push 占位和引用降级；不得与 C5 混合提交。
+- **当前验证事实：** iOS 定向 42 项测试通过，`make ios-app.test` 为 218 项通过、
+  7 项 live 跳过，Simulator App build 与 `git diff --check` 通过；这些结果在提交前
+  仍需结合最终 diff 复核。
+- **提交前审查：** 明确 attachment key material 的最近 512 条淘汰语义；锁定
+  Ready 状态下 key material 缺失即使存在缓存也必须失败；覆盖签名等待期间 runtime
+  变化不上传；覆盖 pending 存在/缺失的附件 retry 行为。
+- **C4 完成信号：** 审查问题关闭，最终 `make ios-app.test`、Simulator App build、
+  `git diff --check` 与 staged diff 检查全绿，以独立 `feat(ios): 接入 E2EE 附件消息主链`
+  提交并推送；随后更新本快照并把 `current_unit` 切换到 C5。
+
+### Remaining Execution Gates
+
+| 顺序 | 进入条件 | 完成后允许进入 |
+| --- | --- | --- |
+| C4 iOS 附件收口 | 当前工作区附件实现完成，先审查再提交 | C5 |
+| C5 设备/群/epoch | C2、C4 均已提交推送 | C7 |
+| C7 全仓回归门禁 | C5 双端事件闭环完成 | C6 |
+| C6 三端 E2EE live | C5、C7 全绿，测试 runtime 可受控恢复 | C8 |
+| C8 证据与重审 | C6 live 证据完整且可重放 | 仅裁决 P0-1；生产仍受其余 P0 约束 |
+
+任何单元未达到自己的验证与推送门槛时，不提前并行修改后续单元。发现必须扩展
+服务端契约时，停止当前单元并回查 U10 总计划，不在客户端侧临时补协议。
 
 ### Document Roles
 
@@ -86,20 +102,20 @@ last_progress_update: 2026-08-05
 
 ### Summary
 
-N1-N6 已提供双端 FFI、安全状态存储、设备生命周期、直接消息协调、多设备与
-群成员变更、附件密码能力，但这些对象尚未完整装配到应用依赖图，普通聊天发送、
-历史加载和 WebSocket 入站仍绕过 E2EE。原 N7 因此只能得到平台单测和普通 live，
-不能证明真实三端互解。本计划只承接这个实现与验收缺口。
+N1-N6 已提供双端 FFI、安全状态存储、设备管理和附件加密能力；C1-C3 已完成
+Android 主链与 iOS 应用级装配，C4 的 iOS 文本主链也已提交。当前只剩 iOS 附件
+收口、双端设备/群/epoch 真实事件接入、全仓门禁、三端 live 和 U7 P0-1 重审。
+原 N7 只能证明平台单测和普通 live，不能替代真实三端互解，本计划承接剩余闭环。
 
 ### Current Baseline
 
-| 范围 | 已完成并保留 | 尚未完成 |
+| 范围 | 当前已完成 | 当前剩余 |
 | --- | --- | --- |
-| N1-N3 | 双端 C ABI、加密状态存储、设备注册与 KeyPackage 补充 | 应用启动/登录/前台/注销触发装配 |
-| N4 | 双端 `E2eeDirectMessageCoordinator` 及 mock 单测 | 发送、历史、WS 真实主链与 runtime 路由 |
-| N5 | 双端 `E2eeDeviceManager` 与成员变化算法 | 批准/撤销/群成员事件触发和 UI 数据刷新 |
-| N6 | 双端附件 AES-GCM/AAD 与外围策略 | 真实上传、下载、缓存、搜索与转发入口接入 |
-| N7 | core 四目标、平台单测、marker 与 denylist 证据 | 三端 E2EE live、全仓回归、P0-1 关闭 |
+| 基础能力（原 N1-N3） | 双端 C ABI、安全状态存储、设备注册、KeyPackage 补充及应用生命周期装配 | 无；后续只修复执行中发现的缺陷 |
+| 直接消息（原 N4） | Android 文本/附件主链、iOS 文本主链已提交；history/WS 统一解密与 fail closed 已接入 | iOS 附件主链最终审查、提交与推送 |
+| 设备与群聊（原 N5） | 双端 `E2eeDeviceManager`、成员变化算法和单元测试 | 批准/撤销、群成员事件、Commit/Welcome 与 epoch 缺口的真实入口接入 |
+| 附件与外围（原 N6） | Android 已收口；iOS AES-GCM/AAD、搜索、Push、引用边界已在工作区实现 | iOS 最终测试证据和独立提交 |
+| 验收（原 N7） | core 四目标、平台单测、marker 与 denylist 基础证据 | 全仓回归、三端 E2EE live、P0-1 重审与生产 No-Go 复核 |
 
 ### Requirements
 
