@@ -72,6 +72,12 @@ class E2eeCommandClient(
     fun createGroup(state: ByteArray, roomId: String): E2eeCommandResult =
         execute(E2eeCommandOperation.CreateGroup, listOf(state, roomId.toByteArray()))
 
+    fun addMember(state: ByteArray, roomId: String, keyPackage: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.AddMember, listOf(state, roomId.toByteArray(), keyPackage))
+
+    fun joinGroup(state: ByteArray, welcome: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.JoinGroup, listOf(state, welcome))
+
     fun generateKeyPackage(state: ByteArray): E2eeCommandResult =
         execute(E2eeCommandOperation.GenerateKeyPackage, listOf(state))
 
@@ -83,6 +89,9 @@ class E2eeCommandClient(
 
     fun decrypt(state: ByteArray, roomId: String, ciphertext: ByteArray): E2eeCommandResult =
         execute(E2eeCommandOperation.Decrypt, listOf(state, roomId.toByteArray(), ciphertext))
+
+    fun processCommit(state: ByteArray, roomId: String, commit: ByteArray): E2eeCommandResult =
+        execute(E2eeCommandOperation.ProcessCommit, listOf(state, roomId.toByteArray(), commit))
 
     /** 直接执行一段 RCCQ 原始命令（测试与高级调用点使用）。 */
     fun executeRaw(request: ByteArray): ByteArray {

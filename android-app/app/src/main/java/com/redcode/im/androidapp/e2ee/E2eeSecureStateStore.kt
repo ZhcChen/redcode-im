@@ -123,6 +123,24 @@ class E2eeSecureStateStore(
         blobs.deleteBlob(accountId, PROFILE_BLOB_KEY)
     }
 
+    fun writeMetadata(accountId: String, key: String, bytes: ByteArray) {
+        requireAccountId(accountId)
+        require(key.isNotBlank()) { "E2EE 元数据 key 不能为空" }
+        blobs.saveBlob(accountId, "metadata:$key", cipher.encrypt(accountId, bytes, e2eeMetadataAssociatedData(accountId, key)))
+    }
+
+    fun readMetadata(accountId: String, key: String): ByteArray? {
+        requireAccountId(accountId)
+        val blob = blobs.loadBlob(accountId, "metadata:$key") ?: return null
+        return try {
+            cipher.decrypt(accountId, blob, e2eeMetadataAssociatedData(accountId, key))
+        } catch (e: E2eeStateCorruptedException) {
+            throw e
+        } catch (e: Exception) {
+            throw E2eeStateCorruptedException("E2EE 元数据已损坏")
+        }
+    }
+
     /** 注销/切换账号时同时清除包装密钥与密文，避免残留可解密材料。 */
     fun delete(accountId: String) {
         requireAccountId(accountId)
@@ -149,3 +167,6 @@ internal fun e2eeStateAssociatedData(accountId: String): ByteArray =
 /** 设备档案记录的 AAD 前缀与 H5 device-profile 存储一致。 */
 internal fun e2eeProfileAssociatedData(accountId: String): ByteArray =
     "redcode-im/e2ee-device-profile/v1\u0000${accountId.trim()}".toByteArray(Charsets.UTF_8)
+
+internal fun e2eeMetadataAssociatedData(accountId: String, key: String): ByteArray =
+    "redcode-im/e2ee-metadata/v1\u0000${accountId.trim()}\u0000${key.trim()}".toByteArray(Charsets.UTF_8)

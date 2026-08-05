@@ -19,11 +19,11 @@ class E2eeDeviceLifecycle(
     private val core: E2eeCommandClient = E2eeCommandClient(),
     private val newDeviceId: () -> String = { UUID.randomUUID().toString() },
     private val nowMillis: () -> Long = System::currentTimeMillis,
-) {
+) : E2eeDirectDeviceLifecycle {
     private val replenishLocks = ConcurrentHashMap<String, Deferred<Int>>()
     private val nextRetryAt = ConcurrentHashMap<String, Long>()
 
-    suspend fun ensureReady(
+    override suspend fun ensureReady(
         accountId: String,
         deviceLabel: String,
         token: String,
