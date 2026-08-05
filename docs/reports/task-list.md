@@ -1,6 +1,6 @@
 # RedCode IM 剩余任务清单
 
-更新时间：2026-08-05
+更新时间：2026-08-06
 
 本文档是当前仓库剩余任务的唯一 active 总入口。IM 2.0 的产品合同仍以
 `docs/plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md` 的 U1-U13
@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 剩余执行主计划（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md`
+- E2EE 发布门禁最终计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
@@ -28,7 +28,7 @@
 
 - 当前主线：原生双端 E2EE 客户端专项已完成 -> 关闭 E2EE 生产发布剩余两个 P0
   -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：G1 备份恢复与灰度回滚演练已完成；从 `G2.2` 执行六端依赖锁定、SBOM、漏洞与许可证统一门禁。
+- 当前立即任务：完成并提交 `G2.2` 六端 SBOM、漏洞、许可证与豁免统一门禁；随后按 `G2.3 -> G2.4 -> G2.5` 关闭 U7 P0-3。
 - 当前下一阶段：G3 形成 H5 CSP/依赖锁定/
   WebCrypto 发布安全报告，G4 独立复审并重新作出 Go/No-Go 裁决。
 - 当前发布阻断项：U7 剩余两个 P0、原生功能迁移总收口、签名/版本/升级/回滚链路。
@@ -72,7 +72,7 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件、泄漏扫描及最终全量门禁
     已完成，U7 P0-1 已关闭。
   - G1 已完成隔离候选三端 live、备份恢复、损坏归档拒绝、active 重建、rollback

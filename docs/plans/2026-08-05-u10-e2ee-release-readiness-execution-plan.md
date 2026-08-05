@@ -7,19 +7,25 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code
-status: active
+status: superseded
 current_unit: G2
 current_checkpoint: G2.2
 verdict: no-go
 last_progress_update: 2026-08-05
+superseded_by: docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md
 ---
 
 # security: U10 E2EE 发布就绪剩余执行计划
 
+> [!IMPORTANT]
+> 本计划已于 2026-08-06 停止维护，由
+> `docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md` 接替。本文仅保留
+> G1 证据与 G2-G4 设计历史，不再作为任务派发或会话恢复入口。
+
 ## Goal Capsule
 
 - **目标：** 关闭 U10 E2EE 生产发布剩余两个 P0，完成独立复审，并形成可复现的 Go/No-Go 裁决。
-- **唯一入口：** 本文是 U10 E2EE 唯一 active 计划、进度总账和会话恢复点；其他 U10/E2EE 计划均为 `superseded` 或 `complete`，不得继续派发任务。
+- **历史入口：** 本文曾是 U10 E2EE 的 active 计划；当前任务统一从 `docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md` 派发。
 - **固定顺序：** `G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。G1 已完成，只保留证据索引，不再执行。
 - **当前 checkpoint：** `G2.2`，补齐 Android resolved dependency lock，并实现六端统一 SBOM、漏洞与许可证扫描入口。
 - **停止条件：** 任一 P0 未关闭、任一门禁 fail closed 场景未验证、存在未解决 P0/P1，或证据无法复现时，生产 E2EE 保持 **No-Go**。
@@ -228,7 +234,7 @@ flowchart TB
 
 ## Definition of Done
 
-- D1. 本文是唯一 active U10/E2EE 计划，任务总账与 `current_checkpoint` 一致，历史计划不再派发任务。
+- D1. 执行期仅允许一份 active U10/E2EE 计划，任务总账与 `current_checkpoint` 一致，历史计划不再派发任务。
 - D2. 六端依赖均有可重放锁定输入，SBOM、漏洞和许可证检查通过同一固定版本入口执行。
 - D3. 已知漏洞、拒绝许可证、过期/无效豁免、工具/数据库/报告故障均被自动阻断，CI release 不存在旁路。
 - D4. 供应链机器报告作为 CI artifact 留存且无凭据泄漏，U7 P0-3 有独立 review 关闭证据。
