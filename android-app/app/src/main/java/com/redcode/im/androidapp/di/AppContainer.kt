@@ -62,6 +62,7 @@ import com.redcode.im.androidapp.persistence.RoomGroupRepository
 import com.redcode.im.androidapp.realtime.RedCodeWebSocketClient
 import com.redcode.im.androidapp.realtime.RealtimeEventProcessor
 import com.redcode.im.androidapp.realtime.RoomRealtimeChatCache
+import com.redcode.im.androidapp.feature.settings.E2eeDeviceManagementViewModel
 
 class AppContainer(
     val environment: RedCodeEnvironment,
@@ -147,7 +148,7 @@ class AppContainer(
                     e2eeSessionLifecycleOverride
                         ?: E2eeSessionLifecycle(settingsRepository, deviceLifecycle, secureState, e2eeDeviceLabel),
                 coordinator = E2eeDirectMessageCoordinator(secureState, deviceLifecycle, api, E2eeCommandSessionCore(command)),
-                deviceManager = E2eeDeviceManager(secureState, api, command),
+                deviceManager = E2eeDeviceManager(secureState, api),
             )
         }
 
@@ -257,6 +258,18 @@ class AppContainer(
     val e2eeSessionLifecycle: E2eeSessionLifecycle? = e2eeSessionLifecycleOverride ?: e2eeGraph?.sessionLifecycle
     val e2eeDirectMessageCoordinator: E2eeDirectMessageCoordinator? = e2eeGraph?.coordinator
     val e2eeDeviceManager: E2eeDeviceManager? = e2eeGraph?.deviceManager
+
+    fun makeE2eeDeviceManagementViewModel(accountId: String, token: String): E2eeDeviceManagementViewModel? =
+        e2eeGraph?.let { graph ->
+            E2eeDeviceManagementViewModel(
+                accountId = accountId,
+                token = token,
+                devices = graph.deviceManager,
+                lifecycle = graph.sessionLifecycle,
+                rooms = roomRepository,
+                roomEvents = e2eeRoomEvents,
+            )
+        }
 
     suspend fun prepareE2eeSession(accountId: String, token: String) {
         e2eeSessionLifecycle?.onAuthenticated(accountId, token)

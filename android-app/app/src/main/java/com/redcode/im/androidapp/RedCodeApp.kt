@@ -251,6 +251,9 @@ private fun MainShell(
     val chatListViewModel = remember { ChatListViewModel(container.chatRepository) }
     val contactsViewModel = remember { ContactsViewModel(container.contactsRepository) }
     val groupsViewModel = remember { GroupManagementViewModel(container.roomRepository, container.contactsRepository) }
+    val e2eeDeviceViewModel = remember(currentUser.id, accessToken) {
+        container.makeE2eeDeviceManagementViewModel(currentUser.id, accessToken)
+    }
     val realtimeChats by chatListViewModel.chats.collectAsStateWithLifecycle()
 
     LaunchedEffect(accessToken) {
@@ -360,6 +363,7 @@ private fun MainShell(
                             currentUser = currentUser,
                             accessToken = accessToken,
                             avatarCacheRepository = container.avatarCacheRepository,
+                            e2eeDeviceViewModel = e2eeDeviceViewModel,
                         )
                 }
             }
@@ -1084,11 +1088,16 @@ fun SettingsScreen(
     currentUser: AuthUser,
     accessToken: String,
     avatarCacheRepository: com.redcode.im.androidapp.data.media.AvatarCacheRepository?,
+    e2eeDeviceViewModel: com.redcode.im.androidapp.feature.settings.E2eeDeviceManagementViewModel? = null,
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     var notificationPermissionState by remember { mutableStateOf(PermissionRecoveryState()) }
+    val e2eeDevices = e2eeDeviceViewModel?.uiState?.collectAsStateWithLifecycle()?.value
+    LaunchedEffect(e2eeDeviceViewModel, accessToken) {
+        e2eeDeviceViewModel?.refresh()
+    }
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             notificationPermissionState =
@@ -1105,7 +1114,7 @@ fun SettingsScreen(
                     )
                 }
         }
-    Column(modifier = Modifier.fillMaxSize().testTag("settings-screen")) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("settings-screen")) {
         Header(title = "设置")
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             CachedAvatarBadge(
@@ -1125,6 +1134,42 @@ fun SettingsScreen(
         }
         Text("API: $apiBaseUrl", modifier = Modifier.padding(16.dp))
         Text("通知: ${if (settings.notificationEnabled) "已开启" else "已关闭"}", modifier = Modifier.padding(16.dp))
+        if (e2eeDevices?.isE2eeRuntime == true) {
+            Text("加密设备", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), fontWeight = FontWeight.SemiBold)
+            if (e2eeDevices.isLoading) {
+                Text("正在加载设备...", modifier = Modifier.padding(horizontal = 16.dp))
+            }
+            e2eeDevices.devices.forEach { device ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(device.deviceLabel.ifBlank { "未命名设备" })
+                        Text(
+                            if (device.id == e2eeDevices.currentDeviceId) "当前设备 · ${device.status}" else device.status,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    when (device.status) {
+                        "pending_approval" -> TextButton(
+                            onClick = { e2eeDeviceViewModel?.approve(device) },
+                            enabled = e2eeDevices.operatingDeviceId == null,
+                            modifier = Modifier.testTag("e2ee-device-approve-${device.id}"),
+                        ) { Text("批准") }
+                        "active" -> if (device.id != e2eeDevices.currentDeviceId) TextButton(
+                            onClick = { e2eeDeviceViewModel?.revoke(device) },
+                            enabled = e2eeDevices.operatingDeviceId == null,
+                            modifier = Modifier.testTag("e2ee-device-revoke-${device.id}"),
+                        ) { Text("撤销") }
+                    }
+                }
+            }
+            if (!e2eeDevices.isLoading && e2eeDevices.devices.isEmpty()) {
+                Text("暂无 E2EE 设备", modifier = Modifier.padding(horizontal = 16.dp))
+            }
+            e2eeDevices.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp)) }
+        }
         notificationPermissionState.prompt?.let { prompt ->
             PermissionRecoveryBanner(
                 prompt = prompt,

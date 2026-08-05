@@ -4,6 +4,7 @@ import com.redcode.im.androidapp.core.model.MessageRuntimeSettings
 import com.redcode.im.androidapp.data.settings.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -12,6 +13,11 @@ sealed interface E2eeSessionStatus {
     data object Plaintext : E2eeSessionStatus
     data class Ready(val accountId: String, val deviceId: String) : E2eeSessionStatus
     data class Blocked(val message: String) : E2eeSessionStatus
+}
+
+interface E2eeSessionStateController {
+    val status: StateFlow<E2eeSessionStatus>
+    suspend fun onForeground()
 }
 
 interface E2eeAppDeviceLifecycle {
@@ -26,12 +32,12 @@ class E2eeSessionLifecycle(
     private val devices: E2eeAppDeviceLifecycle,
     private val secureState: E2eeSecureStateStore,
     private val deviceLabel: String,
-) {
+) : E2eeSessionStateController {
     private data class ActiveSession(val accountId: String, val token: String)
 
     private val mutex = Mutex()
     private val mutableStatus = MutableStateFlow<E2eeSessionStatus>(E2eeSessionStatus.SignedOut)
-    val status = mutableStatus.asStateFlow()
+    override val status = mutableStatus.asStateFlow()
     private var activeSession: ActiveSession? = null
 
     suspend fun onAuthenticated(accountId: String, token: String) = mutex.withLock {
@@ -45,8 +51,10 @@ class E2eeSessionLifecycle(
         refreshAndPrepare(activeSession!!)
     }
 
-    suspend fun onForeground() = mutex.withLock {
-        activeSession?.let { refreshAndPrepare(it) }
+    override suspend fun onForeground() {
+        mutex.withLock {
+            activeSession?.let { refreshAndPrepare(it) }
+        }
     }
 
     suspend fun onLogout() = mutex.withLock {
