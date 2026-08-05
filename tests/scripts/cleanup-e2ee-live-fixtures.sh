@@ -8,7 +8,7 @@
 #
 set -euo pipefail
 
-prefix="${1:-e2ee%}"
+prefix="${1-e2ee%}"
 if [[ "$prefix" == "%" || "$prefix" == "" ]]; then
   echo "拒绝执行无界清理：PREFIX 不能为空或 %" >&2
   exit 1
@@ -18,7 +18,9 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 1
 fi
 
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v cleanup_prefix="$prefix" <<'SQL'
+BEGIN;
+
 -- 先清理可能引用目标用户设备的控制消息，避免 e2ee_control_messages
 -- sender_device_id ON DELETE RESTRICT 阻断用户删除。
 DELETE FROM e2ee_control_messages
@@ -26,18 +28,36 @@ WHERE sender_device_id IN (
   SELECT device.id
   FROM e2ee_devices AS device
   JOIN users AS account ON account.id = device.user_id
-  WHERE account.username LIKE '$prefix'
+  WHERE account.username LIKE :'cleanup_prefix'
+);
+
+-- consumed_by_device_id 的 FK 使用 SET NULL，但消费时间与消费方必须同时为空或
+-- 同时非空。删除设备前先移除夹具拥有或消费的 KeyPackage，避免触发一致性约束。
+DELETE FROM e2ee_key_packages
+WHERE device_id IN (
+  SELECT device.id
+  FROM e2ee_devices AS device
+  JOIN users AS account ON account.id = device.user_id
+  WHERE account.username LIKE :'cleanup_prefix'
+)
+OR consumed_by_device_id IN (
+  SELECT device.id
+  FROM e2ee_devices AS device
+  JOIN users AS account ON account.id = device.user_id
+  WHERE account.username LIKE :'cleanup_prefix'
 );
 
 -- 清理目标用户拥有的房间（级联 epoch / 控制消息 / 成员关系）。
 DELETE FROM rooms
 WHERE owner_id IN (
-  SELECT id FROM users WHERE username LIKE '$prefix'
+  SELECT id FROM users WHERE username LIKE :'cleanup_prefix'
 );
 
 -- 删除账号本体（级联设备、KeyPackage、身份、好友、消息等）。
 DELETE FROM users
-WHERE username LIKE '$prefix';
+WHERE username LIKE :'cleanup_prefix';
+
+COMMIT;
 SQL
 
 echo "已清理 username LIKE '$prefix' 的 E2EE live 夹具"
