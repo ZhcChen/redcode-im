@@ -21,23 +21,32 @@ public final class ChatDetailController: ObservableObject {
     private let mediaAPI: (any MediaAPIService)?
     private let messageCacheStore: any MessageCacheStore
     private let attachmentCache: AttachmentFileCache?
+    private let incomingResolver: any IncomingChatMessageResolving
+    private let outgoingTextRouter: any OutgoingTextMessageRouting
+    private var currentUserID = ""
+    private var peerUserID: String?
 
     public init(
         api: any ChatAPIService,
         messageCacheStore: any MessageCacheStore,
         mediaAPI: (any MediaAPIService)? = nil,
-        attachmentCache: AttachmentFileCache? = nil
+        attachmentCache: AttachmentFileCache? = nil,
+        incomingResolver: (any IncomingChatMessageResolving)? = nil,
+        outgoingTextRouter: (any OutgoingTextMessageRouting)? = nil
     ) {
         self.api = api
         self.mediaAPI = mediaAPI
         self.messageCacheStore = messageCacheStore
         self.attachmentCache = attachmentCache
+        self.incomingResolver = incomingResolver ?? PlaintextIncomingMessageResolver()
+        self.outgoingTextRouter = outgoingTextRouter ?? PlaintextOutgoingTextRouter()
     }
 
     public func enterRoom(
         roomID: String,
         token: String,
         currentUserID: String?,
+        peerUserID: String? = nil,
         limit: Int = 50
     ) async throws {
         let roomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -46,6 +55,8 @@ public final class ChatDetailController: ObservableObject {
         }
 
         self.roomID = roomID
+        self.currentUserID = currentUserID ?? ""
+        self.peerUserID = peerUserID
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
@@ -63,7 +74,20 @@ public final class ChatDetailController: ObservableObject {
                 beforeID: nil,
                 sinceID: nil
             )
-            messages = ChatDetailController.mergeMessages(current: messages, incoming: remote)
+            var resolvedRemote: [ChatMessage] = []
+            for message in remote {
+                let cachedMessage = messages.first { $0.id == message.id }
+                resolvedRemote.append(
+                    try await incomingResolver.resolve(
+                        message,
+                        source: .history,
+                        accountID: self.currentUserID,
+                        token: token,
+                        cachedMessage: cachedMessage
+                    )
+                )
+            }
+            messages = ChatDetailController.mergeMessages(current: messages, incoming: resolvedRemote)
             try persist()
             try await syncReadState(token: token, currentUserID: currentUserID)
         } catch {
@@ -74,6 +98,8 @@ public final class ChatDetailController: ObservableObject {
 
     public func leaveRoom() {
         roomID = ""
+        currentUserID = ""
+        peerUserID = nil
         messages = []
         isLoading = false
         isSending = false
@@ -121,7 +147,8 @@ public final class ChatDetailController: ObservableObject {
             localID: pending.id,
             content: trimmed,
             quotedMessageID: quote?.id,
-            token: token
+            token: token,
+            retry: false
         )
     }
 
@@ -208,7 +235,8 @@ public final class ChatDetailController: ObservableObject {
             localID: failed.id,
             content: failed.content,
             quotedMessageID: failed.quotedMessage?.id,
-            token: token
+            token: token,
+            retry: true
         )
     }
 
@@ -364,7 +392,8 @@ public final class ChatDetailController: ObservableObject {
         localID: String,
         content: String,
         quotedMessageID: String?,
-        token: String
+        token: String,
+        retry: Bool
     ) async throws -> ChatMessage {
         messages = messages.map {
             $0.id == localID ? $0.replacingStatus(.sending) : $0
@@ -374,6 +403,25 @@ public final class ChatDetailController: ObservableObject {
         try persist()
 
         do {
+            if let encryptedMessageID = try await outgoingTextRouter.send(
+                roomID: roomID,
+                peerUserID: peerUserID,
+                text: content,
+                retry: retry,
+                quotedMessageID: quotedMessageID,
+                accountID: currentUserID,
+                token: token
+            ) {
+                guard let pending = messages.first(where: { $0.id == localID }) else {
+                    throw E2eeOutgoingMessageError("E2EE 本地 pending 消息缺失")
+                }
+                let sent = pending.replacingID(encryptedMessageID, status: .sent)
+                incomingResolver.rememberResolved(sent, accountID: currentUserID)
+                messages = ChatDetailController.mergeMessages(current: messages, incoming: [sent])
+                try persist()
+                isSending = false
+                return sent
+            }
             let sent = try await api.sendTextMessage(
                 roomID: roomID,
                 content: content,
@@ -471,6 +519,27 @@ public final class ChatDetailController: ObservableObject {
 }
 
 extension ChatMessage {
+    func replacingID(_ id: String, status: ChatMessageStatus) -> ChatMessage {
+        ChatMessage(
+            id: id,
+            roomID: roomID,
+            senderID: senderID,
+            senderName: senderName,
+            content: content,
+            messageType: messageType,
+            status: status,
+            timestamp: timestamp,
+            isDeleted: isDeleted,
+            isPinned: isPinned,
+            pinnedAt: pinnedAt,
+            pinnedBy: pinnedBy,
+            quotedMessage: quotedMessage,
+            parts: parts,
+            attachments: attachments,
+            reactions: reactions
+        )
+    }
+
     init(cacheDraft draft: RedCodeMessageDraft) {
         self.init(
             id: draft.id,

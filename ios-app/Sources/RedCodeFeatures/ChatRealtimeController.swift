@@ -25,6 +25,7 @@ public final class ChatRealtimeController {
     private let listController: ChatListController
     private let messageCacheStore: any MessageCacheStore
     private let localNotificationService: (any ChatLocalNotificationService)?
+    private let incomingResolver: any IncomingChatMessageResolving
 
     private var eventTask: Task<Void, Never>?
     private var token: String?
@@ -36,12 +37,14 @@ public final class ChatRealtimeController {
         webSocket: any ChatWebSocketService,
         listController: ChatListController,
         messageCacheStore: any MessageCacheStore,
-        localNotificationService: (any ChatLocalNotificationService)? = nil
+        localNotificationService: (any ChatLocalNotificationService)? = nil,
+        incomingResolver: (any IncomingChatMessageResolving)? = nil
     ) {
         self.webSocket = webSocket
         self.listController = listController
         self.messageCacheStore = messageCacheStore
         self.localNotificationService = localNotificationService
+        self.incomingResolver = incomingResolver ?? PlaintextIncomingMessageResolver()
     }
 
     deinit {
@@ -136,7 +139,17 @@ public final class ChatRealtimeController {
 
     private func handleMessageEvent(_ event: WebSocketServerEvent) async {
         do {
-            let message = try ChatMessage(webSocketEvent: event, currentUserID: currentUserID)
+            let envelope = try ChatMessage(webSocketEvent: event, currentUserID: currentUserID)
+            let cachedMessage = try messageCacheStore.loadMessages(roomID: envelope.roomID)
+                .first(where: { $0.id == envelope.id })
+                .map(ChatMessage.init(cacheDraft:))
+            let message = try await incomingResolver.resolve(
+                envelope,
+                source: .webSocket,
+                accountID: currentUserID ?? "",
+                token: token ?? "",
+                cachedMessage: cachedMessage
+            )
             try persistMessage(message)
             try listController.applyIncomingMessage(message, currentUserID: currentUserID)
             let chat = listController.chats.first { $0.roomID == message.roomID }

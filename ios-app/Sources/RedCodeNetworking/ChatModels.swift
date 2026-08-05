@@ -117,6 +117,40 @@ public struct ChatMessagePart: Codable, Equatable, Sendable {
     }
 }
 
+public struct ChatEncryptionMetadata: Decodable, Equatable, Sendable {
+    public let protocolName: String
+    public let version: Int
+    public let epoch: UInt64
+    public let senderDeviceID: String
+    public let contentType: String
+    public let controlMessageID: String?
+
+    public init(
+        protocolName: String,
+        version: Int,
+        epoch: UInt64,
+        senderDeviceID: String,
+        contentType: String,
+        controlMessageID: String? = nil
+    ) {
+        self.protocolName = protocolName
+        self.version = version
+        self.epoch = epoch
+        self.senderDeviceID = senderDeviceID
+        self.contentType = contentType
+        self.controlMessageID = controlMessageID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case protocolName = "protocol"
+        case version
+        case epoch
+        case senderDeviceID = "sender_device_id"
+        case contentType = "content_type"
+        case controlMessageID = "control_message_id"
+    }
+}
+
 public struct OutgoingMessagePart: Encodable, Equatable, Sendable {
     public let type: ChatMessageType
     public let text: String?
@@ -303,6 +337,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
     public let senderID: String
     public let senderName: String
     public let content: String
+    public let encryptedContent: String?
+    public let encryptionMetadata: ChatEncryptionMetadata?
     public let messageType: ChatMessageType
     public let status: ChatMessageStatus?
     public let timestamp: Date
@@ -321,6 +357,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         senderID: String,
         senderName: String,
         content: String,
+        encryptedContent: String? = nil,
+        encryptionMetadata: ChatEncryptionMetadata? = nil,
         messageType: ChatMessageType = .text,
         status: ChatMessageStatus? = .sent,
         timestamp: Date,
@@ -338,6 +376,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         self.senderID = senderID
         self.senderName = senderName
         self.content = content
+        self.encryptedContent = encryptedContent
+        self.encryptionMetadata = encryptionMetadata
         self.messageType = messageType
         self.status = status
         self.timestamp = timestamp
@@ -360,6 +400,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         let nickname = try container.decodeIfPresent(String.self, forKey: .senderNickname)
         senderName = (nickname ?? username ?? senderID)
         content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        encryptedContent = try container.decodeIfPresent(String.self, forKey: .encryptedContent)
+        encryptionMetadata = try container.decodeIfPresent(ChatEncryptionMetadata.self, forKey: .encryptionMetadata)
         messageType = try container.decodeIfPresent(ChatMessageType.self, forKey: .messageType) ?? .text
         status = try container.decodeIfPresent(ChatMessageStatus.self, forKey: .status)
         timestamp = container.decodeFlexibleDate(forKey: .createdAt, fallbackKey: .timestamp)
@@ -382,6 +424,8 @@ public struct ChatMessage: Decodable, Equatable, Identifiable, Sendable {
         case senderUsername = "sender_username"
         case senderNickname = "sender_nickname"
         case content
+        case encryptedContent = "encrypted_content"
+        case encryptionMetadata = "encryption_metadata"
         case messageType = "message_type"
         case status
         case createdAt = "created_at"

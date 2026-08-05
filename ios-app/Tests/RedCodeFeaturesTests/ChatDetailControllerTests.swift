@@ -1,10 +1,98 @@
 import XCTest
+import RedCodeCore
 @testable import RedCodeFeatures
 @testable import RedCodeNetworking
 @testable import RedCodeStorage
 
 @MainActor
 final class ChatDetailControllerTests: XCTestCase {
+    func testEncryptedHistoryResolvesBeforePersistingToMessageCache() async throws {
+        let cache = GRDBMessageCacheStore(
+            database: try RedCodeDatabase.makeDatabase(inMemory: true)
+        )
+        let envelope = ChatMessage(
+            id: "encrypted",
+            roomID: "r1",
+            senderID: "u2",
+            senderName: "Alice",
+            content: "",
+            encryptedContent: "Y2lwaGVydGV4dA==",
+            encryptionMetadata: ChatEncryptionMetadata(
+                protocolName: "mls",
+                version: 1,
+                epoch: 7,
+                senderDeviceID: "d2",
+                contentType: "application"
+            ),
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let resolved = ChatMessage(
+            id: "encrypted",
+            roomID: "r1",
+            senderID: "u2",
+            senderName: "Alice",
+            content: "decrypted",
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let api = MockChatDetailAPIService(messages: [envelope])
+        let resolver = ChatIncomingResolverStub(result: resolved)
+        let controller = ChatDetailController(
+            api: api,
+            messageCacheStore: cache,
+            incomingResolver: resolver
+        )
+
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+
+        XCTAssertEqual(controller.messages.first?.content, "decrypted")
+        XCTAssertEqual(try cache.loadMessages(roomID: "r1").first?.content, "decrypted")
+        XCTAssertEqual(resolver.sources, [.history])
+    }
+
+    func testEncryptedSendBypassesPlaintextAPIAndRemembersResolvedMessage() async throws {
+        let cache = GRDBMessageCacheStore(
+            database: try RedCodeDatabase.makeDatabase(inMemory: true)
+        )
+        let api = MockChatDetailAPIService()
+        let resolver = ChatIncomingResolverStub()
+        let router = ChatOutgoingRouterStub(result: "encrypted-server-id")
+        let controller = ChatDetailController(
+            api: api,
+            messageCacheStore: cache,
+            incomingResolver: resolver,
+            outgoingTextRouter: router
+        )
+        try await controller.enterRoom(
+            roomID: "r1",
+            token: "access-token",
+            currentUserID: "u1",
+            peerUserID: "u2"
+        )
+
+        let sent = try await controller.sendText(
+            "secret",
+            token: "access-token",
+            currentUserID: "u1",
+            currentUserName: "Me"
+        )
+
+        XCTAssertEqual(sent?.id, "encrypted-server-id")
+        XCTAssertEqual(sent?.content, "secret")
+        XCTAssertEqual(controller.messages.map(\.id), ["encrypted-server-id"])
+        XCTAssertEqual(resolver.rememberedMessages.map(\.id), ["encrypted-server-id"])
+        XCTAssertEqual(router.calls.first?.peerUserID, "u2")
+        let apiCalls = await api.calls
+        XCTAssertFalse(apiCalls.contains { call in
+            if case .sendText = call { return true }
+            return false
+        })
+    }
+
     func testEnterRoomMergesCachedAndRemoteMessagesAndMarksLatestIncomingRead() async throws {
         let cache = GRDBMessageCacheStore(
             database: try RedCodeDatabase.makeDatabase(inMemory: true)
@@ -226,6 +314,61 @@ final class ChatDetailControllerTests: XCTestCase {
             .upload(contentType: "image/png", byteCount: 11),
             .commit(roomID: "r1", key: "messages/r1/images_20260704/abc.png"),
         ])
+    }
+}
+
+@MainActor
+private final class ChatIncomingResolverStub: IncomingChatMessageResolving {
+    let result: ChatMessage?
+    private(set) var sources: [E2eeMessageSource] = []
+    private(set) var rememberedMessages: [ChatMessage] = []
+
+    init(result: ChatMessage? = nil) {
+        self.result = result
+    }
+
+    func resolve(
+        _ message: ChatMessage,
+        source: E2eeMessageSource,
+        accountID: String,
+        token: String,
+        cachedMessage: ChatMessage?
+    ) async throws -> ChatMessage {
+        sources.append(source)
+        return result ?? message
+    }
+
+    func rememberResolved(_ message: ChatMessage, accountID: String) {
+        rememberedMessages.append(message)
+    }
+}
+
+private struct ChatOutgoingRouterCall: Equatable {
+    let roomID: String
+    let peerUserID: String?
+    let retry: Bool
+}
+
+@MainActor
+private final class ChatOutgoingRouterStub: OutgoingTextMessageRouting {
+    let result: String?
+    private(set) var calls: [ChatOutgoingRouterCall] = []
+
+    init(result: String?) {
+        self.result = result
+    }
+
+    func send(
+        roomID: String,
+        peerUserID: String?,
+        text: String,
+        retry: Bool,
+        quotedMessageID: String?,
+        accountID: String,
+        token: String
+    ) async throws -> String? {
+        calls.append(ChatOutgoingRouterCall(roomID: roomID, peerUserID: peerUserID, retry: retry))
+        return result
     }
 }
 

@@ -1,10 +1,48 @@
 import XCTest
+import RedCodeCore
 @testable import RedCodeFeatures
 @testable import RedCodeNetworking
 @testable import RedCodeStorage
 
 @MainActor
 final class ChatRealtimeControllerTests: XCTestCase {
+    func testEncryptedMessageEventResolvesBeforeUpdatingListAndCache() async throws {
+        let container = try RedCodeDatabase.makeDatabase(inMemory: true)
+        let chatCache = GRDBChatSummaryCacheStore(database: container)
+        let messageCache = GRDBMessageCacheStore(database: container)
+        let listController = ChatListController(api: RealtimeMockChatAPIService(), cacheStore: chatCache)
+        try listController.upsertChatSummary(
+            ChatSummary(roomID: "r1", displayName: "Alice", roomType: .privateChat)
+        )
+        let resolved = ChatMessage(
+            id: "m-encrypted",
+            roomID: "r1",
+            senderID: "u2",
+            senderName: "Alice",
+            content: "decrypted over ws",
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let resolver = RealtimeIncomingResolverStub(result: resolved)
+        let webSocket = MockChatWebSocketService()
+        let realtimeController = ChatRealtimeController(
+            webSocket: webSocket,
+            listController: listController,
+            messageCacheStore: messageCache,
+            incomingResolver: resolver
+        )
+
+        await realtimeController.start(token: "access-token", currentUserID: "u1")
+        await webSocket.emit(encryptedMessageEvent())
+
+        try await waitUntil {
+            listController.chats.first?.lastMessageID == "m-encrypted"
+        }
+
+        XCTAssertEqual(listController.chats.first?.lastMessagePreview, "decrypted over ws")
+        XCTAssertEqual(try messageCache.loadMessages(roomID: "r1").first?.content, "decrypted over ws")
+        XCTAssertEqual(resolver.sources, [.webSocket])
+    }
+
     func testMessageEventUpdatesChatListAndMessageCache() async throws {
         let container = try RedCodeDatabase.makeDatabase(inMemory: true)
         let chatCache = GRDBChatSummaryCacheStore(database: container)
@@ -187,6 +225,29 @@ final class ChatRealtimeControllerTests: XCTestCase {
     }
 }
 
+@MainActor
+private final class RealtimeIncomingResolverStub: IncomingChatMessageResolving {
+    let result: ChatMessage
+    private(set) var sources: [E2eeMessageSource] = []
+
+    init(result: ChatMessage) {
+        self.result = result
+    }
+
+    func resolve(
+        _ message: ChatMessage,
+        source: E2eeMessageSource,
+        accountID: String,
+        token: String,
+        cachedMessage: ChatMessage?
+    ) async throws -> ChatMessage {
+        sources.append(source)
+        return result
+    }
+
+    func rememberResolved(_ message: ChatMessage, accountID: String) {}
+}
+
 private enum RealtimeWebSocketCall: Equatable, Sendable {
     case connect(token: String?)
     case disconnect
@@ -346,6 +407,29 @@ private func messageEvent(messageID: String, senderID: String, content: String) 
             "sender_id": .string(senderID),
             "sender_username": .string(senderID),
             "content": .string(content),
+            "message_type": .string("text"),
+            "timestamp": .string("2026-07-03T12:00:00Z"),
+        ]
+    )
+}
+
+private func encryptedMessageEvent() -> WebSocketServerEvent {
+    WebSocketServerEvent(
+        type: "message",
+        fields: [
+            "message_id": .string("m-encrypted"),
+            "room_id": .string("r1"),
+            "sender_id": .string("u2"),
+            "sender_username": .string("u2"),
+            "content": .string(""),
+            "encrypted_content": .string("Y2lwaGVydGV4dA=="),
+            "encryption_metadata": .object([
+                "protocol": .string("mls"),
+                "version": .number(1),
+                "epoch": .number(7),
+                "sender_device_id": .string("d2"),
+                "content_type": .string("application"),
+            ]),
             "message_type": .string("text"),
             "timestamp": .string("2026-07-03T12:00:00Z"),
         ]

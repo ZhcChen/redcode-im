@@ -5,7 +5,7 @@ public struct E2eeDirectMessageError: Error, Equatable, Sendable {
     public init(_ message: String) { self.message = message }
 }
 
-public enum E2eeMessageSource: Sendable { case webSocket, history }
+public enum E2eeMessageSource: Equatable, Sendable { case webSocket, history }
 
 public struct E2eeIncomingMessage: Sendable {
     public let messageID: String; public let roomID: String; public let ciphertext: Data?
@@ -17,6 +17,14 @@ public struct E2eeIncomingMessage: Sendable {
 
 public struct E2eeDecryptedMessage: Equatable, Sendable {
     public let messageID: String; public let roomID: String; public let text: String; public let epoch: UInt64; public let encrypted: Bool
+
+    public init(messageID: String, roomID: String, text: String, epoch: UInt64, encrypted: Bool) {
+        self.messageID = messageID
+        self.roomID = roomID
+        self.text = text
+        self.epoch = epoch
+        self.encrypted = encrypted
+    }
 }
 
 public protocol E2eeDirectSessionCore: Sendable {
@@ -91,6 +99,10 @@ public actor E2eeDirectMessageCoordinator {
 
     public func retryPendingSend(accountID: String, token: String) async throws -> String {
         try await resumePending(accountID: accountID, token: token)
+    }
+
+    public func hasPendingSend(accountID: String) async throws -> Bool {
+        try await readMetadata(accountID).pendingApplication != nil
     }
 
     public func decryptIncoming(accountID: String, deviceLabel: String, input: E2eeIncomingMessage, token: String) async throws -> E2eeDecryptedMessage {

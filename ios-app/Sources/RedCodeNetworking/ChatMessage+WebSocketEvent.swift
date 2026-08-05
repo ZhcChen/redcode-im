@@ -27,6 +27,8 @@ public extension ChatMessage {
             senderID: senderID,
             senderName: senderName,
             content: content,
+            encryptedContent: encryptedContent,
+            encryptionMetadata: encryptionMetadata,
             messageType: messageType,
             status: status,
             timestamp: timestamp,

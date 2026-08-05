@@ -2,6 +2,56 @@ import XCTest
 @testable import RedCodeNetworking
 
 final class ChatAPIClientTests: XCTestCase {
+    func testLoadMessagesMapsEncryptedEnvelope() async throws {
+        let transport = MockChatHTTPTransport(
+            data: Data(
+                """
+                [
+                  {
+                    "id": "m-encrypted",
+                    "room_id": "r1",
+                    "sender_id": "u2",
+                    "sender_username": "alice",
+                    "content": "",
+                    "encrypted_content": "Y2lwaGVydGV4dA==",
+                    "encryption_metadata": {
+                      "protocol": "mls",
+                      "version": 1,
+                      "epoch": 7,
+                      "sender_device_id": "device-2",
+                      "content_type": "application",
+                      "control_message_id": "control-7"
+                    },
+                    "message_type": "text",
+                    "created_at": "2026-07-03T10:00:00Z"
+                  }
+                ]
+                """.utf8
+            ),
+            statusCode: 200
+        )
+        let client = ChatAPIClient(
+            apiClient: APIClient(environment: .simulatorDevelopment(), transport: transport)
+        )
+
+        let messages = try await client.loadMessages(
+            roomID: "r1",
+            token: "access-token",
+            limit: 50,
+            beforeID: nil,
+            sinceID: nil
+        )
+
+        let message = try XCTUnwrap(messages.first)
+        XCTAssertEqual(message.encryptedContent, "Y2lwaGVydGV4dA==")
+        XCTAssertEqual(message.encryptionMetadata?.protocolName, "mls")
+        XCTAssertEqual(message.encryptionMetadata?.version, 1)
+        XCTAssertEqual(message.encryptionMetadata?.epoch, 7)
+        XCTAssertEqual(message.encryptionMetadata?.senderDeviceID, "device-2")
+        XCTAssertEqual(message.encryptionMetadata?.contentType, "application")
+        XCTAssertEqual(message.encryptionMetadata?.controlMessageID, "control-7")
+    }
+
     func testFetchChatsMapsBackendSummariesAndSortsPinnedFirst() async throws {
         let transport = MockChatHTTPTransport(
             data: Data(

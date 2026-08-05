@@ -711,7 +711,8 @@ struct ChatDetailView: View {
             try await controller.enterRoom(
                 roomID: chat.roomID,
                 token: session.token,
-                currentUserID: session.user.id
+                currentUserID: session.user.id,
+                peerUserID: chat.friendUserID
             )
             await realtimeController.attachDetailController(controller, roomID: chat.roomID)
         } catch {

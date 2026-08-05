@@ -33,6 +33,8 @@ final class AppDependencies {
     private let messageSearchStore: GRDBMessageSearchStore
     private let chatPreferencesStore: any ChatPreferencesStore
     private let appConfigStore: GRDBAppConfigStore
+    private let incomingMessageResolver: any IncomingChatMessageResolving
+    private let outgoingTextRouter: any OutgoingTextMessageRouting
     private let attachmentCache = AttachmentFileCache()
     private let avatarCache = AvatarFileCache()
     private let emojiCache = EmojiFileCache()
@@ -93,9 +95,10 @@ final class AppDependencies {
             cipher: CryptoKitE2eeStateCipher(keyStore: KeychainKeyValueStore()),
             blobs: GRDBE2eeStateBlobStore(database: database)
         )
+        let e2eeMLSAPI = E2eeMLSAPIClient(apiClient: APIClient(environment: environment))
         let e2eeDevices = E2eeDeviceLifecycle(
             storage: e2eeSecureState,
-            mlsApi: E2eeMLSAPIClient(apiClient: APIClient(environment: environment))
+            mlsApi: e2eeMLSAPI
         )
         self.e2eeSessionLifecycle = E2eeSessionLifecycle(
             settings: SettingsE2eeRuntimeProvider(settings: self.settingsAPIService),
@@ -103,6 +106,22 @@ final class AppDependencies {
             secureState: E2eeAccountSecureStateCleaner { accountID in
                 try await e2eeSecureState.delete(accountID: accountID)
             },
+            deviceLabel: "iPhone"
+        )
+        let directMessageCoordinator = E2eeDirectMessageCoordinator(
+            storage: e2eeSecureState,
+            lifecycle: e2eeDevices,
+            api: e2eeMLSAPI
+        )
+        let incomingMessageResolver = E2eeIncomingMessageResolver(
+            sessionStatus: self.e2eeSessionLifecycle,
+            decryptor: directMessageCoordinator,
+            deviceLabel: "iPhone"
+        )
+        self.incomingMessageResolver = incomingMessageResolver
+        self.outgoingTextRouter = E2eeOutgoingTextRouter(
+            sessionStatus: self.e2eeSessionLifecycle,
+            sender: directMessageCoordinator,
             deviceLabel: "iPhone"
         )
         let chatListController = ChatListController(
@@ -128,7 +147,8 @@ final class AppDependencies {
             webSocket: webSocketService,
             listController: chatListController,
             messageCacheStore: messageCacheStore,
-            localNotificationService: pushController
+            localNotificationService: pushController,
+            incomingResolver: incomingMessageResolver
         )
     }
 
@@ -164,7 +184,9 @@ final class AppDependencies {
             api: chatAPIService,
             messageCacheStore: messageCacheStore,
             mediaAPI: mediaAPIService,
-            attachmentCache: attachmentCache
+            attachmentCache: attachmentCache,
+            incomingResolver: incomingMessageResolver,
+            outgoingTextRouter: outgoingTextRouter
         )
     }
 
