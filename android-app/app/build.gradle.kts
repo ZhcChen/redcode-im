@@ -85,6 +85,8 @@ dependencies {
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     ksp("androidx.room:room-compiler:2.8.4")
+    // e2ee-core C ABI 绑定（保持共享核心纯 C 契约，不引入 JNI 符号）。
+    implementation("net.java.dev.jna:jna:5.17.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
