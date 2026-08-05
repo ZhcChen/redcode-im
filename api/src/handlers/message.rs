@@ -2641,11 +2641,7 @@ pub async fn generate_message_attachment_signature(
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
-    let reusable_attachment_prefix = if is_relay_only_runtime(&state).await? {
-        format!("messages/{room_id}/")
-    } else {
-        "messages/".to_string()
-    };
+    let reusable_attachment_prefix = format!("messages/{room_id}/");
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的 object_key
     if let (Some(ref hash_value), Some(file_size)) = (&req.hash_value, req.file_size) {
@@ -2807,11 +2803,7 @@ pub async fn initiate_message_attachment_multipart_upload(
 
     let provider = load_default_storage_provider(&state).await?;
     let storage_service = storage::create_storage_service(&provider)?;
-    let reusable_attachment_prefix = if is_relay_only_runtime(&state).await? {
-        format!("messages/{room_id}/")
-    } else {
-        "messages/".to_string()
-    };
+    let reusable_attachment_prefix = format!("messages/{room_id}/");
 
     // 如果前端提供了 hash 和 size，优先尝试复用已上传完成的附件
     if let Some(ref hash_value) = req.hash_value {
@@ -2972,7 +2964,7 @@ pub async fn generate_message_attachment_download_url(
         let has_committed_room_attachment =
             if is_message_attachment_object_key_for_room(&room_id, key) {
                 store
-                    .room_has_committed_attachment(room_id, key)
+                    .claim_room_attachment_access(room_id, key, user_id)
                     .await
                     .map_err(AppError::from)?
             } else {
@@ -3064,9 +3056,7 @@ pub async fn commit_message_attachment_upload(
     if !is_valid_message_attachment_object_key(key) {
         return Err(message_validation_error("message.attachment_key_invalid"));
     }
-    if is_relay_only_runtime(&state).await?
-        && !is_message_attachment_object_key_for_room(&room_id, key)
-    {
+    if !is_message_attachment_object_key_for_room(&room_id, key) {
         return Err(message_validation_error("message.attachment_key_invalid"));
     }
 
@@ -3162,14 +3152,9 @@ pub async fn commit_message_attachment_upload(
             .map_err(AppError::from)?;
     }
 
-    // 标记完成；前面已经保证即使客户端不带 hash，也有可追踪的上传记录。
-    let _ = upload_store
-        .mark_completed_by_key(&provider.id, key)
-        .await
-        .map_err(AppError::from)?;
-
     let recorded = store
         .record_room_attachment_commit(
+            provider.id,
             room_id,
             key,
             user_id,

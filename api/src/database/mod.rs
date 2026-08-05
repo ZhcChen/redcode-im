@@ -146,6 +146,13 @@ const MIGRATIONS: &[(&str, &str)] = &[
             "/sql/migrations/20260805193000_message_attachment_commits.sql"
         )),
     ),
+    (
+        "20260805201000_message_attachment_commit_leases.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/sql/migrations/20260805201000_message_attachment_commit_leases.sql"
+        )),
+    ),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

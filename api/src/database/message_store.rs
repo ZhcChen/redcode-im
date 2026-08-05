@@ -34,6 +34,25 @@ async fn insert_message_parts(
     parts: &[NewMessagePart],
 ) -> Result<(), sqlx::Error> {
     for part in parts {
+        for object_key in [
+            part.attachment_key.as_deref(),
+            part.thumbnail_key.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let upload_states: Vec<(i16,)> = sqlx::query_as(
+                "SELECT status FROM file_upload_records
+                 WHERE object_key = $1
+                 FOR SHARE",
+            )
+            .bind(object_key)
+            .fetch_all(&mut **tx)
+            .await?;
+            if upload_states.is_empty() || upload_states.iter().any(|(status,)| *status != 1) {
+                return Err(sqlx::Error::RowNotFound);
+            }
+        }
         sqlx::query(
             "INSERT INTO message_parts (
                 id,
@@ -107,18 +126,43 @@ impl<'a> MessageStore<'a> {
 
     pub async fn record_room_attachment_commit(
         &self,
+        storage_provider_id: Uuid,
         room_id: Uuid,
         object_key: &str,
         uploaded_by: Uuid,
         file_size: Option<i64>,
     ) -> Result<bool, sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+        let upload_completed: Option<(i32,)> = sqlx::query_as(
+            r#"
+            UPDATE file_upload_records
+            SET status = 1,
+                uploaded_at = COALESCE(uploaded_at, NOW()),
+                updated_at = NOW(),
+                last_error = NULL
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+              AND status <> 3
+            RETURNING 1
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if upload_completed.is_none() {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+
         let recorded: Option<(Uuid,)> = sqlx::query_as(
             r#"
             INSERT INTO message_attachment_commits (room_id, object_key, uploaded_by, file_size)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (room_id, object_key) DO UPDATE
             SET file_size = EXCLUDED.file_size,
-                committed_at = NOW()
+                committed_at = NOW(),
+                expires_at = NOW() + INTERVAL '30 days'
             WHERE message_attachment_commits.uploaded_by = EXCLUDED.uploaded_by
             RETURNING uploaded_by
             "#,
@@ -127,28 +171,58 @@ impl<'a> MessageStore<'a> {
         .bind(object_key)
         .bind(uploaded_by)
         .bind(file_size)
-        .fetch_optional(self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
-        Ok(recorded.is_some())
+        if recorded.is_none() {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+        tx.commit().await?;
+        Ok(true)
     }
 
-    pub async fn room_has_committed_attachment(
+    pub async fn claim_room_attachment_access(
         &self,
         room_id: Uuid,
         object_key: &str,
+        accessed_by: Uuid,
     ) -> Result<bool, sqlx::Error> {
-        let exists: Option<(i32,)> = sqlx::query_as(
+        let mut tx = self.pool.begin().await?;
+        let upload_states: Vec<(i16,)> = sqlx::query_as(
             r#"
-            SELECT 1
-            FROM message_attachment_commits
-            WHERE room_id = $1 AND object_key = $2
-            LIMIT 1
+            SELECT status
+            FROM file_upload_records
+            WHERE object_key = $1
+            FOR UPDATE
+            "#,
+        )
+        .bind(object_key)
+        .fetch_all(&mut *tx)
+        .await?;
+        if upload_states.is_empty() || upload_states.iter().any(|(status,)| *status != 1) {
+            tx.rollback().await?;
+            return Ok(false);
+        }
+
+        let exists: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            UPDATE message_attachment_commits
+            SET confirmed_at = CASE
+                    WHEN uploaded_by <> $3 THEN COALESCE(confirmed_at, NOW())
+                    ELSE confirmed_at
+                END
+            WHERE room_id = $1
+              AND object_key = $2
+              AND (confirmed_at IS NOT NULL OR expires_at > NOW())
+            RETURNING uploaded_by
             "#,
         )
         .bind(room_id)
         .bind(object_key)
-        .fetch_optional(self.pool)
+        .bind(accessed_by)
+        .fetch_optional(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(exists.is_some())
     }
 

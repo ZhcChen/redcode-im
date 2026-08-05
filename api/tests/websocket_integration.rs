@@ -4,6 +4,7 @@ use axum::{body::Body, http::StatusCode};
 use base64::Engine;
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
+use redcode_im_api::database::{file_upload_store::FileUploadStore, Database};
 use redis::AsyncCommands;
 use serde_json::{json, Value};
 use support::{body_json, bootstrap_admin_token, spawn_test_app, unique_username, TestApp};
@@ -838,6 +839,37 @@ async fn persist_mode_rejects_uncommitted_attachment_keys() {
     .await
     .expect("seed E2EE attachment commit");
 
+    let upload_store = FileUploadStore::new(Database {
+        pool: app.pool.clone(),
+    });
+    assert!(
+        upload_store
+            .is_object_key_referenced(&e2ee_key)
+            .await
+            .expect("check pending grant reference"),
+        "未过期 pending grant 应在发送窗口内保护对象"
+    );
+
+    let (status, _) = app
+        .get_authed(
+            &format!("/rooms/{room_id}/messages/attachments/download?key={e2ee_key}"),
+            &owner.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    let confirmed_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT confirmed_at FROM message_attachment_commits WHERE room_id = $1 AND object_key = $2",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room uuid"))
+    .bind(&e2ee_key)
+    .fetch_one(&app.pool)
+    .await
+    .expect("load owner attachment access");
+    assert!(
+        confirmed_at.is_none(),
+        "上传者自身访问不得把 pending grant 变为长期授权"
+    );
+
     let (status, e2ee_download) = app
         .get_authed(
             &format!("/rooms/{room_id}/messages/attachments/download?key={e2ee_key}"),
@@ -850,6 +882,84 @@ async fn persist_mode_rejects_uncommitted_attachment_keys() {
         "已提交的 E2EE room attachment 应允许房间成员下载: {}",
         String::from_utf8_lossy(&e2ee_download)
     );
+    let confirmed_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
+        "SELECT confirmed_at FROM message_attachment_commits WHERE room_id = $1 AND object_key = $2",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room uuid"))
+    .bind(&e2ee_key)
+    .fetch_one(&app.pool)
+    .await
+    .expect("load member attachment access");
+    assert!(confirmed_at.is_some(), "其他房间成员首次访问应确认长期授权");
+    assert!(
+        upload_store
+            .is_object_key_referenced(&e2ee_key)
+            .await
+            .expect("check confirmed grant reference"),
+        "已确认 grant 应长期保护对象"
+    );
+    assert!(
+        upload_store
+            .begin_unreferenced_deletion(&provider_id, &e2ee_key)
+            .await
+            .expect("begin confirmed attachment deletion")
+            .is_none(),
+        "已确认 grant 不得被 GC 占用删除"
+    );
+
+    let expired_key = format!("messages/{room_id}/files_20260805/expired.bin");
+    seed_completed_message_attachment(
+        &app,
+        provider_id,
+        &expired_key,
+        "application/octet-stream",
+        19,
+    )
+    .await;
+    sqlx::query(
+        "INSERT INTO message_attachment_commits
+             (room_id, object_key, uploaded_by, file_size, expires_at)
+         VALUES ($1, $2, $3, $4, NOW() - INTERVAL '1 second')",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room uuid"))
+    .bind(&expired_key)
+    .bind(Uuid::parse_str(&owner.id).expect("owner uuid"))
+    .bind(19_i64)
+    .execute(&app.pool)
+    .await
+    .expect("seed expired E2EE attachment commit");
+    let (status, _) = app
+        .get_authed(
+            &format!("/rooms/{room_id}/messages/attachments/download?key={expired_key}"),
+            &member.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(
+        !upload_store
+            .is_object_key_referenced(&expired_key)
+            .await
+            .expect("check expired grant reference"),
+        "未确认且已过期 grant 不得继续阻止 GC"
+    );
+    let deletion_tx = upload_store
+        .begin_unreferenced_deletion(&provider_id, &expired_key)
+        .await
+        .expect("begin expired attachment deletion")
+        .expect("过期 pending grant 应允许 GC 加锁删除");
+    deletion_tx
+        .rollback()
+        .await
+        .expect("rollback interrupted attachment deletion");
+    let upload_status: i16 = sqlx::query_scalar(
+        "SELECT status FROM file_upload_records WHERE storage_provider_id = $1 AND object_key = $2",
+    )
+    .bind(provider_id)
+    .bind(&expired_key)
+    .fetch_one(&app.pool)
+    .await
+    .expect("load upload status after rollback");
+    assert_eq!(upload_status, 1, "删除中断必须回滚，不能遗留 tombstone");
 
     let foreign_key = format!("messages/{}/files_20260805/e2ee.bin", Uuid::new_v4());
     sqlx::query(
@@ -863,6 +973,18 @@ async fn persist_mode_rejects_uncommitted_attachment_keys() {
     .execute(&app.pool)
     .await
     .expect("seed foreign-prefix attachment commit");
+    let (status, _) = app
+        .post_json_authed(
+            &format!("/rooms/{room_id}/messages/attachments/commit"),
+            &owner.token,
+            &json!({ "key": foreign_key, "file_size": 19 }).to_string(),
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::BAD_REQUEST,
+        "跨房间 key 不得写入 commit grant"
+    );
     let (status, _) = app
         .get_authed(
             &format!("/rooms/{room_id}/messages/attachments/download?key={foreign_key}"),

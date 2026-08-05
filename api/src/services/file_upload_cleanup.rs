@@ -11,6 +11,113 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+async fn commit_deleted_record(
+    mut tx: sqlx::Transaction<'static, sqlx::Postgres>,
+    storage_provider_id: &Uuid,
+    object_key: &str,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE file_upload_records
+         SET status = 3, updated_at = NOW(), last_error = $3
+         WHERE storage_provider_id = $1 AND object_key = $2",
+    )
+    .bind(storage_provider_id)
+    .bind(object_key)
+    .bind(reason)
+    .execute(&mut *tx)
+    .await
+    .map_err(AppError::DatabaseError)?;
+    tx.commit().await.map_err(AppError::DatabaseError)
+}
+
+async fn delete_locked_object(
+    tx: sqlx::Transaction<'static, sqlx::Postgres>,
+    svc: &dyn StorageService,
+    storage_provider_id: &Uuid,
+    object_key: &str,
+    deleted_reason: &str,
+) -> Result<(), AppError> {
+    let exists = match svc.head_object(object_key).await {
+        Ok(_) => true,
+        Err(AppError::NotFound(_)) => false,
+        Err(AppError::ValidationError(_)) => match svc.file_exists(object_key).await {
+            Ok(exists) => exists,
+            Err(error) => {
+                tx.rollback().await.map_err(AppError::DatabaseError)?;
+                warn!("检查对象存在性失败: key={}, error={}", object_key, error);
+                return Ok(());
+            }
+        },
+        Err(error) => {
+            tx.rollback().await.map_err(AppError::DatabaseError)?;
+            warn!("获取对象元数据失败: key={}, error={}", object_key, error);
+            return Ok(());
+        }
+    };
+
+    if exists {
+        if let Err(error) = svc.delete_file(object_key).await {
+            tx.rollback().await.map_err(AppError::DatabaseError)?;
+            warn!("删除无引用对象失败: key={}, error={}", object_key, error);
+            return Ok(());
+        }
+    }
+
+    commit_deleted_record(
+        tx,
+        storage_provider_id,
+        object_key,
+        if exists {
+            deleted_reason
+        } else {
+            "对象不存在，已标记为删除"
+        },
+    )
+    .await
+}
+
+async fn delete_unlocked_object(
+    upload_store: &FileUploadStore,
+    svc: &dyn StorageService,
+    storage_provider_id: &Uuid,
+    object_key: &str,
+    deleted_reason: &str,
+) {
+    let exists = match svc.head_object(object_key).await {
+        Ok(_) => true,
+        Err(AppError::NotFound(_)) => false,
+        Err(AppError::ValidationError(_)) => match svc.file_exists(object_key).await {
+            Ok(exists) => exists,
+            Err(error) => {
+                warn!("检查对象存在性失败: key={}, error={}", object_key, error);
+                return;
+            }
+        },
+        Err(error) => {
+            warn!("获取对象元数据失败: key={}, error={}", object_key, error);
+            return;
+        }
+    };
+    if exists {
+        if let Err(error) = svc.delete_file(object_key).await {
+            warn!("删除无引用对象失败: key={}, error={}", object_key, error);
+            return;
+        }
+    }
+    let _ = upload_store
+        .mark_deleted_by_key(
+            storage_provider_id,
+            object_key,
+            Some(if exists {
+                deleted_reason
+            } else {
+                "对象不存在，已标记为删除"
+            }),
+        )
+        .await;
+}
+
 fn infer_audit_scene_from_object_key(object_key: &str) -> &'static str {
     let key = object_key.trim();
     if key.starts_with("avatars/") {
@@ -220,20 +327,32 @@ pub async fn run_file_upload_cleanup(
 
                 let delete_cutoff = Utc::now() - Duration::seconds(cfg.orphan_delete_after_seconds);
                 if record.created_at < delete_cutoff {
-                    match svc.delete_file(key).await {
-                        Ok(_) => {
-                            let _ = upload_store
-                                .mark_deleted_by_key(
-                                    &record.storage_provider_id,
-                                    key,
-                                    Some("超时且无引用，已删除对象"),
-                                )
-                                .await;
-                        }
-                        Err(e) => {
-                            warn!("清理超时对象失败: key={}, error={}", key, e);
-                        }
+                    if !key.starts_with("messages/") {
+                        delete_unlocked_object(
+                            &upload_store,
+                            svc.as_ref(),
+                            &record.storage_provider_id,
+                            key,
+                            "超时且无引用，已删除对象",
+                        )
+                        .await;
+                        continue;
                     }
+                    let Some(deletion_tx) = upload_store
+                        .begin_unreferenced_deletion(&record.storage_provider_id, key)
+                        .await
+                        .map_err(AppError::DatabaseError)?
+                    else {
+                        continue;
+                    };
+                    delete_locked_object(
+                        deletion_tx,
+                        svc.as_ref(),
+                        &record.storage_provider_id,
+                        key,
+                        "超时且无引用，已删除对象",
+                    )
+                    .await?;
                 }
             }
             Err(AppError::NotFound(_)) => {
@@ -303,57 +422,32 @@ pub async fn run_file_upload_cleanup(
         let svc =
             get_service_for_provider(&mut services, &provider_store, &record.storage_provider_id)
                 .await?;
-        match svc.head_object(key).await {
-            Ok(_) => match svc.delete_file(key).await {
-                Ok(_) => {
-                    let _ = upload_store
-                        .mark_deleted_by_key(
-                            &record.storage_provider_id,
-                            key,
-                            Some("无引用且已过保留期，已删除对象"),
-                        )
-                        .await;
-                }
-                Err(e) => warn!("删除无引用对象失败: key={}, error={}", key, e),
-            },
-            Err(AppError::NotFound(_)) => {
-                let _ = upload_store
-                    .mark_deleted_by_key(
-                        &record.storage_provider_id,
-                        key,
-                        Some("对象不存在，已标记为删除"),
-                    )
-                    .await;
-            }
-            Err(AppError::ValidationError(_)) => {
-                // provider 不支持 head：退化为 exists
-                match svc.file_exists(key).await {
-                    Ok(true) => match svc.delete_file(key).await {
-                        Ok(_) => {
-                            let _ = upload_store
-                                .mark_deleted_by_key(
-                                    &record.storage_provider_id,
-                                    key,
-                                    Some("无引用且已过保留期，已删除对象"),
-                                )
-                                .await;
-                        }
-                        Err(e) => warn!("删除无引用对象失败: key={}, error={}", key, e),
-                    },
-                    Ok(false) => {
-                        let _ = upload_store
-                            .mark_deleted_by_key(
-                                &record.storage_provider_id,
-                                key,
-                                Some("对象不存在，已标记为删除"),
-                            )
-                            .await;
-                    }
-                    Err(e) => warn!("检查对象存在性失败: key={}, error={}", key, e),
-                }
-            }
-            Err(e) => warn!("获取对象元数据失败: key={}, error={}", key, e),
+        if !key.starts_with("messages/") {
+            delete_unlocked_object(
+                &upload_store,
+                svc.as_ref(),
+                &record.storage_provider_id,
+                key,
+                "无引用且已过保留期，已删除对象",
+            )
+            .await;
+            continue;
         }
+        let Some(deletion_tx) = upload_store
+            .begin_unreferenced_deletion(&record.storage_provider_id, key)
+            .await
+            .map_err(AppError::DatabaseError)?
+        else {
+            continue;
+        };
+        delete_locked_object(
+            deletion_tx,
+            svc.as_ref(),
+            &record.storage_provider_id,
+            key,
+            "无引用且已过保留期，已删除对象",
+        )
+        .await?;
     }
 
     Ok(())

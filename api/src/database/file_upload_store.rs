@@ -282,7 +282,12 @@ impl FileUploadStore {
 	                OR EXISTS (SELECT 1 FROM app_versions WHERE download_key = $1 LIMIT 1)
 	                OR EXISTS (SELECT 1 FROM hot_updates WHERE download_key = $1 LIMIT 1)
 	                OR EXISTS (SELECT 1 FROM report_attachments WHERE object_key = $1 LIMIT 1)
-	                OR EXISTS (SELECT 1 FROM message_attachment_commits WHERE object_key = $1 LIMIT 1)
+	                OR EXISTS (
+	                    SELECT 1 FROM message_attachment_commits
+	                    WHERE object_key = $1
+	                      AND (confirmed_at IS NOT NULL OR expires_at > NOW())
+	                    LIMIT 1
+	                )
 	                OR EXISTS (
 	                    SELECT 1
 	                    FROM message_parts mp
@@ -299,6 +304,64 @@ impl FileUploadStore {
         .await?;
 
         Ok(exists.is_some())
+    }
+
+    /// 锁定候选上传记录并在锁后重新检查引用。
+    ///
+    /// 调用方必须持有返回的事务直到对象存储删除完成；失败或进程中断时事务回滚。
+    pub async fn begin_unreferenced_deletion(
+        &self,
+        storage_provider_id: &Uuid,
+        object_key: &str,
+    ) -> Result<Option<sqlx::Transaction<'static, sqlx::Postgres>>, Error> {
+        if !object_key.starts_with("messages/") {
+            return Ok(None);
+        }
+        let mut tx = self.database.pool.begin().await?;
+        let candidate: Option<(i16,)> = sqlx::query_as(
+            r#"
+            SELECT status
+            FROM file_upload_records
+            WHERE storage_provider_id = $1
+              AND object_key = $2
+              AND status IN (0, 1, 2)
+            FOR UPDATE
+            "#,
+        )
+        .bind(storage_provider_id)
+        .bind(object_key)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if candidate.is_none() {
+            tx.rollback().await?;
+            return Ok(None);
+        }
+
+        let referenced: bool = sqlx::query_scalar(
+            r#"
+            SELECT
+                EXISTS (
+                    SELECT 1 FROM message_attachment_commits
+                    WHERE object_key = $1
+                      AND (confirmed_at IS NOT NULL OR expires_at > NOW())
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM message_parts mp
+                    JOIN messages m ON m.id = mp.message_id
+                    WHERE m.deleted_at IS NULL
+                      AND (mp.attachment_key = $1 OR mp.thumbnail_key = $1)
+                )
+            "#,
+        )
+        .bind(object_key)
+        .fetch_one(&mut *tx)
+        .await?;
+        if referenced {
+            tx.rollback().await?;
+            return Ok(None);
+        }
+        Ok(Some(tx))
     }
 
     /// 批量拉取“上传中且已超时”的记录（status=0）
