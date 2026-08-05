@@ -31,10 +31,14 @@ verify_runtime() {
 cleanup() {
   local exit_code="${1:-$?}"
   trap - EXIT INT TERM
-  ssh "$remote" "set -eu; if test -f '$remote_backup'; then install -m 0644 '$remote_backup' '$remote_caddy'; caddy validate --config '$remote_caddy' >/dev/null; systemctl reload caddy; systemctl is-active --quiet caddy; fi; rm -rf '$remote_dist' '$remote_staging'; rm -f '$remote_backup'"
+  ssh "$remote" "set -eu; if test -f '$remote_backup'; then install -m 0644 '$remote_backup' '$remote_caddy'; caddy validate --config '$remote_caddy' >/dev/null; systemctl reload caddy; systemctl is-active --quiet caddy; fi; rm -rf '$remote_dist' '$remote_staging'; rm -f '$remote_backup' /tmp/redcode-h5-candidate.Caddyfile; ! grep -q h5-candidate '$remote_caddy'"
   rm -f "${checksums:-}"
   if ! curl -fsS "$admin_url" | rg -q '<title>IM 管理后台'; then
     echo "[h5-candidate] Admin root verification failed after cleanup" >&2
+    exit_code=1
+  fi
+  if curl -fsS "$candidate_url" | rg -q '<title>RedCode IM H5'; then
+    echo "[h5-candidate] candidate route remains active after cleanup" >&2
     exit_code=1
   fi
   if ! verify_runtime; then

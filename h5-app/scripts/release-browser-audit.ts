@@ -39,13 +39,24 @@ page.on("request", (request) => networkUrls.push(request.url()));
 try {
   const response = await page.goto(candidateUrl.href, { waitUntil: "networkidle" });
   if (!response?.ok()) throw new Error(`candidate returned HTTP ${response?.status()}`);
+  assertHeaders(response.headers(), "candidate entry");
   await page.waitForURL(new URL("login", candidateUrl).href);
   await page.getByRole("button", { name: "登录账号" }).waitFor();
-  await page.reload({ waitUntil: "networkidle" });
+  const reloadResponse = await page.reload({ waitUntil: "networkidle" });
+  if (!reloadResponse?.ok()) throw new Error("candidate deep-link reload failed");
+  assertHeaders(reloadResponse.headers(), "candidate deep-link");
 
-  for (const [name, value] of Object.entries(expectedHeaders)) {
-    if (response.headers()[name] !== value) {
-      throw new Error(`candidate response has invalid ${name}`);
+  for (const asset of manifest.assets) {
+    if (asset.path === "security-headers.json") continue;
+    const assetResponse = await context.request.get(new URL(asset.path, candidateUrl).href);
+    if (!assetResponse.ok()) throw new Error(`candidate asset failed: ${asset.path}`);
+    assertHeaders(assetResponse.headers(), `candidate asset ${asset.path}`);
+    const body = await assetResponse.body();
+    if (
+      body.byteLength !== asset.bytes ||
+      createHash("sha256").update(body).digest("hex") !== asset.sha256
+    ) {
+      throw new Error(`candidate HTTP asset digest mismatch: ${asset.path}`);
     }
   }
 
@@ -55,10 +66,12 @@ try {
       if (privateResponse.status() !== 404) {
         throw new Error(`${method} exposed private artifact ${name}`);
       }
+      assertHeaders(privateResponse.headers(), `${method} private artifact ${name}`);
     }
   }
   const missingAsset = await context.request.get(new URL("assets/missing.js", candidateUrl).href);
   if (missingAsset.status() !== 404) throw new Error("missing static asset did not return 404");
+  assertHeaders(missingAsset.headers(), "missing static asset");
 
   const browserEvidence = await page.evaluate(async (plaintextMarker) => {
     const databaseName = "redcode-h5-release-browser-audit";
@@ -155,6 +168,26 @@ try {
     }
 
     const serializedState = JSON.stringify(storedState);
+    let indexedDbContainsMarker = serializedState.includes(plaintextMarker);
+    const indexedDbNames: string[] = [];
+    for (const entry of await indexedDB.databases()) {
+      if (!entry.name) continue;
+      indexedDbNames.push(entry.name);
+      const scannedDatabase = await new Promise<IDBDatabase>((resolveOpen, rejectOpen) => {
+        const request = indexedDB.open(entry.name!);
+        request.onsuccess = () => resolveOpen(request.result);
+        request.onerror = () => rejectOpen(request.error);
+      });
+      for (const storeName of scannedDatabase.objectStoreNames) {
+        const records = await new Promise<unknown[]>((resolveRead, rejectRead) => {
+          const request = scannedDatabase.transaction(storeName).objectStore(storeName).getAll();
+          request.onsuccess = () => resolveRead(request.result);
+          request.onerror = () => rejectRead(request.error);
+        });
+        if (JSON.stringify(records).includes(plaintextMarker)) indexedDbContainsMarker = true;
+      }
+      scannedDatabase.close();
+    }
     database.close();
     await new Promise<void>((resolveDelete) => {
       const request = indexedDB.deleteDatabase(databaseName);
@@ -171,13 +204,14 @@ try {
         exportBlocked,
       },
       markerChecks: {
-        indexedDb: serializedState.includes(plaintextMarker),
+        indexedDb: indexedDbContainsMarker,
         localStorage: JSON.stringify(Object.entries(localStorage)).includes(plaintextMarker),
         sessionStorage: JSON.stringify(Object.entries(sessionStorage)).includes(plaintextMarker),
         cacheStorage: cacheBodies.some((body) => body.includes(plaintextMarker)),
         opfs: opfsContainsMarker,
       },
       cacheNames: await caches.keys(),
+      indexedDbNames,
       opfsEntries,
       auditDatabaseRemoved: !(await indexedDB.databases())
         .some((entry) => entry.name === databaseName),
@@ -188,6 +222,7 @@ try {
   if (
     browserEvidence.wrappingKey.extractable ||
     !browserEvidence.wrappingKey.exportBlocked ||
+    !browserEvidence.auditDatabaseRemoved ||
     Object.values(browserEvidence.markerChecks).some(Boolean)
   ) {
     throw new Error("browser WebCrypto or plaintext storage boundary failed");
@@ -235,4 +270,10 @@ try {
 async function closeContext(context: BrowserContext): Promise<void> {
   await context.clearCookies();
   await context.close();
+}
+
+function assertHeaders(actual: Record<string, string>, label: string): void {
+  for (const [name, value] of Object.entries(expectedHeaders)) {
+    if (actual[name] !== value) throw new Error(`${label} has invalid ${name}`);
+  }
 }
