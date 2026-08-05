@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: U1
-current_checkpoint: U1.1
+current_unit: U2
+current_checkpoint: U2.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g3-g4-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 收敛 G4.1 四视角独立复审发现，补齐 G1-G3 的可靠性、真实性和证据耐久性缺口，在无未关闭 P0/P1 后重放全量与 live 门禁并作出最终 Go/No-Go 裁决。
-- **唯一恢复点：** 从 `U1.1` 开始，执行顺序固定为 `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9`。
+- **唯一恢复点：** 从 `U2.1` 开始，执行顺序固定为 `U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9`。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；测试环境保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **已完成边界：** N1-N7、U7 P0-1、G1-G3 的既有实现和成功证据不重做；只对 G4.1 重新打开的合同与证据缺口做最小整改。
 - **禁止事项：** 不扩展 E2EE API，不修改已有 migration，不触碰 `im-test-1` 旧主数据库，不把本地模拟、源码推断或短期 artifact 冒充生产候选证据。
@@ -214,7 +214,8 @@ flowchart TB
 | G2 / U7 P0-3 | reopened-partial | 扫描门禁有效；日期校验和真实 release workflow 待关闭 |
 | G3 / U7 P0-4 | reopened | G4.1 发现 production storage Chrome audit、cleanup 和持久证据缺口 |
 | G4.1 | failed | 四视角均存在 P1，当前不可进入原 G4.2 |
-| Current | active | `U1.1`：手册与供应链日期门禁 |
+| U1 | complete | `da3cead2` 修复恢复手册；`10f0f724` 严格限制豁免日期；32 个正负场景、workflow 与六端扫描通过 |
+| Current | active | `U2.1`：G3 候选窗口幂等清理 |
 
 ### Supersession Map
 

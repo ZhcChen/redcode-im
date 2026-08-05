@@ -28,9 +28,9 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：G4.1 四视角复审发现 P1，G1-G3 的部分关闭结论已重新打开；唯一
-  checkpoint 为新计划 `U1.1`，先修复正式恢复手册与供应链日期门禁。
-- 当前下一阶段：按 `U1 -> U7` 关闭恢复真实性、两类 cleanup、H5 production
+- 当前立即任务：U1 恢复手册与供应链日期门禁已关闭；唯一 checkpoint 为
+  `U2.1`，加固 G3 候选窗口幂等 cleanup。
+- 当前下一阶段：按 `U2 -> U7` 关闭恢复真实性、两类 cleanup、H5 production
   Chrome 审计、持久证据和真实 release workflow，再执行 `U8 -> U9`。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
@@ -79,7 +79,8 @@
   - G1 既有隔离候选演练有效，但 G4.1 重新打开恢复实例真实客户端行为、外部
     副作用清理与持久证据缺口；U7 P0-2 暂不维持关闭。
   - G2 六端 SBOM、漏洞与许可证门禁有效，但需补严格日历日期校验和真实
-    `Build Release Artifacts` workflow 运行证据；U7 P0-3 暂按部分关闭管理。
+    `Build Release Artifacts` workflow 运行证据；严格日期校验已由 `10f0f724`
+    关闭，U7 P0-3 仍待真实 workflow 证据。
   - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
     source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
   - G3.2/G3.3 的真实 Caddy/响应头/WebCrypto 能力证据有效，但 G4.1 重新打开
