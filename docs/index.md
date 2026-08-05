@@ -13,6 +13,7 @@
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 历史执行总账：2026-07 口径，已被 08-04-005 / task-list 取代 |
 | [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁（已 superseded，客户端主线见 08-04-005） |
 | [原生客户端重建执行计划](plans/2026-08-04-005-feat-native-client-rebuild-plan.md) | 当前客户端主线：android-app + ios-app 原生双端重建，弃用 Flutter app/ |
+| [E2EE 原生客户端收口计划](plans/2026-08-05-u10-e2ee-native-clients-closure-plan.md) | 当前 U10 执行入口：双端消息主链、三端 live 与 P0-1 重审 |
 | [IM 2.0 剩余工作计划](plans/2026-08-03-001-feat-im-2-0-remaining-work-plan.md) | 历史执行总账：已并入 08-02-001 执行状态总账 |
 | [IM 2.0 Flutter 多端重构计划](plans/2026-07-26-001-feat-im-2-0-flutter-multiplatform-rebuild-plan.md) | 历史决策记录：已由 08-02-001 承接 |
 | [IM 2.0 HTML 设计源计划](plans/2026-07-26-002-feat-im-ui-html-v2-design-source-plan.md) | 历史决策记录：设计源已冻结并由 08-02-001 引用 |

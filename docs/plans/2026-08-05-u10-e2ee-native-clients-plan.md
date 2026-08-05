@@ -6,10 +6,15 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-closure-plan.md
 ---
 
 # feat: U10 E2EE 原生双端接入专项执行计划
+
+> 本计划的 N1-N6 组件能力已完成；N7 验收暴露的应用主链和三端 live 缺口由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-closure-plan.md` 统一承接。
+> 后续执行不要从本计划重复开始。
 
 ## Goal Capsule
 
