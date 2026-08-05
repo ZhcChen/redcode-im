@@ -40,6 +40,72 @@ public struct E2eeDeviceInfo: Equatable, Sendable {
     }
 }
 
+public struct E2eeRootIdentity: Equatable, Sendable {
+    public let userID: String
+    public let publicKey: Data
+    public let fingerprint: Data
+    public let protocolVersion: Int
+    public init(userID: String, publicKey: Data, fingerprint: Data, protocolVersion: Int) {
+        self.userID = userID; self.publicKey = publicKey; self.fingerprint = fingerprint; self.protocolVersion = protocolVersion
+    }
+}
+
+public struct E2eePeerDevice: Equatable, Sendable {
+    public let id: String
+    public let protocolVersion: Int
+    public let credentialFingerprint: Data
+    public init(id: String, protocolVersion: Int, credentialFingerprint: Data) {
+        self.id = id; self.protocolVersion = protocolVersion; self.credentialFingerprint = credentialFingerprint
+    }
+}
+
+public struct E2eeRoomMemberDevices: Equatable, Sendable {
+    public let userID: String
+    public let devices: [E2eePeerDevice]
+    public init(userID: String, devices: [E2eePeerDevice]) { self.userID = userID; self.devices = devices }
+}
+
+public struct E2eeRoomEpoch: Equatable, Sendable {
+    public let membershipRevision: UInt64
+    public let activeEpoch: UInt64
+    public let status: String
+    public init(membershipRevision: UInt64, activeEpoch: UInt64, status: String) {
+        self.membershipRevision = membershipRevision; self.activeEpoch = activeEpoch; self.status = status
+    }
+}
+
+public struct E2eeClaimedKeyPackage: Equatable, Sendable {
+    public let id: String; public let deviceID: String; public let keyPackage: Data
+    public init(id: String, deviceID: String, keyPackage: Data) { self.id = id; self.deviceID = deviceID; self.keyPackage = keyPackage }
+}
+
+public struct E2eeControlMessage: Equatable, Sendable {
+    public let id: String; public let epoch: UInt64; public let membershipRevision: UInt64
+    public let contentType: String; public let envelope: Data; public let sequenceNumber: UInt64
+    public init(id: String, epoch: UInt64, membershipRevision: UInt64, contentType: String, envelope: Data, sequenceNumber: UInt64) {
+        self.id = id; self.epoch = epoch; self.membershipRevision = membershipRevision
+        self.contentType = contentType; self.envelope = envelope; self.sequenceNumber = sequenceNumber
+    }
+}
+
+public struct E2eeOutgoingControlMessage: Sendable {
+    public let roomID: String; public let messageID: String; public let epoch: UInt64; public let membershipRevision: UInt64
+    public let senderDeviceID: String; public let contentType: String; public let envelope: Data; public let recipientDeviceID: String?
+    public init(roomID: String, messageID: String, epoch: UInt64, membershipRevision: UInt64, senderDeviceID: String, contentType: String, envelope: Data, recipientDeviceID: String? = nil) {
+        self.roomID = roomID; self.messageID = messageID; self.epoch = epoch; self.membershipRevision = membershipRevision
+        self.senderDeviceID = senderDeviceID; self.contentType = contentType; self.envelope = envelope; self.recipientDeviceID = recipientDeviceID
+    }
+}
+
+public struct E2eeEncryptedMessageRequest: Sendable {
+    public let roomID: String; public let senderDeviceID: String; public let epoch: UInt64
+    public let ciphertext: Data; public let idempotencyKey: String; public let controlMessageID: String
+    public init(roomID: String, senderDeviceID: String, epoch: UInt64, ciphertext: Data, idempotencyKey: String, controlMessageID: String) {
+        self.roomID = roomID; self.senderDeviceID = senderDeviceID; self.epoch = epoch; self.ciphertext = ciphertext
+        self.idempotencyKey = idempotencyKey; self.controlMessageID = controlMessageID
+    }
+}
+
 /// 设备本地安全存储契约（RedCodeStorage.E2eeSecureStateStore 提供实现）。
 public protocol E2eeDeviceStateStorage: Sendable {
     func readState(accountID: String) async throws -> Data?
@@ -47,6 +113,15 @@ public protocol E2eeDeviceStateStorage: Sendable {
     func readProfile(accountID: String) async throws -> E2eeDeviceProfile?
     func writeProfile(accountID: String, profile: E2eeDeviceProfile) async throws
     func deleteProfile(accountID: String) async throws
+}
+
+public protocol E2eeDirectMessageStorage: E2eeDeviceStateStorage {
+    func readMetadata(accountID: String, key: String) async throws -> Data?
+    func writeMetadata(accountID: String, key: String, data: Data) async throws
+}
+
+public protocol E2eeDirectDeviceLifecycle: Sendable {
+    func ensureReady(accountID: String, deviceLabel: String, token: String) async throws -> E2eeDeviceProfile
 }
 
 /// MLS 服务端契约（RedCodeNetworking.E2eeMLSAPIClient 提供实现）。
@@ -61,10 +136,29 @@ public protocol E2eeMLSApi: Sendable {
     func publishKeyPackages(deviceID: String, keyPackages: [Data], token: String) async throws -> Int
     func fetchKeyPackageInventory(deviceID: String, token: String) async throws -> E2eeKeyPackageInventory
     func listDevices(token: String) async throws -> [E2eeDeviceInfo]
+    func fetchIdentity(userID: String, token: String) async throws -> E2eeRootIdentity
+    func listRoomMemberDevices(roomID: String, token: String) async throws -> [E2eeRoomMemberDevices]
+    func getRoomEpoch(roomID: String, token: String) async throws -> E2eeRoomEpoch
+    func claimKeyPackage(roomID: String, consumerDeviceID: String, targetDeviceID: String, token: String) async throws -> E2eeClaimedKeyPackage
+    func submitControlMessage(_ message: E2eeOutgoingControlMessage, token: String) async throws
+    func listControlMessages(roomID: String, deviceID: String, afterSequence: UInt64, token: String) async throws -> [E2eeControlMessage]
+    func consumeControlMessage(roomID: String, messageID: String, deviceID: String, token: String) async throws
+    func sendEncryptedMessage(_ message: E2eeEncryptedMessageRequest, token: String) async throws -> String
+}
+
+public extension E2eeMLSApi {
+    func fetchIdentity(userID: String, token: String) async throws -> E2eeRootIdentity { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func listRoomMemberDevices(roomID: String, token: String) async throws -> [E2eeRoomMemberDevices] { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func getRoomEpoch(roomID: String, token: String) async throws -> E2eeRoomEpoch { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func claimKeyPackage(roomID: String, consumerDeviceID: String, targetDeviceID: String, token: String) async throws -> E2eeClaimedKeyPackage { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func submitControlMessage(_ message: E2eeOutgoingControlMessage, token: String) async throws { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func listControlMessages(roomID: String, deviceID: String, afterSequence: UInt64, token: String) async throws -> [E2eeControlMessage] { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func consumeControlMessage(roomID: String, messageID: String, deviceID: String, token: String) async throws { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
+    func sendEncryptedMessage(_ message: E2eeEncryptedMessageRequest, token: String) async throws -> String { throw E2eeCommandError(message: "N4 E2EE API 未实现") }
 }
 
 /// 设备注册与 KeyPackage 低水位补充（对齐 H5 E2eeDeviceLifecycle）。
-public actor E2eeDeviceLifecycle {
+public actor E2eeDeviceLifecycle: E2eeDirectDeviceLifecycle {
     private let storage: any E2eeDeviceStateStorage
     private let mlsApi: any E2eeMLSApi
     private let core: E2eeCommandClient

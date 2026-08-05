@@ -47,7 +47,7 @@ public struct E2eeCommandResult {
 }
 
 /// e2ee-core C ABI 的 Swift 封装：RCCQ/RCCR 命令编解码 + 状态工具。
-public struct E2eeCommandClient {
+public struct E2eeCommandClient: Sendable {
     public static let protocolVersion = rc_e2ee_protocol_version()
 
     public init() {}
@@ -94,8 +94,16 @@ public struct E2eeCommandClient {
         return try execute(operation: .initialize, fields: fields)
     }
 
-    func createGroup(state: Data, roomID: String) throws -> E2eeCommandResult {
+    public func createGroup(state: Data, roomID: String) throws -> E2eeCommandResult {
         try execute(operation: .createGroup, fields: [state, Data(roomID.utf8)])
+    }
+
+    public func addMember(state: Data, roomID: String, keyPackage: Data) throws -> E2eeCommandResult {
+        try execute(operation: .addMember, fields: [state, Data(roomID.utf8), keyPackage])
+    }
+
+    public func joinGroup(state: Data, welcome: Data) throws -> E2eeCommandResult {
+        try execute(operation: .joinGroup, fields: [state, welcome])
     }
 
     func generateKeyPackage(state: Data) throws -> E2eeCommandResult {
@@ -106,12 +114,16 @@ public struct E2eeCommandClient {
         try execute(operation: .publicMaterial, fields: [state])
     }
 
-    func encrypt(state: Data, roomID: String, plaintext: Data) throws -> E2eeCommandResult {
+    public func encrypt(state: Data, roomID: String, plaintext: Data) throws -> E2eeCommandResult {
         try execute(operation: .encrypt, fields: [state, Data(roomID.utf8), plaintext])
     }
 
-    func decrypt(state: Data, roomID: String, ciphertext: Data) throws -> E2eeCommandResult {
+    public func decrypt(state: Data, roomID: String, ciphertext: Data) throws -> E2eeCommandResult {
         try execute(operation: .decrypt, fields: [state, Data(roomID.utf8), ciphertext])
+    }
+
+    public func processCommit(state: Data, roomID: String, commit: Data) throws -> E2eeCommandResult {
+        try execute(operation: .processCommit, fields: [state, Data(roomID.utf8), commit])
     }
 
     /// 直接执行一段 RCCQ 原始命令（测试与高级调用点使用）。

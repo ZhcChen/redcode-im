@@ -58,6 +58,12 @@ public enum E2eeSecureStateAAD {
         Data("redcode-im/e2ee-device-profile/v1\u{0}".utf8) +
             Data(accountID.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
     }
+
+    public static func metadata(_ accountID: String, key: String) -> Data {
+        Data("redcode-im/e2ee-metadata/v1\u{0}".utf8) +
+            Data(accountID.trimmingCharacters(in: .whitespacesAndNewlines).utf8) + Data([0]) +
+            Data(key.trimmingCharacters(in: .whitespacesAndNewlines).utf8)
+    }
 }
 
 /// 按账号提供包装密钥的加解密原语。
@@ -372,6 +378,19 @@ public actor E2eeSecureStateStore {
         try await blobs.deleteBlob(accountID: accountID, key: Self.profileBlobKey)
     }
 
+    public func writeMetadata(accountID: String, key: String, data: Data) async throws {
+        guard !accountID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !key.isEmpty else {
+            throw E2eeSecureStateError.corrupted("E2EE 元数据标识不能为空")
+        }
+        let record = try await cipher.encrypt(accountID: accountID, plaintext: data, aad: E2eeSecureStateAAD.metadata(accountID, key: key))
+        try await blobs.saveBlob(accountID: accountID, key: "metadata:\(key)", record: record)
+    }
+
+    public func readMetadata(accountID: String, key: String) async throws -> Data? {
+        guard let record = try await blobs.loadBlob(accountID: accountID, key: "metadata:\(key)") else { return nil }
+        return try await cipher.decrypt(accountID: accountID, record: record, aad: E2eeSecureStateAAD.metadata(accountID, key: key))
+    }
+
     private static let profileBlobKey = "device-profile"
 }
 
@@ -384,3 +403,5 @@ extension E2eeSecureStateStore: E2eeDeviceStateStorage {
         try await write(accountID: accountID, state: state)
     }
 }
+
+extension E2eeSecureStateStore: E2eeDirectMessageStorage {}
