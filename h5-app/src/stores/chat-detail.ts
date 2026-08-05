@@ -8,7 +8,14 @@ import { messageAttachmentUploadService, type BrowserAttachmentType } from '@/se
 import { settingsService } from '@/services/settings-service';
 import { webSocketService, type WebSocketServerEvent } from '@/services/websocket-service';
 import { MessageStorage } from '@/storage/message-storage';
-import type { ChatMessage, ChatMessageQuote, ChatSummary, OutgoingMessagePart } from '@/types/chat';
+import type {
+  ChatMessage,
+  ChatMessageQuote,
+  ChatSummary,
+  MessageAttachment,
+  MessageType,
+  OutgoingMessagePart,
+} from '@/types/chat';
 
 import { useAuthStore } from './auth';
 import { useChatStore } from './chat';
@@ -138,14 +145,47 @@ export const useChatDetailStore = defineStore('chatDetail', {
       this.uploadingAttachment = true;
       attachmentAbortController = new AbortController();
       try {
+        const accountId = useAuthStore().currentUser?.id ?? '';
+        const isE2ee = !appEnv.useMockData && (await abortable(
+          settingsService.fetchGeneralSettings(),
+          attachmentAbortController.signal,
+        )).messageRuntime.contentAuditMode === 'e2ee';
+        if (isE2ee) {
+          const { part, e2eePart } = await abortable(
+            messageAttachmentUploadService.uploadEncrypted(
+              this.roomId,
+              file,
+              type,
+              attachmentAbortController.signal,
+            ),
+            attachmentAbortController.signal,
+          );
+          await e2eeDirectMessageCoordinator.prepareAttachment({
+            accountId,
+            deviceLabel: 'RedCode H5',
+            roomId: this.roomId,
+            parts: [e2eePart],
+          });
+          const pending = createPendingMessage(
+            this.roomId,
+            part.name || '[加密附件]',
+            accountId,
+            null,
+            true,
+            [toMessageAttachment(part)],
+            'mixed',
+          );
+          this.quotedMessage = null;
+          await this.upsertLocalMessage(pending);
+          await this.flushPendingMessage(pending.id, pending.content);
+          return;
+        }
         if (!appEnv.useMockData) {
           const runtime = (await abortable(
             settingsService.fetchGeneralSettings(),
             attachmentAbortController.signal,
           )).messageRuntime;
-          if (runtime.contentAuditMode === 'e2ee') {
-            throw new Error('E2EE 附件将在后续版本支持');
-          }
+          if (runtime.contentAuditMode === 'e2ee') throw new Error('E2EE 附件发送失败');
         }
         const part = appEnv.useMockData
           ? { type, key: `messages/${this.roomId}/${type}/${file.name}`, name: file.name, mimeType: file.type, size: file.size }
@@ -266,7 +306,13 @@ export const useChatDetailStore = defineStore('chatDetail', {
                 this.roomId,
               )
             : await messageService.sendTextMessage(this.roomId, content, quotedMessageId);
-        const visibleSent = isE2eePending ? { ...sent, content } : sent;
+        const visibleSent = isE2eePending
+          ? {
+              ...sent,
+              content: pending?.content ?? content,
+              ...(pending?.attachments ? { attachments: pending.attachments, type: pending.type } : {}),
+            }
+          : sent;
         this.messages = mergeMessages(
           this.messages.filter((message) => message.id !== localId),
           [{ ...visibleSent, status: 'sent' }],
@@ -484,17 +530,28 @@ const createPendingMessage = (
   currentUserId: string,
   quotedMessage?: ChatMessageQuote | null,
   e2eePending = false,
+  attachments?: MessageAttachment[],
+  type: MessageType = 'text',
 ): ChatMessage => ({
   id: `local-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   roomId,
   senderId: currentUserId,
   senderName: '我',
   content,
-  type: 'text',
+  type,
   timestamp: Date.now(),
   status: 'sending',
   quotedMessage,
+  attachments,
   raw: e2eePending ? { e2ee_pending: true } : undefined,
+});
+
+const toMessageAttachment = (part: OutgoingMessagePart): MessageAttachment => ({
+  key: part.key ?? '',
+  name: part.name,
+  mimeType: part.mimeType,
+  size: part.size,
+  cacheKey: `message:${part.key ?? ''}`,
 });
 
 const responseMessage = (response: Record<string, unknown>) => {

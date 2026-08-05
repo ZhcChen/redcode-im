@@ -967,6 +967,121 @@ describe('E2eeDirectMessageCoordinator', () => {
     expect(api.sendEncryptedMessage).not.toHaveBeenCalled();
     expect(storage.pending).toBeNull();
   });
+
+  it('sends and decrypts an E2EE attachment payload without plaintext API fields', async () => {
+    const storage = new MemoryStorage();
+    storage.state = new Uint8Array([1]);
+    storage.profile = {
+      deviceId: 'device-a',
+      deviceLabel: 'Browser',
+      registered: true,
+      keyPackagePublished: true,
+      lastControlSequences: {},
+      lastCommitMessageIds: { 'room-a': 'commit-a' },
+    };
+    const sentPayloads: Uint8Array[] = [];
+    const core = {
+      createGroup: vi.fn(),
+      addMember: vi.fn(),
+      encrypt: vi.fn(async (_state: Uint8Array, _roomId: string, plaintext: Uint8Array) => {
+        sentPayloads.push(plaintext.slice());
+        return new E2eeCommandResult([
+          new Uint8Array([4]),
+          new Uint8Array([82, 67, 77, 76, 13]),
+          epochBytes(1),
+        ]);
+      }),
+      decrypt: vi.fn(async () => new E2eeCommandResult([
+        new Uint8Array([5]),
+        new TextEncoder().encode(JSON.stringify({
+          version: 1,
+          type: 'attachment',
+          parts: [{
+            partKey: '00000000-0000-4000-8000-000000000001',
+            objectKey: 'messages/r1/files/secret.bin',
+            name: 'secret.bin',
+            mimeType: 'application/octet-stream',
+            size: 3,
+            partPosition: 0,
+            nonce: btoa(String.fromCharCode(...new Uint8Array(12).fill(7))),
+            dek: btoa(String.fromCharCode(...new Uint8Array(32).fill(9))),
+          }],
+        })),
+        epochBytes(2),
+      ])),
+      joinGroup: vi.fn(),
+      processCommit: vi.fn(),
+      removeMember: vi.fn(),
+      listMembers: vi.fn(),
+    };
+    const api = {
+      getRoomEpoch: vi.fn(async () => ({
+        membershipRevision: 1,
+        activeEpoch: 1,
+        status: 'active',
+      })),
+      listRoomMemberDevices: vi.fn(async () => []),
+      claimKeyPackage: vi.fn(),
+      submitControlMessage: vi.fn(),
+      sendEncryptedMessage: vi.fn(async () => ({ message: { id: 'server-message' } })),
+      listControlMessages: vi.fn(async () => []),
+      consumeControlMessage: vi.fn(),
+    };
+    const coordinator = new E2eeDirectMessageCoordinator(
+      storage,
+      { ensureReady: vi.fn(async () => ({})) },
+      {} as never,
+      api,
+      core,
+      () => 'message-a',
+    );
+
+    const part = {
+      partKey: '00000000-0000-4000-8000-000000000001',
+      objectKey: 'messages/r1/files/secret.bin',
+      name: 'secret.bin',
+      mimeType: 'application/octet-stream',
+      size: 3,
+      partPosition: 0,
+      nonce: new Uint8Array(12).fill(7),
+      dek: new Uint8Array(32).fill(9),
+    };
+    const response = await coordinator.sendAttachment({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      parts: [part],
+    });
+
+    expect(response).toEqual({ message: { id: 'server-message' } });
+    expect(sentPayloads).toHaveLength(1);
+    const payload = JSON.parse(new TextDecoder().decode(sentPayloads[0]!)) as {
+      version: number;
+      type: string;
+      parts: Array<{ partKey: string; objectKey: string; nonce: string; dek: string }>;
+    };
+    expect(payload).toMatchObject({
+      version: 1,
+      type: 'attachment',
+      parts: [{
+        partKey: part.partKey,
+        objectKey: part.objectKey,
+      }],
+    });
+    expect(atob(payload.parts[0]!.nonce)).toEqual(String.fromCharCode(...part.nonce));
+    expect(atob(payload.parts[0]!.dek)).toEqual(String.fromCharCode(...part.dek));
+    expect(api.sendEncryptedMessage).toHaveBeenCalledOnce();
+
+    const decrypted = await coordinator.decryptPayload({
+      accountId: 'account-a',
+      deviceLabel: 'ignored',
+      roomId: 'room-a',
+      ciphertext: new Uint8Array([82, 67, 77, 76]),
+    });
+    expect(decrypted.epoch).toBe(2);
+    expect(decrypted.payload.type).toBe('attachment');
+    expect(decrypted.payload.parts).toEqual([part]);
+  });
 });
 
 const coreRemoveMember = (coordinator: unknown) => (

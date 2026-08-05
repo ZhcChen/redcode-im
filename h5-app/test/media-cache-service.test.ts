@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  attachmentAad,
+  encryptAttachment,
+} from '@/e2ee/attachment-crypto';
 import { attachmentCacheService } from '@/services/attachment-cache';
 import { avatarCacheService } from '@/services/avatar-cache';
 import { emojiCacheService } from '@/services/emoji-cache';
@@ -136,6 +140,51 @@ describe('media cache services', () => {
       'http://127.0.0.1:8010/rooms/r1/messages/attachments/download?key=messages%2Fr1%2Ffiles%2Ffile.pdf&expires_in_seconds=600',
       expect.any(Object),
     );
+  });
+
+  it('downloads E2EE attachment ciphertext and decrypts it in memory only', async () => {
+    const roomId = '11111111-2222-4333-8444-555555555555';
+    const aad = attachmentAad({
+      roomId,
+      partKey: '00000000-0000-4000-8000-000000000001',
+      partPosition: 0,
+      objectKey: 'messages/r1/files/secret.bin',
+    });
+    const encrypted = await encryptAttachment(new TextEncoder().encode('secret').buffer, aad);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith('http://127.0.0.1:8010/rooms/')) {
+        return mockJson({ success: true, download_url: 'https://cdn.example/secret.bin' });
+      }
+      if (url === 'https://cdn.example/secret.bin') {
+        const buffer = new ArrayBuffer(encrypted.ciphertext.byteLength);
+        new Uint8Array(buffer).set(encrypted.ciphertext);
+        return new Response(buffer, {
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const entry = await attachmentCacheService.loadEncryptedAttachment({
+      roomId,
+      part: {
+        partKey: '00000000-0000-4000-8000-000000000001',
+        objectKey: 'messages/r1/files/secret.bin',
+        name: 'secret.bin',
+        mimeType: 'application/octet-stream',
+        size: 6,
+        partPosition: 0,
+        nonce: encrypted.nonce,
+        dek: encrypted.dek,
+      },
+    });
+
+    expect(entry).not.toBeNull();
+    expect(entry?.objectUrl).toBe('blob:test/6');
+    expect(entry?.mimeType).toBe('application/octet-stream');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('loads emoji object keys through emoji download endpoint', async () => {

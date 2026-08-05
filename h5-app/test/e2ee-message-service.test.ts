@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { e2eeDirectMessageCoordinator } from '@/e2ee/direct-message-coordinator';
+import {
+  e2eeDirectMessageCoordinator,
+  type E2eeDecryptedPayload,
+} from '@/e2ee/direct-message-coordinator';
 import { messageService } from '@/services/message-service';
 
 const saveSession = () => {
@@ -34,10 +37,10 @@ describe('H5 E2EE message service', () => {
       encryptedMessage('history-old-unique', '2026-08-04T12:00:00Z', 'old'),
     ]), { status: 200, headers: { 'Content-Type': 'application/json' } })));
     const order: string[] = [];
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText').mockImplementation(async (input) => {
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload').mockImplementation(async (input) => {
       const marker = new TextDecoder().decode(input.ciphertext);
       order.push(marker);
-      return { text: `${marker} plaintext`, epoch: 1 };
+      return textPayload(`${marker} plaintext`, 1);
     });
 
     const first = await messageService.loadMessages('r1', { limit: 50 }, 'u1');
@@ -50,7 +53,7 @@ describe('H5 E2EE message service', () => {
   });
 
   it('fails closed for unsupported encryption metadata', async () => {
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText');
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload');
     const resolved = await messageService.resolveEncryptedMessage({
       id: 'history-unknown-version-unique',
       roomId: 'r1',
@@ -72,10 +75,9 @@ describe('H5 E2EE message service', () => {
   });
 
   it('resolves the same encrypted websocket message id only once', async () => {
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText').mockResolvedValue({
-      text: 'ws secret',
-      epoch: 1,
-    });
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload').mockResolvedValue(
+      textPayload('ws secret', 1),
+    );
     const ciphertext = btoa('ws-ciphertext');
     const message = {
       id: 'ws-e2ee-dup-id',
@@ -98,6 +100,63 @@ describe('H5 E2EE message service', () => {
     expect(first.e2eeDecryptionFailed).toBe(false);
   });
 
+  it('maps E2EE attachment payload parts into message attachments and memory-only raw parts', async () => {
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload').mockResolvedValue({
+      payload: {
+        version: 1,
+        type: 'attachment',
+        parts: [{
+          partKey: '00000000-0000-4000-8000-000000000001',
+          objectKey: 'messages/r1/files/secret.bin',
+          name: 'secret.bin',
+          mimeType: 'application/octet-stream',
+          size: 3,
+          partPosition: 0,
+          nonce: new Uint8Array(12).fill(7),
+          dek: new Uint8Array(32).fill(9),
+        }],
+      },
+      epoch: 1,
+    });
+    const message = {
+      id: 'e2ee-attachment-message-unique',
+      roomId: 'r1',
+      senderId: 'u2',
+      senderName: 'Bear',
+      content: '[加密消息]',
+      type: 'mixed' as const,
+      timestamp: Date.now(),
+      encryptedContent: btoa('ciphertext'),
+      encryptionMetadata: { protocol: 'mls', version: 1, content_type: 'application', epoch: 1 },
+    };
+
+    const resolved = await messageService.resolveEncryptedMessage(message, 'u1');
+
+    expect(decrypt).toHaveBeenCalledTimes(1);
+    expect(resolved).toMatchObject({
+      content: '[加密附件]',
+      type: 'mixed',
+      e2eeDecryptionFailed: false,
+      attachments: [{
+        key: 'messages/r1/files/secret.bin',
+        name: 'secret.bin',
+        mimeType: 'application/octet-stream',
+        size: 3,
+      }],
+    });
+    expect(resolved.raw?.e2ee_epoch).toBe(1);
+    expect(resolved.raw?.e2ee_parts).toEqual([{
+      partKey: '00000000-0000-4000-8000-000000000001',
+      objectKey: 'messages/r1/files/secret.bin',
+      name: 'secret.bin',
+      mimeType: 'application/octet-stream',
+      size: 3,
+      partPosition: 0,
+      nonce: new Uint8Array(12).fill(7),
+      dek: new Uint8Array(32).fill(9),
+    }]);
+  });
+
   it('keeps plaintext history untouched while decrypting ciphertext history', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
       {
@@ -111,10 +170,9 @@ describe('H5 E2EE message service', () => {
       },
       encryptedMessage('history-mixed-cipher-unique', '2026-08-04T12:00:00Z', 'mixed'),
     ]), { status: 200, headers: { 'Content-Type': 'application/json' } })));
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText').mockImplementation(async (input) => ({
-      text: `${new TextDecoder().decode(input.ciphertext)} plaintext`,
-      epoch: 1,
-    }));
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload').mockImplementation(async (input) =>
+      textPayload(`${new TextDecoder().decode(input.ciphertext)} plaintext`, 1),
+    );
 
     const messages = await messageService.loadMessages('r1', { limit: 50 }, 'u1');
 
@@ -127,9 +185,9 @@ describe('H5 E2EE message service', () => {
   });
 
   it('fails closed on corrupted ciphertext and retries decryption explicitly', async () => {
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText')
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload')
       .mockRejectedValueOnce(new Error('corrupted ciphertext'))
-      .mockResolvedValueOnce({ text: 'recovered secret', epoch: 1 });
+      .mockResolvedValueOnce(textPayload('recovered secret', 1));
     const message = {
       id: 'history-corrupt-unique',
       roomId: 'r1',
@@ -157,4 +215,9 @@ describe('H5 E2EE message service', () => {
       e2eeDecryptionFailed: false,
     });
   });
+});
+
+const textPayload = (text: string, epoch: number): E2eeDecryptedPayload => ({
+  payload: { version: 1 as const, type: 'text' as const, text },
+  epoch,
 });

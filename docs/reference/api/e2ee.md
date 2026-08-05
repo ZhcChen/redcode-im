@@ -265,6 +265,26 @@ ASCII "redcode-im/e2ee/device-approval/v1\0"
 - `persist` 模式在同一数据库事务中完成上述裁决与消息插入。相同幂等键和完全相同内容的重试返回原消息，不重复持久化、广播或 Push；内容漂移返回冲突。
 - `relay_only` 模式使用 Redis 保留 10 分钟幂等占位；重复键返回冲突且不会再次广播，不保存消息历史。
 
+## E2EE 模式功能边界
+
+运行在 `content_audit_mode=e2ee` 时，服务端对外围功能做如下收口，防止在
+只接触密文的前提下泄露消息内容或产生不可信副作用：
+
+- **消息搜索**：`GET /messages/search`、`GET /messages/search/suggestions`、
+  `GET /messages/search/trending` 统一返回空结果，不索引、不匹配密文内容。
+- **消息转发**：`POST /rooms/{room_id}/messages/forward` 返回 `400`
+  「E2EE 模式暂不支持转发消息」，服务端无法在不复制密文链的前提下保证
+  转发消息的归属与可见性。
+- **Push 摘要**：E2EE 消息入队 Push 时，`content` 替换为「【加密消息】」，
+  `preview` 替换为「你收到一条加密消息」，不携带明文或附件元数据。
+- **附件**：上传与下载链路传输的是 AES-GCM 密文，明文和附件元数据只存在于
+  加密消息 payload 中；服务端与对象存储不接触 DEK、nonce 或明文内容。
+  客户端下载密文后使用随 payload 到达的 DEK/nonce 在受控内存中解密，
+  不把明文写入本地持久化缓存。
+
+以上边界由 `api/tests/e2ee_runtime_boundary.rs` 覆盖：明文基线搜索命中后切
+到 E2EE 模式搜索返回空、转发返回 `400`，测试结束显式恢复明文 runtime。
+
 ## 遗留 Key Bundle 链路（旧客户端兼容）
 
 以下为 2.0 之前的 Signal 风格 Key Bundle 链路，仅用于旧客户端兼容；新客户端

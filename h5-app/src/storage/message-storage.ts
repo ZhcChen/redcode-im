@@ -45,7 +45,7 @@ export class MessageStorage {
         if (!message.id) continue;
         await tx.execute(
           'INSERT OR REPLACE INTO messages (id, room_id, timestamp, payload) VALUES (?, ?, ?, ?)',
-          [message.id, roomId, message.timestamp, JSON.stringify(message)],
+          [message.id, roomId, message.timestamp, JSON.stringify(sanitizeMessageForStorage(message))],
         );
       }
     });
@@ -76,6 +76,14 @@ export class MessageStorage {
     return db;
   }
 }
+
+// E2EE 附件 DEK/nonce 只驻留内存，禁止随消息缓存落盘。
+const sanitizeMessageForStorage = (message: ChatMessage): ChatMessage => {
+  if (!message.raw?.e2ee_parts) return message;
+  const raw = { ...message.raw };
+  delete raw.e2ee_parts;
+  return { ...message, raw };
+};
 
 const parseMessage = (payload: string): ChatMessage[] => {
   try {

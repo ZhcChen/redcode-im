@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
+import type { E2eeAttachmentPart } from '@/e2ee/attachment-crypto';
 import { attachmentCacheService } from '@/services/attachment-cache';
 import type { CachedBlobEntry } from '@/storage/blob-cache';
 import type { MessageAttachment } from '@/types/chat';
@@ -8,12 +9,16 @@ import type { MessageAttachment } from '@/types/chat';
 const props = defineProps<{
   roomId: string;
   attachment: MessageAttachment;
+  e2eeParts?: E2eeAttachmentPart[];
 }>();
 
 const entry = ref<CachedBlobEntry | null>(null);
 const failed = ref(false);
 
 const objectKey = computed(() => props.attachment.key);
+const e2eePart = computed(() =>
+  props.e2eeParts?.find((part) => part.objectKey === objectKey.value),
+);
 const displayName = computed(() => props.attachment.name || objectKey.value || '附件');
 const isImage = computed(() => {
   const mime = entry.value?.mimeType || props.attachment.mimeType || '';
@@ -26,17 +31,22 @@ const load = async () => {
   failed.value = false;
   if (!props.roomId || !objectKey.value) return;
   try {
-    entry.value = await attachmentCacheService.loadAttachment({
-      roomId: props.roomId,
-      objectKey: objectKey.value,
-    });
+    entry.value = e2eePart.value
+      ? await attachmentCacheService.loadEncryptedAttachment({
+          roomId: props.roomId,
+          part: e2eePart.value,
+        })
+      : await attachmentCacheService.loadAttachment({
+          roomId: props.roomId,
+          objectKey: objectKey.value,
+        });
   } catch {
     failed.value = true;
   }
 };
 
 watch(
-  () => [props.roomId, objectKey.value],
+  () => [props.roomId, objectKey.value, props.e2eeParts],
   () => {
     void load();
   },

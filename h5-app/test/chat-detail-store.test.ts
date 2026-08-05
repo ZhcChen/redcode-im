@@ -106,6 +106,68 @@ describe('chat detail store', () => {
     ]);
   });
 
+  it('uploads encrypted attachment bytes and sends the E2EE attachment payload', async () => {
+    appEnv.useMockData = false;
+    const store = useChatDetailStore();
+    store.roomId = 'r1';
+    store.chat = {
+      id: 'r1', roomId: 'r1', name: 'Bear', lastMessage: '', lastMessageTime: 1,
+      unreadCount: 0, type: 'private', isPinned: false, isMuted: false,
+      raw: { friend_user_id: 'u2' },
+    };
+    vi.spyOn(settingsService, 'fetchGeneralSettings').mockResolvedValue({
+      appName: 'RedCode IM',
+      messageRuntime: { serverStorageMode: 'persist', contentAuditMode: 'e2ee' },
+    });
+    const upload = vi.spyOn(messageAttachmentUploadService, 'uploadEncrypted').mockResolvedValue({
+      part: {
+        type: 'file', key: 'messages/r1/files/secret.bin', name: 'secret.bin',
+        mimeType: 'application/octet-stream', size: 3,
+      },
+      e2eePart: {
+        partKey: '00000000-0000-4000-8000-000000000001',
+        objectKey: 'messages/r1/files/secret.bin',
+        name: 'secret.bin',
+        mimeType: 'application/octet-stream',
+        size: 3,
+        partPosition: 0,
+        nonce: new Uint8Array(12).fill(7),
+        dek: new Uint8Array(32).fill(9),
+      },
+    });
+    const prepare = vi.spyOn(e2eeDirectMessageCoordinator, 'prepareAttachment').mockResolvedValue();
+    const retry = vi.spyOn(e2eeDirectMessageCoordinator, 'retryPendingSend')
+      .mockResolvedValue(encryptedResponse('server-e2ee-file-1'));
+
+    await store.sendAttachment(
+      new File(['abc'], 'secret.bin', { type: 'application/octet-stream' }),
+      'file',
+    );
+
+    expect(upload).toHaveBeenCalledOnce();
+    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: 'u1',
+      roomId: 'r1',
+      parts: [expect.objectContaining({
+        partKey: '00000000-0000-4000-8000-000000000001',
+        objectKey: 'messages/r1/files/secret.bin',
+      })],
+    }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(store.messages).toEqual([
+      expect.objectContaining({
+        id: 'server-e2ee-file-1',
+        content: 'secret.bin',
+        type: 'mixed',
+        status: 'sent',
+        attachments: [expect.objectContaining({
+          key: 'messages/r1/files/secret.bin',
+          name: 'secret.bin',
+        })],
+      }),
+    ]);
+  });
+
   it('refreshes runtime after E2EE conflict without automatic resend', async () => {
     appEnv.useMockData = false;
     const store = useChatDetailStore();
@@ -155,8 +217,8 @@ describe('chat detail store', () => {
     appEnv.useMockData = false;
     const store = useChatDetailStore();
     store.roomId = 'r1';
-    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptText').mockResolvedValue({
-      text: 'live browser secret',
+    const decrypt = vi.spyOn(e2eeDirectMessageCoordinator, 'decryptPayload').mockResolvedValue({
+      payload: { version: 1, type: 'text', text: 'live browser secret' },
       epoch: 1,
     });
     const event = {

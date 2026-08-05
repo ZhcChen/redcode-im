@@ -10,7 +10,7 @@ use crate::database::models::MessageType as DbMessageType;
 use crate::error::AppError;
 use crate::models::convert::db_message_type_to_api;
 use crate::models::{Claims, MessageType as ApiMessageType};
-use crate::services::message_runtime::is_relay_only_runtime;
+use crate::services::message_runtime::{is_e2ee_runtime, is_relay_only_runtime};
 use crate::AppState;
 
 // 搜索参数
@@ -94,7 +94,7 @@ pub async fn search_messages(
         ));
     }
 
-    if is_relay_only_runtime(&state).await? {
+    if is_relay_only_runtime(&state).await? || is_e2ee_runtime(&state).await? {
         return Ok(Json(MessageSearchResponse {
             results: Vec::new(),
             stats: MessageSearchStats {
@@ -305,7 +305,7 @@ pub async fn get_search_suggestions(
         return Ok(Json(Vec::new()));
     }
 
-    if is_relay_only_runtime(&state).await? {
+    if is_relay_only_runtime(&state).await? || is_e2ee_runtime(&state).await? {
         return Ok(Json(Vec::new()));
     }
 
@@ -355,7 +355,7 @@ pub async fn get_trending_keywords(
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
 
-    if is_relay_only_runtime(&state).await? {
+    if is_relay_only_runtime(&state).await? || is_e2ee_runtime(&state).await? {
         return Ok(Json(Vec::new()));
     }
 

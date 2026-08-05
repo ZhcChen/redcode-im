@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 
 import CachedAttachment from '@/components/CachedAttachment.vue';
 import CachedAvatar from '@/components/CachedAvatar.vue';
+import type { E2eeAttachmentPart } from '@/e2ee/attachment-crypto';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import { useChatDetailStore } from '@/stores/chat-detail';
@@ -79,6 +80,10 @@ const openMessageSearch = async () => {
 };
 
 const isSelf = (message: ChatMessage) => message.senderId === currentUserId.value;
+
+const e2eePartsOf = (message: ChatMessage) => (
+  message.raw?.e2ee_parts as E2eeAttachmentPart[] | undefined
+);
 
 const messageStatusLabel = (message: ChatMessage) => {
   if (message.status === 'sending') return '发送中';
@@ -240,6 +245,7 @@ const resolveRouteChat = () => {
               :key="attachment.key"
               :room-id="message.roomId"
               :attachment="attachment"
+              :e2ee-parts="e2eePartsOf(message)"
             />
           </div>
           <div v-if="!message.isDeleted" class="message-row__actions">

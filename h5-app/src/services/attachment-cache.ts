@@ -1,4 +1,9 @@
 import { requestJson, withQuery } from '@/api/http';
+import {
+  attachmentAad,
+  decryptAttachment,
+  type E2eeAttachmentPart,
+} from '@/e2ee/attachment-crypto';
 import { BlobCache, type CachedBlobEntry } from '@/storage/blob-cache';
 
 import { requireToken } from './session';
@@ -20,6 +25,44 @@ export const attachmentCacheService = {
       objectKey: params.objectKey,
       url: downloadUrl,
     });
+  },
+
+  /**
+   * E2EE 附件：只下载密文并在受控内存中解密为 objectURL，不写入明文缓存。
+   */
+  async loadEncryptedAttachment(params: {
+    roomId: string;
+    part: E2eeAttachmentPart;
+  }): Promise<CachedBlobEntry | null> {
+    const { roomId, part } = params;
+    if (!roomId || !part.objectKey) return null;
+    const downloadUrl = await fetchAttachmentDownloadUrl(roomId, part.objectKey);
+    if (!downloadUrl) return null;
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) return null;
+      const ciphertext = new Uint8Array(await response.arrayBuffer());
+      const aad = attachmentAad({
+        roomId,
+        partKey: part.partKey,
+        partPosition: part.partPosition,
+        objectKey: part.objectKey,
+      });
+      const plaintext = await decryptAttachment(ciphertext, aad, part.nonce, part.dek);
+      const buffer = new ArrayBuffer(plaintext.byteLength);
+      new Uint8Array(buffer).set(plaintext);
+      const blob = new Blob([buffer], { type: part.mimeType || 'application/octet-stream' });
+      return {
+        cacheKey: `message:${part.objectKey}`,
+        objectKey: part.objectKey,
+        objectUrl: URL.createObjectURL(blob),
+        mimeType: blob.type,
+        size: part.size,
+        cachedAt: Date.now(),
+      };
+    } catch {
+      return null;
+    }
   },
 
   revoke(entry: Pick<CachedBlobEntry, 'objectUrl'> | null | undefined) {

@@ -1,6 +1,12 @@
 import type { E2eeDeviceProfile } from '@/e2ee/device-profile';
 import { e2eeDeviceLifecycle } from '@/e2ee/device-lifecycle';
 import {
+  decodeAttachmentPart,
+  encodeAttachmentPart,
+  type E2eeAttachmentPart,
+  type E2eeAttachmentPayloadPart,
+} from '@/e2ee/attachment-crypto';
+import {
   E2eeIdentityTrustManager,
   type E2eeIdentityTrustStore,
   type E2eeRootIdentity,
@@ -84,6 +90,16 @@ export interface E2eeDecryptedText {
   epoch: number;
 }
 
+export interface E2eeDecryptedPayload {
+  payload: {
+    version: 1;
+    type: 'text' | 'attachment';
+    text?: string;
+    parts?: E2eeAttachmentPart[];
+  };
+  epoch: number;
+}
+
 export class E2eeDirectMessageCoordinator {
   private tail: Promise<void> = Promise.resolve();
   private readonly trust: E2eeIdentityTrustManager;
@@ -106,8 +122,30 @@ export class E2eeDirectMessageCoordinator {
     peerUserId?: string;
     text: string;
   }): Promise<Record<string, unknown>> {
+    return this.sendPayload(input);
+  }
+
+  sendAttachment(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    peerUserId?: string;
+    parts: E2eeAttachmentPart[];
+    text?: string;
+  }): Promise<Record<string, unknown>> {
+    return this.sendPayload(input);
+  }
+
+  private sendPayload(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    peerUserId?: string;
+    text?: string;
+    parts?: E2eeAttachmentPart[];
+  }): Promise<Record<string, unknown>> {
     return this.exclusive(async () => {
-      await this.prepare(input);
+      await this.preparePayload(input);
       return (await this.resumePending(input.accountId, true))!;
     });
   }
@@ -119,18 +157,46 @@ export class E2eeDirectMessageCoordinator {
     peerUserId?: string;
     text: string;
   }): Promise<void> {
-    return this.exclusive(() => this.prepare(input));
+    return this.prepareAttachment({
+      ...input,
+      parts: [],
+    });
   }
 
-  private async prepare(input: {
+  prepareAttachment(input: {
     accountId: string;
     deviceLabel: string;
     roomId: string;
     peerUserId?: string;
-    text: string;
+    parts: E2eeAttachmentPart[];
+    text?: string;
   }): Promise<void> {
-    const text = input.text.trim();
-    if (!text) throw new E2eeDirectMessageError('加密消息内容不能为空');
+    return this.exclusive(() => this.preparePayload(input));
+  }
+
+  private async preparePayload(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    peerUserId?: string;
+    text?: string;
+    parts?: E2eeAttachmentPart[];
+  }): Promise<void> {
+    const parts = input.parts ?? [];
+    if (parts.length === 0) {
+      if (!input.text?.trim()) throw new E2eeDirectMessageError('加密消息内容不能为空');
+    } else {
+      for (const part of parts) {
+        if (
+          !part.partKey
+          || !part.objectKey
+          || part.nonce.length !== 12
+          || part.dek.length !== 32
+        ) {
+          throw new E2eeDirectMessageError('加密附件密钥参数不完整');
+        }
+      }
+    }
     await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
     let context = await this.storedContext(input.accountId);
     const memberDevices = await this.api.listRoomMemberDevices(input.roomId);
@@ -159,7 +225,10 @@ export class E2eeDirectMessageCoordinator {
     const controlMessageId = context.profile.lastCommitMessageIds[input.roomId];
     if (!controlMessageId) throw new E2eeDirectMessageError('房间缺少当前 E2EE Commit 索引');
 
-    const plaintext = new TextEncoder().encode(JSON.stringify({ version: 1, type: 'text', text }));
+    const plaintext = new TextEncoder().encode(JSON.stringify(buildApplicationPayload({
+      text: input.text,
+      parts,
+    })));
     const encrypted = await this.core.encrypt(context.state, input.roomId, plaintext);
     const encryptedEpoch = safeEpoch(encrypted, 2);
     if (encryptedEpoch !== epoch.activeEpoch) throw new E2eeDirectMessageError('本地 E2EE epoch 已过期');
@@ -199,14 +268,34 @@ export class E2eeDirectMessageCoordinator {
     ciphertext: Uint8Array;
   }): Promise<E2eeDecryptedText> {
     return this.exclusive(async () => {
-      if (!input.ciphertext.length) throw new E2eeDirectMessageError('E2EE 密文不能为空');
-      await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
-      const context = await this.storedContext(input.accountId);
-      const decrypted = await this.core.decrypt(context.state, input.roomId, input.ciphertext);
-      const text = decodeTextPayload(decrypted.field(1));
-      await this.storage.write(input.accountId, decrypted.field(0));
-      return { text, epoch: safeEpoch(decrypted, 2) };
+      const { payload, epoch } = await this.doDecrypt(input);
+      if (payload.type !== 'text') throw new E2eeDirectMessageError('E2EE 消息不是文本消息');
+      return { text: payload.text!, epoch };
     });
+  }
+
+  decryptPayload(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    ciphertext: Uint8Array;
+  }): Promise<E2eeDecryptedPayload> {
+    return this.exclusive(() => this.doDecrypt(input));
+  }
+
+  private async doDecrypt(input: {
+    accountId: string;
+    deviceLabel: string;
+    roomId: string;
+    ciphertext: Uint8Array;
+  }): Promise<E2eeDecryptedPayload> {
+    if (!input.ciphertext.length) throw new E2eeDirectMessageError('E2EE 密文不能为空');
+    await this.syncControls(input.accountId, input.deviceLabel, input.roomId);
+    const context = await this.storedContext(input.accountId);
+    const decrypted = await this.core.decrypt(context.state, input.roomId, input.ciphertext);
+    const payload = decodePayload(decrypted.field(1));
+    await this.storage.write(input.accountId, decrypted.field(0));
+    return { payload, epoch: safeEpoch(decrypted, 2) };
   }
 
   private async syncControls(accountId: string, deviceLabel: string, roomId: string) {
@@ -564,16 +653,59 @@ const safeEpoch = (result: E2eeCommandResult, index: number) => {
   return Number(epoch);
 };
 
-const decodeTextPayload = (plaintext: Uint8Array) => {
+const buildApplicationPayload = (input: { text?: string; parts: E2eeAttachmentPart[] }) => {
+  if (input.parts.length > 0) {
+    return {
+      version: 1,
+      type: 'attachment',
+      parts: input.parts.map(encodeAttachmentPart),
+    };
+  }
+  return {
+    version: 1,
+    type: 'text',
+    text: input.text!.trim(),
+  };
+};
+
+const decodePayload = (plaintext: Uint8Array): E2eeDecryptedPayload['payload'] => {
   try {
     const payload = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(plaintext)) as Record<string, unknown>;
-    if (payload.version !== 1 || payload.type !== 'text' || typeof payload.text !== 'string' || !payload.text.trim()) {
+    if (payload.version !== 1 || (payload.type !== 'text' && payload.type !== 'attachment')) {
       throw new Error('invalid payload');
     }
-    return payload.text;
+    if (payload.type === 'text') {
+      if (typeof payload.text !== 'string' || !payload.text.trim()) throw new Error('invalid text');
+      return { version: 1, type: 'text', text: payload.text };
+    }
+    if (!Array.isArray(payload.parts) || payload.parts.length === 0) {
+      throw new Error('invalid parts');
+    }
+    return {
+      version: 1,
+      type: 'attachment',
+      parts: payload.parts.map((part) => decodeAttachmentPart(validateAttachmentPayloadPart(part))),
+    };
   } catch {
-    throw new E2eeDirectMessageError('E2EE 文本消息格式无效');
+    throw new E2eeDirectMessageError('E2EE 消息负载格式无效');
   }
+};
+
+const validateAttachmentPayloadPart = (part: unknown): E2eeAttachmentPayloadPart => {
+  const row = part as Record<string, unknown>;
+  if (
+    typeof row.partKey !== 'string'
+    || typeof row.objectKey !== 'string'
+    || typeof row.name !== 'string'
+    || typeof row.mimeType !== 'string'
+    || typeof row.size !== 'number'
+    || typeof row.partPosition !== 'number'
+    || typeof row.nonce !== 'string'
+    || typeof row.dek !== 'string'
+  ) {
+    throw new Error('invalid attachment part');
+  }
+  return row as unknown as E2eeAttachmentPayloadPart;
 };
 
 export const e2eeDirectMessageCoordinator = new E2eeDirectMessageCoordinator();

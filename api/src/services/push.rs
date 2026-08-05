@@ -877,6 +877,13 @@ impl PushMessageSnapshot {
             preview: preview_text(message, parts),
         }
     }
+
+    /// E2EE 模式下将正文与预览替换为占位符，禁止正文 marker 进入 Push 链路。
+    pub fn sanitize_for_e2ee(mut self) -> Self {
+        self.content = "【加密消息】".to_string();
+        self.preview = "你收到一条加密消息".to_string();
+        self
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -2406,6 +2413,16 @@ mod tests {
     use serde_json::Value;
     use std::sync::{Arc as StdArc, Mutex};
     use tokio::sync::Mutex as AsyncMutex;
+
+    #[test]
+    fn push_snapshot_sanitize_for_e2ee_removes_body_marker() {
+        let message = sample_message("secret plaintext body");
+        let snapshot = PushMessageSnapshot::from_message(&message, &[]).sanitize_for_e2ee();
+        assert_eq!(snapshot.content, "【加密消息】");
+        assert_eq!(snapshot.preview, "你收到一条加密消息");
+        assert!(!snapshot.content.contains("secret"));
+        assert!(!snapshot.preview.contains("secret"));
+    }
 
     static ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
     const TEST_APNS_PRIVATE_KEY: &str = r#"-----BEGIN PRIVATE KEY-----

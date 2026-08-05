@@ -36,6 +36,35 @@ describe('MessageStorage', () => {
     expect(await storage.listRoomIds()).toEqual(['r1']);
   });
 
+  it('strips memory-only E2EE attachment key material before persisting', async () => {
+    const e2eeMessage: ChatMessage = {
+      ...message('m-e2ee', 'r1', 1000),
+      content: '[加密附件]',
+      type: 'mixed',
+      attachments: [{ key: 'messages/r1/files/secret.bin', name: 'secret.bin' }],
+      raw: {
+        e2ee_epoch: 1,
+        e2ee_parts: [{
+          partKey: '00000000-0000-4000-8000-000000000001',
+          objectKey: 'messages/r1/files/secret.bin',
+          name: 'secret.bin',
+          mimeType: 'application/octet-stream',
+          size: 3,
+          partPosition: 0,
+          nonce: new Uint8Array(12),
+          dek: new Uint8Array(32),
+        }],
+      },
+    };
+
+    await storage.saveMessages('r1', [e2eeMessage]);
+    const loaded = await storage.loadMessages('r1');
+
+    expect(loaded[0]?.raw?.e2ee_parts).toBeUndefined();
+    expect(loaded[0]?.raw?.e2ee_epoch).toBe(1);
+    expect(loaded[0]?.attachments).toEqual([{ key: 'messages/r1/files/secret.bin', name: 'secret.bin' }]);
+  });
+
   it('keeps only the latest 200 messages for one room', async () => {
     const messages = Array.from({ length: 205 }, (_, index) => message(`m${index}`, 'r1', index));
 

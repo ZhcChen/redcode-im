@@ -42,7 +42,7 @@ use crate::services::e2ee_envelope::{
     validate_envelope, EncryptedContentType, EncryptionMetadata, ENCRYPTED_MESSAGE_PLACEHOLDER,
 };
 use crate::services::message_runtime::{
-    is_relay_only_runtime, load_message_runtime_settings, relay_only_unsupported,
+    is_e2ee_runtime, is_relay_only_runtime, load_message_runtime_settings, relay_only_unsupported,
 };
 use crate::services::multipart_upload;
 use crate::services::push::PushMessageSnapshot;
@@ -1325,10 +1325,12 @@ pub async fn send_message(
 
     crate::services::push::enqueue_new_message(
         &state,
-        PushMessageSnapshot::from_message(
+        build_push_snapshot(
+            &state,
             &enriched,
             part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
-        ),
+        )
+        .await,
     )
     .await;
 
@@ -1617,10 +1619,12 @@ pub async fn send_encrypted_message(
 
         crate::services::push::enqueue_new_message(
             &state,
-            PushMessageSnapshot::from_message(
+            build_push_snapshot(
+                &state,
                 &enriched,
                 part_map.get(&enriched.id).map(Vec::as_slice).unwrap_or(&[]),
-            ),
+            )
+            .await,
         )
         .await;
     }
@@ -1645,6 +1649,11 @@ pub async fn forward_message(
     let sender_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::InvalidToken("Invalid user ID in token".to_string()))?;
     let relay_only_runtime = is_relay_only_runtime(&state).await?;
+    if is_e2ee_runtime(&state).await? {
+        return Err(AppError::ValidationError(
+            "E2EE 模式暂不支持转发消息".to_string(),
+        ));
+    }
 
     let store = MessageStore::new(state.database.pool());
 
@@ -1759,13 +1768,15 @@ pub async fn forward_message(
 
     crate::services::push::enqueue_new_message(
         &state,
-        PushMessageSnapshot::from_message(
+        build_push_snapshot(
+            &state,
             &enriched,
             parts_map
                 .get(&enriched.id)
                 .map(Vec::as_slice)
                 .unwrap_or(&[]),
-        ),
+        )
+        .await,
     )
     .await;
 
@@ -1778,6 +1789,19 @@ pub async fn forward_message(
     Ok(Json(SendMessageResponse {
         message: api_message,
     }))
+}
+
+/// 构造 Push 快照；E2EE 模式只允许占位正文与预览，禁止正文 marker 进入 Push。
+async fn build_push_snapshot(
+    state: &AppState,
+    message: &MessageWithSender,
+    parts: &[MessagePart],
+) -> PushMessageSnapshot {
+    let mut snapshot = PushMessageSnapshot::from_message(message, parts);
+    if is_e2ee_runtime(state).await.unwrap_or(false) {
+        snapshot = snapshot.sanitize_for_e2ee();
+    }
+    snapshot
 }
 
 pub async fn list_messages(

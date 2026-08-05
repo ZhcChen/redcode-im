@@ -284,15 +284,38 @@ const decryptMessage = async (message: ChatMessage, accountId: string): Promise<
     return markDecryptionFailed(message);
   }
   try {
-    const decrypted = await e2eeDirectMessageCoordinator.decryptText({
+    const decrypted = await e2eeDirectMessageCoordinator.decryptPayload({
       accountId,
       deviceLabel: 'RedCode H5',
       roomId: message.roomId,
       ciphertext: base64ToBytes(message.encryptedContent),
     });
+    if (decrypted.payload.type === 'attachment') {
+      const parts = decrypted.payload.parts ?? [];
+      const attachments = parts.map((part) => ({
+        key: part.objectKey,
+        name: part.name,
+        mimeType: part.mimeType,
+        size: part.size,
+        cacheKey: `message:${part.objectKey}`,
+      }));
+      return {
+        ...message,
+        content: '[加密附件]',
+        type: 'mixed',
+        attachments,
+        status: message.senderId === accountId ? 'sent' : 'delivered',
+        e2eeDecryptionFailed: false,
+        raw: {
+          ...message.raw,
+          e2ee_epoch: decrypted.epoch,
+          e2ee_parts: parts,
+        },
+      };
+    }
     return {
       ...message,
-      content: decrypted.text,
+      content: decrypted.payload.text!,
       status: message.senderId === accountId ? 'sent' : 'delivered',
       e2eeDecryptionFailed: false,
       raw: { ...message.raw, e2ee_epoch: decrypted.epoch },
