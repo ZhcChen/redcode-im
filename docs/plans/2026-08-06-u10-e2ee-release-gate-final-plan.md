@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code
 status: active
-current_unit: G2
-current_checkpoint: G2.4
+current_unit: G3
+current_checkpoint: G3.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
@@ -23,7 +23,7 @@ supersedes: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派发任务。
 
 - 固定顺序：`G2 供应链门禁 -> G3 H5 发布安全 -> G4 独立复审与裁决`。
-- 当前 checkpoint：`G2.4`，修复 CI 环境差异并取得首个绿色运行证据。
+- 当前 checkpoint：`G3.1`，固化 H5 production 候选构建与静态发布安全边界。
 - 当前裁决：生产 E2EE 为 **No-Go**。
 - 运行约束：保持 `content_audit_mode=plaintext`；测试候选环境结束后必须恢复
   `persist/plaintext` 和 `security_review_approved=false`。
@@ -39,6 +39,7 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 | 三端 live、附件、恢复、rekey、撤销与泄漏检查 | 完成 | `docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md` |
 | U7 P0-1 客户端主链 | 关闭 | Android/iOS/H5 三端真实互解与全量门禁 |
 | G1 / U7 P0-2 备份恢复与灰度回滚 | 关闭 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` |
+| G2 / U7 P0-3 六端供应链门禁 | 关闭 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md`；CI run `31032243630` |
 | API 风险依赖清理 | 完成 | `9e67ff9a`；API unit 188/188 与 integration 通过 |
 | H5 风险依赖清理 | 完成 | `e3201bda`；type-check、262 tests 通过 |
 | Admin 风险依赖与构建更新 | 完成 | `6cbf6e3e`；`pnpm build:check` 通过 |
@@ -47,9 +48,9 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 
 已关闭单元只在 G4 从干净基线重放门禁，不再进入功能实现。
 
-## 3. 当前工作区快照
+## 3. 当前进度快照
 
-`G2.2` 已完成以下实现，后续必须基于这些文件继续，不得重新生成平行方案：
+G2 已完成并推送，后续不得重做或生成平行供应链方案。实现入口包括：
 
 - `Makefile`
 - `config/supply-chain/policy.json`
@@ -62,11 +63,16 @@ U10/E2EE 计划只保留产品契约、实现过程和验收证据，不再派�
 OSV-Scanner 2.2.4，并生成 `.artifacts/supply-chain/` 机器报告。Android 完整 lock
 继续用于可复现构建，供应链扫描使用派生的 release runtime 依赖集合。
 
-2026-08-06 已通过统一门禁：API 432、e2ee-core 193、Android 119、iOS 1、
-H5 217、Admin 811 个组件；29 个精确限时例外，0 个阻断项。六份漏洞报告与
-六份 CycloneDX SBOM 完整，敏感 marker 无命中；Admin `pnpm build:check` 通过。
+2026-08-06 的 CI run `31032243630` 已通过统一门禁：API 432、e2ee-core 193、
+Android 119、iOS 1、H5 217、Admin 811 个组件；23 个正负夹具通过，29 个精确
+限时例外，0 个未处理阻断项。独立复审结论为 P0=0、P1=0，U7 P0-3 已关闭。
 
-## 4. 剩余执行队列
+当前只剩两个有序阶段：
+
+1. `G3`：关闭 U7 P0-4 H5 发布安全阻断项。
+2. `G4`：独立复审、全量重放、环境清理与最终 Go/No-Go 裁决。
+
+## 4. 已关闭单元
 
 ### G2.2 六端统一供应链门禁（完成）
 
@@ -87,10 +93,10 @@ fail-closed 入口。
 expired exception、missing owner、wildcard、unused exception、scanner unavailable、
 数据库/下载失败、截断 JSON、缺失模块/报告、敏感 marker 泄漏。
 
-**完成证据：** `make supply-chain.test` 的 16 个隔离场景全部通过；fixture 不依赖
+**完成证据：** `make supply-chain.test` 的 23 个隔离场景全部通过；fixture 不依赖
 真实网络、不调用 Docker daemon、不改写真实 lockfile，并已接入 `tests.tooling`。
 
-### G2.4 CI 与 release 阻断（进行中）
+### G2.4 CI 与 release 阻断（完成）
 
 **目标：** PR 与 release workflow 调用同一个 `make supply-chain.check`，上传机器
 报告，并让失败阻断 API、Android 和最终发布 job。
@@ -100,25 +106,27 @@ expired exception、missing owner、wildcard、unused exception、scanner unavai
 
 **完成证据：** PR/main 独立 workflow 与 release 内置阻断 job 均调用统一 Make
 入口；Android、API build 与 publish 显式依赖供应链 job；机器报告缺失即失败。
-结构化依赖图测试与 Actionlint 1.7.7 已通过；首次 main CI 暴露 runner 缺少
-`rg`，需移除该非必要环境依赖并取得绿色运行后才能完成本 checkpoint。
+结构化依赖图测试与 Actionlint 1.7.7 已通过；runner 工具差异已修复，main CI run
+`31032243630` 对 commit `e6287df1` 完整通过并上传六端证据。
 
-### G2.5 关闭 U7 P0-3
+### G2.5 关闭 U7 P0-3（完成）
 
-更新 SBOM 报告、供应链独立 review、U7 review、任务总账和本文 checkpoint。只有
-G2.2-G2.4 全部通过才关闭 P0-3。完成后进入 `G3.1`，生产仍为 No-Go。
+SBOM 报告、供应链独立 review、U7 review、任务总账和本文已同步；供应链独立
+复审无 P0/P1。P0-3 关闭，生产仍为 No-Go。
 
-### G3 H5 发布安全
+## 5. 当前与后续执行队列
 
-1. `G3.1`：对可追溯 production build 检查严格 CSP、安全响应头、公开 source map、
-   静态资源与 commit/lockfile 绑定。
+### G3 H5 发布安全（当前）
+
+1. `G3.1`（当前）：生成可追溯 production 候选构建，检查严格 CSP、安全响应头、
+   公开 source map、静态资源与 commit/lockfile 绑定；形成可重复的静态检查入口。
 2. `G3.2`：在隔离浏览器会话验证 WebCrypto wrapping key 不可导出，存储、Network、
    Console 和日志无敏感数据；状态损坏、身份变化、未知 epoch 与解密失败均 fail closed。
 3. `G3.3`：形成 H5 发布安全 review，关闭 U7 P0-4，并进入 `G4.1`。
 
 不得通过加入不受控 `unsafe-inline`、`unsafe-eval` 或 plaintext fallback 通过验收。
 
-### G4 独立复审与最终裁决
+### G4 独立复审与最终裁决（G3 完成后）
 
 1. `G4.1`：独立 correctness/security/reliability/testing 复审 G1-G3，关闭全部 P0/P1。
 2. `G4.2`：从干净基线重跑 core、API、Android、iOS、H5、供应链、`test.all` 和
@@ -127,7 +135,15 @@ G2.2-G2.4 全部通过才关闭 P0-3。完成后进入 `G3.1`，生产仍为 No-
 
 任一 P0/P1、fail-closed 场景、全量门禁或环境清理未通过，最终裁决保持 No-Go。
 
-## 5. 验收入口
+## 6. 停止条件
+
+- G3 任一静态或浏览器安全检查失败：停在对应 checkpoint，不进入 G4。
+- 发现需要扩展服务端契约：停止实现，回产品契约计划评估，不在本计划直接扩展 API。
+- G4 出现未关闭 P0/P1、全量或 live 门禁失败、清理不完整：最终裁决保持 No-Go。
+- 任一测试候选窗口结束后，必须恢复 `persist/plaintext` 和
+  `security_review_approved=false`。
+
+## 7. 验收入口
 
 | 范围 | 命令 |
 | --- | --- |
@@ -145,7 +161,7 @@ G2.2-G2.4 全部通过才关闭 P0-3。完成后进入 `G3.1`，生产仍为 No-
 每个 checkpoint 必须按“实现 -> 定向验证 -> 最小闭环 commit -> push -> 更新进度”
 执行，不得跨 checkpoint 合并半成品。
 
-## 6. Definition of Done
+## 8. Definition of Done
 
 - D1. 本文保持唯一 active，任务总账与 `current_checkpoint` 一致。
 - D2. 六端供应链正常和负向门禁在本地与 CI 使用同一入口并通过。
@@ -156,7 +172,7 @@ G2.2-G2.4 全部通过才关闭 P0-3。完成后进入 `G3.1`，生产仍为 No-
 - D7. 所有 checkpoint 均已按边界提交并推送。
 - D8. 仅 D1-D7 全部满足时允许裁决 Go，否则保持明确的 No-Go 和下一 checkpoint。
 
-## 7. 历史文档边界
+## 9. 历史文档边界
 
 | 文档 | 状态 | 后续用途 |
 | --- | --- | --- |

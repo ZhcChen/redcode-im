@@ -2,7 +2,7 @@
 title: U10 E2EE U7 独立安全审查与发布裁决
 date: 2026-08-05
 status: complete
-scope: api,e2ee-core,h5-app,admin
+scope: api,e2ee-core,android-app,ios-app,h5-app,admin,ci
 verdict: no-go
 ---
 
@@ -11,8 +11,8 @@ verdict: no-go
 ## 结论
 
 **裁决：No-Go。** 原生双端聊天主链接入与 Android/iOS/H5 三端 E2EE live、
-隔离候选备份恢复与灰度回滚已闭环，P0-1/P0-2 关闭；但 CI 漏洞扫描与许可证
-批量核验未配置、H5 发布前安全检查未形成正式报告。测试环境保持
+隔离候选备份恢复与灰度回滚、六端供应链门禁均已闭环，P0-1/P0-2/P0-3 关闭；
+H5 发布前安全检查尚未形成正式报告。测试环境保持
 `persist/plaintext`，仅允许 `prepare` 预检。
 
 ## 威胁模型
@@ -26,7 +26,7 @@ verdict: no-go
 | 附件内容与密钥泄漏 | 每附件 DEK、密文上传、AAD 绑定 | U5 覆盖 |
 | 被移除成员/撤销设备继续读取 | 成员修订 + epoch 推进 | U3/U4 覆盖 |
 | H5 同源 XSS 攻陷 | 受限威胁模型 + 非导出包装密钥 | R15 限制声明 |
-| 供应链（依赖漏洞/许可证） | SBOM 清单 | U7-C：清单在，扫描未配置 |
+| 供应链（依赖漏洞/许可证） | 六端 SBOM + 统一 fail-closed 门禁 | U7-C/G2 完成 |
 | 备份泄露 / 恢复后不可读 | 备份恢复手册 + 隔离候选演练 | G1 完成 |
 | 测试夹具污染 | Admin 全量清理 + live 定向清理 | U7-E 覆盖并修复缺口 |
 
@@ -42,8 +42,8 @@ verdict: no-go
 | U6 Admin 门禁 | `docs/reviews/2026-08-05-u10-e2ee-u6-admin-gate.md` | 完成 |
 | U7-A 全链 marker 扫描 | `api/tests/e2ee_marker_scan.rs` | 完成 |
 | U7-B 日志 denylist | `scripts/scan-e2ee-log-denylist.sh` | 完成 |
-| U7-C SBOM/许可证/漏洞 | `docs/reports/2026-08-05-e2ee-sbom.md` | 完成（扫描未配置） |
-| U7-D 备份恢复/灰度回滚 | `docs/reference/security/e2ee-backup-recovery.md` | 完成（未演练） |
+| U7-C SBOM/许可证/漏洞 | `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md` | 完成并独立复审 |
+| U7-D 备份恢复/灰度回滚 | `docs/reviews/2026-08-05-u10-e2ee-backup-rollout-drill.md` | 完成并演练 |
 | U7-E 夹具清理核对 | `admin.rs cleanup_all_app_data` + `tests/scripts/cleanup-e2ee-live-fixtures.sh` | 完成（修复缺口） |
 
 ## U7-A 全链 marker 扫描结论
@@ -69,13 +69,14 @@ U7-B 静态扫描补齐。
 输出调用（420 条），当前敏感字段命中 0，退出码 0。脚本支持白名单收敛，
 结果可重放；建议后续把“扫描到命中即阻断”接入 pre-commit/CI。
 
-## U7-C SBOM 结论
+## U7-C SBOM 与供应链门禁结论
 
-- Rust：`api/Cargo.lock` 445 包、`e2ee-core/Cargo.lock` 193 包；OpenMLS 0.8.1
-  精确锁定（MIT）。
-- 前端：`h5-app/bun.lock`、`admin/pnpm-lock.yaml` 锁定传递依赖。
-- **未完成（P0 阻断）**：许可证批量核验、CI 漏洞扫描
-  （`cargo audit` / `bun audit` / `pnpm audit` / `osv-scanner`）。
+- API、e2ee-core、Android、iOS、H5、Admin 六端已从 lockfile 生成 CycloneDX
+  SBOM，并执行固定版本漏洞与许可证门禁。
+- CI run `31032243630` 对 commit `e6287df1` 的六端扫描和 23 个正负夹具通过，
+  0 个未处理阻断项。
+- 独立复审未发现新 P0/P1；29 个精确例外统一于 2026-09-05 到期，不代表零
+  advisory。完整证据见 `docs/reviews/2026-08-06-u10-e2ee-supply-chain-review.md`。
 
 ## U7-D 备份恢复/灰度回滚结论
 
@@ -105,25 +106,29 @@ X3DH 表（`e2ee_identity_keys` / `e2ee_signed_pre_keys` /
 2. 备份恢复与灰度回滚：隔离候选栈完成真实 RustFS/数据库/live 数据集、独立
    恢复、损坏归档拒绝、active 重建和 rollback；runtime 恢复 plaintext，临时
    资源全部清理。
+3. 六端供应链门禁：lockfile、漏洞报告与 SBOM identity 完整一致，PR/main/release
+   统一 fail closed，23 个正负夹具与 main CI 通过，独立复审 P0=0、P1=0。
 
 ### P0（阻断生产启用）
 
-1. CI 漏洞扫描（Rust/npm 生态）与依赖许可证批量核验未配置。
-2. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
+1. H5 严格 CSP、依赖锁定、WebCrypto 包装密钥的发布前检查未形成正式报告
    （KTD7 要求，当前依赖 R15 端侧实现与测试证据）。
+
+### 已关闭 P1
+
+1. SBOM 生成与 lockfile 归档已固化进 CI artifact。
+2. 备份恢复演练已通过 `e2ee-backup-rollout-drill.sh` 自动化并形成独立报告。
 
 ### P1（发布后 30 天内跟进）
 
 1. 日志 denylist 接入 pre-commit/CI，并沉淀白名单基线。
-2. SBOM 生成命令固化进 CI 产物（`cargo metadata` / lockfile 归档）。
-3. 备份恢复演练自动化（恢复后密文校验 SQL 转脚本）。
-4. 设备能力字段对存量客户端的兼容期清理策略。
+2. 设备能力字段对存量客户端的兼容期清理策略。
 
 ## 发布约束（裁决生效后）
 
 - 生产：E2EE **No-Go**；`content_audit_mode` 保持 `plaintext`。
 - 测试环境：允许 `prepare` 预检；`active` 需要安全审查显式批准且仅限演练
   窗口，演练后回滚 `plaintext`。
-- 后续 Gate 重开条件：剩余 P0 两项全部关闭并出具复核报告。
+- 后续 Gate 重开条件：剩余 H5 发布安全 P0 关闭，并完成 G4 独立复审与全量重放。
 - 后续唯一执行入口：
-  `docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md`。
+  `docs/plans/2026-08-06-u10-e2ee-release-gate-final-plan.md`。
