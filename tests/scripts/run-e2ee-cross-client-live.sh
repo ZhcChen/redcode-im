@@ -8,6 +8,16 @@ api_base_url="${H5_APP_API_BASE_URL:-http://127.0.0.1:8010}"
 ws_url="${H5_APP_WS_URL:-ws://127.0.0.1:8010/ws}"
 run_id="${E2EE_LIVE_RUN_ID:-c6$(date +%s)}"
 make_command="${MAKE:-make}"
+evidence_is_temporary=0
+if [[ -n "${E2EE_LIVE_EVIDENCE_PATH:-}" ]]; then
+  evidence_file="$E2EE_LIVE_EVIDENCE_PATH"
+else
+  evidence_file="$(mktemp "${TMPDIR:-/tmp}/redcode-e2ee-live-evidence.XXXXXX")"
+  evidence_is_temporary=1
+fi
+redis_monitor_file="$(mktemp "${TMPDIR:-/tmp}/redcode-e2ee-live-redis.XXXXXX")"
+log_since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+redis_monitor_pid=""
 
 if [[ "$api_base_url" != "http://127.0.0.1:8010" ]]; then
   echo "[e2ee-live] 仅允许本机 dev API：http://127.0.0.1:8010" >&2
@@ -71,6 +81,14 @@ SQL
 finish() {
   local exit_code=$?
   trap - EXIT INT TERM
+  if [[ -n "$redis_monitor_pid" ]]; then
+    kill "$redis_monitor_pid" 2>/dev/null || true
+    wait "$redis_monitor_pid" 2>/dev/null || true
+  fi
+  rm -f "$redis_monitor_file"
+  if [[ "$evidence_is_temporary" == "1" ]]; then
+    rm -f "$evidence_file"
+  fi
   if ! restore_runtime; then
     echo "[e2ee-live] runtime 恢复验证失败" >&2
     exit_code=1
@@ -99,8 +117,19 @@ printf '%s' "$runtime_active" | rg -q '"server_storage_mode":"persist"'
 printf '%s' "$runtime_active" | rg -q '"content_audit_mode":"e2ee"'
 echo "[e2ee-live] runtime 已临时启用 persist/e2ee，run_id=$run_id"
 
+docker compose -f "$compose_file" exec -T redis \
+  redis-cli -a 123456 --no-auth-warning MONITOR >"$redis_monitor_file" 2>&1 &
+redis_monitor_pid=$!
+
 H5_APP_API_BASE_URL="$api_base_url" \
 VITE_API_BASE_URL="$api_base_url" \
 VITE_WS_URL="$ws_url" \
 E2EE_LIVE_RUN_ID="$run_id" \
+E2EE_LIVE_EVIDENCE_PATH="$evidence_file" \
   "$make_command" -C "$root_dir" h5-app.test.e2ee.live
+
+kill "$redis_monitor_pid" 2>/dev/null || true
+wait "$redis_monitor_pid" 2>/dev/null || true
+redis_monitor_pid=""
+"$root_dir/tests/scripts/scan-e2ee-live-boundaries.sh" \
+  "$evidence_file" "$log_since" "$redis_monitor_file"

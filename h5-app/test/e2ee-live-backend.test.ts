@@ -1,6 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 
@@ -15,6 +15,7 @@ const sessionStorageKey = 'redcode-h5-session';
 // 共享环境清理依据：账号名前缀带 run ID，供
 // tests/scripts/cleanup-e2ee-live-fixtures.sh 定向清理。
 const runId = (process.env.E2EE_LIVE_RUN_ID || 'manual').replace(/[^a-zA-Z0-9_-]/g, '');
+const evidencePath = process.env.E2EE_LIVE_EVIDENCE_PATH;
 
 interface LiveSession {
   token: string;
@@ -306,6 +307,16 @@ describe.skipIf(!enabled)('H5 E2EE live backend', () => {
       expect.objectContaining({ id: h5MessageId, encrypted_content: expect.any(String) }),
       expect.objectContaining({ id: attachmentMessageId, encrypted_content: expect.any(String) }),
     ]));
+    if (evidencePath) {
+      await writeFile(evidencePath, JSON.stringify({
+        run_id: runId,
+        room_id: crossChat.roomId,
+        message_ids: [androidMessageId, h5MessageId, attachmentMessageId],
+        object_key: attachment.e2eePart.objectKey,
+        plaintext_markers: [androidMarker, h5Marker, attachmentMarker],
+        attachment_marker: attachmentMarker,
+      }, null, 2));
+    }
   }, 60_000);
 
   it('exchanges ciphertext bidirectionally across iOS/H5', async () => {

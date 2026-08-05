@@ -133,6 +133,7 @@ make e2ee-core.check.targets     # iOS / Android / WASM 四目标构建
 make h5-app.test.unit            # 已含 E2EE 安全存储与身份信任单元测试
 make h5-app.test.e2ee.live       # 双账号 E2EE 真实后端联调（需服务端显式启用 E2EE）
 make e2ee.cross-client.live      # 受控切换本机 dev runtime，执行 Android/iOS/H5 联调并自动恢复
+make e2ee.cross-client.recovery.test # fake 环境验证失败、INT、TERM 后恢复 plaintext
 make h5-app.test.e2e             # 浏览器 smoke（含 WASM 核心初始化/损坏状态校验）
 ```
 
@@ -144,9 +145,12 @@ make h5-app.test.e2e             # 浏览器 smoke（含 WASM 核心初始化/�
   自动切换嵌入普通 unit、build、commit hook 或默认 CI 链。
 - `e2ee.cross-client.live` 是本机 Compose dev 的独立显式入口，只接受
   `http://127.0.0.1:8010`，要求 JDK 21，并通过退出 trap 在成功、失败或信号中断后
-  恢复和验证 `persist/plaintext`；它不接入 `test.all`、commit hook 或默认 CI。
-- 原生双端（`android-app/` / `ios-app/`）E2EE 协议接入尚未落地，原生 E2EE 验收
-  由原生 E2EE 专项补齐；当前原生测试不含 E2EE 协议用例。
+  恢复和验证 `persist/plaintext`；成功路径还会抽检 DB、Redis、API log、Push queue
+  和 S3-compatible 对象。它不接入 `test.all`、commit hook 或默认 CI。
+- `e2ee.cross-client.recovery.test` 只使用 fake Compose/API，不访问真实服务，用于
+  可重放验证故意失败、`INT`、`TERM` 三种退出路径。
+- 原生双端 E2EE 已接入 `android-app/` / `ios-app/`，正式跨端验收统一由上述受控
+  live 入口执行；未设置显式 live 环境变量时平台测试必须安全跳过。
 
 从零联调顺序：
 
