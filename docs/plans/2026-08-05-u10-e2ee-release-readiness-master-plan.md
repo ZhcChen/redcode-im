@@ -7,7 +7,8 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
-status: active
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 current_unit: G1
 current_checkpoint: G1.2
 verdict: no-go
@@ -16,10 +17,14 @@ last_progress_update: 2026-08-05
 
 # security: U10 E2EE 发布就绪主计划
 
-## 1. 唯一执行入口
+> 本计划已由
+> `docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md` 接替。
+> 本文仅保留 G1 初始设计与历史恢复信息，不再作为任务派发或进度判断入口。
 
-本文是 U10 E2EE 后续工作的**唯一 active 计划、状态总账和会话恢复点**。
-历史 U/N/C/R 系列计划仅保留需求、设计和验收证据，不再派发工作。
+## 1. 历史执行入口
+
+本文曾是 U10 E2EE 后续工作的 active 计划，现仅保留 G1.2 时点的状态快照。
+当前任务派发和会话恢复必须使用 `superseded_by` 指向的新计划。
 
 固定执行顺序：
 

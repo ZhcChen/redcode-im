@@ -8,7 +8,7 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: superseded
-superseded_by: docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md
+superseded_by: docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md
 current_unit: G1
 last_progress_update: 2026-08-05
 ---
@@ -16,14 +16,14 @@ last_progress_update: 2026-08-05
 # security: U10 E2EE 生产发布收口计划
 
 > 本计划已由
-> `docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md` 取代。
+> `docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md` 取代。
 > 后续只从新主计划恢复和派发；本文保留为 G1-G4 初始范围记录。
 
 ## 1. 计划定位
 
 本文记录 U10 E2EE 剩余发布工作的初始 G1-G4 分解，现已归档，不再作为执行入口。
 当前状态、检查点和恢复说明统一维护在
-`docs/plans/2026-08-05-u10-e2ee-release-readiness-master-plan.md`。原生客户端
+`docs/plans/2026-08-05-u10-e2ee-release-readiness-execution-plan.md`。原生客户端
 N1-N7 与最终验证 R1-R4 已完成，不再重复执行。
 
 固定执行链：
