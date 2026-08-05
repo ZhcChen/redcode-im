@@ -6,17 +6,23 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 execution: code
-status: active
+status: superseded
 current_unit: C6
 last_progress_update: 2026-08-05
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-acceptance-closure-plan.md
 ---
 
 # feat: U10 E2EE 原生客户端最终收口计划
 
+> [!IMPORTANT]
+> 本计划已由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-acceptance-closure-plan.md`
+> 取代，仅保留 C1-C7 的历史实施记录，不再作为任务入口。
+
 ## 1. 计划定位
 
-本文是原生客户端 E2EE 剩余工作的**唯一执行入口和唯一进度快照**。从提交
-`17c235ec` 继续，只处理全仓门禁、三端 live 和重审，不重做 N1-N6 或 C1-C5。
+本文曾作为原生客户端 E2EE 的执行入口，记录从提交 `17c235ec` 开始的全仓门禁、
+三端 live 和重审规划。当前进度与剩余任务以 superseding 计划为准。
 
 固定执行顺序：
 
@@ -36,7 +42,7 @@ last_progress_update: 2026-08-05
 | `docs/reviews/2026-08-05-u10-e2ee-native-clients-n7-acceptance.md` | 已发生的验收事实和后续证据汇总 | 否 |
 | `docs/reviews/2026-08-05-u10-e2ee-u7-security-review.md` | U7 安全裁决和 P0-1 重审 | 否 |
 
-不再创建新的 E2EE 原生收口计划。后续只更新本文的进度表和恢复点。
+本文冻结为历史记录，不再更新进度表或恢复点。
 
 ## 3. 当前进度
 
