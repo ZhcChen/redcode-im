@@ -2969,7 +2969,16 @@ pub async fn generate_message_attachment_download_url(
             .room_has_message_object_key(room_id, key)
             .await
             .map_err(AppError::from)?;
-        if has_persist_reference {
+        let has_committed_room_attachment =
+            if is_message_attachment_object_key_for_room(&room_id, key) {
+                store
+                    .room_has_committed_attachment(room_id, key)
+                    .await
+                    .map_err(AppError::from)?
+            } else {
+                false
+            };
+        if has_persist_reference || has_committed_room_attachment {
             MessageAttachmentAccess::PersistReference
         } else {
             match relay_only_attachment_grant_remaining_seconds(&state, room_id, key).await? {
@@ -3158,6 +3167,21 @@ pub async fn commit_message_attachment_upload(
         .mark_completed_by_key(&provider.id, key)
         .await
         .map_err(AppError::from)?;
+
+    let recorded = store
+        .record_room_attachment_commit(
+            room_id,
+            key,
+            user_id,
+            req.file_size.map(|value| value as i64),
+        )
+        .await
+        .map_err(AppError::from)?;
+    if !recorded {
+        return Err(AppError::Forbidden(
+            "附件 object key 已由其他用户提交".to_string(),
+        ));
+    }
 
     // 写入内容审核任务（异步队列；违规会删除对象并记录原因）
     let record = upload_store

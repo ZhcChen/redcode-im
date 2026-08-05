@@ -822,6 +822,54 @@ async fn persist_mode_rejects_uncommitted_attachment_keys() {
         Some(committed_key.as_str())
     );
     assert_message_persistence(&app, &committed_message_id, 1).await;
+
+    let e2ee_key = format!("messages/{room_id}/files_20260805/e2ee.bin");
+    seed_completed_message_attachment(&app, provider_id, &e2ee_key, "application/octet-stream", 19)
+        .await;
+    sqlx::query(
+        "INSERT INTO message_attachment_commits (room_id, object_key, uploaded_by, file_size)
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room uuid"))
+    .bind(&e2ee_key)
+    .bind(Uuid::parse_str(&owner.id).expect("owner uuid"))
+    .bind(19_i64)
+    .execute(&app.pool)
+    .await
+    .expect("seed E2EE attachment commit");
+
+    let (status, e2ee_download) = app
+        .get_authed(
+            &format!("/rooms/{room_id}/messages/attachments/download?key={e2ee_key}"),
+            &member.token,
+        )
+        .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "已提交的 E2EE room attachment 应允许房间成员下载: {}",
+        String::from_utf8_lossy(&e2ee_download)
+    );
+
+    let foreign_key = format!("messages/{}/files_20260805/e2ee.bin", Uuid::new_v4());
+    sqlx::query(
+        "INSERT INTO message_attachment_commits (room_id, object_key, uploaded_by, file_size)
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(Uuid::parse_str(&room_id).expect("room uuid"))
+    .bind(&foreign_key)
+    .bind(Uuid::parse_str(&owner.id).expect("owner uuid"))
+    .bind(19_i64)
+    .execute(&app.pool)
+    .await
+    .expect("seed foreign-prefix attachment commit");
+    let (status, _) = app
+        .get_authed(
+            &format!("/rooms/{room_id}/messages/attachments/download?key={foreign_key}"),
+            &member.token,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]

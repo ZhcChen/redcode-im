@@ -282,6 +282,7 @@ impl FileUploadStore {
 	                OR EXISTS (SELECT 1 FROM app_versions WHERE download_key = $1 LIMIT 1)
 	                OR EXISTS (SELECT 1 FROM hot_updates WHERE download_key = $1 LIMIT 1)
 	                OR EXISTS (SELECT 1 FROM report_attachments WHERE object_key = $1 LIMIT 1)
+	                OR EXISTS (SELECT 1 FROM message_attachment_commits WHERE object_key = $1 LIMIT 1)
 	                OR EXISTS (
 	                    SELECT 1
 	                    FROM message_parts mp

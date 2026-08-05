@@ -105,6 +105,53 @@ impl<'a> MessageStore<'a> {
         Ok(exists.is_some())
     }
 
+    pub async fn record_room_attachment_commit(
+        &self,
+        room_id: Uuid,
+        object_key: &str,
+        uploaded_by: Uuid,
+        file_size: Option<i64>,
+    ) -> Result<bool, sqlx::Error> {
+        let recorded: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            INSERT INTO message_attachment_commits (room_id, object_key, uploaded_by, file_size)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (room_id, object_key) DO UPDATE
+            SET file_size = EXCLUDED.file_size,
+                committed_at = NOW()
+            WHERE message_attachment_commits.uploaded_by = EXCLUDED.uploaded_by
+            RETURNING uploaded_by
+            "#,
+        )
+        .bind(room_id)
+        .bind(object_key)
+        .bind(uploaded_by)
+        .bind(file_size)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(recorded.is_some())
+    }
+
+    pub async fn room_has_committed_attachment(
+        &self,
+        room_id: Uuid,
+        object_key: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let exists: Option<(i32,)> = sqlx::query_as(
+            r#"
+            SELECT 1
+            FROM message_attachment_commits
+            WHERE room_id = $1 AND object_key = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(room_id)
+        .bind(object_key)
+        .fetch_optional(self.pool)
+        .await?;
+        Ok(exists.is_some())
+    }
+
     pub async fn create_message_with_parts(
         &self,
         room_id: Uuid,
