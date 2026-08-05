@@ -20,6 +20,9 @@ import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
 import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
 import com.redcode.im.androidapp.e2ee.PlaintextOutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.AttachmentMessageRouter
+import com.redcode.im.androidapp.e2ee.E2eeAttachmentPart
+import com.redcode.im.androidapp.e2ee.PlaintextAttachmentMessageRouter
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -33,9 +36,11 @@ class CachedRemoteChatRepository(
     private val attachmentFileCache: FileResourceCache? = null,
     incomingResolver: IncomingChatMessageResolver? = null,
     outgoingRouter: OutgoingTextMessageRouter? = null,
+    attachmentRouter: AttachmentMessageRouter? = null,
 ) : ChatRepository {
     private val incomingResolver = incomingResolver ?: PlaintextIncomingMessageResolver
     private val outgoingRouter = outgoingRouter ?: PlaintextOutgoingTextMessageRouter
+    private val attachmentRouter = attachmentRouter ?: PlaintextAttachmentMessageRouter
     override val chats: Flow<List<ChatSummary>> = localRepository.chats
 
     override fun messages(roomId: String): Flow<List<ChatMessage>> =
@@ -177,21 +182,48 @@ class CachedRemoteChatRepository(
                 ?.takeIf { it.isNotBlank() }
                 ?: descriptor.signature?.key?.takeIf { it.isNotBlank() }
                 ?: error("上传签名响应缺少 key")
+        val prepared =
+            attachmentRouter.prepareUpload(
+                roomId,
+                key,
+                file.fileName,
+                file.mime ?: "application/octet-stream",
+                file.size,
+                0,
+                file.bytes,
+            )
         descriptor.signature?.let { signature ->
-            remoteDataSource.uploadAttachmentBytes(signature = signature, bytes = file.bytes, contentType = file.mime)
+            remoteDataSource.uploadAttachmentBytes(
+                signature = signature,
+                bytes = prepared?.ciphertext ?: file.bytes,
+                contentType = file.mime,
+            )
         }
         val commit = remoteDataSource.commitAttachmentUpload(roomId = roomId, key = key, fileSize = file.size, token = token)
         if (!commit.success) {
             error(commit.message.ifBlank { "附件上传提交失败" })
         }
         val cached = attachmentFileCache?.put(key = key, bytes = file.bytes, expectedSize = file.size)
-        return sendAttachmentReference(
-            roomId = roomId,
-            senderId = senderId,
-            senderName = senderName,
-            text = text,
-            parts = listOf(file.toMessagePart(type = type, key = key, localPath = cached?.localPath)),
-            quotedMessageId = quotedMessageId,
+        val normalizedText = text?.trim().orEmpty()
+        val parts = listOf(file.toMessagePart(type = type, key = key, localPath = cached?.localPath)).normalizedForSend(normalizedText)
+        val pending =
+            ChatMessage(
+                id = "local-${UUID.randomUUID()}",
+                roomId = roomId,
+                senderId = senderId,
+                senderName = senderName,
+                text = previewText(normalizedText, parts),
+                status = MessageStatus.Pending,
+                createdAt = Instant.now(),
+                quotedMessage = quotedMessageId?.let { localRepository.findMessage(it)?.toQuote() },
+                parts = parts,
+            )
+        localRepository.applyIncomingMessage(pending, currentUserId = senderId)
+        return sendPending(
+            pending,
+            quotedMessageId,
+            retry = false,
+            attachmentParts = prepared?.let { listOf(it.part) }.orEmpty(),
         )
     }
 
@@ -210,7 +242,14 @@ class CachedRemoteChatRepository(
                 val downloadUrl =
                     fetchAttachmentDownloadUrl(roomId = roomId, key = attachment.key)
                         ?: error("附件下载地址不可用")
-                val bytes = remoteDataSource.downloadAttachmentBytes(downloadUrl)
+                val downloaded = remoteDataSource.downloadAttachmentBytes(downloadUrl)
+                val messageId =
+                    localRepository.messages(roomId).first()
+                        .firstOrNull { message -> message.parts.any { it.attachment?.key == attachment.key } }
+                        ?.id
+                val bytes =
+                    messageId?.let { attachmentRouter.decryptDownload(roomId, it, attachment.key, downloaded) }
+                        ?: downloaded
                 cache.put(key = attachment.key, bytes = bytes, expectedSize = attachment.size ?: bytes.size.toLong())
             }
         localRepository.messages(roomId).first()
@@ -291,11 +330,16 @@ class CachedRemoteChatRepository(
         localRepository.clear()
     }
 
-    private suspend fun sendPending(pending: ChatMessage, quotedMessageId: String?, retry: Boolean): ChatMessage {
+    private suspend fun sendPending(
+        pending: ChatMessage,
+        quotedMessageId: String?,
+        retry: Boolean,
+        attachmentParts: List<E2eeAttachmentPart> = emptyList(),
+    ): ChatMessage {
         return runCatching {
             if (pending.parts.isEmpty()) {
                 val peerUserId = localRepository.chats.first().firstOrNull { it.roomId == pending.roomId }?.friendUserId
-                val encryptedId = outgoingRouter.send(pending.roomId, peerUserId, pending.text, retry)
+                val encryptedId = outgoingRouter.send(pending.roomId, peerUserId, pending.text, retry, quotedMessageId)
                 if (encryptedId != null) {
                     pending.copy(id = encryptedId, status = MessageStatus.Sent).also {
                         incomingResolver.rememberResolved(it)
@@ -306,14 +350,33 @@ class CachedRemoteChatRepository(
                         .toDomain()
                 }
             } else {
-                remoteDataSource
-                    .sendRichMessage(
-                        roomId = pending.roomId,
-                        content = pending.parts.firstOrNull { it.type == MessagePartType.Text }?.text,
-                        parts = pending.parts.filterNot { it.type == MessagePartType.Text },
-                        token = requireToken(),
-                        quotedMessageId = quotedMessageId,
-                    ).toDomain()
+                val peerUserId = localRepository.chats.first().firstOrNull { it.roomId == pending.roomId }?.friendUserId
+                val encryptedId =
+                    attachmentRouter.send(
+                        pending.roomId,
+                        peerUserId,
+                        attachmentParts,
+                        pending.parts.firstOrNull { it.type == MessagePartType.Text }?.text,
+                        retry,
+                        quotedMessageId,
+                    )
+                if (attachmentParts.isNotEmpty() && encryptedId == null) {
+                    throw IllegalStateException("E2EE 附件发送期间 runtime 已变化")
+                }
+                if (encryptedId != null) {
+                    pending.copy(id = encryptedId, status = MessageStatus.Sent).also {
+                        incomingResolver.rememberResolved(it)
+                    }
+                } else {
+                    remoteDataSource
+                        .sendRichMessage(
+                            roomId = pending.roomId,
+                            content = pending.parts.firstOrNull { it.type == MessagePartType.Text }?.text,
+                            parts = pending.parts.filterNot { it.type == MessagePartType.Text },
+                            token = requireToken(),
+                            quotedMessageId = quotedMessageId,
+                        ).toDomain()
+                }
             }
                 .withAttachmentLocalPathsFrom(pending)
         }.fold(

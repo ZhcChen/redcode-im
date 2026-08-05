@@ -2,6 +2,7 @@ package com.redcode.im.androidapp.persistence
 
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
+import com.redcode.im.androidapp.core.model.AttachmentUploadPayload
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.ChatMessageQuote
 import com.redcode.im.androidapp.core.model.ChatRoomType
@@ -23,6 +24,9 @@ import com.redcode.im.androidapp.data.chat.MessageAttachmentSignatureResponse
 import com.redcode.im.androidapp.e2ee.E2eeMessageSource
 import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.AttachmentMessageRouter
+import com.redcode.im.androidapp.e2ee.E2eeAttachmentPart
+import com.redcode.im.androidapp.e2ee.E2eePreparedAttachment
 import com.redcode.im.androidapp.data.contacts.BackendFriendInfo
 import com.redcode.im.androidapp.data.contacts.BackendFriendRequest
 import com.redcode.im.androidapp.data.contacts.BackendUser
@@ -309,6 +313,35 @@ class RoomRepositoryTest {
         }
 
     @Test
+    fun cachedRemoteChatRepositoryUsesEncryptedAttachmentRouterWithoutRichSend() =
+        runTest {
+            val local = RoomChatRepository(FakeChatDao())
+            val remote = FakeChatRemoteDataSource()
+            val attachmentRouter = CachedRecordingAttachmentRouter()
+            val repository =
+                CachedRemoteChatRepository(
+                    remote,
+                    MutableStateFlow(session()),
+                    local,
+                    attachmentRouter = attachmentRouter,
+                )
+
+            val sent =
+                repository.uploadAndSendAttachment(
+                    "room-1",
+                    "user-me",
+                    "Me",
+                    AttachmentUploadPayload("secret".encodeToByteArray(), "secret.bin"),
+                    MessagePartType.File,
+                )
+
+            assertEquals("m-encrypted-attachment", sent.id)
+            assertEquals(0, remote.richSendCalls)
+            assertEquals(listOf("room-1:1:false"), attachmentRouter.sendCalls)
+            assertEquals("m-encrypted-attachment", local.messages("room-1").first().single().id)
+        }
+
+    @Test
     fun cachedRemoteChatRepository_sendsAttachmentWithoutCaptionAsNullContent() =
         runTest {
             val local = RoomChatRepository(FakeChatDao())
@@ -457,10 +490,57 @@ private class CachedRecordingIncomingResolver : IncomingChatMessageResolver {
 private class CachedRecordingOutgoingRouter : OutgoingTextMessageRouter {
     val calls = mutableListOf<String>()
 
-    override suspend fun send(roomId: String, peerUserId: String?, text: String, retry: Boolean): String? {
+    override suspend fun send(
+        roomId: String,
+        peerUserId: String?,
+        text: String,
+        retry: Boolean,
+        quotedMessageId: String?,
+    ): String? {
         calls += "$roomId:$peerUserId:$text:$retry"
         return "m-encrypted"
     }
+}
+
+private class CachedRecordingAttachmentRouter : AttachmentMessageRouter {
+    val sendCalls = mutableListOf<String>()
+
+    override suspend fun prepareUpload(
+        roomId: String,
+        objectKey: String,
+        name: String,
+        mimeType: String,
+        size: Long,
+        partPosition: Int,
+        plaintext: ByteArray,
+    ) =
+        E2eePreparedAttachment(
+            "ciphertext".encodeToByteArray(),
+            E2eeAttachmentPart(
+                "00000000-0000-4000-8000-000000000001",
+                objectKey,
+                name,
+                mimeType,
+                size,
+                partPosition,
+                ByteArray(12),
+                ByteArray(32),
+            ),
+        )
+
+    override suspend fun send(
+        roomId: String,
+        peerUserId: String?,
+        parts: List<E2eeAttachmentPart>,
+        text: String?,
+        retry: Boolean,
+        quotedMessageId: String?,
+    ): String {
+        sendCalls += "$roomId:${parts.size}:$retry"
+        return "m-encrypted-attachment"
+    }
+
+    override suspend fun decryptDownload(roomId: String, messageId: String, objectKey: String, ciphertext: ByteArray) = null
 }
 
 private class FakeChatDao : ChatDao {
@@ -662,6 +742,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
     var lastRichParts: List<MessagePart> = emptyList()
     var uploadedBytes: ByteArray? = null
     var plaintextSendCalls = 0
+    var richSendCalls = 0
 
     override suspend fun fetchChats(token: String): List<BackendChatSummary> {
         tokens += token
@@ -737,6 +818,7 @@ private class FakeChatRemoteDataSource : ChatRemoteDataSource {
         token: String,
         quotedMessageId: String?,
     ): BackendChatMessage {
+        richSendCalls += 1
         tokens += token
         lastQuotedMessageId = quotedMessageId
         lastRichContent = content

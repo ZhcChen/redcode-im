@@ -4,6 +4,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -123,6 +124,80 @@ class E2eeDirectMessageCoordinatorTest {
     }
 
     @Test
+    fun attachmentPayloadIsEncryptedAndKeyMaterialIsStoredSecurely() = runTest {
+        val part = attachmentPart()
+
+        val messageId =
+            coordinator.sendAttachment(
+                "account-a",
+                "Android",
+                "room-1",
+                "account-b",
+                listOf(part),
+                "caption",
+                "token",
+            )
+
+        assertEquals("server-message", messageId)
+        val payload = core.lastEncryptedPlaintext!!.toString(Charsets.UTF_8)
+        assertTrue(payload.contains("\"type\":\"attachment\""))
+        assertTrue(payload.contains("\"objectKey\":\"messages/room-1/files/secret.bin\""))
+        val stored = coordinator.findAttachmentPart("account-a", messageId, part.objectKey)!!
+        assertArrayEquals(part.nonce, stored.nonce)
+        assertArrayEquals(part.dek, stored.dek)
+    }
+
+    @Test
+    fun incomingAttachmentReturnsDisplayPartAndStoresKeys() = runTest {
+        val part = attachmentPart()
+        core.decryptedPayload =
+            """
+            {
+              "version":1,
+              "type":"attachment",
+              "text":"caption",
+              "parts":[{
+                "partKey":"${part.partKey}",
+                "objectKey":"${part.objectKey}",
+                "name":"${part.name}",
+                "mimeType":"${part.mimeType}",
+                "size":${part.size},
+                "partPosition":${part.partPosition},
+                "nonce":"${java.util.Base64.getEncoder().encodeToString(part.nonce)}",
+                "dek":"${java.util.Base64.getEncoder().encodeToString(part.dek)}"
+              }]
+            }
+            """.trimIndent()
+
+        val decrypted =
+            coordinator.decryptIncoming(
+                "account-a",
+                "Android",
+                E2eeIncomingMessage("m-attachment", "room-1", byteArrayOf(9), source = E2eeMessageSource.History),
+                "token",
+            )
+
+        assertEquals("caption", decrypted.text)
+        assertEquals(part.objectKey, decrypted.attachmentParts.single().objectKey)
+        assertArrayEquals(
+            part.dek,
+            coordinator.findAttachmentPart("account-a", "m-attachment", part.objectKey)!!.dek,
+        )
+    }
+
+    private fun attachmentPart() =
+        E2eeAttachmentPart(
+            partKey = "00000000-0000-4000-8000-000000000001",
+            objectKey = "messages/room-1/files/secret.bin",
+            name = "secret.bin",
+            mimeType = "application/octet-stream",
+            size = 42,
+            partPosition = 0,
+            nonce = ByteArray(12) { 3 },
+            dek = ByteArray(32) { 4 },
+        )
+
+    @Test
     fun failedSendCanResumeAfterCoordinatorRestartWithSameIdempotencyKey() = runTest {
         api.failSend = true
         val failure = runCatching {
@@ -169,15 +244,20 @@ class E2eeDirectMessageCoordinatorTest {
         var decryptCalls = 0
         var failDecrypt = false
         var members = emptySet<String>()
+        var lastEncryptedPlaintext: ByteArray? = null
+        var decryptedPayload = "{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}"
         val removedMembers = mutableListOf<String>()
         override fun createGroup(state: ByteArray, roomId: String) = result(byteArrayOf(2))
         override fun addMember(state: ByteArray, roomId: String, keyPackage: ByteArray) = result(byteArrayOf(3), byteArrayOf(4), byteArrayOf(5), epoch(1))
         override fun joinGroup(state: ByteArray, welcome: ByteArray) = result(byteArrayOf(3), epoch(1))
-        override fun encrypt(state: ByteArray, roomId: String, plaintext: ByteArray) = result(byteArrayOf(2), byteArrayOf(99, 100), epoch(1))
+        override fun encrypt(state: ByteArray, roomId: String, plaintext: ByteArray): E2eeCommandResult {
+            lastEncryptedPlaintext = plaintext
+            return result(byteArrayOf(2), byteArrayOf(99, 100), epoch(1))
+        }
         override fun decrypt(state: ByteArray, roomId: String, ciphertext: ByteArray): E2eeCommandResult {
             decryptCalls++
             if (failDecrypt) throw E2eeCommandException("damaged")
-            return result(byteArrayOf(2), "{\"version\":1,\"type\":\"text\",\"text\":\"secret\"}".toByteArray(), epoch(1))
+            return result(byteArrayOf(2), decryptedPayload.toByteArray(), epoch(1))
         }
         override fun processCommit(state: ByteArray, roomId: String, commit: ByteArray) = result(byteArrayOf(2), epoch(1))
         override fun removeMember(state: ByteArray, roomId: String, identity: String): E2eeCommandResult {

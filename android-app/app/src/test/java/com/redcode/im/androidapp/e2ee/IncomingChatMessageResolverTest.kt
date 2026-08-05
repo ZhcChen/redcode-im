@@ -4,6 +4,7 @@ import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.AuthUser
 import com.redcode.im.androidapp.core.model.ChatMessage
 import com.redcode.im.androidapp.core.model.MessageStatus
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.core.model.TokenPair
 import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.data.chat.ChatEncryptionMetadata
@@ -133,6 +134,30 @@ class IncomingChatMessageResolverTest {
         assertEquals(0, decryptor.calls)
     }
 
+    @Test
+    fun decryptedAttachmentMapsOnlyDisplayMetadataIntoChatMessage() = runTest {
+        decryptor.attachmentParts =
+            listOf(
+                E2eeAttachmentPart(
+                    partKey = "00000000-0000-4000-8000-000000000001",
+                    objectKey = "messages/room-1/images/secret.png",
+                    name = "secret.png",
+                    mimeType = "image/png",
+                    size = 42,
+                    partPosition = 0,
+                    nonce = ByteArray(12) { 3 },
+                    dek = ByteArray(32) { 4 },
+                ),
+            )
+
+        val resolved = resolver.resolve(encryptedMessage(), E2eeMessageSource.History)
+
+        val part = resolved.parts.single()
+        assertEquals(MessagePartType.Image, part.type)
+        assertEquals("messages/room-1/images/secret.png", part.attachment?.key)
+        assertEquals("secret.png", part.attachment?.name)
+    }
+
     private fun encryptedMessage(
         senderId: String = "account-b",
         metadata: ChatEncryptionMetadata = metadata(),
@@ -171,6 +196,7 @@ class IncomingChatMessageResolverTest {
     private class RecordingDecryptor : E2eeIncomingDecryptor {
         var calls = 0
         var lastCiphertext: ByteArray? = null
+        var attachmentParts = emptyList<E2eeAttachmentPart>()
 
         override suspend fun decryptIncoming(
             accountId: String,
@@ -180,7 +206,7 @@ class IncomingChatMessageResolverTest {
         ): E2eeDecryptedMessage {
             calls += 1
             lastCiphertext = input.ciphertext
-            return E2eeDecryptedMessage(input.messageId, input.roomId, "secret", 1, true)
+            return E2eeDecryptedMessage(input.messageId, input.roomId, "secret", 1, true, attachmentParts)
         }
     }
 }

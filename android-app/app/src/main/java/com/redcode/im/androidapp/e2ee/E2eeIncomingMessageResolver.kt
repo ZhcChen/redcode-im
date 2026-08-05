@@ -2,6 +2,9 @@ package com.redcode.im.androidapp.e2ee
 
 import com.redcode.im.androidapp.core.model.AuthSession
 import com.redcode.im.androidapp.core.model.ChatMessage
+import com.redcode.im.androidapp.core.model.MessageAttachment
+import com.redcode.im.androidapp.core.model.MessagePart
+import com.redcode.im.androidapp.core.model.MessagePartType
 import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import java.util.Base64
 import kotlinx.coroutines.flow.StateFlow
@@ -105,7 +108,24 @@ class E2eeIncomingMessageResolver(
         ) {
             throw E2eeIncomingMessageException("E2EE 解密结果与消息不匹配")
         }
-        val resolved = message.toDomain().copy(text = decrypted.text)
+        val resolved =
+            message.toDomain().copy(
+                text = decrypted.text,
+                parts =
+                    decrypted.attachmentParts.map { part ->
+                        MessagePart(
+                            position = part.partPosition,
+                            type = part.mimeType.toMessagePartType(),
+                            attachment =
+                                MessageAttachment(
+                                    key = part.objectKey,
+                                    name = part.name,
+                                    mime = part.mimeType,
+                                    size = part.size,
+                                ),
+                        )
+                    },
+            )
         remember(activeSession.user.id, resolved)
         resolved
     }
@@ -123,6 +143,14 @@ class E2eeIncomingMessageResolver(
     }
 
     private fun cacheKey(accountId: String, messageId: String) = "$accountId:$messageId"
+
+    private fun String.toMessagePartType(): MessagePartType =
+        when {
+            startsWith("image/") -> MessagePartType.Image
+            startsWith("video/") -> MessagePartType.Video
+            startsWith("audio/") -> MessagePartType.Audio
+            else -> MessagePartType.File
+        }
 
     private companion object {
         const val MAX_RESOLVED_MESSAGES = 2_000

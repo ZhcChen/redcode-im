@@ -37,6 +37,7 @@ import com.redcode.im.androidapp.e2ee.E2eeDeviceLifecycle
 import com.redcode.im.androidapp.e2ee.E2eeDeviceManager
 import com.redcode.im.androidapp.e2ee.E2eeDirectMessageCoordinator
 import com.redcode.im.androidapp.e2ee.E2eeIncomingMessageResolver
+import com.redcode.im.androidapp.e2ee.E2eeAttachmentMessageRouter
 import com.redcode.im.androidapp.e2ee.E2eeOutgoingTextRouter
 import com.redcode.im.androidapp.e2ee.E2eeSecureStateStore
 import com.redcode.im.androidapp.e2ee.E2eeSessionLifecycle
@@ -45,6 +46,8 @@ import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
 import com.redcode.im.androidapp.e2ee.PlaintextIncomingMessageResolver
 import com.redcode.im.androidapp.e2ee.PlaintextOutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.AttachmentMessageRouter
+import com.redcode.im.androidapp.e2ee.PlaintextAttachmentMessageRouter
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.persistence.CachedRemoteRoomRepository
 import com.redcode.im.androidapp.persistence.CachedRemoteChatRepository
@@ -178,6 +181,16 @@ class AppContainer(
             )
         } ?: PlaintextOutgoingTextMessageRouter
 
+    private val attachmentMessageRouter: AttachmentMessageRouter =
+        e2eeGraph?.let { graph ->
+            E2eeAttachmentMessageRouter(
+                session = authRepository.session,
+                e2eeStatus = graph.sessionLifecycle.status,
+                coordinator = graph.coordinator,
+                deviceLabel = e2eeDeviceLabel,
+            )
+        } ?: PlaintextAttachmentMessageRouter
+
     val chatRepository: ChatRepository =
         chatRepositoryOverride
             ?: if (useRemoteChat && localChatRepository != null) {
@@ -188,6 +201,7 @@ class AppContainer(
                     attachmentFileCache = attachmentFileCache,
                     incomingResolver = incomingMessageResolver,
                     outgoingRouter = outgoingTextRouter,
+                    attachmentRouter = attachmentMessageRouter,
                 )
             } else if (useRemoteChat) {
                 RemoteChatRepository(
@@ -196,6 +210,7 @@ class AppContainer(
                     attachmentFileCache = attachmentFileCache,
                     incomingResolver = incomingMessageResolver,
                     outgoingRouter = outgoingTextRouter,
+                    attachmentRouter = attachmentMessageRouter,
                 )
             } else {
                 InMemoryChatRepository()

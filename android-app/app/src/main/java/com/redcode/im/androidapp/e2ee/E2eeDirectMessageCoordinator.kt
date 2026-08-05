@@ -20,7 +20,25 @@ data class E2eeIncomingMessage(
     val source: E2eeMessageSource,
 )
 
-data class E2eeDecryptedMessage(val messageId: String, val roomId: String, val text: String, val epoch: Long, val encrypted: Boolean)
+data class E2eeAttachmentPart(
+    val partKey: String,
+    val objectKey: String,
+    val name: String,
+    val mimeType: String,
+    val size: Long,
+    val partPosition: Int,
+    val nonce: ByteArray,
+    val dek: ByteArray,
+)
+
+data class E2eeDecryptedMessage(
+    val messageId: String,
+    val roomId: String,
+    val text: String,
+    val epoch: Long,
+    val encrypted: Boolean,
+    val attachmentParts: List<E2eeAttachmentPart> = emptyList(),
+)
 
 interface E2eeIncomingDecryptor {
     suspend fun decryptIncoming(
@@ -77,6 +95,7 @@ private data class DirectMessageMetadata(
     val trustedIdentityFingerprints: Map<String, String> = emptyMap(),
     val processedMessageIds: Map<String, List<String>> = emptyMap(),
     val pendingApplication: PendingApplication? = null,
+    val attachmentPartsByMessageId: Map<String, List<StoredAttachmentPart>> = emptyMap(),
 )
 
 @Serializable
@@ -88,6 +107,19 @@ private data class PendingApplication(
     val nextState: String,
     val idempotencyKey: String,
     val controlMessageId: String,
+    val attachmentParts: List<StoredAttachmentPart> = emptyList(),
+)
+
+@Serializable
+private data class StoredAttachmentPart(
+    val partKey: String,
+    val objectKey: String,
+    val name: String,
+    val mimeType: String,
+    val size: Long,
+    val partPosition: Int,
+    val nonce: String,
+    val dek: String,
 )
 
 class E2eeDirectMessageCoordinator(
@@ -96,12 +128,46 @@ class E2eeDirectMessageCoordinator(
     private val api: E2eeMlsApi,
     private val core: E2eeDirectSessionCore = E2eeCommandSessionCore(),
     private val newId: () -> String = { UUID.randomUUID().toString() },
-) : E2eeIncomingDecryptor, E2eeTextSender {
+) : E2eeIncomingDecryptor, E2eeTextSender, E2eeAttachmentCoordinator {
     private val mutex = Mutex()
 
     override suspend fun sendText(accountId: String, deviceLabel: String, roomId: String, peerUserId: String?, text: String, token: String): String = mutex.withLock {
         val normalized = text.trim()
         if (normalized.isEmpty()) throw E2eeDirectMessageException("加密消息内容不能为空")
+        val payload = ApplicationPayload(version = 1, type = "text", text = normalized)
+        prepareAndSend(accountId, deviceLabel, roomId, peerUserId, payload, emptyList(), token)
+    }
+
+    override suspend fun sendAttachment(
+        accountId: String,
+        deviceLabel: String,
+        roomId: String,
+        peerUserId: String?,
+        parts: List<E2eeAttachmentPart>,
+        text: String?,
+        token: String,
+    ): String = mutex.withLock {
+        if (parts.isEmpty()) throw E2eeDirectMessageException("E2EE 附件列表不能为空")
+        parts.forEach(::requireValidAttachmentPart)
+        val payload =
+            ApplicationPayload(
+                version = 1,
+                type = "attachment",
+                text = text?.trim()?.takeIf { it.isNotEmpty() },
+                parts = parts.map { it.toStored() },
+            )
+        prepareAndSend(accountId, deviceLabel, roomId, peerUserId, payload, parts.map { it.toStored() }, token)
+    }
+
+    private suspend fun prepareAndSend(
+        accountId: String,
+        deviceLabel: String,
+        roomId: String,
+        peerUserId: String?,
+        payload: ApplicationPayload,
+        attachmentParts: List<StoredAttachmentPart>,
+        token: String,
+    ): String {
         val profile = lifecycle.ensureReady(accountId, deviceLabel, token)
         requireActive(profile)
         val peerUserIds =
@@ -123,8 +189,7 @@ class E2eeDirectMessageCoordinator(
         val refreshedProfile = storage.readProfile(accountId) ?: throw E2eeDirectMessageException("E2EE 设备档案缺失")
         val commitId = refreshedProfile.lastCommitMessageIds[roomId]
             ?: throw E2eeDirectMessageException("房间缺少当前 E2EE Commit 索引")
-        val payload = Json.encodeToString(TextPayload(text = normalized)).toByteArray()
-        val encrypted = core.encrypt(state, roomId, payload)
+        val encrypted = core.encrypt(state, roomId, Json.encodeToString(payload).toByteArray())
         val encryptedEpoch = encrypted.epoch(2)
         if (encryptedEpoch != epoch.activeEpoch) throw E2eeDirectMessageException("本地 E2EE epoch 已过期")
         val pending = PendingApplication(
@@ -135,11 +200,12 @@ class E2eeDirectMessageCoordinator(
             nextState = Base64.getEncoder().encodeToString(encrypted.field(0)),
             idempotencyKey = newId(),
             controlMessageId = commitId,
+            attachmentParts = attachmentParts,
         )
         val metadata = readMetadata(accountId)
         if (metadata.pendingApplication != null) throw E2eeDirectMessageException("存在待手动重试的 E2EE 消息")
         writeMetadata(accountId, metadata.copy(pendingApplication = pending))
-        resumePendingSend(accountId, token)
+        return resumePendingSend(accountId, token)
     }
 
     override suspend fun retryPendingSend(accountId: String, token: String): String = mutex.withLock {
@@ -172,16 +238,35 @@ class E2eeDirectMessageCoordinator(
             throw E2eeDirectMessageException("E2EE 消息解密失败", error)
         }
         val payload = try {
-            Json.decodeFromString<TextPayload>(decrypted.field(1).toString(Charsets.UTF_8))
+            Json.decodeFromString<ApplicationPayload>(decrypted.field(1).toString(Charsets.UTF_8))
         } catch (error: Exception) {
             throw E2eeDirectMessageException("E2EE 消息负载格式无效", error)
         }
-        if (payload.version != 1 || payload.type != "text" || payload.text.isBlank()) {
+        if (payload.version != 1 || payload.type !in setOf("text", "attachment")) {
             throw E2eeDirectMessageException("E2EE 消息负载格式无效")
         }
+        val attachmentParts =
+            if (payload.type == "attachment") {
+                if (payload.parts.isEmpty()) throw E2eeDirectMessageException("E2EE 附件负载为空")
+                payload.parts.map { stored -> stored.toAttachmentPart().also(::requireValidAttachmentPart) }
+            } else {
+                if (payload.text.isNullOrBlank() || payload.parts.isNotEmpty()) {
+                    throw E2eeDirectMessageException("E2EE 消息负载格式无效")
+                }
+                emptyList()
+            }
         storage.write(accountId, decrypted.field(0))
-        rememberMessage(accountId, metadata, input.roomId, input.messageId)
-        E2eeDecryptedMessage(input.messageId, input.roomId, payload.text, decrypted.epoch(2), true)
+        val withAttachments =
+            if (attachmentParts.isEmpty()) metadata else rememberAttachmentParts(metadata, input.messageId, payload.parts)
+        rememberMessage(accountId, withAttachments, input.roomId, input.messageId)
+        E2eeDecryptedMessage(
+            input.messageId,
+            input.roomId,
+            payload.text ?: "[加密附件]",
+            decrypted.epoch(2),
+            true,
+            attachmentParts,
+        )
     }
 
     private suspend fun verifyIdentity(accountId: String, peerUserId: String, token: String) {
@@ -209,8 +294,18 @@ class E2eeDirectMessageCoordinator(
             token,
         )
         storage.write(accountId, Base64.getDecoder().decode(pending.nextState))
-        writeMetadata(accountId, metadata.copy(pendingApplication = null))
+        val completed =
+            metadata.copy(pendingApplication = null).let { current ->
+                if (pending.attachmentParts.isEmpty()) current else rememberAttachmentParts(current, messageId, pending.attachmentParts)
+            }
+        writeMetadata(accountId, completed)
         return messageId
+    }
+
+    override suspend fun findAttachmentPart(accountId: String, messageId: String, objectKey: String): E2eeAttachmentPart? = mutex.withLock {
+        readMetadata(accountId).attachmentPartsByMessageId[messageId]
+            ?.firstOrNull { it.objectKey == objectKey }
+            ?.toAttachmentPart()
     }
 
     private suspend fun bootstrap(accountId: String, roomId: String, profile: E2eeDeviceProfile, initialState: ByteArray, revision: Long, token: String): ByteArray {
@@ -342,6 +437,64 @@ class E2eeDirectMessageCoordinator(
         writeMetadata(accountId, metadata.copy(processedMessageIds = metadata.processedMessageIds + (roomId to ids)))
     }
 
-    @Serializable private data class TextPayload(val version: Int = 1, val type: String = "text", val text: String)
+    private fun rememberAttachmentParts(
+        metadata: DirectMessageMetadata,
+        messageId: String,
+        parts: List<StoredAttachmentPart>,
+    ): DirectMessageMetadata {
+        val entries = (metadata.attachmentPartsByMessageId + (messageId to parts)).entries.toList().takeLast(512)
+        return metadata.copy(attachmentPartsByMessageId = entries.associate { it.key to it.value })
+    }
+
+    private fun requireValidAttachmentPart(part: E2eeAttachmentPart) {
+        if (
+            part.partKey.isBlank() ||
+            part.objectKey.isBlank() ||
+            part.name.isBlank() ||
+            part.mimeType.isBlank() ||
+            part.size < 0 ||
+            part.partPosition < 0 ||
+            part.nonce.size != 12 ||
+            part.dek.size != 32
+        ) {
+            throw E2eeDirectMessageException("E2EE 附件密钥参数不完整")
+        }
+    }
+
+    private fun E2eeAttachmentPart.toStored() =
+        StoredAttachmentPart(
+            partKey,
+            objectKey,
+            name,
+            mimeType,
+            size,
+            partPosition,
+            Base64.getEncoder().encodeToString(nonce),
+            Base64.getEncoder().encodeToString(dek),
+        )
+
+    private fun StoredAttachmentPart.toAttachmentPart() =
+        try {
+            E2eeAttachmentPart(
+                partKey,
+                objectKey,
+                name,
+                mimeType,
+                size,
+                partPosition,
+                Base64.getDecoder().decode(nonce),
+                Base64.getDecoder().decode(dek),
+            )
+        } catch (error: IllegalArgumentException) {
+            throw E2eeStateCorruptedException("E2EE 附件密钥材料已损坏")
+        }
+
+    @Serializable
+    private data class ApplicationPayload(
+        val version: Int,
+        val type: String,
+        val text: String? = null,
+        val parts: List<StoredAttachmentPart> = emptyList(),
+    )
     private companion object { const val METADATA_KEY = "direct-message" }
 }

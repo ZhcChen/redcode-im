@@ -69,6 +69,16 @@ class E2eeOutgoingTextRouterTest {
         assertEquals(listOf("account-a:Android:room-1:account-b:secret:token"), sender.sends)
     }
 
+    @Test
+    fun readyRuntimeRejectsQuoteInsteadOfDroppingIt() = runTest {
+        val failure = runCatching {
+            router.send("room-1", "account-b", "secret", retry = false, quotedMessageId = "m-quoted")
+        }.exceptionOrNull()
+
+        assertTrue(failure is E2eeOutgoingMessageException)
+        assertEquals(emptyList<String>(), sender.sends)
+    }
+
     private class RecordingTextSender : E2eeTextSender {
         val sends = mutableListOf<String>()
         var retryCalls = 0

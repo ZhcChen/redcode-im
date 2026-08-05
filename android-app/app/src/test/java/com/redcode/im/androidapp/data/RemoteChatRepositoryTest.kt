@@ -17,6 +17,9 @@ import com.redcode.im.androidapp.data.chat.BackendChatMessage
 import com.redcode.im.androidapp.e2ee.E2eeMessageSource
 import com.redcode.im.androidapp.e2ee.IncomingChatMessageResolver
 import com.redcode.im.androidapp.e2ee.OutgoingTextMessageRouter
+import com.redcode.im.androidapp.e2ee.AttachmentMessageRouter
+import com.redcode.im.androidapp.e2ee.E2eeAttachmentPart
+import com.redcode.im.androidapp.e2ee.E2eePreparedAttachment
 import com.redcode.im.androidapp.data.media.FileResourceCache
 import com.redcode.im.androidapp.network.APIClient
 import com.redcode.im.androidapp.network.HTTPMethod
@@ -565,6 +568,79 @@ class RemoteChatRepositoryTest {
         }
 
     @Test
+    fun e2eeAttachmentUploadsCiphertextAndNeverCallsRichMessageApi() =
+        runTest {
+            val plaintext = "image-bytes".encodeToByteArray()
+            val ciphertext = "encrypted-image-bytes".encodeToByteArray()
+            val key = "messages/room-1/images/a.png"
+            val attachmentRouter = RecordingAttachmentRouter(ciphertext)
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """{"success":true,"key":"$key","signature":{"url":"http://127.0.0.1:19080/$key","method":"PUT","headers":{}}}""",
+                    ),
+                    HttpResponse(200, "uploaded"),
+                    HttpResponse(200, """{"success":true,"message":"committed"}"""),
+                    HttpResponse(200, "[]"),
+                )
+            val repository = repository(transport, attachmentRouter = attachmentRouter)
+
+            val sent =
+                repository.uploadAndSendAttachment(
+                    "room-1",
+                    "user-me",
+                    "Me",
+                    AttachmentUploadPayload(plaintext, "a.png", "image/png"),
+                    MessagePartType.Image,
+                )
+
+            assertEquals("m-encrypted-attachment", sent.id)
+            assertEquals(ciphertext.toList(), transport.requests[1].bodyBytes?.toList())
+            assertEquals(listOf(key), attachmentRouter.preparedKeys)
+            assertEquals(listOf("room-1:null:1:false"), attachmentRouter.sendCalls)
+            assertTrue(
+                transport.requests.none {
+                    it.url.endsWith("/rooms/room-1/messages") && it.method == HTTPMethod.POST
+                },
+            )
+        }
+
+    @Test
+    fun e2eeAttachmentRuntimeChangeFailsWithoutPlaintextFallback() =
+        runTest {
+            val key = "messages/room-1/files/a.bin"
+            val attachmentRouter = RecordingAttachmentRouter("ciphertext".encodeToByteArray(), sendMessageId = null)
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """{"success":true,"key":"$key","signature":{"url":"http://127.0.0.1:19080/$key","method":"PUT","headers":{}}}""",
+                    ),
+                    HttpResponse(200, "uploaded"),
+                    HttpResponse(200, """{"success":true,"message":"committed"}"""),
+                )
+            val repository = repository(transport, attachmentRouter = attachmentRouter)
+
+            val failure = runCatching {
+                repository.uploadAndSendAttachment(
+                    "room-1",
+                    "user-me",
+                    "Me",
+                    AttachmentUploadPayload("plain".encodeToByteArray(), "a.bin"),
+                    MessagePartType.File,
+                )
+            }.exceptionOrNull()
+
+            assertEquals("E2EE 附件发送期间 runtime 已变化", failure?.message)
+            assertTrue(
+                transport.requests.none {
+                    it.url.endsWith("/rooms/room-1/messages") && it.method == HTTPMethod.POST
+                },
+            )
+        }
+
+    @Test
     fun downloadAndCacheAttachment_usesLocalCacheBeforeRequestingDownloadUrlAgain() =
         runTest {
             val bytes = "cached bytes".encodeToByteArray()
@@ -605,6 +681,33 @@ class RemoteChatRepositoryTest {
             assertEquals(3, transport.requests.size)
             assertEquals("http://10.0.2.2:8010/rooms/room-1/messages/attachments/download?key=messages%2Froom-1%2Ffiles_20260705%2Fa.txt&expires_in_seconds=600", transport.requests[1].url)
             assertEquals("http://127.0.0.1:19080/mock-bucket/$key", transport.requests[2].url)
+        }
+
+    @Test
+    fun e2eeAttachmentDownloadDecryptsBeforeWritingTemporaryCache() =
+        runTest {
+            val ciphertext = "encrypted-download".encodeToByteArray()
+            val plaintext = "decrypted-download".encodeToByteArray()
+            val key = "messages/room-1/files/secret.txt"
+            val cache = FileResourceCache(temporaryFolder.newFolder("e2ee-download-cache"))
+            val attachmentRouter = RecordingAttachmentRouter(ciphertext, decryptedBytes = plaintext)
+            val transport =
+                QueueTransport(
+                    HttpResponse(
+                        200,
+                        """[{"id":"m-file","room_id":"room-1","sender_id":"user-a","content":"[加密附件]","created_at":"2026-08-05T00:00:00Z","parts":[{"position":0,"part_type":"file","attachment":{"key":"$key","name":"secret.txt","mime":"text/plain","size":${plaintext.size}}}]}]""",
+                    ),
+                    HttpResponse(200, """{"success":true,"download_url":"http://127.0.0.1:19080/$key"}"""),
+                    HttpResponse(200, "", bodyBytes = ciphertext),
+                )
+            val repository = repository(transport, cache, attachmentRouter = attachmentRouter)
+            repository.refreshMessages("room-1")
+            val attachment = repository.messages("room-1").first().single().parts.single().attachment!!
+
+            val downloaded = repository.downloadAndCacheAttachment("room-1", attachment)
+
+            assertEquals(plaintext.toList(), File(downloaded.localPath!!).readBytes().toList())
+            assertEquals(listOf("room-1:m-file:$key"), attachmentRouter.decryptCalls)
         }
 
     @Test
@@ -925,6 +1028,7 @@ class RemoteChatRepositoryTest {
         attachmentFileCache: FileResourceCache? = null,
         incomingResolver: IncomingChatMessageResolver? = null,
         outgoingRouter: OutgoingTextMessageRouter? = null,
+        attachmentRouter: AttachmentMessageRouter? = null,
     ): RemoteChatRepository =
         RemoteChatRepository(
             remoteDataSource = HttpChatRemoteDataSource(APIClient(RedCodeEnvironment.localEmulator(), transport)),
@@ -932,6 +1036,7 @@ class RemoteChatRepositoryTest {
             attachmentFileCache = attachmentFileCache,
             incomingResolver = incomingResolver,
             outgoingRouter = outgoingRouter,
+            attachmentRouter = attachmentRouter,
         )
 
     private fun session(): AuthSession =
@@ -978,10 +1083,73 @@ class RemoteChatRepositoryTest {
     ) : OutgoingTextMessageRouter {
         val calls = mutableListOf<String>()
 
-        override suspend fun send(roomId: String, peerUserId: String?, text: String, retry: Boolean): String? {
+        override suspend fun send(
+            roomId: String,
+            peerUserId: String?,
+            text: String,
+            retry: Boolean,
+            quotedMessageId: String?,
+        ): String? {
             calls += "$roomId:$peerUserId:$text:$retry"
             if (failFirst && !retry) error("encrypted send failed")
             return messageId
+        }
+    }
+
+    private class RecordingAttachmentRouter(
+        private val ciphertext: ByteArray,
+        private val decryptedBytes: ByteArray? = null,
+        private val sendMessageId: String? = "m-encrypted-attachment",
+    ) : AttachmentMessageRouter {
+        val preparedKeys = mutableListOf<String>()
+        val sendCalls = mutableListOf<String>()
+        val decryptCalls = mutableListOf<String>()
+
+        override suspend fun prepareUpload(
+            roomId: String,
+            objectKey: String,
+            name: String,
+            mimeType: String,
+            size: Long,
+            partPosition: Int,
+            plaintext: ByteArray,
+        ): E2eePreparedAttachment {
+            preparedKeys += objectKey
+            return E2eePreparedAttachment(
+                ciphertext,
+                E2eeAttachmentPart(
+                    "00000000-0000-4000-8000-000000000001",
+                    objectKey,
+                    name,
+                    mimeType,
+                    size,
+                    partPosition,
+                    ByteArray(12),
+                    ByteArray(32),
+                ),
+            )
+        }
+
+        override suspend fun send(
+            roomId: String,
+            peerUserId: String?,
+            parts: List<E2eeAttachmentPart>,
+            text: String?,
+            retry: Boolean,
+            quotedMessageId: String?,
+        ): String? {
+            sendCalls += "$roomId:$peerUserId:${parts.size}:$retry"
+            return sendMessageId
+        }
+
+        override suspend fun decryptDownload(
+            roomId: String,
+            messageId: String,
+            objectKey: String,
+            ciphertext: ByteArray,
+        ): ByteArray? {
+            decryptCalls += "$roomId:$messageId:$objectKey"
+            return decryptedBytes
         }
     }
 }
