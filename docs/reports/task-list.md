@@ -28,9 +28,9 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：U1 恢复手册与供应链日期门禁已关闭；唯一 checkpoint 为
-  `U2.1`，加固 G3 候选窗口幂等 cleanup。
-- 当前下一阶段：按 `U2 -> U7` 关闭恢复真实性、两类 cleanup、H5 production
+- 当前立即任务：U1、U2 已关闭；唯一 checkpoint 为 `U3.1`，加固 G1 演练的
+  外部副作用恢复和 failure/`INT`/`TERM` 边界。
+- 当前下一阶段：按 `U3 -> U7` 关闭恢复真实性、G1 cleanup、H5 production
   Chrome 审计、持久证据和真实 release workflow，再执行 `U8 -> U9`。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
@@ -84,7 +84,8 @@
   - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
     source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
   - G3.2/G3.3 的真实 Caddy/响应头/WebCrypto 能力证据有效，但 G4.1 重新打开
-    production `E2eeSecureStateStorage` Chrome 集成、幂等 cleanup 和持久证据缺口；
+    production `E2eeSecureStateStorage` Chrome 集成和持久证据缺口；幂等 cleanup
+    已由 `22a728f9` 关闭；
     U7 P0-4 暂不维持关闭。
   - 当前执行顺序固定为 `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8 -> U9`；
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
