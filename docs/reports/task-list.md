@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 原生客户端验收收口（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-native-clients-acceptance-closure-plan.md`
+- E2EE 原生客户端最终验证与裁决（当前唯一执行入口）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 发布门禁（U10 总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
 - API 性能基线：`docs/reports/performance/api-compose-baseline-2026-07-01.md`
 - 测试入口：`docs/reference/testing/README.md`
@@ -27,10 +27,11 @@
 
 - 当前主线：原生双端（`android-app` / `ios-app`）重建 -> 文档对齐 -> 原生功能迁移
   （含 E2EE 接入、`ws.proto` 生成）-> E2EE 发布门禁 -> 多平台发布。
-- 当前立即任务：完成 A2.3 H5 -> Android 跨端附件闭环；API 持久下载授权、H5
-  密文大小修复和跨端 live 按三个最小提交分别验证并推送。
-- 当前下一阶段：执行 A3 DB/Redis/log/Push/S3 泄漏抽检与 runtime 失败恢复，再由
-  A4 汇总 N7 证据并重审 U7 P0-1；A1、A2.1、A2.2 已完成，不再重复实施。
+- 当前立即任务：按 E2EE 最终验证计划 R1 关闭独立审查发现，包括附件 grant
+  lease、H5 文件大小边界、三场景 evidence、Redis 正向流量和 runtime signal
+  恢复；当前相关改动尚未提交，不得丢弃。
+- 当前下一阶段：R2 重新执行 H5-H5、Android-H5、iOS-H5 live 与外围泄漏抽检，
+  R3 更新 N7/U7 P0-1 裁决，R4 执行全量门禁；不得返回 N1-N6 或 A2.3 重做。
 - 当前发布阻断项：原生功能迁移、E2EE、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -72,9 +73,9 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-native-clients-acceptance-closure-plan.md`。
-    单聊、多设备、群聊、三端文本互操作及恢复/rekey 场景已完成；当前执行 A2.3
-    跨端附件，随后只剩泄漏抽检、验收证据和 U7 P0-1 重审。
+  - 唯一执行入口：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`。
+    N1-N6、应用主链、三端文本、恢复/rekey、跨端附件及首轮泄漏门禁已完成；
+    当前只剩审查修复、三场景复验、N7/U7 P0-1 裁决和最终全量门禁。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。

@@ -7,18 +7,22 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code
-status: active
-current_unit: A2.3
+status: superseded
+superseded_by: docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md
+current_unit: complete
 last_progress_update: 2026-08-05
 ---
 
 # test: U10 E2EE 原生客户端验收收口计划
 
+> 本计划的 A1-A3 实施已完成；独立审查修复、最终 live 复验和 U7 P0-1 裁决由
+> `docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
+> 统一承接。后续不要从本文恢复执行。
+
 ## 1. 计划定位
 
-本文是 U10 E2EE 原生客户端剩余工作的**唯一执行入口、唯一进度总账和唯一恢复点**。
-后续不得创建平行收口计划；每个实施单元只有在实现、验证、提交并推送后才更新为
-“已完成”。
+本文曾作为 U10 E2EE 原生客户端 A1-A3 的执行入口、进度总账和恢复点；现已由
+frontmatter 指向的新计划接管，以下内容只保留历史实施上下文。
 
 当前执行链：
 
