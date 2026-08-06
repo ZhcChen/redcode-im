@@ -5,11 +5,12 @@ type: security
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
-status: active
+status: superseded
 current_unit: C2
 current_checkpoint: C2-wait-actions-recovery-before-new-run
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
+superseded_by: docs/plans/2026-08-07-u10-e2ee-release-closure-resume-plan.md
 ---
 
 # security: U10 E2EE 发布最终收口计划
@@ -20,8 +21,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 前提下，关闭 Release owned draft 自动恢复的唯一剩余 P1，重建并冻结发布候选，完成
 四视角独立复审、干净基线与 live 重放，形成 U10 最终 Go/No-Go 裁决。
 
-本文是 U10 E2EE 当前唯一任务派发、状态恢复和最终收口入口。旧计划与 review 仅作
-历史证据，不再承担当前状态管理。
+本文已由 `docs/plans/2026-08-07-u10-e2ee-release-closure-resume-plan.md` 取代，仅作
+历史证据，不再承担当前状态管理或任务派发。
 
 **Product Contract preservation：** 产品范围不变；本文仅收敛剩余发布门禁、执行顺序
 和恢复点。
