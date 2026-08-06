@@ -131,7 +131,7 @@ endef
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
 	e2ee-core.test e2ee-core.check e2ee-core.check.targets e2ee-core.test.flutter e2ee-core.test.wasm e2ee-core.fixture.generate e2ee.cross-client.live e2ee.cross-client.recovery.test e2ee.cross-client.isolated.test e2ee.backup-drill.test e2ee.restore-compose.test e2ee.restore-control.test e2ee.restore-window.test e2ee.restore-boundary.test e2ee.restore-live e2ee.restore-live.test \
-	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.release.build h5-app.release.check h5-app.release.test h5-app.release.candidate.test h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2ee.restore-live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
+	h5-app.install h5-app.up h5-app.down h5-app.wait h5-app.logs h5-app.build h5-app.release.build h5-app.release.check h5-app.release.test h5-app.release.browser-signal.test h5-app.release.candidate.audit h5-app.release.candidate.test h5-app.release.secure-state.audit h5-app.check h5-app.test h5-app.test.unit h5-app.test.live h5-app.test.e2ee.live h5-app.test.e2ee.restore-live h5-app.test.e2e im-ui.install im-ui.test im-ui.test.visual \
 	ios-app.describe ios-app.check ios-app.test ios-app.test.live ios-app.test.interop ios-app.resolve.lan-ip ios-app.resolve.device ios-app.build.device ios-app.install.device ios-app.smoke.device ios-app.apns.preflight.local ios-app.smoke.device.local ios-app.build.simulator ios-app.ui-test ios-app.smoke.simulator ios-app.apns.preflight \
 	android-app.check android-app.lint android-app.test android-app.test.unit android-app.test.live android-app.test.interop android-app.test.interop.support android-app.coverage android-app.build.debug android-app.connected-test android-app.resolve.device android-app.resolve.network android-app.install android-app.smoke.emulator \
 	desktop.package.macos.arm64 desktop.package.macos.intel desktop.package.linux \
@@ -775,8 +775,15 @@ h5-app.release.test: ## 执行 h5-app release 安全门禁正负测试
 	@$(call require_cmd,$(BUN))
 	@cd "$(H5_APP_DIR)" && $(BUN) run release:test
 
+h5-app.release.browser-signal.test: ## 验证 release browser audit 收到信号后关闭 Chrome
+	@$(call require_cmd,$(BUN))
+	@$(BUN) "$(ROOT_DIR)/tests/scripts/test-h5-release-browser-signal.ts"
+
 h5-app.release.candidate.audit: ## 在 im-test-1 临时候选窗口执行真实 Chrome 审计并自动清理
 	@"$(ROOT_DIR)/scripts/h5-release-candidate-window.sh"
+
+h5-app.release.secure-state.audit: ## 在隔离 persist/e2ee API 上执行 production secure state Chrome 审计
+	@"$(ROOT_DIR)/scripts/h5-release-secure-state-audit-window.sh"
 
 h5-app.release.candidate.test: ## 验证 H5 候选窗口 cleanup/recover 的重试与幂等行为
 	@"$(ROOT_DIR)/tests/scripts/test-h5-release-candidate-window.sh"

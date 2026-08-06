@@ -191,8 +191,11 @@ jq -e --arg run_id "$run_id" \
   '.verified == true and .run_id == $run_id and
     .database_marker == ("redcode-e2ee-restore:" + $run_id) and
     .database_host == "postgres-restore" and .redis_host == "redis-restore" and
-    .source_postgres_connections == 0 and .source_redis_connections == 0 and
-    .source_network_reachable == false and
+    .isolation.api_networks_exclude_source == true and
+    .isolation.database_url_points_restore == true and
+    .isolation.redis_urls_point_restore == true and
+    .isolation.storage_network_members_exact == true and
+    .isolation.ingress_network_members_exact == true and
     .runtime == "persist/e2ee" and .api_url == "http://127.0.0.1:18010"' \
   <<<"$restore_identity" >/dev/null || die "restore identity 验证失败"
 jq -S . <<<"$restore_identity" >"$output_dir/restore-identity.json"

@@ -43,7 +43,7 @@ case "$command" in
     [[ -e "$state/restore" ]]
     source_reachable=false
     [[ "${E2EE_RESTORE_LIVE_TEST_SOURCE_NETWORK:-0}" != 1 ]] || source_reachable=true
-    printf '{"run_id":"restore-live","project":"e2ee-restore-restore-live","database_marker":"redcode-e2ee-restore:restore-live","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","source_postgres_connections":0,"source_redis_connections":0,"source_network_reachable":%s,"runtime":"persist/e2ee","verified":true}\n' "$source_reachable"
+    printf '{"run_id":"restore-live","project":"e2ee-restore-restore-live","database_marker":"redcode-e2ee-restore:restore-live","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","isolation":{"api_networks_exclude_source":%s,"database_url_points_restore":true,"redis_urls_point_restore":true,"storage_network_members_exact":true,"ingress_network_members_exact":true},"runtime":"persist/e2ee","verified":true}\n' "$([[ "$source_reachable" == false ]] && printf true || printf false)"
     ;;
   *"'snapshot'"*)
     [[ -e "$state/restore" ]]
@@ -169,7 +169,7 @@ run_case() {
     jq -e '.history_decrypted_after_restore == true and .new_message_decrypted_after_restore == true' \
       "$state/output/recovery.json" >/dev/null || return 1
     jq -e '.verified == true and .database_host == "postgres-restore" and
-      .source_postgres_connections == 0' "$state/output/restore-identity.json" >/dev/null || return 1
+      .isolation.api_networks_exclude_source == true' "$state/output/restore-identity.json" >/dev/null || return 1
   else
     [[ "$status" -ne 0 ]] || return 1
   fi

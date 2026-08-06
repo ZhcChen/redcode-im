@@ -33,8 +33,15 @@ if [[ "${1:-}" == compose ]]; then
       touch "$state/postgres" "$state/redis" "$state/volume"
       if [[ "$*" == *api-restore* ]]; then
         touch "$state/api"
+        api_up_count=0
+        [[ ! -f "$state/api-up-count" ]] || api_up_count="$(cat "$state/api-up-count")"
+        api_up_count=$((api_up_count + 1))
+        printf '%s\n' "$api_up_count" >"$state/api-up-count"
         if [[ "${E2EE_CONTROL_TEST_FAIL_API_UP:-}" == 1 ]]; then
           exit 23
+        fi
+        if [[ "$api_up_count" -ge "${E2EE_CONTROL_TEST_FAIL_API_UP_AFTER:-999}" ]]; then
+          exit 24
         fi
       fi
       ;;
@@ -70,6 +77,7 @@ if [[ "${1:-}" == compose ]]; then
             printf '%s\n' '{"identities":2,"devices":2,"key_packages":20,"room_epochs":1,"control_messages":1,"control_receipts":1,"encrypted_messages":1,"attachment_commits":0,"digest":"0123456789abcdef0123456789abcdef"}'
             ;;
           *"COMMENT ON DATABASE"*)
+            [[ "${E2EE_CONTROL_TEST_FAIL_RUNTIME_SQL:-0}" != 1 ]] || exit 25
             printf 'redcode-e2ee-restore:%s\n' "${E2EE_RESTORE_RUN_ID:?}" >"$state/marker"
             printf 'e2ee\n' >"$state/runtime"
             ;;
@@ -289,6 +297,46 @@ run_control "$success_state" success cleanup
    ! -e "$success_state/runtime-state/success/control.env" ]]
 echo "[e2ee-restore-control-test] prepare/verify/rollback/cleanup: pass"
 
+empty_state="$(new_state empty-candidate)"
+E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes \
+  run_control "$empty_state" empty-candidate prepare-empty >"$empty_state/prepare.json"
+jq -e '.verified == true and .database_marker == "redcode-e2ee-restore:empty-candidate"' \
+  "$empty_state/prepare.json" >/dev/null
+[[ "$(cat "$empty_state/runtime")" == e2ee ]]
+[[ -f "$empty_state/runtime-state/empty-candidate/control.env" ]]
+[[ -e "$empty_state/network-storage" && -e "$empty_state/network-ingress" &&
+   -e "$empty_state/network-connected" ]]
+run_control "$empty_state" empty-candidate cleanup
+[[ ! -e "$empty_state/postgres" && ! -e "$empty_state/redis" &&
+   ! -e "$empty_state/api" && ! -e "$empty_state/volume" &&
+   ! -e "$empty_state/network-storage" && ! -e "$empty_state/network-ingress" ]]
+echo "[e2ee-restore-control-test] empty candidate prepare/verify/cleanup: pass"
+
+for empty_failure in initial-api runtime-sql recreate-api; do
+  failed_empty_state="$(new_state "empty-$empty_failure")"
+  set +e
+  if [[ "$empty_failure" == initial-api ]]; then
+    E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes E2EE_CONTROL_TEST_FAIL_API_UP=1 \
+      run_control "$failed_empty_state" "empty-$empty_failure" prepare-empty \
+      >"$failed_empty_state/output.log" 2>&1
+  elif [[ "$empty_failure" == runtime-sql ]]; then
+    E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes E2EE_CONTROL_TEST_FAIL_RUNTIME_SQL=1 \
+      run_control "$failed_empty_state" "empty-$empty_failure" prepare-empty \
+      >"$failed_empty_state/output.log" 2>&1
+  else
+    E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes E2EE_CONTROL_TEST_FAIL_API_UP_AFTER=2 \
+      run_control "$failed_empty_state" "empty-$empty_failure" prepare-empty \
+      >"$failed_empty_state/output.log" 2>&1
+  fi
+  failed_empty_status=$?
+  set -e
+  [[ "$failed_empty_status" -ne 0 ]]
+  [[ ! -e "$failed_empty_state/postgres" && ! -e "$failed_empty_state/redis" &&
+     ! -e "$failed_empty_state/api" && ! -e "$failed_empty_state/volume" &&
+     ! -e "$failed_empty_state/network-storage" && ! -e "$failed_empty_state/network-ingress" ]]
+  echo "[e2ee-restore-control-test] empty candidate $empty_failure failure cleanup: pass"
+done
+
 failure_state="$(new_state api-start-failure)"
 set +e
 E2EE_RESTORE_ALLOW_PREPARE=yes E2EE_RESTORE_DUMP_PATH="$failure_state/database.dump" \
@@ -343,4 +391,4 @@ done
 echo "[e2ee-restore-control-test] snapshot complete-row digest contract: pass"
 
 bash -n "$script"
-echo "[e2ee-restore-control-test] 9 个 restore control/network 场景与 snapshot 合同全部通过"
+echo "[e2ee-restore-control-test] 13 个 restore control/network 场景与 snapshot 合同全部通过"

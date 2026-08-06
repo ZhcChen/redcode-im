@@ -12,7 +12,7 @@
     "release:check": "bun ../scripts/h5-release-security.ts check dist",
     "release:http-check": "bun ../scripts/h5-release-http-check.ts dist",
     "release:serve": "bun ../scripts/h5-release-server.ts dist",
-    "release:test": "bun ../tests/scripts/test-h5-release-security.ts",
+    "release:test": "bun ../tests/scripts/test-h5-release-security.ts && bun ../tests/scripts/test-h5-release-browser-audit.ts",
     "type-check": "vue-tsc --noEmit",
     "preview": "vite preview --host 0.0.0.0 --port 8016",
     "test": "VITE_USE_MOCK_DATA=true vitest run",

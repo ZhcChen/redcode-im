@@ -108,7 +108,9 @@ if [[ "$isolated_restore" == "1" ]]; then
       .database_marker == ("redcode-e2ee-restore:" + $run_id) and
       .project == ("e2ee-restore-" + ($run_id | gsub("[._]"; "-"))) and
       .database_host == "postgres-restore" and .redis_host == "redis-restore" and
-      .source_postgres_connections == 0 and .source_redis_connections == 0 and
+      .isolation.api_networks_exclude_source == true and
+      .isolation.database_url_points_restore == true and
+      .isolation.redis_urls_point_restore == true and
       .runtime == "persist/e2ee" and .api_url == "http://127.0.0.1:18010"' \
     <<<"$restore_identity" >/dev/null || {
       echo "[e2ee-live] restore identity 验证失败" >&2

@@ -15,6 +15,9 @@ runtime_url="${H5_RELEASE_RUNTIME_URL:-https://im-test-1.codelib.cc/settings/gen
 admin_url="${H5_RELEASE_ADMIN_URL:-https://im-test-admin-1.codelib.cc/}"
 checksums=""
 candidate_response=""
+rendered_caddy=""
+csp=""
+command_pid=""
 cleanup_retries="${H5_RELEASE_CLEANUP_RETRIES:-3}"
 cleanup_retry_delay="${H5_RELEASE_CLEANUP_RETRY_DELAY:-2}"
 cleanup_hard_timeout="${H5_RELEASE_CLEANUP_HARD_TIMEOUT:-45}"
@@ -154,12 +157,18 @@ cleanup() {
   local cleanup_failed=0
   trap - EXIT
   trap '' INT TERM
+  if [[ "$command_pid" =~ ^[1-9][0-9]*$ ]] && kill -0 "$command_pid" 2>/dev/null; then
+    kill -TERM "$command_pid" 2>/dev/null || true
+    wait "$command_pid" 2>/dev/null || true
+  fi
+  command_pid=""
   if ! cleanup_remote; then
     echo "[h5-candidate] remote cleanup failed" >&2
     cleanup_failed=1
   fi
   rm -f "${checksums:-}"
   rm -f "${candidate_response:-}"
+  rm -f "${rendered_caddy:-}"
   if ! verify_admin; then
     echo "[h5-candidate] Admin root verification failed after cleanup" >&2
     cleanup_failed=1
@@ -229,22 +238,43 @@ cd "$root_dir/h5-app"
 bun run release:check
 verify_runtime
 trap 'cleanup $?' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'cleanup 130' INT
+trap 'cleanup 143' TERM
 checksums="$(mktemp "${TMPDIR:-/tmp}/redcode-h5-candidate.XXXXXX")"
+rendered_caddy="$(mktemp "${TMPDIR:-/tmp}/redcode-h5-candidate-caddy.XXXXXX")"
 jq -r '.assets[] | "\(.sha256)  \(.path)"' "$dist/release-manifest.json" >"$checksums"
 printf '%s  release-manifest.json\n' "$(shasum -a 256 "$dist/release-manifest.json" | awk '{print $1}')" >>"$checksums"
+csp="$(jq -er '.["content-security-policy"] | select(type == "string" and length > 0)' \
+  "$dist/security-headers.json")"
+[[ "$csp" != *$'\n'* && "$csp" != *$'\r'* && "$csp" != *'"'* && "$csp" != *'\\'* ]] || {
+  echo "[h5-candidate] candidate CSP contains unsafe Caddy template characters" >&2
+  exit 66
+}
+csp="$(printf '%s' "$csp" | sed -e 's/[&|]/\\&/g')"
+sed "s|{{H5_CANDIDATE_CSP}}|$csp|" "$caddy_candidate" >"$rendered_caddy"
+! rg -q '\{\{H5_CANDIDATE_CSP\}\}' "$rendered_caddy" || {
+  echo "[h5-candidate] candidate CSP template rendering failed" >&2
+  exit 66
+}
 
 ssh "$remote" "set -eu; test ! -e '$remote_backup'; test ! -e '$remote_dist'; test ! -e '$remote_staging'"
 ssh "$remote" "set -eu; cp '$remote_caddy' '$remote_backup'; install -d -m 0755 '$remote_staging'"
 scp -q -r "$dist/." "$remote:$remote_staging/"
 scp -q "$checksums" "$remote:$remote_staging/.candidate-sha256"
-scp -q "$caddy_candidate" "$remote:$remote_temp_caddy"
+scp -q "$rendered_caddy" "$remote:$remote_temp_caddy"
 ssh "$remote" "set -eu; cd '$remote_staging'; sha256sum -c .candidate-sha256 >/dev/null; expected=\$(wc -l <.candidate-sha256); actual=\$(find . -type f ! -name .candidate-sha256 | wc -l); test \"\$expected\" -eq \"\$actual\"; rm .candidate-sha256; mv '$remote_staging' '$remote_dist'; caddy validate --config '$remote_temp_caddy' >/dev/null; install -m 0644 '$remote_temp_caddy' '$remote_caddy'; rm -f '$remote_temp_caddy'; systemctl reload caddy; systemctl is-active --quiet caddy"
 
 if [[ "$#" -gt 0 ]]; then
-  "$@"
+  "$@" &
 else
   cd "$root_dir/h5-app"
-  H5_RELEASE_CANDIDATE_URL="$candidate_url" bun scripts/release-browser-audit.ts
+  H5_RELEASE_CANDIDATE_URL="$candidate_url" bun scripts/release-browser-audit.ts &
 fi
+command_pid=$!
+if wait "$command_pid"; then
+  command_status=0
+else
+  command_status=$?
+fi
+command_pid=""
+exit "$command_status"

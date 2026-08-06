@@ -220,8 +220,13 @@ verify() {
     '{run_id: $run_id, project: $project, database_marker: $marker,
       api_container_id: $api_container_id, api_url: $api_url,
       database_host: "postgres-restore", redis_host: "redis-restore",
-      source_postgres_connections: 0, source_redis_connections: 0,
-      source_network_reachable: false,
+      isolation: {
+        api_networks_exclude_source: true,
+        database_url_points_restore: true,
+        redis_urls_point_restore: true,
+        storage_network_members_exact: true,
+        ingress_network_members_exact: true
+      },
       runtime: "persist/e2ee", verified: true}'
 }
 
@@ -335,11 +340,58 @@ prepare() {
   trap - EXIT INT TERM
 }
 
+prepare_empty() {
+  local storage_container
+  [[ "${E2EE_RESTORE_ALLOW_EMPTY_PREPARE:-}" == yes ]] ||
+    die "prepare-empty 需要 E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes"
+  [[ ! -e "$state_dir" ]] || die "同一 run_id 已存在恢复状态，请先 cleanup"
+  mkdir -p "$state_dir"
+  restore_password="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+  restore_redis_password="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
+  printf 'E2EE_RESTORE_PASSWORD=%s\nE2EE_RESTORE_REDIS_PASSWORD=%s\n' \
+    "$restore_password" "$restore_redis_password" >"$state_file"
+
+  trap 'cleanup $?' EXIT
+  trap 'cleanup 130' INT
+  trap 'cleanup 143' TERM
+  storage_container="$(compose_source ps -q rustfs)"
+  [[ -n "$storage_container" ]] || die "无法定位 RustFS container"
+  run_with_timeout docker network create --internal \
+    --label "redcode.e2ee.restore.run_id=$run_id" "$storage_network" >/dev/null
+  run_with_timeout docker network create \
+    --label "redcode.e2ee.restore.run_id=$run_id" "$ingress_network" >/dev/null
+  run_with_timeout docker network connect --alias rustfs "$storage_network" "$storage_container"
+  compose_restore config >/dev/null
+  compose_restore up -d postgres-restore redis-restore api-restore >/dev/null
+  wait_for_restore_postgres || die "空白候选 PostgreSQL 未就绪"
+  wait_for_health || {
+    compose_restore logs --no-color api-restore >&2 || true
+    die "空白候选 API migration/healthz 未就绪"
+  }
+  restore_psql "
+    COMMENT ON DATABASE $restore_database IS '$marker';
+    UPDATE general_settings SET value = 'persist', updated_at = NOW(), updated_by = NULL
+      WHERE key = 'message_server_storage_mode';
+    UPDATE general_settings SET value = 'e2ee', updated_at = NOW(), updated_by = NULL
+      WHERE key = 'message_content_audit_mode';
+    UPDATE e2ee_runtime_gate SET state = 'active', security_review_approved = TRUE,
+      updated_at = NOW(), updated_by = NULL WHERE id = 1;
+  " >/dev/null
+  compose_restore up -d --force-recreate api-restore >/dev/null
+  wait_for_health || {
+    compose_restore logs --no-color api-restore >&2 || true
+    die "空白候选 API 切换 persist/e2ee 后未就绪"
+  }
+  verify
+  trap - EXIT INT TERM
+}
+
 for command in curl docker jq od sed sleep; do require_command "$command"; done
 load_deploy_env
 
 case "$mode" in
   prepare) prepare ;;
+  prepare-empty) prepare_empty ;;
   verify)
     load_state
     verify
@@ -360,7 +412,7 @@ case "$mode" in
     ;;
   cleanup) cleanup 0 ;;
   *)
-    log "用法：e2ee-restore-control.sh prepare|verify|snapshot|rollback|cleanup"
+    log "用法：e2ee-restore-control.sh prepare|prepare-empty|verify|snapshot|rollback|cleanup"
     exit 64
     ;;
 esac

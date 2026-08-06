@@ -16,9 +16,12 @@ im-test-admin-1.codelib.cc {
     encode gzip zstd
 
     route {
+        handle_path /h5-candidate-api/* {
+            reverse_proxy 127.0.0.1:18010
+        }
         header /h5-candidate/* {
             Cache-Control "no-store"
-            Content-Security-Policy "default-src 'none'; base-uri 'self'; connect-src 'self' https://im-test-1.codelib.cc wss://im-test-1.codelib.cc; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data: blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; worker-src 'self' blob:"
+            Content-Security-Policy "{{H5_CANDIDATE_CSP}}"
             Cross-Origin-Opener-Policy "same-origin"
             Cross-Origin-Resource-Policy "same-origin"
             Permissions-Policy "camera=(self), display-capture=(self), geolocation=(), microphone=(self)"

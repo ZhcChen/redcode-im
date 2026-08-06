@@ -21,9 +21,9 @@ operation="${!#}"
 case "$operation" in
   *"'verify'"*)
     if [[ "${E2EE_ISOLATED_TEST_IDENTITY:-valid}" == valid ]]; then
-      printf '%s\n' '{"run_id":"restore-run","project":"e2ee-restore-restore-run","database_marker":"redcode-e2ee-restore:restore-run","api_container_id":"api-id","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","source_postgres_connections":0,"source_redis_connections":0,"runtime":"persist/e2ee","verified":true}'
+      printf '%s\n' '{"run_id":"restore-run","project":"e2ee-restore-restore-run","database_marker":"redcode-e2ee-restore:restore-run","api_container_id":"api-id","api_url":"http://127.0.0.1:18010","database_host":"postgres-restore","redis_host":"redis-restore","isolation":{"api_networks_exclude_source":true,"database_url_points_restore":true,"redis_urls_point_restore":true,"storage_network_members_exact":true,"ingress_network_members_exact":true},"runtime":"persist/e2ee","verified":true}'
     else
-      printf '%s\n' '{"run_id":"restore-run","project":"wrong-project","database_marker":"wrong","api_url":"http://127.0.0.1:18010","database_host":"postgres","redis_host":"redis","source_postgres_connections":1,"source_redis_connections":0,"runtime":"persist/e2ee","verified":true}'
+      printf '%s\n' '{"run_id":"restore-run","project":"wrong-project","database_marker":"wrong","api_url":"http://127.0.0.1:18010","database_host":"postgres","redis_host":"redis","isolation":{"api_networks_exclude_source":false},"runtime":"persist/e2ee","verified":true}'
     fi
     ;;
   *"'rollback'"*) printf 'rollback\n' >>"$state/control.log" ;;
