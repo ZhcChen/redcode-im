@@ -95,12 +95,12 @@ U10 的协议、原生双端、H5、Admin gate、跨端 live 和持久证据主�
 
 ```mermaid
 flowchart TB
-  A[F5.3b Linux WASM 修复] --> B{本地同构门禁通过}
+  A[F6.1 五组整改] --> B{定向门禁通过}
   B -->|否| A
-  B -->|是| C[F5.4 全新 Release run]
-  C --> D{全部 jobs 与 provenance 通过}
+  B -->|是| C[F5.4b 新候选 Release run]
+  C --> D{全部 jobs、provenance 与 evidence 通过}
   D -->|否| A
-  D -->|是| E[F6 四视角独立重审]
+  D -->|是| E[F6.2 四视角独立重审]
   E --> F{P0=0 且 P1=0}
   F -->|否| A
   F -->|是| G[F7 干净基线重放]
@@ -112,6 +112,35 @@ flowchart TB
 ---
 
 ## Implementation Units
+
+### F6.1 复审整改
+
+- **Goal:** 关闭首轮 F6 复审的 9 个 P1，并同步关闭位于相同代码路径的 3 个 P2；任何实现、构建配置、依赖或测试门禁变更都会使 `eff9e9fd` 失效。
+- **Input:** `docs/reviews/2026-08-06-u10-e2ee-f6-independent-review.md` 是 finding 的唯一事实源，不在本文复制第二套状态计数。
+- **Execution order:** 严格按下表小步提交；每组完成对应定向测试、`git diff --check`、commit 和 push 后再进入下一组。
+
+| Batch | Findings | Scope | Required verification | Status |
+| --- | --- | --- | --- | --- |
+| F6.1-A Evidence 契约与机器证据 | P1-01、P1-02、P2-01 | 统一 restore `isolation` 五项契约；持久化 F5 workflow/jobs/artifacts/digests/provenance/tag/Release 前后摘要与脱敏 SLSA bundle；校验 commit 时间 | `make e2ee.evidence.verify e2ee.evidence.test`，包含错误时间、摘要、字段和 bundle 负例 | in_progress |
+| F6.1-B 发布入口与 Android signing | P1-04、P1-05 | 正式发布仅允许 `main`；tag 必须预存在并指向候选；验收使用 unsigned release candidate；正式发布缺少四项 signing secrets 时 fail closed | workflow contract 执行型正负例；JDK21 Android release 构建与测试 | pending |
+| F6.1-C 全资产 provenance 与输入固定 | P1-06 | H5、Android、API 资产均绑定候选 provenance；API base image 固定 digest；最终 Cargo build 使用 `--locked` | `make supply-chain.workflow.test supply-chain.check supply-chain.test` 与 provenance 负例 | pending |
+| F6.1-D Release 原子性、并发与清理 | P1-07、P1-08、P1-09、P2-02 | Release immutable create-only；concurrency 绑定 `release_tag`；H5 使用远端原子 lock 与 owner token；API 导出 trap 清理 container | 已有 Release、并发 tag、锁冲突、非 owner cleanup、`docker cp` 失败执行型测试 | pending |
+| F6.1-E 门禁整合 | P1-03、P2-03 | 将 WASM platform/version、H5 endpoint 和 candidate cleanup 从源码正则升级为执行型 fail-closed 测试，并纳入 `make test.all` | 专项测试、`make test.all`，确认错误分支真实执行且返回非零 | pending |
+
+- **Exit:** 12 个 finding 均有代码、测试或持久证据闭环；五组定向回归通过；最后一个整改 commit 已 push；随后进入 F5.4b，不直接进入 F6.2 或 F7。
+
+### F5.4b 整改后新候选 Release workflow
+
+- **Goal:** 在 F6.1 最终实现 HEAD 上重新执行真实 Release workflow，生成新的 `implementation_candidate_sha`，替代已失效的 `eff9e9fd`。
+- **Precondition:** F6.1-A 至 F6.1-E 全部 complete，工作区干净且 `HEAD == origin/main`。
+- **Approach:** 冻结 tag/Release 前态，以 `publish_release=false` 触发全新 run；验证所有必需 jobs、三类资产 provenance、持久 machine evidence、attestation bundle 和零发布副作用。
+- **Exit:** run success；离线 evidence verifier 从干净 checkout 通过；新的候选 SHA 和 run ID 写入本文恢复快照并 push；随后只进入 F6.2。
+
+### F6.2 整改后四视角重审
+
+- **Goal:** 使用 correctness、security、reliability、testing 四个全新独立上下文审查 F5.4b 冻结的新候选。
+- **Scope:** F6.1 全部整改 diff、F5.4b machine evidence、F1-F5 历史证据及当前源码；不得复用首轮 F6 的上下文结论代替新审查。
+- **Exit:** 四个视角分别为 `P0=0/P1=0`，统一 review 已提交并 push；否则回到最早受影响的 F6.1 batch，并使当前候选失效。
 
 ### F5.3b Linux WASM 可复现性修复
 

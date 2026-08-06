@@ -94,8 +94,9 @@
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
   - F1-F4 已关闭且不重做：Restore run `e1fix20260806g`、subject `aa605931` 的
     四视角复核、H5 production run `e3prod20260806f`、evidence commit `a383f788`。
-  - F5 已关闭：run `31065710816` 全部必需 jobs 成功，五个 artifacts、H5 SLSA
-    provenance 与候选 `eff9e9fd` 一致，tag/Release 零副作用。当前执行 F6，关闭后进入 F7。
+  - F5 首轮已关闭：run `31065710816` 全部必需 jobs 成功，五个 artifacts、H5 SLSA
+    provenance 与候选 `eff9e9fd` 一致，tag/Release 零副作用；但该候选因 F6 首轮复审
+    不通过而失效，不能作为 F7 候选复用。
   - F6 首轮独立复审发现 9 个 P1；整改、F5.4b 重跑和 F6.2 P0/P1 清零前禁止进入
     F7；最终裁决前保持 E2EE **No-Go**。
   - 未关闭时阻断 2.0 发布。
