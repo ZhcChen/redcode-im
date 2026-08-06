@@ -396,9 +396,12 @@ jobs:
         run: |
           set -euo pipefail
           OUT=".artifacts/h5-release"
-          ARCHIVE="$OUT/redcode-im-h5-${GITHUB_SHA}.tar.gz"
-          tar -C h5-app -czf "$ARCHIVE" dist
-          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+          ARCHIVE_NAME="redcode-im-h5-${GITHUB_SHA}.tar.gz"
+          tar -C h5-app -czf "$OUT/$ARCHIVE_NAME" dist
+          (
+            cd "$OUT"
+            sha256sum "$ARCHIVE_NAME" > "$ARCHIVE_NAME.sha256"
+          )
           test -f "$OUT/${GITHUB_SHA}.json"
 
       - name: Attest H5 candidate provenance

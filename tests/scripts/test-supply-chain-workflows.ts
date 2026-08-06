@@ -297,6 +297,12 @@ assert.match(
   stepByName(h5Job, "Build and verify H5 candidate").run,
   /make e2ee-core\.build\.h5[\s\S]*make h5-app\.release\.build/,
 );
+const packageH5 = stepByName(h5Job, "Package H5 candidate").run as string;
+assert.match(
+  packageH5,
+  /cd "\$OUT"[\s\S]*sha256sum "\$ARCHIVE_NAME" > "\$ARCHIVE_NAME\.sha256"/,
+);
+assert.doesNotMatch(packageH5, /sha256sum "\$OUT\//);
 assert.equal(
   stepByName(h5Job, "Attest H5 candidate provenance").with["subject-path"],
   ".artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz.sha256",
