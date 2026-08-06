@@ -24,10 +24,17 @@ case "${H5_TEST_SSH_MODE:-success}" in
   fail-always) exit 255 ;;
   hang) exec sleep 60 ;;
   preflight-fail) [[ "$command" == *"restored=0"* ]] || exit 1 ;;
+  acquire-interrupt-once)
+    if [[ "$command" == *"ln -s '"*".lock'"* &&
+          ! -f "${H5_TEST_ACQUIRE_INTERRUPTED:?}" ]]; then
+      touch "$H5_TEST_ACQUIRE_INTERRUPTED"
+      exit 255
+    fi
+    ;;
   success) ;;
   *) exit 70 ;;
 esac
-if [[ "$command" == *"restored=0"* || "$command" == *"mkdir '"*".lock'"* ]]; then
+if [[ "$command" == *"restored=0"* || "$command" == *"ln -s '"*".lock'"* ]]; then
   bash -c "$command"
 fi
 SH
@@ -134,9 +141,9 @@ run_case() {
   local remote_temp_base="$case_dir/remote/tmp/redcode-h5-candidate.Caddyfile"
   local remote_temp="${remote_temp_base}.${owner_token}"
   mkdir -p "$remote_dist" "${remote_dist}.upload.${owner_token}" \
-    "${remote_dist}.upload.other" "$remote_lock" \
+    "${remote_dist}.upload.other" \
     "${remote_caddy%/*}" "${remote_temp%/*}"
-  printf '%s\n' "$owner_token" >"$remote_lock/owner"
+  ln -s "$owner_token" "$remote_lock"
   printf '%s\n' 'candidate h5-candidate route' >"$remote_caddy"
   printf '%s\n' 'original admin route' >"${remote_caddy}.h5-candidate.bak"
   printf '%s\n' 'temporary candidate config' >"$remote_temp"
@@ -220,8 +227,8 @@ owner_dir="$tmp_dir/non-owner-cleanup"
 owner_dist="$owner_dir/remote/srv/redcode-h5-candidate"
 owner_lock="${owner_dist}.lock"
 owner_caddy="$owner_dir/remote/etc/caddy/Caddyfile"
-mkdir -p "$owner_dist" "$owner_lock" "${owner_caddy%/*}" "$owner_dir/remote/tmp"
-printf '%s\n' owner-original >"$owner_lock/owner"
+mkdir -p "$owner_dist" "${owner_caddy%/*}" "$owner_dir/remote/tmp"
+ln -s owner-original "$owner_lock"
 printf '%s\n' 'candidate h5-candidate route' >"$owner_caddy"
 printf '%s\n' 'original admin route' >"${owner_caddy}.h5-candidate.bak"
 : >"$owner_dir/ssh-count"
@@ -242,10 +249,41 @@ H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
   "$script" recover >"$owner_dir/output.log" 2>&1
 owner_status=$?
 set -e
-[[ "$owner_status" != 0 && -d "$owner_dist" && -d "$owner_lock" ]]
+[[ "$owner_status" != 0 && -d "$owner_dist" && -L "$owner_lock" ]]
 grep -q 'lock owner mismatch' "$owner_dir/output.log"
 grep -q h5-candidate "$owner_caddy"
 echo "[h5-candidate-test] non-owner cleanup: fail closed"
+
+orphan_dir="$tmp_dir/orphan-lock"
+orphan_dist="$orphan_dir/remote/srv/redcode-h5-candidate"
+orphan_lock="${orphan_dist}.lock"
+orphan_caddy="$orphan_dir/remote/etc/caddy/Caddyfile"
+mkdir -p "$orphan_dist" "$orphan_lock" "${orphan_caddy%/*}" "$orphan_dir/remote/tmp"
+printf '%s\n' 'candidate h5-candidate route' >"$orphan_caddy"
+printf '%s\n' 'original admin route' >"${orphan_caddy}.h5-candidate.bak"
+: >"$orphan_dir/ssh-count"
+: >"$orphan_dir/ssh-commands"
+: >"$orphan_dir/curl-calls"
+set +e
+PATH="$bin_dir:$PATH" \
+H5_TEST_SSH_COUNT="$orphan_dir/ssh-count" \
+H5_TEST_SSH_COMMANDS="$orphan_dir/ssh-commands" \
+H5_TEST_CURL_CALLS="$orphan_dir/curl-calls" \
+H5_TEST_SSH_MODE=success \
+H5_RELEASE_REMOTE_DIST="$orphan_dist" \
+H5_RELEASE_REMOTE_LOCK="$orphan_lock" \
+H5_RELEASE_REMOTE_CADDY="$orphan_caddy" \
+H5_RELEASE_REMOTE_TEMP_CADDY="$orphan_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=owner-orphan \
+H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
+  "$script" recover >"$orphan_dir/output.log" 2>&1
+orphan_status=$?
+set -e
+[[ "$orphan_status" != 0 && -d "$orphan_dist" && -d "$orphan_lock" ]]
+grep -q 'lock owner mismatch' "$orphan_dir/output.log"
+grep -q h5-candidate "$orphan_caddy"
+[[ -f "${orphan_caddy}.h5-candidate.bak" ]]
+echo "[h5-candidate-test] legacy orphan lock: fail closed"
 
 run_case "first-recovery" pass success
 first_dir="$tmp_dir/first-recovery"
@@ -286,6 +324,38 @@ TMPDIR="$normal_dir/tmp" \
 H5_TEST_SSH_COUNT="$normal_dir/ssh-count" \
 H5_TEST_SSH_COMMANDS="$normal_dir/ssh-commands" \
 H5_TEST_CURL_CALLS="$normal_dir/curl-calls" \
+H5_TEST_SSH_MODE=acquire-interrupt-once \
+H5_TEST_ACQUIRE_INTERRUPTED="$normal_dir/acquire-interrupted" \
+H5_RELEASE_DIST="$normal_dir/dist" \
+H5_RELEASE_CADDYFILE="$normal_dir/Caddyfile" \
+H5_RELEASE_REMOTE_DIST="$normal_dir/remote/srv/redcode-h5-candidate" \
+H5_RELEASE_REMOTE_LOCK="$normal_dir/remote/srv/redcode-h5-candidate.lock" \
+H5_RELEASE_REMOTE_CADDY="$normal_dir/remote/etc/caddy/Caddyfile" \
+H5_RELEASE_REMOTE_TEMP_CADDY="$normal_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=normal-owner \
+H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
+H5_RELEASE_CLEANUP_HARD_TIMEOUT=5 \
+  "$script" bash -c 'exit 23' >"$normal_dir/interrupted.log" 2>&1
+interrupted_status=$?
+set -e
+[[ "$interrupted_status" != 0 && -f "$normal_dir/acquire-interrupted" ]]
+[[ ! -e "$normal_dir/remote/srv/redcode-h5-candidate.lock" &&
+   ! -L "$normal_dir/remote/srv/redcode-h5-candidate.lock" ]]
+[[ ! -e "$normal_dir/remote/etc/caddy/Caddyfile.h5-candidate.bak" ]]
+grep -q 'remote cleanup failed' "$normal_dir/interrupted.log" && {
+  cat "$normal_dir/interrupted.log" >&2
+  echo "[h5-candidate-test] 原子获取中断后 cleanup 不应失败" >&2
+  exit 1
+}
+: >"$normal_dir/ssh-count"
+: >"$normal_dir/ssh-commands"
+: >"$normal_dir/curl-calls"
+set +e
+PATH="$bin_dir:$PATH" \
+TMPDIR="$normal_dir/tmp" \
+H5_TEST_SSH_COUNT="$normal_dir/ssh-count" \
+H5_TEST_SSH_COMMANDS="$normal_dir/ssh-commands" \
+H5_TEST_CURL_CALLS="$normal_dir/curl-calls" \
 H5_TEST_SSH_MODE=success \
 H5_RELEASE_DIST="$normal_dir/dist" \
 H5_RELEASE_CADDYFILE="$normal_dir/Caddyfile" \
@@ -313,6 +383,7 @@ if find "$normal_dir/tmp" -type f | grep -q .; then
   exit 1
 fi
 echo "[h5-candidate-test] command failure trap: pass"
+echo "[h5-candidate-test] interrupted atomic acquire retry: pass"
 
 preflight_dir="$tmp_dir/preflight-failure"
 mkdir -p "$preflight_dir/dist" "$preflight_dir/tmp" \
@@ -400,6 +471,9 @@ for signal_case in "INT:130" "TERM:143"; do
     echo "[h5-candidate-test] $signal_name cleanup 后仍有临时文件" >&2
     exit 1
   fi
+  [[ ! -e "$signal_dir/remote/srv/redcode-h5-candidate.lock" &&
+     ! -L "$signal_dir/remote/srv/redcode-h5-candidate.lock" ]]
+  ! grep -q h5-candidate "$signal_dir/remote/etc/caddy/Caddyfile"
   echo "[h5-candidate-test] signal $signal_name cleanup: pass"
 done
 
@@ -431,4 +505,4 @@ set -e
 echo "[h5-candidate-test] recover without owner token: fail"
 
 bash -n "$script"
-echo "[h5-candidate-test] 19 个 cleanup/recover/owner 场景全部通过"
+echo "[h5-candidate-test] 22 个 cleanup/recover/owner 场景全部通过"

@@ -103,7 +103,7 @@ cleanup_remote() {
 set +e
 status=0
 restored=0
-if ! test -d '$remote_lock'; then
+if ! test -e '$remote_lock' && ! test -L '$remote_lock'; then
   if test -e '$remote_backup' || test -e '$remote_dist' ||
      test -e '$remote_staging' || test -e '$remote_temp_caddy'; then
     echo '[h5-candidate] resources exist without an owned lock; refusing cleanup' >&2
@@ -111,8 +111,8 @@ if ! test -d '$remote_lock'; then
   fi
   exit 0
 fi
-if ! test -f '$remote_lock/owner' ||
-   test \"\$(cat '$remote_lock/owner')\" != '$owner_token'; then
+if ! test -L '$remote_lock' ||
+   test \"\$(readlink '$remote_lock')\" != '$owner_token'; then
   echo '[h5-candidate] lock owner mismatch; refusing cleanup' >&2
   exit 73
 fi
@@ -141,8 +141,13 @@ if test \"\$status\" -eq 0 && test \"\$restored\" -eq 1; then
 fi
 if test -e '$remote_backup'; then status=1; fi
 if test \"\$status\" -eq 0; then
-  rm -f '$remote_lock/owner' || status=1
-  rmdir '$remote_lock' || status=1
+  if test -L '$remote_lock' &&
+     test \"\$(readlink '$remote_lock')\" = '$owner_token'; then
+    rm -f '$remote_lock' || status=1
+  else
+    echo '[h5-candidate] lock owner changed during cleanup; refusing unlock' >&2
+    status=1
+  fi
 fi
 exit \"\$status\"
 "
@@ -289,13 +294,13 @@ sed "s|{{H5_CANDIDATE_CSP}}|$csp|" "$caddy_candidate" >"$rendered_caddy"
   exit 66
 }
 
-ssh "$remote" "set -eu; umask 077; test ! -e '$remote_backup'; test ! -e '$remote_dist'; test ! -e '$remote_staging'; test ! -e '$remote_temp_caddy'; mkdir '$remote_lock'; printf '%s\n' '$owner_token' >'$remote_lock/owner'"
+ssh "$remote" "set -eu; umask 077; test ! -e '$remote_backup'; test ! -e '$remote_dist'; test ! -e '$remote_staging'; test ! -e '$remote_temp_caddy'; ln -s '$owner_token' '$remote_lock'"
 echo "[h5-candidate] acquired owner lock: $owner_token"
-ssh "$remote" "set -eu; test \"\$(cat '$remote_lock/owner')\" = '$owner_token'; cp '$remote_caddy' '$remote_backup'; install -d -m 0755 '$remote_staging'"
+ssh "$remote" "set -eu; test -L '$remote_lock'; test \"\$(readlink '$remote_lock')\" = '$owner_token'; cp '$remote_caddy' '$remote_backup'; install -d -m 0755 '$remote_staging'"
 scp -q -r "$dist/." "$remote:$remote_staging/"
 scp -q "$checksums" "$remote:$remote_staging/.candidate-sha256"
 scp -q "$rendered_caddy" "$remote:$remote_temp_caddy"
-ssh "$remote" "set -eu; test \"\$(cat '$remote_lock/owner')\" = '$owner_token'; cd '$remote_staging'; sha256sum -c .candidate-sha256 >/dev/null; expected=\$(wc -l <.candidate-sha256); actual=\$(find . -type f ! -name .candidate-sha256 | wc -l); test \"\$expected\" -eq \"\$actual\"; rm .candidate-sha256; mv '$remote_staging' '$remote_dist'; caddy validate --config '$remote_temp_caddy' >/dev/null; install -m 0644 '$remote_temp_caddy' '$remote_caddy'; rm -f '$remote_temp_caddy'; systemctl reload caddy; systemctl is-active --quiet caddy"
+ssh "$remote" "set -eu; test -L '$remote_lock'; test \"\$(readlink '$remote_lock')\" = '$owner_token'; cd '$remote_staging'; sha256sum -c .candidate-sha256 >/dev/null; expected=\$(wc -l <.candidate-sha256); actual=\$(find . -type f ! -name .candidate-sha256 | wc -l); test \"\$expected\" -eq \"\$actual\"; rm .candidate-sha256; mv '$remote_staging' '$remote_dist'; caddy validate --config '$remote_temp_caddy' >/dev/null; install -m 0644 '$remote_temp_caddy' '$remote_caddy'; rm -f '$remote_temp_caddy'; systemctl reload caddy; systemctl is-active --quiet caddy"
 
 if [[ "$#" -gt 0 ]]; then
   "$@" &
