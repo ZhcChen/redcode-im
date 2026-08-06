@@ -6,8 +6,8 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 status: active
-current_unit: C1
-current_checkpoint: C1-owned-draft-recovery
+current_unit: C2
+current_checkpoint: C2-full-regression-and-release-rehearsal
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 ---
@@ -50,8 +50,9 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 | Release workflow | complete/invalidated | run `31115034686` 成功，四类资产通过，signing/publish skipped，tag/Release 零副作用 |
 | 持久 provenance evidence | complete/invalidated | `63b78a02` 固化四类 evidence；可验证旧候选，但不能替代 C1 后的新候选 evidence |
 | 第三轮独立复审 | fail | `docs/reviews/2026-08-06-u10-e2ee-r4-third-independent-review.md`；仅 reliability 有 1 个 P1 |
-| 当前未关闭项 | 1 个 P1 | owned draft 删除瞬时失败后，同 tag、同 candidate 的后续执行被既存 Release 永久阻断 |
-| 当前恢复点 | C1 | 修复 `scripts/release/create-github-release.sh` 并补跨执行恢复测试 |
+| REL-P1-01 | complete | owned draft 跨执行恢复、条件删除、错误分类及 live rehearsal 均通过 |
+| 当前恢复点 | C2 | C1 提交 push 后使用 JDK21 执行 `make test.all` |
+| C1 owned draft 恢复 | complete | `docs/reviews/2026-08-07-u10-e2ee-c1-owned-draft-recovery.md`；三视角 `P0=0/P1=0` |
 
 run `31114473217` 仅在 GitHub 下载 action metadata 时遇到 `500/503`，仓库代码未执行且
 无 tag/Release 副作用；它不是实现失败证据，也不得 rerun 作为新候选证明。
@@ -241,12 +242,12 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | C1 |
-| Active checkpoint | `C1-owned-draft-recovery` |
-| Open blockers | `REL-P1-01`，共 1 个 P1 |
+| Active unit | C2 |
+| Active checkpoint | `C2-full-regression-and-release-rehearsal` |
+| Open blockers | 无代码 P0/P1；待 C2 全量、新候选 workflow 与四类 evidence |
 | Invalid implementation candidate | `a0b90719976f1847feeb54a2c5a857dbc09b53fe` |
 | Invalidated successful run | `31115034686`；成功但仅证明 C1 修复前实现 |
 | Last evidence commit | `63b78a02d82ad03ab3ca419fc901509e128ef22d` |
 | Completed | N1-N7、U1-U7、原 F6.2 五项整改、H5 sidecar、四类 provenance、R4 真实 run/evidence |
-| Earliest resume action | 检查 `git status --short`，实施 C1 并补跨执行恢复测试 |
+| Earliest resume action | C1 提交 push 后，JDK21 执行 `make test.all` |
 | Final verdict | No-Go |

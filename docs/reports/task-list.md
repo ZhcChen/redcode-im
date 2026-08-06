@@ -31,11 +31,10 @@
 
 - 当前主线：U10 owned draft 自动恢复 -> 新候选与 Release evidence -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `C1-owned-draft-recovery`。run `31115034686`
-  已成功并固化四类 provenance，但第三轮复审仍有 reliability `P1=1`：cleanup 删除
-  owned draft 瞬时失败后，同 tag、同 candidate 无法自动恢复。候选 `a0b90719` 因 C1
-  门禁修复失效；修复后必须重新全量、触发全新 workflow 并重新复审。生产 E2EE 继续
-  **No-Go**。
+- 当前立即任务：唯一 checkpoint 为 `C2-full-regression-and-release-rehearsal`。C1 已关闭
+  owned draft 跨执行恢复 P1，三视角复审为 `P0=0/P1=0`，隔离 GitHub API rehearsal
+  证明恢复和 stale ETag fail-closed；下一步使用 JDK21 全量回归并重建候选、workflow
+  与四类 evidence。生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前剩余顺序：严格按 `C1 owned draft 恢复 -> C2 新候选与 evidence -> C3 第四轮

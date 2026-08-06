@@ -153,6 +153,7 @@ assert.equal(
 
 const release = await parseWorkflow(".github/workflows/release-artifacts.yml");
 assert.match(release.concurrency.group, /inputs\.release_tag/);
+assert.equal(release.concurrency["cancel-in-progress"], false);
 validateGateJob(release.jobs["supply-chain-check"], 90);
 validateReleaseDependencies(release);
 const androidJob = release.jobs["android-app-check"];
@@ -336,12 +337,29 @@ const createReleaseScript = await readFile(
 );
 assert.match(createReleaseScript, /already exists and is immutable/);
 assert.match(createReleaseScript, /--target "\$candidate_sha"/);
+assert.match(
+  createReleaseScript,
+  /release create "\$release_tag"[\s\\]*--repo "\$release_repository"/,
+);
 assert.match(createReleaseScript, /--draft/);
-assert.match(createReleaseScript, /release upload "\$release_tag" "\$asset"/);
-assert.match(createReleaseScript, /release edit "\$release_tag" --draft=false/);
-assert.match(createReleaseScript, /release delete "\$release_tag" --yes/);
+assert.match(createReleaseScript, /release upload "\$release_tag" "\$asset" --repo "\$release_repository"/);
+assert.match(createReleaseScript, /release edit "\$release_tag" --repo "\$release_repository" --draft=false/);
+assert.match(createReleaseScript, /release_state_id/);
+assert.match(createReleaseScript, /If-Match: \$\{release_state_etag\}/);
+assert.match(createReleaseScript, /releases\/\$\{release_state_id\}/);
+assert.match(createReleaseScript, /400\|409\|412/);
+assert.match(createReleaseScript, /408\|429\|5\?\?/);
 assert.match(createReleaseScript, /redcode-release-owner/);
 assert.match(createReleaseScript, /redcode-release-candidate/);
+assert.match(createReleaseScript, /redcode-release-transaction:v1/);
+assert.match(createReleaseScript, /gh api --include/);
+assert.match(
+  createReleaseScript,
+  /\.draft, \.id, \.tag_name, \.target_commitish, \.body/,
+);
+assert.match(createReleaseScript, /\[\[ "\$release_state_target" == "\$candidate_sha" \]\]/);
+assert.match(createReleaseScript, /delete_retry_count.*RELEASE_DELETE_RETRY_COUNT/s);
+assert.match(createReleaseScript, /for \(\( attempt = 1; attempt <= delete_retry_count; attempt\+\+ \)\)/);
 assert.doesNotMatch(
   createReleaseScript,
   /release delete-asset|--clobber|--cleanup-tag|git push[^\n]*--delete/,
