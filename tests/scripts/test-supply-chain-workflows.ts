@@ -144,6 +144,10 @@ assert.equal(
   "android-app-debug",
 );
 assert.equal(
+  stepByName(androidJob, "Upload Android debug APK").with.path,
+  "android-app/app/build/outputs/apk/debug/app-debug.apk",
+);
+assert.equal(
   stepByName(release.jobs["publish-release"], "Download API artifacts").with
     .pattern,
   "api-linux-*-release",
@@ -157,11 +161,16 @@ const h5Steps = h5Job.steps;
 const endpointValidationIndex = h5Steps.findIndex(
   (step: any) => step.name === "Validate H5 release endpoints",
 );
+const rustSetupIndex = h5Steps.findIndex(
+  (step: any) => step.name === "Setup pinned H5 Rust toolchain",
+);
 const wasmPackInstallIndex = h5Steps.findIndex(
   (step: any) => step.name === "Install pinned wasm-pack",
 );
 assert.ok(
-  endpointValidationIndex >= 0 && endpointValidationIndex < wasmPackInstallIndex,
+  endpointValidationIndex >= 0 &&
+    endpointValidationIndex < rustSetupIndex &&
+    rustSetupIndex < wasmPackInstallIndex,
 );
 assert.match(
   stepByName(h5Job, "Validate H5 release endpoints").run,
@@ -170,6 +179,15 @@ assert.match(
 assert.match(
   stepByName(h5Job, "Validate H5 release endpoints").run,
   /H5_RELEASE_WS_URL repository variable is required/,
+);
+assert.equal(release.env.H5_RUST_VERSION, "1.94.0");
+assert.match(
+  stepByName(h5Job, "Setup pinned H5 Rust toolchain").run,
+  /rustup toolchain install "\$H5_RUST_VERSION" --profile minimal --target wasm32-unknown-unknown/,
+);
+assert.match(
+  stepByName(h5Job, "Setup pinned H5 Rust toolchain").run,
+  /rustc --version.*H5_RUST_VERSION/s,
 );
 assert.equal(
   stepByName(h5Job, "Attest H5 candidate provenance").uses,
