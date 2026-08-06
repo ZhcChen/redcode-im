@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import {
   assertSensitiveValuesAbsent,
   boolean,
@@ -14,6 +15,7 @@ import {
   sha256,
   sha256Pattern,
   string,
+  subjectCommitTime,
   timestampPattern,
   type EvidenceType,
 } from './contract';
@@ -35,11 +37,14 @@ if (schema.schema !== 'redcode-e2ee-evidence-schema/v1' || schema.evidence_schem
 }
 if (schema.additional_properties !== false) fail('schema-v1 必须禁止额外字段');
 if (!Array.isArray(schema.common_keys)) fail('schema-v1 common_keys 无效');
-exactKeys(schema.evidence_types, ['g1-backup-rollout', 'g3-h5-release'], 'schema-v1.evidence_types');
+exactKeys(schema.evidence_types, [
+  'g1-backup-rollout', 'g3-h5-release', 'f5-release-workflow',
+], 'schema-v1.evidence_types');
 
 const files: Array<[EvidenceType, string]> = [
   ['g1-backup-rollout', 'g1-backup-rollout.json'],
   ['g3-h5-release', 'g3-h5-release.json'],
+  ['f5-release-workflow', 'f5-release-workflow.json'],
 ];
 
 function verifyCommit(commit: string): void {
@@ -83,17 +88,19 @@ function verifyG1(assertions: Record<string, unknown>): void {
     fail('G1 candidate/restore snapshot 不一致');
   }
   exactKeys(assertions.restore_runtime, [
-    'verified', 'runtime', 'source_network_reachable', 'source_postgres_connections',
-    'source_redis_connections',
+    'verified', 'runtime', 'isolation',
   ], 'g1.restore_runtime');
   if (!boolean(assertions.restore_runtime.verified, 'g1.restore_runtime.verified')) fail('restore 未验证');
   enumValue(assertions.restore_runtime.runtime, ['persist/e2ee'] as const, 'g1.restore_runtime.runtime');
-  if (boolean(assertions.restore_runtime.source_network_reachable, 'source_network_reachable')) {
-    fail('restore source network 可达');
-  }
-  if (integer(assertions.restore_runtime.source_postgres_connections, 'source_postgres_connections') !== 0
-    || integer(assertions.restore_runtime.source_redis_connections, 'source_redis_connections') !== 0) {
-    fail('restore 连接旧主');
+  const isolationKeys = [
+    'api_networks_exclude_source', 'database_url_points_restore', 'redis_urls_point_restore',
+    'storage_network_members_exact', 'ingress_network_members_exact',
+  ] as const;
+  exactKeys(assertions.restore_runtime.isolation, isolationKeys, 'g1.restore_runtime.isolation');
+  for (const key of isolationKeys) {
+    if (!boolean(assertions.restore_runtime.isolation[key], `g1.restore_runtime.isolation.${key}`)) {
+      fail(`restore isolation 未通过：${key}`);
+    }
   }
   exactKeys(assertions.live, [
     'scenario_count', 'message_proof_count', 'attachment_proof_count',
@@ -118,6 +125,119 @@ function verifyG1(assertions: Record<string, unknown>): void {
   enumValue(assertions.boundaries.push, ['placeholder-only', 'not-observed-live'] as const, 'g1.boundaries.push');
   enumValue(assertions.boundaries.rustfs_content, ['ciphertext-only'] as const, 'g1.boundaries.rustfs_content');
   if (!sha256Pattern.test(string(assertions.boundaries.rustfs_sha256, 'rustfs_sha256'))) fail('rustfs_sha256 无效');
+}
+
+async function verifyF5(
+  assertions: Record<string, unknown>,
+  evidenceDirPath: string,
+  subjectCommit: string,
+): Promise<void> {
+  exactKeys(assertions, [
+    'run', 'jobs', 'artifacts', 'asset_digests', 'release_state', 'provenance',
+  ], 'f5.assertions');
+  exactKeys(assertions.run, [
+    'id', 'workflow_name', 'event', 'head_sha', 'conclusion', 'publish_release',
+    'created_at', 'completed_at',
+  ], 'f5.run');
+  if (integer(assertions.run.id, 'f5.run.id') < 1) fail('F5 run ID 无效');
+  enumValue(assertions.run.workflow_name, ['Build Release Artifacts'] as const, 'f5.run.workflow_name');
+  enumValue(assertions.run.event, ['workflow_dispatch'] as const, 'f5.run.event');
+  enumValue(assertions.run.conclusion, ['success'] as const, 'f5.run.conclusion');
+  if (string(assertions.run.head_sha, 'f5.run.head_sha') !== subjectCommit) {
+    fail('F5 run head_sha 与 evidence subject 不一致');
+  }
+  if (boolean(assertions.run.publish_release, 'f5.run.publish_release')) fail('F5 验收 run 不得发布');
+  for (const key of ['created_at', 'completed_at'] as const) {
+    const timestamp = string(assertions.run[key], `f5.run.${key}`);
+    if (!timestampPattern.test(timestamp) || Number.isNaN(Date.parse(timestamp))) fail(`f5.run.${key} 无效`);
+  }
+  if (Date.parse(String(assertions.run.completed_at)) < Date.parse(String(assertions.run.created_at))) {
+    fail('F5 run 完成时间早于创建时间');
+  }
+  if (!Array.isArray(assertions.jobs) || assertions.jobs.length < 8) fail('F5 jobs 覆盖不足');
+  const jobs = new Map<string, { conclusion: string; required: boolean }>();
+  assertions.jobs.forEach((value, index) => {
+    exactKeys(value, ['name', 'conclusion', 'required'], `f5.jobs[${index}]`);
+    const name = string(value.name, `f5.jobs[${index}].name`);
+    if (jobs.has(name)) fail(`F5 job 重复：${name}`);
+    jobs.set(name, {
+      conclusion: enumValue(value.conclusion, ['success', 'skipped'] as const, `f5.jobs[${index}].conclusion`),
+      required: boolean(value.required, `f5.jobs[${index}].required`),
+    });
+  });
+  const requiredJobs = [
+    'Validate release inputs', 'Supply-chain release gate', 'Build and attest H5 candidate',
+    'API test', 'Build Android app (Kotlin/Compose)', 'Build API x86_64', 'Build API arm64',
+  ];
+  for (const name of requiredJobs) {
+    const job = jobs.get(name);
+    if (!job || !job.required || job.conclusion !== 'success') fail(`F5 必需 job 未通过：${name}`);
+  }
+  const publish = jobs.get('Publish GitHub release');
+  if (!publish || publish.required || publish.conclusion !== 'skipped') fail('F5 Publish job 未正确跳过');
+  if (!Array.isArray(assertions.artifacts) || assertions.artifacts.length !== 5) fail('F5 artifact 数量无效');
+  assertions.artifacts.forEach((value, index) => {
+    exactKeys(value, ['name', 'digest', 'size_in_bytes'], `f5.artifacts[${index}]`);
+    string(value.name, `f5.artifacts[${index}].name`);
+    if (!/^sha256:[a-f0-9]{64}$/.test(string(value.digest, `f5.artifacts[${index}].digest`))) {
+      fail('F5 artifact digest 无效');
+    }
+    if (integer(value.size_in_bytes, `f5.artifacts[${index}].size_in_bytes`) < 1) fail('F5 artifact 为空');
+  });
+  const assetKeys = [
+    'h5_archive_sha256', 'android_apk_sha256', 'h5_manifest_sha256', 'wasm_sha256',
+  ] as const;
+  exactKeys(assertions.asset_digests, assetKeys, 'f5.asset_digests');
+  for (const key of assetKeys) {
+    if (!sha256Pattern.test(string(assertions.asset_digests[key], `f5.asset_digests.${key}`))) {
+      fail(`F5 asset digest 无效：${key}`);
+    }
+  }
+  exactKeys(assertions.release_state, [
+    'tags_before_sha256', 'tags_after_sha256', 'releases_before_sha256',
+    'releases_after_sha256', 'unchanged',
+  ], 'f5.release_state');
+  for (const key of ['tags_before_sha256', 'tags_after_sha256', 'releases_before_sha256', 'releases_after_sha256'] as const) {
+    if (!sha256Pattern.test(string(assertions.release_state[key], `f5.release_state.${key}`))) {
+      fail(`F5 release state digest 无效：${key}`);
+    }
+  }
+  if (!boolean(assertions.release_state.unchanged, 'f5.release_state.unchanged')
+    || assertions.release_state.tags_before_sha256 !== assertions.release_state.tags_after_sha256
+    || assertions.release_state.releases_before_sha256 !== assertions.release_state.releases_after_sha256) {
+    fail('F5 tag/Release 存在副作用');
+  }
+  exactKeys(assertions.provenance, [
+    'subject_name', 'subject_sha256', 'source_commit', 'predicate_type',
+    'bundle_file', 'bundle_sha256',
+  ], 'f5.provenance');
+  for (const key of ['subject_sha256', 'bundle_sha256'] as const) {
+    if (!sha256Pattern.test(string(assertions.provenance[key], `f5.provenance.${key}`))) {
+      fail(`F5 provenance ${key} 无效`);
+    }
+  }
+  enumValue(assertions.provenance.predicate_type, ['slsa-provenance-v1'] as const, 'f5.provenance.predicate_type');
+  const provenanceSourceCommit = string(assertions.provenance.source_commit, 'f5.provenance.source_commit');
+  if (provenanceSourceCommit !== subjectCommit) fail('F5 provenance source commit 与 evidence subject 不一致');
+  string(assertions.provenance.subject_name, 'f5.provenance.subject_name');
+  const bundleFile = string(assertions.provenance.bundle_file, 'f5.provenance.bundle_file');
+  if (bundleFile !== basename(bundleFile) || !bundleFile.endsWith('.jsonl')) fail('F5 bundle_file 无效');
+  const bundleBytes = await readFile(resolve(evidenceDirPath, bundleFile));
+  if (createHash('sha256').update(bundleBytes).digest('hex') !== assertions.provenance.bundle_sha256) {
+    fail('F5 SLSA bundle 摘要不匹配');
+  }
+  const lines = bundleBytes.toString('utf8').trim().split('\n');
+  if (lines.length !== 1) fail('F5 SLSA bundle 必须包含单条 statement');
+  const bundle = JSON.parse(lines[0]) as Record<string, any>;
+  const payload = JSON.parse(Buffer.from(string(bundle?.dsseEnvelope?.payload, 'f5.bundle.payload'), 'base64').toString('utf8'));
+  if (payload.predicateType !== 'https://slsa.dev/provenance/v1') fail('F5 SLSA predicate 不匹配');
+  if (payload.subject?.length !== 1
+    || payload.subject[0].name !== assertions.provenance.subject_name
+    || payload.subject[0].digest?.sha256 !== assertions.provenance.subject_sha256) {
+    fail('F5 SLSA subject 不匹配');
+  }
+  const sourceCommit = payload.predicate?.buildDefinition?.resolvedDependencies?.[0]?.digest?.gitCommit;
+  if (sourceCommit !== provenanceSourceCommit) fail('F5 SLSA source commit 不匹配');
 }
 
 function verifyG3(assertions: Record<string, unknown>): void {
@@ -183,10 +303,12 @@ for (const [type, name] of files) {
   if (sha256(envelope) !== integrity) fail(`${name} integrity 校验失败`);
   assertSensitiveValuesAbsent(envelope);
   verifyCommit(commit);
+  if (subjectCommitTime(root, commit) !== committedAt) fail(`${name} commit 时间与 Git 不一致`);
   exactKeys(evidence.assertions, (
     schema.evidence_types as Record<string, { assertion_keys: string[] }>
   )[type].assertion_keys, `${name}.assertions`);
   if (type === 'g1-backup-rollout') verifyG1(evidence.assertions);
-  else verifyG3(evidence.assertions);
+  else if (type === 'g3-h5-release') verifyG3(evidence.assertions);
+  else await verifyF5(evidence.assertions, evidenceDir, commit);
   console.log(`[e2ee-evidence] verified ${name} subject=${commit}`);
 }

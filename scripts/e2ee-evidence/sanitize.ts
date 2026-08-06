@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import {
   assertSensitiveValuesAbsent,
   boolean,
@@ -28,7 +29,9 @@ for (let index = 2; index < process.argv.length; index += 2) {
 const mode = args.get('type') as EvidenceType | undefined;
 const subjectCommit = args.get('subject-commit') ?? '';
 const output = resolve(args.get('output') ?? '');
-if (!mode || !['g1-backup-rollout', 'g3-h5-release'].includes(mode)) fail('缺少合法 --type');
+if (!mode || !['g1-backup-rollout', 'g3-h5-release', 'f5-release-workflow'].includes(mode)) {
+  fail('缺少合法 --type');
+}
 if (!args.get('output')) fail('缺少 --output');
 
 async function json(path: string): Promise<Record<string, unknown>> {
@@ -90,9 +93,12 @@ async function sanitizeG1(): Promise<Record<string, unknown>> {
   exactKeys(switched, ['identity', 'candidate_snapshot', 'restore_snapshot', 'snapshots_match'], 'switch');
   exactKeys(switched.identity, [
     'run_id', 'project', 'database_marker', 'api_container_id', 'api_url', 'database_host',
-    'redis_host', 'source_postgres_connections', 'source_redis_connections',
-    'source_network_reachable', 'runtime', 'verified',
+    'redis_host', 'isolation', 'runtime', 'verified',
   ], 'switch.identity');
+  exactKeys(switched.identity.isolation, [
+    'api_networks_exclude_source', 'database_url_points_restore', 'redis_urls_point_restore',
+    'storage_network_members_exact', 'ingress_network_members_exact',
+  ], 'switch.identity.isolation');
   exactKeys(live, ['run_id', 'scenarios'], 'live');
   if (!Array.isArray(live.scenarios)) fail('live.scenarios 必须是 array');
   const proofs = live.scenarios.flatMap((scenario, index) => {
@@ -134,18 +140,13 @@ async function sanitizeG1(): Promise<Record<string, unknown>> {
     restore_runtime: {
       verified: boolean(switched.identity.verified, 'identity.verified'),
       runtime: enumValue(switched.identity.runtime, ['persist/e2ee'] as const, 'identity.runtime'),
-      source_network_reachable: boolean(
-        switched.identity.source_network_reachable,
-        'identity.source_network_reachable',
-      ),
-      source_postgres_connections: integer(
-        switched.identity.source_postgres_connections,
-        'identity.source_postgres_connections',
-      ),
-      source_redis_connections: integer(
-        switched.identity.source_redis_connections,
-        'identity.source_redis_connections',
-      ),
+      isolation: {
+        api_networks_exclude_source: boolean(switched.identity.isolation.api_networks_exclude_source, 'identity.isolation.api_networks_exclude_source'),
+        database_url_points_restore: boolean(switched.identity.isolation.database_url_points_restore, 'identity.isolation.database_url_points_restore'),
+        redis_urls_point_restore: boolean(switched.identity.isolation.redis_urls_point_restore, 'identity.isolation.redis_urls_point_restore'),
+        storage_network_members_exact: boolean(switched.identity.isolation.storage_network_members_exact, 'identity.isolation.storage_network_members_exact'),
+        ingress_network_members_exact: boolean(switched.identity.isolation.ingress_network_members_exact, 'identity.isolation.ingress_network_members_exact'),
+      },
     },
     live: {
       scenario_count: live.scenarios.length,
@@ -168,6 +169,85 @@ async function sanitizeG1(): Promise<Record<string, unknown>> {
       push: enumValue(boundary.push, ['placeholder-only', 'not-observed-live'] as const, 'boundary.push'),
       rustfs_content: enumValue(boundary.rustfs.content, ['ciphertext-only'] as const, 'boundary.rustfs.content'),
       rustfs_sha256: rustfsSha,
+    },
+  };
+}
+
+async function sanitizeF5(): Promise<Record<string, unknown>> {
+  const workflowPath = args.get('workflow');
+  const bundlePath = args.get('bundle');
+  if (!workflowPath || !bundlePath) fail('F5 缺少 --workflow/--bundle');
+  const workflow = await json(workflowPath);
+  exactKeys(workflow, [
+    'schema', 'run_id', 'workflow_name', 'event', 'head_sha', 'conclusion',
+    'publish_release', 'created_at', 'completed_at', 'jobs', 'artifacts', 'asset_digests',
+    'release_state', 'provenance',
+  ], 'workflow');
+  if (workflow.schema !== 'redcode-f5-release-workflow-raw/v1') fail('F5 workflow schema 无效');
+  if (workflow.head_sha !== subjectCommit) fail('F5 head_sha 与 subject_commit 不一致');
+  if (!Array.isArray(workflow.jobs) || !Array.isArray(workflow.artifacts)) {
+    fail('F5 jobs/artifacts 必须是 array');
+  }
+  const jobs = workflow.jobs.map((value, index) => {
+    exactKeys(value, ['name', 'conclusion', 'required'], `workflow.jobs[${index}]`);
+    return {
+      name: string(value.name, `workflow.jobs[${index}].name`),
+      conclusion: enumValue(value.conclusion, ['success', 'skipped'] as const, `workflow.jobs[${index}].conclusion`),
+      required: boolean(value.required, `workflow.jobs[${index}].required`),
+    };
+  });
+  const artifacts = workflow.artifacts.map((value, index) => {
+    exactKeys(value, ['name', 'digest', 'size_in_bytes'], `workflow.artifacts[${index}]`);
+    const digest = string(value.digest, `workflow.artifacts[${index}].digest`);
+    if (!/^sha256:[a-f0-9]{64}$/.test(digest)) fail('F5 artifact digest 无效');
+    return {
+      name: string(value.name, `workflow.artifacts[${index}].name`),
+      digest,
+      size_in_bytes: integer(value.size_in_bytes, `workflow.artifacts[${index}].size_in_bytes`),
+    };
+  });
+  exactKeys(workflow.asset_digests, [
+    'h5_archive_sha256', 'android_apk_sha256', 'h5_manifest_sha256', 'wasm_sha256',
+  ], 'workflow.asset_digests');
+  exactKeys(workflow.release_state, [
+    'tags_before_sha256', 'tags_after_sha256', 'releases_before_sha256',
+    'releases_after_sha256', 'unchanged',
+  ], 'workflow.release_state');
+  exactKeys(workflow.provenance, [
+    'subject_name', 'subject_sha256', 'source_commit', 'predicate_type',
+  ], 'workflow.provenance');
+  const bundleBytes = await readFile(resolve(bundlePath));
+  const bundleSha256 = createHash('sha256').update(bundleBytes).digest('hex');
+  return {
+    run: {
+      id: integer(workflow.run_id, 'workflow.run_id'),
+      workflow_name: string(workflow.workflow_name, 'workflow.workflow_name'),
+      event: enumValue(workflow.event, ['workflow_dispatch'] as const, 'workflow.event'),
+      head_sha: string(workflow.head_sha, 'workflow.head_sha'),
+      conclusion: enumValue(workflow.conclusion, ['success'] as const, 'workflow.conclusion'),
+      publish_release: boolean(workflow.publish_release, 'workflow.publish_release'),
+      created_at: string(workflow.created_at, 'workflow.created_at'),
+      completed_at: string(workflow.completed_at, 'workflow.completed_at'),
+    },
+    jobs,
+    artifacts,
+    asset_digests: Object.fromEntries(Object.entries(workflow.asset_digests).map(([key, value]) => {
+      const digest = string(value, `workflow.asset_digests.${key}`);
+      if (!sha256Pattern.test(digest)) fail(`workflow.asset_digests.${key} 无效`);
+      return [key, digest];
+    })),
+    release_state: workflow.release_state,
+    provenance: {
+      subject_name: string(workflow.provenance.subject_name, 'workflow.provenance.subject_name'),
+      subject_sha256: string(workflow.provenance.subject_sha256, 'workflow.provenance.subject_sha256'),
+      source_commit: string(workflow.provenance.source_commit, 'workflow.provenance.source_commit'),
+      predicate_type: enumValue(
+        workflow.provenance.predicate_type,
+        ['https://slsa.dev/provenance/v1'] as const,
+        'workflow.provenance.predicate_type',
+      ) === 'https://slsa.dev/provenance/v1' ? 'slsa-provenance-v1' : fail('F5 predicate 无效'),
+      bundle_file: basename(bundlePath),
+      bundle_sha256: bundleSha256,
     },
   };
 }
@@ -229,7 +309,11 @@ async function sanitizeG3(): Promise<Record<string, unknown>> {
   };
 }
 
-const assertions = mode === 'g1-backup-rollout' ? await sanitizeG1() : await sanitizeG3();
+const assertions = mode === 'g1-backup-rollout'
+  ? await sanitizeG1()
+  : mode === 'g3-h5-release'
+    ? await sanitizeG3()
+    : await sanitizeF5();
 const envelope = {
   schema: evidenceSchema,
   evidence_type: mode,

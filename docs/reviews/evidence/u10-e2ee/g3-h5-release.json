@@ -5,7 +5,7 @@
   "subject_committed_at": "2026-08-06T08:40:32+08:00",
   "generator": {
     "name": "scripts/e2ee-evidence/sanitize.ts",
-    "version": 1
+    "version": 2
   },
   "assertions": {
     "release_attestation": {
@@ -38,5 +38,5 @@
       "missing_asset": "404"
     }
   },
-  "integrity_sha256": "0f28514917003a9ec44396ad823146d5fdba2eb5218c135ab1b78d4039319d3d"
+  "integrity_sha256": "d8f885a97d95f040ac8f18569d6b2d0ba2b8235c1de4d330637fe6046d66a593"
 }

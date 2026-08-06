@@ -28,6 +28,16 @@
         "production_path",
         "browser_boundaries"
       ]
+    },
+    "f5-release-workflow": {
+      "assertion_keys": [
+        "run",
+        "jobs",
+        "artifacts",
+        "asset_digests",
+        "release_state",
+        "provenance"
+      ]
     }
   },
   "sensitive_values_forbidden": [

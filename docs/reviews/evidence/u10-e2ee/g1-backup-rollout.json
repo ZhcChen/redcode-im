@@ -5,7 +5,7 @@
   "subject_committed_at": "2026-08-06T07:41:57+08:00",
   "generator": {
     "name": "scripts/e2ee-evidence/sanitize.ts",
-    "version": 1
+    "version": 2
   },
   "assertions": {
     "run_id": "e1fix20260806g",
@@ -37,9 +37,13 @@
     "restore_runtime": {
       "verified": true,
       "runtime": "persist/e2ee",
-      "source_network_reachable": false,
-      "source_postgres_connections": 0,
-      "source_redis_connections": 0
+      "isolation": {
+        "api_networks_exclude_source": true,
+        "database_url_points_restore": true,
+        "redis_urls_point_restore": true,
+        "storage_network_members_exact": true,
+        "ingress_network_members_exact": true
+      }
     },
     "live": {
       "scenario_count": 4,
@@ -68,5 +72,5 @@
       "rustfs_sha256": "98a5247b56dcf90bcc8acbb9f491f82a2974aa570e8d0e305813d37c1846d206"
     }
   },
-  "integrity_sha256": "076017d9233fa4a1e8d2fa4a4adcfe0523d695b553f84fb2eacccbf810fd9748"
+  "integrity_sha256": "5830534208b93cc6ea4e2899013e1d6a84e3e7f4e7c91afd2689f2f749dfcaf3"
 }

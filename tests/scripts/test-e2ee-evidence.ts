@@ -89,6 +89,28 @@ try {
   }, true);
   await run(['bun', verifier, unreachable], false, 'unreachable subject commit');
 
+  const wrongCommitTime = await copyEvidence('wrong-commit-time');
+  await rewrite(wrongCommitTime, 'g3-h5-release.json', (value) => {
+    value.subject_committed_at = '2026-01-01T00:00:00Z';
+  }, true);
+  await run(['bun', verifier, wrongCommitTime], false, 'resigned wrong commit time');
+
+  const failedRequiredJob = await copyEvidence('failed-required-job');
+  await rewrite(failedRequiredJob, 'f5-release-workflow.json', (value) => {
+    value.assertions.jobs.find((job: any) => job.name === 'API test').conclusion = 'skipped';
+  }, true);
+  await run(['bun', verifier, failedRequiredJob], false, 'resigned failed required job');
+
+  const releaseSideEffect = await copyEvidence('release-side-effect');
+  await rewrite(releaseSideEffect, 'f5-release-workflow.json', (value) => {
+    value.assertions.release_state.tags_after_sha256 = '0'.repeat(64);
+  }, true);
+  await run(['bun', verifier, releaseSideEffect], false, 'resigned release side effect');
+
+  const tamperedBundle = await copyEvidence('tampered-bundle');
+  await writeFile(resolve(tamperedBundle, 'f5-h5-slsa-bundle.jsonl'), '{}\n');
+  await run(['bun', verifier, tamperedBundle], false, 'SLSA bundle tamper');
+
   const missing = await copyEvidence('missing');
   await rm(resolve(missing, 'g1-backup-rollout.json'));
   await run(['bun', verifier, missing], false, 'missing evidence');
@@ -115,6 +137,9 @@ try {
   const committedG3 = JSON.parse(
     await readFile(resolve(committedEvidence, 'g3-h5-release.json'), 'utf8'),
   );
+  const committedF5 = JSON.parse(
+    await readFile(resolve(committedEvidence, 'f5-release-workflow.json'), 'utf8'),
+  );
   const snapshot = committedG1.assertions.snapshot.candidate;
   let proofSequence = 0;
   const proof = (kind = 'text') => {
@@ -134,8 +159,14 @@ try {
         run_id: 'fixture-run', project: 'fixture', database_marker: 'fixture',
         api_container_id: 'fixture', api_url: 'http://127.0.0.1:18010',
         database_host: 'postgres-restore', redis_host: 'redis-restore',
-        source_postgres_connections: 0, source_redis_connections: 0,
-        source_network_reachable: false, runtime: 'persist/e2ee', verified: true,
+        isolation: {
+          api_networks_exclude_source: true,
+          database_url_points_restore: true,
+          redis_urls_point_restore: true,
+          storage_network_members_exact: true,
+          ingress_network_members_exact: true,
+        },
+        runtime: 'persist/e2ee', verified: true,
       },
       candidate_snapshot: snapshot,
       restore_snapshot: snapshot,
@@ -197,6 +228,32 @@ try {
   };
   await writeFile(resolve(raw, 'browser.json'), `${JSON.stringify(rawBrowser)}\n`);
   await writeFile(resolve(raw, 'attestation.json'), `${JSON.stringify(rawAttestation)}\n`);
+  const rawF5 = {
+    schema: 'redcode-f5-release-workflow-raw/v1',
+    run_id: committedF5.assertions.run.id,
+    workflow_name: committedF5.assertions.run.workflow_name,
+    event: committedF5.assertions.run.event,
+    head_sha: committedF5.subject_commit,
+    conclusion: committedF5.assertions.run.conclusion,
+    publish_release: committedF5.assertions.run.publish_release,
+    created_at: committedF5.assertions.run.created_at,
+    completed_at: committedF5.assertions.run.completed_at,
+    jobs: committedF5.assertions.jobs,
+    artifacts: committedF5.assertions.artifacts,
+    asset_digests: committedF5.assertions.asset_digests,
+    release_state: committedF5.assertions.release_state,
+    provenance: {
+      subject_name: committedF5.assertions.provenance.subject_name,
+      subject_sha256: committedF5.assertions.provenance.subject_sha256,
+      source_commit: committedF5.assertions.provenance.source_commit,
+      predicate_type: 'https://slsa.dev/provenance/v1',
+    },
+  };
+  await writeFile(resolve(raw, 'workflow.json'), `${JSON.stringify(rawF5)}\n`);
+  await cp(
+    resolve(committedEvidence, 'f5-h5-slsa-bundle.jsonl'),
+    resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
+  );
 
   await run([
     'bun', sanitizer, '--type', 'g1-backup-rollout', '--subject-commit', head,
@@ -207,7 +264,32 @@ try {
     '--browser', resolve(raw, 'browser.json'), '--attestation', resolve(raw, 'attestation.json'),
     '--output', resolve(generated, 'g3-h5-release.json'),
   ], true, 'G3 generation');
+  await run([
+    'bun', sanitizer, '--type', 'f5-release-workflow',
+    '--subject-commit', committedF5.subject_commit,
+    '--workflow', resolve(raw, 'workflow.json'),
+    '--bundle', resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
+    '--output', resolve(generated, 'f5-release-workflow.json'),
+  ], true, 'F5 generation');
+  await cp(
+    resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
+    resolve(generated, 'f5-h5-slsa-bundle.jsonl'),
+  );
   await run(['bun', verifier, generated], true, 'generated evidence verification');
+
+  const invalidIsolation = JSON.parse(await readFile(resolve(raw, 'switch.json'), 'utf8'));
+  invalidIsolation.identity.isolation.api_networks_exclude_source = false;
+  await writeFile(resolve(raw, 'switch-invalid-isolation.json'), `${JSON.stringify(invalidIsolation)}\n`);
+  await writeFile(resolve(raw, 'switch.json'), `${JSON.stringify(invalidIsolation)}\n`);
+  await run([
+    'bun', sanitizer, '--type', 'g1-backup-rollout', '--subject-commit', head,
+    '--input-dir', raw, '--output', resolve(generated, 'invalid-isolation.json'),
+  ], true, 'G1 false isolation generation');
+  await cp(
+    resolve(generated, 'invalid-isolation.json'),
+    resolve(generated, 'g1-backup-rollout.json'),
+  );
+  await run(['bun', verifier, generated], false, 'G1 false isolation verification');
 
   const rawWithExtra = JSON.parse(await readFile(resolve(raw, 'browser.json'), 'utf8'));
   rawWithExtra.unreviewed = true;

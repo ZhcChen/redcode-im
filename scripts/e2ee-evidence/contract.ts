@@ -2,12 +2,12 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 export const evidenceSchema = 'redcode-u10-e2ee-evidence/v1';
-export const generator = { name: 'scripts/e2ee-evidence/sanitize.ts', version: 1 } as const;
+export const generator = { name: 'scripts/e2ee-evidence/sanitize.ts', version: 2 } as const;
 export const sha256Pattern = /^[a-f0-9]{64}$/;
 export const commitPattern = /^[a-f0-9]{40}$/;
 export const timestampPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
-export type EvidenceType = 'g1-backup-rollout' | 'g3-h5-release';
+export type EvidenceType = 'g1-backup-rollout' | 'g3-h5-release' | 'f5-release-workflow';
 
 export function fail(message: string): never {
   throw new Error(`[e2ee-evidence] ${message}`);

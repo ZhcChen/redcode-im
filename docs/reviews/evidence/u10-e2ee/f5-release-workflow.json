@@ -1,0 +1,113 @@
+{
+  "schema": "redcode-u10-e2ee-evidence/v1",
+  "evidence_type": "f5-release-workflow",
+  "subject_commit": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+  "subject_committed_at": "2026-08-06T10:27:49+08:00",
+  "generator": {
+    "name": "scripts/e2ee-evidence/sanitize.ts",
+    "version": 2
+  },
+  "assertions": {
+    "run": {
+      "id": 31065710816,
+      "workflow_name": "Build Release Artifacts",
+      "event": "workflow_dispatch",
+      "head_sha": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+      "conclusion": "success",
+      "publish_release": false,
+      "created_at": "2026-08-06T02:28:34Z",
+      "completed_at": "2026-08-06T03:06:10Z"
+    },
+    "jobs": [
+      {
+        "name": "Validate release inputs",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Supply-chain release gate",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Build and attest H5 candidate",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "API test",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Build Android app (Kotlin/Compose)",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Build API x86_64",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Build API arm64",
+        "conclusion": "success",
+        "required": true
+      },
+      {
+        "name": "Publish GitHub release",
+        "conclusion": "skipped",
+        "required": false
+      }
+    ],
+    "artifacts": [
+      {
+        "name": "api-linux-x86_64-release",
+        "digest": "sha256:05d5040b1fbb11981ba544586de1ede7ce05cd7fe837fd464350cb7530914788",
+        "size_in_bytes": 65662347
+      },
+      {
+        "name": "api-linux-arm64-release",
+        "digest": "sha256:81f9d2cd92fde657e43cb7332adadd9c4b9a57582e3197917e02e808ada11df7",
+        "size_in_bytes": 64118903
+      },
+      {
+        "name": "android-app-debug",
+        "digest": "sha256:72ff284c8aa651a8df2975a8c8661dbd1c4206c6c3d6a6a58ed71535de38cb6b",
+        "size_in_bytes": 16860823
+      },
+      {
+        "name": "h5-app-release",
+        "digest": "sha256:4ecf927ca5293982f2ace7f25d99ff59f5f22100d5d8138062c7eb80ebb90493",
+        "size_in_bytes": 1165063
+      },
+      {
+        "name": "supply-chain-release-eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+        "digest": "sha256:66f59950c8571d722ba3851713e2c60e42f6c65979bfc68f63265abccf057401",
+        "size_in_bytes": 76245
+      }
+    ],
+    "asset_digests": {
+      "h5_archive_sha256": "b2f12f8699fc772bc0520af9d512902886d9350d891051ee084cc5f558cfe833",
+      "android_apk_sha256": "67c94a44d2b0995731596c7f0543ccef8cf18cfdcff5f019626ec3e0ac5ff0d5",
+      "h5_manifest_sha256": "a2bb87ea706a54b38bb541ec0ec486b033d8156fcaf8d9cedd988f518b760d52",
+      "wasm_sha256": "5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c"
+    },
+    "release_state": {
+      "tags_before_sha256": "e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8",
+      "tags_after_sha256": "e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8",
+      "releases_before_sha256": "b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f",
+      "releases_after_sha256": "b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f",
+      "unchanged": true
+    },
+    "provenance": {
+      "subject_name": "redcode-im-h5-eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68.tar.gz",
+      "subject_sha256": "b2f12f8699fc772bc0520af9d512902886d9350d891051ee084cc5f558cfe833",
+      "source_commit": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+      "predicate_type": "slsa-provenance-v1",
+      "bundle_file": "f5-h5-slsa-bundle.jsonl",
+      "bundle_sha256": "a82048a6fe0eba1c87ad8773a58654c475ab93381a66983c736edb3c6796e8f4"
+    }
+  },
+  "integrity_sha256": "0575b76373c6745770a99773c3d05c541e39b82cc3af190b5401745928a4ce8c"
+}
