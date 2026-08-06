@@ -30,22 +30,11 @@
 
 - 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `F6.1-E`。E2 四个全新独立上下文已在 subject
-  `aa605931` 完成 correctness/security/reliability/testing 复核，均为
-  `P0=0、P1=0、P2=0`。E3 已由 subject `f6944a70`、真实 run
-  `e3prod20260806f` 和 production browser evidence 关闭；E4 持久脱敏 evidence 已由
-  commit `a383f788`、13 类负向测试和干净 detached worktree 复验关闭。当前冻结已
-  push 候选 HEAD 与 GitHub tag/Release 前态后，已以 `publish_release=false` 触发真实
-  `Build Release Artifacts` workflow run `31061331555`。该 run 暴露的 H5 repository
-  variables 与 Android Linux host cdylib 问题已由 `e652aaa1` 修复；后续 run
-  `31063363938` 暴露的 Rust 工具链和 APK artifact 路径问题已由 `2495a2df` 修复。
-  run `31063965919` 进一步暴露 Linux/macOS tracked WASM 差异；canonical Linux
-  x86_64 生成策略、路径映射和 clean-source 门禁已由 `caefedf5` 关闭。F5.4 run
-  `31065710816` 已完整成功，artifact/provenance 绑定 `eff9e9fd` 且零发布副作用；当前
-  执行 F6 四视角独立重审。首轮结果为 `P0=0/P1=9/P2=3`，当前候选失效并回退
-  F6.1 整改；其中 F6.1-A evidence、F6.1-B 发布入口/Android signing、F6.1-C
-  全资产 provenance/构建输入固定、F6.1-D Release 原子性/并发/清理已关闭，当前
-  执行门禁整合；生产 E2EE 继续 **No-Go**。
+- 当前立即任务：唯一 checkpoint 为 `F6.1-E`。F6.1-A 至 D 已分别由 commits
+  `65ad5fed`、`c0fe74ff`、`873bcf02`、`7a400a78` 完成并推送；F6.1-E 的门禁整合
+  仍是未提交工作，必须通过定向测试与 JDK21 `make test.all` 后才能提交并关闭。
+  首轮候选 `eff9e9fd` 已因 F6 独立复审的 `P0=0/P1=9/P2=3` 失效，不得进入 F7；
+  生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前下一阶段：严格按 `F6.1 复审整改 -> F5.4b 新候选 workflow -> F6.2 四视角

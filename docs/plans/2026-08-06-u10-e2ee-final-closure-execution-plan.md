@@ -83,6 +83,17 @@ U10 的协议、原生双端、H5、Admin gate、跨端 live 和持久证据主�
 | F6.2 四视角重审 | pending | 四个全新独立上下文均 `P0=0/P1=0` |
 | F7 干净基线重放与裁决 | pending | Verification Contract 全部通过并形成唯一最终 review |
 
+### 当前工作边界
+
+- **已提交并推送：** F6.1-A 至 F6.1-D，分别由 commits `65ad5fed`、
+  `c0fe74ff`、`873bcf02`、`7a400a78` 关闭；不得重复实现或修改其已验收契约，除非
+  F6.1-E 回归或后续独立复审发现直接关联的 P0/P1。
+- **当前未提交：** F6.1-E 的 WASM builder、H5 endpoint 和全量测试入口调整仍在
+  工作区中；在定向测试、JDK21 `make test.all`、diff 检查、提交和 push 全部完成前，
+  F6.1-E 保持 `in_progress`，不得记为完成证据。
+- **尚未开始：** F5.4b、F6.2、F7。三者不得并行或越级；F5.4b 只能使用 F6.1-E
+  推送后的干净 HEAD 生成新候选。
+
 ### Key Technical Decisions
 
 - KTD1. **保留 clean-source fail closed。** Linux 重建改变 tracked WASM 是供应链可复现性问题，不通过忽略 diff、降低检查或 `continue-on-error` 绕过。
@@ -142,36 +153,6 @@ flowchart TB
 - **Scope:** F6.1 全部整改 diff、F5.4b machine evidence、F1-F5 历史证据及当前源码；不得复用首轮 F6 的上下文结论代替新审查。
 - **Exit:** 四个视角分别为 `P0=0/P1=0`，统一 review 已提交并 push；否则回到最早受影响的 F6.1 batch，并使当前候选失效。
 
-### F5.3b Linux WASM 可复现性修复
-
-- **Goal:** 关闭 run `31063965919` 暴露的 Linux/macOS WASM tracked-source 差异，并用 contract test 锁定最终策略。
-- **Requirements:** R2、R4、R7。
-- **Files:** `.github/workflows/release-artifacts.yml`、`Makefile`、`e2ee-core/build-wasm.sh`、`h5-app/src/e2ee/core-wasm/`、`tests/scripts/test-supply-chain-workflows.ts`；最终文件集合以根因取证为准。
-- **Approach:** 先保存失败 job 的实际 diff/metadata 和完整 run 结果，再判断差异来自 `wasm-pack`、`wasm-bindgen`、`wasm-opt`、生成元数据或平台相关字节。选择可在 Linux runner 与开发机构建中稳定复现的单一产物策略，并让 workflow 明确执行该策略。
-- **Test Scenarios:** Linux 重建后 tracked source 无 diff；错误 Rust/wasm-pack 版本 fail closed；缺失 WASM 或 manifest fail closed；构建结果仍绑定候选 SHA；Android/API 若有新失败则同 checkpoint 归因。
-- **Verification:** `make supply-chain.workflow.test`、`make h5-app.check h5-app.release.test`、干净 checkout 的 H5 candidate build；涉及 Android/API 时分别执行 JDK21 `make android-app.test`、`make api.test`。
-- **Exit:** run `31063965919` 的完整归因和零副作用已记录；回归门禁通过；最小修复 commit 已 push；`HEAD == origin/main` 且工作区干净。
-
-### F5.4 全新候选 Release workflow
-
-- **Goal:** 在 F5.3b 后的新 HEAD 上证明 Release 依赖、产物和 provenance 契约真实成立。
-- **Requirements:** R1-R4、R7。
-- **Files:** `.github/workflows/release-artifacts.yml`、`docs/reviews/` 下新增的 Release CI 验收记录和脱敏 evidence。
-- **Approach:** 冻结候选 HEAD 与 tag/Release 前态，以 `publish_release=false` 触发全新 run；成功后将 workflow subject 固定为 `implementation_candidate_sha`，并保存 jobs、artifacts、attestations、manifest 和前后集合摘要。
-- **Test Scenarios:** 必需 jobs 全部成功；供应链 gate 不可绕过；H5/Android/API 产物存在；attestation subject 匹配；Publish 正确跳过；tag/Release 差集为空。
-- **Verification:** GitHub run conclusion、artifact/attestation 下载验证、tag/Release 前后 diff、`git diff --check`。
-- **Exit:** 新 run 为 success，持久 evidence 可离线验证，零发布副作用；`implementation_candidate_sha` 已记录，证据 commit 已 push 且不改变候选身份。
-
-### F6 最终四视角重审
-
-- **Goal:** 在 F5.4 冻结的 `implementation_candidate_sha` 上独立审查全部整改和发布证据。
-- **Requirements:** R5、R7。
-- **Files:** 当前候选 diff、F1-F5 reviews/evidence、`docs/reviews/` 下新增最终复核记录。
-- **Approach:** correctness、security、reliability、testing 使用四个独立上下文；每个 finding 记录严重级别、文件/证据和最早回退单元，不合并上下文或降级隐藏。
-- **Test Scenarios:** R1-R7 可追溯；证据 subject 一致；失败清理有效；旧主仍 plaintext；任一 P0/P1 阻断 F7。
-- **Verification:** 四份独立结果及统一汇总；review 明确记录 `implementation_candidate_sha` 和自身 evidence commit。
-- **Exit:** 四视角均 `P0=0/P1=0`，review commit 已 push；否则回到最早受影响单元。
-
 ### F7 干净基线重放与最终裁决
 
 - **Goal:** 从干净 checkout 完成全量、本地 live、远端只读终验和唯一 Go/No-Go 记录。
@@ -230,12 +211,13 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | F6 |
+| Active unit | F6.1 |
 | Active checkpoint | F6.1-E 门禁整合 |
 | F6.1-A | complete；G1 isolation 五项契约、F5 machine evidence/SLSA bundle、Git commit 时间校验与执行型负例均通过 |
 | F6.1-B | complete；正式发布仅限 main 且 tag 预存在并绑定候选；Android unsigned/signed release 双路径与四 secrets fail-closed 已验证 |
 | F6.1-C | complete；H5/Android/API provenance 全覆盖；API 双 base image digest、Rust 1.94.0 与 Cargo `--locked` 已固定，pinned image 实际构建通过 |
 | F6.1-D | complete；Release create-only、release tag concurrency、H5 原子 owner lock 与 API container trap cleanup 的执行型正负测试通过 |
+| F6.1-E | in_progress；实现文件尚未提交，完成条件是定向测试、JDK21 `make test.all`、commit 和 push 全部通过 |
 | Previous candidate | `eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68`；F6 首轮 fail，已失效 |
 | F6 review | `docs/reviews/2026-08-06-u10-e2ee-f6-independent-review.md`；去重后 `P0=0/P1=9/P2=3` |
 | F5.3b implementation | `caefedf5dc9f346b7253574020ff04773bba892f`，已 push；canonical Linux WASM SHA-256 `5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c` |
