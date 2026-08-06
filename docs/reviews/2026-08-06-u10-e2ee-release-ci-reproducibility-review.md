@@ -4,15 +4,15 @@
 
 对应计划：`docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md`
 
-验收单元：F5.2、F5.3a、F5.3b
+验收单元：F5.2、F5.3a、F5.3b、F5.4
 
 实现修复：`e652aaa1`、`2495a2df`、`caefedf5`
 
 ## 结论
 
-F5.2、F5.3a、F5.3b 已关闭。三次真实 Release workflow 暴露的 repository variables、Android host cdylib、Rust 工具链、artifact workspace 路径和 H5 WASM 生成环境问题，均已形成确定性归因与本地回归门禁。
+F5.2、F5.3a、F5.3b、F5.4 已关闭。三次失败候选暴露的 repository variables、Android host cdylib、Rust 工具链、artifact workspace 路径和 H5 WASM 生成环境问题，均已形成确定性归因与本地回归门禁；第四次全新候选 workflow 已完整成功。
 
-生产 E2EE 仍为 **No-Go**。本验收只允许进入 F5.4 全新候选 workflow，不代表 Release、F6 或 F7 已通过。
+生产 E2EE 仍为 **No-Go**。本验收只允许进入 F6 最终四视角重审，不代表 F6 或 F7 已通过。
 
 ## Workflow 证据
 
@@ -21,6 +21,7 @@ F5.2、F5.3a、F5.3b 已关闭。三次真实 Release workflow 暴露的 reposit
 | `31061331555` | `32d065af1b5114a8bd61115df09574da7b8519f0` | failure | H5 repository variables 缺失；Android Linux host cdylib 缺失；API 与供应链通过 |
 | `31063363938` | `615888f1f26d1f20c3bb3d4908cc24af8ea4a3f5` | cancelled | H5 Rust 未固定导致 tracked WASM 改变；Android artifact workspace 路径错误 |
 | `31063965919` | `2495a2dfbdba75d3cf85972f954026c99cac5c1d` | cancelled | H5 pinned Rust/wasm-pack 成功，但 Linux 重建仍改变 tracked WASM；Android、API tests、API arm64 成功；API x86_64 在已确定 H5 失败后取消 |
+| `31065710816` | `eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68` | success | 供应链、H5、Android、API tests、API arm64/x86_64 全部成功；Publish 正确跳过 |
 
 run `31063965919` 中 H5 package、attestation 和 upload 在 clean-source gate 失败后正确跳过；Publish job 未执行发布动作。该 run 于 H5 根因和其余关键 job 结论明确后手工取消，避免继续占用 concurrency group。
 
@@ -62,6 +63,21 @@ canonical optimized WASM 大小为 1,551,016 bytes，保留 `wasm-opt` 后的 re
 
 未新增或修改 tag/Release。`im-test-1` 旧主未被停止、升级或写入，继续保持 `persist/plaintext`。
 
+## F5.4 Artifact 与 provenance
+
+run `31065710816` 产生 5 个非过期 artifacts：supply-chain evidence、H5 candidate、Android debug APK、API arm64 release 和 API x86_64 release。
+
+- H5 archive SHA-256：`b2f12f8699fc772bc0520af9d512902886d9350d891051ee084cc5f558cfe833`
+- Android APK SHA-256：`67c94a44d2b0995731596c7f0543ccef8cf18cfdcff5f019626ec3e0ac5ff0d5`
+- H5 release manifest SHA-256：`a2bb87ea706a54b38bb541ec0ec486b033d8156fcaf8d9cedd988f518b760d52`
+- H5 manifest：`source_commit=eff9e9fd...`，API `https://im-test-1.codelib.cc`，WS `wss://im-test-1.codelib.cc/ws`，11 个 assets
+- H5 WASM asset SHA-256：`5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c`
+- SLSA predicate：`https://slsa.dev/provenance/v1`
+- SLSA subject：archive 名称与 SHA-256 完全匹配
+- SLSA source git commit：`eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68`
+
+`implementation_candidate_sha` 冻结为 `eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68`。后续纯 review/evidence commit 不改变该候选；若 F6/F7 引入实现、依赖、构建或测试门禁变更，则候选失效并回退 F5.4。
+
 ## 下一步
 
-从已 push 且工作区干净的新 HEAD 冻结 tag/Release 前态，以 `publish_release=false` 触发 F5.4 全新 workflow。只有该 run 全部必需 jobs、artifact、attestation、subject 绑定和零副作用通过后，才冻结 `implementation_candidate_sha` 并进入 F6。
+在 `implementation_candidate_sha=eff9e9fd...` 上使用 correctness、security、reliability、testing 四个独立上下文执行 F6。四个视角全部 `P0=0/P1=0` 后才允许进入 F7。
