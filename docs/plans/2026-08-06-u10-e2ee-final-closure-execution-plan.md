@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: F6
-current_checkpoint: F6.1-E
+current_unit: F6.2
+current_checkpoint: F6.2-independent-review
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
 ## Goal Capsule
 
 - **目标：** 在不重做已验收实现的前提下，关闭真实 Release CI 差异，完成同一候选上的独立复审、干净基线重放和最终 Go/No-Go 裁决。
-- **唯一恢复点：** `F6.1-E`。F6.1-A 至 D 已关闭，当前执行门禁整合与剩余执行型负向测试。
+- **唯一恢复点：** `F6.2-independent-review`。F6.1 与 F5.4b 已关闭，当前在新候选上执行四视角独立重审。
 - **固定顺序：** `F6.1 -> F5.4b -> F6.2 -> F7`。实现、依赖、构建或测试门禁变化后原候选失效，必须重跑 Release workflow 与独立复审。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**。
 - **环境红线：** `im-test-1` 旧主保持 `persist/plaintext`；禁止停止、升级或写入旧主数据库。
@@ -78,9 +78,9 @@ U10 的协议、原生双端、H5、Admin gate、跨端 live 和持久证据主�
 | F5.3b Linux WASM 可复现性修复 | complete | run `31063965919` 完整取证；canonical Linux SHA 稳定；修复 `caefedf5` 已 push |
 | F5.4 全新候选 Release workflow | complete | run `31065710816` success；artifact/provenance 绑定 `eff9e9fd`；tag/Release 零副作用 |
 | F6 首轮四视角重审 | complete/fail | `eff9e9fd` 上 `P0=0/P1=9/P2=3`，不得进入 F7 |
-| F6.1 复审整改 | in_progress | 9 个 P1 与同路径 3 个 P2 均关闭，定向回归通过并 push |
-| F5.4b 新候选 workflow | pending | 新实现候选全部 jobs、provenance、machine evidence 与零副作用通过 |
-| F6.2 四视角重审 | pending | 四个全新独立上下文均 `P0=0/P1=0` |
+| F6.1 复审整改 | complete | A-E 全部关闭；最终实现 commit `1bedf20a` 已 push，JDK21 `make test.all` 通过 |
+| F5.4b 新候选 workflow | complete | run `31071229063` success；三类 provenance、machine evidence 与零副作用通过 |
+| F6.2 四视角重审 | in_progress | 四个全新独立上下文均 `P0=0/P1=0` |
 | F7 干净基线重放与裁决 | pending | Verification Contract 全部通过并形成唯一最终 review |
 
 ### 当前工作边界
@@ -88,11 +88,12 @@ U10 的协议、原生双端、H5、Admin gate、跨端 live 和持久证据主�
 - **已提交并推送：** F6.1-A 至 F6.1-D，分别由 commits `65ad5fed`、
   `c0fe74ff`、`873bcf02`、`7a400a78` 关闭；不得重复实现或修改其已验收契约，除非
   F6.1-E 回归或后续独立复审发现直接关联的 P0/P1。
-- **当前未提交：** F6.1-E 的 WASM builder、H5 endpoint 和全量测试入口调整仍在
-  工作区中；在定向测试、JDK21 `make test.all`、diff 检查、提交和 push 全部完成前，
-  F6.1-E 保持 `in_progress`，不得记为完成证据。
-- **尚未开始：** F5.4b、F6.2、F7。三者不得并行或越级；F5.4b 只能使用 F6.1-E
-  推送后的干净 HEAD 生成新候选。
+- **已提交并推送：** F6.1-E 由 commit `1bedf20a` 关闭；WASM builder、H5
+  endpoint 和 candidate cleanup 均已纳入 `make test.all`，最终全量返回 0。
+- **当前候选：** `1bedf20a8225257f7c01edac2bd02aee920dea16`；F5.4b run
+  `31071229063` 全部必需 jobs 成功，Publish skipped，tag/Release 零副作用。
+- **当前执行：** 只允许进入 F6.2。F7 尚未开始，不得在四视角 `P0/P1` 清零前
+  执行最终重放或给出 Go 裁决。
 
 ### Key Technical Decisions
 
@@ -136,7 +137,7 @@ flowchart TB
 | F6.1-B 发布入口与 Android signing | P1-04、P1-05 | 正式发布仅允许 `main`；tag 必须预存在并指向候选；验收使用 unsigned release candidate；正式发布缺少四项 signing secrets 时 fail closed | workflow contract 执行型正负例；JDK21 Android release 构建与测试 | complete |
 | F6.1-C 全资产 provenance 与输入固定 | P1-06 | H5、Android、API 资产均绑定候选 provenance；API base image 固定 digest；最终 Cargo build 使用 `--locked` | `make supply-chain.workflow.test supply-chain.check supply-chain.test` 与 provenance 负例 | complete |
 | F6.1-D Release 原子性、并发与清理 | P1-07、P1-08、P1-09、P2-02 | Release immutable create-only；concurrency 绑定 `release_tag`；H5 使用远端原子 lock 与 owner token；API 导出 trap 清理 container | 已有 Release、并发 tag、锁冲突、非 owner cleanup、`docker cp` 失败执行型测试 | complete |
-| F6.1-E 门禁整合 | P1-03、P2-03 | 将 WASM platform/version、H5 endpoint 和 candidate cleanup 从源码正则升级为执行型 fail-closed 测试，并纳入 `make test.all` | 专项测试、`make test.all`，确认错误分支真实执行且返回非零 | in_progress |
+| F6.1-E 门禁整合 | P1-03、P2-03 | 将 WASM platform/version、H5 endpoint 和 candidate cleanup 从源码正则升级为执行型 fail-closed 测试，并纳入 `make test.all` | 专项测试、`make test.all`，确认错误分支真实执行且返回非零 | complete |
 
 - **Exit:** 12 个 finding 均有代码、测试或持久证据闭环；五组定向回归通过；最后一个整改 commit 已 push；随后进入 F5.4b，不直接进入 F6.2 或 F7。
 
@@ -211,13 +212,15 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | F6.1 |
-| Active checkpoint | F6.1-E 门禁整合 |
+| Active unit | F6.2 |
+| Active checkpoint | F6.2 四视角独立重审 |
 | F6.1-A | complete；G1 isolation 五项契约、F5 machine evidence/SLSA bundle、Git commit 时间校验与执行型负例均通过 |
 | F6.1-B | complete；正式发布仅限 main 且 tag 预存在并绑定候选；Android unsigned/signed release 双路径与四 secrets fail-closed 已验证 |
 | F6.1-C | complete；H5/Android/API provenance 全覆盖；API 双 base image digest、Rust 1.94.0 与 Cargo `--locked` 已固定，pinned image 实际构建通过 |
 | F6.1-D | complete；Release create-only、release tag concurrency、H5 原子 owner lock 与 API container trap cleanup 的执行型正负测试通过 |
-| F6.1-E | in_progress；实现文件尚未提交，完成条件是定向测试、JDK21 `make test.all`、commit 和 push 全部通过 |
+| F6.1-E | complete；commit `1bedf20a` 已 push；定向门禁、独立审查、`make tests.tooling` 与 JDK21 `make test.all` 通过 |
+| F5.4b run | `31071229063`，success；候选 `1bedf20a`；五个 artifacts；H5/Android/API provenance 通过；Publish skipped |
+| Current candidate | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
 | Previous candidate | `eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68`；F6 首轮 fail，已失效 |
 | F6 review | `docs/reviews/2026-08-06-u10-e2ee-f6-independent-review.md`；去重后 `P0=0/P1=9/P2=3` |
 | F5.3b implementation | `caefedf5dc9f346b7253574020ff04773bba892f`，已 push；canonical Linux WASM SHA-256 `5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c` |
@@ -228,7 +231,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | F5.4 run | `31065710816`，success；五个 artifacts；H5 SLSA provenance 与 source commit 均绑定 `eff9e9fd` |
 | Frozen before-state | tags SHA-256 `e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8`；Releases SHA-256 `b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f` |
 | Old primary | `persist/plaintext`，禁止停止、升级或写入 |
-| Immediate action | 执行 F6.1-E：WASM/endpoint/candidate cleanup 执行型负例并纳入 `make test.all` |
+| Immediate action | 在候选 `1bedf20a` 上启动 correctness/security/reliability/testing 四个全新独立上下文 |
 
 ### 历史计划定位
 

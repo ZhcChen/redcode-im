@@ -1,22 +1,22 @@
 {
   "schema": "redcode-u10-e2ee-evidence/v1",
   "evidence_type": "f5-release-workflow",
-  "subject_commit": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
-  "subject_committed_at": "2026-08-06T10:27:49+08:00",
+  "subject_commit": "1bedf20a8225257f7c01edac2bd02aee920dea16",
+  "subject_committed_at": "2026-08-06T12:24:40+08:00",
   "generator": {
     "name": "scripts/e2ee-evidence/sanitize.ts",
     "version": 2
   },
   "assertions": {
     "run": {
-      "id": 31065710816,
+      "id": 31071229063,
       "workflow_name": "Build Release Artifacts",
       "event": "workflow_dispatch",
-      "head_sha": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+      "head_sha": "1bedf20a8225257f7c01edac2bd02aee920dea16",
       "conclusion": "success",
       "publish_release": false,
-      "created_at": "2026-08-06T02:28:34Z",
-      "completed_at": "2026-08-06T03:06:10Z"
+      "created_at": "2026-08-06T04:25:56Z",
+      "completed_at": "2026-08-06T05:03:50Z"
     },
     "jobs": [
       {
@@ -30,7 +30,7 @@
         "required": true
       },
       {
-        "name": "Build and attest H5 candidate",
+        "name": "Build Android app (Kotlin/Compose)",
         "conclusion": "success",
         "required": true
       },
@@ -40,7 +40,7 @@
         "required": true
       },
       {
-        "name": "Build Android app (Kotlin/Compose)",
+        "name": "Build and attest H5 candidate",
         "conclusion": "success",
         "required": true
       },
@@ -63,51 +63,51 @@
     "artifacts": [
       {
         "name": "api-linux-x86_64-release",
-        "digest": "sha256:05d5040b1fbb11981ba544586de1ede7ce05cd7fe837fd464350cb7530914788",
-        "size_in_bytes": 65662347
+        "digest": "sha256:d0323b0811850c8f1d1395510a4c8f785e8b0130a5653ed7664ac1791c096af8",
+        "size_in_bytes": 65068833
       },
       {
         "name": "api-linux-arm64-release",
-        "digest": "sha256:81f9d2cd92fde657e43cb7332adadd9c4b9a57582e3197917e02e808ada11df7",
-        "size_in_bytes": 64118903
+        "digest": "sha256:c78253d1373922b7e7b76044b1586e1e65a5a0a0a77d044442004bd18f85cb88",
+        "size_in_bytes": 63255755
       },
       {
-        "name": "android-app-debug",
-        "digest": "sha256:72ff284c8aa651a8df2975a8c8661dbd1c4206c6c3d6a6a58ed71535de38cb6b",
-        "size_in_bytes": 16860823
+        "name": "android-app-release",
+        "digest": "sha256:62cc36dd5f705793d1c685e6469bc1257deb69c056fb6202b12d7e731ad3e37c",
+        "size_in_bytes": 12084884
       },
       {
         "name": "h5-app-release",
-        "digest": "sha256:4ecf927ca5293982f2ace7f25d99ff59f5f22100d5d8138062c7eb80ebb90493",
-        "size_in_bytes": 1165063
+        "digest": "sha256:2dff0630cbae515e23c1802f6c55702556289f32bba8a369b2bdb7ea4f42e096",
+        "size_in_bytes": 1165022
       },
       {
-        "name": "supply-chain-release-eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
-        "digest": "sha256:66f59950c8571d722ba3851713e2c60e42f6c65979bfc68f63265abccf057401",
-        "size_in_bytes": 76245
+        "name": "supply-chain-release-1bedf20a8225257f7c01edac2bd02aee920dea16",
+        "digest": "sha256:287fc65b2c6446e0316ba442208e57db8abae63b84c156fbda4ae0a6e52f5eb6",
+        "size_in_bytes": 76230
       }
     ],
     "asset_digests": {
-      "h5_archive_sha256": "b2f12f8699fc772bc0520af9d512902886d9350d891051ee084cc5f558cfe833",
-      "android_apk_sha256": "67c94a44d2b0995731596c7f0543ccef8cf18cfdcff5f019626ec3e0ac5ff0d5",
-      "h5_manifest_sha256": "a2bb87ea706a54b38bb541ec0ec486b033d8156fcaf8d9cedd988f518b760d52",
+      "h5_archive_sha256": "144112ea5484e4cf796739e0c592f2c32e5e69e021648e70f445b496527d80b4",
+      "android_apk_sha256": "99574af70abc49d677fe564f6ab02b94c7f096a3710d8865569612bdee8ec235",
+      "h5_manifest_sha256": "76387863c12927fc173754ad1cbe3d07897a8ea3da6a3bee988dcb7a719de173",
       "wasm_sha256": "5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c"
     },
     "release_state": {
-      "tags_before_sha256": "e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8",
-      "tags_after_sha256": "e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8",
-      "releases_before_sha256": "b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f",
-      "releases_after_sha256": "b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f",
+      "tags_before_sha256": "fc43c088c63e8b1cb9a286604f49c8ac5cf2f81e5014dd6b56d169786458a473",
+      "tags_after_sha256": "fc43c088c63e8b1cb9a286604f49c8ac5cf2f81e5014dd6b56d169786458a473",
+      "releases_before_sha256": "e52aee07f3094e06619c9ed03e5a484802553b809a64cb693e10b6d51ea4d54c",
+      "releases_after_sha256": "e52aee07f3094e06619c9ed03e5a484802553b809a64cb693e10b6d51ea4d54c",
       "unchanged": true
     },
     "provenance": {
-      "subject_name": "redcode-im-h5-eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68.tar.gz",
-      "subject_sha256": "b2f12f8699fc772bc0520af9d512902886d9350d891051ee084cc5f558cfe833",
-      "source_commit": "eff9e9fd10e1fb7b2b7615571ab8f5f993f72a68",
+      "subject_name": "redcode-im-h5-1bedf20a8225257f7c01edac2bd02aee920dea16.tar.gz",
+      "subject_sha256": "144112ea5484e4cf796739e0c592f2c32e5e69e021648e70f445b496527d80b4",
+      "source_commit": "1bedf20a8225257f7c01edac2bd02aee920dea16",
       "predicate_type": "slsa-provenance-v1",
       "bundle_file": "f5-h5-slsa-bundle.jsonl",
-      "bundle_sha256": "a82048a6fe0eba1c87ad8773a58654c475ab93381a66983c736edb3c6796e8f4"
+      "bundle_sha256": "f720a5160e77bae78ce24050d40fb66291be2a3fea98c7932049fd64ef04b727"
     }
   },
-  "integrity_sha256": "0575b76373c6745770a99773c3d05c541e39b82cc3af190b5401745928a4ce8c"
+  "integrity_sha256": "eda54b017dff3ddb6b01e75d4ab4ee26f0e4b20d1a957895496ff8999054702b"
 }
