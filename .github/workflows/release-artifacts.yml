@@ -35,35 +35,18 @@ jobs:
     outputs:
       release_tag: ${{ steps.resolve.outputs.release_tag }}
     steps:
+      - name: Checkout release source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
       - name: Resolve release tag
         id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
           INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
-          PUBLISH_RELEASE: ${{ inputs.publish_release }}
-        run: |
-          set -euo pipefail
-
-          RELEASE_TAG=""
-          if [ "$EVENT_NAME" = "push" ]; then
-            RELEASE_TAG="$REF_NAME"
-          elif [ "$PUBLISH_RELEASE" = "true" ]; then
-            if [ -z "$INPUT_RELEASE_TAG" ]; then
-              echo "release_tag is required when publish_release=true" >&2
-              exit 1
-            fi
-            RELEASE_TAG="$INPUT_RELEASE_TAG"
-          elif [ -n "$INPUT_RELEASE_TAG" ]; then
-            RELEASE_TAG="$INPUT_RELEASE_TAG"
-          fi
-
-          if [ -n "$RELEASE_TAG" ] && [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Unsupported release tag: $RELEASE_TAG" >&2
-            exit 1
-          fi
-
-          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          PUBLISH_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release || false }}
+        run: scripts/release/validate-release-inputs.sh
 
   supply-chain-check:
     name: Supply-chain release gate
@@ -143,16 +126,54 @@ jobs:
         run: ./gradlew testDebugUnitTest
 
       - name: Run Android Lint
-        run: ./gradlew lintDebug
+        run: ./gradlew lintRelease
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug
+      - name: Build Android release candidate
+        env:
+          PUBLISH_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release || false }}
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          SIGNING_MODE="$($GITHUB_WORKSPACE/scripts/release/validate-android-signing.sh)"
+          OUT="$GITHUB_WORKSPACE/.artifacts/android"
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -mindepth 2 -maxdepth 2 -name apksigner -type f -print | sort -V | tail -1)"
+          test -n "$APKSIGNER" || { echo "Android SDK apksigner is required" >&2; exit 1; }
+          mkdir -p "$OUT"
 
-      - name: Upload Android debug APK
+          if [ "$SIGNING_MODE" = "signed" ]; then
+            KEYSTORE="$RUNNER_TEMP/redcode-im-release.keystore"
+            trap 'rm -f "$KEYSTORE"' EXIT
+            printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+            keytool -list -keystore "$KEYSTORE" \
+              -storepass:env ANDROID_SIGNING_STORE_PASSWORD \
+              -alias "$ANDROID_SIGNING_KEY_ALIAS" >/dev/null
+            ./gradlew assembleRelease \
+              -Predcode.signing.storeFile="$KEYSTORE" \
+              -Predcode.signing.storePassword="$ANDROID_SIGNING_STORE_PASSWORD" \
+              -Predcode.signing.keyAlias="$ANDROID_SIGNING_KEY_ALIAS" \
+              -Predcode.signing.keyPassword="$ANDROID_SIGNING_KEY_PASSWORD"
+            SOURCE="app/build/outputs/apk/release/app-release.apk"
+            "$APKSIGNER" verify "$SOURCE"
+          else
+            ./gradlew assembleRelease
+            SOURCE="app/build/outputs/apk/release/app-release-unsigned.apk"
+            if "$APKSIGNER" verify "$SOURCE" >/dev/null 2>&1; then
+              echo "验收 candidate 不得携带发布签名" >&2
+              exit 1
+            fi
+          fi
+
+          cp "$SOURCE" "$OUT/redcode-im-android-${GITHUB_SHA}.apk"
+
+      - name: Upload Android release candidate
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: android-app-debug
-          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          name: android-app-release
+          path: .artifacts/android/redcode-im-android-${{ github.sha }}.apk
           if-no-files-found: error
           include-hidden-files: true
 
@@ -526,7 +547,7 @@ jobs:
 
   publish-release:
     name: Publish GitHub release
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
     needs:
       - validate-release-inputs
       - supply-chain-check
@@ -546,7 +567,7 @@ jobs:
       - name: Download Android artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: android-app-debug
+          name: android-app-release
           path: .artifacts/downloaded
 
       - name: Download API artifacts
@@ -576,12 +597,14 @@ jobs:
       - name: Verify release tag source commit
         run: |
           set -euo pipefail
-          if git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null; then
-            TAG_COMMIT="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
-            if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
-              echo "Release tag ${RELEASE_TAG} points to ${TAG_COMMIT}, expected ${GITHUB_SHA}" >&2
-              exit 1
-            fi
+          git rev-parse --verify --quiet "refs/tags/${RELEASE_TAG}^{commit}" >/dev/null || {
+            echo "Release tag ${RELEASE_TAG} must already exist" >&2
+            exit 1
+          }
+          TAG_COMMIT="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          if [ "$TAG_COMMIT" != "$GITHUB_SHA" ]; then
+            echo "Release tag ${RELEASE_TAG} points to ${TAG_COMMIT}, expected ${GITHUB_SHA}" >&2
+            exit 1
           fi
 
       - name: Flatten release assets

@@ -51,12 +51,36 @@ android {
         }
     }
 
+    val releaseSigningProperties =
+        mapOf(
+            "storeFile" to providers.gradleProperty("redcode.signing.storeFile").orNull,
+            "storePassword" to providers.gradleProperty("redcode.signing.storePassword").orNull,
+            "keyAlias" to providers.gradleProperty("redcode.signing.keyAlias").orNull,
+            "keyPassword" to providers.gradleProperty("redcode.signing.keyPassword").orNull,
+        )
+    val configuredSigningProperties = releaseSigningProperties.filterValues { !it.isNullOrBlank() }
+    require(configuredSigningProperties.isEmpty() || configuredSigningProperties.size == releaseSigningProperties.size) {
+        "Android release signing properties must be either complete or absent"
+    }
+
+    signingConfigs {
+        if (configuredSigningProperties.isNotEmpty()) {
+            create("release") {
+                storeFile = file(releaseSigningProperties.getValue("storeFile")!!)
+                storePassword = releaseSigningProperties.getValue("storePassword")
+                keyAlias = releaseSigningProperties.getValue("keyAlias")
+                keyPassword = releaseSigningProperties.getValue("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             enableUnitTestCoverage = true
         }
         release {
             isMinifyEnabled = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "../..");
@@ -39,6 +40,19 @@ function stepByName(job: any, name: string): any {
   const step = job.steps?.find((candidate: any) => candidate.name === name);
   assert.ok(step, `missing workflow step: ${name}`);
   return step;
+}
+
+function run(
+  command: string[],
+  cwd: string,
+  env: Record<string, string> = {},
+): ReturnType<typeof Bun.spawnSync> {
+  return Bun.spawnSync(command, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
 }
 
 function validateGateJob(job: any, artifactRetention: number): void {
@@ -164,12 +178,24 @@ const publishSteps = release.jobs["publish-release"].steps;
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download Android artifact").with
     .name,
-  "android-app-debug",
+  "android-app-release",
 );
 assert.equal(
-  stepByName(androidJob, "Upload Android debug APK").with.path,
-  "android-app/app/build/outputs/apk/debug/app-debug.apk",
+  stepByName(androidJob, "Upload Android release candidate").with.path,
+  ".artifacts/android/redcode-im-android-${{ github.sha }}.apk",
 );
+const androidBuild = stepByName(androidJob, "Build Android release candidate");
+assert.match(androidBuild.run, /validate-android-signing\.sh/);
+assert.match(androidBuild.run, /assembleRelease/);
+assert.match(androidBuild.run, /app-release-unsigned\.apk/);
+assert.match(androidBuild.run, /ANDROID_HOME.*build-tools[\s\S]*APKSIGNER/);
+assert.match(androidBuild.run, /APKSIGNER.*verify/);
+for (const secret of [
+  "ANDROID_SIGNING_KEYSTORE_BASE64",
+  "ANDROID_SIGNING_STORE_PASSWORD",
+  "ANDROID_SIGNING_KEY_ALIAS",
+  "ANDROID_SIGNING_KEY_PASSWORD",
+]) assert.match(androidBuild.env[secret], new RegExp(`secrets\\.${secret}`));
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download API artifacts").with
     .pattern,
@@ -228,12 +254,21 @@ assert.equal(
   ".artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz",
 );
 assert.ok(needs(release.jobs["publish-release"]).includes("h5-app-build"));
+assert.equal(
+  release.jobs["publish-release"].if,
+  "github.event_name == 'workflow_dispatch' && inputs.publish_release == true",
+);
+assert.match(
+  stepByName(release.jobs["validate-release-inputs"], "Resolve release tag").run,
+  /validate-release-inputs\.sh/,
+);
 const tagVerification = stepByName(
   release.jobs["publish-release"],
   "Verify release tag source commit",
 ).run as string;
 assert.match(tagVerification, /refs\/tags\/\$\{RELEASE_TAG\}\^\{commit\}/);
 assert.match(tagVerification, /TAG_COMMIT.*GITHUB_SHA/s);
+assert.match(tagVerification, /must already exist/);
 assert.match(
   stepByName(release.jobs["publish-release"], "Create or update GitHub release")
     .run,
@@ -266,6 +301,68 @@ assert.throws(
   () => validateReleaseDependencies(bypassFixture),
   /api-build can bypass/,
 );
+
+const releaseInputScript = resolve(root, "scripts/release/validate-release-inputs.sh");
+const signingScript = resolve(root, "scripts/release/validate-android-signing.sh");
+const fixture = await mkdtemp(resolve(tmpdir(), "redcode-release-inputs."));
+try {
+  assert.equal(run(["git", "init", "-q"], fixture).exitCode, 0);
+  assert.equal(run(["git", "config", "user.email", "test@example.invalid"], fixture).exitCode, 0);
+  assert.equal(run(["git", "config", "user.name", "Release Test"], fixture).exitCode, 0);
+  await writeFile(resolve(fixture, "README"), "fixture\n");
+  assert.equal(run(["git", "add", "README"], fixture).exitCode, 0);
+  assert.equal(run(["git", "commit", "-qm", "fixture"], fixture).exitCode, 0);
+  const fixtureHead = run(["git", "rev-parse", "HEAD"], fixture).stdout.toString().trim();
+  assert.equal(run(["git", "tag", "v9.9.9-f6test"], fixture).exitCode, 0);
+  const baseEnv = {
+    EVENT_NAME: "workflow_dispatch",
+    GITHUB_REF: "refs/heads/main",
+    GITHUB_SHA: fixtureHead,
+    INPUT_RELEASE_TAG: "v9.9.9-f6test",
+    PUBLISH_RELEASE: "true",
+    GITHUB_OUTPUT: "",
+  };
+  assert.equal(run([releaseInputScript], fixture, baseEnv).exitCode, 0);
+  assert.notEqual(run([releaseInputScript], fixture, {
+    ...baseEnv,
+    GITHUB_REF: "refs/heads/feature",
+  }).exitCode, 0);
+  assert.notEqual(run([releaseInputScript], fixture, {
+    ...baseEnv,
+    INPUT_RELEASE_TAG: "v9.9.9-missing",
+  }).exitCode, 0);
+  await writeFile(resolve(fixture, "README"), "second\n");
+  assert.equal(run(["git", "commit", "-qam", "second"], fixture).exitCode, 0);
+  const secondHead = run(["git", "rev-parse", "HEAD"], fixture).stdout.toString().trim();
+  assert.notEqual(run([releaseInputScript], fixture, {
+    ...baseEnv,
+    GITHUB_SHA: secondHead,
+  }).exitCode, 0);
+  assert.notEqual(run([releaseInputScript], fixture, {
+    ...baseEnv,
+    PUBLISH_RELEASE: "false",
+  }).exitCode, 0);
+  assert.equal(run([releaseInputScript], fixture, {
+    EVENT_NAME: "push",
+    GITHUB_REF: "refs/tags/v9.9.9-f6test",
+    GITHUB_SHA: fixtureHead,
+    INPUT_RELEASE_TAG: "",
+    PUBLISH_RELEASE: "false",
+    GITHUB_OUTPUT: "",
+  }).exitCode, 0);
+
+  assert.equal(run([signingScript], fixture, { PUBLISH_RELEASE: "false" }).exitCode, 0);
+  assert.notEqual(run([signingScript], fixture, { PUBLISH_RELEASE: "true" }).exitCode, 0);
+  assert.equal(run([signingScript], fixture, {
+    PUBLISH_RELEASE: "true",
+    ANDROID_SIGNING_KEYSTORE_BASE64: "fixture",
+    ANDROID_SIGNING_STORE_PASSWORD: "fixture",
+    ANDROID_SIGNING_KEY_ALIAS: "fixture",
+    ANDROID_SIGNING_KEY_PASSWORD: "fixture",
+  }).exitCode, 0);
+} finally {
+  await rm(fixture, { recursive: true, force: true });
+}
 
 console.log(
   "[supply-chain-workflow-test] triggers, artifacts and release dependencies: pass",
