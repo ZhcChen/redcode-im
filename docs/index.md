@@ -13,7 +13,8 @@
 | [剩余任务完整执行分解](reports/remaining-task-breakdown-2026-07-05.md) | 历史执行总账：2026-07 口径，已被 08-04-005 / task-list 取代 |
 | [IM 2.0 正式开发总计划](plans/2026-08-02-001-feat-im-2-0-formal-development-plan.md) | 2.0 的产品合同、U1-U13 总体顺序与发布门禁（已 superseded，客户端主线见 08-04-005） |
 | [原生客户端重建执行计划](plans/2026-08-04-005-feat-native-client-rebuild-plan.md) | 当前客户端主线：android-app + ios-app 原生双端重建，弃用 Flutter app/ |
-| [E2EE F6.2 整改与最终裁决计划](plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md) | 当前 U10 唯一执行入口：关闭 5 个 P1、重建候选、独立复审与最终裁决 |
+| [E2EE 发布最终收口计划](plans/2026-08-06-u10-e2ee-release-final-closure-plan.md) | 当前 U10 唯一执行入口：关闭 owned draft 恢复 P1、重建候选、独立复审与最终裁决 |
+| [E2EE F6.2 整改与最终裁决计划](plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md) | 历史执行记录：已由发布最终收口计划取代 |
 | [E2EE 最终收口执行计划](plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md) | 历史执行记录：已由 F6.2 整改与最终裁决计划取代 |
 | [E2EE 剩余收口执行计划](plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md) | 历史执行记录：已由最终收口计划取代 |
 | [E2EE 原生客户端最终验证](plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md) | 已完成：三端场景矩阵、泄漏抽检与 P0-1 关闭证据 |

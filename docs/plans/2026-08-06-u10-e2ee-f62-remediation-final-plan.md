@@ -4,11 +4,12 @@ date: 2026-08-06
 type: security
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
-status: active
+status: superseded
 current_unit: R4
 current_checkpoint: R4-four-class-evidence-migrated-pending-final-regression
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
+superseded_by: docs/plans/2026-08-06-u10-e2ee-release-final-closure-plan.md
 ---
 
 # security: U10 E2EE F6.2 整改与最终裁决计划
