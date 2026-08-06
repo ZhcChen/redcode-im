@@ -5,8 +5,8 @@ type: security
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 status: active
-current_unit: R3
-current_checkpoint: R3-implementation-complete-pending-full-regression
+current_unit: R4
+current_checkpoint: R4-release-workflow-running
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 ---
@@ -27,10 +27,14 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 | --- | --- | --- |
 | N1-N7 / U1-U7 | complete | 原生双端、H5、API、Admin gate、附件与跨端 live 历史提交及 review |
 | F6.1 首轮整改 | complete | `1bedf20a`；JDK21 `make test.all` 返回 0 |
-| Release workflow | complete | run `31071229063`；必需 jobs 成功；Publish skipped；零发布副作用 |
+| R1 可靠性整改 | complete | `77ba25ce`、`9e75a89d`；Release 7 场景、H5 candidate 22 场景及 `make tests.tooling` 通过 |
+| R2 provenance 实现 | complete/pending-live-evidence | `9c02867b`；四类资产 sidecar、bundle 验签与 8 个正负场景已实现，待 R4 真实 bundles 闭环 |
+| R3 production environment | complete/limited | `e4128ee9`、`ee7f4853`；environment `production-release` 已绑定且 live policy 已持久化；单一 collaborator 无法实现双人职责分离 |
+| 全量回归 | complete | JDK21 `make test.all` 最终返回 `0` |
 | F6.2 独立重审 | complete/fail | `docs/reviews/2026-08-06-u10-e2ee-f62-independent-review.md` |
-| 当前候选 | invalid | `1bedf20a8225257f7c01edac2bd02aee920dea16`，不得进入 F7 |
-| 当前工作区 | in_progress | P1-04、P1-05 已实现并通过定向测试，尚未提交 |
+| 旧候选 | invalid | `1bedf20a8225257f7c01edac2bd02aee920dea16`，不得进入 F7 |
+| R4 新候选 | running | `ee7f48539304312c1bbddb309491c86a766b5f71`；workflow run `31075390148`；`publish_release=false` |
+| 候选冻结状态 | clean | 触发时 `HEAD == origin/main == ee7f4853`；后续纯计划/evidence 提交不改变实现候选，R4 期间不修改实现层 |
 
 历史设计和已关闭 finding 保留在旧计划与 `docs/reviews/` 中，但不再从那些文档恢复执行状态。
 
@@ -40,7 +44,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 | --- | --- | --- | --- |
 | F62-P1-01 | 持久 evidence 仅覆盖 H5 provenance | implemented/pending-live-evidence | H5、Android、API 两架构可从干净 checkout 离线重放 |
 | F62-P1-02 | verifier 未验证签名、证书身份和透明日志 | implemented/pending-live-evidence | 可信根密码学验签；错误签名、repo、workflow、source 均 fail closed |
-| F62-P1-03 | Android signing / Publish 未绑定受保护 environment | implemented/pending-full-regression | 绑定 `production-release`，并持久化 live policy 证据 |
+| F62-P1-03 | Android signing / Publish 未绑定受保护 environment | complete/limited | 已绑定 `production-release` 并持久化 live policy；单一 collaborator 的职责分离残余风险维持 No-Go |
 | F62-P1-04 | Release 部分上传失败留下半成品 | complete | draft 完整上传后 publish；仅清理本次 owned draft；测试和审查通过 |
 | F62-P1-05 | H5 lock 存在无 owner 窗口 | complete | owner lock 原子创建；非 owner/旧锁 fail closed；测试和审查通过 |
 
@@ -134,11 +138,14 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | R3 |
-| Active checkpoint | environment 实现和 live policy 已完成，待全量回归与提交 |
+| Active unit | R4 |
+| Active checkpoint | 新 Release workflow `31075390148` 正在运行，等待 API test 与 API 双架构构建；不得遗留 watch session |
 | Last review | F6.2 fail，`P0=0/P1=5/P2=0` |
 | Invalid candidate | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
-| Last workflow run | `31071229063`，success，Publish skipped |
-| Completed | P1-04 Release draft 原子发布；P1-05 H5 原子 owner lock |
-| Pending live closure | P1-01、P1-02 新 workflow bundles；P1-03 全量回归 |
+| Active candidate | `ee7f48539304312c1bbddb309491c86a766b5f71` |
+| Active workflow run | `31075390148`，`publish_release=false`；Android signing 与 Publish 必须 skipped |
+| Frozen pre-state | evidence `/tmp/redcode-r4.SPpE34`；tags SHA-256 `a24963f0...d616`；releases SHA-256 `c60351bc...4765` |
+| Completed | R1、R2 实现层、R3、JDK21 `make test.all`；提交均已 push 至 `origin/main` |
+| Pending live closure | R4 四类真实 bundles、离线验签、零发布副作用、四视角独立复审；随后 R5 干净基线与 live 验收 |
+| Earliest resume action | 继续等待 run `31075390148`；成功后采集 artifacts/bundles，失败则取证并回到最早受影响单元 |
 | Final verdict | No-Go |
