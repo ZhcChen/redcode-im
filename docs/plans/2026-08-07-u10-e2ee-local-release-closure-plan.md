@@ -6,8 +6,8 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 status: active
-current_unit: L1
-current_checkpoint: L1-disable-github-actions
+current_unit: L2
+current_checkpoint: L2-full-regression-and-local-evidence
 verdict: no-go
 supersedes: docs/plans/2026-08-07-u10-e2ee-release-closure-resume-plan.md
 ---
@@ -46,6 +46,7 @@ L4 干净基线/live/最终裁决`。
 | run `31115034686` | historical | 只证明旧候选，不作为本地新候选证据 |
 | run `31120768166` / `31121705433` | historical-infrastructure-failure | 禁止 rerun；本计划不再等待 Actions |
 | 历史四类 GitHub provenance | historical | 保留审计，不替代新候选的本地证据 |
+| L1 禁用 GitHub Actions | complete | `d570db7e`；远端两个 workflow 全文件注释，push 未触发 run |
 
 ## 4. Implementation Units
 
@@ -136,10 +137,10 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | L1 |
-| Active checkpoint | `L1-disable-github-actions` |
+| Active unit | L2 |
+| Active checkpoint | `L2-full-regression-and-local-evidence` |
 | Previous candidate | `6a1585ddb68b1947fc5d6e34c7df680c1b322fd2`，invalidated |
-| Candidate | 待 L1 提交后冻结 |
+| Candidate | `d570db7e747ade33e6923cd4220b531488a826a4` |
 | GitHub Actions | 全部注释，不再作为依赖 |
-| Earliest action | 完成 L1 本地门禁、提交并 push |
+| Earliest action | JDK21 执行 `make test.all`，随后构建本地候选与机器 evidence |
 | Final verdict | No-Go |

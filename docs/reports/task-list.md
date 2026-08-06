@@ -33,9 +33,10 @@
 
 - 当前主线：U10 禁用 GitHub Actions -> 本地候选与机器 evidence -> 四视角最终重审 -> 干净基线
   与 live 重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `L1-disable-github-actions`。两个 workflow 暂时全文件
-  注释，构建与验收改走本地入口；`6a1585dd` 因构建配置变化失效，L1 提交后重新冻结
-  candidate。历史失败 run 不 rerun，正式 tag/Release 保持不变。生产 E2EE 继续 **No-Go**。
+- 当前立即任务：唯一 checkpoint 为 `L2-full-regression-and-local-evidence`。L1 已在
+  `d570db7e` 完成：两个 workflow 在远端默认分支均为全文件注释，该 push 未触发 Actions
+  run；`d570db7e` 已冻结为本地新 candidate。下一步执行 JDK21 全量回归并构建本地机器
+  evidence。历史失败 run 不 rerun，正式 tag/Release 保持不变。生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前剩余顺序：严格按 `L1 禁用 Actions -> L2 本地候选与 evidence -> L3 四视角复审 ->
