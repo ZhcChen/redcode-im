@@ -15,8 +15,8 @@ production_verdict: no-go
 打开恢复实例真实性和证据完整性。E1（原 U4.3）经两轮 E2 复核退回后已完成
 E1.3 整改、真实重放、预审、提交与推送。随后 E2 已在 subject `aa605931` 上由
 correctness、security、reliability、testing 四个全新独立上下文复核通过，均为
-`P0=0、P1=0、P2=0`；恢复真实性门禁关闭。E3-E7 尚未完成，因此生产 E2EE
-仍为 **No-Go**。
+`P0=0、P1=0、P2=0`；恢复真实性门禁关闭。E3 production Chrome 审计与 E4 持久
+evidence 也已关闭，当前进入 E5；E5-E7 尚未完成，因此生产 E2EE 仍为 **No-Go**。
 
 所有演练均在 `im-test-1` 的独立候选 PostgreSQL/Redis/API 栈执行，只复用 RustFS
 网络和 bucket，未升级、清空或写入旧主库。生产 E2EE 仍为 **No-Go**。
@@ -175,5 +175,12 @@ run `g1c-9ee1285f`：H5 驱动的 Android × iOS × H5 完整 live 6/6 通过，
 
 ## 后续门禁
 
-进入 E2 restore 整改四视角全新独立复核。E2-E7 完成并给出最终裁决前，不得在生产
+E2 restore 独立复核与 E3 production Chrome 审计已完成。G1 的持久脱敏机器证据已
+提交至 `docs/reviews/evidence/u10-e2ee/g1-backup-rollout.json`：subject commit 为
+`d385c88b9c83b911acc2c6a7189ee6fa745f05dd`，evidence commit 为
+`a383f788ee310211c60b137d16a4d75858520785`，文件 SHA-256 为
+`3edd8d3244e0424a29f14baf2da4b6b467dcc7aeab9b0e28a33ad61879a6690e`。
+该文件可在干净 checkout 中通过 `make e2ee.evidence.verify` 离线验证。
+
+当前进入 E5 真实 release workflow 证明。E5-E7 完成并给出最终裁决前，不得在生产
 启用 E2EE。

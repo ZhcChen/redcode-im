@@ -8,8 +8,8 @@ product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
-current_unit: E4
-current_checkpoint: E4.1
+current_unit: E5
+current_checkpoint: E5.1
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E4.1`，定义 G1/G3 持久脱敏 evidence 的白名单 schema、subject commit 绑定和离线校验合同；原始报告继续只留在 `.artifacts/`。
+- **唯一恢复点：** `E5.1`，冻结已 push 的候选 HEAD、tag/Release 前态和 workflow 输入，手工触发 `Build Release Artifacts` 且 `publish_release=false`。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -90,7 +90,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
   commit、push 且 `HEAD == origin/main` 后，才能更新到下一个 checkpoint。
 - review 文档记录事实，`docs/reports/task-list.md` 只做项目级索引；二者不得反向
   覆盖本文状态。
-- 当前恢复命令：先执行 `git status --short`，确认无未解释改动，再从 `E4.1`
+- 当前恢复命令：先执行 `git status --short`，确认无未解释改动，再从 `E5.1`
   开始；禁止重做 E1/E2。
 
 ### Execution Console
@@ -105,8 +105,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.3 第二轮 finding 整改 | complete | `d385c88b` 已验证并 push；run `e1fix20260806g` 与环境终验通过 |
 | E2 Restore 独立复核 | complete | subject `aa605931`；correctness/security/reliability/testing 均 P0/P1/P2=0 |
 | E3 H5 production Chrome 审计 | complete | subject `f6944a70`；run `e3prod20260806f`、browser evidence 与环境终验通过 |
-| E4 持久脱敏证据 | in_progress | E4.1 定义白名单 schema、commit/摘要绑定、敏感扫描和干净 checkout 离线验证合同 |
-| E5 真实 release workflow | pending | E4 通过后开始 |
+| E4 持久脱敏证据 | complete | evidence commit `a383f788`；两份证据、13 类负向测试和干净 detached worktree 离线复验通过 |
+| E5 真实 release workflow | in_progress | E5.1 冻结候选 HEAD 与 GitHub 前态，使用 `publish_release=false` 触发真实 workflow |
 | E6 最终四视角重审 | pending | E5 通过后开始 |
 | E7 全量重放与最终裁决 | pending | E6 为 P0=0、P1=0 后开始 |
 
@@ -270,7 +270,7 @@ flowchart TB
 | --- | --- | --- |
 | E3.1 production 路径与审计合同 | complete | `596a9b0a`、`f5ab4bbe`、`3faccae6` 已推送；H5 `48 passed / 4 skipped`、`266 passed / 13 skipped`，release security 21 场景、browser audit 20 个 mutation、cleanup 17 场景、restore control 13 场景、restore live 8 场景、isolated guard 3 场景、Chrome SIGTERM 退出 143，`vue-tsc --noEmit` 与 Bash syntax 通过；两路独立预审均为 `P0=0/P1=0/P2=0` |
 | E3.2 隔离 runtime 与真实 Chrome run | complete | `1306da0c`、`e6711f3a`、`ea03a917`、`f6944a70` 已推送；run `e3prod20260806f` 完整通过 |
-| E3.3 review 与状态交付 | complete | `docs/reviews/2026-08-06-u10-e2ee-h5-production-secure-state-review.md` 记录 evidence、失败闭环和环境终验；当前推进 E4.1 |
+| E3.3 review 与状态交付 | complete | `docs/reviews/2026-08-06-u10-e2ee-h5-production-secure-state-review.md` 记录 evidence、失败闭环和环境终验；E4.1 后续已承接并关闭 |
 
 #### E3.2 Failure History And Closure
 
@@ -290,6 +290,13 @@ flowchart TB
 - **Approach:** 原始报告留在 `.artifacts/`；白名单生成可提交 JSON，只保留断言、计数、摘要、工具版本和 commit 身份。
 - **Test Scenarios:** schema 错误、敏感 marker、摘要篡改、subject commit 不可达、证据缺失、干净 checkout 离线验证。
 - **Verification:** 证据测试与敏感信息扫描通过，干净临时 checkout 可复验。
+
+#### E4 Closure Evidence
+
+- evidence commit `a383f788ee310211c60b137d16a4d75858520785` 已推送，G1/G3 subject 分别绑定真实运行代码 `d385c88b` 与 `f6944a70`。
+- `make e2ee.evidence.verify e2ee.evidence.test` 在主工作区与 detached clean worktree 均通过；验证不读取 `.artifacts/` 或远端服务。
+- 13 类生成/篡改/敏感/schema/缺失/不可达/语义负例均 fail closed；原始实体 ID、marker、HMAC、object key、URL 和日志未进入 committed evidence。
+- review：`docs/reviews/2026-08-06-u10-e2ee-persistent-evidence-review.md`。
 
 ### E5. 真实 Release Workflow 证明（原 U7）
 
@@ -367,10 +374,10 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | E4 |
-| Active checkpoint | E4.1 持久脱敏 evidence 合同与实现 |
-| Git baseline | `f6944a70fd314a90b82abf065649b3e679b1750b` 已推送；E3 文档提交后以新 HEAD 为准 |
-| Worktree | E3 代码已提交推送；当前仅有 E3 review、计划和任务总账文档改动 |
+| Active unit | E5 |
+| Active checkpoint | E5.1 真实 release workflow 前态冻结与触发 |
+| Git baseline | evidence commit `a383f788ee310211c60b137d16a4d75858520785` 已推送；E4 文档提交后以新 HEAD 为 workflow subject |
+| Worktree | E4 evidence 实现已提交推送；当前仅有 E4 review、历史 review、计划和任务总账文档改动 |
 | Latest full run | `e1fix20260806g` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore 完整行 digest `2c34ac950bee5a780988321a518d589d` 一致 |
@@ -379,7 +386,7 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
 | Latest E3 run | `e3prod20260806f` 完整通过；browser evidence SHA-256 `f55474d82afc9ba39ffa02904eb8b8f15e4c479b95f642065f82e0f433ba70` |
-| Next action | 从 E4.1 盘点 G1/G3 原始 evidence 与现有 review 字段，冻结可提交白名单 schema、生成器、校验器和负向测试 |
+| Next action | 提交并推送 E4 文档闭环，确认 HEAD 与 origin/main 一致；记录 tag/Release 前态后，以 `publish_release=false` 触发真实 `release-artifacts.yml` |
 
 ### Historical Mapping
 

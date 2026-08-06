@@ -18,8 +18,9 @@ BrowserContext 中完成 UI 登录、不同 device identity 初始化、单聊�
 解密。wrapping key 不可导出，AAD 篡改后 fail closed，未调用 encrypted endpoint，
 也未降级到 plaintext endpoint。
 
-本报告只关闭 E3，不构成生产 E2EE Go。唯一 active 计划推进到 E4.1，生产继续保持
-**No-Go**，`im-test-1` 旧主保持 `persist/plaintext`。
+本报告只关闭 E3，不构成生产 E2EE Go。E4 持久 evidence 已在后续提交关闭，唯一
+active 计划当前位于 E5.1；生产继续保持 **No-Go**，`im-test-1` 旧主保持
+`persist/plaintext`。
 
 ## 候选与运行身份
 
@@ -100,6 +101,12 @@ CryptoKey 或原始 Console/Network 内容。
 
 ## 下一步
 
-按唯一 active 计划进入 E4.1：定义并实现 G1/G3 持久脱敏 evidence 白名单合同，保证
-证据可提交、可离线校验，并绑定准确 subject commit。E4 完成前不得进入真实 release
-workflow，生产 E2EE 保持 **No-Go**。
+E4 已完成。G3/E3 的持久脱敏机器证据已提交至
+`docs/reviews/evidence/u10-e2ee/g3-h5-release.json`：subject commit 为
+`f6944a70fd314a90b82abf065649b3e679b1750b`，evidence commit 为
+`a383f788ee310211c60b137d16a4d75858520785`，文件 SHA-256 为
+`415a311af78879396451ca95ef0e06f9bde1710b08dcf9ee198588f47e1a2d1a`。
+该文件可在干净 checkout 中通过 `make e2ee.evidence.verify` 离线验证。
+
+当前按唯一 active 计划进入 E5.1 真实 release workflow 证明；生产 E2EE 保持
+**No-Go**。

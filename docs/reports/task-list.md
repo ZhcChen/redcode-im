@@ -29,12 +29,13 @@
 
 - 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
   -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E4.1`。E2 四个全新独立上下文已在 subject
+- 当前立即任务：唯一 checkpoint 为 `E5.1`。E2 四个全新独立上下文已在 subject
   `aa605931` 完成 correctness/security/reliability/testing 复核，均为
   `P0=0、P1=0、P2=0`。E3 已由 subject `f6944a70`、真实 run
-  `e3prod20260806f` 和 production browser evidence 关闭；当前开始定义并实现 G1/G3
-  持久脱敏 evidence 合同、生成器、校验器和离线复验。原始报告仍只留在
-  `.artifacts/`，不得把 marker、token、凭据或原始 Console/Network 内容提交入库。
+  `e3prod20260806f` 和 production browser evidence 关闭；E4 持久脱敏 evidence 已由
+  commit `a383f788`、13 类负向测试和干净 detached worktree 复验关闭。当前冻结已
+  push 候选 HEAD 与 GitHub tag/Release 前态，并以 `publish_release=false` 触发真实
+  `Build Release Artifacts` workflow。
 - U10 状态只由上述唯一执行计划的 frontmatter、Execution Console 和 Resume
   Snapshot 推进；本总账不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
@@ -104,8 +105,8 @@
     关闭。E1.1/E1.2 的功能、snapshot、边界和清理 run 已通过，但第二轮 E2 独立
     复核再次打开 E1。E1.3 已由 `d385c88b` 和 run `e1fix20260806g` 关闭，预审
     P0/P1/P2 均为零。E2 四视角全新独立复核已通过；E3 production Chrome 审计由
-    `e3prod20260806f` 完整关闭，当前只执行 E4.1 持久脱敏 evidence，E5 及后续单元
-    不得提前并行打开。
+    `e3prod20260806f` 完整关闭；E4 由 evidence commit `a383f788` 与 clean checkout
+    离线复验关闭。当前只执行 E5.1 真实 release workflow，E6/E7 不得提前并行打开。
     四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
