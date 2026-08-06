@@ -6,7 +6,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 status: active
 current_unit: R4
-current_checkpoint: R4-candidate-invalidated-h5-sidecar-fixed-pending-full-regression
+current_checkpoint: R4-four-class-evidence-migrated-pending-final-regression
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 ---
@@ -35,7 +35,9 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 | 旧候选 | invalid | `1bedf20a8225257f7c01edac2bd02aee920dea16`，不得进入 F7 |
 | R4 候选 1 | invalid | `ee7f48539304312c1bbddb309491c86a766b5f71`；run `31075390148` 虽成功，但 H5 sidecar 含目录前缀，无法通过持久 verifier |
 | H5 sidecar 修复 | complete | `184603c5`；输出目录内生成 sidecar，条目恢复为 basename；定向格式验证与 `make tests.tooling` 通过 |
-| 下一候选 | pending | 门禁变化后先以 JDK21 重跑 `make test.all`，再冻结干净 `HEAD == origin/main` 并触发全新 workflow |
+| R4 候选 2 | superseded | `65a3dd4e`；run `31110031190` 成功，四类真实 bundle 验签与零发布副作用通过；随后 F5 统一 verifier 迁移使其不再是最终候选 |
+| 四类持久 evidence | complete/pending-final-replay | `af8a665f`；F5 schema/sanitizer/verifier 已统一绑定四类 manifest，正负测试与 `make tests.tooling` 通过 |
+| 下一候选 | pending | 门禁变化后以 JDK21 重跑 `make test.all`，再冻结干净 `HEAD == origin/main` 并触发最终 workflow |
 
 历史设计和已关闭 finding 保留在旧计划与 `docs/reviews/` 中，但不再从那些文档恢复执行状态。
 
@@ -140,13 +142,14 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | R4 |
-| Active checkpoint | run `31075390148` 已成功但真实 H5 sidecar 不符合 verifier 契约；修复已 push，待全量回归后重建候选 |
+| Active checkpoint | 四类 F5 持久验签迁移已 push；待修复后全量回归并重建最终候选 |
 | Last review | F6.2 fail，`P0=0/P1=5/P2=0` |
 | Invalid candidate F6.1 | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
 | Invalid candidate R4-1 | `ee7f48539304312c1bbddb309491c86a766b5f71`；run `31075390148`；H5 sidecar 为 `.artifacts/h5-release/...` |
-| Latest implementation fix | `184603c5`，H5 sidecar basename 契约已修复并通过 tooling 回归 |
-| Preserved failed evidence | `/tmp/redcode-r4.SPpE34` 与 `/tmp/redcode-r4-download.eDbqoC`，仅用于解释失效原因，不得作为关闭证据 |
-| Completed | R1、R2 原实现、R3、首次 JDK21 `make test.all`、H5 sidecar 修复；相关提交均已 push |
-| Pending live closure | 修复后全量回归、新 R4 workflow、四类真实 bundles 离线验签、零发布副作用、四视角独立复审；随后 R5 |
-| Earliest resume action | JDK21 执行 `make test.all`；通过后重新冻结 tag/Release 前态并触发 `publish_release=false` 的全新 run |
+| Superseded candidate R4-2 | `65a3dd4e39fbf94e88a9bac27fe9ed1af776b208`；run `31110031190`；运行与四类证据通过，因 verifier 迁移被后续门禁变更取代 |
+| Latest implementation fix | `af8a665f`；F5 统一四类 provenance manifest、密码学验签及持久证据 |
+| Preserved evidence | `/tmp/redcode-r4.SPpE34` 记录失败样本；`/tmp/redcode-r4-retry.D6KYiW` 记录成功迁移样本；均不代替最终候选证据 |
+| Completed | R1、R2、R3、H5 sidecar 修复、四类 F5 持久验签迁移；相关提交均已 push |
+| Pending live closure | 迁移后全量回归、最终 R4 workflow/evidence、四视角独立复审；随后 R5 |
+| Earliest resume action | JDK21 执行 `make test.all`；通过后重新冻结 tag/Release 前态并触发 `publish_release=false` 的最终 run |
 | Final verdict | No-Go |
