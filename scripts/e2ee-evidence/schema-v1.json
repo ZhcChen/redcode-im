@@ -37,6 +37,10 @@
         "asset_digests",
         "release_state",
         "provenance"
+      ],
+      "provenance_assertion_keys": [
+        "manifest_file",
+        "manifest_sha256"
       ]
     }
   },

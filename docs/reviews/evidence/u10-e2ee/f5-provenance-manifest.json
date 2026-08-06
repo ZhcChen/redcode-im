@@ -1,0 +1,69 @@
+{
+  "schema": "redcode-e2ee-provenance-evidence/v1",
+  "repository": "ZhcChen/redcode-im",
+  "signer_workflow": "ZhcChen/redcode-im/.github/workflows/release-artifacts.yml",
+  "source_commit": "65a3dd4e39fbf94e88a9bac27fe9ed1af776b208",
+  "trusted_root_file": "f5-provenance-trusted-root.jsonl",
+  "subjects": [
+    {
+      "category": "h5",
+      "sidecar_file": "redcode-im-h5-65a3dd4e39fbf94e88a9bac27fe9ed1af776b208.tar.gz.sha256",
+      "sidecar_sha256": "d121d18a82023f8a3f57f0b94df7d7dda45eb12ce21fc85635ce8f10af33b6ad",
+      "bundle_file": "f5-h5.bundle.jsonl",
+      "bundle_sha256": "7ad5f58ac8877e251f9b13ded74b605ea241cad4c52f2b49fd4d6db041442085",
+      "artifacts": [
+        {
+          "name": "redcode-im-h5-65a3dd4e39fbf94e88a9bac27fe9ed1af776b208.tar.gz",
+          "sha256": "8a7a27080d6f6d8b8f4cafb24a5318f0cc3219c4093204350542086de1329df3"
+        }
+      ]
+    },
+    {
+      "category": "android",
+      "sidecar_file": "redcode-im-android-65a3dd4e39fbf94e88a9bac27fe9ed1af776b208.apk.sha256",
+      "sidecar_sha256": "56066caef9265841cb9d674df644b5daf97dade19f66311fa03fcebec2ee44b9",
+      "bundle_file": "f5-android.bundle.jsonl",
+      "bundle_sha256": "4394f315b79fa242b95f5d6d99fba94e1808cc9ddac4f021fa7a3c61682b2fc4",
+      "artifacts": [
+        {
+          "name": "redcode-im-android-65a3dd4e39fbf94e88a9bac27fe9ed1af776b208.apk",
+          "sha256": "99574af70abc49d677fe564f6ab02b94c7f096a3710d8865569612bdee8ec235"
+        }
+      ]
+    },
+    {
+      "category": "api-x86_64",
+      "sidecar_file": "redcode-im-api-linux-x86_64.sha256",
+      "sidecar_sha256": "38b63d1606805075f4627ba891e793c019799a61b9bb1c7a40b423dad6b604b6",
+      "bundle_file": "f5-api-x86_64.bundle.jsonl",
+      "bundle_sha256": "09a4afa089b6bef600bdc0cea220db3e9d2c3df1c87a5b9851e3c0d126ab3227",
+      "artifacts": [
+        {
+          "name": "redcode-im-api-linux-x86_64.binary.tar.gz",
+          "sha256": "7648b626985a40c707b9e65ca2dee67b11a4bf602967d3debda3ca3dd2100b0b"
+        },
+        {
+          "name": "redcode-im-api-linux-x86_64.docker.tar.gz",
+          "sha256": "de03a05cad333f989ec8e3fe6620921a68f63f44246b6ad6b93217be91e24fca"
+        }
+      ]
+    },
+    {
+      "category": "api-arm64",
+      "sidecar_file": "redcode-im-api-linux-arm64.sha256",
+      "sidecar_sha256": "c13747fe977eede9b25570e61aadc0600bbe0bec77c6ddce805f780adc62a082",
+      "bundle_file": "f5-api-arm64.bundle.jsonl",
+      "bundle_sha256": "e36aa50ca5e88fc62b046fe2c7278e2874804409536ccaac8266e9769b93bc08",
+      "artifacts": [
+        {
+          "name": "redcode-im-api-linux-arm64.binary.tar.gz",
+          "sha256": "624b267302f2f2bfbeea19b10bbda9a01477d3b24338e1227d6d1541bbb3c745"
+        },
+        {
+          "name": "redcode-im-api-linux-arm64.docker.tar.gz",
+          "sha256": "c3e9ecf54a38b6882b5584741edc96d28cc71f1bc5635f8b2200286337105138"
+        }
+      ]
+    }
+  ]
+}

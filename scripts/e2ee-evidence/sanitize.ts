@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 import {
@@ -175,15 +176,17 @@ async function sanitizeG1(): Promise<Record<string, unknown>> {
 
 async function sanitizeF5(): Promise<Record<string, unknown>> {
   const workflowPath = args.get('workflow');
-  const bundlePath = args.get('bundle');
-  if (!workflowPath || !bundlePath) fail('F5 缺少 --workflow/--bundle');
+  const provenanceManifestPath = args.get('provenance-manifest');
+  if (!workflowPath || !provenanceManifestPath) {
+    fail('F5 缺少 --workflow/--provenance-manifest');
+  }
   const workflow = await json(workflowPath);
   exactKeys(workflow, [
     'schema', 'run_id', 'workflow_name', 'event', 'head_sha', 'conclusion',
     'publish_release', 'created_at', 'completed_at', 'jobs', 'artifacts', 'asset_digests',
-    'release_state', 'provenance',
+    'release_state',
   ], 'workflow');
-  if (workflow.schema !== 'redcode-f5-release-workflow-raw/v1') fail('F5 workflow schema 无效');
+  if (workflow.schema !== 'redcode-f5-release-workflow-raw/v2') fail('F5 workflow schema 无效');
   if (workflow.head_sha !== subjectCommit) fail('F5 head_sha 与 subject_commit 不一致');
   if (!Array.isArray(workflow.jobs) || !Array.isArray(workflow.artifacts)) {
     fail('F5 jobs/artifacts 必须是 array');
@@ -213,11 +216,12 @@ async function sanitizeF5(): Promise<Record<string, unknown>> {
     'tags_before_sha256', 'tags_after_sha256', 'releases_before_sha256',
     'releases_after_sha256', 'unchanged',
   ], 'workflow.release_state');
-  exactKeys(workflow.provenance, [
-    'subject_name', 'subject_sha256', 'source_commit', 'predicate_type',
-  ], 'workflow.provenance');
-  const bundleBytes = await readFile(resolve(bundlePath));
-  const bundleSha256 = createHash('sha256').update(bundleBytes).digest('hex');
+  const provenanceManifest = await json(provenanceManifestPath);
+  if (provenanceManifest.source_commit !== subjectCommit) {
+    fail('F5 provenance source commit 与 subject_commit 不一致');
+  }
+  verifyProvenance(resolve(provenanceManifestPath));
+  const provenanceManifestBytes = await readFile(resolve(provenanceManifestPath));
   return {
     run: {
       id: integer(workflow.run_id, 'workflow.run_id'),
@@ -238,18 +242,21 @@ async function sanitizeF5(): Promise<Record<string, unknown>> {
     })),
     release_state: workflow.release_state,
     provenance: {
-      subject_name: string(workflow.provenance.subject_name, 'workflow.provenance.subject_name'),
-      subject_sha256: string(workflow.provenance.subject_sha256, 'workflow.provenance.subject_sha256'),
-      source_commit: string(workflow.provenance.source_commit, 'workflow.provenance.source_commit'),
-      predicate_type: enumValue(
-        workflow.provenance.predicate_type,
-        ['https://slsa.dev/provenance/v1'] as const,
-        'workflow.provenance.predicate_type',
-      ) === 'https://slsa.dev/provenance/v1' ? 'slsa-provenance-v1' : fail('F5 predicate 无效'),
-      bundle_file: basename(bundlePath),
-      bundle_sha256: bundleSha256,
+      manifest_file: basename(provenanceManifestPath),
+      manifest_sha256: createHash('sha256').update(provenanceManifestBytes).digest('hex'),
     },
   };
+}
+
+function verifyProvenance(manifestPath: string): void {
+  try {
+    execFileSync('bun', [resolve(root, 'scripts/e2ee-evidence/verify-provenance.ts'), manifestPath], {
+      cwd: root,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+  } catch {
+    fail('F5 四类 provenance 离线验签失败');
+  }
 }
 
 async function sanitizeG3(): Promise<Record<string, unknown>> {

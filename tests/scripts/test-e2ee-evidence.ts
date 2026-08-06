@@ -108,7 +108,11 @@ try {
   await run(['bun', verifier, releaseSideEffect], false, 'resigned release side effect');
 
   const tamperedBundle = await copyEvidence('tampered-bundle');
-  await writeFile(resolve(tamperedBundle, 'f5-h5-slsa-bundle.jsonl'), '{}\n');
+  const tamperedManifest = JSON.parse(await readFile(
+    resolve(tamperedBundle, 'f5-provenance-manifest.json'),
+    'utf8',
+  ));
+  await writeFile(resolve(tamperedBundle, tamperedManifest.subjects[0].bundle_file), '{}\n');
   await run(['bun', verifier, tamperedBundle], false, 'SLSA bundle tamper');
 
   const missing = await copyEvidence('missing');
@@ -229,7 +233,7 @@ try {
   await writeFile(resolve(raw, 'browser.json'), `${JSON.stringify(rawBrowser)}\n`);
   await writeFile(resolve(raw, 'attestation.json'), `${JSON.stringify(rawAttestation)}\n`);
   const rawF5 = {
-    schema: 'redcode-f5-release-workflow-raw/v1',
+    schema: 'redcode-f5-release-workflow-raw/v2',
     run_id: committedF5.assertions.run.id,
     workflow_name: committedF5.assertions.run.workflow_name,
     event: committedF5.assertions.run.event,
@@ -242,18 +246,9 @@ try {
     artifacts: committedF5.assertions.artifacts,
     asset_digests: committedF5.assertions.asset_digests,
     release_state: committedF5.assertions.release_state,
-    provenance: {
-      subject_name: committedF5.assertions.provenance.subject_name,
-      subject_sha256: committedF5.assertions.provenance.subject_sha256,
-      source_commit: committedF5.assertions.provenance.source_commit,
-      predicate_type: 'https://slsa.dev/provenance/v1',
-    },
   };
   await writeFile(resolve(raw, 'workflow.json'), `${JSON.stringify(rawF5)}\n`);
-  await cp(
-    resolve(committedEvidence, 'f5-h5-slsa-bundle.jsonl'),
-    resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
-  );
+  await copyProvenanceSet(committedEvidence, raw);
 
   await run([
     'bun', sanitizer, '--type', 'g1-backup-rollout', '--subject-commit', head,
@@ -268,13 +263,10 @@ try {
     'bun', sanitizer, '--type', 'f5-release-workflow',
     '--subject-commit', committedF5.subject_commit,
     '--workflow', resolve(raw, 'workflow.json'),
-    '--bundle', resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
+    '--provenance-manifest', resolve(raw, 'f5-provenance-manifest.json'),
     '--output', resolve(generated, 'f5-release-workflow.json'),
   ], true, 'F5 generation');
-  await cp(
-    resolve(raw, 'f5-h5-slsa-bundle.jsonl'),
-    resolve(generated, 'f5-h5-slsa-bundle.jsonl'),
-  );
+  await copyProvenanceSet(raw, generated);
   await run(['bun', verifier, generated], true, 'generated evidence verification');
 
   const invalidIsolation = JSON.parse(await readFile(resolve(raw, 'switch.json'), 'utf8'));
@@ -309,4 +301,15 @@ try {
   ], false, 'malformed raw proof');
 } finally {
   await rm(fixture, { recursive: true, force: true });
+}
+
+async function copyProvenanceSet(source: string, target: string): Promise<void> {
+  const manifestName = 'f5-provenance-manifest.json';
+  const manifest = JSON.parse(await readFile(resolve(source, manifestName), 'utf8'));
+  const names = new Set<string>([manifestName, manifest.trusted_root_file]);
+  for (const subject of manifest.subjects) {
+    names.add(subject.sidecar_file);
+    names.add(subject.bundle_file);
+  }
+  for (const name of names) await cp(resolve(source, name), resolve(target, name));
 }

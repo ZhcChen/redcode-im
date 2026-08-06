@@ -40,6 +40,17 @@ if (!Array.isArray(schema.common_keys)) fail('schema-v1 common_keys 无效');
 exactKeys(schema.evidence_types, [
   'g1-backup-rollout', 'g3-h5-release', 'f5-release-workflow',
 ], 'schema-v1.evidence_types');
+const evidenceTypeSchemas = schema.evidence_types as Record<string, Record<string, unknown>>;
+for (const type of ['g1-backup-rollout', 'g3-h5-release']) {
+  exactKeys(evidenceTypeSchemas[type], ['assertion_keys'], `schema-v1.evidence_types.${type}`);
+}
+exactKeys(evidenceTypeSchemas['f5-release-workflow'], [
+  'assertion_keys', 'provenance_assertion_keys',
+], 'schema-v1.evidence_types.f5-release-workflow');
+if (!Array.isArray(evidenceTypeSchemas['f5-release-workflow'].provenance_assertion_keys)) {
+  fail('schema-v1 F5 provenance_assertion_keys 无效');
+}
+const f5ProvenanceKeys = evidenceTypeSchemas['f5-release-workflow'].provenance_assertion_keys as string[];
 
 const files: Array<[EvidenceType, string]> = [
   ['g1-backup-rollout', 'g1-backup-rollout.json'],
@@ -131,6 +142,7 @@ async function verifyF5(
   assertions: Record<string, unknown>,
   evidenceDirPath: string,
   subjectCommit: string,
+  provenanceKeys: string[],
 ): Promise<void> {
   exactKeys(assertions, [
     'run', 'jobs', 'artifacts', 'asset_digests', 'release_state', 'provenance',
@@ -207,37 +219,28 @@ async function verifyF5(
     || assertions.release_state.releases_before_sha256 !== assertions.release_state.releases_after_sha256) {
     fail('F5 tag/Release 存在副作用');
   }
-  exactKeys(assertions.provenance, [
-    'subject_name', 'subject_sha256', 'source_commit', 'predicate_type',
-    'bundle_file', 'bundle_sha256',
-  ], 'f5.provenance');
-  for (const key of ['subject_sha256', 'bundle_sha256'] as const) {
-    if (!sha256Pattern.test(string(assertions.provenance[key], `f5.provenance.${key}`))) {
-      fail(`F5 provenance ${key} 无效`);
-    }
+  exactKeys(assertions.provenance, provenanceKeys, 'f5.provenance');
+  const manifestFile = string(assertions.provenance.manifest_file, 'f5.provenance.manifest_file');
+  if (manifestFile !== basename(manifestFile) || !manifestFile.endsWith('.json')) {
+    fail('F5 provenance manifest_file 无效');
   }
-  enumValue(assertions.provenance.predicate_type, ['slsa-provenance-v1'] as const, 'f5.provenance.predicate_type');
-  const provenanceSourceCommit = string(assertions.provenance.source_commit, 'f5.provenance.source_commit');
-  if (provenanceSourceCommit !== subjectCommit) fail('F5 provenance source commit 与 evidence subject 不一致');
-  string(assertions.provenance.subject_name, 'f5.provenance.subject_name');
-  const bundleFile = string(assertions.provenance.bundle_file, 'f5.provenance.bundle_file');
-  if (bundleFile !== basename(bundleFile) || !bundleFile.endsWith('.jsonl')) fail('F5 bundle_file 无效');
-  const bundleBytes = await readFile(resolve(evidenceDirPath, bundleFile));
-  if (createHash('sha256').update(bundleBytes).digest('hex') !== assertions.provenance.bundle_sha256) {
-    fail('F5 SLSA bundle 摘要不匹配');
+  const manifestPath = resolve(evidenceDirPath, manifestFile);
+  const manifestBytes = await readFile(manifestPath);
+  if (!sha256Pattern.test(string(assertions.provenance.manifest_sha256, 'f5.provenance.manifest_sha256'))
+    || createHash('sha256').update(manifestBytes).digest('hex') !== assertions.provenance.manifest_sha256) {
+    fail('F5 provenance manifest 摘要不匹配');
   }
-  const lines = bundleBytes.toString('utf8').trim().split('\n');
-  if (lines.length !== 1) fail('F5 SLSA bundle 必须包含单条 statement');
-  const bundle = JSON.parse(lines[0]) as Record<string, any>;
-  const payload = JSON.parse(Buffer.from(string(bundle?.dsseEnvelope?.payload, 'f5.bundle.payload'), 'base64').toString('utf8'));
-  if (payload.predicateType !== 'https://slsa.dev/provenance/v1') fail('F5 SLSA predicate 不匹配');
-  if (payload.subject?.length !== 1
-    || payload.subject[0].name !== assertions.provenance.subject_name
-    || payload.subject[0].digest?.sha256 !== assertions.provenance.subject_sha256) {
-    fail('F5 SLSA subject 不匹配');
+  const manifest = JSON.parse(manifestBytes.toString('utf8')) as Record<string, unknown>;
+  if (manifest.source_commit !== subjectCommit) {
+    fail('F5 provenance source commit 与 evidence subject 不一致');
   }
-  const sourceCommit = payload.predicate?.buildDefinition?.resolvedDependencies?.[0]?.digest?.gitCommit;
-  if (sourceCommit !== provenanceSourceCommit) fail('F5 SLSA source commit 不匹配');
+  try {
+    execFileSync('bun', [
+      resolve(root, 'scripts/e2ee-evidence/verify-provenance.ts'), manifestPath,
+    ], { cwd: root, stdio: ['ignore', 'ignore', 'pipe'] });
+  } catch {
+    fail('F5 四类 provenance 离线验签失败');
+  }
 }
 
 function verifyG3(assertions: Record<string, unknown>): void {
@@ -309,6 +312,6 @@ for (const [type, name] of files) {
   )[type].assertion_keys, `${name}.assertions`);
   if (type === 'g1-backup-rollout') verifyG1(evidence.assertions);
   else if (type === 'g3-h5-release') verifyG3(evidence.assertions);
-  else await verifyF5(evidence.assertions, evidenceDir, commit);
+  else await verifyF5(evidence.assertions, evidenceDir, commit, f5ProvenanceKeys);
   console.log(`[e2ee-evidence] verified ${name} subject=${commit}`);
 }
