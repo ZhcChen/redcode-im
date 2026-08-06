@@ -1,0 +1,72 @@
+{
+  "schema": "redcode-u10-e2ee-evidence/v1",
+  "evidence_type": "g1-backup-rollout",
+  "subject_commit": "d385c88b9c83b911acc2c6a7189ee6fa745f05dd",
+  "subject_committed_at": "2026-08-06T07:41:57+08:00",
+  "generator": {
+    "name": "scripts/e2ee-evidence/sanitize.ts",
+    "version": 1
+  },
+  "assertions": {
+    "run_id": "e1fix20260806g",
+    "snapshot": {
+      "matched": true,
+      "candidate": {
+        "attachment_commits": 0,
+        "control_messages": 2,
+        "control_receipts": 2,
+        "devices": 2,
+        "digest": "2c34ac950bee5a780988321a518d589d",
+        "encrypted_messages": 1,
+        "identities": 2,
+        "key_packages": 42,
+        "room_epochs": 1
+      },
+      "restore": {
+        "attachment_commits": 0,
+        "control_messages": 2,
+        "control_receipts": 2,
+        "devices": 2,
+        "digest": "2c34ac950bee5a780988321a518d589d",
+        "encrypted_messages": 1,
+        "identities": 2,
+        "key_packages": 42,
+        "room_epochs": 1
+      }
+    },
+    "restore_runtime": {
+      "verified": true,
+      "runtime": "persist/e2ee",
+      "source_network_reachable": false,
+      "source_postgres_connections": 0,
+      "source_redis_connections": 0
+    },
+    "live": {
+      "scenario_count": 4,
+      "message_proof_count": 9,
+      "attachment_proof_count": 1,
+      "history_decrypted_after_restore": true,
+      "new_message_decrypted_after_restore": true
+    },
+    "post_live_snapshot": {
+      "attachment_commits": 1,
+      "control_messages": 26,
+      "control_receipts": 28,
+      "devices": 19,
+      "digest": "7ddaf28817c8a97e7648a08e8a4d6e26",
+      "encrypted_messages": 21,
+      "identities": 18,
+      "key_packages": 379,
+      "room_epochs": 12
+    },
+    "boundaries": {
+      "db": "ciphertext-only",
+      "redis": "marker-free",
+      "logs": "marker-free",
+      "push": "not-observed-live",
+      "rustfs_content": "ciphertext-only",
+      "rustfs_sha256": "98a5247b56dcf90bcc8acbb9f491f82a2974aa570e8d0e305813d37c1846d206"
+    }
+  },
+  "integrity_sha256": "076017d9233fa4a1e8d2fa4a4adcfe0523d695b553f84fb2eacccbf810fd9748"
+}

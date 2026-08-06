@@ -1,0 +1,42 @@
+{
+  "schema": "redcode-e2ee-evidence-schema/v1",
+  "evidence_schema": "redcode-u10-e2ee-evidence/v1",
+  "additional_properties": false,
+  "common_keys": [
+    "schema",
+    "evidence_type",
+    "subject_commit",
+    "subject_committed_at",
+    "generator",
+    "assertions",
+    "integrity_sha256"
+  ],
+  "evidence_types": {
+    "g1-backup-rollout": {
+      "assertion_keys": [
+        "run_id",
+        "snapshot",
+        "restore_runtime",
+        "live",
+        "post_live_snapshot",
+        "boundaries"
+      ]
+    },
+    "g3-h5-release": {
+      "assertion_keys": [
+        "release_attestation",
+        "production_path",
+        "browser_boundaries"
+      ]
+    }
+  },
+  "sensitive_values_forbidden": [
+    "credentials",
+    "connection strings",
+    "private keys",
+    "plaintext markers",
+    "UUID entity identifiers",
+    "reusable URLs",
+    "raw Console/Network/log content"
+  ]
+}

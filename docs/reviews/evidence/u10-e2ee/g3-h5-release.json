@@ -1,0 +1,42 @@
+{
+  "schema": "redcode-u10-e2ee-evidence/v1",
+  "evidence_type": "g3-h5-release",
+  "subject_commit": "f6944a70fd314a90b82abf065649b3e679b1750b",
+  "subject_committed_at": "2026-08-06T08:40:32+08:00",
+  "generator": {
+    "name": "scripts/e2ee-evidence/sanitize.ts",
+    "version": 1
+  },
+  "assertions": {
+    "release_attestation": {
+      "manifest_sha256": "38765a36966b71497f26c965836a388e4d4d45564d0c6a353984daa540fa03d0",
+      "browser_manifest_matches": true
+    },
+    "production_path": {
+      "distinct_browser_contexts": true,
+      "ui_login": true,
+      "ui_message_round_trip": true,
+      "recipient_decrypted_message": true,
+      "production_database": "redcode-h5-e2ee-state",
+      "secure_context": true,
+      "wrapping_key_non_extractable": true,
+      "wrapping_key_export_blocked": true,
+      "encrypted_record_count": 3,
+      "encrypted_record_structure_valid": true,
+      "secure_state_forbidden_values_absent": true,
+      "browser_storage_password_marker_free": true,
+      "aad_mismatch_failed_closed": true,
+      "plaintext_downgrade_blocked": true
+    },
+    "browser_boundaries": {
+      "checked_at": "2026-08-06T00:41:46.145Z",
+      "network_url_count": 74,
+      "websocket_frame_count": 20,
+      "console_message_count": 4,
+      "page_error_count": 0,
+      "private_artifacts_get_head": "404",
+      "missing_asset": "404"
+    }
+  },
+  "integrity_sha256": "0f28514917003a9ec44396ad823146d5fdba2eb5218c135ab1b78d4039319d3d"
+}
