@@ -301,10 +301,7 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
 
       - name: Validate H5 release endpoints
-        run: |
-          set -euo pipefail
-          test -n "$H5_RELEASE_API_BASE_URL" || { echo "H5_RELEASE_API_BASE_URL repository variable is required" >&2; exit 1; }
-          test -n "$H5_RELEASE_WS_URL" || { echo "H5_RELEASE_WS_URL repository variable is required" >&2; exit 1; }
+        run: bun scripts/h5-release-security.ts validate-endpoints
 
       - name: Setup pinned H5 Rust toolchain
         run: |

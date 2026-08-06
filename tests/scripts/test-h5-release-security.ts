@@ -12,7 +12,7 @@ const ws = "wss://api.release.invalid/ws";
 let passed = 0;
 
 function run(
-  command: "finalize" | "check",
+  command: "finalize" | "check" | "validate-endpoints",
   dist: string,
   extraEnv: Record<string, string> = {},
 ) {
@@ -29,6 +29,23 @@ function run(
       ...extraEnv,
     },
   });
+}
+
+function endpointValidation(
+  name: string,
+  env: Record<string, string>,
+  expected: "pass" | "fail",
+  message?: string,
+): void {
+  const result = run("validate-endpoints", ".", env);
+  const actual = result.status === 0 ? "pass" : "fail";
+  if (actual !== expected || (message && !result.stderr.includes(message))) {
+    throw new Error(
+      `${name}: expected ${expected}, got ${actual}\n${result.stdout}${result.stderr}`,
+    );
+  }
+  passed += 1;
+  console.log(`[h5-release-test] ${name}: ${actual}`);
 }
 
 async function refreshAttestation(dist: string): Promise<void> {
@@ -353,6 +370,19 @@ async function finalizeFailure(
   }
 }
 
+endpointValidation("valid endpoint command", {}, "pass");
+endpointValidation(
+  "endpoint command missing API",
+  { H5_RELEASE_API_BASE_URL: "" },
+  "fail",
+  "api release URL is required",
+);
+endpointValidation(
+  "endpoint command missing WebSocket",
+  { H5_RELEASE_WS_URL: "" },
+  "fail",
+  "ws release URL is required",
+);
 await finalizeFailure(
   "insecure API protocol",
   { H5_RELEASE_API_BASE_URL: "http://api.release.invalid/v1" },

@@ -378,12 +378,19 @@ async function check(distArg: string): Promise<void> {
   await checkInternal(distArg, true);
 }
 
+function validateEndpoints(): void {
+  secureEndpoint(process.env.H5_RELEASE_API_BASE_URL, "api");
+  secureEndpoint(process.env.H5_RELEASE_WS_URL, "ws");
+  console.log("[h5-release] endpoints validated");
+}
+
 if (import.meta.main) {
   const [command, dist = "dist"] = process.argv.slice(2);
   if (command === "finalize") await finalize(dist);
   else if (command === "check") await check(dist);
+  else if (command === "validate-endpoints") validateEndpoints();
   else
-    fail("usage: h5-release-security.ts <finalize|check> [dist-relative-path]");
+    fail("usage: h5-release-security.ts <finalize|check|validate-endpoints> [dist-relative-path]");
 }
 
-export { check, finalize };
+export { check, finalize, validateEndpoints };

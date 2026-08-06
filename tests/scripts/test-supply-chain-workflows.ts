@@ -251,11 +251,7 @@ assert.ok(
 );
 assert.match(
   stepByName(h5Job, "Validate H5 release endpoints").run,
-  /H5_RELEASE_API_BASE_URL repository variable is required/,
-);
-assert.match(
-  stepByName(h5Job, "Validate H5 release endpoints").run,
-  /H5_RELEASE_WS_URL repository variable is required/,
+  /h5-release-security\.ts validate-endpoints/,
 );
 assert.equal(release.env.H5_RUST_VERSION, "1.94.0");
 assert.match(
