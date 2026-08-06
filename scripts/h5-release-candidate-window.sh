@@ -143,7 +143,8 @@ verify_candidate_removed() {
     candidate_response=""
     return 1
   fi
-  if [[ "$status" != "404" ]] || rg -q '<title>RedCode IM H5' "$candidate_response"; then
+  if [[ "$status" != "404" && ! "$status" =~ ^2[0-9][0-9]$ ]] ||
+    rg -q '<title>RedCode IM H5' "$candidate_response"; then
     rm -f "$candidate_response"
     candidate_response=""
     return 1

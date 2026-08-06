@@ -59,10 +59,13 @@ case "$url" in
     [[ -z "$output" ]] || {
       if [[ "$status" == 200 ]]; then
         printf '%s\n' '<title>RedCode IM H5</title>' >"$output"
+      elif [[ "$status" == admin ]]; then
+        printf '%s\n' '<title>IM 管理后台</title>' >"$output"
       else
         : >"$output"
       fi
     }
+    [[ "$status" != admin ]] || status=200
     printf '%s' "$status"
     ;;
   *)
@@ -201,6 +204,7 @@ run_case "partial-delete-failure" pass success 404 plaintext healthy no yes
 [[ "$(cat "$tmp_dir/partial-delete-failure/ssh-count")" == 2 ]]
 grep -q 'redcode-h5-candidate.Caddyfile' "$tmp_dir/partial-delete-failure/remote-rm.log"
 run_case "candidate-remains" fail success 200
+run_case "admin-fallback-after-cleanup" pass success admin
 run_case "candidate-check-error" fail success error
 run_case "runtime-drift" fail success 404 e2ee
 run_case "admin-unavailable" fail success 404 plaintext unavailable

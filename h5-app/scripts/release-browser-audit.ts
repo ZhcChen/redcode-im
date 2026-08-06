@@ -35,6 +35,12 @@ const passwordMarker = `H5Audit-${runId}-secret`;
 const messageMarker = `h5-production-store-${runId}`;
 const tamperMarker = `h5-aad-tamper-${runId}`;
 const consoleMessages: string[] = [];
+const consoleDiagnostics: Array<{
+  label: string;
+  type: string;
+  pathname: string;
+  text_sha256: string;
+}> = [];
 const pageErrors: string[] = [];
 const networkUrls: string[] = [];
 const encryptedPosts: string[] = [];
@@ -185,6 +191,7 @@ try {
     throw new Error(
       `candidate leaked sensitive browser data: ${JSON.stringify({
         consoleMessageCount: consoleMessages.length,
+        consoleDiagnostics,
         pageErrors,
         sensitiveNetworkViolations,
       })}`,
@@ -244,7 +251,21 @@ try {
 async function observedPage(context: BrowserContext, label: string): Promise<Page> {
   const page = await context.newPage();
   page.on('console', (message) => {
-    consoleMessages.push(`${label}:${message.type()}: ${message.text()}`);
+    const text = message.text();
+    const locationUrl = message.location().url;
+    let pathname = '';
+    try {
+      pathname = locationUrl ? new URL(locationUrl).pathname : '';
+    } catch {
+      pathname = 'invalid-url';
+    }
+    consoleMessages.push(`${label}:${message.type()}: ${text}`);
+    consoleDiagnostics.push({
+      label,
+      type: message.type(),
+      pathname,
+      text_sha256: createHash('sha256').update(text).digest('hex'),
+    });
   });
   page.on('pageerror', (error) => pageErrors.push(`${label}: ${error.message}`));
   page.on('request', (request) => {

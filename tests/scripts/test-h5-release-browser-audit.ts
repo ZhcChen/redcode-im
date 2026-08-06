@@ -20,6 +20,8 @@ const requiredAuditFragments = [
   'plaintextMessagePosts.length !== plaintextPostsBeforeTamper',
   'secureStateContainsForbiddenValue',
   'sensitiveNetworkViolations',
+  'consoleDiagnostics',
+  'text_sha256',
   'drainResponseScans',
   "socket.on('framereceived'",
   'webSocketFrameCount === 0',
