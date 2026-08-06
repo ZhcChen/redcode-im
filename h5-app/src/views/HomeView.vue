@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import CachedAvatar from '@/components/CachedAvatar.vue';
+import { e2eeRuntimeBootstrap } from '@/e2ee/runtime-bootstrap';
 import { useAppShellStore, type AppTab } from '@/stores/app-shell';
 import { useAuthStore } from '@/stores/auth';
 import { formatChatDisplayTime, useChatStore } from '@/stores/chat';
@@ -189,10 +190,16 @@ const openContactPage = async (name: 'contact-requests' | 'contact-add' | 'conta
 };
 
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', closeChatMenu);
-  void chatStore.initialize();
-  void contactsStore.initialize();
+  const accountId = authStore.currentUser?.id ?? '';
+  try {
+    await e2eeRuntimeBootstrap.ensureReady(accountId);
+  } catch (error) {
+    chatStore.error = error instanceof Error ? error.message : 'E2EE 设备初始化失败';
+    return;
+  }
+  await Promise.all([chatStore.initialize(), contactsStore.initialize()]);
 });
 
 onBeforeUnmount(() => {
