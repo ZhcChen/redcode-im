@@ -6,7 +6,9 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 remote="${H5_RELEASE_REMOTE:-im-test-1}"
 run_id="${H5_SECURE_STATE_RUN_ID:-h5audit$(date -u +%Y%m%d%H%M%S)}"
 remote_deploy="${H5_SECURE_STATE_REMOTE_DEPLOY:-/tmp/redcode-h5-secure-state-audit-$run_id}"
-remote_env="${H5_SECURE_STATE_REMOTE_ENV:-/srv/redcode-im/deploy/im-test-1/.env}"
+remote_source_dir="${H5_SECURE_STATE_REMOTE_SOURCE_DIR:-/root/redcode-im/deploy/im-test-1}"
+remote_env="${H5_SECURE_STATE_REMOTE_ENV:-$remote_source_dir/.env}"
+remote_source_compose="$remote_source_dir/docker-compose.yml"
 api_image="${E2EE_DRILL_API_IMAGE:-}"
 candidate_api="https://im-test-admin-1.codelib.cc/h5-candidate-api"
 candidate_ws="wss://im-test-admin-1.codelib.cc/h5-candidate-api/ws"
@@ -36,7 +38,7 @@ remote_control() {
 E2EE_DRILL_API_IMAGE='$api_image' \
 E2EE_RESTORE_ENV_FILE='$remote_env' \
 E2EE_RESTORE_COMPOSE_FILE='$remote_deploy/docker-compose.e2ee-restore.yml' \
-E2EE_RESTORE_SOURCE_COMPOSE_FILE='/srv/redcode-im/deploy/im-test-1/docker-compose.yml' \
+E2EE_RESTORE_SOURCE_COMPOSE_FILE='$remote_source_compose' \
 E2EE_RESTORE_SNAPSHOT_FILE='$remote_deploy/e2ee-restore-snapshot.sql' \
 E2EE_RESTORE_STATE_ROOT='$remote_deploy/state' \
 '$control' '$1'"
@@ -44,14 +46,14 @@ E2EE_RESTORE_STATE_ROOT='$remote_deploy/state' \
 
 source_schema_digest() {
   ssh "$remote" "set -a; . '$remote_env'; set +a; \
-docker compose --env-file '$remote_env' -f /srv/redcode-im/deploy/im-test-1/docker-compose.yml \
+docker compose --env-file '$remote_env' -f '$remote_source_compose' \
 exec -T postgres pg_dump -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --schema-only --no-owner --no-privileges" |
     shasum -a 256 | awk '{print $1}'
 }
 
 source_gate_table() {
   ssh "$remote" "set -a; . '$remote_env'; set +a; \
-docker compose --env-file '$remote_env' -f /srv/redcode-im/deploy/im-test-1/docker-compose.yml \
+docker compose --env-file '$remote_env' -f '$remote_source_compose' \
 exec -T postgres psql -X -qAt -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" \
 -c \"SELECT COALESCE(to_regclass('public.e2ee_runtime_gate')::text, 'absent')\""
 }
@@ -98,6 +100,8 @@ for command in awk bun jq make scp shasum ssh; do require_command "$command"; do
   die "H5_SECURE_STATE_REMOTE_DEPLOY 不安全"
 [[ "$remote_env" == /* && "$remote_env" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
   die "H5_SECURE_STATE_REMOTE_ENV 不安全"
+[[ "$remote_source_dir" == /* && "$remote_source_dir" =~ ^/[A-Za-z0-9._/-]+$ ]] ||
+  die "H5_SECURE_STATE_REMOTE_SOURCE_DIR 不安全"
 
 jq -e --arg api "$candidate_api" --arg ws "$candidate_ws" --arg base "$candidate_base" '
   .endpoints.api_base_url == $api and .endpoints.ws_url == $ws and .base_path == $base
@@ -126,7 +130,7 @@ E2EE_RESTORE_RUN_ID='$run_id' \
 E2EE_DRILL_API_IMAGE='$api_image' \
 E2EE_RESTORE_ENV_FILE='$remote_env' \
 E2EE_RESTORE_COMPOSE_FILE='$remote_deploy/docker-compose.e2ee-restore.yml' \
-E2EE_RESTORE_SOURCE_COMPOSE_FILE='/srv/redcode-im/deploy/im-test-1/docker-compose.yml' \
+E2EE_RESTORE_SOURCE_COMPOSE_FILE='$remote_source_compose' \
 E2EE_RESTORE_SNAPSHOT_FILE='$remote_deploy/e2ee-restore-snapshot.sql' \
 E2EE_RESTORE_STATE_ROOT='$remote_deploy/state' \
 '$control' prepare-empty" >/dev/null
