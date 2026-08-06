@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
 current_unit: E3
-current_checkpoint: E3.1
+current_checkpoint: E3.2
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
@@ -20,7 +20,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 ## Goal Capsule
 
 - **目标：** 从已验证的 G4 整改基线继续完成恢复真实性、H5 production 安全存储、持久证据、真实 release workflow、独立复审和最终重放。
-- **唯一恢复点：** `E3.1`，在真实候选页面建立 production `E2eeSecureStateStorage` Chrome 审计入口与失败清理；不得使用替代加密/存储实现。
+- **唯一恢复点：** `E3.2`，修复隔离 `prepare-empty` 栈重启后 runtime 未保持 `persist/e2ee` 的问题，再从新 HEAD 重建候选并重跑真实 Chrome 审计；不得绕过 runtime verify。
 - **固定顺序：** `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，不得并行打开后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主必须保持 `persist/plaintext` 和 `security_review_approved=false`。
 - **权威层级：** 当前源码与 live 运行结果 > 本文进度快照 > 历史 review > 历史计划。产品范围仍以 `docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md` 为准。
@@ -90,7 +90,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
   commit、push 且 `HEAD == origin/main` 后，才能更新到下一个 checkpoint。
 - review 文档记录事实，`docs/reports/task-list.md` 只做项目级索引；二者不得反向
   覆盖本文状态。
-- 当前恢复命令：先执行 `git status --short`，确认无未解释改动，再从 `E3.1`
+- 当前恢复命令：先执行 `git status --short`，确认无未解释改动，再从 `E3.2`
   开始；禁止重做 E1/E2。
 
 ### Execution Console
@@ -104,7 +104,7 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md
 | E1.2 复核 finding 整改 | complete | `cab9cbd6`；本地门禁与 run `e1fix20260806b` 通过，已 push |
 | E1.3 第二轮 finding 整改 | complete | `d385c88b` 已验证并 push；run `e1fix20260806g` 与环境终验通过 |
 | E2 Restore 独立复核 | complete | subject `aa605931`；correctness/security/reliability/testing 均 P0/P1/P2=0 |
-| E3 H5 production Chrome 审计 | in_progress | 使用真实候选页面与 production store 验证密文、不可导出 key、篡改、泄漏和 cleanup |
+| E3 H5 production Chrome 审计 | in_progress | E3.1 实现与合同测试已完成；E3.2 正在关闭隔离 restore runtime 启动覆盖问题并重跑真实 Chrome 审计 |
 | E4 持久脱敏证据 | pending | E3 通过后开始 |
 | E5 真实 release workflow | pending | E4 通过后开始 |
 | E6 最终四视角重审 | pending | E5 通过后开始 |
@@ -264,6 +264,24 @@ flowchart TB
 - **Test Scenarios:** 密文往返、不可导出 wrapping key、AAD/密文篡改 fail closed、IndexedDB/local/session/cache/OPFS marker 为零、Console/Network 无敏感输出、失败清理。
 - **Verification:** `make h5-app.check`、`make h5-app.release.test`、真实 headed Chrome 候选审计、环境终验。
 
+#### E3 Checkpoints
+
+| Checkpoint | Status | Evidence / exit condition |
+| --- | --- | --- |
+| E3.1 production 路径与审计合同 | complete | `596a9b0a`、`f5ab4bbe`、`3faccae6` 已推送；H5 `48 passed / 4 skipped`、`266 passed / 13 skipped`，release security 21 场景、browser audit 20 个 mutation、cleanup 17 场景、restore control 13 场景、restore live 8 场景、isolated guard 3 场景、Chrome SIGTERM 退出 143，`vue-tsc --noEmit` 与 Bash syntax 通过；两路独立预审均为 `P0=0/P1=0/P2=0` |
+| E3.2 隔离 runtime 与真实 Chrome run | in_progress | 找出 `prepare-empty` SQL 更新后 API force recreate 仍返回 plaintext 的原因；补回归测试，修复并 push；从新 HEAD 重建候选，以新 run id 完成真实 Chrome 审计和环境终验 |
+| E3.3 review 与状态交付 | pending | 审计 evidence 合同通过，新增 E3 review，更新本文与任务总账，commit/push 后推进 E4.1 |
+
+#### E3.2 Current Failure And Recovery Contract
+
+- run `e3prod20260806a` 在创建资源前失败：脚本误用 `/srv/redcode-im/deploy/im-test-1/.env`，远端实际仓库位于 `/root/redcode-im`；已由 `3faccae6` 修复。
+- run `e3prod20260806b` 已创建隔离 PG/Redis/API、执行 migration，并通过 SQL 设置 `persist/e2ee`、gate `active`、approval true；API force recreate 后 `verify` 返回“restore API runtime 不是 persist/e2ee”。cleanup 已执行，未进入 Caddy/Chrome 阶段。
+- 恢复执行前先核对该 run 的 container、volume、network 已清零，并确认旧主 `/settings/general` 仍为 `persist/plaintext`；若不满足，先只做 run-scoped cleanup 和只读核验。
+- 调查顺序固定为：首次 API migration 后查询 DB -> SQL update 后查询 DB -> API force recreate 后再次查询 DB -> 请求 restore `/settings/general`。一次只改变一个阶段，判断是启动同步覆盖、读取路径/缓存还是环境默认值造成漂移。
+- 若 API 启动会合法地同步配置，调整隔离 `prepare-empty` 的启动环境或执行顺序；不得扩展服务端契约、修改已有 migration、删除 runtime verify，或写入旧主数据库。
+- 修复必须增加覆盖“API restart 后 runtime 保持 `persist/e2ee`”的 `prepare-empty` 回归测试。测试、review、commit、push 后使用新 run id 从新 HEAD 重建 release candidate，不复用失败 run 或旧构建作为通过证据。
+- 成功退出要求：production store 双 BrowserContext 往返、不可导出 key、AAD tamper fail closed、浏览器与传输边界扫描、WS frame 观测、signal cleanup 全部通过；candidate/Caddy/run-scoped 远端资源和 `18010` 清零；旧主 schema digest 不变、gate table 仍 absent、runtime 仍为 `persist/plaintext`。
+
 ### E4. 持久脱敏证据合同（原 U6）
 
 - **Goal:** 让 G1/G3 结论在新机器和 artifact 过期后仍可验证。
@@ -350,9 +368,9 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | E3 |
-| Active checkpoint | E3.1 production Chrome 审计入口与真实存储路径 |
-| Git baseline | `d5115ba5` 已推送，`HEAD == origin/main` |
-| Worktree | E2 review 已提交并推送；开始 E3 前重新检查工作区 |
+| Active checkpoint | E3.2 隔离 restore runtime 修复与真实 Chrome run |
+| Git baseline | `3faccae6f95cbd47267b9da76bfc7d47f4f8989b` 已推送，`HEAD == origin/main` |
+| Worktree | E3.1 实现、合同测试和预审已提交并推送；恢复前重新执行 `git status --short` |
 | Latest full run | `e1fix20260806g` |
 | Functional result | `6 passed | 1 skipped` |
 | Snapshot result | candidate/restore 完整行 digest `2c34ac950bee5a780988321a518d589d` 一致 |
@@ -360,7 +378,8 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Cleanup result | candidate、restore、container、volume、network、state、HMAC key、MONITOR、tunnel、18010 已清零 |
 | Old primary | `persist/plaintext`，禁止触碰 |
 | Candidate image | `redcode-im-api:g1-74d1231e` |
-| Next action | 核对现有 release browser audit 与 production store 入口，补齐真实 Chrome 审计及定向测试 |
+| Latest E3 run | `e3prod20260806b` 在 API force recreate 后 runtime verify 失败；cleanup 已执行，未进入 Chrome |
+| Next action | 先核对远端残留与旧主只读状态，再按 DB/API 四阶段定位 `prepare-empty` runtime 被覆盖原因，补回归并以新 HEAD、新 run id 重跑 |
 
 ### Historical Mapping
 
