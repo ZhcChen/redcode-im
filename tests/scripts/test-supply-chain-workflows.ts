@@ -196,10 +196,33 @@ for (const secret of [
   "ANDROID_SIGNING_KEY_ALIAS",
   "ANDROID_SIGNING_KEY_PASSWORD",
 ]) assert.match(androidBuild.env[secret], new RegExp(`secrets\\.${secret}`));
+assert.equal(androidJob.permissions.contents, "read");
+assert.equal(androidJob.permissions["id-token"], "write");
+assert.equal(androidJob.permissions.attestations, "write");
+assert.equal(
+  stepByName(androidJob, "Attest Android release candidate provenance").uses,
+  "actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e",
+);
+assert.equal(
+  stepByName(androidJob, "Attest Android release candidate provenance").with["subject-path"],
+  ".artifacts/android/redcode-im-android-${{ github.sha }}.apk",
+);
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download API artifacts").with
     .pattern,
   "api-linux-*-release",
+);
+const apiBuildJob = release.jobs["api-build"];
+assert.equal(apiBuildJob.permissions.contents, "read");
+assert.equal(apiBuildJob.permissions["id-token"], "write");
+assert.equal(apiBuildJob.permissions.attestations, "write");
+assert.equal(
+  stepByName(apiBuildJob, "Attest API artifacts provenance").uses,
+  "actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e",
+);
+assert.equal(
+  stepByName(apiBuildJob, "Attest API artifacts provenance").with["subject-path"],
+  ".artifacts/api/*",
 );
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download H5 artifact").with.name,
@@ -284,6 +307,22 @@ assert.ok(
 const policy = JSON.parse(
   await readFile(resolve(root, "config/supply-chain/policy.json"), "utf8"),
 );
+const apiReleaseDockerfile = await readFile(
+  resolve(root, "api/docker/release/Dockerfile"),
+  "utf8",
+);
+const fromLines = apiReleaseDockerfile.match(/^FROM .+$/gm) ?? [];
+assert.equal(fromLines.length, 2);
+for (const line of fromLines) {
+  assert.match(line, /@sha256:[a-f0-9]{64}(?: AS builder)?$/);
+}
+assert.match(apiReleaseDockerfile, /FROM rust:1\.94\.0-alpine3\.21@sha256:/);
+assert.match(apiReleaseDockerfile, /FROM alpine:3\.21@sha256:/);
+assert.equal(
+  (apiReleaseDockerfile.match(/cargo build --release --locked/g) ?? []).length,
+  2,
+);
+assert.doesNotMatch(apiReleaseDockerfile, /RUN cargo build --release\s*$/m);
 assert.ok(
   policy.modules.some(
     (module: any) =>

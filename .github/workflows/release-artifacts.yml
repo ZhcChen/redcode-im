@@ -100,6 +100,10 @@ jobs:
       - validate-release-inputs
       - supply-chain-check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         working-directory: android-app
@@ -169,6 +173,11 @@ jobs:
 
           cp "$SOURCE" "$OUT/redcode-im-android-${GITHUB_SHA}.apk"
 
+      - name: Attest Android release candidate provenance
+        uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
+        with:
+          subject-path: .artifacts/android/redcode-im-android-${{ github.sha }}.apk
+
       - name: Upload Android release candidate
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -216,6 +225,10 @@ jobs:
       - api-check
       - supply-chain-check
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -262,6 +275,11 @@ jobs:
             cd .artifacts/api
             sha256sum "redcode-im-api-linux-${{ matrix.arch }}.binary.tar.gz" "redcode-im-api-linux-${{ matrix.arch }}.docker.tar.gz" > "redcode-im-api-linux-${{ matrix.arch }}.sha256"
           )
+
+      - name: Attest API artifacts provenance
+        uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
+        with:
+          subject-path: .artifacts/api/*
 
       - name: Upload API artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

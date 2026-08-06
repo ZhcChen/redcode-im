@@ -2,7 +2,7 @@
 # Context: api/
 
 # ============ 构建阶段 ============
-FROM rust:alpine AS builder
+FROM rust:1.94.0-alpine3.21@sha256:2ff5a7235f7b13b05b8a23c3c92737ad7adea11bf68ab5116b0e52991410c721 AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ COPY Cargo.toml Cargo.lock ./
 # 创建虚拟 src 以预编译依赖
 RUN mkdir src && \
     echo "fn main() {}" > src/main.rs && \
-    cargo build --release 2>/dev/null || true && \
+    cargo build --release --locked 2>/dev/null || true && \
     rm -rf src
 
 # 复制构建所需文件
@@ -35,10 +35,10 @@ COPY src ./src
 ENV SQLX_OFFLINE=true
 
 # 构建
-RUN cargo build --release
+RUN cargo build --release --locked
 
 # ============ 运行阶段 ============
-FROM alpine:3.21
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 WORKDIR /app
 
