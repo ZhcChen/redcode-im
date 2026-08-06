@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 status: active
 current_unit: C2
-current_checkpoint: C2-full-regression-and-release-rehearsal
+current_checkpoint: C2-wait-actions-recovery-before-new-run
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 ---
@@ -53,6 +53,11 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 | REL-P1-01 | complete | owned draft 跨执行恢复、条件删除、错误分类及 live rehearsal 均通过 |
 | 当前恢复点 | C2 | C1 提交 push 后使用 JDK21 执行 `make test.all` |
 | C1 owned draft 恢复 | complete | `docs/reviews/2026-08-07-u10-e2ee-c1-owned-draft-recovery.md`；三视角 `P0=0/P1=0` |
+| C2 JDK21 全量回归 | complete | candidate `6a1585dd`；`make test.all` 明确返回 `0` |
+| C2 隔离 Release rehearsal | complete | orphan 恢复与 stale ETag fail-closed 通过；临时 Release/tag 清零 |
+| C2 candidate run 1 | infrastructure-failure | run `31120768166`；首 job 排队 15 分钟后 cancelled，`steps=[]` |
+| C2 candidate run 2 | infrastructure-failure | run `31121705433`；仅 `Set up job` 失败，其余 skipped |
+| GitHub Actions | blocked-external | 官方 Status 为 `major_outage`；恢复前不继续制造无效 run |
 
 run `31114473217` 仅在 GitHub 下载 action metadata 时遇到 `500/503`，仓库代码未执行且
 无 tag/Release 副作用；它不是实现失败证据，也不得 rerun 作为新候选证明。
@@ -243,11 +248,11 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | C2 |
-| Active checkpoint | `C2-full-regression-and-release-rehearsal` |
-| Open blockers | 无代码 P0/P1；待 C2 全量、新候选 workflow 与四类 evidence |
+| Active checkpoint | `C2-wait-actions-recovery-before-new-run` |
+| Open blockers | 无代码 P0/P1；GitHub Actions 官方 `major_outage` 阻断候选 workflow |
 | Invalid implementation candidate | `a0b90719976f1847feeb54a2c5a857dbc09b53fe` |
 | Invalidated successful run | `31115034686`；成功但仅证明 C1 修复前实现 |
 | Last evidence commit | `63b78a02d82ad03ab3ca419fc901509e128ef22d` |
 | Completed | N1-N7、U1-U7、原 F6.2 五项整改、H5 sidecar、四类 provenance、R4 真实 run/evidence |
-| Earliest resume action | C1 提交 push 后，JDK21 执行 `make test.all` |
+| Earliest resume action | 确认 GitHub Actions 恢复后，触发全新 `publish_release=false` run；不得 rerun `31120768166` 或 `31121705433` |
 | Final verdict | No-Go |

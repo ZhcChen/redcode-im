@@ -31,10 +31,12 @@
 
 - 当前主线：U10 owned draft 自动恢复 -> 新候选与 Release evidence -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `C2-full-regression-and-release-rehearsal`。C1 已关闭
-  owned draft 跨执行恢复 P1，三视角复审为 `P0=0/P1=0`，隔离 GitHub API rehearsal
-  证明恢复和 stale ETag fail-closed；下一步使用 JDK21 全量回归并重建候选、workflow
-  与四类 evidence。生产 E2EE 继续 **No-Go**。
+- 当前立即任务：唯一 checkpoint 为 `C2-wait-actions-recovery-before-new-run`。C1 已关闭
+  owned draft P1；candidate `6a1585dd` 的 JDK21 `make test.all` 返回 `0`，隔离 GitHub
+  API rehearsal 通过。run `31120768166` 未分配 runner，run `31121705433` 仅在
+  `Set up job` 失败；GitHub Status 明确为 `Actions major_outage`，两次均未执行仓库步骤，
+  正式 tag/Release 零副作用。官方恢复后触发全新 run，不 rerun 旧 run。生产 E2EE
+  继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前剩余顺序：严格按 `C1 owned draft 恢复 -> C2 新候选与 evidence -> C3 第四轮
