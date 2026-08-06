@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
 current_unit: F5
-current_checkpoint: F5.3b
+current_checkpoint: F5.4
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
@@ -20,8 +20,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
 ## Goal Capsule
 
 - **目标：** 在不重做已验收实现的前提下，关闭真实 Release CI 差异，完成同一候选上的独立复审、干净基线重放和最终 Go/No-Go 裁决。
-- **唯一恢复点：** `F5.3b`。Release run `31063965919` 已证明 H5 在 Linux 重建 WASM 后仍改变 tracked source，先取证并修复该平台差异，不进入 F6。
-- **固定顺序：** `F5.3b -> F5.4 -> F6 -> F7`。任一单元失败都回到最早受影响单元，禁止另建平行 active 计划。
+- **唯一恢复点：** `F5.4`。F5.3b 已以 canonical Linux x86_64 builder、稳定路径映射和 clean-source gate 关闭，当前从已 push 的干净 HEAD 触发全新 `publish_release=false` workflow。
+- **固定顺序：** `F5.4 -> F6 -> F7`。任一单元失败都回到最早受影响单元，禁止另建平行 active 计划。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**。
 - **环境红线：** `im-test-1` 旧主保持 `persist/plaintext`；禁止停止、升级或写入旧主数据库。
 - **状态权威：** 本文 frontmatter、执行看板和恢复快照是唯一 U10 执行状态源；历史计划只用于设计和证据追溯。
@@ -75,8 +75,8 @@ U10 的协议、原生双端、H5、Admin gate、跨端 live 和持久证据主�
 
 | Unit | Status | Exit condition |
 | --- | --- | --- |
-| F5.3b Linux WASM 可复现性修复 | in_progress | run `31063965919` 完整取证；跨平台根因明确；本地/CI 同构门禁通过；修复 commit 已 push |
-| F5.4 全新候选 Release workflow | pending | 新 run 全部必需 jobs、artifact、attestation、HEAD 绑定和零副作用通过 |
+| F5.3b Linux WASM 可复现性修复 | complete | run `31063965919` 完整取证；canonical Linux SHA 稳定；修复 `caefedf5` 已 push |
+| F5.4 全新候选 Release workflow | in_progress | 新 run 全部必需 jobs、artifact、attestation、HEAD 绑定和零副作用通过 |
 | F6 最终四视角重审 | pending | 同一候选上四个独立上下文均 `P0=0/P1=0` |
 | F7 干净基线重放与裁决 | pending | Verification Contract 全部通过并形成唯一最终 review |
 
@@ -199,16 +199,16 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | F5 |
-| Active checkpoint | F5.3b Linux WASM 可复现性修复 |
+| Active checkpoint | F5.4 全新候选 Release workflow |
 | Implementation candidate | 尚未冻结；F5.4 首个完整成功 run 的 workflow subject 将成为 `implementation_candidate_sha` |
-| Current HEAD | `2495a2dfbdba75d3cf85972f954026c99cac5c1d`，已 push，触发时与 `origin/main` 一致 |
+| F5.3b implementation | `caefedf5dc9f346b7253574020ff04773bba892f`，已 push；canonical Linux WASM SHA-256 `5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c` |
 | First run | `31061331555`，failure；H5 variables 与 Android host cdylib 缺失；零发布副作用 |
 | Second run | `31063363938`，cancelled；H5 Rust 未固定、Android artifact 路径错误；零发布副作用 |
-| Current run | `31063965919`，subject `2495a2df`；H5 pinned toolchain 成功后 clean-source gate 失败；其余 jobs 待 run 最终结束后归档 |
-| Current H5 failure | Linux runner 重建 `h5-app/src/e2ee/core-wasm` 后报告 tracked source changed；package、attestation、upload 正确跳过 |
+| Third run | `31063965919`，cancelled，subject `2495a2df`；H5 clean-source 失败；Android、API tests、API arm64 成功；Publish 未发布 |
+| F5.3b review | `docs/reviews/2026-08-06-u10-e2ee-release-ci-reproducibility-review.md` |
 | Frozen before-state | tags SHA-256 `e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8`；Releases SHA-256 `b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f` |
 | Old primary | `persist/plaintext`，禁止停止、升级或写入 |
-| Immediate action | 等待或合理终止 run `31063965919`，保存完整 logs 与前后态；定位 Linux/macOS WASM diff，完成 F5.3b 后触发全新 run |
+| Immediate action | 提交并 push F5.3b review/进度；确认 `HEAD == origin/main` 与工作区干净；冻结 tag/Release 前态并触发全新 F5.4 run |
 
 ### 历史计划定位
 
