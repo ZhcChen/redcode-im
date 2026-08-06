@@ -9,7 +9,7 @@ product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
 status: active
 current_unit: F5
-current_checkpoint: F5.2
+current_checkpoint: F5.4
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
@@ -20,8 +20,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
 ## Goal Capsule
 
 - **目标：** 在不重做已关闭工作的前提下，修复真实 Release workflow 暴露的 CI 差异，完成独立复审、干净基线重放和最终 Go/No-Go 裁决。
-- **唯一恢复点：** `F5.2`，等待并分析 GitHub Actions run `31061331555` 的完整结果；该 run 已出现 H5 candidate build 和 Android unit test 失败，不能作为通过证据。
-- **固定顺序：** `F5.2 -> F5.3 -> F5.4 -> F6 -> F7`。除 CI 中互不依赖的观测外，不并行启动后续单元。
+- **唯一恢复点：** `F5.4`，从已 push 且工作区干净的修复候选 HEAD 冻结 tag/Release 前态，以 `publish_release=false` 触发全新 Release workflow。
+- **固定顺序：** `F5.4 -> F6 -> F7`。除 CI 中互不依赖的观测外，不并行启动后续单元。
 - **当前裁决：** 生产 E2EE 保持 **No-Go**；`im-test-1` 旧主保持 `persist/plaintext`，禁止停止、升级或写入旧主数据库。
 - **唯一状态源：** 本文 frontmatter、执行看板和恢复快照。历史计划只提供设计与证据追溯，不再承载进度。
 
@@ -36,6 +36,8 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
 | F3 H5 production Chrome 审计 | complete | subject `f6944a70`；run `e3prod20260806f` |
 | F4 持久脱敏证据 | complete | commit `a383f788`；离线验证与 13 类负例通过 |
 | F5.1 Release 前态冻结与首次触发 | complete | subject `32d065af`；run `31061331555` 已触发 |
+| F5.2 首次 run 取证与归因 | complete | run `31061331555` failure；H5/Android 两项根因；tag/Release 零副作用 |
+| F5.3 CI 差异修复 | complete | commit `e652aaa1`；仓库变量、host cdylib 与 contract tests 已关闭 |
 
 F1-F4 对应旧计划 E1-E4。它们只在后续回归或独立复审发现直接关联的 P0/P1 时，才回到最早受影响单元；不得因文档重排重新执行。
 
@@ -46,8 +48,10 @@ F1-F4 对应旧计划 E1-E4。它们只在后续回归或独立复审发现直�
 - `Validate release inputs` 与 `Supply-chain release gate` 已通过。
 - `Build and attest H5 candidate` 已在 `Build and verify H5 candidate` 失败；package、attestation 与 upload 被正确阻断。
 - `Build Android app (Kotlin/Compose)` 已在 `Run unit tests` 失败；lint、APK build 与 upload 被正确阻断。
-- iOS 与 Desktop 依 workflow 条件跳过；API job 在本文整理时仍运行。
-- tag/Release 前态已冻结；只有 run 结束并完成前后差分后，才能确认零发布副作用。
+- iOS 与 Desktop 依 workflow 条件跳过；API test 和 x86_64/arm64 image build 全部成功，Publish job 正确跳过。
+- tag/Release 前后集合与摘要完全一致：17 个 tag、12 个 Release；tags SHA-256 为 `e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8`，Releases SHA-256 为 `b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f`。
+- F5.3 已设置仓库变量 `H5_RELEASE_API_BASE_URL=https://im-test-1.codelib.cc` 与 `H5_RELEASE_WS_URL=wss://im-test-1.codelib.cc/ws`；workflow 在重依赖安装前 fail closed 校验变量。
+- Android job 现先以 scanned `Cargo.lock` 执行 `cargo build --locked` 生成 Linux host cdylib，再通过 `E2EE_CORE_LIB_DIR` 运行 JNA 测试；contract test 锁定步骤顺序与路径。
 
 ## 2. 范围与约束
 
@@ -76,9 +80,9 @@ F1-F4 对应旧计划 E1-E4。它们只在后续回归或独立复审发现直�
 | F3 H5 production 审计 | complete | 已关闭，不重做 |
 | F4 持久脱敏证据 | complete | 已关闭，不重做 |
 | F5.1 前态冻结与首次触发 | complete | run `31061331555` 绑定 `32d065af` |
-| F5.2 首次 run 取证与归因 | in_progress | run 结束、日志归因、tag/Release 零副作用结论齐全 |
-| F5.3 CI 差异修复 | pending | H5/Android/API（若适用）本地稳定复现并通过新增门禁；提交已 push |
-| F5.4 新候选真实 workflow | pending | 新 run 全部必需 jobs、artifact、attestation、HEAD 绑定和零副作用通过 |
+| F5.2 首次 run 取证与归因 | complete | run `31061331555` 结束；H5/Android 根因与 tag/Release 零副作用已确认 |
+| F5.3 CI 差异修复 | complete | `e652aaa1` 已 push；本地同构门禁和干净 H5 candidate build 通过 |
+| F5.4 新候选真实 workflow | in_progress | 冻结新候选与前态后触发全新 run；全部必需 jobs、artifact、attestation、HEAD 绑定和零副作用通过 |
 | F6 最终四视角重审 | pending | 同一候选上 correctness/security/reliability/testing 均 `P0=0/P1=0` |
 | F7 干净基线重放与裁决 | pending | 全部门禁、live、环境清理和证据通过，形成最终 review |
 
@@ -164,15 +168,15 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | F5 |
-| Active checkpoint | F5.2 首次真实 workflow 取证与归因 |
-| Candidate HEAD | `32d065af1b5114a8bd61115df09574da7b8519f0` |
-| Workflow run | `31061331555`，`workflow_dispatch`，`publish_release=false` |
-| Known pass | Validate release inputs；Supply-chain release gate |
-| Known failure | H5 candidate build；Android unit tests |
-| Still running at plan creation | API test |
+| Active checkpoint | F5.4 新候选真实 Release workflow |
+| Candidate HEAD | F5.3 implementation commit `e652aaa15cf16017196ec4cad6646715fd91b2bc`；本文进度提交后以新 HEAD 为最终 subject |
+| First workflow run | `31061331555`，failure，subject `32d065af` |
+| First run pass | Validate、Supply-chain、API test、API arm64/x86_64 build |
+| First run failure | H5 缺失仓库变量；Android 缺失 Linux host cdylib |
+| F5.3 verification | workflow contract、供应链 32 类负例、Android JVM/lint/APK、H5 check/release 21 场景、干净 candidate build、API Compose 全部通过 |
 | Before-state SHA | tags `e023f4b370a568468175d424a832b14e99a2052f6eebc630a1df065961f08cb8`；Releases `b9b1303f61ac70002c80585c3b55fa3ab1d0e1c6f463b13b39f6233f52a8fe4f` |
 | Old primary | `persist/plaintext`，禁止停止、升级或写入 |
-| Immediate action | 等待 run 完成，读取 failed logs，比较 tag/Release 前后状态并形成逐模块根因 |
+| Immediate action | 提交并 push 本次进度文档，确认工作区干净和 `HEAD == origin/main`；重新冻结 tag/Release 前态并触发全新 `publish_release=false` workflow |
 
 ## 8. 历史映射
 

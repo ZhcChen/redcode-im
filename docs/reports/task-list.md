@@ -30,15 +30,16 @@
 
 - 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `F5.2`。E2 四个全新独立上下文已在 subject
+- 当前立即任务：唯一 checkpoint 为 `F5.4`。E2 四个全新独立上下文已在 subject
   `aa605931` 完成 correctness/security/reliability/testing 复核，均为
   `P0=0、P1=0、P2=0`。E3 已由 subject `f6944a70`、真实 run
   `e3prod20260806f` 和 production browser evidence 关闭；E4 持久脱敏 evidence 已由
   commit `a383f788`、13 类负向测试和干净 detached worktree 复验关闭。当前冻结已
   push 候选 HEAD 与 GitHub tag/Release 前态后，已以 `publish_release=false` 触发真实
-  `Build Release Artifacts` workflow run `31061331555`。该 run 已暴露 H5 candidate
-  build 与 Android unit test 失败，当前等待完整结束、提取日志并确认零 tag/Release
-  副作用；生产 E2EE 继续 **No-Go**。
+  `Build Release Artifacts` workflow run `31061331555`。该 run 最终仅因 H5 仓库变量
+  缺失和 Android Linux host cdylib 缺失失败，API test 与双架构 image build 成功，
+  tag/Release 零副作用。修复 commit `e652aaa1` 已 push 且本地同构门禁通过，当前
+  冻结新候选并触发全新 `publish_release=false` run；生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、Execution Console 和 Resume
   Snapshot 推进；本总账不再复制中间 checkpoint 的完整历史，避免双重状态源。
 - 当前下一阶段：F1-F4 已完成且不重做；严格按 `F5.2 首次 run 取证 -> F5.3 CI
@@ -90,9 +91,9 @@
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
   - F1-F4 已关闭且不重做：Restore run `e1fix20260806g`、subject `aa605931` 的
     四视角复核、H5 production run `e3prod20260806f`、evidence commit `a383f788`。
-  - 当前只执行 F5.2：等待 run `31061331555` 完整结束，归因 H5/Android 失败并确认
-    tag/Release 零副作用；之后按 F5.3 修复、F5.4 新候选 workflow、F6 最终复审、
-    F7 干净基线重放串行推进。
+  - F5.2/F5.3 已关闭：run `31061331555` 完整取证且零发布副作用，修复 commit
+    `e652aaa1` 已 push。当前只执行 F5.4 新候选 workflow，之后按 F6 最终复审、F7
+    干净基线重放串行推进。
   - F6 四视角重审 P0/P1 清零前禁止进入 F7；最终裁决前保持 E2EE **No-Go**。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
