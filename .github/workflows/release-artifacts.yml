@@ -295,6 +295,7 @@ jobs:
       - name: Build and verify H5 candidate
         run: |
           set -euo pipefail
+          make e2ee-core.build.h5
           make h5-app.release.build \
             H5_RELEASE_API_BASE_URL="$H5_RELEASE_API_BASE_URL" \
             H5_RELEASE_WS_URL="$H5_RELEASE_WS_URL"

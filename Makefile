@@ -703,7 +703,7 @@ e2ee-core.test.wasm: ## 在 Chrome 中运行 E2EE 核心 WASM 协议测试
 
 e2ee-core.build.h5: ## 生成 H5 使用的 E2EE WASM binding
 	@$(call require_cmd,wasm-pack)
-	@wasm-pack build "$(E2EE_CORE_DIR)" --target web --release --out-dir "$(H5_APP_DIR)/src/e2ee/core-wasm"
+	@"$(ROOT_DIR)/scripts/build-e2ee-wasm.sh"
 
 e2ee-core.fixture.generate: ## 重新生成 Native 到 WASM 的 E2EE 测试 fixture
 	@$(call require_cmd,$(CARGO))
@@ -758,7 +758,12 @@ h5-app.release.build: ## 构建并校验可追溯的 h5-app production 候选包
 		VITE_WS_URL="$(H5_RELEASE_WS_URL)" \
 		VITE_BASE_PATH="$(if $(H5_RELEASE_BASE_PATH),$(H5_RELEASE_BASE_PATH),/)" \
 		$(BUN) run build
-	@test -z "$$(git status --short)" || { echo "h5-app release build changed tracked source files" >&2; exit 1; }
+	@test -z "$$(git status --short)" || { \
+		echo "h5-app release build changed tracked source files" >&2; \
+		git status --short >&2; \
+		git diff --stat >&2; \
+		exit 1; \
+	}
 	@cd "$(H5_APP_DIR)" && \
 		H5_RELEASE_API_BASE_URL="$(H5_RELEASE_API_BASE_URL)" \
 		H5_RELEASE_WS_URL="$(H5_RELEASE_WS_URL)" \

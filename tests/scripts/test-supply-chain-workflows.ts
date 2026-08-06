@@ -4,6 +4,29 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "../..");
 
+const wasmBuildScript = await readFile(
+  resolve(root, "scripts/build-e2ee-wasm.sh"),
+  "utf8",
+);
+const h5Package = JSON.parse(
+  await readFile(resolve(root, "h5-app/package.json"), "utf8"),
+);
+
+assert.equal(h5Package.scripts["e2ee:build"], "../scripts/build-e2ee-wasm.sh");
+assert.equal(h5Package.scripts.build, "vue-tsc --noEmit && vite build");
+assert.equal(
+  h5Package.scripts["build:with-e2ee"],
+  "bun run e2ee:build && bun run build",
+);
+assert.match(wasmBuildScript, /uname -s.*Linux/s);
+assert.match(wasmBuildScript, /uname -m.*x86_64/s);
+assert.match(wasmBuildScript, /rustc --version.*1\.94\.0/s);
+assert.match(wasmBuildScript, /wasm-pack --version.*0\.15\.0/s);
+assert.match(wasmBuildScript, /--remap-path-prefix=\$\{ROOT_DIR\}=\/workspace/);
+assert.match(wasmBuildScript, /--remap-path-prefix=\$\{CARGO_HOME\}=\/cargo-home/);
+assert.match(wasmBuildScript, /--remap-path-prefix=\$\{RUST_SYSROOT\}=\/rust-toolchain/);
+assert.match(wasmBuildScript, /wasm-pack build "\$\{ROOT_DIR\}\/e2ee-core"/);
+
 async function parseWorkflow(path: string): Promise<any> {
   return Bun.YAML.parse(await readFile(resolve(root, path), "utf8"));
 }
@@ -198,7 +221,7 @@ assert.equal(h5Job.permissions.attestations, "write");
 assert.equal(h5Job.permissions.contents, "read");
 assert.match(
   stepByName(h5Job, "Build and verify H5 candidate").run,
-  /h5-app\.release\.build/,
+  /make e2ee-core\.build\.h5[\s\S]*make h5-app\.release\.build/,
 );
 assert.equal(
   stepByName(h5Job, "Attest H5 candidate provenance").with["subject-path"],
