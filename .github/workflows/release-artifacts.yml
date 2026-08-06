@@ -172,17 +172,22 @@ jobs:
           fi
 
           cp "$SOURCE" "$OUT/redcode-im-android-${GITHUB_SHA}.apk"
+          (
+            cd "$OUT"
+            sha256sum "redcode-im-android-${GITHUB_SHA}.apk" > \
+              "redcode-im-android-${GITHUB_SHA}.apk.sha256"
+          )
 
       - name: Attest Android release candidate provenance
         uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
         with:
-          subject-path: .artifacts/android/redcode-im-android-${{ github.sha }}.apk
+          subject-path: .artifacts/android/redcode-im-android-${{ github.sha }}.apk.sha256
 
       - name: Upload Android release candidate
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: android-app-release
-          path: .artifacts/android/redcode-im-android-${{ github.sha }}.apk
+          path: .artifacts/android/*
           if-no-files-found: error
           include-hidden-files: true
 
@@ -268,7 +273,7 @@ jobs:
       - name: Attest API artifacts provenance
         uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
         with:
-          subject-path: .artifacts/api/*
+          subject-path: .artifacts/api/redcode-im-api-linux-${{ matrix.arch }}.sha256
 
       - name: Upload API artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -337,7 +342,7 @@ jobs:
       - name: Attest H5 candidate provenance
         uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
         with:
-          subject-path: .artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz
+          subject-path: .artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz.sha256
 
       - name: Upload H5 candidate
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

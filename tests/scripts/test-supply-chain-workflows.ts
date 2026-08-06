@@ -181,10 +181,6 @@ assert.equal(
     .name,
   "android-app-release",
 );
-assert.equal(
-  stepByName(androidJob, "Upload Android release candidate").with.path,
-  ".artifacts/android/redcode-im-android-${{ github.sha }}.apk",
-);
 const androidBuild = stepByName(androidJob, "Build Android release candidate");
 assert.match(androidBuild.run, /validate-android-signing\.sh/);
 assert.match(androidBuild.run, /assembleRelease/);
@@ -206,7 +202,12 @@ assert.equal(
 );
 assert.equal(
   stepByName(androidJob, "Attest Android release candidate provenance").with["subject-path"],
-  ".artifacts/android/redcode-im-android-${{ github.sha }}.apk",
+  ".artifacts/android/redcode-im-android-${{ github.sha }}.apk.sha256",
+);
+assert.match(androidBuild.run, /sha256sum "redcode-im-android-\$\{GITHUB_SHA\}\.apk"/);
+assert.equal(
+  stepByName(androidJob, "Upload Android release candidate").with.path,
+  ".artifacts/android/*",
 );
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download API artifacts").with
@@ -227,7 +228,7 @@ assert.equal(
 );
 assert.equal(
   stepByName(apiBuildJob, "Attest API artifacts provenance").with["subject-path"],
-  ".artifacts/api/*",
+  ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}.sha256",
 );
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download H5 artifact").with.name,
@@ -275,7 +276,7 @@ assert.match(
 );
 assert.equal(
   stepByName(h5Job, "Attest H5 candidate provenance").with["subject-path"],
-  ".artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz",
+  ".artifacts/h5-release/redcode-im-h5-${{ github.sha }}.tar.gz.sha256",
 );
 assert.ok(needs(release.jobs["publish-release"]).includes("h5-app-build"));
 assert.equal(

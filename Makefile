@@ -126,7 +126,7 @@ if [ "$(ANDROID_APP_API_BASE_URL)" = "__ANDROID_APP_LAN_IP_REQUIRED__" ] || [ "$
 fi
 endef
 
-.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review supply-chain.check supply-chain.test supply-chain.workflow.test release.reliability.test e2ee-core.wasm-builder.test \
+.PHONY: help status install.all test.all test.live tests.all dev.up dev.down dev.logs crg.build crg.update crg.status crg.review supply-chain.check supply-chain.test supply-chain.workflow.test release.reliability.test e2ee.provenance.test e2ee-core.wasm-builder.test \
 	api.up api.down api.restart api.reset api.wait api.logs api.ps api.test api.test.unit api.test.integration api.test.smoke api.test.build api.test.build.release api.test.images api.test.deps.down api.perf api.perf.run api.perf.smoke api.perf.healthz api.perf.readyz api.perf.auth api.perf.ws.connect api.perf.ws.join api.perf.ws.broadcast api.perf.release api.perf.release.small api.perf.release.standard api.perf.release.large api.perf.release.healthz api.perf.release.readyz api.perf.release.auth api.perf.release.ws.connect api.perf.release.ws.join api.perf.release.ws.broadcast api.perf.down api.migration.guard migration.guard \
 	admin.install admin.up admin.down admin.wait admin.logs admin.build admin.check admin.test admin.test.e2e admin.test.routes admin.test.routes.default admin.test.routes.data-cleanup admin.test.live \
 	desktop.install desktop.up desktop.down desktop.logs desktop.build desktop.check desktop.test desktop.test.unit desktop.test.api desktop.test.store desktop.test.utils desktop.test.live \
@@ -1089,6 +1089,7 @@ tests.tooling: ## 执行仓库级 tooling 守护测试
 	@$(MAKE) supply-chain.test
 	@$(MAKE) supply-chain.workflow.test
 	@$(MAKE) release.reliability.test
+	@$(MAKE) e2ee.provenance.test
 	@$(MAKE) e2ee.evidence.verify
 	@$(MAKE) e2ee.evidence.test
 	@$(MAKE) e2ee-core.wasm-builder.test
@@ -1114,6 +1115,9 @@ supply-chain.workflow.test: ## 校验供应链 CI 与 release 阻断依赖图
 
 release.reliability.test: ## 执行 Release create-only 与 API artifact cleanup 正负测试
 	@"$(ROOT_DIR)/tests/scripts/test-release-reliability.sh"
+
+e2ee.provenance.test: ## 验证四类 release sidecar provenance 的离线验签契约
+	@$(BUN) "$(ROOT_DIR)/tests/scripts/test-e2ee-provenance.ts"
 
 e2ee-core.wasm-builder.test: ## 执行 canonical WASM platform/version fail-closed 测试
 	@"$(ROOT_DIR)/tests/scripts/test-e2ee-wasm-builder.sh"
