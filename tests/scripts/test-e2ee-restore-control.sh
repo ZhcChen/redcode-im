@@ -43,6 +43,13 @@ if [[ "${1:-}" == compose ]]; then
         if [[ "$api_up_count" -ge "${E2EE_CONTROL_TEST_FAIL_API_UP_AFTER:-999}" ]]; then
           exit 24
         fi
+        if [[ "$api_up_count" -ge 2 ]]; then
+          if [[ -f "$state/runtime-persisted" ]]; then
+            cat "$state/runtime-persisted" >"$state/runtime"
+          else
+            printf 'plaintext\n' >"$state/runtime"
+          fi
+        fi
       fi
       ;;
     exec)
@@ -80,6 +87,10 @@ if [[ "${1:-}" == compose ]]; then
             [[ "${E2EE_CONTROL_TEST_FAIL_RUNTIME_SQL:-0}" != 1 ]] || exit 25
             printf 'redcode-e2ee-restore:%s\n' "${E2EE_RESTORE_RUN_ID:?}" >"$state/marker"
             printf 'e2ee\n' >"$state/runtime"
+            if [[ "$sql" == *"INSERT INTO general_settings"* &&
+                  "$sql" == *"ON CONFLICT (key) DO UPDATE"* ]]; then
+              printf 'e2ee\n' >"$state/runtime-persisted"
+            fi
             ;;
           *"value = 'plaintext'"*) printf 'plaintext\n' >"$state/runtime" ;;
         esac
@@ -303,6 +314,8 @@ E2EE_RESTORE_ALLOW_EMPTY_PREPARE=yes \
 jq -e '.verified == true and .database_marker == "redcode-e2ee-restore:empty-candidate"' \
   "$empty_state/prepare.json" >/dev/null
 [[ "$(cat "$empty_state/runtime")" == e2ee ]]
+[[ "$(cat "$empty_state/runtime-persisted")" == e2ee ]]
+[[ "$(cat "$empty_state/api-up-count")" == 2 ]]
 [[ -f "$empty_state/runtime-state/empty-candidate/control.env" ]]
 [[ -e "$empty_state/network-storage" && -e "$empty_state/network-ingress" &&
    -e "$empty_state/network-connected" ]]

@@ -370,10 +370,17 @@ prepare_empty() {
   }
   restore_psql "
     COMMENT ON DATABASE $restore_database IS '$marker';
-    UPDATE general_settings SET value = 'persist', updated_at = NOW(), updated_by = NULL
-      WHERE key = 'message_server_storage_mode';
-    UPDATE general_settings SET value = 'e2ee', updated_at = NOW(), updated_by = NULL
-      WHERE key = 'message_content_audit_mode';
+    INSERT INTO general_settings (key, value, description, updated_at, updated_by)
+    VALUES
+      ('message_server_storage_mode', 'persist',
+       '消息服务器存储模式（persist=落库，relay_only=仅转发）', NOW(), NULL),
+      ('message_content_audit_mode', 'e2ee',
+       '消息内容审计模式（plaintext=明文可审计，e2ee=端侧加密）', NOW(), NULL)
+    ON CONFLICT (key) DO UPDATE SET
+      value = EXCLUDED.value,
+      description = EXCLUDED.description,
+      updated_at = NOW(),
+      updated_by = NULL;
     UPDATE e2ee_runtime_gate SET state = 'active', security_review_approved = TRUE,
       updated_at = NOW(), updated_by = NULL WHERE id = 1;
   " >/dev/null
