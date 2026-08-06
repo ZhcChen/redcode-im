@@ -5,8 +5,8 @@ type: security
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 status: active
-current_unit: R1
-current_checkpoint: R1-review-and-commit-reliability-fixes
+current_unit: R3
+current_checkpoint: R3-implementation-complete-pending-full-regression
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 ---
@@ -38,11 +38,11 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 
 | ID | 问题 | 状态 | 关闭条件 |
 | --- | --- | --- | --- |
-| F62-P1-01 | 持久 evidence 仅覆盖 H5 provenance | pending | H5、Android、API 两架构可从干净 checkout 离线重放 |
-| F62-P1-02 | verifier 未验证签名、证书身份和透明日志 | pending | 可信根密码学验签；错误签名、repo、workflow、source 均 fail closed |
-| F62-P1-03 | Android signing / Publish 未绑定受保护 environment | pending | 绑定 `production-release`，并持久化 live policy 证据 |
-| F62-P1-04 | Release 部分上传失败留下半成品 | implemented/uncommitted | draft 完整上传后 publish；仅清理本次 owned draft；测试和审查通过 |
-| F62-P1-05 | H5 lock 存在无 owner 窗口 | implemented/uncommitted | owner lock 原子创建；非 owner/旧锁 fail closed；测试和审查通过 |
+| F62-P1-01 | 持久 evidence 仅覆盖 H5 provenance | implemented/pending-live-evidence | H5、Android、API 两架构可从干净 checkout 离线重放 |
+| F62-P1-02 | verifier 未验证签名、证书身份和透明日志 | implemented/pending-live-evidence | 可信根密码学验签；错误签名、repo、workflow、source 均 fail closed |
+| F62-P1-03 | Android signing / Publish 未绑定受保护 environment | implemented/pending-full-regression | 绑定 `production-release`，并持久化 live policy 证据 |
+| F62-P1-04 | Release 部分上传失败留下半成品 | complete | draft 完整上传后 publish；仅清理本次 owned draft；测试和审查通过 |
+| F62-P1-05 | H5 lock 存在无 owner 窗口 | complete | owner lock 原子创建；非 owner/旧锁 fail closed；测试和审查通过 |
 
 ## 4. 执行单元
 
@@ -134,11 +134,11 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 
 | Field | Value |
 | --- | --- |
-| Active unit | R1 |
-| Active checkpoint | 审查并提交 P1-04、P1-05 可靠性修复 |
+| Active unit | R3 |
+| Active checkpoint | environment 实现和 live policy 已完成，待全量回归与提交 |
 | Last review | F6.2 fail，`P0=0/P1=5/P2=0` |
 | Invalid candidate | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
 | Last workflow run | `31071229063`，success，Publish skipped |
-| Uncommitted | P1-04 Release draft 原子发布；P1-05 H5 原子 owner lock |
-| Pending | P1-01、P1-02 provenance；P1-03 production environment |
+| Completed | P1-04 Release draft 原子发布；P1-05 H5 原子 owner lock |
+| Pending live closure | P1-01、P1-02 新 workflow bundles；P1-03 全量回归 |
 | Final verdict | No-Go |

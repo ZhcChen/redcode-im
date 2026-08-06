@@ -1,0 +1,26 @@
+{
+  "schema": "redcode-production-environment-evidence/v1",
+  "repository": "ZhcChen/redcode-im",
+  "environment": "production-release",
+  "environment_id": 19387368785,
+  "updated_at": "2026-08-06T05:40:51Z",
+  "can_admins_bypass": true,
+  "required_reviewers": [
+    {
+      "type": "User",
+      "login": "ZhcChen",
+      "id": 23111450
+    }
+  ],
+  "prevent_self_review": false,
+  "deployment_branch_policy": {
+    "protected_branches": false,
+    "custom_branch_policies": true
+  },
+  "allowed_branches": [
+    {
+      "name": "main",
+      "type": "branch"
+    }
+  ]
+}
