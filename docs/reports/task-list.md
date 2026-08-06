@@ -30,7 +30,7 @@
 
 - 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `F6`。E2 四个全新独立上下文已在 subject
+- 当前立即任务：唯一 checkpoint 为 `F6.1`。E2 四个全新独立上下文已在 subject
   `aa605931` 完成 correctness/security/reliability/testing 复核，均为
   `P0=0、P1=0、P2=0`。E3 已由 subject `f6944a70`、真实 run
   `e3prod20260806f` 和 production browser evidence 关闭；E4 持久脱敏 evidence 已由
@@ -42,11 +42,12 @@
   run `31063965919` 进一步暴露 Linux/macOS tracked WASM 差异；canonical Linux
   x86_64 生成策略、路径映射和 clean-source 门禁已由 `caefedf5` 关闭。F5.4 run
   `31065710816` 已完整成功，artifact/provenance 绑定 `eff9e9fd` 且零发布副作用；当前
-  执行 F6 四视角独立重审，生产 E2EE 继续 **No-Go**。
+  执行 F6 四视角独立重审。首轮结果为 `P0=0/P1=9/P2=3`，当前候选失效并回退
+  F6.1 整改；生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
-- 当前下一阶段：F1-F5 已完成且不重做；严格按 `F6 四视角重审 -> F7 全量与 live
-  重放` 串行执行。
+- 当前下一阶段：严格按 `F6.1 复审整改 -> F5.4b 新候选 workflow -> F6.2 四视角
+  重审 -> F7 全量与 live 重放` 串行执行。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -95,7 +96,8 @@
     四视角复核、H5 production run `e3prod20260806f`、evidence commit `a383f788`。
   - F5 已关闭：run `31065710816` 全部必需 jobs 成功，五个 artifacts、H5 SLSA
     provenance 与候选 `eff9e9fd` 一致，tag/Release 零副作用。当前执行 F6，关闭后进入 F7。
-  - F6 四视角重审 P0/P1 清零前禁止进入 F7；最终裁决前保持 E2EE **No-Go**。
+  - F6 首轮独立复审发现 9 个 P1；整改、F5.4b 重跑和 F6.2 P0/P1 清零前禁止进入
+    F7；最终裁决前保持 E2EE **No-Go**。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。
