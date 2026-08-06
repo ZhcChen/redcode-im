@@ -107,6 +107,7 @@ function validateGateJob(job: any, artifactRetention: number): void {
 function validateReleaseDependencies(workflow: any): void {
   for (const jobName of [
     "android-app-check",
+    "android-app-sign",
     "api-build",
     "h5-app-build",
     "publish-release",
@@ -155,6 +156,7 @@ assert.match(release.concurrency.group, /inputs\.release_tag/);
 validateGateJob(release.jobs["supply-chain-check"], 90);
 validateReleaseDependencies(release);
 const androidJob = release.jobs["android-app-check"];
+const androidSignJob = release.jobs["android-app-sign"];
 const androidSteps = androidJob.steps;
 const buildHostIndex = androidSteps.findIndex(
   (step: any) => step.name === "Build E2EE host library",
@@ -179,11 +181,12 @@ const publishSteps = release.jobs["publish-release"].steps;
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download Android artifact").with
     .name,
-  "android-app-release",
+  "android-app-release-signed",
 );
 const androidBuild = stepByName(androidJob, "Build Android release candidate");
 assert.match(androidBuild.run, /validate-android-signing\.sh/);
 assert.match(androidBuild.run, /assembleRelease/);
+assert.equal(androidBuild.env.PUBLISH_RELEASE, "false");
 assert.match(androidBuild.run, /app-release-unsigned\.apk/);
 assert.match(androidBuild.run, /ANDROID_HOME.*build-tools[\s\S]*APKSIGNER/);
 assert.match(androidBuild.run, /APKSIGNER.*verify/);
@@ -192,7 +195,27 @@ for (const secret of [
   "ANDROID_SIGNING_STORE_PASSWORD",
   "ANDROID_SIGNING_KEY_ALIAS",
   "ANDROID_SIGNING_KEY_PASSWORD",
-]) assert.match(androidBuild.env[secret], new RegExp(`secrets\\.${secret}`));
+]) assert.equal(androidBuild.env[secret], undefined);
+assert.equal(
+  androidSignJob.if,
+  "github.event_name == 'workflow_dispatch' && inputs.publish_release == true",
+);
+assert.equal(androidSignJob.environment, "production-release");
+assert.ok(needs(androidSignJob).includes("android-app-check"));
+const androidSign = stepByName(androidSignJob, "Sign Android release");
+for (const secret of [
+  "ANDROID_SIGNING_KEYSTORE_BASE64",
+  "ANDROID_SIGNING_STORE_PASSWORD",
+  "ANDROID_SIGNING_KEY_ALIAS",
+  "ANDROID_SIGNING_KEY_PASSWORD",
+]) assert.match(androidSign.env[secret], new RegExp(`secrets\\.${secret}`));
+assert.match(androidSign.run, /validate-android-signing\.sh/);
+assert.match(androidSign.run, /APKSIGNER.*sign/s);
+assert.match(androidSign.run, /APKSIGNER.*verify/s);
+assert.equal(
+  stepByName(androidSignJob, "Attest signed Android release provenance").with["subject-path"],
+  ".artifacts/android-signed/redcode-im-android-${{ github.sha }}.apk.sha256",
+);
 assert.equal(androidJob.permissions.contents, "read");
 assert.equal(androidJob.permissions["id-token"], "write");
 assert.equal(androidJob.permissions.attestations, "write");
@@ -283,6 +306,8 @@ assert.equal(
   release.jobs["publish-release"].if,
   "github.event_name == 'workflow_dispatch' && inputs.publish_release == true",
 );
+assert.equal(release.jobs["publish-release"].environment, "production-release");
+assert.ok(needs(release.jobs["publish-release"]).includes("android-app-sign"));
 assert.match(
   stepByName(release.jobs["validate-release-inputs"], "Resolve release tag").run,
   /validate-release-inputs\.sh/,

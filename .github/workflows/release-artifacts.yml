@@ -134,11 +134,7 @@ jobs:
 
       - name: Build Android release candidate
         env:
-          PUBLISH_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release || false }}
-          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
-          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
-          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
-          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          PUBLISH_RELEASE: "false"
         run: |
           set -euo pipefail
           umask 077
@@ -148,27 +144,12 @@ jobs:
           test -n "$APKSIGNER" || { echo "Android SDK apksigner is required" >&2; exit 1; }
           mkdir -p "$OUT"
 
-          if [ "$SIGNING_MODE" = "signed" ]; then
-            KEYSTORE="$RUNNER_TEMP/redcode-im-release.keystore"
-            trap 'rm -f "$KEYSTORE"' EXIT
-            printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
-            keytool -list -keystore "$KEYSTORE" \
-              -storepass:env ANDROID_SIGNING_STORE_PASSWORD \
-              -alias "$ANDROID_SIGNING_KEY_ALIAS" >/dev/null
-            ./gradlew assembleRelease \
-              -Predcode.signing.storeFile="$KEYSTORE" \
-              -Predcode.signing.storePassword="$ANDROID_SIGNING_STORE_PASSWORD" \
-              -Predcode.signing.keyAlias="$ANDROID_SIGNING_KEY_ALIAS" \
-              -Predcode.signing.keyPassword="$ANDROID_SIGNING_KEY_PASSWORD"
-            SOURCE="app/build/outputs/apk/release/app-release.apk"
-            "$APKSIGNER" verify "$SOURCE"
-          else
-            ./gradlew assembleRelease
-            SOURCE="app/build/outputs/apk/release/app-release-unsigned.apk"
-            if "$APKSIGNER" verify "$SOURCE" >/dev/null 2>&1; then
-              echo "验收 candidate 不得携带发布签名" >&2
-              exit 1
-            fi
+          test "$SIGNING_MODE" = "unsigned"
+          ./gradlew assembleRelease
+          SOURCE="app/build/outputs/apk/release/app-release-unsigned.apk"
+          if "$APKSIGNER" verify "$SOURCE" >/dev/null 2>&1; then
+            echo "验收 candidate 不得携带发布签名" >&2
+            exit 1
           fi
 
           cp "$SOURCE" "$OUT/redcode-im-android-${GITHUB_SHA}.apk"
@@ -188,6 +169,87 @@ jobs:
         with:
           name: android-app-release
           path: .artifacts/android/*
+          if-no-files-found: error
+          include-hidden-files: true
+
+  android-app-sign:
+    name: Sign Android release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release == true
+    needs:
+      - validate-release-inputs
+      - supply-chain-check
+      - android-app-check
+    runs-on: ubuntu-latest
+    environment: production-release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - name: Download unsigned Android candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: android-app-release
+          path: .artifacts/unsigned
+
+      - name: Sign Android release
+        env:
+          PUBLISH_RELEASE: "true"
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(scripts/release/validate-android-signing.sh)" = "signed"
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -mindepth 2 -maxdepth 2 -name apksigner -type f -print | sort -V | tail -1)"
+          test -n "$APKSIGNER" || { echo "Android SDK apksigner is required" >&2; exit 1; }
+          KEYSTORE="$RUNNER_TEMP/redcode-im-release.keystore"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          keytool -list -keystore "$KEYSTORE" \
+            -storepass:env ANDROID_SIGNING_STORE_PASSWORD \
+            -alias "$ANDROID_SIGNING_KEY_ALIAS" >/dev/null
+          mkdir -p .artifacts/android-signed
+          SOURCE=".artifacts/unsigned/redcode-im-android-${GITHUB_SHA}.apk"
+          OUTPUT=".artifacts/android-signed/redcode-im-android-${GITHUB_SHA}.apk"
+          "$APKSIGNER" sign \
+            --ks "$KEYSTORE" \
+            --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" \
+            --ks-pass env:ANDROID_SIGNING_STORE_PASSWORD \
+            --key-pass env:ANDROID_SIGNING_KEY_PASSWORD \
+            --out "$OUTPUT" \
+            "$SOURCE"
+          "$APKSIGNER" verify "$OUTPUT"
+          (
+            cd .artifacts/android-signed
+            sha256sum "redcode-im-android-${GITHUB_SHA}.apk" > \
+              "redcode-im-android-${GITHUB_SHA}.apk.sha256"
+          )
+
+      - name: Attest signed Android release provenance
+        uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
+        with:
+          subject-path: .artifacts/android-signed/redcode-im-android-${{ github.sha }}.apk.sha256
+
+      - name: Upload signed Android release
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-app-release-signed
+          path: .artifacts/android-signed/*
           if-no-files-found: error
           include-hidden-files: true
 
@@ -561,10 +623,12 @@ jobs:
       - validate-release-inputs
       - supply-chain-check
       - android-app-check
+      - android-app-sign
       - api-build
       - h5-app-build
       # - desktop-build
     runs-on: ubuntu-latest
+    environment: production-release
     permissions:
       contents: write
     steps:
@@ -576,7 +640,7 @@ jobs:
       - name: Download Android artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: android-app-release
+          name: android-app-release-signed
           path: .artifacts/downloaded
 
       - name: Download API artifacts
