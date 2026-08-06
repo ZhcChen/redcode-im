@@ -96,6 +96,7 @@ for (const fragment of [
   "remote_control cleanup",
   'remote_dir_created=1',
   'source_schema_digest',
+  "awk '!/^\\\\(un)?restrict /'",
   'source_gate_table',
   'h5-release-candidate-window.sh',
   'remote_control verify',

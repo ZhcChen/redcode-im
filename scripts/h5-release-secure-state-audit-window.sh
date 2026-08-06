@@ -48,6 +48,7 @@ source_schema_digest() {
   ssh "$remote" "set -a; . '$remote_env'; set +a; \
 docker compose --env-file '$remote_env' -f '$remote_source_compose' \
 exec -T postgres pg_dump -U \"\$POSTGRES_USER\" -d \"\$POSTGRES_DB\" --schema-only --no-owner --no-privileges" |
+    awk '!/^\\(un)?restrict /' |
     shasum -a 256 | awk '{print $1}'
 }
 
