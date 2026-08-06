@@ -1,22 +1,22 @@
 {
   "schema": "redcode-u10-e2ee-evidence/v1",
   "evidence_type": "f5-release-workflow",
-  "subject_commit": "65a3dd4e39fbf94e88a9bac27fe9ed1af776b208",
-  "subject_committed_at": "2026-08-06T22:11:05+08:00",
+  "subject_commit": "a0b90719976f1847feeb54a2c5a857dbc09b53fe",
+  "subject_committed_at": "2026-08-06T23:04:18+08:00",
   "generator": {
     "name": "scripts/e2ee-evidence/sanitize.ts",
     "version": 2
   },
   "assertions": {
     "run": {
-      "id": 31110031190,
+      "id": 31115034686,
       "workflow_name": "Build Release Artifacts",
       "event": "workflow_dispatch",
-      "head_sha": "65a3dd4e39fbf94e88a9bac27fe9ed1af776b208",
+      "head_sha": "a0b90719976f1847feeb54a2c5a857dbc09b53fe",
       "conclusion": "success",
       "publish_release": false,
-      "created_at": "2026-08-06T14:16:52Z",
-      "completed_at": "2026-08-06T14:56:06Z"
+      "created_at": "2026-08-06T15:16:25Z",
+      "completed_at": "2026-08-06T15:56:45Z"
     },
     "jobs": [
       {
@@ -65,12 +65,12 @@
         "required": false
       },
       {
-        "name": "Build API arm64",
+        "name": "Build API x86_64",
         "conclusion": "success",
         "required": true
       },
       {
-        "name": "Build API x86_64",
+        "name": "Build API arm64",
         "conclusion": "success",
         "required": true
       },
@@ -83,34 +83,34 @@
     "artifacts": [
       {
         "name": "api-linux-x86_64-release",
-        "digest": "sha256:460bba910189509478896031e8ad028ded124e1c2d5a5f39c28e84962716df53",
-        "size_in_bytes": 65067124
+        "digest": "sha256:5d0b383a8f30fc8bed8b5faaf40a361bd6353a3effe8a58672844209b33f2244",
+        "size_in_bytes": 65062224
       },
       {
         "name": "api-linux-arm64-release",
-        "digest": "sha256:8b8c43aed92dffe848636fb6c93add423b97cc9db814cbe33d98ad1bd6652149",
-        "size_in_bytes": 63233945
+        "digest": "sha256:36bdc67daf25f9f502bc8e022cfca07df965b0017f0def2a6c061743138e5740",
+        "size_in_bytes": 63243470
       },
       {
         "name": "android-app-release",
-        "digest": "sha256:572522790cda3035a8808bfef8428dc35137fe9c24354ffbe45f3e1f86a4e542",
+        "digest": "sha256:c02c468fb4fa50551f67963b4cefe695e39adc4ea7ee9437dd330d2c39e4b46c",
         "size_in_bytes": 12085217
       },
       {
         "name": "h5-app-release",
-        "digest": "sha256:f43148fe1c86bda5a4c4108e7440b911ef1de81b444276be6f4731934effd842",
-        "size_in_bytes": 1168652
+        "digest": "sha256:96ce4117d45a90decf262185a9996da34fd74ef83f02e4aa5de142a9aa889fdb",
+        "size_in_bytes": 1165014
       },
       {
-        "name": "supply-chain-release-65a3dd4e39fbf94e88a9bac27fe9ed1af776b208",
-        "digest": "sha256:08bb36f948f82d45c73a566760cedea813b884e4b2d7eedaba194aa866108ece",
-        "size_in_bytes": 76244
+        "name": "supply-chain-release-a0b90719976f1847feeb54a2c5a857dbc09b53fe",
+        "digest": "sha256:461d979852e70c7fb15c22dd1c7f8574692b1f3de5e33f40a27ee04e4df7f03e",
+        "size_in_bytes": 76247
       }
     ],
     "asset_digests": {
-      "h5_archive_sha256": "8a7a27080d6f6d8b8f4cafb24a5318f0cc3219c4093204350542086de1329df3",
+      "h5_archive_sha256": "14443623d6d45c419240cf48ec89f93c7688e7c59a60bf0535d3e6db1fe5b455",
       "android_apk_sha256": "99574af70abc49d677fe564f6ab02b94c7f096a3710d8865569612bdee8ec235",
-      "h5_manifest_sha256": "6e5eb951d42995d4a5b5770fb59ef3596763d642097de1ae3841ec2c5aff6437",
+      "h5_manifest_sha256": "43504c7c701eacc5c302e59ced34762b352678e753298c4e0780800941dd96d6",
       "wasm_sha256": "5a6bdfd021fce5dcd49be7df907f4a09b158129d410dd400d2033efb2e71507c"
     },
     "release_state": {
@@ -122,8 +122,8 @@
     },
     "provenance": {
       "manifest_file": "f5-provenance-manifest.json",
-      "manifest_sha256": "88cf311e959ffac8056c41af3eb12280ef5d07b02426171774b2cc5b9af822ea"
+      "manifest_sha256": "d89920796f347ad2d38e8a914a68cd6fe4ecb1a25aa2cf1c03fb82f88459ff59"
     }
   },
-  "integrity_sha256": "6e69a45f45727a799545e6f66a18ad84132d5f74bfc091a38f48849b75ad8309"
+  "integrity_sha256": "47863321f4c856292bfa92ca685e02d7e3216bfb0a025d8c68432bc3359fe24d"
 }
