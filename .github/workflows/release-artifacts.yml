@@ -132,7 +132,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
 
+      - name: Build E2EE host library
+        working-directory: ${{ github.workspace }}
+        run: cargo build --locked --manifest-path e2ee-core/Cargo.toml --release
+
       - name: Run unit tests
+        env:
+          E2EE_CORE_LIB_DIR: ${{ github.workspace }}/e2ee-core/target/release
         run: ./gradlew testDebugUnitTest
 
       - name: Run Android Lint
@@ -264,6 +270,12 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Validate H5 release endpoints
+        run: |
+          set -euo pipefail
+          test -n "$H5_RELEASE_API_BASE_URL" || { echo "H5_RELEASE_API_BASE_URL repository variable is required" >&2; exit 1; }
+          test -n "$H5_RELEASE_WS_URL" || { echo "H5_RELEASE_WS_URL repository variable is required" >&2; exit 1; }
 
       - name: Install pinned wasm-pack
         run: cargo install wasm-pack --locked --version 0.15.0

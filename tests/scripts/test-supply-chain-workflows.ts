@@ -116,6 +116,27 @@ assert.equal(
 const release = await parseWorkflow(".github/workflows/release-artifacts.yml");
 validateGateJob(release.jobs["supply-chain-check"], 90);
 validateReleaseDependencies(release);
+const androidJob = release.jobs["android-app-check"];
+const androidSteps = androidJob.steps;
+const buildHostIndex = androidSteps.findIndex(
+  (step: any) => step.name === "Build E2EE host library",
+);
+const androidTestIndex = androidSteps.findIndex(
+  (step: any) => step.name === "Run unit tests",
+);
+assert.ok(buildHostIndex >= 0 && buildHostIndex < androidTestIndex);
+assert.match(
+  stepByName(androidJob, "Build E2EE host library").run,
+  /cargo build --locked --manifest-path e2ee-core\/Cargo\.toml --release/,
+);
+assert.equal(
+  stepByName(androidJob, "Build E2EE host library")["working-directory"],
+  "${{ github.workspace }}",
+);
+assert.equal(
+  stepByName(androidJob, "Run unit tests").env.E2EE_CORE_LIB_DIR,
+  "${{ github.workspace }}/e2ee-core/target/release",
+);
 const publishSteps = release.jobs["publish-release"].steps;
 assert.equal(
   stepByName(release.jobs["publish-release"], "Download Android artifact").with
@@ -132,6 +153,24 @@ assert.equal(
   "h5-app-release",
 );
 const h5Job = release.jobs["h5-app-build"];
+const h5Steps = h5Job.steps;
+const endpointValidationIndex = h5Steps.findIndex(
+  (step: any) => step.name === "Validate H5 release endpoints",
+);
+const wasmPackInstallIndex = h5Steps.findIndex(
+  (step: any) => step.name === "Install pinned wasm-pack",
+);
+assert.ok(
+  endpointValidationIndex >= 0 && endpointValidationIndex < wasmPackInstallIndex,
+);
+assert.match(
+  stepByName(h5Job, "Validate H5 release endpoints").run,
+  /H5_RELEASE_API_BASE_URL repository variable is required/,
+);
+assert.match(
+  stepByName(h5Job, "Validate H5 release endpoints").run,
+  /H5_RELEASE_WS_URL repository variable is required/,
+);
 assert.equal(
   stepByName(h5Job, "Attest H5 candidate provenance").uses,
   "actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e",
