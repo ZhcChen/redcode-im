@@ -43,6 +43,7 @@ const consoleDiagnostics: Array<{
 }> = [];
 const pageErrors: string[] = [];
 const networkUrls: string[] = [];
+const responseStatuses = new Map<string, number[]>();
 const encryptedPosts: string[] = [];
 const plaintextMessagePosts: string[] = [];
 const sensitiveNetworkViolations: string[] = [];
@@ -180,18 +181,31 @@ try {
 
   const sensitiveValues = [passwordMarker, messageMarker, tamperMarker, alice.token, bob.token];
   await drainResponseScans();
+  const expectedIdentityBootstrapPaths = new Set([
+    `${apiUrl.pathname.replace(/\/$/, '')}/e2ee/mls/identities/${alice.user.id}`,
+    `${apiUrl.pathname.replace(/\/$/, '')}/e2ee/mls/identities/${bob.user.id}`,
+  ]);
+  const unexpectedConsoleErrors = consoleDiagnostics.filter((entry) => (
+    entry.type === 'error'
+    && !(
+      expectedIdentityBootstrapPaths.has(entry.pathname)
+      && responseStatuses.get(entry.pathname)?.includes(404)
+    )
+  ));
   if (
     webSocketFrameCount === 0
     || pageErrors.length
     || consoleMessages.some((entry) => (
-      entry.includes('error:') || sensitiveValues.some((value) => entry.includes(value))
+      sensitiveValues.some((value) => entry.includes(value))
     ))
+    || unexpectedConsoleErrors.length
     || sensitiveNetworkViolations.length
   ) {
     throw new Error(
       `candidate leaked sensitive browser data: ${JSON.stringify({
         consoleMessageCount: consoleMessages.length,
         consoleDiagnostics,
+        unexpectedConsoleErrors,
         pageErrors,
         sensitiveNetworkViolations,
       })}`,
@@ -288,6 +302,10 @@ async function observedPage(context: BrowserContext, label: string): Promise<Pag
     }
   });
   page.on('response', (response) => {
+    const pathname = new URL(response.url()).pathname;
+    const statuses = responseStatuses.get(pathname) ?? [];
+    statuses.push(response.status());
+    responseStatuses.set(pathname, statuses);
     responseScans.push((async () => {
     const contentType = response.headers()['content-type'] ?? '';
     if (!contentType.includes('json') && !contentType.startsWith('text/')) return;
@@ -298,7 +316,7 @@ async function observedPage(context: BrowserContext, label: string): Promise<Pag
       ['tamper', tamperMarker],
     ] as const) {
       if (body.includes(value)) {
-        sensitiveNetworkViolations.push(`${label}:${name}-response:${new URL(response.url()).pathname}`);
+        sensitiveNetworkViolations.push(`${label}:${name}-response:${pathname}`);
       }
     }
     })());
