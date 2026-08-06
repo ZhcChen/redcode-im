@@ -16,7 +16,8 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 剩余收口执行计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`
+- E2EE 最终收口执行计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md`
+- E2EE 剩余收口执行计划（历史执行记录）：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`
 - E2EE G4 复审整改完整设计（历史依据）：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
 - E2EE 产品契约（历史总计划）：`docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md`
@@ -27,20 +28,22 @@
 
 ## 当前结论
 
-- 当前主线：U10 G4.1 复审整改 -> 四视角重新复审 -> 干净基线全量与 live 重放
-  -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `E5.1`。E2 四个全新独立上下文已在 subject
+- 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
+  重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
+- 当前立即任务：唯一 checkpoint 为 `F5.2`。E2 四个全新独立上下文已在 subject
   `aa605931` 完成 correctness/security/reliability/testing 复核，均为
   `P0=0、P1=0、P2=0`。E3 已由 subject `f6944a70`、真实 run
   `e3prod20260806f` 和 production browser evidence 关闭；E4 持久脱敏 evidence 已由
   commit `a383f788`、13 类负向测试和干净 detached worktree 复验关闭。当前冻结已
-  push 候选 HEAD 与 GitHub tag/Release 前态，并以 `publish_release=false` 触发真实
-  `Build Release Artifacts` workflow。
+  push 候选 HEAD 与 GitHub tag/Release 前态后，已以 `publish_release=false` 触发真实
+  `Build Release Artifacts` workflow run `31061331555`。该 run 已暴露 H5 candidate
+  build 与 Android unit test 失败，当前等待完整结束、提取日志并确认零 tag/Release
+  副作用；生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、Execution Console 和 Resume
   Snapshot 推进；本总账不再复制中间 checkpoint 的完整历史，避免双重状态源。
-- 当前下一阶段：严格按 `E1 Restore live 与边界证据 -> E2 Restore 独立复核 ->
-  E3 H5 production Chrome 审计 -> E4 持久证据 -> E5 真实 release workflow ->
-  E6 四视角重审 -> E7 全量与 live 重放` 串行执行。
+- 当前下一阶段：F1-F4 已完成且不重做；严格按 `F5.2 首次 run 取证 -> F5.3 CI
+  差异修复 -> F5.4 新候选 workflow -> F6 四视角重审 -> F7 全量与 live 重放`
+  串行执行。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -82,32 +85,15 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件和泄漏扫描的历史验收已完成，
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
-  - G1 恢复真实性和外部副作用清理已由 E1.3 最终 run `e1fix20260806g` 及 E2
-    四视角独立复核关闭；持久脱敏证据仍由 E4 单独交付。该结论不改变生产
-    E2EE `No-Go`。
-  - G2 六端 SBOM、漏洞与许可证门禁有效，但需补严格日历日期校验和真实
-    `Build Release Artifacts` workflow 运行证据；严格日期校验已由 `10f0f724`
-    关闭，U7 P0-3 仍待真实 workflow 证据。
-  - G3.1 已完成 H5 production-mode 候选构建、16 个 release 正负场景、严格 CSP、
-    source/lock/resource 绑定、真实本地响应头检查及 GitHub OIDC provenance 配置。
-  - G3.2/G3.3 的真实 Caddy/响应头/WebCrypto 能力证据有效，但 G4.1 重新打开
-    production `E2eeSecureStateStorage` Chrome 集成和持久证据缺口；幂等 cleanup
-    已由 `22a728f9` 关闭；
-    U7 P0-4 暂不维持关闭。
-  - 当前执行顺序重新编号为 `E1 -> E2 -> E3 -> E4 -> E5 -> E6 -> E7`，分别映射
-    历史 `U4.3 -> U4.4 -> U5 -> U6 -> U7 -> U8 -> U9`；
-    U1（`da3cead2`、`10f0f724`）、U2（`22a728f9`）、U3（`a644fa0f`）以及
-    U4.1 隔离基础设施（`31b13d37`、`fe954a77`、`df85231b`）已完成；U4.2
-    candidate 到 restore 同端口切换由 `3f83bdc9` 和真实 run `u4restore3f83bdc9`
-    关闭。E1.1/E1.2 的功能、snapshot、边界和清理 run 已通过，但第二轮 E2 独立
-    复核再次打开 E1。E1.3 已由 `d385c88b` 和 run `e1fix20260806g` 关闭，预审
-    P0/P1/P2 均为零。E2 四视角全新独立复核已通过；E3 production Chrome 审计由
-    `e3prod20260806f` 完整关闭；E4 由 evidence commit `a383f788` 与 clean checkout
-    离线复验关闭。当前只执行 E5.1 真实 release workflow，E6/E7 不得提前并行打开。
-    四视角重审 P0/P1 清零前禁止进入全量重放，最终裁决前保持 No-Go。
+  - F1-F4 已关闭且不重做：Restore run `e1fix20260806g`、subject `aa605931` 的
+    四视角复核、H5 production run `e3prod20260806f`、evidence commit `a383f788`。
+  - 当前只执行 F5.2：等待 run `31061331555` 完整结束，归因 H5/Android 失败并确认
+    tag/Release 零副作用；之后按 F5.3 修复、F5.4 新候选 workflow、F6 最终复审、
+    F7 干净基线重放串行推进。
+  - F6 四视角重审 P0/P1 清零前禁止进入 F7；最终裁决前保持 E2EE **No-Go**。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。
