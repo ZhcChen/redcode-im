@@ -6,7 +6,7 @@ artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 status: active
 current_unit: R4
-current_checkpoint: R4-release-workflow-running
+current_checkpoint: R4-candidate-invalidated-h5-sidecar-fixed-pending-full-regression
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 ---
@@ -33,8 +33,9 @@ supersedes: docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md
 | 全量回归 | complete | JDK21 `make test.all` 最终返回 `0` |
 | F6.2 独立重审 | complete/fail | `docs/reviews/2026-08-06-u10-e2ee-f62-independent-review.md` |
 | 旧候选 | invalid | `1bedf20a8225257f7c01edac2bd02aee920dea16`，不得进入 F7 |
-| R4 新候选 | running | `ee7f48539304312c1bbddb309491c86a766b5f71`；workflow run `31075390148`；`publish_release=false` |
-| 候选冻结状态 | clean | 触发时 `HEAD == origin/main == ee7f4853`；后续纯计划/evidence 提交不改变实现候选，R4 期间不修改实现层 |
+| R4 候选 1 | invalid | `ee7f48539304312c1bbddb309491c86a766b5f71`；run `31075390148` 虽成功，但 H5 sidecar 含目录前缀，无法通过持久 verifier |
+| H5 sidecar 修复 | complete | `184603c5`；输出目录内生成 sidecar，条目恢复为 basename；定向格式验证与 `make tests.tooling` 通过 |
+| 下一候选 | pending | 门禁变化后先以 JDK21 重跑 `make test.all`，再冻结干净 `HEAD == origin/main` 并触发全新 workflow |
 
 历史设计和已关闭 finding 保留在旧计划与 `docs/reviews/` 中，但不再从那些文档恢复执行状态。
 
@@ -139,13 +140,13 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | R4 |
-| Active checkpoint | 新 Release workflow `31075390148` 正在运行，等待 API test 与 API 双架构构建；不得遗留 watch session |
+| Active checkpoint | run `31075390148` 已成功但真实 H5 sidecar 不符合 verifier 契约；修复已 push，待全量回归后重建候选 |
 | Last review | F6.2 fail，`P0=0/P1=5/P2=0` |
-| Invalid candidate | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
-| Active candidate | `ee7f48539304312c1bbddb309491c86a766b5f71` |
-| Active workflow run | `31075390148`，`publish_release=false`；Android signing 与 Publish 必须 skipped |
-| Frozen pre-state | evidence `/tmp/redcode-r4.SPpE34`；tags SHA-256 `a24963f0...d616`；releases SHA-256 `c60351bc...4765` |
-| Completed | R1、R2 实现层、R3、JDK21 `make test.all`；提交均已 push 至 `origin/main` |
-| Pending live closure | R4 四类真实 bundles、离线验签、零发布副作用、四视角独立复审；随后 R5 干净基线与 live 验收 |
-| Earliest resume action | 继续等待 run `31075390148`；成功后采集 artifacts/bundles，失败则取证并回到最早受影响单元 |
+| Invalid candidate F6.1 | `1bedf20a8225257f7c01edac2bd02aee920dea16` |
+| Invalid candidate R4-1 | `ee7f48539304312c1bbddb309491c86a766b5f71`；run `31075390148`；H5 sidecar 为 `.artifacts/h5-release/...` |
+| Latest implementation fix | `184603c5`，H5 sidecar basename 契约已修复并通过 tooling 回归 |
+| Preserved failed evidence | `/tmp/redcode-r4.SPpE34` 与 `/tmp/redcode-r4-download.eDbqoC`，仅用于解释失效原因，不得作为关闭证据 |
+| Completed | R1、R2 原实现、R3、首次 JDK21 `make test.all`、H5 sidecar 修复；相关提交均已 push |
+| Pending live closure | 修复后全量回归、新 R4 workflow、四类真实 bundles 离线验签、零发布副作用、四视角独立复审；随后 R5 |
+| Earliest resume action | JDK21 执行 `make test.all`；通过后重新冻结 tag/Release 前态并触发 `publish_release=false` 的全新 run |
 | Final verdict | No-Go |
