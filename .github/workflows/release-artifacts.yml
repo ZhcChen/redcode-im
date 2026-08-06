@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: build-release-artifacts-${{ github.ref_name }}
+  group: build-release-artifacts-${{ inputs.release_tag || github.ref_name || github.sha }}
   cancel-in-progress: false
 
 env:
@@ -257,24 +257,13 @@ jobs:
             api
 
       - name: Export API image and binary
+        env:
+          API_RELEASE_IMAGE: redcode-im-api:${{ github.sha }}-${{ matrix.arch }}
+          API_RELEASE_ARCH: ${{ matrix.arch }}
+          API_RELEASE_OUT: ${{ github.workspace }}/.artifacts/api
         run: |
           set -euo pipefail
-          mkdir -p .artifacts/api
-
-          IMAGE="redcode-im-api:${{ github.sha }}-${{ matrix.arch }}"
-          CONTAINER_ID="$(docker create "$IMAGE")"
-          docker cp "$CONTAINER_ID:/app/redcode-im-api" ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}"
-          docker rm "$CONTAINER_ID"
-          chmod +x ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}"
-
-          tar -C .artifacts/api -czf ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}.binary.tar.gz" "redcode-im-api-linux-${{ matrix.arch }}"
-          docker save "$IMAGE" -o ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}.docker.tar"
-          gzip -9 ".artifacts/api/redcode-im-api-linux-${{ matrix.arch }}.docker.tar"
-
-          (
-            cd .artifacts/api
-            sha256sum "redcode-im-api-linux-${{ matrix.arch }}.binary.tar.gz" "redcode-im-api-linux-${{ matrix.arch }}.docker.tar.gz" > "redcode-im-api-linux-${{ matrix.arch }}.sha256"
-          )
+          scripts/release/export-api-artifacts.sh
 
       - name: Attest API artifacts provenance
         uses: actions/attest-build-provenance@78e6cbd37d0ac1a40113c04f2037dacf1ea3f12e # v4
@@ -644,34 +633,9 @@ jobs:
             .artifacts/publish-assets \
             .artifacts/release-notes.md
 
-      - name: Create or update GitHub release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          if [[ "${RELEASE_TAG}" == *-* ]]; then
-            PRERELEASE_FLAG="--prerelease"
-          else
-            PRERELEASE_FLAG=""
-          fi
-
-          if gh release view "${RELEASE_TAG}" > /dev/null 2>&1; then
-            mapfile -t EXISTING_ASSETS < <(gh release view "${RELEASE_TAG}" --json assets --jq '.assets[].name')
-
-            for ASSET_NAME in "${EXISTING_ASSETS[@]}"; do
-              gh release delete-asset "${RELEASE_TAG}" "${ASSET_NAME}" --yes
-            done
-
-            gh release upload "${RELEASE_TAG}" .artifacts/publish-assets/* --clobber
-            gh release edit "${RELEASE_TAG}" \
-              --title "RedCode IM ${RELEASE_TAG}" \
-              --notes-file .artifacts/release-notes.md \
-              ${PRERELEASE_FLAG}
-          else
-            gh release create "${RELEASE_TAG}" .artifacts/publish-assets/* \
-              --target "${GITHUB_SHA}" \
-              --title "RedCode IM ${RELEASE_TAG}" \
-              --notes-file .artifacts/release-notes.md \
-              ${PRERELEASE_FLAG}
-          fi
+          RELEASE_ASSETS_DIR: ${{ github.workspace }}/.artifacts/publish-assets
+          RELEASE_NOTES_FILE: ${{ github.workspace }}/.artifacts/release-notes.md
+        run: scripts/release/create-github-release.sh

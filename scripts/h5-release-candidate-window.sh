@@ -5,10 +5,13 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 dist="${H5_RELEASE_DIST:-$root_dir/h5-app/dist}"
 remote="${H5_RELEASE_REMOTE:-im-test-1}"
 remote_dist="${H5_RELEASE_REMOTE_DIST:-/srv/redcode-h5-candidate}"
-remote_staging="${remote_dist}.upload.$$"
+owner_token="${H5_RELEASE_OWNER_TOKEN:-$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')}"
+remote_lock="${H5_RELEASE_REMOTE_LOCK:-${remote_dist}.lock}"
+remote_staging="${remote_dist}.upload.${owner_token}"
 remote_caddy="${H5_RELEASE_REMOTE_CADDY:-/etc/caddy/Caddyfile}"
 remote_backup="${remote_caddy}.h5-candidate.bak"
-remote_temp_caddy="${H5_RELEASE_REMOTE_TEMP_CADDY:-/tmp/redcode-h5-candidate.Caddyfile}"
+remote_temp_caddy_base="${H5_RELEASE_REMOTE_TEMP_CADDY:-/tmp/redcode-h5-candidate.Caddyfile}"
+remote_temp_caddy="${remote_temp_caddy_base}.${owner_token}"
 caddy_candidate="${H5_RELEASE_CADDYFILE:-$root_dir/deploy/im-test-1/Caddyfile.h5-candidate}"
 candidate_url="${H5_RELEASE_CANDIDATE_URL:-https://im-test-admin-1.codelib.cc/h5-candidate/}"
 runtime_url="${H5_RELEASE_RUNTIME_URL:-https://im-test-1.codelib.cc/settings/general}"
@@ -100,6 +103,19 @@ cleanup_remote() {
 set +e
 status=0
 restored=0
+if ! test -d '$remote_lock'; then
+  if test -e '$remote_backup' || test -e '$remote_dist' ||
+     test -e '$remote_staging' || test -e '$remote_temp_caddy'; then
+    echo '[h5-candidate] resources exist without an owned lock; refusing cleanup' >&2
+    exit 73
+  fi
+  exit 0
+fi
+if ! test -f '$remote_lock/owner' ||
+   test \"\$(cat '$remote_lock/owner')\" != '$owner_token'; then
+  echo '[h5-candidate] lock owner mismatch; refusing cleanup' >&2
+  exit 73
+fi
 if test -f '$remote_backup'; then
   if install -m 0644 '$remote_backup' '$remote_caddy' &&
      caddy validate --config '$remote_caddy' >/dev/null &&
@@ -113,18 +129,21 @@ if test -f '$remote_backup'; then
 else
   restored=1
 fi
-rm -rf '$remote_dist' '$remote_dist'.upload.* || status=1
+rm -rf '$remote_dist' '$remote_staging' || status=1
 rm -f '$remote_temp_caddy' || status=1
 caddy validate --config '$remote_caddy' >/dev/null || status=1
 systemctl is-active --quiet caddy || status=1
 if grep -q h5-candidate '$remote_caddy'; then status=1; fi
 if test -e '$remote_dist'; then status=1; fi
-set -- '$remote_dist'.upload.*
-if test -e \"\$1\"; then status=1; fi
+if test -e '$remote_staging'; then status=1; fi
 if test \"\$status\" -eq 0 && test \"\$restored\" -eq 1; then
   rm -f '$remote_backup' || status=1
 fi
 if test -e '$remote_backup'; then status=1; fi
+if test \"\$status\" -eq 0; then
+  rm -f '$remote_lock/owner' || status=1
+  rmdir '$remote_lock' || status=1
+fi
 exit \"\$status\"
 "
 }
@@ -210,17 +229,29 @@ validate_remote_path "$remote_dist" redcode-h5-candidate || {
   echo "[h5-candidate] H5_RELEASE_REMOTE_DIST is unsafe" >&2
   exit 64
 }
+validate_remote_path "$remote_lock" redcode-h5-candidate.lock || {
+  echo "[h5-candidate] H5_RELEASE_REMOTE_LOCK is unsafe" >&2
+  exit 64
+}
 validate_remote_path "$remote_caddy" Caddyfile || {
   echo "[h5-candidate] H5_RELEASE_REMOTE_CADDY is unsafe" >&2
   exit 64
 }
-validate_remote_path "$remote_temp_caddy" redcode-h5-candidate.Caddyfile || {
+validate_remote_path "$remote_temp_caddy_base" redcode-h5-candidate.Caddyfile || {
   echo "[h5-candidate] H5_RELEASE_REMOTE_TEMP_CADDY is unsafe" >&2
+  exit 64
+}
+[[ "$owner_token" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]] || {
+  echo "[h5-candidate] H5_RELEASE_OWNER_TOKEN is unsafe" >&2
   exit 64
 }
 
 operation="${1:-run}"
 if [[ "$operation" == "cleanup" || "$operation" == "recover" ]]; then
+  [[ -n "${H5_RELEASE_OWNER_TOKEN:-}" ]] || {
+    echo "[h5-candidate] cleanup/recover requires H5_RELEASE_OWNER_TOKEN" >&2
+    exit 64
+  }
   for command in curl jq rg ssh; do require_command "$command"; done
   cleanup 0
 fi
@@ -258,12 +289,13 @@ sed "s|{{H5_CANDIDATE_CSP}}|$csp|" "$caddy_candidate" >"$rendered_caddy"
   exit 66
 }
 
-ssh "$remote" "set -eu; test ! -e '$remote_backup'; test ! -e '$remote_dist'; test ! -e '$remote_staging'"
-ssh "$remote" "set -eu; cp '$remote_caddy' '$remote_backup'; install -d -m 0755 '$remote_staging'"
+ssh "$remote" "set -eu; umask 077; test ! -e '$remote_backup'; test ! -e '$remote_dist'; test ! -e '$remote_staging'; test ! -e '$remote_temp_caddy'; mkdir '$remote_lock'; printf '%s\n' '$owner_token' >'$remote_lock/owner'"
+echo "[h5-candidate] acquired owner lock: $owner_token"
+ssh "$remote" "set -eu; test \"\$(cat '$remote_lock/owner')\" = '$owner_token'; cp '$remote_caddy' '$remote_backup'; install -d -m 0755 '$remote_staging'"
 scp -q -r "$dist/." "$remote:$remote_staging/"
 scp -q "$checksums" "$remote:$remote_staging/.candidate-sha256"
 scp -q "$rendered_caddy" "$remote:$remote_temp_caddy"
-ssh "$remote" "set -eu; cd '$remote_staging'; sha256sum -c .candidate-sha256 >/dev/null; expected=\$(wc -l <.candidate-sha256); actual=\$(find . -type f ! -name .candidate-sha256 | wc -l); test \"\$expected\" -eq \"\$actual\"; rm .candidate-sha256; mv '$remote_staging' '$remote_dist'; caddy validate --config '$remote_temp_caddy' >/dev/null; install -m 0644 '$remote_temp_caddy' '$remote_caddy'; rm -f '$remote_temp_caddy'; systemctl reload caddy; systemctl is-active --quiet caddy"
+ssh "$remote" "set -eu; test \"\$(cat '$remote_lock/owner')\" = '$owner_token'; cd '$remote_staging'; sha256sum -c .candidate-sha256 >/dev/null; expected=\$(wc -l <.candidate-sha256); actual=\$(find . -type f ! -name .candidate-sha256 | wc -l); test \"\$expected\" -eq \"\$actual\"; rm .candidate-sha256; mv '$remote_staging' '$remote_dist'; caddy validate --config '$remote_temp_caddy' >/dev/null; install -m 0644 '$remote_temp_caddy' '$remote_caddy'; rm -f '$remote_temp_caddy'; systemctl reload caddy; systemctl is-active --quiet caddy"
 
 if [[ "$#" -gt 0 ]]; then
   "$@" &

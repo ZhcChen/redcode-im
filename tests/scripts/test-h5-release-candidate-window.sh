@@ -27,7 +27,7 @@ case "${H5_TEST_SSH_MODE:-success}" in
   success) ;;
   *) exit 70 ;;
 esac
-if [[ "$command" == *"restored=0"* ]]; then
+if [[ "$command" == *"restored=0"* || "$command" == *"mkdir '"*".lock'"* ]]; then
   bash -c "$command"
 fi
 SH
@@ -128,10 +128,15 @@ run_case() {
   local hard_timeout="${9:-5}"
   local case_dir="$tmp_dir/$name"
   local remote_dist="$case_dir/remote/srv/redcode-h5-candidate"
+  local owner_token="owner-$name"
+  local remote_lock="${remote_dist}.lock"
   local remote_caddy="$case_dir/remote/etc/caddy/Caddyfile"
-  local remote_temp="$case_dir/remote/tmp/redcode-h5-candidate.Caddyfile"
-  mkdir -p "$remote_dist" "${remote_dist}.upload.old" "${remote_dist}.upload.new" \
+  local remote_temp_base="$case_dir/remote/tmp/redcode-h5-candidate.Caddyfile"
+  local remote_temp="${remote_temp_base}.${owner_token}"
+  mkdir -p "$remote_dist" "${remote_dist}.upload.${owner_token}" \
+    "${remote_dist}.upload.other" "$remote_lock" \
     "${remote_caddy%/*}" "${remote_temp%/*}"
+  printf '%s\n' "$owner_token" >"$remote_lock/owner"
   printf '%s\n' 'candidate h5-candidate route' >"$remote_caddy"
   printf '%s\n' 'original admin route' >"${remote_caddy}.h5-candidate.bak"
   printf '%s\n' 'temporary candidate config' >"$remote_temp"
@@ -159,8 +164,10 @@ run_case() {
   H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
   H5_RELEASE_CLEANUP_HARD_TIMEOUT="$hard_timeout" \
   H5_RELEASE_REMOTE_DIST="$remote_dist" \
+  H5_RELEASE_REMOTE_LOCK="$remote_lock" \
   H5_RELEASE_REMOTE_CADDY="$remote_caddy" \
-  H5_RELEASE_REMOTE_TEMP_CADDY="$remote_temp" \
+  H5_RELEASE_REMOTE_TEMP_CADDY="$remote_temp_base" \
+  H5_RELEASE_OWNER_TOKEN="$owner_token" \
     "$script" recover >"$case_dir/output.log" 2>&1
   status=$?
   set -e
@@ -185,9 +192,9 @@ run_case() {
   grep -q 'h5-candidate.bak' "$case_dir/ssh-commands"
   if [[ "$expected" == pass ]]; then
     ! grep -q h5-candidate "$remote_caddy"
-    [[ ! -e "$remote_dist" && ! -e "${remote_dist}.upload.old" &&
-       ! -e "${remote_dist}.upload.new" && ! -e "${remote_caddy}.h5-candidate.bak" &&
-       ! -e "$remote_temp" ]]
+    [[ ! -e "$remote_dist" && ! -e "${remote_dist}.upload.${owner_token}" &&
+       -e "${remote_dist}.upload.other" && ! -e "$remote_lock" &&
+       ! -e "${remote_caddy}.h5-candidate.bak" && ! -e "$remote_temp" ]]
   fi
   echo "[h5-candidate-test] $name: $expected"
 }
@@ -208,6 +215,38 @@ run_case "admin-fallback-after-cleanup" pass success admin
 run_case "candidate-check-error" fail success error
 run_case "runtime-drift" fail success 404 e2ee
 run_case "admin-unavailable" fail success 404 plaintext unavailable
+
+owner_dir="$tmp_dir/non-owner-cleanup"
+owner_dist="$owner_dir/remote/srv/redcode-h5-candidate"
+owner_lock="${owner_dist}.lock"
+owner_caddy="$owner_dir/remote/etc/caddy/Caddyfile"
+mkdir -p "$owner_dist" "$owner_lock" "${owner_caddy%/*}" "$owner_dir/remote/tmp"
+printf '%s\n' owner-original >"$owner_lock/owner"
+printf '%s\n' 'candidate h5-candidate route' >"$owner_caddy"
+printf '%s\n' 'original admin route' >"${owner_caddy}.h5-candidate.bak"
+: >"$owner_dir/ssh-count"
+: >"$owner_dir/ssh-commands"
+: >"$owner_dir/curl-calls"
+set +e
+PATH="$bin_dir:$PATH" \
+H5_TEST_SSH_COUNT="$owner_dir/ssh-count" \
+H5_TEST_SSH_COMMANDS="$owner_dir/ssh-commands" \
+H5_TEST_CURL_CALLS="$owner_dir/curl-calls" \
+H5_TEST_SSH_MODE=success \
+H5_RELEASE_REMOTE_DIST="$owner_dist" \
+H5_RELEASE_REMOTE_LOCK="$owner_lock" \
+H5_RELEASE_REMOTE_CADDY="$owner_caddy" \
+H5_RELEASE_REMOTE_TEMP_CADDY="$owner_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=owner-intruder \
+H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
+  "$script" recover >"$owner_dir/output.log" 2>&1
+owner_status=$?
+set -e
+[[ "$owner_status" != 0 && -d "$owner_dist" && -d "$owner_lock" ]]
+grep -q 'lock owner mismatch' "$owner_dir/output.log"
+grep -q h5-candidate "$owner_caddy"
+echo "[h5-candidate-test] non-owner cleanup: fail closed"
+
 run_case "first-recovery" pass success
 first_dir="$tmp_dir/first-recovery"
 set +e
@@ -220,8 +259,10 @@ H5_RELEASE_CLEANUP_RETRIES=3 \
 H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
 H5_RELEASE_CLEANUP_HARD_TIMEOUT=5 \
 H5_RELEASE_REMOTE_DIST="$first_dir/remote/srv/redcode-h5-candidate" \
+H5_RELEASE_REMOTE_LOCK="$first_dir/remote/srv/redcode-h5-candidate.lock" \
 H5_RELEASE_REMOTE_CADDY="$first_dir/remote/etc/caddy/Caddyfile" \
 H5_RELEASE_REMOTE_TEMP_CADDY="$first_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=owner-first-recovery \
   "$script" recover >>"$first_dir/output.log" 2>&1
 second_status=$?
 set -e
@@ -231,7 +272,7 @@ echo "[h5-candidate-test] second-idempotent-recovery: pass"
 
 normal_dir="$tmp_dir/normal-command-failure"
 mkdir -p "$normal_dir/dist" "$normal_dir/tmp"
-mkdir -p "$normal_dir/remote/etc/caddy" "$normal_dir/remote/tmp"
+mkdir -p "$normal_dir/remote/etc/caddy" "$normal_dir/remote/tmp" "$normal_dir/remote/srv"
 printf '%s\n' 'original admin route' >"$normal_dir/remote/etc/caddy/Caddyfile"
 printf '%s\n' '{"assets":[]}' >"$normal_dir/dist/release-manifest.json"
 printf '%s\n' '{"content-security-policy":"default-src '\''none'\''; connect-src '\''self'\''"}' >"$normal_dir/dist/security-headers.json"
@@ -249,8 +290,10 @@ H5_TEST_SSH_MODE=success \
 H5_RELEASE_DIST="$normal_dir/dist" \
 H5_RELEASE_CADDYFILE="$normal_dir/Caddyfile" \
 H5_RELEASE_REMOTE_DIST="$normal_dir/remote/srv/redcode-h5-candidate" \
+H5_RELEASE_REMOTE_LOCK="$normal_dir/remote/srv/redcode-h5-candidate.lock" \
 H5_RELEASE_REMOTE_CADDY="$normal_dir/remote/etc/caddy/Caddyfile" \
 H5_RELEASE_REMOTE_TEMP_CADDY="$normal_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=normal-owner \
 H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
 H5_RELEASE_CLEANUP_HARD_TIMEOUT=5 \
   "$script" bash -c 'exit 23' >"$normal_dir/output.log" 2>&1
@@ -274,6 +317,7 @@ echo "[h5-candidate-test] command failure trap: pass"
 preflight_dir="$tmp_dir/preflight-failure"
 mkdir -p "$preflight_dir/dist" "$preflight_dir/tmp" \
   "$preflight_dir/remote/etc/caddy" "$preflight_dir/remote/tmp"
+mkdir -p "$preflight_dir/remote/srv"
 printf '%s\n' '{"assets":[]}' >"$preflight_dir/dist/release-manifest.json"
 printf '%s\n' '{"content-security-policy":"default-src '\''none'\''; connect-src '\''self'\''"}' >"$preflight_dir/dist/security-headers.json"
 printf '%s\n' 'header Content-Security-Policy "{{H5_CANDIDATE_CSP}}"' >"$preflight_dir/Caddyfile"
@@ -291,8 +335,10 @@ H5_TEST_SSH_MODE=preflight-fail \
 H5_RELEASE_DIST="$preflight_dir/dist" \
 H5_RELEASE_CADDYFILE="$preflight_dir/Caddyfile" \
 H5_RELEASE_REMOTE_DIST="$preflight_dir/remote/srv/redcode-h5-candidate" \
+H5_RELEASE_REMOTE_LOCK="$preflight_dir/remote/srv/redcode-h5-candidate.lock" \
 H5_RELEASE_REMOTE_CADDY="$preflight_dir/remote/etc/caddy/Caddyfile" \
 H5_RELEASE_REMOTE_TEMP_CADDY="$preflight_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+H5_RELEASE_OWNER_TOKEN=preflight-owner \
 H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
 H5_RELEASE_CLEANUP_HARD_TIMEOUT=5 \
   "$script" >"$preflight_dir/output.log" 2>&1
@@ -314,6 +360,7 @@ for signal_case in "INT:130" "TERM:143"; do
   signal_dir="$tmp_dir/signal-${signal_name}"
   mkdir -p "$signal_dir/dist" "$signal_dir/tmp" \
     "$signal_dir/remote/etc/caddy" "$signal_dir/remote/tmp"
+  mkdir -p "$signal_dir/remote/srv"
   printf '%s\n' '{"assets":[]}' >"$signal_dir/dist/release-manifest.json"
   printf '%s\n' '{"content-security-policy":"default-src '\''none'\''; connect-src '\''self'\''"}' >"$signal_dir/dist/security-headers.json"
   printf '%s\n' 'header Content-Security-Policy "{{H5_CANDIDATE_CSP}}"' >"$signal_dir/Caddyfile"
@@ -331,8 +378,10 @@ for signal_case in "INT:130" "TERM:143"; do
   H5_RELEASE_DIST="$signal_dir/dist" \
   H5_RELEASE_CADDYFILE="$signal_dir/Caddyfile" \
   H5_RELEASE_REMOTE_DIST="$signal_dir/remote/srv/redcode-h5-candidate" \
+  H5_RELEASE_REMOTE_LOCK="$signal_dir/remote/srv/redcode-h5-candidate.lock" \
   H5_RELEASE_REMOTE_CADDY="$signal_dir/remote/etc/caddy/Caddyfile" \
   H5_RELEASE_REMOTE_TEMP_CADDY="$signal_dir/remote/tmp/redcode-h5-candidate.Caddyfile" \
+  H5_RELEASE_OWNER_TOKEN="signal-${signal_name}" \
   H5_RELEASE_CLEANUP_RETRY_DELAY=0 \
   H5_RELEASE_CLEANUP_HARD_TIMEOUT=5 \
     "$script" bash -c 'kill -s "$1" "$PPID"; sleep 0.1' _ "$signal_name" \
@@ -373,5 +422,13 @@ for unsafe_remote in -V -G bad@-host 'bad host'; do
 done
 echo "[h5-candidate-test] unsafe SSH targets: fail"
 
+set +e
+PATH="$bin_dir:$PATH" H5_RELEASE_OWNER_TOKEN= \
+  "$script" recover >/dev/null 2>&1
+missing_owner_status=$?
+set -e
+[[ "$missing_owner_status" == 64 ]]
+echo "[h5-candidate-test] recover without owner token: fail"
+
 bash -n "$script"
-echo "[h5-candidate-test] 17 个 cleanup/recover 场景全部通过"
+echo "[h5-candidate-test] 19 个 cleanup/recover/owner 场景全部通过"

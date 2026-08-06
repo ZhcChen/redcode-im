@@ -151,6 +151,7 @@ assert.equal(
 );
 
 const release = await parseWorkflow(".github/workflows/release-artifacts.yml");
+assert.match(release.concurrency.group, /inputs\.release_tag/);
 validateGateJob(release.jobs["supply-chain-check"], 90);
 validateReleaseDependencies(release);
 const androidJob = release.jobs["android-app-check"];
@@ -213,6 +214,10 @@ assert.equal(
   "api-linux-*-release",
 );
 const apiBuildJob = release.jobs["api-build"];
+const apiExport = stepByName(apiBuildJob, "Export API image and binary");
+assert.match(apiExport.run, /export-api-artifacts\.sh/);
+assert.equal(apiExport.env.API_RELEASE_ARCH, "${{ matrix.arch }}");
+assert.equal(apiExport.env.API_RELEASE_OUT, "${{ github.workspace }}/.artifacts/api");
 assert.equal(apiBuildJob.permissions.contents, "read");
 assert.equal(apiBuildJob.permissions["id-token"], "write");
 assert.equal(apiBuildJob.permissions.attestations, "write");
@@ -292,10 +297,20 @@ const tagVerification = stepByName(
 assert.match(tagVerification, /refs\/tags\/\$\{RELEASE_TAG\}\^\{commit\}/);
 assert.match(tagVerification, /TAG_COMMIT.*GITHUB_SHA/s);
 assert.match(tagVerification, /must already exist/);
-assert.match(
-  stepByName(release.jobs["publish-release"], "Create or update GitHub release")
-    .run,
-  /--target "\$\{GITHUB_SHA\}"/,
+const createRelease = stepByName(
+  release.jobs["publish-release"],
+  "Create GitHub release",
+);
+assert.match(createRelease.run, /create-github-release\.sh/);
+const createReleaseScript = await readFile(
+  resolve(root, "scripts/release/create-github-release.sh"),
+  "utf8",
+);
+assert.match(createReleaseScript, /already exists and is immutable/);
+assert.match(createReleaseScript, /--target "\$candidate_sha"/);
+assert.doesNotMatch(
+  createReleaseScript,
+  /release delete-asset|release upload|--clobber|release edit/,
 );
 assert.ok(
   !publishSteps.some(

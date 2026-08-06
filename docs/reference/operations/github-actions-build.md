@@ -48,4 +48,19 @@ H5 archive、Android APK candidate 与每个架构的 API release 文件都通�
 - API release Dockerfile 的 builder/runtime base image 均固定 manifest digest，Cargo 构建使用
   `--locked`；更新基础镜像必须显式更新 digest 并重新执行供应链与 release workflow 门禁。
 - Desktop 的 Linux / Windows arm64 当前会补齐 Tauri sidecar 占位文件；视频缩略图功能在这些平台仍按客户端代码返回“不支持”。
-- 重新发布同一个 tag 会先删除该 GitHub Release 的既有 assets，再上传本轮全量产物。
+- GitHub Release 是 immutable create-only；目标 tag 已存在 Release 时 workflow 直接失败，
+  不删除、不覆盖、不编辑既有 assets。需要重新发布时必须使用新的版本 tag。
+
+## H5 候选窗口互斥
+
+H5 production candidate window 会在远端以 `mkdir` 原子获取
+`/srv/redcode-h5-candidate.lock`，并写入本次 owner token。并发实例无法复用同一窗口，
+cleanup 也只允许删除 owner 匹配的候选目录和 Caddy 备份。
+
+正常运行会自动生成并输出 owner token。进程异常退出后，使用原 token 恢复：
+
+```bash
+H5_RELEASE_OWNER_TOKEN=<original-token> scripts/h5-release-candidate-window.sh recover
+```
+
+缺少 token 或 token 与远端 owner 不一致时 recover 必须 fail closed，不得强制删除其他实例资源。
