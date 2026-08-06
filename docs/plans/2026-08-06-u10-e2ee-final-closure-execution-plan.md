@@ -7,15 +7,19 @@ artifact_readiness: implementation-ready
 product_contract_source: docs/plans/2026-08-04-002-feat-u10-e2ee-remaining-work-plan.md
 product_contract_preservation: "Product Contract unchanged"
 execution: code-and-operations
-status: active
+status: superseded
 current_unit: F6.1
 current_checkpoint: F6.1-R2-remediation
 verdict: no-go
 last_progress_update: 2026-08-06
 supersedes: docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md
+superseded_by: docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md
 ---
 
 # security: U10 E2EE 最终收口执行计划
+
+> 本计划已由 `docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md`
+> 取代，仅保留 F1-F6.2 的执行历史与证据映射，不再作为状态恢复或任务派发入口。
 
 ## Goal Capsule
 

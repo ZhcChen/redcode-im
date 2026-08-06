@@ -16,7 +16,7 @@
 - 原生客户端重建执行计划（当前客户端主线）：`docs/plans/2026-08-04-005-feat-native-client-rebuild-plan.md`
 - Flutter U8 设备验收记录：`docs/reviews/2026-08-02-im-2-0-u8-device-acceptance-review.md`
 - H5 Flutter parity 计划（历史归档）：`docs/plans/2026-07-02-001-feat-h5-app-flutter-parity-plan.md`
-- E2EE 最终收口执行计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md`
+- E2EE F6.2 整改与最终裁决计划（当前唯一执行入口）：`docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md`
 - E2EE 剩余收口执行计划（历史执行记录）：`docs/plans/2026-08-06-u10-e2ee-remaining-closure-execution-plan.md`
 - E2EE G4 复审整改完整设计（历史依据）：`docs/plans/2026-08-06-u10-e2ee-g4-remediation-closure-plan.md`
 - E2EE 原生客户端最终验证（已完成）：`docs/plans/2026-08-05-u10-e2ee-native-clients-final-verification-plan.md`
@@ -30,15 +30,15 @@
 
 - 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `F6.1-R2-remediation`。F5.4b run
+- 当前立即任务：唯一 checkpoint 为 `R1-review-and-commit-reliability-fixes`。F5.4b run
   `31071229063` 成功，但 F6.2 四视角重审去重后为 `P0=0/P1=5/P2=0`，候选
   `1bedf20a` 已失效。当前回退关闭 provenance 验签、production environment、
   Release draft 原子发布和 H5 原子 owner lock；重新通过 F5.4b/F6.2 前不得进入 F7，
   生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
-- 当前剩余顺序：严格按 `F6.1-R2 整改 -> F5.4b 新候选 -> F6.2 四视角重审 ->
-  F7 全量与 live 重放` 串行执行。
+- 当前剩余顺序：严格按 `R1 可靠性整改 -> R2 provenance 验签 -> R3 production
+  environment -> R4 新候选与第三轮复审 -> R5 最终裁决` 串行执行。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -80,7 +80,7 @@
     与 Flutter/H5 互操作通过（历史 Flutter 基线）。
   - 验收记录：`docs/reviews/2026-08-04-im-2-0-u9-h5-parity-audit.md`。
 - [ ] `IM2-U10` E2EE 发布门禁
-  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-final-closure-execution-plan.md`。
+  - 唯一执行入口：`docs/plans/2026-08-06-u10-e2ee-f62-remediation-final-plan.md`。
     N1-N7、应用主链、三端互解、恢复/rekey、跨端附件和泄漏扫描的历史验收已完成，
     U7 P0-1 已关闭；G4 最终全量门禁重放仍待执行。
   - F1-F4 已关闭且不重做：Restore run `e1fix20260806g`、subject `aa605931` 的
