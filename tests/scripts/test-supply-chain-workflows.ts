@@ -28,8 +28,20 @@ assert.match(wasmBuildScript, /--remap-path-prefix=\$\{CARGO_HOME\}=\/cargo-home
 assert.match(wasmBuildScript, /--remap-path-prefix=\$\{RUST_SYSROOT\}=\/rust-toolchain/);
 assert.match(wasmBuildScript, /wasm-pack build "\$\{ROOT_DIR\}\/e2ee-core"/);
 
-async function parseWorkflow(path: string): Promise<any> {
-  return Bun.YAML.parse(await readFile(resolve(root, path), "utf8"));
+async function parseDisabledWorkflow(path: string): Promise<any> {
+  const source = await readFile(resolve(root, path), "utf8");
+  const lines = source.split("\n");
+  assert.ok(
+    lines.every((line) => line.length === 0 || line.startsWith("#")),
+    `${path} 必须保持全文件注释，禁止被 GitHub Actions 识别`,
+  );
+
+  const restored = lines
+    .map((line) => line.replace(/^# ?/, ""))
+    .join("\n");
+  const workflow = Bun.YAML.parse(restored);
+  assert.ok(workflow?.on && workflow?.jobs, `${path} 注释内的 workflow 合同无效`);
+  return workflow;
 }
 
 function needs(job: any): string[] {
@@ -119,7 +131,7 @@ function validateReleaseDependencies(workflow: any): void {
   }
 }
 
-const standalone = await parseWorkflow(".github/workflows/supply-chain.yml");
+const standalone = await parseDisabledWorkflow(".github/workflows/supply-chain.yml");
 assert.ok(standalone.on.pull_request_target !== undefined);
 assert.deepEqual(standalone.on.push.branches, ["main"]);
 assert.ok(standalone.on.workflow_dispatch !== undefined);
@@ -151,7 +163,7 @@ assert.equal(
   ".supply-chain-gate/scripts/supply-chain/check.sh",
 );
 
-const release = await parseWorkflow(".github/workflows/release-artifacts.yml");
+const release = await parseDisabledWorkflow(".github/workflows/release-artifacts.yml");
 assert.match(release.concurrency.group, /inputs\.release_tag/);
 assert.equal(release.concurrency["cancel-in-progress"], false);
 validateGateJob(release.jobs["supply-chain-check"], 90);
@@ -471,5 +483,5 @@ try {
 }
 
 console.log(
-  "[supply-chain-workflow-test] triggers, artifacts and release dependencies: pass",
+  "[supply-chain-workflow-test] disabled workflows and preserved contracts: pass",
 );

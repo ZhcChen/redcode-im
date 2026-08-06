@@ -5,20 +5,20 @@ type: security
 artifact_contract: ce-unified-plan/v1
 artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
-status: active
+status: superseded
 current_unit: C2
 current_checkpoint: C2.1-wait-github-actions-recovery
 verdict: no-go
 supersedes: docs/plans/2026-08-06-u10-e2ee-release-final-closure-plan.md
+superseded_by: docs/plans/2026-08-07-u10-e2ee-local-release-closure-plan.md
 ---
 
 # security: U10 E2EE 发布收口恢复执行计划
 
 ## 1. 目标与定位
 
-本文是 U10 E2EE 从 2026-08-07 恢复执行的**唯一 active 计划**，只管理尚未完成的
-`C2 -> C3 -> C4`。已完成的 N1-N7、U1-U7、F1-F6.2 和 C1 不再展开为实施任务，
-其细节保留在历史 plan、review 与 git 记录中。
+本文已由 `docs/plans/2026-08-07-u10-e2ee-local-release-closure-plan.md` 取代。GitHub
+Actions 已按决策暂时全部注释，本文件仅保留为历史恢复记录，不再派发 C2-C4。
 
 目标是在不改变产品范围、不扩展服务端契约、不触碰 `im-test-1` 旧主数据面的前提下，
 为实现候选 `6a1585ddb68b1947fc5d6e34c7df680c1b322fd2` 重建 Release evidence，完成
