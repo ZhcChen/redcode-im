@@ -30,15 +30,15 @@
 
 - 当前主线：U10 Release CI 差异收口 -> 四视角最终重审 -> 干净基线全量与 live
   重放 -> 最终 Go/No-Go 裁决 -> 原生功能迁移总收口 -> 多平台发布。
-- 当前立即任务：唯一 checkpoint 为 `F6.2-independent-review`。F6.1-A 至 E 已全部
-  完成并推送，整改后候选为 `1bedf20a`；F5.4b run `31071229063` 的所有必需 jobs、
-  H5/Android/API provenance、machine evidence 与 tag/Release 零副作用均已通过。
-  当前只执行 correctness/security/reliability/testing 四个全新独立上下文重审；
-  四视角 `P0/P1` 清零前不得进入 F7，生产 E2EE 继续 **No-Go**。
+- 当前立即任务：唯一 checkpoint 为 `F6.1-R2-remediation`。F5.4b run
+  `31071229063` 成功，但 F6.2 四视角重审去重后为 `P0=0/P1=5/P2=0`，候选
+  `1bedf20a` 已失效。当前回退关闭 provenance 验签、production environment、
+  Release draft 原子发布和 H5 原子 owner lock；重新通过 F5.4b/F6.2 前不得进入 F7，
+  生产 E2EE 继续 **No-Go**。
 - U10 状态只由上述唯一执行计划的 frontmatter、当前执行看板和恢复快照推进；本总账
   不再复制中间 checkpoint 的完整历史，避免双重状态源。
-- 当前剩余顺序：严格按 `F6.2 四视角重审 -> F7 全量与 live 重放` 串行执行；
-  F6.1 与 F5.4b 已关闭，不再重做。
+- 当前剩余顺序：严格按 `F6.1-R2 整改 -> F5.4b 新候选 -> F6.2 四视角重审 ->
+  F7 全量与 live 重放` 串行执行。
 - 当前发布阻断项：U10 G4 最终裁决、原生功能迁移总收口、签名/版本/升级/回滚链路。
 - 朋友圈、扫一扫、附近的人、音视频通话和游戏默认不阻断 2.0 核心首发；只有本总账明确标记为“2.0 首发必需”的 P1 切片才成为发布门禁。
 - `ANDROID-P1-01 聊天扩展` 的既有实现与验证证据随 `android-app` 基座恢复保留，
@@ -88,8 +88,8 @@
   - F5 首轮已关闭：run `31065710816` 全部必需 jobs 成功，五个 artifacts、H5 SLSA
     provenance 与候选 `eff9e9fd` 一致，tag/Release 零副作用；但该候选因 F6 首轮复审
     不通过而失效，不能作为 F7 候选复用。
-  - F6 首轮独立复审发现的 9 个 P1 与同路径 3 个 P2 已由 F6.1-A 至 E 关闭；
-    F5.4b 新候选 workflow 已成功，当前等待 F6.2 四视角 P0/P1 清零。
+  - F6 首轮 9 个 P1 与同路径 3 个 P2 已关闭；第二轮 F6.2 又发现 5 个去重 P1，
+    当前候选失效并回退整改，详见 `docs/reviews/2026-08-06-u10-e2ee-f62-independent-review.md`。
   - 未关闭时阻断 2.0 发布。
 - [ ] `IM2-U11` P1 可选纵向切片
   - 朋友圈、扫一扫、附近的人、音视频通话、游戏均需独立子计划；当前均未批准为核心首发必需。
