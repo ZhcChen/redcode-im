@@ -30,13 +30,43 @@ cat >"$bin_dir/gh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >>"${RELEASE_TEST_GH_LOG:?}"
-if [[ "$1 $2" == "release view" ]]; then
-  [[ "${RELEASE_TEST_GH_MODE:-missing}" == existing ]]
-elif [[ "$1 $2" == "release create" ]]; then
-  [[ "${RELEASE_TEST_GH_MODE:-missing}" == missing ]]
-else
-  exit 70
-fi
+state_file="${RELEASE_TEST_GH_STATE:?}"
+state="$(cat "$state_file")"
+case "$1 $2" in
+  'release view')
+    [[ "$state" != missing ]] || exit 1
+    if [[ "$*" == *'--json isDraft,body'* ]]; then
+      [[ "$state" == draft ]] && printf 'true\n' || printf 'false\n'
+      cat "${RELEASE_TEST_GH_BODY:?}"
+    fi
+    ;;
+  'release create')
+    [[ "$state" == missing ]] || exit 1
+    notes_file=''
+    while (( $# > 0 )); do
+      if [[ "$1" == --notes-file ]]; then notes_file="$2"; break; fi
+      shift
+    done
+    cp "$notes_file" "${RELEASE_TEST_GH_BODY:?}"
+    printf 'draft\n' >"$state_file"
+    ;;
+  'release upload')
+    count_file="${RELEASE_TEST_GH_UPLOAD_COUNT:?}"
+    count=$(( $(cat "$count_file") + 1 ))
+    printf '%s\n' "$count" >"$count_file"
+    [[ "$count" != "${RELEASE_TEST_GH_FAIL_UPLOAD_AT:-0}" ]] || exit 42
+    ;;
+  'release edit')
+    [[ "$state" == draft && "$*" == *'--draft=false'* ]]
+    printf 'published\n' >"$state_file"
+    ;;
+  'release delete')
+    [[ "$state" == draft ]]
+    [[ "${RELEASE_TEST_GH_DELETE_MODE:-success}" == success ]] || exit 43
+    printf 'missing\n' >"$state_file"
+    ;;
+  *) exit 70 ;;
+esac
 SH
 chmod +x "$bin_dir/docker" "$bin_dir/gh"
 
@@ -75,7 +105,11 @@ echo "[release-reliability-test] API export success cleanup: pass"
 
 mkdir -p "$temp_dir/assets"
 printf 'asset\n' >"$temp_dir/assets/app.bin"
+printf 'asset 2\n' >"$temp_dir/assets/app.sig"
 printf 'notes\n' >"$temp_dir/notes.md"
+gh_state="$temp_dir/gh-state"
+gh_body="$temp_dir/gh-body"
+gh_upload_count="$temp_dir/gh-upload-count"
 common_release_env=(
   "PATH=$bin_dir:$PATH"
   "RELEASE_TEST_GH_LOG=$gh_log"
@@ -83,10 +117,17 @@ common_release_env=(
   "GITHUB_SHA=1111111111111111111111111111111111111111"
   "RELEASE_ASSETS_DIR=$temp_dir/assets"
   "RELEASE_NOTES_FILE=$temp_dir/notes.md"
+  "RELEASE_OWNER_TOKEN=run-100-attempt-1"
+  "RELEASE_TEST_GH_STATE=$gh_state"
+  "RELEASE_TEST_GH_BODY=$gh_body"
+  "RELEASE_TEST_GH_UPLOAD_COUNT=$gh_upload_count"
 )
 
+printf 'published\n' >"$gh_state"
+: >"$gh_body"
+printf '0\n' >"$gh_upload_count"
 set +e
-env "${common_release_env[@]}" RELEASE_TEST_GH_MODE=existing \
+env "${common_release_env[@]}" \
   "$root_dir/scripts/release/create-github-release.sh" >/dev/null 2>&1
 existing_status=$?
 set -e
@@ -96,8 +137,60 @@ grep -Fxq 'release view v9.9.9-f6test' "$gh_log"
 echo "[release-reliability-test] existing Release immutable: fail closed"
 
 : >"$gh_log"
-env "${common_release_env[@]}" RELEASE_TEST_GH_MODE=missing \
+printf 'missing\n' >"$gh_state"
+printf '0\n' >"$gh_upload_count"
+env "${common_release_env[@]}" \
   "$root_dir/scripts/release/create-github-release.sh"
-grep -q '^release create v9.9.9-f6test ' "$gh_log"
-! grep -Eq 'delete-asset|release upload|--clobber|release edit' "$gh_log"
-echo "[release-reliability-test] new Release create-only: pass"
+grep -Eq '^release create v9\.9\.9-f6test .*--draft' "$gh_log"
+[[ "$(grep -c '^release upload ' "$gh_log")" == 2 ]]
+grep -Fxq 'release edit v9.9.9-f6test --draft=false' "$gh_log"
+[[ "$(cat "$gh_state")" == published ]]
+! grep -q '^release delete ' "$gh_log"
+echo "[release-reliability-test] draft upload and publish: pass"
+
+: >"$gh_log"
+printf 'missing\n' >"$gh_state"
+printf '0\n' >"$gh_upload_count"
+set +e
+env "${common_release_env[@]}" RELEASE_TEST_GH_FAIL_UPLOAD_AT=2 \
+  "$root_dir/scripts/release/create-github-release.sh" >/dev/null 2>&1
+upload_status=$?
+set -e
+[[ "$upload_status" == 42 ]]
+grep -Fxq 'release delete v9.9.9-f6test --yes' "$gh_log"
+! grep -q -- '--cleanup-tag' "$gh_log"
+[[ "$(cat "$gh_state")" == missing ]]
+
+: >"$gh_log"
+printf '0\n' >"$gh_upload_count"
+env "${common_release_env[@]}" \
+  "$root_dir/scripts/release/create-github-release.sh"
+[[ "$(cat "$gh_state")" == published ]]
+echo "[release-reliability-test] partial upload cleanup and same-tag retry: pass"
+
+: >"$gh_log"
+printf 'missing\n' >"$gh_state"
+printf '0\n' >"$gh_upload_count"
+set +e
+env "${common_release_env[@]}" RELEASE_TEST_GH_FAIL_UPLOAD_AT=2 RELEASE_TEST_GH_DELETE_MODE=fail \
+  "$root_dir/scripts/release/create-github-release.sh" >/dev/null 2>&1
+cleanup_status=$?
+set -e
+[[ "$cleanup_status" == 42 ]]
+[[ "$(cat "$gh_state")" == draft ]]
+grep -Fxq 'release delete v9.9.9-f6test --yes' "$gh_log"
+echo "[release-reliability-test] cleanup failure preserves owned draft: pass"
+
+: >"$gh_log"
+printf 'draft\n' >"$gh_state"
+printf 'true\nforeign release\n' >"$gh_body"
+printf '0\n' >"$gh_upload_count"
+set +e
+env "${common_release_env[@]}" \
+  "$root_dir/scripts/release/create-github-release.sh" >/dev/null 2>&1
+foreign_status=$?
+set -e
+[[ "$foreign_status" != 0 ]]
+! grep -q '^release delete ' "$gh_log"
+[[ "$(cat "$gh_state")" == draft ]]
+echo "[release-reliability-test] existing foreign draft immutable: fail closed"

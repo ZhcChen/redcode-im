@@ -304,9 +304,15 @@ const createReleaseScript = await readFile(
 );
 assert.match(createReleaseScript, /already exists and is immutable/);
 assert.match(createReleaseScript, /--target "\$candidate_sha"/);
+assert.match(createReleaseScript, /--draft/);
+assert.match(createReleaseScript, /release upload "\$release_tag" "\$asset"/);
+assert.match(createReleaseScript, /release edit "\$release_tag" --draft=false/);
+assert.match(createReleaseScript, /release delete "\$release_tag" --yes/);
+assert.match(createReleaseScript, /redcode-release-owner/);
+assert.match(createReleaseScript, /redcode-release-candidate/);
 assert.doesNotMatch(
   createReleaseScript,
-  /release delete-asset|release upload|--clobber|release edit/,
+  /release delete-asset|--clobber|--cleanup-tag|git push[^\n]*--delete/,
 );
 assert.ok(
   !publishSteps.some(
