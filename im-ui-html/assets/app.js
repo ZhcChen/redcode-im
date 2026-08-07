@@ -2971,27 +2971,13 @@
   }
 
   function renderSpecPreviewColumn(group) {
-    const detailsExpanded = state.specDetailsExpanded;
     return `
-      <section class="surface-card spec-preview-column" aria-label="${escapeHtml(group.title)} 预览界面">
+      <section class="spec-preview-column" aria-label="${escapeHtml(group.title)} 预览界面">
         <div class="spec-preview-column__meta">
-          <div class="spec-preview-column__heading">
-            <button
-              class="icon-button icon-button--soft spec-details-toggle"
-              type="button"
-              data-action="toggle-spec-details"
-              aria-expanded="${detailsExpanded}"
-              aria-controls="spec-navigation spec-details"
-              aria-label="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
-              title="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
-            >
-              ${renderIcon(detailsExpanded ? "back" : "chevronRight", "icon-button__glyph")}
-            </button>
-            <span class="spec-preview-column__label">${escapeHtml(group.title)} · 实时预览</span>
-          </div>
+          <span class="spec-preview-column__label">移动画布</span>
           <div class="chip-row">
-            <span class="chip chip--filled">${escapeHtml(group.eyebrow)}</span>
-            <span class="chip">手机画布</span>
+            <span class="chip chip--filled">${escapeHtml(group.title)}</span>
+            <span class="chip">100%</span>
           </div>
         </div>
         <div class="spec-preview-column__body spec-scroll-area">
@@ -3026,43 +3012,61 @@
   function renderSpecScreen() {
     const system = data.designSystem;
     const group = activeSpecGroup();
+    const detailsExpanded = state.specDetailsExpanded;
 
     return `
-      <section class="spec-stage ${state.specDetailsExpanded ? "is-details-expanded" : "is-details-collapsed"}" aria-label="规范设计工作台">
-        <aside id="spec-navigation" class="surface-card spec-sidebar">
-          <div class="spec-sidebar__group-list spec-scroll-area">
-            ${system.specGroups.map(renderSpecNavItem).join("")}
-          </div>
-          <div class="spec-sidebar__aux">
-            <div class="surface-block spec-sidebar__settings">
-              <div class="spec-sidebar__settings-header">
-                <p class="section-title">显示设置</p>
-                <div class="chip-row">
-                  <span class="chip chip--filled">${themeLabel(state.theme)}</span>
-                  <span class="chip">${densityLabel(state.density)}</span>
-                </div>
-              </div>
-              <div class="spec-setting-group">
-                <span class="toolbar-label">主题</span>
-                <div class="segmented segmented--fluid">
-                  ${renderThemeButton("light", "浅色")}
-                  ${renderThemeButton("dark", "深色")}
-                </div>
-              </div>
-              <div class="spec-setting-group">
-                <span class="toolbar-label">密度</span>
-                <div class="segmented segmented--fluid">
-                  ${renderDensityButton("regular", "2K")}
-                  ${renderDensityButton("mid", "1.5K")}
-                  ${renderDensityButton("compact", "1K")}
-                </div>
-              </div>
+      <section class="spec-stage" aria-label="规范设计工作台">
+        <header class="spec-workspace-bar">
+          <div class="spec-workspace-bar__identity">
+            <button
+              class="spec-workspace-bar__toggle"
+              type="button"
+              data-action="toggle-spec-details"
+              aria-expanded="${detailsExpanded}"
+              aria-controls="spec-navigation spec-details"
+              aria-label="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
+              title="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
+            >
+              ${renderIcon(detailsExpanded ? "back" : "chevronRight", "spec-workspace-bar__toggle-icon")}
+            </button>
+            <div class="spec-workspace-bar__title">
+              <strong>RedCode UI</strong>
+              <span>/</span>
+              <span>${escapeHtml(group.title)}</span>
             </div>
           </div>
-        </aside>
+          <div class="spec-workspace-bar__controls">
+            <div class="spec-workspace-control" aria-label="预览主题">
+              ${renderThemeButton("light", "浅色")}
+              ${renderThemeButton("dark", "深色")}
+            </div>
+            <div class="spec-workspace-control" aria-label="预览密度">
+              ${renderDensityButton("regular", "2K")}
+              ${renderDensityButton("mid", "1.5K")}
+              ${renderDensityButton("compact", "1K")}
+            </div>
+            <span class="spec-workspace-bar__status"><i></i> 设计源</span>
+          </div>
+        </header>
 
-        ${renderSpecSecondaryColumn(group)}
-        ${renderSpecPreviewColumn(group)}
+        <div class="spec-workspace ${detailsExpanded ? "is-details-expanded" : "is-details-collapsed"}">
+          <aside id="spec-navigation" class="spec-sidebar" aria-label="规范目录">
+            <div class="spec-sidebar__heading">
+              <span>规范目录</span>
+              <strong>Foundation</strong>
+            </div>
+            <nav class="spec-sidebar__group-list spec-scroll-area">
+              ${system.specGroups.map(renderSpecNavItem).join("")}
+            </nav>
+            <div class="spec-sidebar__footer">
+              <span>${system.specGroups.length} 个分组</span>
+              <span>v2.0</span>
+            </div>
+          </aside>
+
+          ${renderSpecSecondaryColumn(group)}
+          ${renderSpecPreviewColumn(group)}
+        </div>
       </section>
     `;
   }
