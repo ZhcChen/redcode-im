@@ -2,6 +2,27 @@ import { expect, test } from '@playwright/test';
 
 import { openPreview } from './preview';
 
+test('spec workspace keeps guidance collapsed until requested', async ({ page }) => {
+  await page.goto('/#/spec');
+
+  const toggle = page.getByRole('button', { name: '展开规范说明' });
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#spec-navigation')).toBeHidden();
+  await expect(page.locator('#spec-details')).toBeHidden();
+  await expect(page.locator('.spec-preview-column')).toBeVisible();
+
+  await toggle.click();
+  const collapse = page.getByRole('button', { name: '收起规范说明' });
+  await expect(collapse).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#spec-navigation')).toBeVisible();
+  await expect(page.locator('#spec-details')).toBeVisible();
+
+  await collapse.click();
+  await expect(page.getByRole('button', { name: '展开规范说明' })).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#spec-navigation')).toBeHidden();
+  await expect(page.locator('#spec-details')).toBeHidden();
+});
+
 test('short press enters chat and route transition animates', async ({ page }, testInfo) => {
   await openPreview(page, testInfo, '/chats');
   const firstChat = page.locator('.runtime-conversation__open').first();

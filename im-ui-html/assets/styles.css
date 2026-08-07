@@ -2226,6 +2226,15 @@ img {
   align-items: stretch;
 }
 
+.spec-stage.is-details-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.spec-stage.is-details-collapsed .spec-sidebar,
+.spec-stage.is-details-collapsed .spec-secondary-column {
+  display: none;
+}
+
 body[data-theme="dark"] .spec-stage {
   --primary: #5b8cff;
   --primary-strong: #8cb3ff;
@@ -2645,6 +2654,17 @@ body[data-theme="dark"] .spec-stage {
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
+}
+
+.spec-preview-column__heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.spec-details-toggle {
+  flex: 0 0 auto;
 }
 
 .spec-preview-column__label {
@@ -7046,6 +7066,11 @@ body[data-theme="dark"] .spec-stage {
     grid-template-rows: clamp(16rem, 29vh, 19rem) minmax(0, 1fr);
   }
 
+  .spec-stage.is-details-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+
   .spec-sidebar {
     grid-column: 1 / -1;
     grid-template-columns: minmax(0, 1.15fr) minmax(17rem, 0.92fr);
@@ -7131,6 +7156,10 @@ body[data-theme="dark"] .spec-stage {
       clamp(18rem, 34vh, 21rem)
       clamp(15rem, 28vh, 18rem)
       minmax(0, 1fr);
+  }
+
+  .spec-stage.is-details-collapsed {
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .spec-sidebar,
@@ -7260,6 +7289,10 @@ body[data-theme="dark"] .spec-stage {
       clamp(16rem, 34vh, 19rem)
       clamp(14rem, 26vh, 16.5rem)
       minmax(0, 1fr);
+  }
+
+  .spec-stage.is-details-collapsed {
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .spec-sidebar,

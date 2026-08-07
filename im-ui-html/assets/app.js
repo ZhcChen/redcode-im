@@ -92,6 +92,7 @@
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
     activeSpecTab: "components",
+    specDetailsExpanded: false,
     savedGroupIds: new Set(["g_launch"]),
     expandedGroupMemberIds: new Set(),
     chatFilter: "",
@@ -2956,7 +2957,7 @@
 
   function renderSpecSecondaryColumn(group) {
     return `
-      <section class="spec-secondary-column" aria-label="${escapeHtml(group.title)} 二级列表内容">
+      <section id="spec-details" class="spec-secondary-column" aria-label="${escapeHtml(group.title)} 二级列表内容">
         <section class="surface-card spec-secondary-column__intro">
           <span class="eyebrow">${escapeHtml(group.eyebrow)}</span>
           <h3>${escapeHtml(group.title)}</h3>
@@ -2970,10 +2971,24 @@
   }
 
   function renderSpecPreviewColumn(group) {
+    const detailsExpanded = state.specDetailsExpanded;
     return `
       <section class="surface-card spec-preview-column" aria-label="${escapeHtml(group.title)} 预览界面">
         <div class="spec-preview-column__meta">
-          <span class="spec-preview-column__label">${escapeHtml(group.title)} · 实时预览</span>
+          <div class="spec-preview-column__heading">
+            <button
+              class="icon-button icon-button--soft spec-details-toggle"
+              type="button"
+              data-action="toggle-spec-details"
+              aria-expanded="${detailsExpanded}"
+              aria-controls="spec-navigation spec-details"
+              aria-label="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
+              title="${detailsExpanded ? "收起规范说明" : "展开规范说明"}"
+            >
+              ${renderIcon(detailsExpanded ? "back" : "chevronRight", "icon-button__glyph")}
+            </button>
+            <span class="spec-preview-column__label">${escapeHtml(group.title)} · 实时预览</span>
+          </div>
           <div class="chip-row">
             <span class="chip chip--filled">${escapeHtml(group.eyebrow)}</span>
             <span class="chip">手机画布</span>
@@ -3013,8 +3028,8 @@
     const group = activeSpecGroup();
 
     return `
-      <section class="spec-stage" aria-label="规范设计工作台">
-        <aside class="surface-card spec-sidebar">
+      <section class="spec-stage ${state.specDetailsExpanded ? "is-details-expanded" : "is-details-collapsed"}" aria-label="规范设计工作台">
+        <aside id="spec-navigation" class="surface-card spec-sidebar">
           <div class="spec-sidebar__group-list spec-scroll-area">
             ${system.specGroups.map(renderSpecNavItem).join("")}
           </div>
@@ -8568,6 +8583,11 @@
     }
     if (action === "set-spec-tab") {
       state.activeSpecTab = target.getAttribute("data-tab");
+      render();
+      return;
+    }
+    if (action === "toggle-spec-details") {
+      state.specDetailsExpanded = !state.specDetailsExpanded;
       render();
       return;
     }
