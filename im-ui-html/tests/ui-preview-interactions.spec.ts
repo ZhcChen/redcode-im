@@ -23,6 +23,15 @@ test('spec workspace keeps guidance collapsed until requested', async ({ page })
   await expect(page.locator('#spec-details')).toBeHidden();
 });
 
+test('brand specification exposes the app logo and scale samples', async ({ page }) => {
+  await page.goto('/#/spec');
+
+  await expect(page.locator('.brand-phone-hero__logo')).toHaveAttribute('src', './assets/redcode-app-logo.svg');
+  await page.getByRole('button', { name: '展开规范说明' }).click();
+  await expect(page.getByRole('heading', { name: 'Signal R' })).toBeVisible();
+  await expect(page.locator('.brand-size-sample')).toHaveCount(11);
+});
+
 test('short press enters chat and route transition animates', async ({ page }, testInfo) => {
   await openPreview(page, testInfo, '/chats');
   const firstChat = page.locator('.runtime-conversation__open').first();

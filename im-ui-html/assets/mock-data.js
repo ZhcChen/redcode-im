@@ -161,6 +161,12 @@ window.RedcodeIMPrototypeData = {
     ],
     specGroups: [
       {
+        id: "brand",
+        title: "品牌",
+        eyebrow: "App Logo",
+        summary: "Signal R 将消息框、发送轨迹与在线节点收敛成一个可跨平台缩放的应用标识。",
+      },
+      {
         id: "components",
         title: "组件",
         eyebrow: "UI Kit",

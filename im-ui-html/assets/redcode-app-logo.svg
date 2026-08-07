@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">RedCode IM Signal R</title>
+  <desc id="desc">由消息框和发送轨迹组成的抽象字母 R 应用图标</desc>
+  <rect width="1024" height="1024" rx="224" fill="#111827"/>
+  <path
+    fill="#F8FAFC"
+    fill-rule="evenodd"
+    d="M244 218h300c147 0 244 82 244 211 0 88-47 154-127 187l139 190H634L514 638h-99v168H244V218Zm171 146v132h123c49 0 77-24 77-67s-28-65-77-65H415Z"
+  />
+  <path fill="#2563EB" d="M615 496h117l68 94H683l-68-94Z"/>
+  <circle cx="690" cy="350" r="37" fill="#5B8CFF"/>
+</svg>

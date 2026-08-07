@@ -91,7 +91,7 @@
     activeChatId: data.chats[0] ? data.chats[0].id : null,
     activeContactId: data.contacts[0] ? data.contacts[0].id : null,
     activeGroupId: data.groups[0] ? data.groups[0].id : null,
-    activeSpecTab: "components",
+    activeSpecTab: "brand",
     specDetailsExpanded: false,
     savedGroupIds: new Set(["g_launch"]),
     expandedGroupMemberIds: new Set(),
@@ -2427,6 +2427,35 @@
     const chat = sortedChats()[0];
     const contact = filteredContacts()[0] || data.contacts[0];
 
+    if (group.id === "brand") {
+      return `
+        <div class="screen-stack">
+          <section class="surface-card brand-phone-hero">
+            <img class="brand-phone-hero__logo" src="./assets/redcode-app-logo.svg" alt="RedCode IM Signal R 应用图标" />
+            <div>
+              <span class="eyebrow">Signal R</span>
+              <h3>RedCode IM</h3>
+              <p>消息抵达，关系在线。</p>
+            </div>
+          </section>
+          <section class="surface-card">
+            <div class="surface-card__header">
+              <h3>桌面尺寸</h3>
+              <span class="badge">App Icon</span>
+            </div>
+            <div class="brand-size-row brand-size-row--phone">
+              ${[64, 48, 32, 24].map((size) => `<span class="brand-size-sample"><img src="./assets/redcode-app-logo.svg" alt="" style="width:${size}px;height:${size}px" /><small>${size}</small></span>`).join("")}
+            </div>
+          </section>
+          <section class="surface-card brand-symbol-story">
+            <span class="brand-symbol-story__line"></span>
+            <strong>对话框 × 发送轨迹 × 在线节点</strong>
+            <p>三个沟通信号组合为抽象 R，不依赖文字也能独立识别。</p>
+          </section>
+        </div>
+      `;
+    }
+
     if (group.id === "components") {
       return `
         <div class="screen-stack">
@@ -2671,6 +2700,53 @@
 
   function renderSpecDetailRail(group) {
     const system = data.designSystem;
+
+    if (group.id === "brand") {
+      return `
+        <section class="brand-spec-hero">
+          <div class="brand-spec-hero__icon-wrap">
+            <img src="./assets/redcode-app-logo.svg" alt="RedCode IM Signal R 应用图标" />
+          </div>
+          <div class="brand-spec-hero__copy">
+            <span class="eyebrow">Primary Mark</span>
+            <h3>Signal R</h3>
+            <p>深墨色承载可靠与隐私，白色主体表达清晰沟通，品牌蓝节点对应消息与在线状态。</p>
+          </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>结构拆解</h3>
+            <span class="badge">Geometry</span>
+          </div>
+          <div class="brand-anatomy">
+            <article><span class="brand-anatomy__shape brand-anatomy__shape--bubble"></span><strong>消息主体</strong><p>厚实几何轮廓保证小尺寸辨识度。</p></article>
+            <article><span class="brand-anatomy__shape brand-anatomy__shape--signal"></span><strong>发送轨迹</strong><p>右下方向形成前进感与 R 的识别特征。</p></article>
+            <article><span class="brand-anatomy__shape brand-anatomy__shape--node"></span><strong>在线节点</strong><p>唯一高亮色用于建立视觉记忆。</p></article>
+          </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>跨平台尺寸</h3>
+            <span class="badge">Scale</span>
+          </div>
+          <div class="brand-size-row">
+            ${[128, 96, 64, 48, 32, 24, 16].map((size) => `<span class="brand-size-sample"><img src="./assets/redcode-app-logo.svg" alt="" style="width:${size}px;height:${size}px" /><small>${size}px</small></span>`).join("")}
+          </div>
+        </section>
+        <section class="surface-card">
+          <div class="surface-card__header">
+            <h3>使用规则</h3>
+            <span class="badge">Rules</span>
+          </div>
+          <ul class="bullet-list">
+            <li>iOS 使用完整方形源图，由系统生成圆角遮罩；源文件禁止预裁圆角。</li>
+            <li>Android 前景符号保持在 66% 安全区，背景层固定使用 Ink 900。</li>
+            <li>24px 以下不增加文字、描边、阴影或渐变，蓝色节点不得移位。</li>
+            <li>单色场景保留主符号轮廓，将节点与主体统一为当前前景色。</li>
+          </ul>
+        </section>
+      `;
+    }
 
     if (group.id === "components") {
       return `
