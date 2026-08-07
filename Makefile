@@ -985,12 +985,23 @@ android-app.coverage: ## 生成 android-app JVM 单元测试覆盖率报告
 
 android-app.build.debug: ## 构建 android-app Debug APK（默认指向 Android Emulator 的 10.0.2.2，可传真机 LAN API/WS）
 	@$(call require_cmd,$(ANDROID_GRADLE))
+	@$(call require_cmd,unzip)
 	@$(require_android_app_network)
 	@ANDROID_HOME="$(ANDROID_HOME)" "$(ANDROID_GRADLE)" -p "$(ANDROID_APP_DIR)" \
 		-Predcode.apiBaseUrl="$(ANDROID_APP_API_BASE_URL)" \
 		-Predcode.wsUrl="$(ANDROID_APP_WS_URL)" \
 		-Predcode.useRemoteAuth="$(ANDROID_APP_USE_REMOTE_AUTH)" \
 		assembleDebug
+	@unzip -l "$(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk" | \
+		grep -Eq 'lib/(arm64-v8a|x86_64)/libjnidispatch\.so' || { \
+			echo "[android-app] Debug APK 缺少 JNA libjnidispatch.so" >&2; \
+			exit 1; \
+		}
+	@unzip -l "$(ANDROID_APP_DIR)/app/build/outputs/apk/debug/app-debug.apk" | \
+		grep -Eq 'lib/(arm64-v8a|x86_64)/libredcode_e2ee_core\.so' || { \
+			echo "[android-app] Debug APK 缺少 libredcode_e2ee_core.so" >&2; \
+			exit 1; \
+		}
 
 android-app.lint: ## 运行 android-app Android Lint
 	@$(call require_cmd,$(ANDROID_GRADLE))
