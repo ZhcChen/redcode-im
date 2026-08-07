@@ -13766,6 +13766,11 @@ body[data-theme="dark"] .mobile-preview-data-switcher__item.is-active {
 }
 
 /* Keep the spec tool isolated from legacy preview component layout rules. */
+.prototype-shell.prototype-shell--spec {
+  padding: 0;
+  gap: 0;
+}
+
 .prototype-shell--spec .spec-stage {
   width: 100%;
   max-width: none;
