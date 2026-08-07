@@ -7,7 +7,7 @@ artifact_readiness: implementation-ready
 product_contract_source: ce-plan-bootstrap
 status: active
 current_unit: L2
-current_checkpoint: L2-full-regression-and-local-evidence
+current_checkpoint: L2-revalidate-after-android-runtime-fix
 verdict: no-go
 supersedes: docs/plans/2026-08-07-u10-e2ee-release-closure-resume-plan.md
 ---
@@ -47,6 +47,8 @@ L4 干净基线/live/最终裁决`。
 | run `31120768166` / `31121705433` | historical-infrastructure-failure | 禁止 rerun；本计划不再等待 Actions |
 | 历史四类 GitHub provenance | historical | 保留审计，不替代新候选的本地证据 |
 | L1 禁用 GitHub Actions | complete | `d570db7e`；远端两个 workflow 全文件注释，push 未触发 run |
+| Android 设备启动修复 | complete | `970ea884`；JNA Android AAR/JVM JAR 分离，APK native 检查与 Emulator 冷启动通过 |
+| L2 旧候选全量回归 | invalidated | `d570db7e` 的 JDK21 `make test.all` 通过，但后续 Android runtime 修复使该候选失效 |
 
 ## 4. Implementation Units
 
@@ -138,9 +140,9 @@ JAVA_HOME=/Users/chen/Library/Java/JavaVirtualMachines/azul-21.0.10/Contents/Hom
 | Field | Value |
 | --- | --- |
 | Active unit | L2 |
-| Active checkpoint | `L2-full-regression-and-local-evidence` |
-| Previous candidate | `6a1585ddb68b1947fc5d6e34c7df680c1b322fd2`，invalidated |
-| Candidate | `d570db7e747ade33e6923cd4220b531488a826a4` |
+| Active checkpoint | `L2-revalidate-after-android-runtime-fix` |
+| Previous candidate | `d570db7e747ade33e6923cd4220b531488a826a4`，invalidated |
+| Candidate | `970ea884fbe67957d08120009998cf8a1851adcf` |
 | GitHub Actions | 全部注释，不再作为依赖 |
-| Earliest action | JDK21 执行 `make test.all`，随后构建本地候选与机器 evidence |
+| Earliest action | 针对 `970ea884...` 用 JDK21 重跑 `make test.all`，随后构建本地候选与机器 evidence |
 | Final verdict | No-Go |
